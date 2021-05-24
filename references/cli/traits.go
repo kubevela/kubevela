@@ -79,8 +79,8 @@ func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOSt
 	return nil
 }
 
-// PrintTraitList print a table which shows all traits from default registry
-func PrintTraitList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
+// PrintRegTraitList print a table which shows all traits from default registry
+func PrintRegTraitList(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -95,8 +95,8 @@ func PrintTraitList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from default registry:%s\n", defaultRegistry)))
-	caps, err := getCapsFromDefaultRegistry()
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from registry: %s\n", url)))
+	caps, err := getCapsFromRegistry(url)
 	if err != nil {
 		return err
 	}
@@ -135,9 +135,9 @@ func PrintTraitList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-// getCapsFromDefaultRegistry will retrieve caps from default registry
-func getCapsFromDefaultRegistry() ([]types.Capability, error) {
-	g, err := getDefaultGithubRegistry()
+// getCapsFromRegistry will retrieve caps from registry
+func getCapsFromRegistry(regUrl string) ([]types.Capability, error) {
+	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regUrl)
 	if err != nil {
 		return []types.Capability{}, err
 	}
@@ -148,17 +148,10 @@ func getCapsFromDefaultRegistry() ([]types.Capability, error) {
 	return caps, nil
 }
 
-// getDefaultGithubRegistry will return GH registry object for defaultRegistry
-func getDefaultGithubRegistry() (*plugins.GithubRegistry, error) {
-	_, ghContent, _ := plugins.Parse(defaultRegistry)
-	g, err := plugins.NewGithubRegistry(context.Background(), "", "default-cap-center", ghContent)
-	return g, err
-}
-
 // InstallTraitByName will install given traitName trait to cluster
-func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName string) error {
+func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName, regUrl string) error {
 
-	g, err := getDefaultGithubRegistry()
+	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regUrl)
 	if err != nil {
 		return err
 	}
@@ -184,8 +177,8 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 	return nil
 }
 
-// defaultRegistry is default capability center of kubectl-vela
-var defaultRegistry = "https://github.com/oam-dev/catalog/tree/master/registry"
+// DefaultRegistry is default capability center of kubectl-vela
+var DefaultRegistry = "https://github.com/oam-dev/catalog/tree/master/registry"
 
 const installed = "installed"
 const uninstalled = "uninstalled"

@@ -93,8 +93,8 @@ func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.
 	return nil
 }
 
-// PrintDefaultCapComponentList print a table which shows all components from default registry
-func PrintDefaultCapComponentList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
+// PrintRegComponentList print a table which shows all components from default registry
+func PrintRegComponentList(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -109,8 +109,8 @@ func PrintDefaultCapComponentList(isDiscover bool, ioStreams cmdutil.IOStreams) 
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from default registry:%s\n", defaultRegistry)))
-	caps, err := getCapsFromDefaultRegistry()
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from registry: %s\n", url)))
+	caps, err := getCapsFromRegistry(url)
 	if err != nil {
 		return err
 	}
@@ -150,9 +150,9 @@ func PrintDefaultCapComponentList(isDiscover bool, ioStreams cmdutil.IOStreams) 
 }
 
 // InstallCompByName will install given componentName comp to cluster from default registry
-func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName string) error {
+func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, regUrl string) error {
 
-	g, err := getDefaultGithubRegistry()
+	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regUrl)
 	if err != nil {
 		return err
 	}

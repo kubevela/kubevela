@@ -27,16 +27,16 @@ import (
 
 // NewCompCommand creates `comp` command
 func NewCompCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var discoverFlag bool
 	cmd := &cobra.Command{
 		Use:                   "comp",
 		DisableFlagsInUseLine: true,
-		Short:                 "Show components in cap center",
-		Long:                  "Show components in cap center",
+		Short:                 "Show components in cap registry",
+		Long:                  "Show components in cap registry",
 		Example:               "kubectl vela comp",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDiscover, _ := cmd.Flags().GetBool("discover")
-			err := cli.PrintDefaultCapComponentList(isDiscover, ioStreams)
+			url, _ := cmd.PersistentFlags().GetString("url")
+			err := cli.PrintRegComponentList(isDiscover, url, ioStreams)
 			return err
 		},
 		Annotations: map[string]string{
@@ -44,7 +44,8 @@ func NewCompCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
-	cmd.Flags().Bool("discover", discoverFlag, "discover traits in registries")
+	cmd.Flags().Bool("discover", false, "discover traits in registries")
+	cmd.PersistentFlags().String("url", cli.DefaultRegistry, "specify the registry URL")
 	cmd.AddCommand(
 		NewCompGetCommand(c, ioStreams),
 	)
@@ -64,7 +65,9 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				return nil
 			}
 			name := args[0]
-			return cli.InstallCompByName(c, ioStreams, name)
+			url, _ := cmd.PersistentFlags().GetString("url")
+
+			return cli.InstallCompByName(c, ioStreams, name, url)
 		},
 	}
 	return cmd

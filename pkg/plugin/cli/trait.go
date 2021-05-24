@@ -27,7 +27,6 @@ import (
 
 // NewTraitCommand creates `trait` command
 func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var discoverFlag bool
 	cmd := &cobra.Command{
 		Use:                   "trait",
 		DisableFlagsInUseLine: true,
@@ -36,7 +35,8 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Example:               "kubectl vela trait",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDiscover, _ := cmd.Flags().GetBool("discover")
-			err := cli.PrintTraitList(isDiscover, ioStreams)
+			url, _ := cmd.PersistentFlags().GetString("url")
+			err := cli.PrintRegTraitList(isDiscover, url, ioStreams)
 			return err
 		},
 		Annotations: map[string]string{
@@ -44,7 +44,8 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
-	cmd.Flags().Bool("discover", discoverFlag, "discover traits in registries")
+	cmd.Flags().Bool("discover", false, "discover traits in registries")
+	cmd.PersistentFlags().String("url", cli.DefaultRegistry, "specify the registry URL")
 	cmd.AddCommand(
 		NewTraitGetCommand(c, ioStreams),
 	)
@@ -64,8 +65,9 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 				return nil
 			}
 			name := args[0]
+			url, _ := cmd.PersistentFlags().GetString("url")
 
-			return cli.InstallTraitByName(c, ioStreams, name)
+			return cli.InstallTraitByName(c, ioStreams, name, url)
 		},
 	}
 	return cmd

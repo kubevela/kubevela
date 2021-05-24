@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"github.com/google/go-github/v32/github"
 	"golang.org/x/oauth2"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -21,19 +26,35 @@ type GithubRegistry struct {
 	client *github.Client
 	cfg    *GithubContent
 	ctx    context.Context
-	name   string
+	name   string // to be used to cache registry
 }
 
-// NewGithubRegistry will create a github registry implementation
-func NewGithubRegistry(ctx context.Context, token, registryName string, cfg *GithubContent) (*GithubRegistry, error) {
-	var tc *http.Client
-	if token != "" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: token},
-		)
-		tc = oauth2.NewClient(ctx, ts)
+// NewRegistry will create a registry implementation
+func NewRegistry(ctx context.Context, token, registryName string, regUrl string) (Registry, error) {
+	if strings.HasPrefix(regUrl, "http") {
+		// todo(qiaozp) support oss
+		_, cfg, err := Parse(regUrl)
+		if err != nil {
+			return nil, err
+		}
+		var tc *http.Client
+		if token != "" {
+			ts := oauth2.StaticTokenSource(
+				&oauth2.Token{AccessToken: token},
+			)
+			tc = oauth2.NewClient(ctx, ts)
+		}
+		return GithubRegistry{client: github.NewClient(tc), cfg: cfg, ctx: ctx, name: registryName}, nil
+		//TODO(qiaozp)
+	} else if strings.HasPrefix(regUrl, "file://") {
+		dir := strings.TrimPrefix(regUrl, "file://")
+		_, err := os.Stat(dir)
+		if os.IsNotExist(err) {
+			return LocalRegistry{}, err
+		}
+		return LocalRegistry{absPath: dir}, nil
 	}
-	return &GithubRegistry{client: github.NewClient(tc), cfg: cfg, ctx: ctx}, nil
+	return nil, fmt.Errorf("not supported url")
 }
 
 func (g GithubRegistry) ListCaps() ([]types.Capability, error) {
@@ -108,6 +129,48 @@ func (g *GithubRegistry) getRepoFile() ([]RepoFile, error) {
 	return items, nil
 }
 
+type LocalRegistry struct {
+	absPath string
+}
+
+func (l LocalRegistry) GetCap(addonName string) (types.Capability, []byte, error) {
+	fileName := addonName + ".yaml"
+	filePath := fmt.Sprintf("%s/%s", l.absPath, fileName)
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return types.Capability{}, []byte{}, err
+	}
+	file := RepoFile{
+		data: data,
+		name: fileName,
+	}
+	capa, err := file.toAddon()
+	if err != nil {
+		return types.Capability{}, []byte{}, err
+	}
+	return capa, data, nil
+}
+
+func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
+	files, _ := filepath.Glob(l.absPath + "/*")
+	capas := make([]types.Capability, 0)
+	for _, file := range files {
+		data, err := ioutil.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		capa, err := RepoFile{
+			data: data,
+			name: path.Base(file),
+		}.toAddon()
+		if err != nil {
+			fmt.Printf("parsing file: %s err: %s\n", file, err)
+			continue
+		}
+		capas = append(capas, capa)
+	}
+	return capas, nil
+}
 func (item RepoFile) toAddon() (types.Capability, error) {
 	dm, err := (&common.Args{}).GetDiscoveryMapper()
 	if err != nil {
