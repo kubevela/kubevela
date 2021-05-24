@@ -127,8 +127,8 @@ var _ = Describe("Test Kubectl Plugin", func() {
 	})
 
 	Context("Test kubectl vela comp discover", func() {
-		It("Test list components in default registry", func() {
-			output, err := e2e.Exec("kubectl-vela comp --discover")
+		It("Test list components in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela comp --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Showing components from default registry"))
 			Expect(output).Should(ContainSubstring("cloneset"))
@@ -137,8 +137,8 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		})
 	})
 	Context("Test kubectl vela trait discover", func() {
-		It("Test list traits in default registry", func() {
-			output, err := e2e.Exec("kubectl-vela trait --discover")
+		It("Test list traits in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Showing traits from default registry"))
 			Expect(output).Should(ContainSubstring("[deployments.apps]"))
@@ -149,7 +149,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 	})
 	Context("Test kubectl vela comp and trait install", func() {
 		It("Test install a sample component", func() {
-			output, err := e2e.Exec("kubectl-vela comp get cloneset")
+			output, err := e2e.Exec("kubectl-vela comp get cloneset --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Successfully install component: cloneset"))
 		})
@@ -161,12 +161,12 @@ var _ = Describe("Test Kubectl Plugin", func() {
 	})
 	Context("Test kubectl vela list installed comp and trait", func() {
 		It("Test list installed component", func() {
-			output, err := e2e.Exec("kubectl-vela comp")
+			output, err := e2e.Exec("kubectl-vela comp --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("cloneset"))
 		})
 		It("Test list installed trait", func() {
-			output, err := e2e.Exec("kubectl-vela trait")
+			output, err := e2e.Exec("kubectl-vela trait --url" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("init-container"))
 		})

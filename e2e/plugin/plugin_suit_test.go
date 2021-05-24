@@ -18,10 +18,15 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
+	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,10 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
-
-	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var k8sClient client.Client
@@ -51,6 +52,7 @@ func TestKubectlPlugin(t *testing.T) {
 	RunSpecs(t, "Kubectl Plugin Suite")
 }
 
+var testRegistryPath string
 var _ = BeforeSuite(func(done Done) {
 	err := clientgoscheme.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
@@ -97,6 +99,10 @@ var _ = BeforeSuite(func(done Done) {
 	err = k8sClient.Create(ctx, &app)
 	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+	By("set test registry absolute path")
+	testRegistryPath, err = filepath.Abs("testdata")
+	fmt.Println(testRegistryPath)
+	Expect(err).Should(BeNil())
 	close(done)
 }, 300)
 

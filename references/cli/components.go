@@ -150,9 +150,9 @@ func PrintRegComponentList(isDiscover bool, url string, ioStreams cmdutil.IOStre
 }
 
 // InstallCompByName will install given componentName comp to cluster from default registry
-func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, regUrl string) error {
+func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, regURL string) error {
 
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regUrl)
+	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
 	if err != nil {
 		return err
 	}

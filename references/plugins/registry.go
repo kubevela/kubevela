@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/google/go-github/v32/github"
-	"golang.org/x/oauth2"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -13,15 +11,20 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/go-github/v32/github"
+	"golang.org/x/oauth2"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+// Registry define a registry stores trait & component defs
 type Registry interface {
 	GetCap(addonName string) (types.Capability, []byte, error)
 	ListCaps() ([]types.Capability, error)
 }
 
+// GithubRegistry is Registry's implementation trait github url as resource
 type GithubRegistry struct {
 	client *github.Client
 	cfg    *GithubContent
@@ -30,10 +33,10 @@ type GithubRegistry struct {
 }
 
 // NewRegistry will create a registry implementation
-func NewRegistry(ctx context.Context, token, registryName string, regUrl string) (Registry, error) {
-	if strings.HasPrefix(regUrl, "http") {
+func NewRegistry(ctx context.Context, token, registryName string, regURL string) (Registry, error) {
+	if strings.HasPrefix(regURL, "http") {
 		// todo(qiaozp) support oss
-		_, cfg, err := Parse(regUrl)
+		_, cfg, err := Parse(regURL)
 		if err != nil {
 			return nil, err
 		}
@@ -45,9 +48,8 @@ func NewRegistry(ctx context.Context, token, registryName string, regUrl string)
 			tc = oauth2.NewClient(ctx, ts)
 		}
 		return GithubRegistry{client: github.NewClient(tc), cfg: cfg, ctx: ctx, name: registryName}, nil
-		//TODO(qiaozp)
-	} else if strings.HasPrefix(regUrl, "file://") {
-		dir := strings.TrimPrefix(regUrl, "file://")
+	} else if strings.HasPrefix(regURL, "file://") {
+		dir := strings.TrimPrefix(regURL, "file://")
 		_, err := os.Stat(dir)
 		if os.IsNotExist(err) {
 			return LocalRegistry{}, err
@@ -57,6 +59,7 @@ func NewRegistry(ctx context.Context, token, registryName string, regUrl string)
 	return nil, fmt.Errorf("not supported url")
 }
 
+// ListCaps list all capabilities of registry
 func (g GithubRegistry) ListCaps() ([]types.Capability, error) {
 	var addons []types.Capability
 
@@ -75,6 +78,7 @@ func (g GithubRegistry) ListCaps() ([]types.Capability, error) {
 	return addons, nil
 }
 
+// GetCap return capability object and raw data specified by cap name
 func (g GithubRegistry) GetCap(addonName string) (types.Capability, []byte, error) {
 	fileContent, _, _, err := g.client.Repositories.GetContents(context.Background(), g.cfg.Owner, g.cfg.Repo, fmt.Sprintf("%s/%s.yaml", g.cfg.Path, addonName), &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 	if err != nil {
@@ -129,10 +133,12 @@ func (g *GithubRegistry) getRepoFile() ([]RepoFile, error) {
 	return items, nil
 }
 
+// LocalRegistry is Registry's implementation trait local url as resource
 type LocalRegistry struct {
 	absPath string
 }
 
+// GetCap return capability object and raw data specified by cap name
 func (l LocalRegistry) GetCap(addonName string) (types.Capability, []byte, error) {
 	fileName := addonName + ".yaml"
 	filePath := fmt.Sprintf("%s/%s", l.absPath, fileName)
@@ -151,10 +157,13 @@ func (l LocalRegistry) GetCap(addonName string) (types.Capability, []byte, error
 	return capa, data, nil
 }
 
+// ListCaps list all capabilities of registry
 func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
-	files, _ := filepath.Glob(l.absPath + "/*")
+	glob := filepath.Join(filepath.Clean(l.absPath), "*")
+	files, _ := filepath.Glob(glob)
 	capas := make([]types.Capability, 0)
 	for _, file := range files {
+		// nolint:gosec
 		data, err := ioutil.ReadFile(file)
 		if err != nil {
 			return nil, err

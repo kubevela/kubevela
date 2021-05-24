@@ -136,8 +136,8 @@ func PrintRegTraitList(isDiscover bool, url string, ioStreams cmdutil.IOStreams)
 }
 
 // getCapsFromRegistry will retrieve caps from registry
-func getCapsFromRegistry(regUrl string) ([]types.Capability, error) {
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regUrl)
+func getCapsFromRegistry(regURL string) ([]types.Capability, error) {
+	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
 	if err != nil {
 		return []types.Capability{}, err
 	}
@@ -149,9 +149,9 @@ func getCapsFromRegistry(regUrl string) ([]types.Capability, error) {
 }
 
 // InstallTraitByName will install given traitName trait to cluster
-func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName, regUrl string) error {
+func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName, regURL string) error {
 
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regUrl)
+	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
 	if err != nil {
 		return err
 	}
