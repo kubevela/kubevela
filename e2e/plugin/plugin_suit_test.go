@@ -18,7 +18,6 @@ package plugin
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -102,7 +101,6 @@ var _ = BeforeSuite(func(done Done) {
 	By("set test registry absolute path")
 	testRegistryPath, err = filepath.Abs("testdata")
 	testRegistryPath = "file://" + testRegistryPath
-	fmt.Println(testRegistryPath)
 	Expect(err).Should(BeNil())
 	close(done)
 }, 300)

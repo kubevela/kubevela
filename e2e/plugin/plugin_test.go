@@ -132,8 +132,6 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Showing components from registry"))
 			Expect(output).Should(ContainSubstring("cloneset"))
-			Expect(output).Should(ContainSubstring("kruise-sts"))
-			Expect(output).Should(ContainSubstring("openfaas"))
 		})
 	})
 	Context("Test kubectl vela trait discover", func() {
@@ -141,10 +139,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Showing traits from registry"))
-			Expect(output).Should(ContainSubstring("[deployments.apps]"))
-			Expect(output).Should(ContainSubstring("metrics"))
-			Expect(output).Should(ContainSubstring("route"))
-			Expect(output).Should(ContainSubstring("virtualgroup"))
+			Expect(output).Should(ContainSubstring("init-container"))
 		})
 	})
 	Context("Test kubectl vela comp and trait install", func() {
