@@ -93,7 +93,7 @@ func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.
 	return nil
 }
 
-// PrintRegComponentList print a table which shows all components from default registry
+// PrintRegComponentList print a table which shows all components from registry
 func PrintRegComponentList(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
@@ -149,7 +149,7 @@ func PrintRegComponentList(isDiscover bool, url string, ioStreams cmdutil.IOStre
 	return nil
 }
 
-// InstallCompByName will install given componentName comp to cluster from default registry
+// InstallCompByName will install given componentName comp to cluster from registry
 func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, regURL string) error {
 
 	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
@@ -171,7 +171,7 @@ func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, 
 		return err
 	}
 
-	fmt.Printf("Successfully install component: %s\n", compName)
+	ioStream.Info("Successfully install component:", compName)
 
 	return nil
 }

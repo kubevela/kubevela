@@ -56,8 +56,8 @@ func NewCompCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "get <component>",
-		Short:   "get component from default registry",
-		Long:    "get component from default registry",
+		Short:   "get component from registry",
+		Long:    "get component from registry",
 		Example: "kubectl vela comp get <component>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {

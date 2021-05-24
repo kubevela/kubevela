@@ -79,7 +79,7 @@ func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOSt
 	return nil
 }
 
-// PrintRegTraitList print a table which shows all traits from default registry
+// PrintRegTraitList print a table which shows all traits from registry
 func PrintRegTraitList(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
@@ -173,7 +173,7 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Successfully install trait: %s\n", traitName)
+	ioStream.Info("Successfully install trait:", traitName)
 	return nil
 }
 

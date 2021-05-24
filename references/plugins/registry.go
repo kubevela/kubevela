@@ -107,7 +107,7 @@ func (g GithubRegistry) GetCap(addonName string) (types.Capability, []byte, erro
 			fmt.Printf("decode github content %s err %s\n", fileContent.GetPath(), err)
 		}
 	}
-	repoFile := RepoFile{
+	repoFile := RegistryFile{
 		data: data,
 		name: *fileContent.Name,
 	}
@@ -118,11 +118,11 @@ func (g GithubRegistry) GetCap(addonName string) (types.Capability, []byte, erro
 	return addon, data, nil
 }
 
-func (g *GithubRegistry) getRepoFile() ([]RepoFile, error) {
-	var items []RepoFile
+func (g *GithubRegistry) getRepoFile() ([]RegistryFile, error) {
+	var items []RegistryFile
 	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 	if err != nil {
-		return []RepoFile{}, err
+		return []RegistryFile{}, err
 	}
 	for _, repoItem := range dirs {
 		if *repoItem.Type != "file" {
@@ -141,7 +141,7 @@ func (g *GithubRegistry) getRepoFile() ([]RepoFile, error) {
 				continue
 			}
 		}
-		items = append(items, RepoFile{
+		items = append(items, RegistryFile{
 			data: data,
 			name: *fileContent.Name,
 		})
@@ -162,7 +162,7 @@ func (l LocalRegistry) GetCap(addonName string) (types.Capability, []byte, error
 	if err != nil {
 		return types.Capability{}, []byte{}, err
 	}
-	file := RepoFile{
+	file := RegistryFile{
 		data: data,
 		name: fileName,
 	}
@@ -184,7 +184,7 @@ func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
 		if err != nil {
 			return nil, err
 		}
-		capa, err := RepoFile{
+		capa, err := RegistryFile{
 			data: data,
 			name: path.Base(file),
 		}.toAddon()
@@ -196,7 +196,7 @@ func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
 	}
 	return capas, nil
 }
-func (item RepoFile) toAddon() (types.Capability, error) {
+func (item RegistryFile) toAddon() (types.Capability, error) {
 	dm, err := (&common.Args{}).GetDiscoveryMapper()
 	if err != nil {
 		return types.Capability{}, err
@@ -208,8 +208,8 @@ func (item RepoFile) toAddon() (types.Capability, error) {
 	return capability, nil
 }
 
-// RepoFile contains a file item in github repo
-type RepoFile struct {
+// RegistryFile describes a file item in registry
+type RegistryFile struct {
 	data []byte // file content
 	name string // file's name
 }

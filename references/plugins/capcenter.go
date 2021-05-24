@@ -263,11 +263,11 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	return nil
 }
 
-func (g *GithubCenter) getRepoFile() ([]RepoFile, error) {
-	var items []RepoFile
+func (g *GithubCenter) getRepoFile() ([]RegistryFile, error) {
+	var items []RegistryFile
 	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 	if err != nil {
-		return []RepoFile{}, err
+		return []RegistryFile{}, err
 	}
 	for _, repoItem := range dirs {
 		if *repoItem.Type != "file" {
@@ -286,7 +286,7 @@ func (g *GithubCenter) getRepoFile() ([]RepoFile, error) {
 				continue
 			}
 		}
-		items = append(items, RepoFile{
+		items = append(items, RegistryFile{
 			data: data,
 			name: *fileContent.Name,
 		})

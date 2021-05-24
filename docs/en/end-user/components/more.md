@@ -13,7 +13,7 @@ In case you haven't install kubectl vela plugin: see [this](../../kubectl-plugin
 
 ### 1. list
 
-For example, let's try the list all availible components in default registry:
+For example, let's try to list all availible components in registry:
 
 ```shell
 $ kubectl vela comp --discover

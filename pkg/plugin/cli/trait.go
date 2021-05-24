@@ -56,8 +56,8 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "get <trait>",
-		Short:   "get trait from default registry",
-		Long:    "get trait from default registry",
+		Short:   "get trait from registry",
+		Long:    "get trait from registry",
 		Example: "kubectl vela trait get <trait>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
