@@ -20,6 +20,7 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -51,6 +52,7 @@ func TestKubectlPlugin(t *testing.T) {
 	RunSpecs(t, "Kubectl Plugin Suite")
 }
 
+var testRegistryPath string
 var _ = BeforeSuite(func(done Done) {
 	err := clientgoscheme.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
@@ -97,6 +99,10 @@ var _ = BeforeSuite(func(done Done) {
 	err = k8sClient.Create(ctx, &app)
 	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+	By("set test registry absolute path")
+	testRegistryPath, err = filepath.Abs("testdata")
+	testRegistryPath = "file://" + testRegistryPath
+	Expect(err).Should(BeNil())
 	close(done)
 }, 300)
 
