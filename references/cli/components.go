@@ -93,8 +93,8 @@ func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.
 	return nil
 }
 
-// PrintRegComponentList print a table which shows all components from registry
-func PrintRegComponentList(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
+// PrintComponentListFromRegistry print a table which shows all components from registry
+func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {

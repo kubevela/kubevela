@@ -6,33 +6,34 @@ Components in KubeVela are designed to be brought by users.
 
 ## 1. Get from capability center
 
-KubeVela allows you to explore capabilities maintained by other developer.
-There are two command in kubectl vela plugin: `comp` and `trait`.
+KubeVela allows you to explore capabilities maintained by platform team.
+There are two commands in kubectl vela plugin: `comp` and `trait`.
 
 In case you haven't install kubectl vela plugin: see [this](../../kubectl-plugin).
 
 ### 1. list
 
-For example, let's try to list all availible components in registry:
+For example, let's try to list all available components in a registry:
 
 ```shell
 $ kubectl vela comp --discover
-Showing components from default registry:https://github.com/oam-dev/catalog/tree/master/registry
-NAME              	CENTER	DEFINITION                 	
-cloneset          	default	clonesets.apps.kruise.io
-kruise-statefulset	default	statefulsets.apps.kruise.io
-openfaas          	default	functions.openfaas.com
+Showing components from registry: https://github.com/oam-dev/catalog/tree/master/registry
+NAME              	REGITSRY	DEFINITION                 	
+cloneset          	default	    clonesets.apps.kruise.io
+kruise-statefulset	default	    statefulsets.apps.kruise.io
+openfaas          	default	    functions.openfaas.com
 ````
 Note that the `--discover` flag means show all uninstalled components.
 
 ### 2. install
-Then you can install component like:
+Then you can install a component like:
 
 ```shell
 $ kubectl vela comp get cloneset
 Installing component capability cloneset
 Successfully install trait: cloneset                                                                                                 
 ```
+
 ### 3.verify
 
 ```shell
@@ -43,7 +44,7 @@ cloneset     CloneSet        Describes long-running, scalable, containerized ser
 
 ```
 
-By default, the two command will retrieve capabilities from [repo](https://github.com/oam-dev/catalog/tree/master/registry) maintained by KubeVela developers.
+By default, the two commands will retrieve capabilities from [repo](https://github.com/oam-dev/catalog/tree/master/registry) maintained by KubeVela.
 
 ## 2. Designed by yourself 
 Check below documentations about how to bring your own components to the system in various approaches.

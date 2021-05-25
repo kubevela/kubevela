@@ -6,34 +6,34 @@ Traits in KubeVela are designed as modularized building blocks, they are fully c
 
 ## 1. Get from capability canter
 
-KubeVela allows you to explore capabilities maintained by other developer. There are two command in kubectl vela
+KubeVela allows you to explore capabilities maintained by platform team. There are two commands in kubectl vela
 plugin: `comp` and `trait`.
 
 In case you haven't install kubectl vela plugin: see [this](../../kubectl-plugin).
 
 ### 1. list
 
-For example, let's try to list all availible traits in registry:
+For example, let's try to list all available traits in registry:
 
 ```shell
 $ kubectl vela trait --discover
-Showing traits from default registry:https://github.com/oam-dev/catalog/tree/master/registry
-NAME           	CENTER	  DEFINITION                    		APPLIES-TO               
-service-account	default  	                              		[webservice worker]      
-env            	default 		                                [webservice worker]      
-flagger-rollout	default   canaries.flagger.app          		[webservice]             
-init-container 	default 		                                [webservice worker]      
-keda-scaler    	default   scaledobjects.keda.sh         		[deployments.apps]       
-metrics        	default   metricstraits.standard.oam.dev		[webservice backend task]
-node-affinity  	default		                              		[webservice worker]      
-route          	default   routes.standard.oam.dev       		[webservice]             
-virtualgroup   	default		                              		[webservice worker] 
+Showing traits from registry: https://github.com/oam-dev/catalog/tree/master/registry
+NAME           	REGISTRY	  DEFINITION                    		APPLIES-TO               
+service-account	default  	                              		    [webservice worker]      
+env            	default 		                                    [webservice worker]      
+flagger-rollout	default       canaries.flagger.app          		[webservice]             
+init-container 	default 		                                    [webservice worker]      
+keda-scaler    	default       scaledobjects.keda.sh         		[deployments.apps]       
+metrics        	default       metricstraits.standard.oam.dev		[webservice backend task]
+node-affinity  	default		                              		    [webservice worker]      
+route          	default       routes.standard.oam.dev       		[webservice]             
+virtualgroup   	default		                              		    [webservice worker] 
 ```
 Note that the `--discover` flag means show all uninstalled traits.
 
 ### 2. install
 
-Then you can install trait like:
+Then you can install a trait like:
 
 ```shell
 $ kubectl vela trait get init-container
@@ -50,8 +50,8 @@ init-container   ["webservice","worker"]   add an init container with a shared v
 ...(other trait definitions)
 ```
 
-By default, the two command will retrieve capabilities
-from [repo](https://github.com/oam-dev/catalog/tree/master/registry) maintained by KubeVela developers.
+By default, the two commands will retrieve capabilities
+from [repo](https://github.com/oam-dev/catalog/tree/master/registry) maintained by KubeVela.
 
 ## 2. Designed by yourself
 

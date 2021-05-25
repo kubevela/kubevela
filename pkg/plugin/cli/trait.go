@@ -30,13 +30,13 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	cmd := &cobra.Command{
 		Use:                   "trait",
 		DisableFlagsInUseLine: true,
-		Short:                 "Show & install traits",
-		Long:                  "Show installed traits & show remote trait",
+		Short:                 "Show traits",
+		Long:                  "Show installed and remote trait",
 		Example:               "kubectl vela trait",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDiscover, _ := cmd.Flags().GetBool("discover")
 			url, _ := cmd.PersistentFlags().GetString("url")
-			err := cli.PrintRegTraitList(isDiscover, url, ioStreams)
+			err := cli.PrintTraitListFromRegistry(isDiscover, url, ioStreams)
 			return err
 		},
 		Annotations: map[string]string{

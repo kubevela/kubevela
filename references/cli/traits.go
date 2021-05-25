@@ -79,8 +79,8 @@ func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOSt
 	return nil
 }
 
-// PrintRegTraitList print a table which shows all traits from registry
-func PrintRegTraitList(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
+// PrintTraitListFromRegistry print a table which shows all traits from registry
+func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {

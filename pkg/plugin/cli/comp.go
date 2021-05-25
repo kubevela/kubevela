@@ -30,13 +30,13 @@ func NewCompCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	cmd := &cobra.Command{
 		Use:                   "comp",
 		DisableFlagsInUseLine: true,
-		Short:                 "Show components in cap registry",
-		Long:                  "Show components in cap registry",
+		Short:                 "Show components in capability registry",
+		Long:                  "Show components in capability registry",
 		Example:               "kubectl vela comp",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDiscover, _ := cmd.Flags().GetBool("discover")
 			url, _ := cmd.PersistentFlags().GetString("url")
-			err := cli.PrintRegComponentList(isDiscover, url, ioStreams)
+			err := cli.PrintComponentListFromRegistry(isDiscover, url, ioStreams)
 			return err
 		},
 		Annotations: map[string]string{
@@ -61,7 +61,8 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		Example: "kubectl vela comp get <component>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				ioStreams.Error("you must specify the component name")
+				ioStreams.Error("you must specify a" +
+					" component name")
 				return nil
 			}
 			name := args[0]
