@@ -806,6 +806,59 @@ parameter: [string]: string`,
 				},
 			},
 		},
+
+		// errors
+		"invalid template(space-separated labels) will raise error": {
+			traitTemplate: `
+a b: c`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"reference a non-existent variable will raise error": {
+			traitTemplate: `
+patch: {
+	metadata: name: none
+}
+
+parameter: [string]: string`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"incorrect use of the map field in patch will raise error": {
+			traitTemplate: `
+patch: {
+	metadata: annotations: parameter.none
+}
+
+parameter: [string]: string`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"out-of-scope variables in patch will raise error": {
+			traitTemplate: `
+patch: {
+	x : "out of scope"
+	context: outputs: gameconfig: {
+		metadata: name: x
+	}
+}
+
+parameter: [string]: string`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"using the wrong keyword in the parameter will raise error": {
+			traitTemplate: `
+patch: {
+	metadata: annotations: parameter
+}
+
+parameter: [string]: string`,
+			params: map[string]interface{}{
+				"wrong-keyword": "_|_ //",
+			},
+			hasCompileErr: true,
+		},
 	}
 
 	for cassinfo, v := range tds {
