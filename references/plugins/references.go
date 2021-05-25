@@ -481,8 +481,8 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 		}
 	case types.KubeCategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
-			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
+			// Kubeparameter doesn't have default value
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, "")
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value

@@ -117,8 +117,8 @@ func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, 
 	return getOpenAPISchema(*capability, pd)
 }
 
-// GetKubeSchematicOpenAPISchema gets OpenAPI v3 schema based on kube schematic parameters
-func (def *CapabilityComponentDefinition) GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, error) {
+// GetKubeSchematicOpenAPISchema gets OpenAPI v3 schema based on kube schematic parameters for component and trait definition
+func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, error) {
 	required := []string{}
 	properties := map[string]*openapi3.Schema{}
 	for _, p := range params {
@@ -136,10 +136,12 @@ func (def *CapabilityComponentDefinition) GetKubeSchematicOpenAPISchema(params [
 		if p.Required != nil && *p.Required {
 			required = append(required, p.Name)
 		}
-		// save FieldPaths into description
-		tmp.Description = fmt.Sprintf("The value will be applied to fields: [%s].", strings.Join(p.FieldPaths, ","))
+
 		if p.Description != nil {
-			tmp.Description = fmt.Sprintf("%s\n %s", tmp.Description, *p.Description)
+			tmp.Description = fmt.Sprintf("%s %s", tmp.Description, *p.Description)
+		} else {
+			// save FieldPaths into description
+			tmp.Description = fmt.Sprintf("The value will be applied to fields: [%s].", strings.Join(p.FieldPaths, ","))
 		}
 		properties[p.Name] = tmp
 	}
@@ -163,7 +165,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 	case util.HELMDef:
 		jsonSchema, err = helm.GetChartValuesJSONSchema(ctx, def.Helm)
 	case util.KubeDef:
-		jsonSchema, err = def.GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
+		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
 	default:
 		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
 	}
@@ -196,7 +198,24 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 type CapabilityTraitDefinition struct {
 	Name            string                  `json:"name"`
 	TraitDefinition v1beta1.TraitDefinition `json:"traitDefinition"`
+
+	DefCategoryType util.WorkloadType `json:"defCategoryType"`
+
+	Kube *commontypes.Kube `json:"kube"`
+
 	CapabilityBaseDefinition
+}
+
+// NewCapabilityTraitDef will create a CapabilityTraitDefinition
+func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityTraitDefinition {
+	var def CapabilityTraitDefinition
+	def.Name = traitdefinition.Name //  or def.Name = req.NamespacedName.Name ?
+	if traitdefinition.Spec.Schematic != nil && traitdefinition.Spec.Schematic.KUBE != nil {
+		def.DefCategoryType = util.KubeDef
+		def.Kube = traitdefinition.Spec.Schematic.KUBE
+	}
+	def.TraitDefinition = *traitdefinition.DeepCopy()
+	return def
 }
 
 // GetCapabilityObject gets types.Capability object by TraitDefinition name
@@ -231,9 +250,16 @@ func (def *CapabilityTraitDefinition) GetOpenAPISchema(ctx context.Context, k8sC
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
 func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) error {
-	jsonSchema, err := def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
+	var jsonSchema []byte
+	var err error
+	switch def.DefCategoryType {
+	case util.KubeDef: // Kube template
+		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
+	default: // CUE  template
+		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
+	}
 	if err != nil {
-		return fmt.Errorf(util.ErrGenerateOpenAPIV2JSONSchemaForCapability, def.Name, err)
+		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
 
 	traitDefinition := def.TraitDefinition

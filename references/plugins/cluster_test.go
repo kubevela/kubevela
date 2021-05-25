@@ -140,21 +140,22 @@ var _ = Describe("DefinitionFiles", func() {
 
 var _ = Describe("test GetCapabilityByName", func() {
 	var (
-		ctx             context.Context
-		c               common.Args
-		ns              string
-		defaultNS       string
-		cd1             corev1beta1.ComponentDefinition
-		cd2             corev1beta1.ComponentDefinition
-		cd3             corev1beta1.ComponentDefinition
-		td1             corev1beta1.TraitDefinition
-		td2             corev1beta1.TraitDefinition
-		component1      string
-		component2      string
-		component3      string
-		trait1          string
-		trait2          string
-		expectParameter string
+		ctx        context.Context
+		c          common.Args
+		ns         string
+		defaultNS  string
+		cd1        corev1beta1.ComponentDefinition
+		cd2        corev1beta1.ComponentDefinition
+		cd3        corev1beta1.ComponentDefinition
+		td1        corev1beta1.TraitDefinition
+		td2        corev1beta1.TraitDefinition
+		td3        corev1beta1.TraitDefinition
+		component1 string
+		component2 string
+		component3 string
+		trait1     string
+		trait2     string
+		trait3     string
 	)
 	BeforeEach(func() {
 		c = common.Args{
@@ -168,10 +169,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		component1 = "cd1"
 		component2 = "cd2"
 		component3 = "cd3"
-		expectParameter = "[{\"name\":\"image\",\"type\":\"string\",\"fieldPaths\":[\"spec.template.spec.containers[0].image\"],\"required\":true},{\"name\":\"port\",\"type\":\"string\",\"fieldPaths\":[\"spec.template.spec.containers[0].ports[0].containerPort\"],\"required\":true}]"
 
 		trait1 = "td1"
 		trait2 = "td2"
+		trait3 = "td3"
 
 		By("create namespace")
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -199,6 +200,8 @@ var _ = Describe("test GetCapabilityByName", func() {
 		data, _ = ioutil.ReadFile("testdata/manualscalars.yaml")
 		yaml.Unmarshal(data, &td1)
 		yaml.Unmarshal(data, &td2)
+		data3, _ := ioutil.ReadFile("testdata/svcTraitDef.yaml")
+		yaml.Unmarshal(data3, &td3)
 		td1.Namespace = ns
 		td1.Name = trait1
 		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -206,6 +209,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		td2.Namespace = defaultNS
 		td2.Name = trait2
 		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		td3.Namespace = ns
+		td3.Name = trait3
+		Expect(k8sClient.Create(ctx, &td3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	})
 
@@ -223,16 +230,27 @@ var _ = Describe("test GetCapabilityByName", func() {
 			Expect(err).Should(BeNil())
 			jsontmp, err := json.Marshal(cap.KubeParameter)
 			Expect(err).Should(BeNil())
-			Expect(string(jsontmp)).Should(Equal(expectParameter))
+			Expect(string(jsontmp)).Should(ContainSubstring("image"))
+			Expect(string(jsontmp)).Should(ContainSubstring("the image specific version you can pull from the docker hub."))
+			Expect(string(jsontmp)).Should(ContainSubstring("port"))
+			Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
 		})
 
 		Context("TraitDefinition is in the current namespace", func() {
 			_, err := GetCapabilityByName(ctx, c, trait1, ns)
 			Expect(err).Should(BeNil())
 		})
-		Context("TraitDefinitionDefinition is in the default namespace", func() {
+		Context("TraitDefinition is in the default namespace", func() {
 			_, err := GetCapabilityByName(ctx, c, trait2, ns)
 			Expect(err).Should(BeNil())
+		})
+		Context("TraitDefinition is in the default namespace", func() {
+			cap, err := GetCapabilityByName(ctx, c, trait3, ns)
+			Expect(err).Should(BeNil())
+			jsontmp, err := json.Marshal(cap.KubeParameter)
+			Expect(err).Should(BeNil())
+			Expect(string(jsontmp)).Should(ContainSubstring("targetPort"))
+			Expect(string(jsontmp)).Should(ContainSubstring("target port num for service provider."))
 		})
 
 		Context("capability cloud not be found", func() {

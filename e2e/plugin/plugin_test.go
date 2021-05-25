@@ -19,7 +19,6 @@ package plugin
 import (
 	"fmt"
 	"io/ioutil"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -128,18 +127,17 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			cdName := "kube-worker"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
 			Expect(err).NotTo(HaveOccurred())
-			arr := strings.Split(output, "\n")
-			k1 := strings.Split(arr[4], "|")[1]
-			v1 := strings.Split(arr[4], "|")[2]
-			k2 := strings.Split(arr[5], "|")[1]
-			v2 := strings.Split(arr[5], "|")[2]
-			paraMap := make(map[string]string)
-			paraMap[k1] = v1
-			paraMap[k2] = v2
-			Expect(paraMap).Should(Equal(map[string]string{
-				" image ": " The value will be applied to fields: [spec.template.spec.containers[0].image].                  ",
-				" port  ": " The value will be applied to fields: [spec.template.spec.containers[0].ports[0].containerPort]. ",
-			}))
+			Expect(output).Should(ContainSubstring("image"))
+			Expect(output).Should(ContainSubstring("the image specific version you can pull from the docker hub."))
+			Expect(output).Should(ContainSubstring("port"))
+			Expect(output).Should(ContainSubstring("the specific container port num which can accept external request."))
+		})
+		It("Test show traitDefinition def with raw Kube mode", func() {
+			tdName := "service-kube"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("targetPort"))
+			Expect(output).Should(ContainSubstring("target port num for service provider."))
 		})
 	})
 })
@@ -427,11 +425,13 @@ spec:
           type: string
           fieldPaths:
             - "spec.template.spec.containers[0].image"
+          description: "the image specific version you can pull from the docker hub."
         - name: port
           required: true
           type: string
           fieldPaths:
             - "spec.template.spec.containers[0].ports[0].containerPort"
+          description: "the specific container port num which can accept external request."
 `
 
 var traitDef = `
@@ -508,6 +508,39 @@ spec:
         	}
         }
         
+`
+
+var traitDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: service-kube
+  namespace: default
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+    - backend
+  podDisruptive: true
+  schematic:
+    kube:
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: my-service
+        spec:
+          ports:
+            - protocol: TCP
+              port: 80
+              targetPort: 9376
+      parameters:
+        - name: targetPort
+          required: true
+          type: number
+          fieldPaths:
+            - "spec.template.spec.ports[0].targetPort"
+          description: "target port num for service provider."
 `
 
 var dryRunResult = `---
