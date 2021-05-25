@@ -536,6 +536,40 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		if err != nil {
 			return fmt.Errorf("arguments not defined as struct %w", err)
 		}
+		if arguments.Len() == 0 {
+			var param ReferenceParameter
+			param.Name = "undefined"
+			param.Required = true
+			tl := paraValue.Template()
+			if tl == nil {
+				sourceStr := paraValue.Source() // original node string for this value
+				typeContain := fmt.Sprintf("%s", sourceStr)
+				switch {
+				case strings.Contains(typeContain, "string"):
+					param.PrintableType = "string"
+				case strings.Contains(typeContain, "int"):
+					param.PrintableType = "int"
+				case strings.Contains(typeContain, "bool"):
+					param.PrintableType = "bool"
+				default:
+					return fmt.Errorf("fail to get cue parameter type ")
+				}
+			} else { // is map type
+				typeContain := fmt.Sprintf("map type %s", tl("").IncompleteKind())
+				switch {
+				case strings.Contains(typeContain, "string"):
+					param.PrintableType = "map[string]string"
+				case strings.Contains(typeContain, "int"):
+					param.PrintableType = "map[string]int"
+				case strings.Contains(typeContain, "bool"):
+					param.PrintableType = "map[string]bool"
+				default:
+					return fmt.Errorf("fail to get cue parameter type ")
+				}
+			}
+			params = append(params, param)
+		}
+
 		for i := 0; i < arguments.Len(); i++ {
 			var param ReferenceParameter
 			fi := arguments.Field(i)
