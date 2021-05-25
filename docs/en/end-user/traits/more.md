@@ -9,7 +9,7 @@ Traits in KubeVela are designed as modularized building blocks, they are fully c
 KubeVela allows you to explore capabilities maintained by platform team. There are two commands in kubectl vela
 plugin: `comp` and `trait`.
 
-In case you haven't install kubectl vela plugin: see [this](../../kubectl-plugin).
+In case you haven't installed kubectl vela plugin: see [this](../../kubectl-plugin).
 
 ### 1. list
 
@@ -29,7 +29,7 @@ node-affinity  	default		                              		    [webservice worker]
 route          	default       routes.standard.oam.dev       		[webservice]             
 virtualgroup   	default		                              		    [webservice worker] 
 ```
-Note that the `--discover` flag means show all uninstalled traits.
+Note that the `--discover` flag means show all traits not in your cluster.
 
 ### 2. install
 

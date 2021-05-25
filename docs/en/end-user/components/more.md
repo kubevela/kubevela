@@ -9,7 +9,7 @@ Components in KubeVela are designed to be brought by users.
 KubeVela allows you to explore capabilities maintained by platform team.
 There are two commands in kubectl vela plugin: `comp` and `trait`.
 
-In case you haven't install kubectl vela plugin: see [this](../../kubectl-plugin).
+In case you haven't installed kubectl vela plugin: see [this](../../kubectl-plugin).
 
 ### 1. list
 
@@ -23,7 +23,7 @@ cloneset          	default	    clonesets.apps.kruise.io
 kruise-statefulset	default	    statefulsets.apps.kruise.io
 openfaas          	default	    functions.openfaas.com
 ````
-Note that the `--discover` flag means show all uninstalled components.
+Note that the `--discover` flag means show all components not in your cluster.
 
 ### 2. install
 Then you can install a component like:
