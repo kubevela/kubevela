@@ -326,13 +326,26 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	patcher := inst.Lookup(PatchFieldName)
 	if patcher.Exists() {
-		base, _ := ctx.Output()
+		base, auxiliaries := ctx.Output()
 		p, err := model.NewOther(patcher)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
 		}
 		if err := base.Unify(p); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+		}
+
+		for _, auxiliary := range auxiliaries {
+			target := patcher.Lookup("context", "outputs", auxiliary.Name)
+			if target.Exists() {
+				t, err := model.NewOther(target)
+				if err != nil {
+					return errors.WithMessagef(err, "trait=%s, to=%s, invalid trait patch", td.name, auxiliary.Name)
+				}
+				if err := auxiliary.Ins.Unify(t); err != nil {
+					return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
+				}
+			}
 		}
 	}
 
