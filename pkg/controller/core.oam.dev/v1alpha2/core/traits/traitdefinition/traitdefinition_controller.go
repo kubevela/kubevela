@@ -109,15 +109,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-<<<<<<< HEAD
 	def := utils.NewCapabilityTraitDef(&traitdefinition)
 	def.Name = req.NamespacedName.Name
-=======
-	def := utils.CapabilityTraitDefinition{
-		Name:            traitdefinition.Name,
-		TraitDefinition: traitdefinition,
-	}
->>>>>>> 0c7706d442532d6293513dc7f5746da2f27f130b
 
 	// Store the parameter of traitDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)

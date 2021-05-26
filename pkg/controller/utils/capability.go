@@ -183,7 +183,6 @@ type CapabilityTraitDefinition struct {
 	CapabilityBaseDefinition
 }
 
-<<<<<<< HEAD
 // NewCapabilityTraitDef will create a CapabilityTraitDefinition
 func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityTraitDefinition {
 	var def CapabilityTraitDefinition
@@ -217,8 +216,6 @@ func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k
 	return &capability, err
 }
 
-=======
->>>>>>> 0c7706d442532d6293513dc7f5746da2f27f130b
 // GetOpenAPISchema gets OpenAPI v3 schema by TraitDefinition name
 func (def *CapabilityTraitDefinition) GetOpenAPISchema(pd *definition.PackageDiscover, name string) ([]byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.TraitDefinition.Spec.Extension, def.TraitDefinition.Spec.Schematic)
@@ -229,25 +226,17 @@ func (def *CapabilityTraitDefinition) GetOpenAPISchema(pd *definition.PackageDis
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
-<<<<<<< HEAD
-func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) error {
+func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string, revName string) (string, error) {
 	var jsonSchema []byte
 	var err error
 	switch def.DefCategoryType {
 	case util.KubeDef: // Kube template
 		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
 	default: // CUE  template
-		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
+		jsonSchema, err = def.GetOpenAPISchema(pd, name)
 	}
 	if err != nil {
-		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
-=======
-func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
-	pd *definition.PackageDiscover, namespace, name, revName string) (string, error) {
-	jsonSchema, err := def.GetOpenAPISchema(pd, name)
-	if err != nil {
-		return "", fmt.Errorf(util.ErrGenerateOpenAPIV2JSONSchemaForCapability, def.Name, err)
->>>>>>> 0c7706d442532d6293513dc7f5746da2f27f130b
+		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
 
 	traitDefinition := def.TraitDefinition
