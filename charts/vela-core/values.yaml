@@ -28,13 +28,11 @@ serviceAccount:
 podSecurityContext: {}
   # fsGroup: 2000
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+securityContext:
+  runAsUser: 60000
+  runAsGroup: 60001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
 
 resources:
   limits:
