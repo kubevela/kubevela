@@ -86,35 +86,13 @@ func NewCapabilityComponentDef(componentDefinition *v1beta1.ComponentDefinition)
 	return def
 }
 
-// GetCapabilityObject gets types.Capability object by WorkloadDefinition name
-func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
-	var componentDefinition v1beta1.ComponentDefinition
-	var capability types.Capability
-	objectKey := client.ObjectKey{
-		Namespace: namespace,
-		Name:      name,
-	}
-	err := k8sClient.Get(ctx, objectKey, &componentDefinition)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ComponentDefinition %s: %w", def.Name, err)
-	}
-	def.ComponentDefinition = componentDefinition
-
-	capability, err = appfile.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
+// GetOpenAPISchema gets OpenAPI v3 schema by WorkloadDefinition name
+func (def *CapabilityComponentDefinition) GetOpenAPISchema(pd *definition.PackageDiscover, name string) ([]byte, error) {
+	capability, err := appfile.ConvertTemplateJSON2Object(name, def.ComponentDefinition.Spec.Extension, def.ComponentDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 	}
-
-	return &capability, err
-}
-
-// GetOpenAPISchema gets OpenAPI v3 schema by WorkloadDefinition name
-func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) ([]byte, error) {
-	capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-	return getOpenAPISchema(*capability, pd)
+	return getOpenAPISchema(capability, pd)
 }
 
 // GetKubeSchematicOpenAPISchema gets OpenAPI v3 schema based on kube schematic parameters for component and trait definition
@@ -158,7 +136,7 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
 func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
-	pd *definition.PackageDiscover, namespace, name, revName string) error {
+	pd *definition.PackageDiscover, namespace, name, revName string) (string, error) {
 	var jsonSchema []byte
 	var err error
 	switch def.WorkloadType {
@@ -167,10 +145,10 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 	case util.KubeDef:
 		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
 	default:
-		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
+		jsonSchema, err = def.GetOpenAPISchema(pd, name)
 	}
 	if err != nil {
-		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
+		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
 	componentDefinition := def.ComponentDefinition
 	ownerReference := []metav1.OwnerReference{{
@@ -183,15 +161,14 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, jsonSchema, ownerReference)
 	if err != nil {
-		return err
+		return cmName, err
 	}
-	def.ComponentDefinition.Status.ConfigMapRef = cmName
 
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
 	if err != nil {
-		return err
+		return cmName, err
 	}
-	return nil
+	return cmName, nil
 }
 
 // CapabilityTraitDefinition is the Capability struct for TraitDefinition
@@ -206,6 +183,7 @@ type CapabilityTraitDefinition struct {
 	CapabilityBaseDefinition
 }
 
+<<<<<<< HEAD
 // NewCapabilityTraitDef will create a CapabilityTraitDefinition
 func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityTraitDefinition {
 	var def CapabilityTraitDefinition
@@ -239,16 +217,19 @@ func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k
 	return &capability, err
 }
 
+=======
+>>>>>>> 0c7706d442532d6293513dc7f5746da2f27f130b
 // GetOpenAPISchema gets OpenAPI v3 schema by TraitDefinition name
-func (def *CapabilityTraitDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) ([]byte, error) {
-	capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, name)
+func (def *CapabilityTraitDefinition) GetOpenAPISchema(pd *definition.PackageDiscover, name string) ([]byte, error) {
+	capability, err := appfile.ConvertTemplateJSON2Object(name, def.TraitDefinition.Spec.Extension, def.TraitDefinition.Spec.Schematic)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
 	}
-	return getOpenAPISchema(*capability, pd)
+	return getOpenAPISchema(capability, pd)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
+<<<<<<< HEAD
 func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) error {
 	var jsonSchema []byte
 	var err error
@@ -260,6 +241,13 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 	}
 	if err != nil {
 		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
+=======
+func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
+	pd *definition.PackageDiscover, namespace, name, revName string) (string, error) {
+	jsonSchema, err := def.GetOpenAPISchema(pd, name)
+	if err != nil {
+		return "", fmt.Errorf(util.ErrGenerateOpenAPIV2JSONSchemaForCapability, def.Name, err)
+>>>>>>> 0c7706d442532d6293513dc7f5746da2f27f130b
 	}
 
 	traitDefinition := def.TraitDefinition
@@ -273,10 +261,15 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, jsonSchema, ownerReference)
 	if err != nil {
-		return err
+		return cmName, err
 	}
 	def.TraitDefinition.Status.ConfigMapRef = cmName
-	return nil
+
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
+	if err != nil {
+		return cmName, err
+	}
+	return cmName, nil
 }
 
 // CapabilityBaseDefinition is the base struct for CapabilityWorkloadDefinition and CapabilityTraitDefinition
@@ -284,7 +277,8 @@ type CapabilityBaseDefinition struct {
 }
 
 // CreateOrUpdateConfigMap creates ConfigMap to store OpenAPI v3 schema or or updates data in ConfigMap
-func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace, definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
+func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace,
+	definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
 	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, definitionName)
 	var cm v1.ConfigMap
 	var data = map[string]string{
@@ -385,12 +379,14 @@ func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]
 func prepareParameterCue(capabilityName, capabilityTemplate string) (string, error) {
 	var template string
 	var withParameterFlag bool
-	r := regexp.MustCompile("[[:space:]]*parameter:[[:space:]]*{.*")
+	r := regexp.MustCompile(`[[:space:]]*parameter:[[:space:]]*`)
+	trimRe := regexp.MustCompile(`\s+`)
 
 	for _, text := range strings.Split(capabilityTemplate, "\n") {
 		if r.MatchString(text) {
 			// a variable has to be refined as a definition which starts with "#"
-			text = fmt.Sprintf("parameter: #parameter\n#%s", text)
+			// text may be start with space or tab, we should clean up text
+			text = fmt.Sprintf("parameter: #parameter\n#%s", trimRe.ReplaceAllString(text, ""))
 			withParameterFlag = true
 		}
 		template += fmt.Sprintf("%s\n", text)

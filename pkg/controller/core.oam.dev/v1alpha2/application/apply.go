@@ -86,6 +86,7 @@ type appHandler struct {
 	revisionHash             string
 	acrossNamespaceResources []v1beta1.TypedReference
 	resourceTracker          *v1beta1.ResourceTracker
+	autodetect               bool
 }
 
 // setInplace will mark if the application should upgrade the workload within the same instance(name never changed)
@@ -132,12 +133,24 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		return h.createOrUpdateAppRevision(ctx, appRev)
 	}
 
+	var needTracker bool
+	var err error
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
-		needTracker, err := h.checkAndSetResourceTracker(&comp.Spec.Workload)
+
+		// If the helm mode component doesn't specify the workload
+		// we just install a helm chart resources
+		if h.checkAutoDetect(comp) {
+			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
+				return errors.Wrap(err, "cannot apply Helm module resources")
+			}
+			continue
+		}
+		needTracker, err = h.checkAndSetResourceTracker(&comp.Spec.Workload)
 		if err != nil {
 			return err
 		}
+
 		newComp := comp.DeepCopy()
 		// newComp will be updated and return the revision name instead of the component name
 		revisionName, err := h.createOrUpdateComponent(ctx, newComp)
@@ -172,17 +185,24 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 	ac.SetOwnerReferences(owners)
 	h.FinalizeAppRevision(appRev, ac, comps)
 
+	if h.autodetect {
+		// TODO(yangsoon) autodetect is temporarily not implemented
+		return fmt.Errorf("helm mode component doesn't specify workload, the traits attached to the helm mode component will fail to work")
+	}
+
 	if err := h.createOrUpdateAppRevision(ctx, appRev); err != nil {
 		return err
 	}
 
-	// the rollout will create AppContext which will launch the real K8s resources.
+	// `h.inplace`: the rollout will create AppContext which will launch the real K8s resources.
 	// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
 	// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
-	if h.inplace {
+	// `!h.autodetect`: If the workload type of the helm mode component is not clear, an autodetect type workload will be specified by default
+	// In this case, the traits attached to the helm mode component will fail to generate,
+	// so we only call applyHelmModuleResources to create the helm resource, don't generate ApplicationContext.
+	if h.inplace && !h.autodetect {
 		return h.createOrUpdateAppContext(ctx, owners)
 	}
-
 	return nil
 }
 
@@ -211,7 +231,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 	for _, wl := range appFile.Workloads {
 		var status = common.ApplicationComponentStatus{
 			Name:               wl.Name,
-			WorkloadDefinition: wl.FullTemplate.Reference,
+			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
 			Healthy:            true,
 		}
 
@@ -480,6 +500,14 @@ func (h *appHandler) checkAndSetResourceTracker(resource *runtime.RawExtension) 
 	return needTracker, nil
 }
 
+func (h *appHandler) checkAutoDetect(component *v1alpha2.Component) bool {
+	if len(component.Spec.Workload.Raw) == 0 && component.Spec.Workload.Object == nil && component.Spec.Helm != nil {
+		h.autodetect = true
+		return true
+	}
+	return false
+}
+
 // genResourceTrackerOwnerReference check the related resourceTracker whether have been created.
 // If not, create it. And return the ownerReference of this resourceTracker.
 func (h *appHandler) genResourceTrackerOwnerReference() *metav1.OwnerReference {
@@ -709,6 +737,9 @@ func (h *appHandler) handleResourceTracker(ctx context.Context, components []*v1
 	resourceTracker := new(v1beta1.ResourceTracker)
 	needTracker := false
 	for _, c := range components {
+		if h.checkAutoDetect(c) {
+			continue
+		}
 		u, err := oamutil.RawExtension2Unstructured(&c.Spec.Workload)
 		if err != nil {
 			return err

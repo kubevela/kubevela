@@ -4,8 +4,7 @@ metadata:
   name: ingress.test
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   extension:
     template: |
       parameter: {

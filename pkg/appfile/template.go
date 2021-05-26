@@ -52,7 +52,7 @@ type Template struct {
 	Health             string
 	CustomStatus       string
 	CapabilityCategory types.CapabilityCategory
-	Reference          common.WorkloadGVK
+	Reference          common.WorkloadTypeDescriptor
 	Helm               *common.Helm
 	Kube               *common.Kube
 	Terraform          *common.Terraform
@@ -85,9 +85,11 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 				if err != nil {
 					return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", capName)
 				}
-				tmpl.Reference = common.WorkloadGVK{
-					APIVersion: gvk.GroupVersion().String(),
-					Kind:       gvk.Kind,
+				tmpl.Reference = common.WorkloadTypeDescriptor{
+					Definition: common.WorkloadGVK{
+						APIVersion: gvk.GroupVersion().String(),
+						Kind:       gvk.Kind,
+					},
 				}
 				return tmpl, nil
 			}
@@ -165,7 +167,7 @@ func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
 
 func newTemplateOfCompDefinition(compDef *v1beta1.ComponentDefinition) (*Template, error) {
 	tmpl := &Template{
-		Reference:           compDef.Spec.Workload.Definition,
+		Reference:           compDef.Spec.Workload,
 		ComponentDefinition: compDef,
 	}
 	if err := loadSchematicToTemplate(tmpl, compDef.Spec.Status, compDef.Spec.Schematic, compDef.Spec.Extension); err != nil {

@@ -19,12 +19,12 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -44,15 +45,15 @@ import (
 
 var _ = Describe("Test application cross namespace resource", func() {
 	ctx := context.Background()
-	var (
-		namespace      = "app-resource-tracker-test-ns"
-		crossNamespace = "cross-namespace"
-	)
+	var namespace, crossNamespace string
 
 	BeforeEach(func() {
-		crossNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: crossNamespace}}
+		namespace = randomNamespaceName("app-resource-tracker-e2e")
 		ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		crossNamespace = randomNamespaceName("cross-namespace")
+		crossNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: crossNamespace}}
 		Expect(k8sClient.Create(ctx, &crossNs)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Eventually(func() error {
@@ -67,32 +68,19 @@ var _ = Describe("Test application cross namespace resource", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
-		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
 
 		Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: crossNamespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		// guarantee namespace have been deleted
-		Eventually(func() error {
-			ns := new(corev1.Namespace)
-			err := k8sClient.Get(ctx, types.NamespacedName{Name: namespace}, ns)
-			if err == nil {
-				return fmt.Errorf("namespace still exist")
-			}
-			err = k8sClient.Get(ctx, types.NamespacedName{Name: crossNamespace}, ns)
-			if err == nil {
-				return fmt.Errorf("namespace still exist")
-			}
-			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 	})
 
 	It("Test application containing cluster-scoped trait", func() {
 		By("Install TraitDefinition")
 		traitDef := &v1beta1.TraitDefinition{}
-		Expect(yaml.Unmarshal([]byte(clusterScopeTraitDefYAML), traitDef)).Should(Succeed())
+		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(clusterScopeTraitDefYAML, namespace)), traitDef)).Should(Succeed())
 		Expect(k8sClient.Create(ctx, traitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("Create Application")
@@ -138,19 +126,28 @@ var _ = Describe("Test application cross namespace resource", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(Succeed())
 		By("Verify cluster-scoped trait is deleted cascadingly")
 		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
-		}, 20*time.Second, 500*time.Millisecond).Should(SatisfyAll(&util.NotFoundMatcher{}))
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil
+				}
+				return errors.Wrap(err, "PersistentVolume has not deleted")
+			}
+			if ctrlutil.ContainsFinalizer(pv, "kubernetes.io/pv-protection") {
+				return nil
+			}
+			return errors.New("PersistentVolume has not deleted")
+		}, 20*time.Second, 500*time.Millisecond).Should(BeNil())
 	})
 
 	It("Test GC for cluster-scoped trait", func() {
 		By("Install cluster-scoped trait's TraitDefinition")
 		clusterTraitDef := &v1beta1.TraitDefinition{}
-		Expect(yaml.Unmarshal([]byte(clusterScopeTraitDefYAML), clusterTraitDef)).Should(Succeed())
+		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(clusterScopeTraitDefYAML, namespace)), clusterTraitDef)).Should(Succeed())
 		Expect(k8sClient.Create(ctx, clusterTraitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("Install namespace-scoped trait's TraitDefinition")
 		crossNamespaceTraitDef := &v1beta1.TraitDefinition{}
-		Expect(yaml.Unmarshal([]byte(crossNsTdYaml), crossNamespaceTraitDef)).Should(Succeed())
+		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)), crossNamespaceTraitDef)).Should(Succeed())
 		Expect(k8sClient.Create(ctx, crossNamespaceTraitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("Create Application")
@@ -247,7 +244,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 
 	It("Test application have  cross-namespace workload", func() {
 		// install  component definition
-		crossCdJson, _ := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ccd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ccd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -363,12 +360,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			componentName = "test-app-2-comp"
 		)
 		// install component definition
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossTdJson, err := yaml.YAMLToJSON([]byte(crossNsTdYaml))
+		crossTdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.TraitDefinition)
 		Expect(json.Unmarshal(crossTdJson, ctd)).Should(BeNil())
@@ -485,12 +482,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			componentName = "test-app-3-comp"
 		)
 		By("install component definition")
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossTdJson, err := yaml.YAMLToJSON([]byte(crossNsTdYaml))
+		crossTdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.TraitDefinition)
 		Expect(json.Unmarshal(crossTdJson, ctd)).Should(BeNil())
@@ -603,12 +600,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			component2Name = "test-app-4-comp-2"
 		)
 		By("install component definition")
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossCdJson, err := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ctd)).Should(BeNil())
@@ -745,7 +742,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 
 	It("Update a cross namespace workload of application", func() {
 		// install  component definition
-		crossCdJson, _ := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ccd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ccd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -922,7 +919,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		)
 		By("install related definition")
 
-		crossCdJson, err := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ctd)).Should(BeNil())
@@ -1078,13 +1075,13 @@ var _ = Describe("Test application cross namespace resource", func() {
 		)
 		By("install related definition")
 
-		crossCdJson, err := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ctd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ctd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossTdJson, err := yaml.YAMLToJSON([]byte(crossNsTdYaml))
+		crossTdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		td := new(v1beta1.TraitDefinition)
 		Expect(json.Unmarshal(crossTdJson, td)).Should(BeNil())
@@ -1232,12 +1229,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 
 	It("Test cross-namespace resource gc logic, update a cross-ns workload's namespace", func() {
 		// install  related definition
-		crossCdJson, _ := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ccd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ccd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -1363,7 +1360,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: cross-worker
-  namespace: app-resource-tracker-test-ns
+  namespace: %s
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -1379,7 +1376,7 @@ spec:
           apiVersion: "apps/v1"
           kind:       "Deployment"
           metadata: {
-              namespace: "cross-namespace"
+              namespace: "%s"
           }
           spec: {
               replicas: 0
@@ -1419,7 +1416,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: normal-worker
-  namespace: app-resource-tracker-test-ns
+  namespace: %s
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -1474,11 +1471,10 @@ metadata:
   annotations:
     definition.oam.dev/description: "Manually scale the app"
   name: cross-scaler
-  namespace: app-resource-tracker-test-ns
+  namespace: %s
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
@@ -1488,7 +1484,7 @@ spec:
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
         metadata: {
-            namespace: "cross-namespace"
+            namespace: "%s"
         }
       	spec: {
       		replicaCount: parameter.replicas
@@ -1504,11 +1500,10 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   name: cluster-scope-trait
-  namespace: app-resource-tracker-test-ns
+  namespace: %s
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   extension:
     template: |-
       outputs: pv: { 

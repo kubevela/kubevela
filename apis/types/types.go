@@ -29,6 +29,8 @@ const (
 	DefaultEnvName = "default"
 	// DefaultAppNamespace defines the default K8s namespace for Apps created by KubeVela
 	DefaultAppNamespace = "default"
+	// AutoDetectWorkloadDefinition defines the default workload type for ComponentDefinition which doesn't specify a workload
+	AutoDetectWorkloadDefinition = "autodetects.core.oam.dev"
 )
 
 const (
@@ -65,5 +67,5 @@ const (
 	// TypeSystem defines one category
 	TypeSystem = "System"
 	// TypePlugin defines one category used in Kubectl Plugin
-	TypePlugin = "Debug and Test"
+	TypePlugin = "Plugin Command"
 )

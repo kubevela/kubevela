@@ -301,8 +301,12 @@ var _ = Describe("Test statusAggregate", func() {
 			appFile = &appfile.Appfile{
 				Workloads: []*appfile.Workload{
 					{
-						Name:               componentName,
-						FullTemplate:       &appfile.Template{Reference: common.WorkloadGVK{APIVersion: "v1", Kind: "A1"}},
+						Name: componentName,
+						FullTemplate: &appfile.Template{
+							Reference: common.WorkloadTypeDescriptor{
+								Definition: common.WorkloadGVK{APIVersion: "v1", Kind: "A1"},
+							},
+						},
 						CapabilityCategory: velatypes.TerraformCategory,
 					},
 				},

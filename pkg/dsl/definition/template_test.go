@@ -755,6 +755,110 @@ parameter: {
 			},
 			hasCompileErr: true,
 		},
+
+		"trait patch trait": {
+			traitTemplate: `
+patch: {
+	context: outputs: gameconfig: {
+		metadata: annotations: parameter
+	}
+}
+
+parameter: [string]: string`,
+			params: map[string]interface{}{
+				"patch-by": "trait",
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"context": map[string]interface{}{
+						"outputs": map[string]interface{}{
+							"gameconfig": map[string]interface{}{
+								"metadata": map[string]interface{}{"annotations": map[string]interface{}{"patch-by": "trait"}},
+							},
+						},
+					},
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}}}}}}},
+			},
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config", "annotations": map[string]interface{}{"patch-by": "trait"}}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+			},
+		},
+
+		// errors
+		"invalid template(space-separated labels) will raise error": {
+			traitTemplate: `
+a b: c`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"reference a non-existent variable will raise error": {
+			traitTemplate: `
+patch: {
+	metadata: name: none
+}
+
+parameter: [string]: string`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"incorrect use of the map field in patch will raise error": {
+			traitTemplate: `
+patch: {
+	metadata: annotations: parameter.none
+}
+
+parameter: [string]: string`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"out-of-scope variables in patch will raise error": {
+			traitTemplate: `
+patch: {
+	x : "out of scope"
+	context: outputs: gameconfig: {
+		metadata: name: x
+	}
+}
+
+parameter: [string]: string`,
+			params:        map[string]interface{}{},
+			hasCompileErr: true,
+		},
+		"using the wrong keyword in the parameter will raise error": {
+			traitTemplate: `
+patch: {
+	metadata: annotations: parameter
+}
+
+parameter: [string]: string`,
+			params: map[string]interface{}{
+				"wrong-keyword": "_|_ //",
+			},
+			hasCompileErr: true,
+		},
 	}
 
 	for cassinfo, v := range tds {

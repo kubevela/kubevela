@@ -2,57 +2,10 @@
 title:  Service Binding
 ---
 
-Service binding trait will bind data from Kubernetes `Secret` to the application container's ENV.
+# Description
+Service binding trait will bind data from Kubernetes `Secret` to the application container's ENV. 
 
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "binding cloud resource secrets to pod env"
-  name: service-binding
-spec:
-  appliesToWorkloads:
-    - webservice
-    - worker
-  schematic:
-    cue:
-      template: |
-        patch: {
-        	spec: template: spec: {
-        		// +patchKey=name
-        		containers: [{
-        			name: context.name
-        			// +patchKey=name
-        			env: [
-        				for envName, v in parameter.envMappings {
-        					name: envName
-        					valueFrom: {
-        						secretKeyRef: {
-        							name: v.secret
-        							if v["key"] != _|_ {
-        								key: v.key
-        							}
-        							if v["key"] == _|_ {
-        								key: envName
-        							}
-        						}
-        					}
-        				},
-        			]
-        		}]
-        	}
-        }
-
-        parameter: {
-        	// +usage=The mapping of environment variables to secret
-        	envMappings: [string]: [string]: string
-        }
-
-```
-
-With the help of this `service-binding` trait, you can explicitly set parameter `envMappings` to mapping all
-environment names with secret key. Here is an example.
+## Sample
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -89,4 +42,17 @@ spec:
         username: oamtest
         secretName: db-conn
 
+```
+
+For more detailed samples, please reference to [cloud resource](../components/cloud-services)
+
+## Specification
+
+```console
+# Properties
++-------------+------------------------------------------------+------------------+----------+---------+
+|    NAME     |                  DESCRIPTION                   |       TYPE       | REQUIRED | DEFAULT |
++-------------+------------------------------------------------+------------------+----------+---------+
+| envMappings | The mapping of environment variables to secret | map[string]{...} | true     |         |
++-------------+------------------------------------------------+------------------+----------+---------+
 ```

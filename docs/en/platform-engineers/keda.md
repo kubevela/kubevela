@@ -46,7 +46,7 @@ This is how you claim and register KEDA `ScaledObject`'s API resource (`scaledob
 
 ### 3. Define `appliesToWorkloads`
 
-A trait can be attached to specified workload types or all (i.e. `"*"` means your trait can work with any workload type).
+A trait can be attached to specified workload types or all (i.e. `"*"` or omitted means your trait can work with any workload type).
 
 For the case of KEAD, we will only allow user to attach it to Kubernetes workload type. So we claim it as below:
 

@@ -6,8 +6,7 @@ metadata:
   name: hpa
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:

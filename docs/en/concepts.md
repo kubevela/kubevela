@@ -43,5 +43,4 @@ Before releasing an application to production, it's important to test the code i
 
 Here are some recommended next steps:
 
-- Learn KubeVela's [core concepts](./concepts)
 - Learn how to [deploy an application](end-user/application) in detail and understand how it works.

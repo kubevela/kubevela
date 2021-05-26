@@ -513,11 +513,11 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 }
 
 func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.APIVersion)
+	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
 	if err != nil {
 		return nil, nil, err
 	}
-	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Kind)
+	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Definition.Kind)
 
 	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
 	// construct an empty base workload according to its GVK
@@ -528,9 +528,13 @@ output: {
 }`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
 
 	// re-use the way CUE module generates comp & acComp
-	comp, acComp, err := generateComponentFromCUEModule(wl, appName, revision, ns)
-	if err != nil {
-		return nil, nil, err
+	comp := new(v1alpha2.Component)
+	acComp := new(v1alpha2.ApplicationConfigurationComponent)
+	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
+		comp, acComp, err = generateComponentFromCUEModule(wl, appName, revision, ns)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	release, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, appName, ns, wl.Params)

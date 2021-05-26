@@ -19,6 +19,7 @@ package plugin
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -138,6 +139,61 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("targetPort"))
 			Expect(output).Should(ContainSubstring("target port num for service provider."))
+		})
+	})
+
+	Context("Test kubectl vela comp discover", func() {
+		It("Test list components in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela comp --discover --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing components from registry"))
+			Expect(output).Should(ContainSubstring("cloneset"))
+		})
+	})
+	Context("Test kubectl vela trait discover", func() {
+		It("Test list traits in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing traits from registry"))
+			Expect(output).Should(ContainSubstring("init-container"))
+		})
+	})
+	Context("Test kubectl vela comp and trait install", func() {
+		It("Test install a sample component", func() {
+			output, err := e2e.Exec("kubectl-vela comp get cloneset --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install component: cloneset"))
+		})
+		It("Test install a sample trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait get init-container")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install trait: init-container"))
+		})
+	})
+	Context("Test kubectl vela list installed comp and trait", func() {
+		It("Test list installed component", func() {
+			output, err := e2e.Exec("kubectl-vela comp --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("cloneset"))
+		})
+		It("Test list installed trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("init-container"))
+		})
+	})
+	Context("Test uninstall vela trait", func() {
+		It("Clean the sample component", func() {
+			cmd := exec.Command("kubectl", "delete", "componentDefinition", "cloneset", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("componentdefinition.core.oam.dev \"cloneset\" deleted"))
+		})
+		It("Clean the sample trait", func() {
+			cmd := exec.Command("kubectl", "delete", "traitDefinition", "init-container", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("traitdefinition.core.oam.dev \"init-container\" deleted"))
 		})
 	})
 })
@@ -455,8 +511,7 @@ spec:
     healthPolicy: |
       isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: false
   schematic:
     cue:
@@ -876,8 +931,7 @@ metadata:
   namespace: vela-system
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |-
