@@ -124,6 +124,22 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Properties"))
 		})
+		It("Test show componentDefinition def with raw Kube mode", func() {
+			cdName := "kube-worker"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("image"))
+			Expect(output).Should(ContainSubstring("The value will be applied to fields: [spec.template.spec.containers[0].image]."))
+			Expect(output).Should(ContainSubstring("port"))
+			Expect(output).Should(ContainSubstring("the specific container port num which can accept external request."))
+		})
+		It("Test show traitDefinition def with raw Kube mode", func() {
+			tdName := "service-kube"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("targetPort"))
+			Expect(output).Should(ContainSubstring("target port num for service provider."))
+		})
 	})
 
 	Context("Test kubectl vela comp discover", func() {
@@ -430,6 +446,49 @@ spec:
         url: "http://oam.dev/catalog/"
 `
 
+var componentDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kube-worker
+  namespace: default
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    kube:
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        spec:
+          selector:
+            matchLabels:
+              app: nginx
+          template:
+            metadata:
+              labels:
+                app: nginx
+            spec:
+              containers:
+                - name: nginx
+                  ports:
+                    - containerPort: 80
+      parameters:
+        - name: image
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].image"
+        - name: port
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].ports[0].containerPort"
+          description: "the specific container port num which can accept external request."
+`
+
 var traitDef = `
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
@@ -503,6 +562,39 @@ spec:
         	}
         }
         
+`
+
+var traitDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: service-kube
+  namespace: default
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+    - backend
+  podDisruptive: true
+  schematic:
+    kube:
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: my-service
+        spec:
+          ports:
+            - protocol: TCP
+              port: 80
+              targetPort: 9376
+      parameters:
+        - name: targetPort
+          required: true
+          type: number
+          fieldPaths:
+            - "spec.template.spec.ports[0].targetPort"
+          description: "target port num for service provider."
 `
 
 var dryRunResult = `---

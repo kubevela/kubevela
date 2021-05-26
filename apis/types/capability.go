@@ -22,6 +22,9 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // Source record the source of Capability
@@ -62,6 +65,10 @@ type Capability struct {
 
 	// Terraform
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
+
+	// KubeTemplate
+	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
+	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }
 
 // Chart defines all necessary information to install a whole chart

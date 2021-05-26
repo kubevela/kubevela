@@ -245,6 +245,12 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 			tmp.TerraformConfiguration = schematic.Terraform.Configuration
 			return tmp, nil
 		}
+		if schematic.KUBE != nil {
+			tmp.Category = types.KubeCategory
+			tmp.KubeTemplate = schematic.KUBE.Template
+			tmp.KubeParameter = schematic.KUBE.Parameters
+			return tmp, nil
+		}
 	}
 	if tmp.CueTemplateURI != "" {
 		b, err := common.HTTPGet(context.Background(), tmp.CueTemplateURI)
@@ -325,7 +331,7 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		}
 		return capability, nil
 	}
-	return nil, fmt.Errorf("cloud not find %s is namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
+	return nil, fmt.Errorf("could not find %s in namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
 }
 
 // GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
