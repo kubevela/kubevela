@@ -44,6 +44,12 @@ import (
 type Content struct {
 	OssContent
 	GithubContent
+	LocalContent
+}
+
+// LocalContent for local registry
+type LocalContent struct {
+	AbsDir string `json:"abs_dir"`
 }
 
 // OssContent for oss registry
@@ -86,6 +92,9 @@ func NewCenterClient(ctx context.Context, name, address, token string) (CenterCl
 	return nil, errors.New("we only support github as repository now")
 }
 
+// TypeLocal represents github
+const TypeLocal = "local"
+
 // TypeOss represent oss
 const TypeOss = "oss"
 
@@ -102,69 +111,75 @@ func Parse(addr string) (string, *Content, error) {
 		return "", nil, err
 	}
 	l := strings.Split(strings.TrimPrefix(URL.Path, "/"), "/")
-	switch URL.Host {
-	case "github.com":
-		// We support two valid format:
-		// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
-		// 2. https://github.com/<owner>/<repo>/<path-to-dir>
-		if len(l) < 3 {
-			return "", nil, errors.New("invalid format " + addr)
-		}
-		if l[2] == "tree" {
-			// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
-			if len(l) < 5 {
+	switch URL.Scheme {
+	case "http", "https":
+		switch URL.Host {
+		case "github.com":
+			// We support two valid format:
+			// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+			// 2. https://github.com/<owner>/<repo>/<path-to-dir>
+			if len(l) < 3 {
 				return "", nil, errors.New("invalid format " + addr)
 			}
+			if l[2] == "tree" {
+				// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+				if len(l) < 5 {
+					return "", nil, errors.New("invalid format " + addr)
+				}
+				return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[4:], "/"),
+						Ref:   l[3],
+					},
+				}, nil
+			}
+			// https://github.com/<owner>/<repo>/<path-to-dir>
 			return TypeGithub, &Content{
-				OssContent{},
-				GithubContent{
-					Owner: l[0],
-					Repo:  l[1],
-					Path:  strings.Join(l[4:], "/"),
-					Ref:   l[3],
+					GithubContent: GithubContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[2:], "/"),
+						Ref:   "", // use default branch
+					},
 				},
-			}, nil
+				nil
+		case "api.github.com":
+			if len(l) != 5 {
+				return "", nil, errors.New("invalid format " + addr)
+			}
+			//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
+			return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[1],
+						Repo:  l[2],
+						Path:  l[4],
+						Ref:   URL.Query().Get("ref"),
+					},
+				},
+				nil
+		default:
 		}
-		// https://github.com/<owner>/<repo>/<path-to-dir>
-		return TypeGithub, &Content{
-				OssContent{},
-				GithubContent{
-					Owner: l[0],
-					Repo:  l[1],
-					Path:  strings.Join(l[2:], "/"),
-					Ref:   "", // use default branch
-				},
-			},
-			nil
-	case "api.github.com":
-		if len(l) != 5 {
-			return "", nil, errors.New("invalid format " + addr)
-		}
-		//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
-		return TypeGithub, &Content{
-				OssContent{},
-				GithubContent{
-					Owner: l[1],
-					Repo:  l[2],
-					Path:  l[4],
-					Ref:   URL.Query().Get("ref"),
-				},
-			},
-			nil
-	default:
-		if strings.Contains(URL.Host, "oss") {
-			bucket := strings.Split(URL.Host, ".")[0]
-			entryPoint := strings.TrimPrefix(URL.Host, bucket+".")
+	case "oss":
+		bucket := strings.Split(URL.Host, ".")[0]
+		entryPoint := strings.TrimPrefix(URL.Host, bucket+".")
 
-			return TypeOss, &Content{
-				OssContent{
-					EntryPoint: entryPoint,
-					Bucket:     bucket,
-				},
-				GithubContent{},
-			}, nil
-		}
+		return TypeOss, &Content{
+			OssContent: OssContent{
+				EntryPoint: entryPoint,
+				Bucket:     bucket,
+			},
+		}, nil
+	case "file":
+		return TypeLocal, &Content{
+			LocalContent: LocalContent{
+				AbsDir: URL.Path,
+			},
+		}, nil
+
 	}
+
 	return TypeUnknown, nil, nil
 }
 

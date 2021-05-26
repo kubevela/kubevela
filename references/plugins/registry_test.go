@@ -35,7 +35,7 @@ func TestRegistry(t *testing.T) {
 		expectReg Registry
 	}{
 		"oss registry": {
-			url:       "https://definition-registry.oss-cn-beijing.aliyuncs.com/",
+			url:       "oss://definition-registry.oss-cn-beijing.aliyuncs.com/",
 			expectReg: OssRegistry{},
 		},
 		"github registry": {

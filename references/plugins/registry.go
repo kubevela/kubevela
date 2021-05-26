@@ -51,37 +51,36 @@ type GithubRegistry struct {
 
 // NewRegistry will create a registry implementation
 func NewRegistry(ctx context.Context, token, registryName string, regURL string) (Registry, error) {
-	if strings.HasPrefix(regURL, "http") {
-		tp, cfg, err := Parse(regURL)
-		if err != nil {
-			return nil, err
+	tp, cfg, err := Parse(regURL)
+	if err != nil {
+		return nil, err
+	}
+	switch tp {
+	case TypeGithub:
+		var tc *http.Client
+		if token != "" {
+			ts := oauth2.StaticTokenSource(
+				&oauth2.Token{AccessToken: token},
+			)
+			tc = oauth2.NewClient(ctx, ts)
 		}
-		switch tp {
-		case TypeGithub:
-			var tc *http.Client
-			if token != "" {
-				ts := oauth2.StaticTokenSource(
-					&oauth2.Token{AccessToken: token},
-				)
-				tc = oauth2.NewClient(ctx, ts)
-			}
-			return GithubRegistry{client: github.NewClient(tc), cfg: &cfg.GithubContent, ctx: ctx, name: registryName}, nil
-		case TypeOss:
-			var tc http.Client
-
-			return OssRegistry{
-				Client:    &tc,
-				bucketURL: fmt.Sprintf("https://%s.%s/", cfg.Bucket, cfg.EntryPoint),
-			}, nil
-		}
-	} else if strings.HasPrefix(regURL, "file://") {
-		dir := strings.TrimPrefix(regURL, "file://")
-		_, err := os.Stat(dir)
+		return GithubRegistry{client: github.NewClient(tc), cfg: &cfg.GithubContent, ctx: ctx, name: registryName}, nil
+	case TypeOss:
+		var tc http.Client
+		return OssRegistry{
+			Client:    &tc,
+			bucketURL: fmt.Sprintf("https://%s.%s/", cfg.Bucket, cfg.EntryPoint),
+		}, nil
+	case TypeLocal:
+		_, err := os.Stat(cfg.AbsDir)
 		if os.IsNotExist(err) {
 			return LocalRegistry{}, err
 		}
-		return LocalRegistry{absPath: dir}, nil
+		return LocalRegistry{absPath: cfg.AbsDir}, nil
+	case TypeUnknown:
+		return nil, fmt.Errorf("not supported url")
 	}
+
 	return nil, fmt.Errorf("not supported url")
 }
 
