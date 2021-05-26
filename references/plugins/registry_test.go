@@ -18,9 +18,10 @@ package plugins
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRegistry(t *testing.T) {
