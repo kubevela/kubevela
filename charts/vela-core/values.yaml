@@ -78,6 +78,8 @@ admissionWebhooks:
   certManager:
     enabled: false
 
+#Enable debug logs for development purpose
+logDebug: true
 
 systemDefinitionNamespace: vela-system
 
