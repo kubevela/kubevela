@@ -186,34 +186,13 @@ type CapabilityTraitDefinition struct {
 // NewCapabilityTraitDef will create a CapabilityTraitDefinition
 func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityTraitDefinition {
 	var def CapabilityTraitDefinition
-	def.Name = traitdefinition.Name //  or def.Name = req.NamespacedName.Name ?
+	def.Name = traitdefinition.Name //  or def.Name = req.NamespacedName.Name
 	if traitdefinition.Spec.Schematic != nil && traitdefinition.Spec.Schematic.KUBE != nil {
 		def.DefCategoryType = util.KubeDef
 		def.Kube = traitdefinition.Spec.Schematic.KUBE
 	}
 	def.TraitDefinition = *traitdefinition.DeepCopy()
 	return def
-}
-
-// GetCapabilityObject gets types.Capability object by TraitDefinition name
-func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
-	var traitDefinition v1beta1.TraitDefinition
-	var capability types.Capability
-	capability.Name = def.Name
-	objectKey := client.ObjectKey{
-		Namespace: namespace,
-		Name:      name,
-	}
-	err := k8sClient.Get(ctx, objectKey, &traitDefinition)
-	if err != nil {
-		return &capability, fmt.Errorf("failed to get WorkloadDefinition %s: %w", def.Name, err)
-	}
-	def.TraitDefinition = traitDefinition
-	capability, err = appfile.ConvertTemplateJSON2Object(name, traitDefinition.Spec.Extension, traitDefinition.Spec.Schematic)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
-	}
-	return &capability, err
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by TraitDefinition name

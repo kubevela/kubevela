@@ -129,7 +129,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("image"))
-			Expect(output).Should(ContainSubstring("the image specific version you can pull from the docker hub."))
+			Expect(output).Should(ContainSubstring("The value will be applied to fields: [spec.template.spec.containers[0].image]."))
 			Expect(output).Should(ContainSubstring("port"))
 			Expect(output).Should(ContainSubstring("the specific container port num which can accept external request."))
 		})
@@ -481,7 +481,6 @@ spec:
           type: string
           fieldPaths:
             - "spec.template.spec.containers[0].image"
-          description: "the image specific version you can pull from the docker hub."
         - name: port
           required: true
           type: string

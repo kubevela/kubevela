@@ -231,7 +231,7 @@ var _ = Describe("test GetCapabilityByName", func() {
 			jsontmp, err := json.Marshal(cap.KubeParameter)
 			Expect(err).Should(BeNil())
 			Expect(string(jsontmp)).Should(ContainSubstring("image"))
-			Expect(string(jsontmp)).Should(ContainSubstring("the image specific version you can pull from the docker hub."))
+			Expect(string(jsontmp)).Should(ContainSubstring("spec.template.spec.containers[0].image"))
 			Expect(string(jsontmp)).Should(ContainSubstring("port"))
 			Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
 		})

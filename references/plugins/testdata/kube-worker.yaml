@@ -32,7 +32,6 @@ spec:
           type: string
           fieldPaths:
             - "spec.template.spec.containers[0].image"
-          description: "the image specific version you can pull from the docker hub."
         - name: port
           required: true
           type: string
