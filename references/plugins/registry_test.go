@@ -38,10 +38,10 @@ func TestRegistry(t *testing.T) {
 			url:       "https://definition-registry.oss-cn-beijing.aliyuncs.com/",
 			expectReg: OssRegistry{},
 		},
-		//"github registry": {
-		//	url:       "https://github.com/oam-dev/catalog/tree/master/registry",
-		//	expectReg: GithubRegistry{},
-		//},
+		"github registry": {
+			url:       "https://github.com/oam-dev/catalog/tree/master/registry",
+			expectReg: GithubRegistry{},
+		},
 		"local registry": {
 			url:       "file://" + localPath,
 			expectReg: LocalRegistry{},
