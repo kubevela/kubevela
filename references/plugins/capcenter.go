@@ -40,6 +40,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+// Content contains different type of content needed when building Registry or GithubCenter
+type Content struct {
+	OssContent
+	GithubContent
+}
+
+// OssContent for oss registry
+type OssContent struct {
+	EntryPoint string `json:"entry_point"`
+	Bucket     string `json:"bucket"`
+}
+
 // GithubContent for cap center
 type GithubContent struct {
 	Owner string `json:"owner"`
@@ -68,11 +80,14 @@ func NewCenterClient(ctx context.Context, name, address, token string) (CenterCl
 	}
 	switch Type {
 	case TypeGithub:
-		return NewGithubCenter(ctx, token, name, cfg)
+		return NewGithubCenter(ctx, token, name, &cfg.GithubContent)
 	default:
 	}
 	return nil, errors.New("we only support github as repository now")
 }
+
+// TypeOss represent oss
+const TypeOss = "oss"
 
 // TypeGithub represents github
 const TypeGithub = "github"
@@ -81,13 +96,13 @@ const TypeGithub = "github"
 const TypeUnknown = "unknown"
 
 // Parse will parse config from address
-func Parse(addr string) (string, *GithubContent, error) {
-	url, err := url.Parse(addr)
+func Parse(addr string) (string, *Content, error) {
+	URL, err := url.Parse(addr)
 	if err != nil {
 		return "", nil, err
 	}
-	l := strings.Split(strings.TrimPrefix(url.Path, "/"), "/")
-	switch url.Host {
+	l := strings.Split(strings.TrimPrefix(URL.Path, "/"), "/")
+	switch URL.Host {
 	case "github.com":
 		// We support two valid format:
 		// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
@@ -100,33 +115,55 @@ func Parse(addr string) (string, *GithubContent, error) {
 			if len(l) < 5 {
 				return "", nil, errors.New("invalid format " + addr)
 			}
-			return TypeGithub, &GithubContent{
-				Owner: l[0],
-				Repo:  l[1],
-				Path:  strings.Join(l[4:], "/"),
-				Ref:   l[3],
+			return TypeGithub, &Content{
+				OssContent{},
+				GithubContent{
+					Owner: l[0],
+					Repo:  l[1],
+					Path:  strings.Join(l[4:], "/"),
+					Ref:   l[3],
+				},
 			}, nil
 		}
 		// https://github.com/<owner>/<repo>/<path-to-dir>
-		return TypeGithub, &GithubContent{
-			Owner: l[0],
-			Repo:  l[1],
-			Path:  strings.Join(l[2:], "/"),
-			Ref:   "", // use default branch
-		}, nil
+		return TypeGithub, &Content{
+				OssContent{},
+				GithubContent{
+					Owner: l[0],
+					Repo:  l[1],
+					Path:  strings.Join(l[2:], "/"),
+					Ref:   "", // use default branch
+				},
+			},
+			nil
 	case "api.github.com":
 		if len(l) != 5 {
 			return "", nil, errors.New("invalid format " + addr)
 		}
 		//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
-		return TypeGithub, &GithubContent{
-			Owner: l[1],
-			Repo:  l[2],
-			Path:  l[4],
-			Ref:   url.Query().Get("ref"),
-		}, nil
+		return TypeGithub, &Content{
+				OssContent{},
+				GithubContent{
+					Owner: l[1],
+					Repo:  l[2],
+					Path:  l[4],
+					Ref:   URL.Query().Get("ref"),
+				},
+			},
+			nil
 	default:
-		// TODO(wonderflow): support raw url and oss format in the future
+		if strings.Contains(URL.Host, "oss") {
+			bucket := strings.Split(URL.Host, ".")[0]
+			entryPoint := strings.TrimPrefix(URL.Host, bucket+".")
+
+			return TypeOss, &Content{
+				OssContent{
+					EntryPoint: entryPoint,
+					Bucket:     bucket,
+				},
+				GithubContent{},
+			}, nil
+		}
 	}
 	return TypeUnknown, nil, nil
 }
