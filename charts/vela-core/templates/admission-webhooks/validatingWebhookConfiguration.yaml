@@ -188,5 +188,30 @@ webhooks:
           - UPDATE
         resources:
           - componentdefinitions
-          
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1beta1-appdeployments
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fail
+    {{- end }}
+    name: validating.core.oam-dev.v1beta1.appdeployments
+    sideEffects: None
+    admissionReviewVersions:
+      - v1beta1
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - appdeployments
+
 {{- end -}}

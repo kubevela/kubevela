@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/appdeployment"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
@@ -41,6 +42,7 @@ func Register(mgr manager.Manager, args controller.Args) {
 	applicationrollout.RegisterValidatingHandler(mgr)
 	component.RegisterMutatingHandler(mgr, args)
 	component.RegisterValidatingHandler(mgr)
+	appdeployment.RegisterValidatingHandler(mgr)
 
 	server := mgr.GetWebhookServer()
 	server.Register("/convert", &conversion.Webhook{})

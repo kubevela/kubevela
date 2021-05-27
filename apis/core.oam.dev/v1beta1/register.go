@@ -111,10 +111,10 @@ var (
 
 // AppDeployment type metadata.
 var (
-	AppDeploymentKind            = reflect.TypeOf(AppDeployment{}).Name()
-	AppDeploymentGroupKind       = schema.GroupKind{Group: Group, Kind: AppDeploymentKind}.String()
-	AppDeploymentKindAPIVersion  = AppDeploymentKind + "." + SchemeGroupVersion.String()
-	AppDeploymentKindVersionKind = SchemeGroupVersion.WithKind(AppDeploymentKind)
+	AppDeploymentKind             = reflect.TypeOf(AppDeployment{}).Name()
+	AppDeploymentGroupKind        = schema.GroupKind{Group: Group, Kind: AppDeploymentKind}.String()
+	AppDeploymentKindAPIVersion   = AppDeploymentKind + "." + SchemeGroupVersion.String()
+	AppDeploymentGroupVersionKind = SchemeGroupVersion.WithKind(AppDeploymentKind)
 )
 
 // Cluster type metadata.
