@@ -9,8 +9,7 @@ Components in KubeVela are designed to be brought by users.
 KubeVela allows you to explore capabilities maintained by platform team.
 There are two commands in kubectl vela plugin: `comp` and `trait`.
 
-In case you haven't installed kubectl vela plugin: see [this](../../kubectl-plugin).
-
+In case you haven't installed kubectl vela plugin: see [this](../../developers/references/kubectl-plugin#install-kubectl-vela-plugin).
 ### 1. list
 
 For example, let's try to list all available components in a registry:
