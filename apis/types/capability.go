@@ -99,6 +99,10 @@ const (
 	TypeTrait CapType = "trait"
 	// TypeScope represent OAM Scope
 	TypeScope CapType = "scope"
+	// TypeWorkflowStep represent OAM Workflow
+	TypeWorkflowStep CapType = "workflowstep"
+	// TypePolicy represent OAM Policy
+	TypePolicy CapType = "policy"
 )
 
 // CapabilityConfigMapNamePrefix is the prefix for capability ConfigMap name

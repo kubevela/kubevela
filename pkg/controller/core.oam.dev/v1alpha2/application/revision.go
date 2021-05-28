@@ -81,7 +81,7 @@ func (h *appHandler) setRevisionMetadata(appRev *v1beta1.ApplicationRevision) {
 // it's ApplicationConfiguration and Component for now
 func (h *appHandler) setRevisionWithRenderedResult(appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration,
 	comps []*v1alpha2.Component) {
-	appRev.Spec.Components = ConvertComponent2RawRevision(comps)
+	appRev.Spec.Components = ConvertComponents2RawRevisions(comps)
 	appRev.Spec.ApplicationConfiguration = util.Object2RawExtension(ac)
 }
 
@@ -196,8 +196,8 @@ func (h *appHandler) FinalizeAppRevision(appRev *v1beta1.ApplicationRevision,
 
 }
 
-// ConvertComponent2RawRevision convert to ComponentMap
-func ConvertComponent2RawRevision(comps []*v1alpha2.Component) []common.RawComponent {
+// ConvertComponents2RawRevisions convert to ComponentMap
+func ConvertComponents2RawRevisions(comps []*v1alpha2.Component) []common.RawComponent {
 	var objs []common.RawComponent
 	for _, comp := range comps {
 		obj := comp.DeepCopy()

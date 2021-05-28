@@ -91,6 +91,7 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 		return caps, nil
 	case types.TypeScope:
 	case types.TypeWorkload:
+	default:
 	}
 	return nil, nil
 }
@@ -174,6 +175,7 @@ func GetSubDir(dir string, capT types.CapType) string {
 		return filepath.Join(dir, "scopes")
 	case types.TypeComponentDefinition:
 		return filepath.Join(dir, "components")
+	default:
 	}
 	return dir
 }

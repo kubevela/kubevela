@@ -17,6 +17,7 @@
 package v1beta1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -50,6 +51,9 @@ type ApplicationRevisionSpec struct {
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
 	ApplicationConfiguration runtime.RawExtension `json:"applicationConfiguration"`
+
+	// ResourcesConfigMap references the ConfigMap that's generated to contain all final rendered resources.
+	ResourcesConfigMap corev1.LocalObjectReference `json:"resourcesConfigMap,omitempty"`
 }
 
 // +kubebuilder:object:root=true

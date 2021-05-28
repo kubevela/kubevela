@@ -52,6 +52,9 @@ type ApplicationComponent struct {
 
 // AppPolicy defines a global policy for all components in the app.
 type AppPolicy struct {
+	// Name is the unique name of the policy.
+	Name string `json:"name"`
+
 	Type string `json:"type"`
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
@@ -59,11 +62,10 @@ type AppPolicy struct {
 
 // WorkflowStep defines how to execute a workflow step.
 type WorkflowStep struct {
-	Type string `json:"type"`
+	// Name is the unique name of the workflow step.
+	Name string `json:"name"`
 
-	// The stage is the running stage this workflow runs.
-	// It could be `pre-render` or `post-render` (default).
-	Stage string `json:"stage,omitempty"`
+	Type string `json:"type"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
