@@ -26,11 +26,9 @@ TEST SUITE: None
 
 By applying Terraform Provider credentials, Terraform controller can be authenticated to deploy and manage cloud resources.
 
-Please refer to [Terraform controller getting started](https://github.com/oam-dev/terraform-controller/blob/master/getting-started.md) on how to apply Provider for Alibaba Cloud, AWS, Azure or GCP.
+Please refer to [Terraform controller getting started](https://github.com/oam-dev/terraform-controller/blob/master/getting-started.md) on how to apply Provider for Alibaba Cloud or AWS.
 
 </details>
-
-## Alibaba Examples
 
 ### Register `alibaba-rds` Component
 
