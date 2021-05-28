@@ -10,10 +10,10 @@ These cloud services are provided by Terraform.
 
 <details>
 
-Download the latest chart, like `terraform-controller-chart-0.1.4.tgz`, from the latest [releases list](https://github.com/oam-dev/terraform-controller/releases) and install it.
+Download the latest chart, like `terraform-controller-chart-0.1.7.tgz`, from the latest [releases list](https://github.com/oam-dev/terraform-controller/releases) and install it.
 
 ```shell
-$ helm install terraform-controller terraform-controller-0.1.2.tgz
+$ helm install terraform-controller terraform-controller-0.1.7.tgz
 NAME: terraform-controller
 LAST DEPLOYED: Mon Apr 26 15:55:35 2021
 NAMESPACE: default
@@ -26,11 +26,13 @@ TEST SUITE: None
 
 By applying Terraform Provider credentials, Terraform controller can be authenticated to deploy and manage cloud resources.
 
-Please refer to [Terraform controller getting started](https://github.com/oam-dev/terraform-controller/blob/master/getting-started.md) on how to apply Provider for Alibaba Cloud or AWS.
+Please refer to [Terraform controller getting started](https://github.com/oam-dev/terraform-controller/blob/master/getting-started.md) on how to apply Provider for Alibaba Cloud, AWS, Azure or GCP.
 
 </details>
 
-## Register `alibaba-rds` Component
+## Alibaba Examples
+
+### Register `alibaba-rds` Component
 
 Register [alibaba-rds](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-rds.yaml) to KubeVela.
 
