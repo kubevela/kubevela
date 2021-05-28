@@ -137,16 +137,6 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@master
-      - name: Get git revision
-        id: vars
-        shell: bash
-        run: |
-          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
-      - uses: oprypin/find-latest-tag@v1
-        with:
-          repository: oam-dev/kubevela
-          releases-only: true
-        id: latest_tag
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
