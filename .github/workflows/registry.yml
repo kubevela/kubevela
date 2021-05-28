@@ -128,3 +128,23 @@ jobs:
           helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync $LOCAL_OSS_DIRECTORY oss://$BUCKET/core -f
+
+  publish-capabilities:
+    env:
+      CAPABILITY_BUCKET: kubevela-registry
+      CAPABILITY_DIR: capabilities
+      CAPABILITY_ENDPOINT: oss-cn-beijing.aliyuncs.com
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@master
+      - name: Install ossutil
+        run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
+      - name: Configure Alibaba Cloud OSSUTIL
+        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${CAPABILITY_ENDPOINT} -c .ossutilconfig
+      - name: sync capabilities bucket to local
+        run: ./ossutil --config-file .ossutilconfig sync oss://$CAPABILITY_BUCKET $CAPABILITY_DIR
+      - name: rsync all capabilites
+        run: |
+          rsync docs/examples/registry/* $CAPABILITY_DIR
+      - name: sync local to cloud
+        run: ./ossutil --config-file .ossutilconfig sync $CAPABILITY_DIR oss://$CAPABILITY_BUCKET -f
