@@ -10,10 +10,10 @@ These cloud services are provided by Terraform.
 
 <details>
 
-Download the latest chart, like `terraform-controller-chart-0.1.7.tgz`, from the latest [releases list](https://github.com/oam-dev/terraform-controller/releases) and install it.
+Download the latest chart, like `terraform-controller-chart-0.1.8.tgz`, from the latest [releases list](https://github.com/oam-dev/terraform-controller/releases) and install it.
 
 ```shell
-$ helm install terraform-controller terraform-controller-0.1.7.tgz
+$ helm install terraform-controller terraform-controller-0.1.8.tgz
 NAME: terraform-controller
 LAST DEPLOYED: Mon Apr 26 15:55:35 2021
 NAMESPACE: default
