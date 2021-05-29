@@ -170,6 +170,7 @@ module.exports = {
           ],
         },
         'developers/references/restful-api/rest',
+        'developers/references/kubectl-plugin'
       ],
     },
     {

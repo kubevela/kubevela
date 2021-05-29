@@ -1,5 +1,5 @@
 ---
-title: Install kubectl plugin
+title: Kubectl plugin
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
@@ -8,42 +8,7 @@ Install vela kubectl plugin can help you to ship applications more easily!
 
 ## Installation
 
-You can install kubectl plugin `kubectl vela` by:
-
-<Tabs
-className="unique-tabs"
-defaultValue="krew"
-values={[
-    {label: 'Krew', value: 'krew'},
-    {label: 'Script', value: 'script'},
-]}>
-<TabItem value="krew">
-
-1. [Install and set up](https://krew.sigs.k8s.io/docs/user-guide/setup/install/) Krew on your machine.
-2. Discover plugins available on Krew:
-```shell
-kubectl krew update
-```
-3. install kubectl vela:
-```shell script
-kubectl krew install vela
-```
-
-</TabItem>
-<TabItem value="script">
-
-**macOS/Linux**
-```shell script
-curl -fsSl https://kubevela.io/script/install-kubectl-vela.sh | bash
-```
-
-You can also download the binary from [release pages ( >= v1.0.3)](https://github.com/oam-dev/kubevela/releases) manually.
-Kubectl will discover it from your system path automatically.
-
-</TabItem>
-</Tabs>
-
-
+See [advanced-install](../../advanced-install#install-kubectl-vela-plugin)
 
 ## Usage
 
@@ -57,7 +22,7 @@ Usage:
 
 Available Commands:
 
-    comp        Show components in cap center
+    comp        Show components in capability registry
     dry-run     Dry Run an application, and output the K8s resources as
                 result to stdout, only CUE template supported for now
     live-diff   Dry-run an application, and do diff on a specific app
@@ -66,7 +31,7 @@ Available Commands:
                 found in the provided ones, it will try to find from
                 cluster.
     show        Show the reference doc for a workload type or trait
-    trait       Show traits in cap center
+    trait       Show traits in capability registry
     version     Prints out build version information
 
 Flags:
