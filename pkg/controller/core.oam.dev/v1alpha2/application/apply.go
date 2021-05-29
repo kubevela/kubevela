@@ -30,7 +30,7 @@ import (
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -60,7 +60,7 @@ import (
 func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
 		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             v1.ConditionFalse,
+		Status:             corev1.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             runtimev1alpha1.ReasonReconcileError,
 		Message:            err.Error(),
@@ -70,7 +70,7 @@ func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 func readyCondition(tpy string) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
 		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             v1.ConditionTrue,
+		Status:             corev1.ConditionTrue,
 		Reason:             runtimev1alpha1.ReasonAvailable,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 	}

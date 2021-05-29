@@ -27,6 +27,7 @@ const (
 
 	ReasonFailedParse       = "FailedParse"
 	ReasonFailedRender      = "FailedRender"
+	ReasonFailedWorkflow    = "FailedWorkflow"
 	ReasonFailedApply       = "FailedApply"
 	ReasonFailedHealthCheck = "FailedHealthCheck"
 	ReasonFailedGC          = "FailedGC"

@@ -25,6 +25,9 @@ import (
 
 // PolicyDefinitionSpec defines the desired state of PolicyDefinition
 type PolicyDefinitionSpec struct {
+	// Reference to the CustomResourceDefinition that defines this trait kind.
+	Reference common.DefinitionReference `json:"definitionRef,omitempty"`
+
 	// Schematic defines the data format and template of the encapsulation of the policy definition
 	// +optional
 	Schematic *common.Schematic `json:"schematic,omitempty"`
@@ -34,6 +37,20 @@ type PolicyDefinitionSpec struct {
 type PolicyDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
+
+	// LatestRevision of the component definition
+	// +optional
+	LatestRevision *common.Revision `json:"latestRevision,omitempty"`
+}
+
+// SetConditions set condition for PolicyDefinition
+func (d *PolicyDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+	d.Status.SetConditions(c...)
+}
+
+// GetCondition gets condition from PolicyDefinition
+func (d *PolicyDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+	return d.Status.GetCondition(conditionType)
 }
 
 // +kubebuilder:object:root=true
