@@ -145,6 +145,6 @@ jobs:
         run: ./ossutil --config-file .ossutilconfig sync oss://$CAPABILITY_BUCKET $CAPABILITY_DIR
       - name: rsync all capabilites
         run: |
-          rsync docs/examples/registry/* $CAPABILITY_DIR
+          rsync registry/* $CAPABILITY_DIR
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync $CAPABILITY_DIR oss://$CAPABILITY_BUCKET -f
