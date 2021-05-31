@@ -69,7 +69,7 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 		var tc http.Client
 		return OssRegistry{
 			Client:    &tc,
-			bucketURL: fmt.Sprintf("https://%s.%s/", cfg.Bucket, cfg.EntryPoint),
+			bucketURL: fmt.Sprintf("https://%s/", cfg.BucketURL),
 		}, nil
 	case TypeLocal:
 		_, err := os.Stat(cfg.AbsDir)
@@ -222,7 +222,7 @@ func (o OssRegistry) ListCaps() ([]types.Capability, error) {
 		addonName := strings.Split(fileName, ".")[0]
 		capa, _, err := o.GetCap(addonName)
 		if err != nil {
-			fmt.Printf("Get %s err: %s", fileName, err)
+			fmt.Printf("Get %s err: %s\n", fileName, err)
 			continue
 		}
 		capas = append(capas, capa)

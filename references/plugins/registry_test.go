@@ -25,7 +25,7 @@ import (
 )
 
 func TestRegistry(t *testing.T) {
-	testAddon := "init-container"
+	testAddon := "dynamic-sa"
 	regName := "testReg"
 	localPath, err := filepath.Abs("../../e2e/plugin/testdata")
 	assert.Nil(t, err)
@@ -35,7 +35,7 @@ func TestRegistry(t *testing.T) {
 		expectReg Registry
 	}{
 		"oss registry": {
-			url:       "oss://definition-registry.oss-cn-beijing.aliyuncs.com/",
+			url:       "oss://kubevela-registry.oss-cn-beijing.aliyuncs.com/",
 			expectReg: OssRegistry{},
 		},
 		"github registry": {

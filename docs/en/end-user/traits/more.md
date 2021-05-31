@@ -17,7 +17,7 @@ For example, let's try to list all available traits in registry:
 
 ```shell
 $ kubectl vela trait --discover
-Showing traits from registry: https://github.com/oam-dev/catalog/tree/master/registry
+Showing traits from registry: https://kubevela-registry.oss-cn-beijing.aliyuncs.com
 NAME           	REGISTRY	  DEFINITION                    		APPLIES-TO               
 service-account	default  	                              		    [webservice worker]      
 env            	default 		                                    [webservice worker]      
@@ -51,7 +51,7 @@ init-container   ["webservice","worker"]   add an init container with a shared v
 ```
 
 By default, the two commands will retrieve capabilities
-from [repo](https://github.com/oam-dev/catalog/tree/master/registry) maintained by KubeVela.
+from [repo](https://kubevela-registry.oss-cn-beijing.aliyuncs.com) maintained by KubeVela.
 
 ## 2. Designed by yourself
 

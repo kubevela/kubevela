@@ -54,8 +54,7 @@ type LocalContent struct {
 
 // OssContent for oss registry
 type OssContent struct {
-	EntryPoint string `json:"entry_point"`
-	Bucket     string `json:"bucket"`
+	BucketURL string `json:"bucket_url"`
 }
 
 // GithubContent for cap center
@@ -162,13 +161,9 @@ func Parse(addr string) (string, *Content, error) {
 		default:
 		}
 	case "oss":
-		bucket := strings.Split(URL.Host, ".")[0]
-		entryPoint := strings.TrimPrefix(URL.Host, bucket+".")
-
 		return TypeOss, &Content{
 			OssContent: OssContent{
-				EntryPoint: entryPoint,
-				Bucket:     bucket,
+				BucketURL: URL.Host,
 			},
 		}, nil
 	case "file":

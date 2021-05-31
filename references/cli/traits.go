@@ -178,7 +178,7 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 }
 
 // DefaultRegistry is default capability center of kubectl-vela
-var DefaultRegistry = "https://github.com/oam-dev/catalog/tree/master/registry"
+var DefaultRegistry = "oss://kubevela-registry.oss-cn-beijing.aliyuncs.com"
 
 const installed = "installed"
 const uninstalled = "uninstalled"

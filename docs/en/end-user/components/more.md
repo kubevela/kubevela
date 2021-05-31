@@ -16,7 +16,7 @@ For example, let's try to list all available components in a registry:
 
 ```shell
 $ kubectl vela comp --discover
-Showing components from registry: https://github.com/oam-dev/catalog/tree/master/registry
+Showing components from registry: https://kubevela-registry.oss-cn-beijing.aliyuncs.com
 NAME              	REGITSRY	DEFINITION                 	
 cloneset          	default	    clonesets.apps.kruise.io
 kruise-statefulset	default	    statefulsets.apps.kruise.io
@@ -43,7 +43,7 @@ cloneset     CloneSet        Describes long-running, scalable, containerized ser
 
 ```
 
-By default, the two commands will retrieve capabilities from [repo](https://github.com/oam-dev/catalog/tree/master/registry) maintained by KubeVela.
+By default, the two commands will retrieve capabilities from [repo](https://kubevela-registry.oss-cn-beijing.aliyuncs.com) maintained by KubeVela.
 
 ## 2. Designed by yourself 
 Check below documentations about how to bring your own components to the system in various approaches.

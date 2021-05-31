@@ -1,8 +1,8 @@
-# vela Plugin Registry Reference
+# KubeVela Plugin Registry Reference
 
 ## registry interface intro
 
-All `Registry` interface defines are two methods:GetCap and ListCaps. Here "Cap" can represent trait or component definition
+`Registry` interface definitions have two methods: `GetCap` and `ListCaps`. Here "Cap" can represent trait or component definition
 
 ```go
 // Registry define a registry stores trait & component defs
