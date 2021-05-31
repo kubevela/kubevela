@@ -131,7 +131,6 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).To(BeNil())
 	reconciler = &Reconciler{
 		Client:           k8sClient,
-		Log:              ctrl.Log.WithName("Application-Test"),
 		Scheme:           testScheme,
 		dm:               dm,
 		pd:               pd,

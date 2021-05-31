@@ -387,9 +387,8 @@ var _ = Describe("Test gatherUsingAppRevision func", func() {
 		}
 		Expect(k8sClient.Create(ctx, appContext)).Should(BeNil())
 		handler := appHandler{
-			r:      reconciler,
-			app:    app,
-			logger: reconciler.Log.WithValues("application", "gatherUsingAppRevision-func-test"),
+			r:   reconciler,
+			app: app,
 		}
 		Eventually(func() error {
 			using, err := gatherUsingAppRevision(ctx, &handler)

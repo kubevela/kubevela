@@ -23,8 +23,8 @@ import (
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -39,9 +39,6 @@ type ValidatingHandler struct {
 	Decoder *admission.Decoder
 }
 
-// log is for logging in this package.
-var validatelog = logf.Log.WithName("PodSpecWorkload-validate")
-
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
@@ -50,7 +47,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		validatelog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
+		klog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
 			req.AdmissionRequest)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
@@ -78,7 +75,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 // ValidateCreate validates the PodSpecWorkload on creation
 func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	validatelog.Info("validate create", "name", r.Name)
+	klog.InfoS("validate create", "name", r.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
@@ -97,13 +94,13 @@ func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
 
 // ValidateUpdate validates the PodSpecWorkload on update
 func ValidateUpdate(r *v1alpha1.PodSpecWorkload, _ *v1alpha1.PodSpecWorkload) field.ErrorList {
-	validatelog.Info("validate update", "name", r.Name)
+	klog.InfoS("validate update", "name", r.Name)
 	return ValidateCreate(r)
 }
 
 // ValidateDelete validates the PodSpecWorkload on delete
 func ValidateDelete(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	validatelog.Info("validate delete", "name", r.Name)
+	klog.InfoS("validate delete", "name", r.Name)
 	return nil
 }
 

@@ -104,7 +104,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		eventObj = &manualScalar
 	}
 	// Fetch the workload instance this trait is referring to
-	workload, err := util.FetchWorkload(ctx, r, mLog, &manualScalar)
+	workload, err := util.FetchWorkload(ctx, r, &manualScalar)
 	if err != nil {
 		r.record.Event(eventObj, event.Warning(util.ErrLocateWorkload, err))
 		return util.ReconcileWaitResult, util.PatchCondition(
@@ -112,7 +112,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch the child resources list from the corresponding workload
-	resources, err := util.FetchWorkloadChildResources(ctx, mLog, r, r.dm, workload)
+	resources, err := util.FetchWorkloadChildResources(ctx, r, r.dm, workload)
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))

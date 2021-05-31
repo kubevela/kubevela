@@ -28,11 +28,9 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/natefinch/lumberjack.v2"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -82,6 +80,7 @@ func main() {
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "",
 		"Determines the namespace in which the leader election configmap will be created.")
 	flag.StringVar(&logFilePath, "log-file-path", "", "The file to write logs to.")
+	// TODO add more option
 	flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
 	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
 	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
@@ -103,29 +102,18 @@ func main() {
 	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 60*time.Minute,
 		"controller shared informer lister full re-sync period")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
-	flag.Parse()
 
 	// setup logging
-	var w io.Writer
-	if len(logFilePath) > 0 {
-		w = zapcore.AddSync(&lumberjack.Logger{
-			Filename: logFilePath,
-			MaxAge:   logRetainDate, // days
-			Compress: logCompress,
-		})
-	} else {
-		w = os.Stdout
+	klog.InitFlags(nil)
+	if logFilePath != "" {
+		_ = flag.Set("logtostderr", "false")
+		_ = flag.Set("log_file", logFilePath)
 	}
+	flag.Parse()
 
-	logger := zap.New(func(o *zap.Options) {
-		o.Development = logDebug
-		o.DestWritter = w
-	})
-	ctrl.SetLogger(logger)
-
-	setupLog.Info(fmt.Sprintf("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision))
-	setupLog.Info(fmt.Sprintf("Disable Capabilities: %s.", disableCaps))
-	setupLog.Info(fmt.Sprintf("core init with definition namespace %s", oam.SystemDefinitonNamespace))
+	klog.Infof("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision)
+	klog.Infof("Disable Capabilities: %s.", disableCaps)
+	klog.Infof("core init with definition namespace %s", oam.SystemDefinitonNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
@@ -142,32 +130,32 @@ func main() {
 		SyncPeriod:              &syncPeriod,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to create a controller manager")
+		klog.Error(err, "unable to create a controller manager")
 		os.Exit(1)
 	}
 
 	if err := registerHealthChecks(mgr); err != nil {
-		setupLog.Error(err, "unable to register ready/health checks")
+		klog.Error(err, "unable to register ready/health checks")
 		os.Exit(1)
 	}
 
 	if err := utils.CheckDisabledCapabilities(disableCaps); err != nil {
-		setupLog.Error(err, "unable to get enabled capabilities")
+		klog.Error(err, "unable to get enabled capabilities")
 		os.Exit(1)
 	}
 
 	switch strings.ToLower(applyOnceOnly) {
 	case "", "false", string(oamcontroller.ApplyOnceOnlyOff):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOff
-		setupLog.Info("ApplyOnceOnly is disabled")
+		klog.Info("ApplyOnceOnly is disabled")
 	case "true", string(oamcontroller.ApplyOnceOnlyOn):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOn
-		setupLog.Info("ApplyOnceOnly is enabled, that means workload or trait only apply once if no spec change even they are changed by others")
+		klog.Info("ApplyOnceOnly is enabled, that means workload or trait only apply once if no spec change even they are changed by others")
 	case string(oamcontroller.ApplyOnceOnlyForce):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyForce
-		setupLog.Info("ApplyOnceOnlyForce is enabled, that means workload or trait only apply once if no spec change even they are changed or deleted by others")
+		klog.Info("ApplyOnceOnlyForce is enabled, that means workload or trait only apply once if no spec change even they are changed or deleted by others")
 	default:
-		setupLog.Error(fmt.Errorf("invalid apply-once-only value: %s", applyOnceOnly),
+		klog.Error(fmt.Errorf("invalid apply-once-only value: %s", applyOnceOnly),
 			"unable to setup the vela core controller",
 			"valid apply-once-only value:", "on/off/force, by default it's off")
 		os.Exit(1)
@@ -175,21 +163,21 @@ func main() {
 
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {
-		setupLog.Error(err, "failed to create CRD discovery client")
+		klog.Error(err, "failed to create CRD discovery client")
 		os.Exit(1)
 	}
 	controllerArgs.DiscoveryMapper = dm
 	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
-		setupLog.Error(err, "failed to create CRD discovery for CUE package client")
-		if !packages.IsCUEParseErr(err) {
+		klog.Error(err, "failed to create CRD discovery for CUE package client")
+		if !definition.IsCUEParseErr(err) {
 			os.Exit(1)
 		}
 	}
 	controllerArgs.PackageDiscover = pd
 
 	if useWebhook {
-		setupLog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
+		klog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
 		oamwebhook.Register(mgr, controllerArgs)
 		velawebhook.Register(mgr, disableCaps)
 		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
@@ -199,36 +187,36 @@ func main() {
 	}
 
 	if err = oamv1alpha2.Setup(mgr, controllerArgs, logging.NewLogrLogger(setupLog)); err != nil {
-		setupLog.Error(err, "unable to setup the oam core controller")
+		klog.Error(err, "unable to setup the oam core controller")
 		os.Exit(1)
 	}
 
 	if err = standardcontroller.Setup(mgr, disableCaps); err != nil {
-		setupLog.Error(err, "unable to setup the vela core controller")
+		klog.Error(err, "unable to setup the vela core controller")
 		os.Exit(1)
 	}
 	if driver := os.Getenv(system.StorageDriverEnv); len(driver) == 0 {
 		// first use system environment,
 		err := os.Setenv(system.StorageDriverEnv, storageDriver)
 		if err != nil {
-			setupLog.Error(err, "unable to setup the vela core controller")
+			klog.Error(err, "unable to setup the vela core controller")
 			os.Exit(1)
 		}
 	}
-	setupLog.Info("use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
+	klog.Info("use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
 
-	setupLog.Info("starting the vela controller manager")
+	klog.Info("starting the vela controller manager")
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		klog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-	setupLog.Info("program safely stops...")
+	klog.Info("program safely stops...")
 }
 
 // registerHealthChecks is used to create readiness&liveness probes
 func registerHealthChecks(mgr ctrl.Manager) error {
-	setupLog.Info("creating readiness/health check")
+	klog.Info("creating readiness/health check")
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
 		return err
 	}
@@ -247,7 +235,7 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 		if time.Since(start) > timeout {
 			return fmt.Errorf("getting webhook secret timeout after %s", timeout.String())
 		}
-		setupLog.Info(fmt.Sprintf("waiting webhook secret, time consumed: %d/%d seconds ...",
+		klog.Info(fmt.Sprintf("waiting webhook secret, time consumed: %d/%d seconds ...",
 			int64(time.Since(start).Seconds()), int64(timeout.Seconds())))
 		if _, err := os.Stat(certDir); !os.IsNotExist(err) {
 			ready := func() bool {
@@ -270,7 +258,7 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 					return nil
 				})
 				if err == nil {
-					setupLog.Info(fmt.Sprintf("webhook secret is ready (time consumed: %d seconds)",
+					klog.Info(fmt.Sprintf("webhook secret is ready (time consumed: %d seconds)",
 						int64(time.Since(start).Seconds())))
 					return true
 				}

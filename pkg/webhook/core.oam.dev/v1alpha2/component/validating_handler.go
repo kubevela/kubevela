@@ -25,7 +25,7 @@ import (
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -45,9 +45,6 @@ type ValidatingHandler struct {
 	Decoder *admission.Decoder
 }
 
-// log is for logging in this package.
-var validatelog = logf.Log.WithName("component validate webhook")
-
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
@@ -56,7 +53,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		validatelog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
+		klog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
 			req.AdmissionRequest)
 		return admission.Denied(err.Error())
 	}
@@ -64,12 +61,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	switch req.AdmissionRequest.Operation { //nolint:exhaustive
 	case admissionv1beta1.Create:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			validatelog.Info("create failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
+			klog.InfoS("create failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	case admissionv1beta1.Update:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			validatelog.Info("update failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
+			klog.InfoS("update failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	}
@@ -79,7 +76,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 // ValidateComponentObject validates the Component on creation
 func ValidateComponentObject(obj *v1alpha2.Component) field.ErrorList {
-	validatelog.Info("validate component", "name", obj.Name)
+	klog.InfoS("validate component", "name", obj.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&obj.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 	fldPath := field.NewPath("spec")

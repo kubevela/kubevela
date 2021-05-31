@@ -283,9 +283,8 @@ var _ = Describe("Test finalizer related func", func() {
 			UID:        rt.UID}
 		meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
 		handler = appHandler{
-			r:      reconciler,
-			app:    app,
-			logger: reconciler.Log.WithValues("application", "finalizer-func-test"),
+			r:   reconciler,
+			app: app,
 		}
 		need, err := handler.removeResourceTracker(ctx)
 		Expect(err).Should(BeNil())
@@ -304,9 +303,8 @@ var _ = Describe("Test finalizer related func", func() {
 	It("Test finalizeResourceTracker func without need ", func() {
 		app := getApp("app-4", namespace, "worker")
 		handler = appHandler{
-			r:      reconciler,
-			app:    app,
-			logger: reconciler.Log.WithValues("application", "finalizer-func-test"),
+			r:   reconciler,
+			app: app,
 		}
 		need, err := handler.removeResourceTracker(ctx)
 		Expect(err).Should(BeNil())
