@@ -16,7 +16,7 @@ for filename in internal/cue/*; do
   filename=$(basename "${filename}")
   nameonly="${filename%.*}"
 
-  sh ./mergedef.sh "internal/definitions/${nameonly}.yaml" "internal/cue/${nameonly}.cue" > "${INTERNAL_TEMPLATE_DIR}/${nameonly}.yaml"
+  source ./mergedef.sh "internal/definitions/${nameonly}.yaml" "internal/cue/${nameonly}.cue" > "${INTERNAL_TEMPLATE_DIR}/${nameonly}.yaml"
 done
 
 echo "done generate internal definitions"
@@ -25,7 +25,7 @@ for filename in registry/cue/*; do
   filename=$(basename "${filename}")
   nameonly="${filename%.*}"
 
-  sh ./mergedef.sh "registry/definitions/${nameonly}.yaml" "registry/cue/${nameonly}.cue" > "${REGISTRY_TEMPLATE_DIR}/${nameonly}.yaml"
+  source ./mergedef.sh "registry/definitions/${nameonly}.yaml" "registry/cue/${nameonly}.cue" > "${REGISTRY_TEMPLATE_DIR}/${nameonly}.yaml"
 done
 
 echo "done generate registry definitions"
