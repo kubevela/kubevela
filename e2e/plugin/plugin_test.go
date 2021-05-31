@@ -140,6 +140,12 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring("targetPort"))
 			Expect(output).Should(ContainSubstring("target port num for service provider."))
 		})
+		It("Test show traitDefinition def with cue single map parameter", func() {
+			tdName := "annotations"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("map[string]string"))
+		})
 	})
 
 	Context("Test kubectl vela comp discover", func() {
