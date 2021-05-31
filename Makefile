@@ -233,7 +233,7 @@ manifests: kustomize
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	mv config/crd/base/* charts/vela-core/crds
-	./hack/vela-templates/gen_definitions.sh
+	./vela-templates/gen_definitions.sh
 	./hack/crd/cleanup.sh
 
 GOLANGCILINT_VERSION ?= v1.31.0
