@@ -303,6 +303,4 @@ jobs:
       - name: Run compress binary
         run: make compress
       - name: Run make reviewable
-        run: |
-          go install cuelang.org/go/cmd/cue@latest
-          make reviewable
+        run: make reviewable
