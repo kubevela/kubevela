@@ -59,8 +59,7 @@ var (
 
 func main() {
 	var metricsAddr, logFilePath, leaderElectionNamespace string
-	var enableLeaderElection, logCompress, logDebug bool
-	var logRetainDate int
+	var enableLeaderElection, logDebug bool
 	var certDir string
 	var webhookPort int
 	var useWebhook bool
@@ -80,9 +79,6 @@ func main() {
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "",
 		"Determines the namespace in which the leader election configmap will be created.")
 	flag.StringVar(&logFilePath, "log-file-path", "", "The file to write logs to.")
-	// TODO add more option
-	flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
-	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
 	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
@@ -181,7 +177,7 @@ func main() {
 		oamwebhook.Register(mgr, controllerArgs)
 		velawebhook.Register(mgr, disableCaps)
 		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
-			setupLog.Error(err, "unable to get webhook secret")
+			klog.Error(err, "unable to get webhook secret")
 			os.Exit(1)
 		}
 	}

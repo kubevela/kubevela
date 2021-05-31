@@ -81,6 +81,8 @@ admissionWebhooks:
 #Enable debug logs for development purpose
 logDebug: false
 
+logFilePath: ""
+
 systemDefinitionNamespace: vela-system
 
 applicationRevisionLimit: 10

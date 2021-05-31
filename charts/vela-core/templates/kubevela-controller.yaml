@@ -107,6 +107,9 @@ spec:
           args:
             - "--metrics-addr=:8080"
             - "--enable-leader-election"
+            {{ if ne .Values.logFilePath "" }}
+            - "--log-file-path={{ .Values.logFilePath }}"
+            {{ end }}
             {{ if .Values.logDebug }}
             - "--log-debug=true"
             {{ end }}
