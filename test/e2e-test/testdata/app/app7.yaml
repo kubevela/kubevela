@@ -13,11 +13,13 @@ spec:
           properties:
             kind: "configMap"
             name: "app-file-html"
+            configname: "file"
             data:
               test: "demo-app"
         - type: config
           properties:
             kind: "secret"
             name: "app-env-config"
+            configname: "env"
             data:
               test: "TXlQQHNzMTIz"

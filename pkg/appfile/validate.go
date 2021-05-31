@@ -56,10 +56,7 @@ func newValidationProcessContext(wl *Workload, appName, revisionName, ns string)
 	}
 	auxiliaryHooks := []process.AuxiliaryHook{
 		// add more hook funcs here to validate CUE auxiliaries
-
-		// Disable verify the uniqueness of the fields in the outputs
-		// because users may want to use multiple same type traits on one Component
-		// validateAuxiliaryNameUnique(),
+		validateAuxiliaryNameUnique(),
 	}
 
 	pCtx := process.NewContextWithHooks(ns, wl.Name, appName, revisionName, baseHooks, auxiliaryHooks)
@@ -73,8 +70,6 @@ func newValidationProcessContext(wl *Workload, appName, revisionName, ns string)
 	return pCtx, nil
 }
 
-//nolint
-//lint:ignore U1000 We won't use this function for now
 // validateAuxiliaryNameUnique validates the name of each outputs item which is
 // called auxiliary in vela CUE-based DSL.
 // Each capability definition can have arbitrary number of outputs and each

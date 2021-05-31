@@ -117,7 +117,7 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 				kind: "Service"
 			}
 			`,
-			wantErrMsg: ``,
+			wantErrMsg: `auxiliary "mysvc1" already exits`,
 		}),
 		Entry("TraitDefs have same outputs", SubTestCase{
 			compDefTmpl: `
@@ -142,7 +142,7 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 				kind: "Service"
 			}
 			`,
-			wantErrMsg: ``,
+			wantErrMsg: `auxiliary "mysvc1" already exits`,
 		}),
 	)
 })

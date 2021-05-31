@@ -6,19 +6,14 @@ metadata:
 spec:
   status:
     customStatus: |-
-      if context.outputs.config.kind == "Secret" {
-        message: "secret:" + context.outputs.config.metadata.name
-      }
-      if context.outputs.config.kind == "ConfigMap" {
-        message: "configMap:" + context.outputs.config.metadata.name
-      }
+      message: parameter.kind + ":" + context.outputs["\(parameter.configname)"].metadata.name
   appliesToWorkloads:
     - deployments.apps
   podDisruptive: true
   schematic:
     cue:
       template: |-
-        outputs: config: {
+        outputs: "\(parameter.configname)": {
         	if parameter.kind == "configMap" {
         		apiVersion: "v1"
         		kind:       "ConfigMap"
@@ -29,7 +24,7 @@ spec:
         			}
         		}
         	}
-        
+
         	if parameter.kind == "secret" {
         		apiVersion: "v1"
         		kind:       "Secret"
@@ -42,8 +37,9 @@ spec:
         	}
         }
         parameter: {
-        	kind: string
-        	name: string
+        	kind:       string
+        	name:       string
+        	configname: string
         	data: [string]: string
         }
         
