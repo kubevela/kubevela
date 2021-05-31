@@ -37,8 +37,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )

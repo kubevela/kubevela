@@ -46,7 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -259,7 +259,7 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 
 // RefreshPackageDiscover help refresh package discover
 func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm discoverymapper.DiscoveryMapper,
-	pd *definition.PackageDiscover, definition runtime.Object) error {
+	pd *packages.PackageDiscover, definition runtime.Object) error {
 	var gvk schema.GroupVersionKind
 	var err error
 	switch def := definition.(type) {

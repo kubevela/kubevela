@@ -23,8 +23,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +39,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
@@ -55,7 +54,7 @@ var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
 var decoder *admission.Decoder
 var dm discoverymapper.DiscoveryMapper
-var pd *definition.PackageDiscover
+var pd *packages.PackageDiscover
 var ctx = context.Background()
 var handler *ValidatingHandler
 
@@ -104,7 +103,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(dm).ToNot(BeNil())
 
-	pd, err = definition.NewPackageDiscover(cfg)
+	pd, err = packages.NewPackageDiscover(cfg)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(pd).ToNot(BeNil())
 

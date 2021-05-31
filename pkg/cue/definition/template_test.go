@@ -19,12 +19,14 @@ package definition
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
 func TestWorkloadTemplateComplete(t *testing.T) {
@@ -217,7 +219,7 @@ parameter: {
 
 	for _, v := range testCases {
 		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
-		wt := NewWorkloadAbstractEngine("testWorkload", &PackageDiscover{})
+		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
 		err := wt.Complete(ctx, v.workloadTemplate, v.params)
 		hasError := err != nil
 		assert.Equal(t, v.hasCompileErr, hasError)
@@ -918,7 +920,7 @@ parameter: [string]: string`,
 
 `
 		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
-		wt := NewWorkloadAbstractEngine("-", &PackageDiscover{})
+		wt := NewWorkloadAbstractEngine("-", &packages.PackageDiscover{})
 		if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{
 			"replicas": 2,
 			"enemies":  "enemies-data",
@@ -928,7 +930,7 @@ parameter: [string]: string`,
 			t.Error(err)
 			return
 		}
-		td := NewTraitAbstractEngine(v.traitName, &PackageDiscover{})
+		td := NewTraitAbstractEngine(v.traitName, &packages.PackageDiscover{})
 		err := td.Complete(ctx, v.traitTemplate, v.params)
 		hasError := err != nil
 		assert.Equal(t, v.hasCompileErr, hasError)

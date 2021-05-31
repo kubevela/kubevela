@@ -27,7 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/model/sets"
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 )
 
 // Instance defines Model Interface

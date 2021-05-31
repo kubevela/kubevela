@@ -34,8 +34,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -58,12 +59,12 @@ func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, dm discoverymapper.
 type Parser struct {
 	client     client.Client
 	dm         discoverymapper.DiscoveryMapper
-	pd         *definition.PackageDiscover
+	pd         *packages.PackageDiscover
 	tmplLoader TemplateLoaderFn
 }
 
 // NewApplicationParser create appfile parser
-func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover) *Parser {
+func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover) *Parser {
 	return &Parser{
 		client:     cli,
 		dm:         dm,
@@ -73,7 +74,7 @@ func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper,
 }
 
 // NewDryRunApplicationParser create an appfile parser for DryRun
-func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, defs []oam.Object) *Parser {
+func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, defs []oam.Object) *Parser {
 	return &Parser{
 		client:     cli,
 		dm:         dm,

@@ -22,7 +22,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/bmizerany/assert"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 )
 
 func TestContext(t *testing.T) {

@@ -40,7 +40,7 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -58,7 +58,7 @@ const (
 type Reconciler struct {
 	client.Client
 	dm               discoverymapper.DiscoveryMapper
-	pd               *definition.PackageDiscover
+	pd               *packages.PackageDiscover
 	Log              logr.Logger
 	Scheme           *runtime.Scheme
 	Recorder         event.Recorder

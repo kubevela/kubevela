@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package definition
+package packages
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ import (
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 )
 
 func TestPackage(t *testing.T) {

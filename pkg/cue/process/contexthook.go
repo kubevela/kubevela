@@ -16,7 +16,7 @@ limitations under the License.
 
 package process
 
-import "github.com/oam-dev/kubevela/pkg/dsl/model"
+import "github.com/oam-dev/kubevela/pkg/cue/model"
 
 // BaseHook defines function to be invoked before setting base to a
 // process.Context

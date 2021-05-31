@@ -20,7 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -52,7 +52,7 @@ func NewTemplateContextCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 			types.TagCommandType: types.TypeSystem,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ioStream.Info(mycue.BaseTemplate)
+			ioStream.Info(cue.BaseTemplate)
 			return nil
 		},
 	}

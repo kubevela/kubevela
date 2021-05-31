@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -547,9 +547,9 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			param.Name = name
 			param.Required = !fi.IsOptional
 			if def, ok := val.Default(); ok && def.IsConcrete() {
-				param.Default = mycue.GetDefault(def)
+				param.Default = velacue.GetDefault(def)
 			}
-			param.Short, param.Usage, param.Alias = mycue.RetrieveComments(val)
+			param.Short, param.Usage, param.Alias = velacue.RetrieveComments(val)
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:

@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 func TestGetCompileError(t *testing.T) {
@@ -196,7 +196,7 @@ metadata: name: parameter.name
 `,
 	}
 	_, err = ins.Unstructured()
-	assert.Equal(t, err.Error(), fmt.Sprintf(`metadata.name: reference "%s" not found`, mycue.ParameterTag))
+	assert.Equal(t, err.Error(), fmt.Sprintf(`metadata.name: reference "%s" not found`, velacue.ParameterTag))
 	ins = &instance{
 		v: `
 apiVersion: "apps/v1"

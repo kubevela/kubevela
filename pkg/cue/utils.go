@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dsl
+package cue
 
 // int data can evaluate with number in CUE, so it's OK if we convert the original float type data to int
 func isIntegral(val float64) bool {

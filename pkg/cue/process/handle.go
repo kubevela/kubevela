@@ -24,7 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
