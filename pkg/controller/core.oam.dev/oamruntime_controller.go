@@ -16,6 +16,8 @@ limitations under the License.
 
 package core_oam_dev
 
+import "time"
+
 // ApplyOnceOnlyMode enumerates ApplyOnceOnly modes.
 type ApplyOnceOnlyMode string
 
@@ -47,4 +49,7 @@ type Args struct {
 	// CustomRevisionHookURL is a webhook which will let oam-runtime to call with AC+Component info
 	// The webhook server will return a customized component revision for oam-runtime
 	CustomRevisionHookURL string
+
+	// LongWait is controller next reconcile interval time
+	LongWait time.Duration
 }
