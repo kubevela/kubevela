@@ -92,7 +92,7 @@ parameter: {
 func TestPrepareParameterTable(t *testing.T) {
 	ref := MarkdownReference{}
 	tableName := "hello"
-	var depth int = 1
+	depth := 1
 	parameterList := []ReferenceParameter{
 		{
 			PrintableType: "string",
