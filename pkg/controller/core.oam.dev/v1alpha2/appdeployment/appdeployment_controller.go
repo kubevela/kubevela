@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	istioapiv1beta1 "istio.io/api/networking/v1beta1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -553,7 +552,7 @@ func removeString(slice []string, s string) (result []string) {
 }
 
 // Setup adds a controller that reconciles AppDeployment.
-func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, args controller.Args) error {
 	r := NewReconciler(mgr.GetClient(), mgr.GetScheme(), args.DiscoveryMapper)
 	return r.SetupWithManager(mgr)
 }

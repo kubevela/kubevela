@@ -20,14 +20,12 @@ package applicationcontext
 import (
 	"context"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -161,7 +159,6 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 	})
 
 	It("Testing Setup", func() {
-		logr := ctrl.Log.WithName("ApplicationContext")
-		Expect(Setup(mgr, core_oam_dev.Args{}, logging.NewLogrLogger(logr).WithValues("suitTest", "Setup"))).Should(BeNil())
+		Expect(Setup(mgr, core_oam_dev.Args{})).Should(BeNil())
 	})
 })

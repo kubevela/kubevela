@@ -26,14 +26,12 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -370,7 +368,7 @@ var _ = Describe("Test Component Revision Enabled with custom component revision
 	It("custom component change revision lead to revision difference, it should not loop infinitely create", func() {
 		srv := httptest.NewServer(RevisionHandler)
 		defer srv.Close()
-		customComponentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler")), CustomRevisionHookURL: srv.URL}
+		customComponentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100, CustomRevisionHookURL: srv.URL}
 		getDeploy := func(image string) *v1.Deployment {
 			return &v1.Deployment{
 				TypeMeta: metav1.TypeMeta{

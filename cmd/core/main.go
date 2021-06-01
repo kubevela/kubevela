@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -52,7 +51,6 @@ const (
 )
 
 var (
-	setupLog           = ctrl.Log.WithName(kubevelaName)
 	scheme             = common.Scheme
 	waitSecretTimeout  = 90 * time.Second
 	waitSecretInterval = 2 * time.Second
@@ -190,7 +188,7 @@ func main() {
 		}
 	}
 
-	if err = oamv1alpha2.Setup(mgr, controllerArgs, logging.NewLogrLogger(setupLog)); err != nil {
+	if err = oamv1alpha2.Setup(mgr, controllerArgs); err != nil {
 		klog.ErrorS(err, "Unable to setup the oam core controller")
 		os.Exit(1)
 	}

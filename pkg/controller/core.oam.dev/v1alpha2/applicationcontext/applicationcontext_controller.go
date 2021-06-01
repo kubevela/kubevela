@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ktype "k8s.io/apimachinery/pkg/types"
@@ -54,7 +53,6 @@ const reconcileTimeout = 1 * time.Minute
 // application configuration and reuse its reconcile logic
 type Reconciler struct {
 	client    client.Client
-	log       logging.Logger
 	record    event.Recorder
 	mgr       ctrl.Manager
 	applyMode core.ApplyOnceOnlyMode
@@ -105,8 +103,8 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// makes sure that the appConfig's owner is the same as the appContext
 	appConfig.SetOwnerReferences(appContext.GetOwnerReferences())
 	// call into the old ac Reconciler and copy the status back
-	acReconciler := ac.NewReconciler(r.mgr, dm, r.log, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
-	reconResult := acReconciler.ACReconcile(ctx, appConfig, r.log)
+	acReconciler := ac.NewReconciler(r.mgr, dm, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
+	reconResult := acReconciler.ACReconcile(ctx, appConfig)
 	appContextPatch := client.MergeFrom(appContext.DeepCopy())
 	appContext.Status = appConfig.Status
 	// always update ac status and set the error
@@ -133,19 +131,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.Componen
 }
 
 // Setup adds a controller that reconciles ApplicationContext
-func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
+func Setup(mgr ctrl.Manager, args core.Args) error {
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationContextGroupKind)
 	record := event.NewAPIRecorder(mgr.GetEventRecorderFor(name))
 	reconciler := Reconciler{
 		client:    mgr.GetClient(),
 		mgr:       mgr,
-		log:       l.WithValues("controller", name),
 		record:    record,
 		applyMode: args.ApplyMode,
 	}
 	compHandler := &ac.ComponentHandler{
 		Client:                mgr.GetClient(),
-		Logger:                l,
 		RevisionLimit:         args.RevisionLimit,
 		CustomRevisionHookURL: args.CustomRevisionHookURL,
 	}

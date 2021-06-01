@@ -37,7 +37,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -69,7 +68,6 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 			return &WorkloadHealthCondition{HealthStatus: StatusUnhealthy}
 		})
 	reconciler := NewReconciler(mockMgr,
-		WithLogger(logging.NewNopLogger().WithValues("HealthScopeReconciler")),
 		WithRecorder(event.NewNopRecorder()),
 		WithChecker(MockHealthyChecker),
 	)
@@ -162,7 +160,6 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 		Client: &test.MockClient{},
 	}
 	reconciler := NewReconciler(mockMgr,
-		WithLogger(logging.NewNopLogger().WithValues("HealthScopeReconciler")),
 		WithRecorder(event.NewNopRecorder()),
 	)
 	reconciler.client = test.NewMockClient()

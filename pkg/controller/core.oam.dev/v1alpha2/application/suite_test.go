@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
@@ -152,7 +151,6 @@ var _ = BeforeSuite(func(done Done) {
 		For(&v1alpha2.Component{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &applicationconfiguration.ComponentHandler{
 			Client:                ctlManager.GetClient(),
-			Logger:                logging.NewLogrLogger(ctrl.Log.WithName("application-testsuite-component-handler")),
 			RevisionLimit:         100,
 			CustomRevisionHookURL: "",
 		}).Complete(&NoOpReconciler{

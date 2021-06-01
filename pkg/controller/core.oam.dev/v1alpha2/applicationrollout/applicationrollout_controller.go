@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -358,7 +357,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, args controller.Args) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		dm:     args.DiscoveryMapper,

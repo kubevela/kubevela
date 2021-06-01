@@ -26,7 +26,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -176,8 +175,8 @@ var _ = BeforeSuite(func(done Done) {
 	}, time.Second*30, time.Millisecond*500).Should(BeNil())
 	Expect(mapping.Resource.Resource).Should(Equal("foo"))
 
-	reconciler = NewReconciler(mgr, dm, logging.NewLogrLogger(ctrl.Log.WithName("suit-test-appconfig")))
-	componentHandler = &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler"))}
+	reconciler = NewReconciler(mgr, dm)
+	componentHandler = &ComponentHandler{Client: k8sClient, RevisionLimit: 100}
 
 	By("Creating workload definition and trait definition")
 	wd := v1alpha2.WorkloadDefinition{
