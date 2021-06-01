@@ -108,6 +108,8 @@ jobs:
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
+        with:
+          submodules: true
 
       - name: Setup Go
         uses: actions/setup-go@v2
