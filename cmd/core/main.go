@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -101,6 +102,10 @@ func main() {
 
 	// setup logging
 	klog.InitFlags(nil)
+	if logDebug {
+		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+
 	if logFilePath != "" {
 		_ = flag.Set("logtostderr", "false")
 		_ = flag.Set("log_file", logFilePath)
@@ -207,6 +212,7 @@ func main() {
 		klog.ErrorS(err, "Failed to run manager")
 		os.Exit(1)
 	}
+	klog.Flush()
 	klog.Info("Safely stops Program...")
 }
 
