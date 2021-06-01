@@ -47,6 +47,17 @@ import (
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
 const ErrNoSectionParameterInCue = "capability %s doesn't contain section `parameter`"
 
+// data types of parameter value
+const (
+	TerraformVariableString string = "string"
+	TerraformVariableNumber string = "number"
+	TerraformVariableBool   string = "bool"
+	TerraformVariableList   string = "list"
+	TerraformVariableTuple  string = "tuple"
+	TerraformVariableMap    string = "map"
+	TerraformVariableObject string = "object"
+)
+
 // CapabilityDefinitionInterface is the interface for Capability (WorkloadDefinition and TraitDefinition)
 type CapabilityDefinitionInterface interface {
 	GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error)
@@ -61,8 +72,9 @@ type CapabilityComponentDefinition struct {
 	WorkloadType    util.WorkloadType `json:"workloadType"`
 	WorkloadDefName string            `json:"workloadDefName"`
 
-	Helm *commontypes.Helm `json:"helm"`
-	Kube *commontypes.Kube `json:"kube"`
+	Helm      *commontypes.Helm      `json:"helm"`
+	Kube      *commontypes.Kube      `json:"kube"`
+	Terraform *commontypes.Terraform `json:"terraform"`
 	CapabilityBaseDefinition
 }
 
@@ -74,13 +86,19 @@ func NewCapabilityComponentDef(componentDefinition *v1beta1.ComponentDefinition)
 		def.WorkloadType = util.ReferWorkload
 		def.WorkloadDefName = componentDefinition.Spec.Workload.Type
 	}
-	if componentDefinition.Spec.Schematic != nil && componentDefinition.Spec.Schematic.HELM != nil {
-		def.WorkloadType = util.HELMDef
-		def.Helm = componentDefinition.Spec.Schematic.HELM
-	}
-	if componentDefinition.Spec.Schematic != nil && componentDefinition.Spec.Schematic.KUBE != nil {
-		def.WorkloadType = util.KubeDef
-		def.Kube = componentDefinition.Spec.Schematic.KUBE
+	if componentDefinition.Spec.Schematic != nil {
+		if componentDefinition.Spec.Schematic.HELM != nil {
+			def.WorkloadType = util.HELMDef
+			def.Helm = componentDefinition.Spec.Schematic.HELM
+		}
+		if componentDefinition.Spec.Schematic.KUBE != nil {
+			def.WorkloadType = util.KubeDef
+			def.Kube = componentDefinition.Spec.Schematic.KUBE
+		}
+		if componentDefinition.Spec.Schematic.Terraform != nil {
+			def.WorkloadType = util.TerraformDef
+			def.Terraform = componentDefinition.Spec.Schematic.Terraform
+		}
 	}
 	def.ComponentDefinition = *componentDefinition.DeepCopy()
 	return def
@@ -93,6 +111,51 @@ func (def *CapabilityComponentDefinition) GetOpenAPISchema(pd *packages.PackageD
 		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 	}
 	return getOpenAPISchema(capability, pd)
+}
+
+// GetOpenAPISchemaFromTerraformComponentDefinition gets OpenAPI v3 schema by WorkloadDefinition name
+func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]byte, error) {
+	schemas := make(map[string]*openapi3.Schema)
+	var required []string
+	variables, err := common.ParseTerraformVariables(configuration)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate capability properties")
+	}
+	for k, v := range variables {
+		var schema *openapi3.Schema
+		switch v.Type {
+		case TerraformVariableString:
+			schema = openapi3.NewStringSchema()
+		case TerraformVariableNumber:
+			schema = openapi3.NewFloat64Schema()
+		case TerraformVariableBool:
+			schema = openapi3.NewBoolSchema()
+		case TerraformVariableList, TerraformVariableTuple:
+			schema = openapi3.NewArraySchema()
+		case TerraformVariableMap, TerraformVariableObject:
+			schema = openapi3.NewObjectSchema()
+		}
+		schema.Title = k
+		required = append(required, k)
+		if v.Default != nil {
+			schema.Default = v.Default
+		}
+		schema.Description = v.Description
+		schemas[v.Name] = schema
+	}
+	return generateJSONSchemaWithRequiredProperty(schemas, required)
+}
+
+func generateJSONSchemaWithRequiredProperty(schemas map[string]*openapi3.Schema, required []string) ([]byte, error) {
+	s := openapi3.NewObjectSchema().WithProperties(schemas)
+	if len(required) > 0 {
+		s.Required = required
+	}
+	b, err := s.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot marshal generated schema into json")
+	}
+	return b, nil
 }
 
 // GetKubeSchematicOpenAPISchema gets OpenAPI v3 schema based on kube schematic parameters for component and trait definition
@@ -123,15 +186,7 @@ func GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, 
 		}
 		properties[p.Name] = tmp
 	}
-	s := openapi3.NewObjectSchema().WithProperties(properties)
-	if len(required) > 0 {
-		s.Required = required
-	}
-	b, err := s.MarshalJSON()
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot marshal generated schema into json")
-	}
-	return b, nil
+	return generateJSONSchemaWithRequiredProperty(properties, required)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
@@ -144,6 +199,11 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		jsonSchema, err = helm.GetChartValuesJSONSchema(ctx, def.Helm)
 	case util.KubeDef:
 		jsonSchema, err = GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
+	case util.TerraformDef:
+		if def.Terraform == nil {
+			return "", fmt.Errorf("no Configuration is set in Terraform specification: %s", def.Name)
+		}
+		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(def.Terraform.Configuration)
 	default:
 		jsonSchema, err = def.GetOpenAPISchema(pd, name)
 	}

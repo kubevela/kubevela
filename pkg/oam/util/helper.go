@@ -131,6 +131,9 @@ const (
 	// HELMDef describe a workload refer to HELM
 	HELMDef WorkloadType = "HelmDef"
 
+	// TerraformDef describes a workload refer to Terraform
+	TerraformDef WorkloadType = "TerraformDef"
+
 	// ReferWorkload describe an existing workload
 	ReferWorkload WorkloadType = "ReferWorkload"
 )

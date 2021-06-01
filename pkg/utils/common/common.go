@@ -33,6 +33,8 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/ghodss/yaml"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -189,4 +191,19 @@ func ReadYamlToObject(path string, object k8sruntime.Object) error {
 		return err
 	}
 	return yaml.Unmarshal(data, object)
+}
+
+// ParseTerraformVariables get variables from Terraform Configuration
+func ParseTerraformVariables(configuration string) (map[string]*tfconfig.Variable, error) {
+	p := hclparse.NewParser()
+	hclFile, diagnostic := p.ParseHCL([]byte(configuration), "")
+	if diagnostic != nil {
+		return nil, errors.New(diagnostic.Error())
+	}
+	mod := tfconfig.Module{Variables: map[string]*tfconfig.Variable{}}
+	diagnostic = tfconfig.LoadModuleFromFile(hclFile, &mod)
+	if diagnostic != nil {
+		return nil, errors.New(diagnostic.Error())
+	}
+	return mod.Variables, nil
 }

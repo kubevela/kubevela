@@ -288,7 +288,7 @@ func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *c
 	return nil
 }
 
-// ConvertTemplateJSON2Object convert spec.extension to object
+// ConvertTemplateJSON2Object convert spec.extension or spec.schematic to object
 func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension, schematic *common.Schematic) (types.Capability, error) {
 	var t types.Capability
 	t.Name = capabilityName
