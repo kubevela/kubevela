@@ -61,6 +61,7 @@ var (
 func main() {
 	var metricsAddr, logFilePath, leaderElectionNamespace string
 	var enableLeaderElection, logDebug bool
+	var logFileMaxSize uint64
 	var certDir string
 	var webhookPort int
 	var useWebhook bool
@@ -80,6 +81,7 @@ func main() {
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "",
 		"Determines the namespace in which the leader election configmap will be created.")
 	flag.StringVar(&logFilePath, "log-file-path", "", "The file to write logs to.")
+	flag.Uint64Var(&logFileMaxSize, "log-file-max-size", 1024, "Defines the maximum size a log file can grow to, Unit is megabytes.")
 	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
@@ -109,6 +111,7 @@ func main() {
 	if logFilePath != "" {
 		_ = flag.Set("logtostderr", "false")
 		_ = flag.Set("log_file", logFilePath)
+		_ = flag.Set("log_file_max_size", strconv.FormatUint(logFileMaxSize, 10))
 	}
 	flag.Parse()
 
@@ -171,7 +174,7 @@ func main() {
 	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
 		klog.Error(err, "Failed to create CRD discovery for CUE package client")
-		if !definition.IsCUEParseErr(err) {
+		if !packages.IsCUEParseErr(err) {
 			os.Exit(1)
 		}
 	}
@@ -212,7 +215,9 @@ func main() {
 		klog.ErrorS(err, "Failed to run manager")
 		os.Exit(1)
 	}
-	klog.Flush()
+	if logFilePath != "" {
+		klog.Flush()
+	}
 	klog.Info("Safely stops Program...")
 }
 

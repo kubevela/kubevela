@@ -109,6 +109,7 @@ spec:
             - "--enable-leader-election"
             {{ if ne .Values.logFilePath "" }}
             - "--log-file-path={{ .Values.logFilePath }}"
+            - "--log-file-max-size={{ .Values.logFileMaxSize }}"
             {{ end }}
             {{ if .Values.logDebug }}
             - "--log-debug=true"
