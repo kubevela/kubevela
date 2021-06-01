@@ -196,14 +196,14 @@ func FetchWorkload(ctx context.Context, c client.Client, oamTrait oam.Trait) (
 	workloadRef := oamTrait.GetWorkloadReference()
 	if len(workloadRef.Kind) == 0 || len(workloadRef.APIVersion) == 0 || len(workloadRef.Name) == 0 {
 		err := errors.New("no workload reference")
-		klog.Error(err, ErrLocateWorkload)
+		klog.InfoS(ErrLocateWorkload, "err", err)
 		return nil, err
 	}
 	workload.SetAPIVersion(workloadRef.APIVersion)
 	workload.SetKind(workloadRef.Kind)
 	wn := client.ObjectKey{Name: workloadRef.Name, Namespace: oamTrait.GetNamespace()}
 	if err := c.Get(ctx, wn, &workload); err != nil {
-		klog.Error(err, "Workload not find", "kind", workloadRef.Kind, "workload name", workloadRef.Name)
+		klog.InfoS("Failed to find workload", "err", err, "kind", workloadRef.Kind, "workload name", workloadRef.Name)
 		return nil, err
 	}
 	klog.InfoS("Get the workload the trait is pointing to", "workload name", workload.GetName(),
@@ -425,7 +425,7 @@ func fetchChildResources(ctx context.Context, r client.Reader, workload *unstruc
 			workload.GetUID())
 		if err := r.List(ctx, &crs, client.InNamespace(workload.GetNamespace()),
 			client.MatchingLabels(wcr.Selector)); err != nil {
-			klog.Error(err, "failed to list object", "api version", crs.GetAPIVersion(), "kind", crs.GetKind())
+			klog.InfoS("Failed to list object", "err", err, "apiVersion", crs.GetAPIVersion(), "kind", crs.GetKind())
 			return nil, err
 		}
 		// pick the ones that is owned by the workload

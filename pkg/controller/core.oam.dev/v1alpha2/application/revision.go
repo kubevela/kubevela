@@ -54,11 +54,11 @@ func (h *appHandler) UpdateRevisionStatus(ctx context.Context, revName, hash str
 	}
 	// make sure that we persist the latest revision first
 	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
-		klog.Error(err, "update the latest appConfig revision to status", "application name", h.app.GetName(),
+		klog.InfoS("Failed to update the latest appConfig revision to status", "err", err, "application name", h.app.GetName(),
 			"latest revision", revName)
 		return err
 	}
-	klog.Info("Recorded the latest appConfig revision", "application name", h.app.GetName(),
+	klog.InfoS("Recorded the latest appConfig revision", "application name", h.app.GetName(),
 		"latest revision", revName)
 	return nil
 }
@@ -131,7 +131,7 @@ func (h *appHandler) gatherRevisionSpec() (*v1beta1.ApplicationRevision, string,
 	}
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
-		klog.Error(err, "compute hash of appRevision for application", "application name", h.app.GetName())
+		klog.InfoS("Failed to compute hash of appRevision for application", "err", err, "application name", h.app.GetName())
 		return appRev, "", err
 	}
 	return appRev, appRevisionHash, nil
@@ -154,7 +154,7 @@ func (h *appHandler) compareWithLastRevisionSpec(ctx context.Context, newAppRevi
 	lastAppRevision := &v1beta1.ApplicationRevision{}
 	if err := h.r.Get(ctx, client.ObjectKey{Name: h.app.Status.LatestRevision.Name,
 		Namespace: h.app.Namespace}, lastAppRevision); err != nil {
-		klog.Error(err, "get the last appRevision from K8s", "application name",
+		klog.InfoS("Failed to get the last appRevision from K8s", "err", err, "application name",
 			h.app.GetName(), "revision", h.app.Status.LatestRevision.Name)
 		return false, errors.Wrapf(err, "fail to get applicationRevision %s", h.app.Status.LatestRevision.Name)
 	}
@@ -316,7 +316,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 	if needKill <= 0 {
 		return nil
 	}
-	klog.Info("Application controller cleanup old appRevisions", "needKillNum", needKill)
+	klog.InfoS("Application controller cleanup old appRevisions", "needKillNum", needKill)
 	sortedRevision := appRevisionList.Items
 	sort.Sort(historiesByRevision(sortedRevision))
 

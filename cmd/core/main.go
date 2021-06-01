@@ -126,17 +126,17 @@ func main() {
 		SyncPeriod:              &syncPeriod,
 	})
 	if err != nil {
-		klog.Error(err, "unable to create a controller manager")
+		klog.ErrorS(err, "Unable to create a controller manager")
 		os.Exit(1)
 	}
 
 	if err := registerHealthChecks(mgr); err != nil {
-		klog.Error(err, "unable to register ready/health checks")
+		klog.ErrorS(err, "Unable to register ready/health checks")
 		os.Exit(1)
 	}
 
 	if err := utils.CheckDisabledCapabilities(disableCaps); err != nil {
-		klog.Error(err, "unable to get enabled capabilities")
+		klog.ErrorS(err, "Unable to get enabled capabilities")
 		os.Exit(1)
 	}
 
@@ -151,21 +151,21 @@ func main() {
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyForce
 		klog.Info("ApplyOnceOnlyForce is enabled, that means workload or trait only apply once if no spec change even they are changed or deleted by others")
 	default:
-		klog.Error(fmt.Errorf("invalid apply-once-only value: %s", applyOnceOnly),
-			"unable to setup the vela core controller",
-			"valid apply-once-only value:", "on/off/force, by default it's off")
+		klog.ErrorS(fmt.Errorf("invalid apply-once-only value: %s", applyOnceOnly),
+			"Unable to setup the vela core controller",
+			"valid apply-once-only value", "on/off/force, by default it's off")
 		os.Exit(1)
 	}
 
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {
-		klog.Error(err, "failed to create CRD discovery client")
+		klog.ErrorS(err, "Failed to create CRD discovery client")
 		os.Exit(1)
 	}
 	controllerArgs.DiscoveryMapper = dm
 	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
-		klog.Error(err, "failed to create CRD discovery for CUE package client")
+		klog.Error(err, "Failed to create CRD discovery for CUE package client")
 		if !definition.IsCUEParseErr(err) {
 			os.Exit(1)
 		}
@@ -173,29 +173,29 @@ func main() {
 	controllerArgs.PackageDiscover = pd
 
 	if useWebhook {
-		klog.InfoS("Vela enable webhook", "server port", strconv.Itoa(webhookPort))
+		klog.InfoS("Enable webhook", "server port", strconv.Itoa(webhookPort))
 		oamwebhook.Register(mgr, controllerArgs)
 		velawebhook.Register(mgr, disableCaps)
 		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
-			klog.Error(err, "unable to get webhook secret")
+			klog.ErrorS(err, "Unable to get webhook secret")
 			os.Exit(1)
 		}
 	}
 
 	if err = oamv1alpha2.Setup(mgr, controllerArgs, logging.NewLogrLogger(setupLog)); err != nil {
-		klog.Error(err, "unable to setup the oam core controller")
+		klog.ErrorS(err, "Unable to setup the oam core controller")
 		os.Exit(1)
 	}
 
 	if err = standardcontroller.Setup(mgr, disableCaps); err != nil {
-		klog.Error(err, "unable to setup the vela core controller")
+		klog.ErrorS(err, "Unable to setup the vela core controller")
 		os.Exit(1)
 	}
 	if driver := os.Getenv(system.StorageDriverEnv); len(driver) == 0 {
 		// first use system environment,
 		err := os.Setenv(system.StorageDriverEnv, storageDriver)
 		if err != nil {
-			klog.Error(err, "unable to setup the vela core controller")
+			klog.ErrorS(err, "Unable to setup the vela core controller")
 			os.Exit(1)
 		}
 	}
@@ -204,15 +204,15 @@ func main() {
 	klog.Info("Start the vela controller manager")
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		klog.Error(err, "problem running manager")
+		klog.ErrorS(err, "Failed to run manager")
 		os.Exit(1)
 	}
-	klog.Info("Program safely stops...")
+	klog.Info("Safely stops Program...")
 }
 
 // registerHealthChecks is used to create readiness&liveness probes
 func registerHealthChecks(mgr ctrl.Manager) error {
-	klog.Info("creating readiness/health check")
+	klog.Info("Creating readiness/health check")
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
 		return err
 	}

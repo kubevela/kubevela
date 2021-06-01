@@ -53,7 +53,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		klog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
+		klog.InfoS("Failed to decode", "err", err, "req operation", req.AdmissionRequest.Operation, "req",
 			req.AdmissionRequest)
 		return admission.Denied(err.Error())
 	}

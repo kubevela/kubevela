@@ -97,7 +97,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	} else {
 		needUpdate, err := handler.removeResourceTracker(ctx)
 		if err != nil {
-			klog.Error(err, "Failed to remove application resourceTracker")
+			klog.InfoS("Failed to remove application resourceTracker", "err", err)
 			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
 		}
@@ -120,7 +120,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	generatedAppfile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
-		klog.Error(err, "[Handle Parse]")
+		klog.InfoS("Failed to parse application", "err", err)
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
@@ -131,7 +131,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	appRev, err := handler.GenerateAppRevision(ctx)
 	if err != nil {
-		klog.Error(err, "[Handle Calculate Revision]")
+		klog.InfoS("Failed to calculate appRevision", "err", err)
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
@@ -144,7 +144,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// build template to applicationconfig & component
 	ac, comps, err := generatedAppfile.GenerateApplicationConfiguration()
 	if err != nil {
-		klog.Error(err, "[Handle GenerateApplicationConfiguration]")
+		klog.InfoS("Failed to generate applicationConfiguration", "err", err)
 		app.Status.SetConditions(errorCondition("Built", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
@@ -152,7 +152,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	err = handler.handleResourceTracker(ctx, comps, ac)
 	if err != nil {
-		klog.Error(err, "[Handle resourceTracker]")
+		klog.InfoS("Failed to handle resourceTracker", "err", err)
 		app.Status.SetConditions(errorCondition("Handle resourceTracker", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
@@ -166,7 +166,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	klog.Info("Apply application revision & component to the cluster")
 	// apply application revision & component to the cluster
 	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
-		klog.Error(err, "[Handle apply]")
+		klog.InfoS("Failed to apply application revision & component to the cluster", "err", err)
 		app.Status.SetConditions(errorCondition("Applied", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return handler.handleErr(err)
@@ -176,7 +176,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if handler.app.Spec.RolloutPlan != nil {
 		res, err := handler.handleRollout(ctx)
 		if err != nil {
-			klog.Error(err, "[handle rollout]")
+			klog.InfoS("Failed to handle rollout", "err", err)
 			app.Status.SetConditions(errorCondition("Rollout", err))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
 			return handler.handleErr(err)
@@ -202,7 +202,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// check application health status
 	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
 	if err != nil {
-		klog.Error(err, "[status aggregate]")
+		klog.InfoS("Failed to aggregate status", "err", err)
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
 		return handler.handleErr(err)
@@ -221,7 +221,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	err = garbageCollection(ctx, handler)
 	if err != nil {
-		klog.Error(err, "[Garbage collection]")
+		klog.InfoS("Failed to run Garbage collection", "err", err)
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 	}
 

@@ -66,7 +66,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	// mutate the object
 	if err := h.Mutate(obj); err != nil {
-		klog.Error(err, "failed to mutate the applicationConfiguration", "name", obj.Name)
+		klog.InfoS("Failed to mutate the applicationConfiguration", "err", err, "name", obj.Name)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	klog.InfoS("Print the mutated obj", "obj name", obj.Name, "mutated obj", string(util.JSONMarshal(obj.Spec)))
