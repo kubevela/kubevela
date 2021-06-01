@@ -78,7 +78,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.InfoS("admit ApplicationConfiguration",
+		klog.InfoS("Admit ApplicationConfiguration",
 			"namespace", obj.Namespace, "name", obj.Name, "patches", util.JSONMarshal(resp.Patches))
 	}
 	return resp
@@ -86,7 +86,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 // Mutate sets all the default value for the Component
 func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
-	klog.InfoS("mutate", "name", obj.Name)
+	klog.InfoS("Mutate ApplicationConfiguration", "name", obj.Name)
 
 	for compIdx, comp := range obj.Spec.Components {
 		var updated bool
@@ -122,7 +122,7 @@ func (h *MutatingHandler) mutateTrait(content map[string]interface{}, compName s
 	if !ok {
 		return nil, false, fmt.Errorf("name of trait should be string instead of %s", reflect.TypeOf(content[TraitTypeField]))
 	}
-	klog.InfoS("the trait refers to traitDefinition by name", "compName", compName, "trait name", traitType)
+	klog.InfoS("Trait refers to traitDefinition by name", "compName", compName, "trait name", traitType)
 	// Fetch the corresponding traitDefinition CR, the traitDefinition crd is cluster scoped
 	traitDefinition := &v1alpha2.TraitDefinition{}
 	if err := h.Client.Get(context.TODO(), types.NamespacedName{Name: traitType}, traitDefinition); err != nil {
@@ -151,7 +151,7 @@ func (h *MutatingHandler) mutateTrait(content map[string]interface{}, compName s
 	}.String()
 	trait.SetAPIVersion(apiVersion)
 	trait.SetKind(customResourceDefinition.Spec.Names.Kind)
-	klog.InfoS("Set the trait GVK", "trait api version", trait.GetAPIVersion(), "trait Kind", trait.GetKind())
+	klog.InfoS("Set the trait GVK", "trait apiVersion", trait.GetAPIVersion(), "trait Kind", trait.GetKind())
 	// add traitType label
 	trait.SetLabels(util.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.TraitTypeLabel: traitType}))
 	// copy back the object

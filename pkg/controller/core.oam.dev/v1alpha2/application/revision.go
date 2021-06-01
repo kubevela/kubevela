@@ -58,7 +58,7 @@ func (h *appHandler) UpdateRevisionStatus(ctx context.Context, revName, hash str
 			"latest revision", revName)
 		return err
 	}
-	klog.Info("recorded the latest appConfig revision", "application name", h.app.GetName(),
+	klog.Info("Recorded the latest appConfig revision", "application name", h.app.GetName(),
 		"latest revision", revName)
 	return nil
 }
@@ -316,7 +316,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 	if needKill <= 0 {
 		return nil
 	}
-	klog.Info("application controller cleanup old appRevisions", "needKillNum", needKill)
+	klog.Info("Application controller cleanup old appRevisions", "needKillNum", needKill)
 	sortedRevision := appRevisionList.Items
 	sort.Sort(historiesByRevision(sortedRevision))
 

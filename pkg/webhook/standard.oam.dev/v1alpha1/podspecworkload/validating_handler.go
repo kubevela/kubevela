@@ -75,7 +75,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 // ValidateCreate validates the PodSpecWorkload on creation
 func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("validate create", "name", r.Name)
+	klog.InfoS("Validate create PodSpecWorkload", "name", r.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
@@ -94,13 +94,13 @@ func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
 
 // ValidateUpdate validates the PodSpecWorkload on update
 func ValidateUpdate(r *v1alpha1.PodSpecWorkload, _ *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("validate update", "name", r.Name)
+	klog.InfoS("Validate update PodSpecWorkload", "name", r.Name)
 	return ValidateCreate(r)
 }
 
 // ValidateDelete validates the PodSpecWorkload on delete
 func ValidateDelete(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("validate delete", "name", r.Name)
+	klog.InfoS("Validate delete PodSpecWorkload", "name", r.Name)
 	return nil
 }
 

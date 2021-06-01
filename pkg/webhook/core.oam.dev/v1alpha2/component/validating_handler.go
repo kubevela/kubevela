@@ -61,12 +61,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	switch req.AdmissionRequest.Operation { //nolint:exhaustive
 	case admissionv1beta1.Create:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			klog.InfoS("create failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
+			klog.InfoS("Create component failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	case admissionv1beta1.Update:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			klog.InfoS("update failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
+			klog.InfoS("Update component failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	}
@@ -76,7 +76,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 // ValidateComponentObject validates the Component on creation
 func ValidateComponentObject(obj *v1alpha2.Component) field.ErrorList {
-	klog.InfoS("validate component", "name", obj.Name)
+	klog.InfoS("Validate component", "name", obj.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&obj.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 	fldPath := field.NewPath("spec")

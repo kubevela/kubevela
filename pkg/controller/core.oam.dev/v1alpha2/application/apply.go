@@ -359,12 +359,12 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 				preRevisionName))
 		}
 		if !needNewRevision {
-			klog.InfoS("no need to wait for a new component revision", "component name", updatedComp.GetName(),
+			klog.InfoS("No need to wait for a new component revision", "component name", updatedComp.GetName(),
 				"revision", preRevisionName)
 			return preRevisionName, nil
 		}
 	}
-	klog.InfoS("wait for a new component revision", "component name", compName,
+	klog.InfoS("Wait for a new component revision", "component name", compName,
 		"previous revision", preRevisionName)
 	// get the new component revision that contains the component with retry
 	checkForRevision := func() (bool, error) {
@@ -386,7 +386,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		// end the loop if we find the revision
 		if !needNewRevision {
 			curRevisionName = curComp.Status.LatestRevision.Name
-			klog.InfoS("get a matching component revision", "component name", compName,
+			klog.InfoS("Get a matching component revision", "component name", compName,
 				"current revision", curRevisionName)
 		}
 		return !needNewRevision, nil
@@ -434,13 +434,13 @@ func (h *appHandler) createOrUpdateAppContext(ctx context.Context, owners []meta
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		klog.InfoS("create a new appContext", "application name",
+		klog.InfoS("Create a new appContext", "application name",
 			appContext.GetName(), "revision it points to", appContext.Spec.ApplicationRevisionName)
 		return h.r.Create(ctx, &appContext)
 	}
 
 	// we don't need to create another appConfig
-	klog.InfoS("replace the existing appContext", "application name", appContext.GetName(),
+	klog.InfoS("Replace the existing appContext", "application name", appContext.GetName(),
 		"revision it points to", appContext.Spec.ApplicationRevisionName)
 	appContext.ResourceVersion = curAppContext.ResourceVersion
 	return h.r.Update(ctx, &appContext)
@@ -562,7 +562,7 @@ func (h *appHandler) removeResourceTracker(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	klog.Info("delete application resourceTracker")
+	klog.Info("Delete application resourceTracker")
 	meta.RemoveFinalizer(h.app, resourceTrackerFinalizer)
 	h.app.Status.ResourceTracker = nil
 	return true, nil

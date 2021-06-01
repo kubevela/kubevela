@@ -102,7 +102,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
 		}
 		if needUpdate {
-			klog.InfoS("remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			klog.InfoS("Remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
 			return ctrl.Result{}, errors.Wrap(r.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 		// deleting and no need to handle finalizer
@@ -113,7 +113,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.Phase = common.ApplicationRendering
 
-	klog.Info("parse template")
+	klog.Info("Parse template")
 	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 
@@ -140,7 +140,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Record the revision so it can be used to render data in context.appRevision
 	generatedAppfile.RevisionName = appRev.Name
 
-	klog.Info("build template")
+	klog.Info("Build template")
 	// build template to applicationconfig & component
 	ac, comps, err := generatedAppfile.GenerateApplicationConfiguration()
 	if err != nil {
@@ -163,7 +163,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.SetConditions(readyCondition("Built"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-	klog.Info("apply application revision & component to the cluster")
+	klog.Info("Apply application revision & component to the cluster")
 	// apply application revision & component to the cluster
 	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
 		klog.Error(err, "[Handle apply]")
@@ -191,14 +191,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// there is no need reconcile immediately, that means the rollout operation have finished
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
 		app.Status.SetConditions(readyCondition("Rollout"))
-		klog.Info("rollout finished")
+		klog.Info("Rollout finished")
 	}
 
 	// The following logic will be skipped if rollout have not finished
 	app.Status.SetConditions(readyCondition("Applied"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonFailedApply, velatypes.MessageApplied))
 	app.Status.Phase = common.ApplicationHealthChecking
-	klog.Info("check application health status")
+	klog.Info("Check application health status")
 	// check application health status
 	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
 	if err != nil {

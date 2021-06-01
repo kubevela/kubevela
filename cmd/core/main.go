@@ -107,9 +107,9 @@ func main() {
 	}
 	flag.Parse()
 
-	klog.Infof("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision)
-	klog.Infof("Disable Capabilities: %s.", disableCaps)
-	klog.Infof("core init with definition namespace %s", oam.SystemDefinitonNamespace)
+	klog.InfoS("KubeVela", "version", version.VelaVersion, "revision", version.GitRevision)
+	klog.InfoS("Disable", "capabilities", disableCaps)
+	klog.InfoS("Vela-Core init", "definitionNamespace", oam.SystemDefinitonNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
@@ -173,7 +173,7 @@ func main() {
 	controllerArgs.PackageDiscover = pd
 
 	if useWebhook {
-		klog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
+		klog.InfoS("Vela enable webhook", "server port", strconv.Itoa(webhookPort))
 		oamwebhook.Register(mgr, controllerArgs)
 		velawebhook.Register(mgr, disableCaps)
 		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
@@ -199,15 +199,15 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	klog.Info("use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
+	klog.InfoS("Use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
 
-	klog.Info("starting the vela controller manager")
+	klog.Info("Start the vela controller manager")
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-	klog.Info("program safely stops...")
+	klog.Info("Program safely stops...")
 }
 
 // registerHealthChecks is used to create readiness&liveness probes
@@ -231,8 +231,8 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 		if time.Since(start) > timeout {
 			return fmt.Errorf("getting webhook secret timeout after %s", timeout.String())
 		}
-		klog.Info(fmt.Sprintf("waiting webhook secret, time consumed: %d/%d seconds ...",
-			int64(time.Since(start).Seconds()), int64(timeout.Seconds())))
+		klog.InfoS("Wait webhook secret", "time consumed(second)", int64(time.Since(start).Seconds()),
+			"timeout(second)", int64(timeout.Seconds()))
 		if _, err := os.Stat(certDir); !os.IsNotExist(err) {
 			ready := func() bool {
 				f, err := os.Open(filepath.Clean(certDir))
@@ -254,8 +254,8 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 					return nil
 				})
 				if err == nil {
-					klog.Info(fmt.Sprintf("webhook secret is ready (time consumed: %d seconds)",
-						int64(time.Since(start).Seconds())))
+					klog.InfoS("Webhook secret is ready", "time consumed(second)",
+						int64(time.Since(start).Seconds()))
 					return true
 				}
 				return false
