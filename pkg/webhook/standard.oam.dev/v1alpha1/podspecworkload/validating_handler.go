@@ -47,8 +47,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		klog.InfoS("Failed to decode", "err", err, "req operation", req.AdmissionRequest.Operation, "req",
-			req.AdmissionRequest)
+		klog.InfoS("Failed to decode", "req operation", req.AdmissionRequest.Operation, "req",
+			req.AdmissionRequest, "err", err)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -75,7 +75,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 // ValidateCreate validates the PodSpecWorkload on creation
 func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("Validate create PodSpecWorkload", "name", r.Name)
+	klog.InfoS("Validate create podSpecWorkload", "podSpecWorkload", klog.KObj(r))
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
@@ -94,13 +94,13 @@ func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
 
 // ValidateUpdate validates the PodSpecWorkload on update
 func ValidateUpdate(r *v1alpha1.PodSpecWorkload, _ *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("Validate update PodSpecWorkload", "name", r.Name)
+	klog.InfoS("Validate update podSpecWorkload", "podSpecWorkload", klog.KObj(r))
 	return ValidateCreate(r)
 }
 
 // ValidateDelete validates the PodSpecWorkload on delete
 func ValidateDelete(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("Validate delete PodSpecWorkload", "name", r.Name)
+	klog.InfoS("Validate delete PodSpecWorkload", "podSpecWorkload", klog.KObj(r))
 	return nil
 }
 

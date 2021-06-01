@@ -66,10 +66,12 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	// mutate the object
 	if err := h.Mutate(obj); err != nil {
-		klog.InfoS("Failed to mutate the applicationConfiguration", "err", err, "name", obj.Name)
+		klog.InfoS("Failed to mutate the applicationConfiguration", "applicationConfiguration", klog.KObj(obj),
+			"err", err)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	klog.InfoS("Print the mutated obj", "obj name", obj.Name, "mutated obj", string(util.JSONMarshal(obj.Spec)))
+	klog.InfoS("Print the mutated applicationConfiguration", "applicationConfiguration",
+		klog.KObj(obj), "mutated applicationConfiguration", string(util.JSONMarshal(obj.Spec)))
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -78,15 +80,15 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.InfoS("Admit ApplicationConfiguration",
-			"namespace", obj.Namespace, "name", obj.Name, "patches", util.JSONMarshal(resp.Patches))
+		klog.InfoS("Admit applicationConfiguration", "applicationConfiguration", klog.KObj(obj),
+			"patches", util.JSONMarshal(resp.Patches))
 	}
 	return resp
 }
 
 // Mutate sets all the default value for the Component
 func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
-	klog.InfoS("Mutate ApplicationConfiguration", "name", obj.Name)
+	klog.InfoS("Mutate applicationConfiguration", "applicationConfiguration", klog.KObj(obj))
 
 	for compIdx, comp := range obj.Spec.Components {
 		var updated bool

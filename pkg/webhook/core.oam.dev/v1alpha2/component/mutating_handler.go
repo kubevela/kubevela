@@ -65,7 +65,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	// mutate the object
 	if err := h.Mutate(obj); err != nil {
-		klog.InfoS("Failed to mutate the component", "err", err, "name", obj.Name)
+		klog.InfoS("Failed to mutate the component", "component", klog.KObj(obj), "err", err)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	klog.InfoS("Print the mutated obj", "obj name", obj.Name, "mutated obj", string(obj.Spec.Workload.Raw))
@@ -77,15 +77,14 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.InfoS("admit Component",
-			"namespace", obj.Namespace, "name", obj.Name, "patches", util.JSONMarshal(resp.Patches))
+		klog.InfoS("Admit component", "component", klog.KObj(obj), "patches", util.JSONMarshal(resp.Patches))
 	}
 	return resp
 }
 
 // Mutate sets all the default value for the Component
 func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
-	klog.InfoS("mutate", "name", obj.Name)
+	klog.InfoS("Mutate component", "component", klog.KObj(obj))
 	var content map[string]interface{}
 	if err := json.Unmarshal(obj.Spec.Workload.Raw, &content); err != nil {
 		return err
@@ -95,7 +94,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
 		if !ok {
 			return fmt.Errorf("workload content has an unknown type field")
 		}
-		klog.InfoS("the component refers to workoadDefinition by type", "name", obj.Name, "workload type", workloadType)
+		klog.InfoS("Component refers to workoadDefinition by type", "name", obj.Name, "workload type", workloadType)
 		// Fetch the corresponding workloadDefinition CR, the workloadDefinition crd is cluster scoped
 		workloadDefinition := &v1alpha2.WorkloadDefinition{}
 		if err := h.Client.Get(context.TODO(), types.NamespacedName{Name: workloadType}, workloadDefinition); err != nil {
@@ -117,7 +116,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
 		}.String()
 		workload.SetAPIVersion(apiVersion)
 		workload.SetKind(gvk.Kind)
-		klog.InfoS("Set the component workload GVK", "workload api version", workload.GetAPIVersion(), "workload Kind", workload.GetKind())
+		klog.InfoS("Set the component workload GVK", "workload apiVersion", workload.GetAPIVersion(), "workload Kind", workload.GetKind())
 		// copy namespace/label/annotation to the workload and add workloadType label
 		workload.SetNamespace(obj.GetNamespace())
 		workload.SetLabels(util.MergeMapOverrideWithDst(obj.GetLabels(), map[string]string{oam.WorkloadTypeLabel: workloadType}))

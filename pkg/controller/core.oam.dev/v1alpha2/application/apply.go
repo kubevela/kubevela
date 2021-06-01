@@ -97,7 +97,7 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 	if nerr != nil {
-		klog.Error(nerr, "[Update] application status")
+		klog.InfoS("Failed to update application status", "err", nerr)
 	}
 	return ctrl.Result{
 		RequeueAfter: time.Second * 10,
@@ -332,7 +332,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		if err = h.r.Create(ctx, comp); err != nil {
 			return "", err
 		}
-		klog.InfoS("Created a new component", "component name", comp.GetName())
+		klog.InfoS("Created a new component", "component", klog.KObj(comp))
 	} else {
 		// remember the revision if there is a previous component
 		if curComp.Status.LatestRevision != nil {
@@ -342,7 +342,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		if err := h.r.Update(ctx, comp); err != nil {
 			return "", err
 		}
-		klog.InfoS("Updated a component", "component name", comp.GetName())
+		klog.InfoS("Updated a component", "component", klog.KObj(comp))
 	}
 	// remove the object from the raw extension before we can compare with the existing componentRevision whose
 	// object is persisted as Raw data after going through api server
@@ -359,7 +359,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 				preRevisionName))
 		}
 		if !needNewRevision {
-			klog.InfoS("No need to wait for a new component revision", "component name", updatedComp.GetName(),
+			klog.InfoS("No need to wait for a new component revision", "component", klog.KObj(updatedComp),
 				"revision", preRevisionName)
 			return preRevisionName, nil
 		}
@@ -440,7 +440,7 @@ func (h *appHandler) createOrUpdateAppContext(ctx context.Context, owners []meta
 	}
 
 	// we don't need to create another appConfig
-	klog.InfoS("Replace the existing appContext", "application name", appContext.GetName(),
+	klog.InfoS("Replace the existing appContext", "appContext", klog.KObj(&appContext),
 		"revision it points to", appContext.Spec.ApplicationRevisionName)
 	appContext.ResourceVersion = curAppContext.ResourceVersion
 	return h.r.Update(ctx, &appContext)

@@ -107,9 +107,9 @@ func main() {
 	}
 	flag.Parse()
 
-	klog.InfoS("KubeVela", "version", version.VelaVersion, "revision", version.GitRevision)
-	klog.InfoS("Disable", "capabilities", disableCaps)
-	klog.InfoS("Vela-Core init", "definitionNamespace", oam.SystemDefinitonNamespace)
+	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
+	klog.InfoS("Disable capabilities", "name", disableCaps)
+	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitonNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
@@ -153,7 +153,7 @@ func main() {
 	default:
 		klog.ErrorS(fmt.Errorf("invalid apply-once-only value: %s", applyOnceOnly),
 			"Unable to setup the vela core controller",
-			"valid apply-once-only value", "on/off/force, by default it's off")
+			"apply-once-only", "on/off/force, by default it's off")
 		os.Exit(1)
 	}
 
@@ -212,7 +212,7 @@ func main() {
 
 // registerHealthChecks is used to create readiness&liveness probes
 func registerHealthChecks(mgr ctrl.Manager) error {
-	klog.Info("Creating readiness/health check")
+	klog.Info("Create readiness/health check")
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
 		return err
 	}

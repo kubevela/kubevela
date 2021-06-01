@@ -62,7 +62,7 @@ type Reconciler struct {
 
 // Reconcile reconcile an application context
 func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	klog.InfoS("Reconciling", "applicationContext", request.NamespacedName)
+	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
 	defer cancel()
 	// fetch the app context

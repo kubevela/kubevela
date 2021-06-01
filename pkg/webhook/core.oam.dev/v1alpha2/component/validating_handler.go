@@ -53,20 +53,20 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		klog.InfoS("Failed to decode", "err", err, "req operation", req.AdmissionRequest.Operation, "req",
-			req.AdmissionRequest)
+		klog.InfoS("Failed to decode component", "req operation", req.AdmissionRequest.Operation, "req",
+			req.AdmissionRequest, "err", err)
 		return admission.Denied(err.Error())
 	}
 
 	switch req.AdmissionRequest.Operation { //nolint:exhaustive
 	case admissionv1beta1.Create:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			klog.InfoS("Create component failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
+			klog.InfoS("Failed to create component", "component", klog.KObj(obj), "err", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	case admissionv1beta1.Update:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			klog.InfoS("Update component failed", "name", obj.Name, "errMsg", allErrs.ToAggregate().Error())
+			klog.InfoS("Failed to update component", "component", klog.KObj(obj), "err", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	}
@@ -76,7 +76,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 // ValidateComponentObject validates the Component on creation
 func ValidateComponentObject(obj *v1alpha2.Component) field.ErrorList {
-	klog.InfoS("Validate component", "name", obj.Name)
+	klog.InfoS("Validate component", "component", klog.KObj(obj))
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&obj.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 	fldPath := field.NewPath("spec")

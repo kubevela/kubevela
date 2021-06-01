@@ -71,7 +71,7 @@ type Reconciler struct {
 // Reconcile process app event
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	klog.InfoS("Reconciling", "application", req.NamespacedName)
+	klog.InfoS("Reconcile application", "application", klog.KRef(req.Namespace, req.Name))
 
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
@@ -91,7 +91,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(app) {
-			klog.InfoS("Register new finalizer", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizers", app.ObjectMeta.Finalizers)
 			return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 	} else {
@@ -191,7 +191,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// there is no need reconcile immediately, that means the rollout operation have finished
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
 		app.Status.SetConditions(readyCondition("Rollout"))
-		klog.Info("Rollout finished")
+		klog.Info("Finished rollout ")
 	}
 
 	// The following logic will be skipped if rollout have not finished

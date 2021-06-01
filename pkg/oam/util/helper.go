@@ -203,12 +203,12 @@ func FetchWorkload(ctx context.Context, c client.Client, oamTrait oam.Trait) (
 	workload.SetKind(workloadRef.Kind)
 	wn := client.ObjectKey{Name: workloadRef.Name, Namespace: oamTrait.GetNamespace()}
 	if err := c.Get(ctx, wn, &workload); err != nil {
-		klog.InfoS("Failed to find workload", "err", err, "kind", workloadRef.Kind, "workload name", workloadRef.Name)
+		klog.InfoS("Failed to find workload", "kind", workloadRef.Kind, "workload name", workloadRef.Name,
+			"err", err)
 		return nil, err
 	}
-	klog.InfoS("Get the workload the trait is pointing to", "workload name", workload.GetName(),
-		"workload APIVersion", workload.GetAPIVersion(), "workload Kind", workload.GetKind(), "workload UID",
-		workload.GetUID())
+	klog.InfoS("Get the workload the trait is pointing to", "workload", klog.KRef(workload.GetNamespace(), workload.GetName()),
+		"APIVersion", workload.GetAPIVersion(), "Kind", workload.GetKind(), "UID", workload.GetUID())
 	return &workload, nil
 }
 
@@ -421,20 +421,21 @@ func fetchChildResources(ctx context.Context, r client.Reader, workload *unstruc
 		crs := unstructured.UnstructuredList{}
 		crs.SetAPIVersion(wcr.APIVersion)
 		crs.SetKind(wcr.Kind)
-		klog.InfoS("List child resource kind", "APIVersion", wcr.APIVersion, "Type", wcr.Kind, "owner UID",
+		klog.InfoS("List child resources", "apiVersion", wcr.APIVersion, "kind", wcr.Kind, "owner UID",
 			workload.GetUID())
 		if err := r.List(ctx, &crs, client.InNamespace(workload.GetNamespace()),
 			client.MatchingLabels(wcr.Selector)); err != nil {
-			klog.InfoS("Failed to list object", "err", err, "apiVersion", crs.GetAPIVersion(), "kind", crs.GetKind())
+			klog.InfoS("Failed to list object", "apiVersion", crs.GetAPIVersion(), "kind", crs.GetKind(),
+				"err", err)
 			return nil, err
 		}
 		// pick the ones that is owned by the workload
 		for _, cr := range crs.Items {
 			for _, owner := range cr.GetOwnerReferences() {
 				if owner.UID == workload.GetUID() {
-					klog.InfoS("Find a child resource we are looking for",
-						"APIVersion", cr.GetAPIVersion(), "Kind", cr.GetKind(),
-						"Name", cr.GetName(), "owner", owner.UID)
+					klog.InfoS("Find a child resource we are looking for", "child resource",
+						klog.KRef(cr.GetNamespace(), cr.GetName()), "apiVersion", cr.GetAPIVersion(),
+						"kind", cr.GetKind(), "owner", owner.UID)
 					or := cr // have to do a copy as the range variable is a reference and will change
 					childResources = append(childResources, &or)
 				}
