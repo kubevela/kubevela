@@ -96,7 +96,7 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus)
+	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus, wl.Params)
 }
 
 // EvalHealth eval workload health check
@@ -149,7 +149,7 @@ func (trait *Trait) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval trait status
 func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat)
+	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat, trait.Params)
 }
 
 // EvalHealth eval trait health check

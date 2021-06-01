@@ -1004,6 +1004,7 @@ func TestCheckHealth(t *testing.T) {
 func TestGetStatus(t *testing.T) {
 	cases := map[string]struct {
 		tpContext  map[string]interface{}
+		parameter  interface{}
 		statusTemp string
 		expMessage string
 	}{
@@ -1064,9 +1065,33 @@ if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
 }`,
 			expMessage: "Visiting URL: example.com, IP: 10.0.0.1",
 		},
+		"status use parameter field": {
+			tpContext: map[string]interface{}{
+				"outputs": map[string]interface{}{
+					"test-name": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"type":      "NodePort",
+							"clusterIP": "10.0.0.1",
+							"ports": []interface{}{
+								map[string]interface{}{
+									"port": 80,
+								},
+							},
+						},
+					},
+				},
+			},
+			parameter: map[string]interface{}{
+				"configInfo": map[string]string{
+					"name": "test-name",
+				},
+			},
+			statusTemp: `message: parameter.configInfo.name + ".type: " + context.outputs["\(parameter.configInfo.name)"].spec.type`,
+			expMessage: "test-name.type: NodePort",
+		},
 	}
 	for message, ca := range cases {
-		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp)
+		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp, ca.parameter)
 		assert.NoError(t, err, message)
 		assert.Equal(t, ca.expMessage, gotMessage, message)
 	}

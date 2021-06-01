@@ -158,6 +158,37 @@ var _ = Describe("Application Normal tests", func() {
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:5.0.2")
 	})
 
+	It("Test app have component with multiple same type traits", func() {
+		traitDef := new(v1beta1.TraitDefinition)
+		Expect(common.ReadYamlToObject("testdata/app/trait_config.yaml", traitDef)).Should(BeNil())
+		traitDef.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, traitDef)).Should(BeNil())
+
+		By("apply application")
+		applyApp("app7.yaml")
+		appName := "test-worker"
+
+		By("check application status")
+		testApp := new(v1beta1.Application)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appName}, testApp)
+			if err != nil {
+				return err
+			}
+			if len(testApp.Status.Services) != 1 {
+				return fmt.Errorf("error ComponentStatus number wants %d, actually %d", 1, len(testApp.Status.Services))
+			}
+			if len(testApp.Status.Services[0].Traits) != 2 {
+				return fmt.Errorf("error TraitStatus number wants %d, actually %d", 2, len(testApp.Status.Services[0].Traits))
+			}
+			return nil
+		}, 5*time.Second).Should(BeNil())
+
+		By("check trait status")
+		Expect(testApp.Status.Services[0].Traits[0].Message).Should(Equal("configMap:app-file-html"))
+		Expect(testApp.Status.Services[0].Traits[1].Message).Should(Equal("secret:app-env-config"))
+	})
+
 	It("Test app have rollout-template false annotation", func() {
 		By("Apply an application")
 		var newApp v1beta1.Application
