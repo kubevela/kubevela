@@ -53,7 +53,6 @@ const (
 	reconcileTimeout = 1 * time.Minute
 	dependCheckWait  = 10 * time.Second
 	shortWait        = 30 * time.Second
-	longWait         = 1 * time.Minute
 )
 
 var errResult = reconcile.Result{RequeueAfter: shortWait}
@@ -106,7 +105,7 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 			l.WithValues("controller", name),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 			WithApplyOnceOnlyMode(args.ApplyMode),
-			WithLogWaitTime(args.LongWait)))
+			WithLongWaitTime(args.LongWait)))
 }
 
 // An OAMApplicationReconciler reconciles OAM ApplicationConfigurations by rendering and
@@ -180,8 +179,8 @@ func WithApplyOnceOnlyMode(mode core.ApplyOnceOnlyMode) ReconcilerOption {
 	}
 }
 
-// WithLogWaitTime set next reconcile time interval
-func WithLogWaitTime(longWait time.Duration) ReconcilerOption {
+// WithLongWaitTime set next reconcile time interval
+func WithLongWaitTime(longWait time.Duration) ReconcilerOption {
 	return func(r *OAMApplicationReconciler) {
 		r.longWait = longWait
 	}
