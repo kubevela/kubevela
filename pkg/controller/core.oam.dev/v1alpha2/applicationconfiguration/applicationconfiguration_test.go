@@ -539,10 +539,11 @@ func TestReconciler(t *testing.T) {
 					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: shortWait}, nil
 					})),
+					WithLongWaitTime(1 * time.Minute),
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: longWait},
+				result: reconcile.Result{RequeueAfter: 1 * time.Minute},
 			},
 		},
 		"RegisterFinalizer": {

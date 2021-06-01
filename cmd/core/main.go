@@ -103,6 +103,8 @@ func main() {
 	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 5*time.Minute,
 		"controller shared informer lister full re-sync period")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
+	flag.DurationVar(&controllerArgs.LongWait, "long-wait", 1*time.Minute, "long-wait is controller next reconcile interval time like 30s, 2m etc. The default value is 1m,"+
+		" you can set it to 0 for no reconcile routine after success")
 	flag.Parse()
 
 	// setup logging

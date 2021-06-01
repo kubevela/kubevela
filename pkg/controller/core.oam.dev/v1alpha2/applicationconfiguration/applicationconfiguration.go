@@ -53,7 +53,6 @@ const (
 	reconcileTimeout = 1 * time.Minute
 	dependCheckWait  = 10 * time.Second
 	shortWait        = 30 * time.Second
-	longWait         = 1 * time.Minute
 )
 
 var errResult = reconcile.Result{RequeueAfter: shortWait}
@@ -105,7 +104,8 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 		Complete(NewReconciler(mgr, dm,
 			l.WithValues("controller", name),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-			WithApplyOnceOnlyMode(args.ApplyMode)))
+			WithApplyOnceOnlyMode(args.ApplyMode),
+			WithLongWaitTime(args.LongWait)))
 }
 
 // An OAMApplicationReconciler reconciles OAM ApplicationConfigurations by rendering and
@@ -121,6 +121,7 @@ type OAMApplicationReconciler struct {
 	preHooks          map[string]ControllerHooks
 	postHooks         map[string]ControllerHooks
 	applyOnceOnlyMode core.ApplyOnceOnlyMode
+	longWait          time.Duration
 }
 
 // A ReconcilerOption configures a Reconciler.
@@ -175,6 +176,13 @@ func WithPosthook(name string, hook ControllerHooks) ReconcilerOption {
 func WithApplyOnceOnlyMode(mode core.ApplyOnceOnlyMode) ReconcilerOption {
 	return func(r *OAMApplicationReconciler) {
 		r.applyOnceOnlyMode = mode
+	}
+}
+
+// WithLongWaitTime set next reconcile time interval
+func WithLongWaitTime(longWait time.Duration) ReconcilerOption {
+	return func(r *OAMApplicationReconciler) {
+		r.longWait = longWait
 	}
 }
 
@@ -339,7 +347,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	r.updateStatus(ctx, ac, acPatch, workloads)
 
 	ac.Status.Dependency = v1alpha2.DependencyStatus{}
-	waitTime := longWait
+	waitTime := r.longWait
 	if len(depStatus.Unsatisfied) != 0 {
 		waitTime = dependCheckWait
 		ac.Status.Dependency = *depStatus
