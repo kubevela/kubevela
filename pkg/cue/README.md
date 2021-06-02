@@ -8,4 +8,3 @@ The following packages need to be tested without external/tool dependencies, So 
 - github.com/oam-dev/kubevela/pkg/cue/process
 - github.com/oam-dev/kubevela/pkg/cue/task
 - github.com/oam-dev/kubevela/pkg/cue/packages
-

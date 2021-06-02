@@ -676,7 +676,5 @@ output: {
 			"status": map[string]interface{}{
 				"key": "test2"}},
 		})).Should(BeEquivalentTo(""))
-
 	})
-
 })
