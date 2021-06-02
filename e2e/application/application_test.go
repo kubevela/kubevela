@@ -172,6 +172,10 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 						q: "Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core) (optional):",
 						a: "0.5",
 					},
+					{
+						q: "Specifies the attributes of the memory resource required for the container. (optional):",
+						a: "200M",
+					},
 				}
 				for _, qa := range data {
 					_, err := c.ExpectString(qa.q)
