@@ -154,7 +154,7 @@ Each workflow step has the following interactions with the app controller:
 
   ```yaml
   conditions:
-    - type: workflow-finish
+    - type: workflow-progress
       status: 'True'
       reason: 'Succeeded'
       message: '{"observedGeneration":1}'

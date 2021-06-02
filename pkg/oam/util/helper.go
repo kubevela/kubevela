@@ -642,10 +642,19 @@ func Object2Map(obj interface{}) (map[string]interface{}, error) {
 
 // Object2RawExtension converts an object to a rawExtension
 func Object2RawExtension(obj interface{}) runtime.RawExtension {
-	bts, _ := json.Marshal(obj)
+	bts := MustJSONMarshal(obj)
 	return runtime.RawExtension{
 		Raw: bts,
 	}
+}
+
+// MustJSONMarshal json-marshals an object into bytes. It panics on err.
+func MustJSONMarshal(obj interface{}) []byte {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 // RawExtension2Map will convert rawExtension to map
