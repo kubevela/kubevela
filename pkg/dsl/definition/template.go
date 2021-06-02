@@ -58,7 +58,7 @@ const (
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
 	HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error)
-	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error)
+	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error)
 }
 
 type def struct {
@@ -223,7 +223,7 @@ func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 }
 
 // Status get workload status by customStatusTemplate
-func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error) {
+func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error) {
 	if customStatusTemplate == "" {
 		return "", nil
 	}
@@ -231,15 +231,28 @@ func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string,
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
-	return getStatusMessage(templateContext, customStatusTemplate)
+	return getStatusMessage(templateContext, customStatusTemplate, parameter)
 }
 
-func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string) (string, error) {
+func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
+	var ctxBuff string
+	var paramBuff = "parameter: {}\n"
+
 	bt, err := json.Marshal(templateContext)
 	if err != nil {
 		return "", errors.WithMessage(err, "json marshal template context")
 	}
-	var buff = "context: " + string(bt) + "\n" + customStatusTemplate
+	ctxBuff = "context: " + string(bt) + "\n"
+
+	bt, err = json.Marshal(parameter)
+	if err != nil {
+		return "", errors.WithMessage(err, "json marshal template parameters")
+	}
+	if string(bt) != "null" {
+		paramBuff = "parameter: " + string(bt) + "\n"
+	}
+	var buff = ctxBuff + paramBuff + customStatusTemplate
+
 	var r cue.Runtime
 	inst, err := r.Compile("-", buff)
 	if err != nil {
@@ -392,7 +405,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 }
 
 // Status get trait status by customStatusTemplate
-func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error) {
+func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error) {
 	if customStatusTemplate == "" {
 		return "", nil
 	}
@@ -400,7 +413,7 @@ func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, cu
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
-	return getStatusMessage(templateContext, customStatusTemplate)
+	return getStatusMessage(templateContext, customStatusTemplate, parameter)
 }
 
 // HealthCheck address health check for trait

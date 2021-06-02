@@ -1,0 +1,25 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: test-worker
+spec:
+  components:
+    - name: myworker
+      type: worker
+      properties:
+        image: nginx
+      traits:
+        - type: config
+          properties:
+            kind: "configMap"
+            name: "app-file-html"
+            configname: "file"
+            data:
+              test: "demo-app"
+        - type: config
+          properties:
+            kind: "secret"
+            name: "app-env-config"
+            configname: "env"
+            data:
+              test: "TXlQQHNzMTIz"

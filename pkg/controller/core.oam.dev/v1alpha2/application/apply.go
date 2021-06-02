@@ -265,33 +265,32 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			}
 		}
 
+		var traitStatusList []common.ApplicationTraitStatus
 		for _, tr := range wl.Traits {
 			if err := tr.EvalContext(pCtx); err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appFile.Name, wl.Name, tr.Name)
 			}
-		}
 
-		var traitStatusList []common.ApplicationTraitStatus
-		for _, trait := range wl.Traits {
 			var traitStatus = common.ApplicationTraitStatus{
-				Type:    trait.Name,
+				Type:    tr.Name,
 				Healthy: true,
 			}
-			traitHealth, err := trait.EvalHealth(pCtx, h.r, h.app.Namespace)
+			traitHealth, err := tr.EvalHealth(pCtx, h.r, h.app.Namespace)
 			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, trait.Name)
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, tr.Name)
 			}
 			if !traitHealth {
 				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
 				traitStatus.Healthy = false
 				healthy = false
 			}
-			traitStatus.Message, err = trait.EvalStatus(pCtx, h.r, h.app.Namespace)
+			traitStatus.Message, err = tr.EvalStatus(pCtx, h.r, h.app.Namespace)
 			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, trait.Name)
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, tr.Name)
 			}
 			traitStatusList = append(traitStatusList, traitStatus)
 		}
+
 		status.Traits = traitStatusList
 		status.Scopes = generateScopeReference(wl.Scopes)
 		appStatus = append(appStatus, status)
