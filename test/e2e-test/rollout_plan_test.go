@@ -34,10 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -183,16 +181,7 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 		Expect(appRollout.Status.UpgradedReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetSize))
 		clonesetName := appRollout.Spec.ComponentList[0]
 
-		By("Verify AppContext rolling status")
-		var appContext v1alpha2.ApplicationContext
-		Eventually(
-			func() types.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: targetAppName}, &appContext)
-				return appContext.Status.RollingStatus
-			},
-			time.Second*60, time.Second).Should(BeEquivalentTo(types.RollingCompleted))
-
-		By("Wait for AppContext to resume the control of cloneset")
+		By("Wait for resourceTracker to resume the control of cloneset")
 		var clonesetOwner *metav1.OwnerReference
 		Eventually(
 			func() string {
@@ -206,8 +195,9 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 				}
 				return ""
 			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.ApplicationContextKind))
-		Expect(clonesetOwner.Name).Should(BeEquivalentTo(targetAppName))
+			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
+		resourceTrackerName := fmt.Sprintf("%s-%s", targetAppName, appRollout.Namespace)
+		Expect(clonesetOwner.Name).Should(BeEquivalentTo(resourceTrackerName))
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		// make sure all pods are upgraded
 		image := kc.Spec.Template.Spec.Containers[0].Image
@@ -219,17 +209,6 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 			Expect(pod.Spec.Containers[0].Image).Should(Equal(image))
 			Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
 		}
-	}
-
-	verifyAppConfigInactive := func(appContextName string) {
-		var appContext v1alpha2.ApplicationContext
-		By("Verify AppConfig is inactive")
-		Eventually(
-			func() types.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appContextName}, &appContext)
-				return appContext.Status.RollingStatus
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(types.InactiveAfterRollingCompleted))
 	}
 
 	applyTwoAppVersion := func() {
@@ -275,7 +254,6 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 			time.Second*10, time.Millisecond*10).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
 	}
 
 	BeforeEach(func() {
@@ -363,7 +341,6 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 			RolloutBatches) - 1))
 		Expect(k8sClient.Update(ctx, &appRollout)).Should(Succeed())
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
 	})
 
 	It("Test pause and modify rollout plan after rolling succeeded", func() {
@@ -461,8 +438,6 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 			time.Second*10, time.Millisecond*10).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
-
 		rollForwardToSource()
 	})
 
@@ -570,12 +545,10 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
-
+		time.Sleep(5 * time.Second)
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
 
-		// wait for a bit until the application takes back control
-		By("Verify that application does not control the cloneset")
+		By("Verify that resourceTracker control the cloneset")
 		clonesetName := appRollout.Spec.ComponentList[0]
 		Eventually(
 			func() string {
@@ -585,7 +558,7 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 					return ""
 				}
 				return clonesetOwner.Kind
-			}, time.Second*30, time.Second).Should(BeEquivalentTo(v1alpha2.ApplicationContextKind))
+			}, time.Second*30, time.Second).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
 	})
 
 	PIt("Test rolling by changing the definition", func() {
@@ -611,7 +584,6 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 		createAppRolling(&newAppRollout)
 
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
 		// Clean up
 		k8sClient.Delete(ctx, &appRollout)
 	})

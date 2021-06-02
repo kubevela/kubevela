@@ -245,3 +245,27 @@ func TestGetAppRevison(t *testing.T) {
 	assert.Equal(t, revisionName, "myapp-v4")
 	assert.Equal(t, latestRevision, int64(4))
 }
+
+func TestExtractAppName(t *testing.T) {
+	testcases := []struct {
+		revisionName string
+		appName      string
+	}{
+		{
+			revisionName: "app-v1",
+			appName:      "app",
+		},
+		{
+			revisionName: "my-app-v1",
+			appName:      "my-app",
+		},
+		{
+			revisionName: "my-v1-app-v2",
+			appName:      "my-v1-app",
+		},
+	}
+
+	for _, testcase := range testcases {
+		assert.Equal(t, testcase.appName, ExtractAppName(testcase.revisionName))
+	}
+}
