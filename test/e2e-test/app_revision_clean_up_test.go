@@ -345,7 +345,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 	})
 })
 

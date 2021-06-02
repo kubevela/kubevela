@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -37,6 +35,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -106,6 +105,9 @@ var _ = Describe("Test application controller clean up ", func() {
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
+			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+				return err
+			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
 				return err
@@ -128,6 +130,9 @@ var _ = Describe("Test application controller clean up ", func() {
 		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		Eventually(func() error {
+			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+				return err
+			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
 				return err
@@ -187,6 +192,9 @@ var _ = Describe("Test application controller clean up ", func() {
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
+			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+				return err
+			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
 				return err
@@ -212,6 +220,9 @@ var _ = Describe("Test application controller clean up ", func() {
 		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		Eventually(func() error {
+			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+				return err
+			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
 				return err
@@ -274,6 +285,9 @@ var _ = Describe("Test application controller clean up ", func() {
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
+			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+				return err
+			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
 				return err
@@ -321,6 +335,9 @@ var _ = Describe("Test application controller clean up ", func() {
 			Expect(err).Should(BeNil())
 		}
 		Eventually(func() error {
+			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+				return err
+			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
 				return err
