@@ -19,6 +19,7 @@ package plugins
 import (
 	"context"
 	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -40,7 +41,7 @@ type Registry interface {
 	ListCaps() ([]types.Capability, error)
 }
 
-// GithubRegistry is Registry's implementation trait github url as resource
+// GithubRegistry is Registry's implementation treat github url as resource
 type GithubRegistry struct {
 	client *github.Client
 	cfg    *GithubContent
@@ -50,12 +51,12 @@ type GithubRegistry struct {
 
 // NewRegistry will create a registry implementation
 func NewRegistry(ctx context.Context, token, registryName string, regURL string) (Registry, error) {
-	if strings.HasPrefix(regURL, "http") {
-		// todo(qiaozp) support oss
-		_, cfg, err := Parse(regURL)
-		if err != nil {
-			return nil, err
-		}
+	tp, cfg, err := Parse(regURL)
+	if err != nil {
+		return nil, err
+	}
+	switch tp {
+	case TypeGithub:
 		var tc *http.Client
 		if token != "" {
 			ts := oauth2.StaticTokenSource(
@@ -63,15 +64,23 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 			)
 			tc = oauth2.NewClient(ctx, ts)
 		}
-		return GithubRegistry{client: github.NewClient(tc), cfg: cfg, ctx: ctx, name: registryName}, nil
-	} else if strings.HasPrefix(regURL, "file://") {
-		dir := strings.TrimPrefix(regURL, "file://")
-		_, err := os.Stat(dir)
+		return GithubRegistry{client: github.NewClient(tc), cfg: &cfg.GithubContent, ctx: ctx, name: registryName}, nil
+	case TypeOss:
+		var tc http.Client
+		return OssRegistry{
+			Client:    &tc,
+			bucketURL: fmt.Sprintf("https://%s/", cfg.BucketURL),
+		}, nil
+	case TypeLocal:
+		_, err := os.Stat(cfg.AbsDir)
 		if os.IsNotExist(err) {
 			return LocalRegistry{}, err
 		}
-		return LocalRegistry{absPath: dir}, nil
+		return LocalRegistry{absPath: cfg.AbsDir}, nil
+	case TypeUnknown:
+		return nil, fmt.Errorf("not supported url")
 	}
+
 	return nil, fmt.Errorf("not supported url")
 }
 
@@ -149,7 +158,79 @@ func (g *GithubRegistry) getRepoFile() ([]RegistryFile, error) {
 	return items, nil
 }
 
-// LocalRegistry is Registry's implementation trait local url as resource
+// OssRegistry is Registry's implementation treat OSS url as resource
+type OssRegistry struct {
+	*http.Client
+	bucketURL string
+}
+
+// GetCap return capability object and raw data specified by cap name
+func (o OssRegistry) GetCap(addonName string) (types.Capability, []byte, error) {
+	filename := addonName + ".yaml"
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		o.bucketURL+filename,
+		nil,
+	)
+	resp, err := o.Client.Do(req)
+	if err != nil {
+		return types.Capability{}, nil, err
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		return types.Capability{}, nil, err
+	}
+	rf := RegistryFile{
+		data: data,
+		name: filename,
+	}
+	capa, err := rf.toAddon()
+	if err != nil {
+		return types.Capability{}, nil, err
+	}
+
+	return capa, data, nil
+}
+
+// ListCaps list all capabilities of registry
+func (o OssRegistry) ListCaps() ([]types.Capability, error) {
+	req, _ := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		o.bucketURL+"?list-type=2",
+		nil,
+	)
+	resp, err := o.Client.Do(req)
+	if err != nil {
+		return []types.Capability{}, err
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		return []types.Capability{}, err
+	}
+	list := &ListBucketResult{}
+	err = xml.Unmarshal(data, list)
+	if err != nil {
+		return []types.Capability{}, err
+	}
+	capas := make([]types.Capability, 0)
+
+	for _, fileName := range list.File {
+		addonName := strings.Split(fileName, ".")[0]
+		capa, _, err := o.GetCap(addonName)
+		if err != nil {
+			fmt.Printf("Get %s err: %s\n", fileName, err)
+			continue
+		}
+		capas = append(capas, capa)
+	}
+	return capas, nil
+}
+
+// LocalRegistry is Registry's implementation treat local url as resource
 type LocalRegistry struct {
 	absPath string
 }
@@ -212,4 +293,10 @@ func (item RegistryFile) toAddon() (types.Capability, error) {
 type RegistryFile struct {
 	data []byte // file content
 	name string // file's name
+}
+
+// ListBucketResult describe a file list from OSS
+type ListBucketResult struct {
+	File  []string `xml:"Contents>Key"`
+	Count int      `xml:"KeyCount"`
 }

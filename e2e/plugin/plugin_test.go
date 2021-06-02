@@ -171,7 +171,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring("Successfully install component: cloneset"))
 		})
 		It("Test install a sample trait", func() {
-			output, err := e2e.Exec("kubectl-vela trait get init-container")
+			output, err := e2e.Exec("kubectl-vela trait get init-container --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Successfully install trait: init-container"))
 		})
