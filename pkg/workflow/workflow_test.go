@@ -69,7 +69,7 @@ func TestExecuteSteps(t *testing.T) {
 					"type":    CondTypeWorkflowFinish,
 					"reason":  CondReasonSucceeded,
 					"message": string(succeededMessage),
-					"status":  "True",
+					"status":  CondStatusTrue,
 				}},
 			},
 		},
@@ -84,7 +84,7 @@ func TestExecuteSteps(t *testing.T) {
 					"type":    CondTypeWorkflowFinish,
 					"reason":  CondReasonSucceeded,
 					"message": string(succeededMessage),
-					"status":  "True",
+					"status":  CondStatusTrue,
 				}},
 			},
 		},
@@ -95,7 +95,7 @@ func TestExecuteSteps(t *testing.T) {
 			"status": map[string]interface{}{
 				"conditions": []interface{}{map[string]interface{}{
 					"type":   CondTypeWorkflowFinish,
-					"status": "True",
+					"status": CondStatusTrue,
 				}},
 			},
 		},
@@ -106,7 +106,7 @@ func TestExecuteSteps(t *testing.T) {
 				"conditions": []interface{}{map[string]interface{}{
 					"type":   CondTypeWorkflowFinish,
 					"reason": CondReasonStopped,
-					"status": "True",
+					"status": CondStatusTrue,
 				}},
 			},
 		},

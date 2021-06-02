@@ -123,6 +123,9 @@ const (
 	CondReasonStopped = "Stopped"
 	// CondReasonFailed is the reason of the workflow progress condition which is failed
 	CondReasonFailed = "Failed"
+
+	// CondStatusTrue is the status of the workflow progress condition which is True
+	CondStatusTrue = "True"
 )
 
 func (w *workflow) syncWorkflowStatus(step oamcore.WorkflowStep, obj *unstructured.Unstructured) (*common.WorkflowStepStatus, error) {
@@ -142,7 +145,7 @@ func (w *workflow) syncWorkflowStatus(step oamcore.WorkflowStep, obj *unstructur
 		return nil, err
 	}
 
-	if !found || cond.Status != "True" {
+	if !found || cond.Status != CondStatusTrue {
 		status.Phase = common.WorkflowStepPhaseRunning
 		return status, nil
 	}
