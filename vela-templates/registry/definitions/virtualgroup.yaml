@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Add virtual group labels"
+  name: virtualgroup
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |-
