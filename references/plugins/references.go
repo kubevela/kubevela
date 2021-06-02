@@ -536,6 +536,17 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		if err != nil {
 			return fmt.Errorf("arguments not defined as struct %w", err)
 		}
+		if arguments.Len() == 0 {
+			var param ReferenceParameter
+			param.Name = "undefined"
+			param.Required = true
+			tl := paraValue.Template()
+			if tl != nil { // is map type
+				param.PrintableType = fmt.Sprintf("map[string]%s", tl("").IncompleteKind().String())
+			}
+			params = append(params, param)
+		}
+
 		for i := 0; i < arguments.Len(); i++ {
 			var param ReferenceParameter
 			fi := arguments.Field(i)
