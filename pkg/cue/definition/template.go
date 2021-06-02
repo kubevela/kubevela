@@ -27,10 +27,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/dsl/model"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
-	"github.com/oam-dev/kubevela/pkg/dsl/task"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -63,7 +64,7 @@ type AbstractEngine interface {
 
 type def struct {
 	name string
-	pd   *PackageDiscover
+	pd   *packages.PackageDiscover
 }
 
 type workloadDef struct {
@@ -71,7 +72,7 @@ type workloadDef struct {
 }
 
 // NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-func NewWorkloadAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
+func NewWorkloadAbstractEngine(name string, pd *packages.PackageDiscover) AbstractEngine {
 	return &workloadDef{
 		def: def{
 			name: name,
@@ -93,7 +94,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
+			paramFile = fmt.Sprintf("%s: %s", velacue.ParameterTag, string(bt))
 		}
 	}
 	if err := bi.AddFile("parameter", paramFile); err != nil {
@@ -270,7 +271,7 @@ type traitDef struct {
 }
 
 // NewTraitAbstractEngine create Trait Definition AbstractEngine
-func NewTraitAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
+func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractEngine {
 	return &traitDef{
 		def: def{
 			name: name,
@@ -292,7 +293,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
+			paramFile = fmt.Sprintf("%s: %s", velacue.ParameterTag, string(bt))
 		}
 	}
 	if err := bi.AddFile("parameter", paramFile); err != nil {

@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -34,7 +34,7 @@ type Args struct {
 	Schema *runtime.Scheme
 	Client client.Client
 	dm     discoverymapper.DiscoveryMapper
-	pd     *definition.PackageDiscover
+	pd     *packages.PackageDiscover
 }
 
 // SetConfig insert kubeconfig into Args
@@ -84,7 +84,7 @@ func (a *Args) GetDiscoveryMapper() (discoverymapper.DiscoveryMapper, error) {
 }
 
 // GetPackageDiscover get PackageDiscover client if exist, create if not exist.
-func (a *Args) GetPackageDiscover() (*definition.PackageDiscover, error) {
+func (a *Args) GetPackageDiscover() (*packages.PackageDiscover, error) {
 	if a.Config == nil {
 		if err := a.SetConfig(); err != nil {
 			return nil, err
@@ -93,7 +93,7 @@ func (a *Args) GetPackageDiscover() (*definition.PackageDiscover, error) {
 	if a.pd != nil {
 		return a.pd, nil
 	}
-	pd, err := definition.NewPackageDiscover(a.Config)
+	pd, err := packages.NewPackageDiscover(a.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CRD discovery for CUE package client %w", err)
 	}

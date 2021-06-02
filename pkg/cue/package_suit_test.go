@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package definition
+package cue
 
 import (
 	"context"
@@ -44,7 +44,7 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -676,7 +676,5 @@ output: {
 			"status": map[string]interface{}{
 				"key": "test2"}},
 		})).Should(BeEquivalentTo(""))
-
 	})
-
 })

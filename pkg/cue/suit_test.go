@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package definition
+package cue
 
 import (
 	"testing"
@@ -30,6 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
+
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -39,7 +41,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var scheme = runtime.NewScheme()
-var pd *PackageDiscover
+var pd *packages.PackageDiscover
 
 func TestDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -65,7 +67,7 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-	pd, err = NewPackageDiscover(cfg)
+	pd, err = packages.NewPackageDiscover(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	close(done)

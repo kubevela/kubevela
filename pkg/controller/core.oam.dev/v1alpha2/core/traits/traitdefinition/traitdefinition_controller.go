@@ -39,7 +39,7 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -49,7 +49,7 @@ import (
 type Reconciler struct {
 	client.Client
 	dm          discoverymapper.DiscoveryMapper
-	pd          *definition.PackageDiscover
+	pd          *packages.PackageDiscover
 	Scheme      *runtime.Scheme
 	record      event.Recorder
 	defRevLimit int

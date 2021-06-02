@@ -44,7 +44,7 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 var (
@@ -97,7 +97,7 @@ func HTTPGet(ctx context.Context, url string) ([]byte, error) {
 // GetCUEParameterValue converts definitions to cue format
 func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	r := cue.Runtime{}
-	template, err := r.Compile("", cueStr+mycue.BaseTemplate)
+	template, err := r.Compile("", cueStr+velacue.BaseTemplate)
 	if err != nil {
 		return cue.Value{}, err
 	}
@@ -110,7 +110,7 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == mycue.ParameterTag {
+		if paraDef.Name == velacue.ParameterTag {
 			found = true
 			break
 		}
