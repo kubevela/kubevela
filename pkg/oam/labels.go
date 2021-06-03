@@ -43,7 +43,7 @@ const (
 
 	// LabelComponentDefinitionName records the name of ComponentDefinition
 	LabelComponentDefinitionName = "componentdefinition.oam.dev/name"
-	// LabelComponentDefinitionName records the name of TraitDefinition
+	// LabelTraitDefinitionName records the name of TraitDefinition
 	LabelTraitDefinitionName = "trait.oam.dev/name"
 	// LabelPolicyDefinitionName records the name of PolicyDefinition
 	LabelPolicyDefinitionName = "policydefinition.oam.dev/name"
