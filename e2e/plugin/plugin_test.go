@@ -146,6 +146,12 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("map[string]string"))
 		})
+		It("Test show webservice def with cue ignore annotation ", func() {
+			tdName := "webservice"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
+		})
 	})
 
 	Context("Test kubectl vela comp discover", func() {

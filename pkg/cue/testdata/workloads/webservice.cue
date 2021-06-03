@@ -117,8 +117,8 @@ parameter: {
 			secretKeyRef: {
 				// +usage=The name of the secret in the pod's namespace to select from
 				name: string
-				// +usage=The key of the secret to select from. Must be a valid secret key
-				key: string
+				// +ignore The key of the secret to select from. Must be a valid secret key
+				secretKey: string
 			}
 		}
 	}]
@@ -160,3 +160,4 @@ parameter: {
 		}
 	}]
 }
+
