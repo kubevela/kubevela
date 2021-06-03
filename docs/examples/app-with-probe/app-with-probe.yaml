@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: my-website
+spec:
+  components:
+    - name: frontend
+      type: webservice
+      properties:
+        image: oamdev/testapp:v1
+        cmd: ["node", "server.js"]
+        port: 8080
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
