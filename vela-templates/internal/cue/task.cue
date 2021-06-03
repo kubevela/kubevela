@@ -203,4 +203,3 @@ parameter: {
 	// +usage=Number of consecutive failures required to determine the container is not alive (liveness probe) or not ready (readiness probe).
 	failureThreshold: *3 | int
 }
-kk
