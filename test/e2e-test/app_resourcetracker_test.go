@@ -150,6 +150,17 @@ var _ = Describe("Test application cross namespace resource", func() {
 		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)), crossNamespaceTraitDef)).Should(Succeed())
 		Expect(k8sClient.Create(ctx, crossNamespaceTraitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+		By("Verify TraitDefinition are created successfully")
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: "cluster-scope-trait", Namespace: namespace}, &v1beta1.TraitDefinition{}); err != nil {
+				return err
+			}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: "cross-scaler", Namespace: namespace}, &v1beta1.TraitDefinition{}); err != nil {
+				return err
+			}
+			return nil
+		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		By("Create Application")
 		var (
 			appName       = "cluster-scope-trait-app"
@@ -190,7 +201,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		pv := &corev1.PersistentVolume{}
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
-		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+		}, 60*time.Second, time.Second).Should(Succeed())
 		By("Verify cluster-scoped trait's controller is ResourceTracker")
 		controller := metav1.GetControllerOf(pv)
 		Expect(controller.Kind == v1beta1.ResourceTrackerKind).Should(BeTrue())
