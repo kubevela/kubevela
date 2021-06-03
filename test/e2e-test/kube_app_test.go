@@ -128,6 +128,17 @@ spec:
 		}
 		Expect(k8sClient.Create(ctx, &td)).Should(Succeed())
 
+		By("Verify ComponentDefinition and TraitDefinition are created successfully")
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cdName, Namespace: namespace}, &v1beta1.ComponentDefinition{}); err != nil {
+				return err
+			}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: tdName, Namespace: namespace}, &v1beta1.TraitDefinition{}); err != nil {
+				return err
+			}
+			return nil
+		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		By("Add 'deployments.apps' to scaler's appliesToWorkloads")
 		scalerTd := v1beta1.TraitDefinition{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler", Namespace: "vela-system"}, &scalerTd)).Should(Succeed())
