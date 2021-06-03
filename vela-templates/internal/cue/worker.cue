@@ -152,10 +152,10 @@ parameter: {
 			path: string
 			// +usage=The TCP socket within the container to which the HTTP GET request should be directed.
 			port: int
-			httpHeaders: {
+			httpHeaders?: [...{
 				name:  string
 				value: string
-			}
+			}]
 		}
 
 		// +usage=Instructions for assessing container health by probing a TCP socket. Either this attribute or the exec attribute or the httpGet attribute MUST be specified. This attribute is mutually exclusive with both the exec attribute and the httpGet attribute.

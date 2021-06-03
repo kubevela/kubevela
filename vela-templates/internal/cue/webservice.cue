@@ -109,8 +109,8 @@ output: {
 					}}]
 			}
 		}
-		}
 	}
+}
 }
 parameter: {
 	// +usage=Which image would you like to use for your service
@@ -141,11 +141,11 @@ parameter: {
 		}
 	}]
 
-		// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
-		cpu?: string
+	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
+	cpu?: string
 
-		// +usage=Specifies the attributes of the memory resource required for the container.
-		memory?: string
+	// +usage=Specifies the attributes of the memory resource required for the container.
+	memory?: string
 
 	// If addRevisionLabel is true, the appRevision label will be added to the underlying pods 
 	addRevisionLabel: *false | bool
@@ -196,10 +196,10 @@ parameter: {
 			path: string
 			// +usage=The TCP socket within the container to which the HTTP GET request should be directed.
 			port: int
-			httpHeaders: {
+			httpHeaders?: [...{
 				name:  string
 				value: string
-			}
+			}]
 		}
 
 		// +usage=Instructions for assessing container health by probing a TCP socket. Either this attribute or the exec attribute or the httpGet attribute MUST be specified. This attribute is mutually exclusive with both the exec attribute and the httpGet attribute.
