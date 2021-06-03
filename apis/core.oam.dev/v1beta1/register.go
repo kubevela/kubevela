@@ -61,6 +61,22 @@ var (
 	TraitDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(TraitDefinitionKind)
 )
 
+// PolicyDefinition type metadata.
+var (
+	PolicyDefinitionKind             = reflect.TypeOf(PolicyDefinition{}).Name()
+	PolicyDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: PolicyDefinitionKind}.String()
+	PolicyDefinitionKindAPIVersion   = PolicyDefinitionKind + "." + SchemeGroupVersion.String()
+	PolicyDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(PolicyDefinitionKind)
+)
+
+// WorkflowStepDefinition type metadata.
+var (
+	WorkflowStepDefinitionKind             = reflect.TypeOf(WorkflowStepDefinition{}).Name()
+	WorkflowStepDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: WorkflowStepDefinitionKind}.String()
+	WorkflowStepDefinitionKindAPIVersion   = WorkflowStepDefinitionKind + "." + SchemeGroupVersion.String()
+	WorkflowStepDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(WorkflowStepDefinitionKind)
+)
+
 // DefinitionRevision type metadata.
 var (
 	DefinitionRevisionKind             = reflect.TypeOf(DefinitionRevision{}).Name()
@@ -129,6 +145,8 @@ func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
+	SchemeBuilder.Register(&PolicyDefinition{}, &PolicyDefinitionList{})
+	SchemeBuilder.Register(&WorkflowStepDefinition{}, &WorkflowStepDefinitionList{})
 	SchemeBuilder.Register(&DefinitionRevision{}, &DefinitionRevisionList{})
 	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})

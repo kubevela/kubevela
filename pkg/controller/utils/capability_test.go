@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -30,9 +31,11 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -142,7 +145,7 @@ func TestFixOpenAPISchema(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, tc.inputFile))
-			schema := swagger.Components.Schemas[mycue.ParameterTag].Value
+			schema := swagger.Components.Schemas[cue.ParameterTag].Value
 			fixOpenAPISchema("", schema)
 			fixedSchema, _ := schema.MarshalJSON()
 			expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, tc.fixedFile))
@@ -185,4 +188,90 @@ func TestGenerateOpenAPISchemaFromCapabilityParameter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewCapabilityComponentDef(t *testing.T) {
+	terraform := &common.Terraform{
+		Configuration: "test",
+	}
+	componentDefinition := &v1beta1.ComponentDefinition{
+		Spec: v1beta1.ComponentDefinitionSpec{
+			Schematic: &common.Schematic{
+				Terraform: terraform,
+			},
+		},
+	}
+	def := NewCapabilityComponentDef(componentDefinition)
+	assert.Equal(t, def.WorkloadType, util.TerraformDef)
+	assert.Equal(t, def.Terraform, terraform)
+}
+
+func TestGetOpenAPISchemaFromTerraformComponentDefinition(t *testing.T) {
+	configuration := `
+module "rds" {
+  source = "terraform-alicloud-modules/rds/alicloud"
+  engine = "MySQL"
+  engine_version = "8.0"
+  instance_type = "rds.mysql.c1.large"
+  instance_storage = "20"
+  instance_name = var.instance_name
+  account_name = var.account_name
+  password = var.password
+}
+
+output "DB_NAME" {
+  value = module.rds.this_db_instance_name
+}
+output "DB_USER" {
+  value = module.rds.this_db_database_account
+}
+output "DB_PORT" {
+  value = module.rds.this_db_instance_port
+}
+output "DB_HOST" {
+  value = module.rds.this_db_instance_connection_string
+}
+output "DB_PASSWORD" {
+  value = module.rds.this_db_instance_port
+}
+
+variable "instance_name" {
+  description = "RDS instance name"
+  type = string
+  default = "poc"
+}
+
+variable "account_name" {
+  description = "RDS instance user account name"
+  type = "string"
+  default = "oam"
+}
+
+variable "password" {
+  description = "RDS instance account password"
+  type = "string"
+  default = "xxx"
+}
+
+variable "intVar" {
+  type = "number"
+}
+
+variable "boolVar" {
+  type = "bool"
+}
+
+variable "listVar" {
+  type = "list"
+}
+
+variable "mapVar" {
+  type = "map"
+}`
+
+	schema, err := GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
+	assert.NilError(t, err)
+	data := string(schema)
+	assert.Equal(t, strings.Contains(data, "account_name"), true)
+	assert.Equal(t, strings.Contains(data, "intVar"), true)
 }

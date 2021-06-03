@@ -30,7 +30,7 @@ import (
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -51,7 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -60,7 +60,7 @@ import (
 func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
 		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             v1.ConditionFalse,
+		Status:             corev1.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             runtimev1alpha1.ReasonReconcileError,
 		Message:            err.Error(),
@@ -70,7 +70,7 @@ func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 func readyCondition(tpy string) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
 		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             v1.ConditionTrue,
+		Status:             corev1.ConditionTrue,
 		Reason:             runtimev1alpha1.ReasonAvailable,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 	}
@@ -86,6 +86,7 @@ type appHandler struct {
 	revisionHash             string
 	acrossNamespaceResources []v1beta1.TypedReference
 	resourceTracker          *v1beta1.ResourceTracker
+	autodetect               bool
 }
 
 // setInplace will mark if the application should upgrade the workload within the same instance(name never changed)
@@ -132,12 +133,24 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		return h.createOrUpdateAppRevision(ctx, appRev)
 	}
 
+	var needTracker bool
+	var err error
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
-		needTracker, err := h.checkAndSetResourceTracker(&comp.Spec.Workload)
+
+		// If the helm mode component doesn't specify the workload
+		// we just install a helm chart resources
+		if h.checkAutoDetect(comp) {
+			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
+				return errors.Wrap(err, "cannot apply Helm module resources")
+			}
+			continue
+		}
+		needTracker, err = h.checkAndSetResourceTracker(&comp.Spec.Workload)
 		if err != nil {
 			return err
 		}
+
 		newComp := comp.DeepCopy()
 		// newComp will be updated and return the revision name instead of the component name
 		revisionName, err := h.createOrUpdateComponent(ctx, newComp)
@@ -172,17 +185,24 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 	ac.SetOwnerReferences(owners)
 	h.FinalizeAppRevision(appRev, ac, comps)
 
+	if h.autodetect {
+		// TODO(yangsoon) autodetect is temporarily not implemented
+		return fmt.Errorf("helm mode component doesn't specify workload, the traits attached to the helm mode component will fail to work")
+	}
+
 	if err := h.createOrUpdateAppRevision(ctx, appRev); err != nil {
 		return err
 	}
 
-	// the rollout will create AppContext which will launch the real K8s resources.
+	// `h.inplace`: the rollout will create AppContext which will launch the real K8s resources.
 	// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
 	// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
-	if h.inplace {
+	// `!h.autodetect`: If the workload type of the helm mode component is not clear, an autodetect type workload will be specified by default
+	// In this case, the traits attached to the helm mode component will fail to generate,
+	// so we only call applyHelmModuleResources to create the helm resource, don't generate ApplicationContext.
+	if h.inplace && !h.autodetect {
 		return h.createOrUpdateAppContext(ctx, owners)
 	}
-
 	return nil
 }
 
@@ -211,7 +231,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 	for _, wl := range appFile.Workloads {
 		var status = common.ApplicationComponentStatus{
 			Name:               wl.Name,
-			WorkloadDefinition: wl.FullTemplate.Reference,
+			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
 			Healthy:            true,
 		}
 
@@ -265,33 +285,32 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			}
 		}
 
+		var traitStatusList []common.ApplicationTraitStatus
 		for _, tr := range wl.Traits {
 			if err := tr.EvalContext(pCtx); err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appFile.Name, wl.Name, tr.Name)
 			}
-		}
 
-		var traitStatusList []common.ApplicationTraitStatus
-		for _, trait := range wl.Traits {
 			var traitStatus = common.ApplicationTraitStatus{
-				Type:    trait.Name,
+				Type:    tr.Name,
 				Healthy: true,
 			}
-			traitHealth, err := trait.EvalHealth(pCtx, h.r, h.app.Namespace)
+			traitHealth, err := tr.EvalHealth(pCtx, h.r, h.app.Namespace)
 			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, trait.Name)
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, tr.Name)
 			}
 			if !traitHealth {
 				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
 				traitStatus.Healthy = false
 				healthy = false
 			}
-			traitStatus.Message, err = trait.EvalStatus(pCtx, h.r, h.app.Namespace)
+			traitStatus.Message, err = tr.EvalStatus(pCtx, h.r, h.app.Namespace)
 			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, trait.Name)
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, tr.Name)
 			}
 			traitStatusList = append(traitStatusList, traitStatus)
 		}
+
 		status.Traits = traitStatusList
 		status.Scopes = generateScopeReference(wl.Scopes)
 		appStatus = append(appStatus, status)
@@ -478,6 +497,14 @@ func (h *appHandler) checkAndSetResourceTracker(resource *runtime.RawExtension) 
 		return needTracker, nil
 	}
 	return needTracker, nil
+}
+
+func (h *appHandler) checkAutoDetect(component *v1alpha2.Component) bool {
+	if len(component.Spec.Workload.Raw) == 0 && component.Spec.Workload.Object == nil && component.Spec.Helm != nil {
+		h.autodetect = true
+		return true
+	}
+	return false
 }
 
 // genResourceTrackerOwnerReference check the related resourceTracker whether have been created.
@@ -709,6 +736,9 @@ func (h *appHandler) handleResourceTracker(ctx context.Context, components []*v1
 	resourceTracker := new(v1beta1.ResourceTracker)
 	needTracker := false
 	for _, c := range components {
+		if h.checkAutoDetect(c) {
+			continue
+		}
 		u, err := oamutil.RawExtension2Unstructured(&c.Spec.Workload)
 		if err != nil {
 			return err

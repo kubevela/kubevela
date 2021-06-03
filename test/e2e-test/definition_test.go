@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -125,7 +126,13 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			testCd1.Spec.Workload.Definition = common.WorkloadGVK{}
 			testCd1.Spec.Schematic.CUE.Template = webServiceV1Template
 			testCd1.SetNamespace(namespace)
-			Expect(k8sClient.Create(ctx, testCd1)).Should(HaveOccurred())
+			Expect(k8sClient.Create(ctx, testCd1)).Should(BeNil())
+
+			newCd := new(v1beta1.ComponentDefinition)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: testCd1.Name, Namespace: namespace}, newCd)
+			}, 15*time.Second, time.Second).Should(BeNil())
+			Expect(newCd.Spec.Workload.Type).Should(Equal(types.AutoDetectWorkloadDefinition))
 		})
 
 		It("Test componentDefinition which definition and type point to same workload type", func() {

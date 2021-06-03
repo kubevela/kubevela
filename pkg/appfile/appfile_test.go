@@ -38,8 +38,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -89,9 +89,11 @@ var _ = Describe("Test Helm schematic appfile", func() {
 						},
 					},
 					FullTemplate: &Template{
-						Reference: common.WorkloadGVK{
-							APIVersion: "apps/v1",
-							Kind:       "Deployment",
+						Reference: common.WorkloadTypeDescriptor{
+							Definition: common.WorkloadGVK{
+								APIVersion: "apps/v1",
+								Kind:       "Deployment",
+							},
 						},
 						Helm: &common.Helm{
 							Release: util.Object2RawExtension(map[string]interface{}{
@@ -316,9 +318,11 @@ spec:
 								},
 							},
 						},
-						Reference: common.WorkloadGVK{
-							APIVersion: "apps/v1",
-							Kind:       "Deployment",
+						Reference: common.WorkloadTypeDescriptor{
+							Definition: common.WorkloadGVK{
+								APIVersion: "apps/v1",
+								Kind:       "Deployment",
+							},
 						},
 					},
 				},

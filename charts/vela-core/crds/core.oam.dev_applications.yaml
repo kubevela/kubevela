@@ -554,6 +554,40 @@ spec:
               status:
                 description: ApplicationPhase is a label for the condition of a application at the current time
                 type: string
+              workflow:
+                description: Workflow record the status of workflow steps
+                items:
+                  description: WorkflowStepStatus record the status of a workflow step
+                  properties:
+                    name:
+                      type: string
+                    phase:
+                      description: WorkflowStepPhase describes the phase of a workflow step.
+                      type: string
+                    resourceRef:
+                      description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                      properties:
+                        apiVersion:
+                          description: APIVersion of the referenced object.
+                          type: string
+                        kind:
+                          description: Kind of the referenced object.
+                          type: string
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        uid:
+                          description: UID of the referenced object.
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                    type:
+                      type: string
+                  type: object
+                type: array
             type: object
         type: object
     served: true
@@ -636,12 +670,16 @@ spec:
                 items:
                   description: AppPolicy defines a global policy for all components in the app.
                   properties:
+                    name:
+                      description: Name is the unique name of the policy.
+                      type: string
                     properties:
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
                     type:
                       type: string
                   required:
+                  - name
                   - type
                   type: object
                 type: array
@@ -868,15 +906,16 @@ spec:
                 items:
                   description: WorkflowStep defines how to execute a workflow step.
                   properties:
+                    name:
+                      description: Name is the unique name of the workflow step.
+                      type: string
                     properties:
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
-                    stage:
-                      description: The stage is the running stage this workflow runs. It could be `pre-render` or `post-render` (default).
-                      type: string
                     type:
                       type: string
                   required:
+                  - name
                   - type
                   type: object
                 type: array
@@ -1115,6 +1154,40 @@ spec:
               status:
                 description: ApplicationPhase is a label for the condition of a application at the current time
                 type: string
+              workflow:
+                description: Workflow record the status of workflow steps
+                items:
+                  description: WorkflowStepStatus record the status of a workflow step
+                  properties:
+                    name:
+                      type: string
+                    phase:
+                      description: WorkflowStepPhase describes the phase of a workflow step.
+                      type: string
+                    resourceRef:
+                      description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                      properties:
+                        apiVersion:
+                          description: APIVersion of the referenced object.
+                          type: string
+                        kind:
+                          description: Kind of the referenced object.
+                          type: string
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        uid:
+                          description: UID of the referenced object.
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                    type:
+                      type: string
+                  type: object
+                type: array
             type: object
         type: object
     served: true

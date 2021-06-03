@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	mapset "github.com/deckarep/golang-set"
@@ -45,7 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -258,7 +259,7 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 
 // RefreshPackageDiscover help refresh package discover
 func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm discoverymapper.DiscoveryMapper,
-	pd *definition.PackageDiscover, definition runtime.Object) error {
+	pd *packages.PackageDiscover, definition runtime.Object) error {
 	var gvk schema.GroupVersionKind
 	var err error
 	switch def := definition.(type) {
@@ -281,6 +282,16 @@ func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm dis
 			gvk = gv.WithKind(def.Spec.Workload.Definition.Kind)
 		}
 	case *v1beta1.TraitDefinition:
+		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
+		if err != nil {
+			return err
+		}
+	case *v1beta1.PolicyDefinition:
+		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
+		if err != nil {
+			return err
+		}
+	case *v1beta1.WorkflowStepDefinition:
 		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
 		if err != nil {
 			return err
@@ -347,4 +358,33 @@ func CheckAppDeploymentUsingAppRevision(ctx context.Context, c client.Reader, ap
 		}
 	}
 	return res, nil
+}
+
+// GetUnstructuredObjectStatusCondition returns the status.condition with matching condType from an unstructured object.
+func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condType string) (*runtimev1alpha1.Condition, bool, error) {
+	cs, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil {
+		return nil, false, err
+	}
+	if !found {
+		return nil, false, nil
+	}
+	for _, c := range cs {
+		b, err := json.Marshal(c)
+		if err != nil {
+			return nil, false, err
+		}
+		condObj := &runtimev1alpha1.Condition{}
+		err = json.Unmarshal(b, condObj)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if string(condObj.Type) != condType {
+			continue
+		}
+		return condObj, true, nil
+	}
+
+	return nil, false, nil
 }

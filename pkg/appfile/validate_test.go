@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
 )
 
 var _ = Describe("Test validate CUE schematic Appfile", func() {

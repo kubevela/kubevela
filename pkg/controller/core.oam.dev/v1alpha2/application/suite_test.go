@@ -50,7 +50,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
@@ -127,7 +127,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient).ToNot(BeNil())
 	dm, err := discoverymapper.New(cfg)
 	Expect(err).To(BeNil())
-	pd, err := definition.NewPackageDiscover(cfg)
+	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 	reconciler = &Reconciler{
 		Client:           k8sClient,

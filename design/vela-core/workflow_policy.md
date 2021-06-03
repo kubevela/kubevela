@@ -38,7 +38,7 @@ spec:
         mttr: enabled
 
   # workflow is used to customize the control logic.
-  # If workflow is specified, Vela won't apply any resource, but provide rendered output in AppRevision.
+  # If workflow is specified, Vela won't apply any resource, but provide rendered resources in a ConfigMap, referenced via AppRevision.
   # workflow steps are executed in array order, and each step:
   # - will have a context in annotation.
   # - should mark "finish" phase in status.conditions.
@@ -100,25 +100,35 @@ spec:
 To support policies and workflow, the application controller will be modified as the following:
 
 - Before rendering the components, the controller will first execute the `stage: pre-render` steps.
-- When generating AppRevision, the controller will put final resources, including Components and Policies, into a field `resources`:
+- App controller will put rendered resources (including Components, Traits, Policies) into a ConfigMap, and reference the ConfigMap name in AppRevision as below:
 
   ```yaml
   kind: ApplicationRevision
   spec:
     ...
-    resources: # Components and Policies resources
-      - raw:
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: mysvc
-          spec:
-            replicas: 1
-            ...
-      - raw: ...
+    resourcesConfigMap:
+      name: my-app-v1-resources
+  ---
+
+  kind: ConfigMap
+  metadata:
+    name: my-app-v1-resources
+  data: 
+    resources: |
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+            "name": "mysvc"
+        },
+        "spec": {
+            "replicas": 1
+        }
+      }
+      ...more json-marshalled resources...
   ```
-- If workflow is specified, the controller will then apply the ApplicationRevision, but not ApplicationContext. In this way, the resources won't be applied by Vela controller.
-- The controller will then reconcile the workflow steps one-by-one. Each workflow step will be recorded in the Application.status:
+- If workflow is specified, the controller will then apply the ApplicationRevision, but skip applying ApplicationContext. In this way, the resources won't be applied by Vela controller.
+- The controller will then reconcile the workflow step by step. Each workflow step will be recorded in the Application.status:
   ```yaml
   kind: Application
   status:
@@ -144,16 +154,16 @@ Each workflow step has the following interactions with the app controller:
 
   ```yaml
   conditions:
-    - type: workflow-finish
+    - type: workflow-progress
       status: 'True'
       reason: 'Succeeded'
-    - ...
+      message: '{"observedGeneration":1}'
   ```
 
   The reason could be one of the following:
-  - `Succeeded`: This will make the controller run the next step.
+  - `Succeeded`: This will make the controller run the next step. The observed generation number should be written in `message` since Vela will check it to detect the newer decision on spec change.
   - `Stopped`: This will make the controller stop the workflow.
-  - `Failed`: This will make the controller stop the workflow and report error in `message`.
+  - `Failed`: This will make the controller stop the workflow. The error should be reported in `message`.
 
 ## Use Cases
 

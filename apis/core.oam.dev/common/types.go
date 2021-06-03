@@ -163,6 +163,8 @@ const (
 	ApplicationRollingOut ApplicationPhase = "rollingOut"
 	// ApplicationRendering means the app is rendering
 	ApplicationRendering ApplicationPhase = "rendering"
+	// ApplicationRunningWorkflow means the app is running workflow
+	ApplicationRunningWorkflow ApplicationPhase = "runningWorkflow"
 	// ApplicationRunning means the app finished rendering and applied result to the cluster
 	ApplicationRunning ApplicationPhase = "running"
 	// ApplicationHealthChecking means the app finished rendering and applied result to the cluster, but still unhealthy
@@ -203,6 +205,14 @@ type RawComponent struct {
 	Raw runtime.RawExtension `json:"raw"`
 }
 
+// WorkflowStepStatus record the status of a workflow step
+type WorkflowStepStatus struct {
+	Name        string                         `json:"name,omitempty"`
+	Type        string                         `json:"type,omitempty"`
+	Phase       WorkflowStepPhase              `json:"phase,omitempty"`
+	ResourceRef runtimev1alpha1.TypedReference `json:"resourceRef,omitempty"`
+}
+
 // AppStatus defines the observed state of Application
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -222,13 +232,30 @@ type AppStatus struct {
 	// ResourceTracker record the status of the ResourceTracker
 	ResourceTracker *runtimev1alpha1.TypedReference `json:"resourceTracker,omitempty"`
 
+	// Workflow record the status of workflow steps
+	Workflow []WorkflowStepStatus `json:"workflow,omitempty"`
+
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
 }
 
+// WorkflowStepPhase describes the phase of a workflow step.
+type WorkflowStepPhase string
+
+const (
+	// WorkflowStepPhaseSucceeded will make the controller run the next step.
+	WorkflowStepPhaseSucceeded WorkflowStepPhase = "succeeded"
+	// WorkflowStepPhaseFailed will make the controller stop the workflow and report error in `message`.
+	WorkflowStepPhaseFailed WorkflowStepPhase = "failed"
+	// WorkflowStepPhaseStopped will make the controller stop the workflow.
+	WorkflowStepPhaseStopped WorkflowStepPhase = "stopped"
+	// WorkflowStepPhaseRunning will make the controller continue the workflow.
+	WorkflowStepPhaseRunning WorkflowStepPhase = "running"
+)
+
 // DefinitionType describes the type of DefinitionRevision.
-// +kubebuilder:validation:Enum=Component;Trait
+// +kubebuilder:validation:Enum=Component;Trait;Policy;WorkflowStep
 type DefinitionType string
 
 const (
@@ -237,6 +264,12 @@ const (
 
 	// TraitType represents DefinitionRevision refer to type TraitDefinition
 	TraitType DefinitionType = "Trait"
+
+	// PolicyType represents DefinitionRevision refer to type PolicyDefinition
+	PolicyType DefinitionType = "Policy"
+
+	// WorkflowStepType represents DefinitionRevision refer to type WorkflowStepDefinition
+	WorkflowStepType DefinitionType = "WorkflowStep"
 )
 
 // AppRolloutStatus defines the observed state of AppRollout

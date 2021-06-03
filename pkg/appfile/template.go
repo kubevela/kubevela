@@ -52,14 +52,16 @@ type Template struct {
 	Health             string
 	CustomStatus       string
 	CapabilityCategory types.CapabilityCategory
-	Reference          common.WorkloadGVK
+	Reference          common.WorkloadTypeDescriptor
 	Helm               *common.Helm
 	Kube               *common.Kube
 	Terraform          *common.Terraform
 	// TODO: Add scope definition too
-	ComponentDefinition *v1beta1.ComponentDefinition
-	WorkloadDefinition  *v1beta1.WorkloadDefinition
-	TraitDefinition     *v1beta1.TraitDefinition
+	ComponentDefinition    *v1beta1.ComponentDefinition
+	WorkloadDefinition     *v1beta1.WorkloadDefinition
+	TraitDefinition        *v1beta1.TraitDefinition
+	PolicyDefinition       *v1beta1.PolicyDefinition
+	WorkflowStepDefinition *v1beta1.WorkflowStepDefinition
 }
 
 // LoadTemplate gets the capability definition from cluster and resolve it.
@@ -85,9 +87,11 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 				if err != nil {
 					return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", capName)
 				}
-				tmpl.Reference = common.WorkloadGVK{
-					APIVersion: gvk.GroupVersion().String(),
-					Kind:       gvk.Kind,
+				tmpl.Reference = common.WorkloadTypeDescriptor{
+					Definition: common.WorkloadGVK{
+						APIVersion: gvk.GroupVersion().String(),
+						Kind:       gvk.Kind,
+					},
 				}
 				return tmpl, nil
 			}
@@ -106,6 +110,28 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
 		}
 		tmpl, err := newTemplateOfTraitDefinition(td)
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	case types.TypePolicy:
+		d := new(v1beta1.PolicyDefinition)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
+		}
+		tmpl, err := newTemplateOfPolicyDefinition(d)
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	case types.TypeWorkflowStep:
+		d := new(v1beta1.WorkflowStepDefinition)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
+		}
+		tmpl, err := newTemplateOfWorkflowStepDefinition(d)
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +191,7 @@ func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
 
 func newTemplateOfCompDefinition(compDef *v1beta1.ComponentDefinition) (*Template, error) {
 	tmpl := &Template{
-		Reference:           compDef.Spec.Workload.Definition,
+		Reference:           compDef.Spec.Workload,
 		ComponentDefinition: compDef,
 	}
 	if err := loadSchematicToTemplate(tmpl, compDef.Spec.Status, compDef.Spec.Schematic, compDef.Spec.Extension); err != nil {
@@ -192,6 +218,26 @@ func newTemplateOfWorkloadDefinition(wlDef *v1beta1.WorkloadDefinition) (*Templa
 		WorkloadDefinition: wlDef,
 	}
 	if err := loadSchematicToTemplate(tmpl, wlDef.Spec.Status, wlDef.Spec.Schematic, wlDef.Spec.Extension); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfPolicyDefinition(def *v1beta1.PolicyDefinition) (*Template, error) {
+	tmpl := &Template{
+		PolicyDefinition: def,
+	}
+	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfWorkflowStepDefinition(def *v1beta1.WorkflowStepDefinition) (*Template, error) {
+	tmpl := &Template{
+		WorkflowStepDefinition: def,
+	}
+	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
 		return nil, errors.WithMessage(err, "cannot load template")
 	}
 	return tmpl, nil
@@ -242,7 +288,7 @@ func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *c
 	return nil
 }
 
-// ConvertTemplateJSON2Object convert spec.extension to object
+// ConvertTemplateJSON2Object convert spec.extension or spec.schematic to object
 func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension, schematic *common.Schematic) (types.Capability, error) {
 	var t types.Capability
 	t.Name = capabilityName

@@ -186,8 +186,7 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 				},
 			}
 			resp := handler.Handle(context.TODO(), req)
-			Expect(resp.Allowed).Should(BeFalse())
-			Expect(resp.Result.Reason).Should(Equal(metav1.StatusReason("the definition of the workload field should be set when you use HELM in ComponentDefinition helmCd")))
+			Expect(resp.Allowed).Should(BeTrue())
 		})
 	})
 })

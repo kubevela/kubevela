@@ -25,7 +25,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -37,7 +37,7 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, as []oam.Object) *Option {
+func NewDryRunOption(c client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *Option {
 	return &Option{c, dm, pd, as}
 }
 
@@ -45,7 +45,7 @@ func NewDryRunOption(c client.Client, dm discoverymapper.DiscoveryMapper, pd *de
 type Option struct {
 	Client          client.Client
 	DiscoveryMapper discoverymapper.DiscoveryMapper
-	PackageDiscover *definition.PackageDiscover
+	PackageDiscover *packages.PackageDiscover
 	// Auxiliaries are capability definitions used to parse application.
 	// DryRun will use capabilities in Auxiliaries as higher priority than
 	// getting one from cluster.

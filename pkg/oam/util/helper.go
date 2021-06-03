@@ -101,6 +101,10 @@ const (
 	ErrUpdateComponentDefinition = "cannot update ComponentDefinition %s: %v"
 	// ErrUpdateTraitDefinition is the error while update TraitDefinition
 	ErrUpdateTraitDefinition = "cannot update TraitDefinition %s: %v"
+	// ErrUpdatePolicyDefinition is the error while update PolicyDefinition
+	ErrUpdatePolicyDefinition = "cannot update PolicyDefinition %s: %v"
+	// ErrUpdateWorkflowStepDefinition is the error while update WorkflowStepDefinition
+	ErrUpdateWorkflowStepDefinition = "cannot update WorkflowStepDefinition %s: %v"
 
 	// ErrCreateConvertedWorklaodDefinition is the error while apply a WorkloadDefinition
 	ErrCreateConvertedWorklaodDefinition = "cannot create converted WorkloadDefinition %s: %v"
@@ -126,6 +130,9 @@ const (
 
 	// HELMDef describe a workload refer to HELM
 	HELMDef WorkloadType = "HelmDef"
+
+	// TerraformDef describes a workload refer to Terraform
+	TerraformDef WorkloadType = "TerraformDef"
 
 	// ReferWorkload describe an existing workload
 	ReferWorkload WorkloadType = "ReferWorkload"
@@ -351,6 +358,10 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 		*def = defRev.Spec.ComponentDefinition
 	case *v1beta1.TraitDefinition:
 		*def = defRev.Spec.TraitDefinition
+	case *v1beta1.PolicyDefinition:
+		*def = defRev.Spec.PolicyDefinition
+	case *v1beta1.WorkflowStepDefinition:
+		*def = defRev.Spec.WorkflowStepDefinition
 	default:
 	}
 	return nil
@@ -634,10 +645,19 @@ func Object2Map(obj interface{}) (map[string]interface{}, error) {
 
 // Object2RawExtension converts an object to a rawExtension
 func Object2RawExtension(obj interface{}) runtime.RawExtension {
-	bts, _ := json.Marshal(obj)
+	bts := MustJSONMarshal(obj)
 	return runtime.RawExtension{
 		Raw: bts,
 	}
+}
+
+// MustJSONMarshal json-marshals an object into bytes. It panics on err.
+func MustJSONMarshal(obj interface{}) []byte {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 // RawExtension2Map will convert rawExtension to map

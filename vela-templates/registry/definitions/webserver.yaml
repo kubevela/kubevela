@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: webserver
+  annotations:
+    definition.oam.dev/description: "webserver was composed by deployment and service"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |

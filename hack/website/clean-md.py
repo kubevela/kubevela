@@ -12,8 +12,8 @@ def convert_link(md):
             if url[2].startswith("http") or url[2].startswith("https"):
                 continue
             if ".md" in url[2] or ".mdx" in url[2]:
-                new_path = url[2].replace(".md", "")
-                new_path = new_path.replace(".mdx", "")
+                new_path = url[2].replace(".mdx", "")
+                new_path = new_path.replace(".md", "")
                 new_url = "[{}]({})".format(url[1], new_path)
                 data = data.replace(url[0], new_url)
                 print(f"convert {url[0]} to {new_url}")
@@ -27,7 +27,7 @@ def main(path):
     for path, dir_list,file_list in files:
         for file_name in file_list:
             file_path = os.path.join(path, file_name)
-            if file_path[-3:] == ".md" or file_path[-3:] == ".mdx" :
+            if file_path[-3:] == ".md" or file_path[-4:] == ".mdx":
                 convert_link(file_path)
 
 

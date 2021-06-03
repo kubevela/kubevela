@@ -369,6 +369,116 @@ spec:
 		})
 	})
 
+	Context("When the ComponentDefinition contains Terraform Module, should create a ConfigMap", func() {
+		var componentDefinitionName = "alibaba-rds-test"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
+
+		It("Applying Terraform ComponentDefinition", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: alibaba-rds-test
+  annotations:
+    definition.oam.dev/description: Terraform configuration for Alibaba Cloud RDS object
+    type: terraform
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    terraform:
+      configuration: |
+        module "rds" {
+          source = "terraform-alicloud-modules/rds/alicloud"
+          engine = "MySQL"
+          engine_version = "8.0"
+          instance_type = "rds.mysql.c1.large"
+          instance_storage = "20"
+          instance_name = var.instance_name
+          account_name = var.account_name
+          password = var.password
+        }
+
+        output "DB_NAME" {
+          value = module.rds.this_db_instance_name
+        }
+        output "DB_USER" {
+          value = module.rds.this_db_database_account
+        }
+        output "DB_PORT" {
+          value = module.rds.this_db_instance_port
+        }
+        output "DB_HOST" {
+          value = module.rds.this_db_instance_connection_string
+        }
+        output "DB_PASSWORD" {
+          value = module.rds.this_db_instance_port
+        }
+
+        variable "instance_name" {
+          description = "RDS instance name"
+          type = string
+          default = "poc"
+        }
+
+        variable "account_name" {
+          description = "RDS instance user account name"
+          type = "string"
+          default = "oam"
+        }
+
+        variable "password" {
+          description = "RDS instance account password"
+          type = "string"
+          default = "xxx"
+        }
+
+        variable "intVar" {
+          type = "number"
+        }
+
+        variable "boolVar" {
+          type = "bool"
+        }
+
+        variable "listVar" {
+          type = "list"
+        }
+
+        variable "mapVar" {
+          type = "map"
+        }
+
+`
+
+			var def v1beta1.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
+			def.Namespace = namespace
+			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+			reconcileRetry(&r, req)
+
+			By("Check whether ConfigMap is created")
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
+
+			By("Check whether ConfigMapRef reference to the right ComponentDefinition")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
+				return def.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
+		})
+	})
+
 	Context("When the ComponentDefinition is invalid, should raise errors", func() {
 		var namespace = "ns-def"
 		BeforeEach(func() {

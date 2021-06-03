@@ -37,9 +37,25 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
+
+// Content contains different type of content needed when building Registry or GithubCenter
+type Content struct {
+	OssContent
+	GithubContent
+	LocalContent
+}
+
+// LocalContent for local registry
+type LocalContent struct {
+	AbsDir string `json:"abs_dir"`
+}
+
+// OssContent for oss registry
+type OssContent struct {
+	BucketURL string `json:"bucket_url"`
+}
 
 // GithubContent for cap center
 type GithubContent struct {
@@ -69,11 +85,17 @@ func NewCenterClient(ctx context.Context, name, address, token string) (CenterCl
 	}
 	switch Type {
 	case TypeGithub:
-		return NewGithubCenter(ctx, token, name, cfg)
+		return NewGithubCenter(ctx, token, name, &cfg.GithubContent)
 	default:
 	}
 	return nil, errors.New("we only support github as repository now")
 }
+
+// TypeLocal represents github
+const TypeLocal = "local"
+
+// TypeOss represent oss
+const TypeOss = "oss"
 
 // TypeGithub represents github
 const TypeGithub = "github"
@@ -82,53 +104,77 @@ const TypeGithub = "github"
 const TypeUnknown = "unknown"
 
 // Parse will parse config from address
-func Parse(addr string) (string, *GithubContent, error) {
-	url, err := url.Parse(addr)
+func Parse(addr string) (string, *Content, error) {
+	URL, err := url.Parse(addr)
 	if err != nil {
 		return "", nil, err
 	}
-	l := strings.Split(strings.TrimPrefix(url.Path, "/"), "/")
-	switch url.Host {
-	case "github.com":
-		// We support two valid format:
-		// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
-		// 2. https://github.com/<owner>/<repo>/<path-to-dir>
-		if len(l) < 3 {
-			return "", nil, errors.New("invalid format " + addr)
-		}
-		if l[2] == "tree" {
-			// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
-			if len(l) < 5 {
+	l := strings.Split(strings.TrimPrefix(URL.Path, "/"), "/")
+	switch URL.Scheme {
+	case "http", "https":
+		switch URL.Host {
+		case "github.com":
+			// We support two valid format:
+			// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+			// 2. https://github.com/<owner>/<repo>/<path-to-dir>
+			if len(l) < 3 {
 				return "", nil, errors.New("invalid format " + addr)
 			}
-			return TypeGithub, &GithubContent{
-				Owner: l[0],
-				Repo:  l[1],
-				Path:  strings.Join(l[4:], "/"),
-				Ref:   l[3],
-			}, nil
+			if l[2] == "tree" {
+				// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+				if len(l) < 5 {
+					return "", nil, errors.New("invalid format " + addr)
+				}
+				return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[4:], "/"),
+						Ref:   l[3],
+					},
+				}, nil
+			}
+			// https://github.com/<owner>/<repo>/<path-to-dir>
+			return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[2:], "/"),
+						Ref:   "", // use default branch
+					},
+				},
+				nil
+		case "api.github.com":
+			if len(l) != 5 {
+				return "", nil, errors.New("invalid format " + addr)
+			}
+			//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
+			return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[1],
+						Repo:  l[2],
+						Path:  l[4],
+						Ref:   URL.Query().Get("ref"),
+					},
+				},
+				nil
+		default:
 		}
-		// https://github.com/<owner>/<repo>/<path-to-dir>
-		return TypeGithub, &GithubContent{
-			Owner: l[0],
-			Repo:  l[1],
-			Path:  strings.Join(l[2:], "/"),
-			Ref:   "", // use default branch
+	case "oss":
+		return TypeOss, &Content{
+			OssContent: OssContent{
+				BucketURL: URL.Host,
+			},
 		}, nil
-	case "api.github.com":
-		if len(l) != 5 {
-			return "", nil, errors.New("invalid format " + addr)
-		}
-		//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
-		return TypeGithub, &GithubContent{
-			Owner: l[1],
-			Repo:  l[2],
-			Path:  l[4],
-			Ref:   url.Query().Get("ref"),
+	case "file":
+		return TypeLocal, &Content{
+			LocalContent: LocalContent{
+				AbsDir: URL.Path,
+			},
 		}, nil
-	default:
-		// TODO(wonderflow): support raw url and oss format in the future
+
 	}
+
 	return TypeUnknown, nil, nil
 }
 
@@ -189,16 +235,16 @@ func ParseAndSyncCapability(mapper discoverymapper.DiscoveryMapper, data []byte)
 	}
 	switch obj.GetKind() {
 	case "ComponentDefinition":
-		var rd v1beta1.ComponentDefinition
-		err = yaml.Unmarshal(data, &rd)
+		var cd v1beta1.ComponentDefinition
+		err = yaml.Unmarshal(data, &cd)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		ref, err := util.ConvertWorkloadGVK2Definition(mapper, rd.Spec.Workload.Definition)
+		ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(rd.Name, ref.Name, rd.Annotations, rd.Spec.Extension, types.TypeComponentDefinition, nil, rd.Spec.Schematic)
+		return HandleDefinition(cd.Name, ref.Name, cd.Annotations, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
 	case "TraitDefinition":
 		var td v1beta1.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
@@ -237,51 +283,60 @@ func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubCon
 // SyncCapabilityFromCenter will sync capability from github cap center
 // TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
 func (g *GithubCenter) SyncCapabilityFromCenter() error {
-	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
-	if err != nil {
-		return err
-	}
 	dir, err := system.GetCapCenterDir()
 	if err != nil {
 		return err
 	}
 	repoDir := filepath.Join(dir, g.centerName)
-	_, _ = system.CreateIfNotExist(repoDir)
-	c := &common.Args{}
-	dm, err := c.GetDiscoveryMapper()
+	var success int
+	items, err := g.getRepoFile()
 	if err != nil {
 		return err
 	}
-	var success, total int
-	for _, addon := range dirs {
-		if *addon.Type != "file" {
-			continue
-		}
-		total++
-		fileContent, _, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, *addon.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+	for _, item := range items {
+		addon, err := item.toAddon()
 		if err != nil {
 			return err
 		}
-		var data = []byte(*fileContent.Content)
-		if *fileContent.Encoding == "base64" {
-			data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
-			if err != nil {
-				return fmt.Errorf("decode github content %s err %w", *fileContent.Path, err)
-			}
-		}
-		tmp, err := ParseAndSyncCapability(dm, data)
-		if err != nil {
-			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
-			continue
-		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.Name+".yaml"), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
 		if err != nil {
-			fmt.Printf("write definition %s to %s err %v\n", tmp.Name+".yaml", repoDir, err)
+			fmt.Printf("write definition %s to %s err %v\n", addon.Name+".yaml", repoDir, err)
 			continue
 		}
 		success++
 	}
-	fmt.Printf("successfully sync %d/%d from %s remote center\n", success, total, g.centerName)
+	fmt.Printf("successfully sync %d from %s remote center\n", success, g.centerName)
 	return nil
+}
+
+func (g *GithubCenter) getRepoFile() ([]RegistryFile, error) {
+	var items []RegistryFile
+	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+	if err != nil {
+		return []RegistryFile{}, err
+	}
+	for _, repoItem := range dirs {
+		if *repoItem.Type != "file" {
+			continue
+		}
+		fileContent, _, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, *repoItem.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+		if err != nil {
+			fmt.Printf("Getting content URL %s error: %s\n", repoItem.GetURL(), err)
+			continue
+		}
+		var data []byte
+		if *fileContent.Encoding == "base64" {
+			data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
+			if err != nil {
+				fmt.Printf("decode github content %s err %s\n", fileContent.GetPath(), err)
+				continue
+			}
+		}
+		items = append(items, RegistryFile{
+			data: data,
+			name: *fileContent.Name,
+		})
+	}
+	return items, nil
 }

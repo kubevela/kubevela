@@ -486,9 +486,11 @@ spec:
 		Health:             "testHealthPolicy",
 		CustomStatus:       "testCustomStatus",
 		CapabilityCategory: types.CUECategory,
-		Reference: common.WorkloadGVK{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
+		Reference: common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			},
 		},
 		Helm:                nil,
 		Kube:                nil,

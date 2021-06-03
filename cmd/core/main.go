@@ -38,7 +38,7 @@ import (
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -179,10 +179,10 @@ func main() {
 		os.Exit(1)
 	}
 	controllerArgs.DiscoveryMapper = dm
-	pd, err := definition.NewPackageDiscover(mgr.GetConfig())
+	pd, err := packages.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "failed to create CRD discovery for CUE package client")
-		if !definition.IsCUEParseErr(err) {
+		if !packages.IsCUEParseErr(err) {
 			os.Exit(1)
 		}
 	}

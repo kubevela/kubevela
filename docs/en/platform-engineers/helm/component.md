@@ -4,7 +4,7 @@ title:  How-to
 
 In this section, it will introduce how to declare Helm charts as components via `ComponentDefinition`.
 
-> Before reading this part, please make sure you've learned [the definition and template concepts](../definition-and-templates.md).
+> Before reading this part, please make sure you've learned [the definition and template concepts](../definition-and-templates).
 
 ## Prerequisite
 

@@ -39,8 +39,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -96,7 +96,7 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus)
+	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus, wl.Params)
 }
 
 // EvalHealth eval workload health check
@@ -149,7 +149,7 @@ func (trait *Trait) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval trait status
 func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat)
+	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat, trait.Params)
 }
 
 // EvalHealth eval trait health check
@@ -292,31 +292,42 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	return comp, acComp, nil
 }
 
-// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+// makeWorkloadWithContext evaluate the workload's template to unstructured resource.
+func makeWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName string) (*unstructured.Unstructured, error) {
 	var (
-		commonLabels      map[string]string
-		componentWorkload *unstructured.Unstructured
-		err               error
+		workload *unstructured.Unstructured
+		err      error
 	)
-	base, assists := pCtx.Output()
+	base, _ := pCtx.Output()
 	switch wl.CapabilityCategory {
 	case types.TerraformCategory:
-		componentWorkload, err = generateTerraformConfigurationWorkload(wl, ns)
+		workload, err = generateTerraformConfigurationWorkload(wl, ns)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
+			return nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
 		}
 	default:
-		componentWorkload, err = base.Unstructured()
+		workload, err = base.Unstructured()
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
+			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", wl.Name, appName)
 		}
 	}
-	commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
-	util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
+	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
+	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
+	return workload, nil
+}
+
+// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	componentWorkload, err := makeWorkloadWithContext(pCtx, wl, ns, appName)
+	if err != nil {
+		return nil, nil, err
+	}
 	component := &v1alpha2.Component{}
 	// we need to marshal the workload to byte array before sending them to the k8s
 	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
+
+	_, assists := pCtx.Output()
+	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
 
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
 	for _, assist := range assists {
@@ -513,11 +524,11 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 }
 
 func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.APIVersion)
+	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
 	if err != nil {
 		return nil, nil, err
 	}
-	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Kind)
+	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Definition.Kind)
 
 	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
 	// construct an empty base workload according to its GVK
@@ -528,9 +539,13 @@ output: {
 }`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
 
 	// re-use the way CUE module generates comp & acComp
-	comp, acComp, err := generateComponentFromCUEModule(wl, appName, revision, ns)
-	if err != nil {
-		return nil, nil, err
+	comp := new(v1alpha2.Component)
+	acComp := new(v1alpha2.ApplicationConfigurationComponent)
+	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
+		comp, acComp, err = generateComponentFromCUEModule(wl, appName, revision, ns)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	release, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, appName, ns, wl.Params)

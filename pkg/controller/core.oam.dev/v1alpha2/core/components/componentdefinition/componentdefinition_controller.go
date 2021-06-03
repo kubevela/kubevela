@@ -39,7 +39,7 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -49,7 +49,7 @@ import (
 type Reconciler struct {
 	client.Client
 	dm          discoverymapper.DiscoveryMapper
-	pd          *definition.PackageDiscover
+	pd          *packages.PackageDiscover
 	Scheme      *runtime.Scheme
 	record      event.Recorder
 	defRevLimit int
@@ -111,39 +111,40 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	def := utils.NewCapabilityComponentDef(&componentDefinition)
 
 	// Store the parameter of componentDefinition to configMap
-	err = def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
+	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
-		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
+		r.record.Event(&(componentDefinition), event.Warning("cannot store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
+	componentDefinition.Status.ConfigMapRef = cmName
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 
-	if err = r.createOrUpdateComponentDefRevision(ctx, req.Namespace, &def.ComponentDefinition, defRev); err != nil {
+	if err = r.createOrUpdateComponentDefRevision(ctx, req.Namespace, &componentDefinition, defRev); err != nil {
 		klog.ErrorS(err, "cannot create DefinitionRevision")
-		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot create DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
+		r.record.Event(&(componentDefinition), event.Warning("cannot create DefinitionRevision", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
 	klog.InfoS("Successfully create DefinitionRevision", "name", defRev.Name)
 
-	def.ComponentDefinition.Status.LatestRevision = &common.Revision{
+	componentDefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,
 		Revision:     defRev.Spec.Revision,
 		RevisionHash: defRev.Spec.RevisionHash,
 	}
 
-	if err := r.UpdateStatus(ctx, &def.ComponentDefinition); err != nil {
+	if err := r.UpdateStatus(ctx, &componentDefinition); err != nil {
 		klog.ErrorS(err, "cannot update componentDefinition Status")
-		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition Status", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, def.ComponentDefinition.Name, err)))
+		r.record.Event(&(componentDefinition), event.Warning("cannot update ComponentDefinition Status", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, componentDefinition.Name, err)))
 	}
 
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.ComponentDefinition, r.defRevLimit); err != nil {
+	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &componentDefinition, r.defRevLimit); err != nil {
 		klog.Error("[Garbage collection]")
-		r.record.Event(&def.ComponentDefinition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
+		r.record.Event(&componentDefinition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
 	}
 
 	return ctrl.Result{}, nil

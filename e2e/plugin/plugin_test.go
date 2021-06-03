@@ -19,6 +19,7 @@ package plugin
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -122,6 +123,83 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Properties"))
+		})
+		It("Test show componentDefinition def with raw Kube mode", func() {
+			cdName := "kube-worker"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("image"))
+			Expect(output).Should(ContainSubstring("The value will be applied to fields: [spec.template.spec.containers[0].image]."))
+			Expect(output).Should(ContainSubstring("port"))
+			Expect(output).Should(ContainSubstring("the specific container port num which can accept external request."))
+		})
+		It("Test show traitDefinition def with raw Kube mode", func() {
+			tdName := "service-kube"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("targetPort"))
+			Expect(output).Should(ContainSubstring("target port num for service provider."))
+		})
+		It("Test show traitDefinition def with cue single map parameter", func() {
+			tdName := "annotations"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("map[string]string"))
+		})
+	})
+
+	Context("Test kubectl vela comp discover", func() {
+		It("Test list components in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela comp --discover --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing components from registry"))
+			Expect(output).Should(ContainSubstring("cloneset"))
+		})
+	})
+	Context("Test kubectl vela trait discover", func() {
+		It("Test list traits in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing traits from registry"))
+			Expect(output).Should(ContainSubstring("init-container"))
+		})
+	})
+	Context("Test kubectl vela comp and trait install", func() {
+		It("Test install a sample component", func() {
+			output, err := e2e.Exec("kubectl-vela comp get cloneset --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install component: cloneset"))
+		})
+		It("Test install a sample trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait get init-container --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install trait: init-container"))
+		})
+	})
+	Context("Test kubectl vela list installed comp and trait", func() {
+		It("Test list installed component", func() {
+			output, err := e2e.Exec("kubectl-vela comp --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("cloneset"))
+		})
+		It("Test list installed trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("init-container"))
+		})
+	})
+	Context("Test uninstall vela trait", func() {
+		It("Clean the sample component", func() {
+			cmd := exec.Command("kubectl", "delete", "componentDefinition", "cloneset", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("componentdefinition.core.oam.dev \"cloneset\" deleted"))
+		})
+		It("Clean the sample trait", func() {
+			cmd := exec.Command("kubectl", "delete", "traitDefinition", "init-container", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("traitdefinition.core.oam.dev \"init-container\" deleted"))
 		})
 	})
 })
@@ -374,6 +452,49 @@ spec:
         url: "http://oam.dev/catalog/"
 `
 
+var componentDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kube-worker
+  namespace: default
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    kube:
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        spec:
+          selector:
+            matchLabels:
+              app: nginx
+          template:
+            metadata:
+              labels:
+                app: nginx
+            spec:
+              containers:
+                - name: nginx
+                  ports:
+                    - containerPort: 80
+      parameters:
+        - name: image
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].image"
+        - name: port
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].ports[0].containerPort"
+          description: "the specific container port num which can accept external request."
+`
+
 var traitDef = `
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
@@ -447,6 +568,39 @@ spec:
         	}
         }
         
+`
+
+var traitDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: service-kube
+  namespace: default
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+    - backend
+  podDisruptive: true
+  schematic:
+    kube:
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: my-service
+        spec:
+          ports:
+            - protocol: TCP
+              port: 80
+              targetPort: 9376
+      parameters:
+        - name: targetPort
+          required: true
+          type: number
+          fieldPaths:
+            - "spec.template.spec.ports[0].targetPort"
+          description: "target port num for service provider."
 `
 
 var dryRunResult = `---

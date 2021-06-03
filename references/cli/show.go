@@ -173,6 +173,8 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	case types.TypeScope:
 	case types.TypeComponentDefinition:
 		capabilityPath = plugins.ComponentDefinitionTypePath
+	default:
+		return fmt.Errorf("unsupported type: %v", capabilityType)
 	}
 
 	url := fmt.Sprintf("http://127.0.0.1%s/#/%s/%s", Port, capabilityPath, capabilityName)
@@ -341,6 +343,7 @@ func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string
 			traits = append(traits, c.Name)
 		case types.TypeScope:
 		case types.TypeWorkload:
+		default:
 		}
 	}
 	return components, traits
@@ -366,7 +369,12 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	var propertyConsole []plugins.ConsoleReference
 	switch capability.Category {
 	case types.HelmCategory:
-		_, propertyConsole, err = ref.GenerateHELMProperties(ctx, capability)
+		_, propertyConsole, err = ref.GenerateHelmAndKubeProperties(ctx, capability)
+		if err != nil {
+			return err
+		}
+	case types.KubeCategory:
+		_, propertyConsole, err = ref.GenerateHelmAndKubeProperties(ctx, capability)
 		if err != nil {
 			return err
 		}

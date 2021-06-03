@@ -31,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -101,7 +102,9 @@ func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
 			}
 			return err
 		}
+		return nil
 	}
+	obj.Spec.Workload.Type = types.AutoDetectWorkloadDefinition
 	return nil
 }
 

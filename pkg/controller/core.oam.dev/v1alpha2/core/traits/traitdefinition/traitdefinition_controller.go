@@ -39,7 +39,7 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -49,7 +49,7 @@ import (
 type Reconciler struct {
 	client.Client
 	dm          discoverymapper.DiscoveryMapper
-	pd          *definition.PackageDiscover
+	pd          *packages.PackageDiscover
 	Scheme      *runtime.Scheme
 	record      event.Recorder
 	defRevLimit int
@@ -109,43 +109,44 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	var def utils.CapabilityTraitDefinition
+	def := utils.NewCapabilityTraitDef(&traitdefinition)
 	def.Name = req.NamespacedName.Name
 
 	// Store the parameter of traitDefinition to configMap
-	err = def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name)
+	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
-		r.record.Event(&(def.TraitDefinition), event.Warning("cannot store capability in ConfigMap", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &def.TraitDefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
+		r.record.Event(&(traitdefinition), event.Warning("cannot store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, traitdefinition.Name, err)))
 	}
+	traitdefinition.Status.ConfigMapRef = cmName
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 
-	if err = r.createOrUpdateTraitDefRevision(ctx, req.Namespace, &def.TraitDefinition, defRev); err != nil {
+	if err = r.createOrUpdateTraitDefRevision(ctx, req.Namespace, &traitdefinition, defRev); err != nil {
 		klog.ErrorS(err, "cannot create DefinitionRevision")
-		r.record.Event(&(def.TraitDefinition), event.Warning("cannot create DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.TraitDefinition),
+		r.record.Event(&(traitdefinition), event.Warning("cannot create DefinitionRevision", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(traitdefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
 	klog.InfoS("Successfully create DefinitionRevision", "name", defRev.Name)
 
-	def.TraitDefinition.Status.LatestRevision = &common.Revision{
+	traitdefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,
 		Revision:     defRev.Spec.Revision,
 		RevisionHash: defRev.Spec.RevisionHash,
 	}
 
-	if err := r.UpdateStatus(ctx, &def.TraitDefinition); err != nil {
+	if err := r.UpdateStatus(ctx, &traitdefinition); err != nil {
 		klog.ErrorS(err, "cannot update TraitDefinition Status")
-		r.record.Event(&(def.TraitDefinition), event.Warning("cannot update TraitDefinition Status", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.TraitDefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, def.TraitDefinition.Name, err)))
+		r.record.Event(&(traitdefinition), event.Warning("cannot update TraitDefinition Status", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(traitdefinition),
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
 	}
 
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.TraitDefinition, r.defRevLimit); err != nil {
+	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
 		klog.Error("[Garbage collection]")
-		r.record.Event(&def.TraitDefinition, event.Warning("failed to garbage collect DefinitionRevision of type TraitDefinition", err))
+		r.record.Event(&traitdefinition, event.Warning("failed to garbage collect DefinitionRevision of type TraitDefinition", err))
 	}
 
 	return ctrl.Result{}, nil

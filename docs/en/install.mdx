@@ -15,7 +15,7 @@ Requirements:
 
 KubeVela relies on Kubernetes as control plane. The control plane could be any managed Kubernetes offering or your own cluster. The only requirement is please ensure [ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) is installed and enabled.
 
-For for local deployment and test, you could use `minikube` or `kind`.
+For local deployment and test, you could use `minikube` or `kind`.
 
 <Tabs
 className="unique-tabs"
@@ -82,7 +82,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
 
 1. Add helm chart repo for KubeVela
     ```shell script
-    helm repo add kubevela https://kubevelacharts.oss-accelerate.aliyuncs.com/core
+    helm repo add kubevela https://charts.kubevela.net/core
     ```
 
 2. Update the chart repo
@@ -132,7 +132,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
 
 KubeVela CLI gives you a simplified workflow to manage applications with optimized output. It is not mandatory though.
 
-KubeVela CLI could be [installed as kubectl plugin](./kubectl-plugin.mdx), or install as standalone binary.
+KubeVela CLI could be [installed as kubectl plugin](./advanced-install#install-kubectl-vela-plugin), or install as standalone binary.
 
 <Tabs
     className="unique-tabs"

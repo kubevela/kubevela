@@ -21,10 +21,11 @@ import (
 	"encoding/json"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 var _ = Describe("Test DryRun", func() {

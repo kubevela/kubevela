@@ -337,14 +337,14 @@ func TestWalkParameterSchema(t *testing.T) {
 		},
 	}
 	for _, cases := range testcases {
-		helmRefs = make([]HELMReference, 0)
+		commonRefs = make([]CommonReference, 0)
 		parameterJSON := fmt.Sprintf(BaseOpenAPIV3Template, cases.data)
 		swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(json.RawMessage(parameterJSON))
 		assert.Equal(t, nil, err)
 		parameters := swagger.Components.Schemas["parameter"].Value
 		WalkParameterSchema(parameters, "Properties", 0)
 		refs := make(map[string]map[string]ReferenceParameter)
-		for _, items := range helmRefs {
+		for _, items := range commonRefs {
 			refs[items.Name] = make(map[string]ReferenceParameter)
 			for _, item := range items.Parameters {
 				refs[items.Name][item.Name] = item
