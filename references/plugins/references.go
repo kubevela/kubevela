@@ -558,7 +558,10 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			if def, ok := val.Default(); ok && def.IsConcrete() {
 				param.Default = velacue.GetDefault(def)
 			}
-			param.Short, param.Usage, param.Alias = velacue.RetrieveComments(val)
+			param.Short, param.Usage, param.Alias, param.Ignore = velacue.RetrieveComments(val)
+			if param.Ignore != "" {
+				continue
+			}
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
