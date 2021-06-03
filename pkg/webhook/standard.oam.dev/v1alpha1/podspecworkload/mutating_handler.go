@@ -21,10 +21,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -39,9 +38,6 @@ type MutatingHandler struct {
 	// Decoder decodes objects
 	Decoder *admission.Decoder
 }
-
-// log is for logging in this package.
-var mutatelog = logf.Log.WithName("PodSpecWorkload-mutate")
 
 var _ admission.Handler = &MutatingHandler{}
 
@@ -61,16 +57,16 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.V(5).Infof("Admit PodSpecWorkload %s/%s patches: %v", obj.Namespace, obj.Name, util.DumpJSON(resp.Patches))
+		klog.V(5).InfoS("Admit PodSpecWorkload", "podSpecWorkload", klog.KObj(obj), "patches", util.DumpJSON(resp.Patches))
 	}
 	return resp
 }
 
 // DefaultPodSpecWorkload will set the default value for the PodSpecWorkload
 func DefaultPodSpecWorkload(obj *v1alpha1.PodSpecWorkload) {
-	mutatelog.Info("default", "name", obj.Name)
+	klog.InfoS("Set the default value for the PodSpecWorkload", "podSpecWorkload", klog.KObj(obj))
 	if obj.Spec.Replicas == nil {
-		mutatelog.Info("default replicas as 1")
+		klog.InfoS("Set default replicas as 1")
 		obj.Spec.Replicas = pointer.Int32Ptr(1)
 	}
 }

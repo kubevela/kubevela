@@ -57,8 +57,7 @@ type Reconciler struct {
 
 // Reconcile is the main logic for ComponentDefinition controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	definitionName := req.NamespacedName.Name
-	klog.InfoS("Reconciling ComponentDefinition", "Name", definitionName, "Namespace", req.Namespace)
+	klog.InfoS("Reconcile componentDefinition", "componentDefinition", klog.KRef(req.Namespace, req.Name))
 	ctx := context.Background()
 
 	var componentDefinition v1beta1.ComponentDefinition
@@ -77,8 +76,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// refresh package discover when componentDefinition is registered
 	err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &componentDefinition)
 	if err != nil {
-		klog.ErrorS(err, "cannot discover the open api of the CRD")
-		r.record.Event(&componentDefinition, event.Warning("cannot discover the open api of the CRD", err))
+		klog.InfoS("Could not discover the open api of the CRD", "err", err)
+		r.record.Event(&componentDefinition, event.Warning("Could not discover the open api of the CRD", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 	}
@@ -86,20 +85,20 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// generate DefinitionRevision from componentDefinition
 	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &componentDefinition)
 	if err != nil {
-		klog.ErrorS(err, "cannot generate DefinitionRevision", "ComponentDefinitionName", componentDefinition.Name)
-		r.record.Event(&componentDefinition, event.Warning("cannot generate DefinitionRevision", err))
+		klog.InfoS("Could not generate DefinitionRevision", "componentDefinition", klog.KObj(&componentDefinition), "err", err)
+		r.record.Event(&componentDefinition, event.Warning("Could not generate DefinitionRevision", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, componentDefinition.Name, err)))
 	}
 
 	if !isNewRevision {
 		if err = r.createOrUpdateComponentDefRevision(ctx, req.Namespace, &componentDefinition, defRev); err != nil {
-			klog.ErrorS(err, "cannot update DefinitionRevision")
-			r.record.Event(&(componentDefinition), event.Warning("cannot update DefinitionRevision", err))
+			klog.InfoS("Could not update DefinitionRevision", "err", err)
+			r.record.Event(&(componentDefinition), event.Warning("Could not update DefinitionRevision", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
+		klog.InfoS("Successfully update definitionRevision", "definitionRevision", klog.KObj(defRev))
 
 		if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &componentDefinition, r.defRevLimit); err != nil {
 			klog.Error("[Garbage collection]")
@@ -113,8 +112,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Store the parameter of componentDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
-		klog.ErrorS(err, "cannot store capability in ConfigMap")
-		r.record.Event(&(componentDefinition), event.Warning("cannot store capability in ConfigMap", err))
+		klog.InfoS("Could not capability in ConfigMap", "err", err)
+		r.record.Event(&(componentDefinition), event.Warning("Could not store capability in ConfigMap", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
@@ -122,12 +121,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 
 	if err = r.createOrUpdateComponentDefRevision(ctx, req.Namespace, &componentDefinition, defRev); err != nil {
-		klog.ErrorS(err, "cannot create DefinitionRevision")
+		klog.InfoS("Could not create DefinitionRevision", "err", err)
 		r.record.Event(&(componentDefinition), event.Warning("cannot create DefinitionRevision", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
-	klog.InfoS("Successfully create DefinitionRevision", "name", defRev.Name)
+	klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
 
 	componentDefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,
@@ -136,14 +135,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	if err := r.UpdateStatus(ctx, &componentDefinition); err != nil {
-		klog.ErrorS(err, "cannot update componentDefinition Status")
+		klog.InfoS("Could not update componentDefinition Status", "err", err)
 		r.record.Event(&(componentDefinition), event.Warning("cannot update ComponentDefinition Status", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, componentDefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &componentDefinition, r.defRevLimit); err != nil {
-		klog.Error("[Garbage collection]")
+		klog.InfoS("Failed to collect garbage", "err", err)
 		r.record.Event(&componentDefinition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
 	}
 

@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ktype "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -61,7 +62,7 @@ type Reconciler struct {
 
 // Reconcile reconcile an application context
 func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	r.log.Debug("Reconciling")
+	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
 	defer cancel()
 	// fetch the app context

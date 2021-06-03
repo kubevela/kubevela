@@ -126,7 +126,7 @@ func (c *ComponentHandler) IsRevisionDiff(mt klog.KMetadata, curComp *v1alpha2.C
 
 	// client in controller-runtime will use informer cache
 	// use client will be more efficient
-	needNewRevision, err := utils.CompareWithRevision(context.TODO(), c.Client, c.Logger, mt.GetName(), mt.GetNamespace(),
+	needNewRevision, err := utils.CompareWithRevision(context.TODO(), c.Client, mt.GetName(), mt.GetNamespace(),
 		curComp.Status.LatestRevision.Name, &curComp.Spec)
 	// TODO: this might be a bug that we treat all errors getting from k8s as a new revision
 	// but the client go event handler doesn't handle an error. We need to see if we can retry this

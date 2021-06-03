@@ -146,9 +146,8 @@ var _ = Describe("test generate revision ", func() {
 		appRevision2.Name = "appRevision2"
 
 		handler = appHandler{
-			r:      reconciler,
-			app:    &app,
-			logger: reconciler.Log.WithValues("apply", "unit-test"),
+			r:   reconciler,
+			app: &app,
 		}
 
 	})

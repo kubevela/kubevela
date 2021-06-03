@@ -18,6 +18,12 @@ package common
 
 import "k8s.io/klog/v2"
 
+// klog has multiple levels, you can set the log levels by klog.V()
+// Basic examples:
+//
+//	klog.V(1).Info("Prepare to repel boarders")
+//
+//	klog.V(2).ErrorS(err, "Initialization failed")
 const (
 	// LogInfo level is for most info logs, this is the default
 	// One should just call Info directly.
