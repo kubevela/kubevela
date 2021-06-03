@@ -21,6 +21,9 @@ output: {
 				containers: [{
 					name:  context.name
 					image: parameter.image
+					ports: [{
+						containerPort: parameter.port
+					}]
 
 					if parameter["cmd"] != _|_ {
 						command: parameter.cmd
@@ -33,10 +36,6 @@ output: {
 					if context["config"] != _|_ {
 						env: context.config
 					}
-
-					ports: [{
-						containerPort: parameter.port
-					}]
 
 					if parameter["cpu"] != _|_ {
 						resources: {
@@ -117,12 +116,16 @@ parameter: {
 	// +short=i
 	image: string
 
-	// +usage=Commands to run in the container
-	cmd?: [...string]
-
 	// +usage=Which port do you want customer traffic sent to
 	// +short=p
 	port: *80 | int
+
+	// If addRevisionLabel is true, the appRevision label will be added to the underlying pods
+	addRevisionLabel: *false | bool
+
+	// +usage=Commands to run in the container
+	cmd?: [...string]
+
 	// +usage=Define arguments by using environment variables
 	env?: [...{
 		// +usage=Environment variable name
@@ -146,9 +149,6 @@ parameter: {
 
 	// +usage=Specifies the attributes of the memory resource required for the container.
 	memory?: string
-
-	// If addRevisionLabel is true, the appRevision label will be added to the underlying pods 
-	addRevisionLabel: *false | bool
 
 	// +usage=Declare volumes and volumeMounts
 	volumes?: [...{
