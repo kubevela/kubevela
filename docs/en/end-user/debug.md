@@ -35,6 +35,8 @@ spec:
 
 ```shell
 kubectl vela dry-run -f app.yaml
+```
+```console
 ---
 # Application(vela-app) -- Comopnent(express-server)
 ---
@@ -124,7 +126,9 @@ Assume you have just deployed the application in dry-run section.
 Then you can list the revisions of the Application.
 
 ```shell
-$ kubectl get apprev -l app.oam.dev/name=vela-app
+kubectl get apprev -l app.oam.dev/name=vela-app
+```
+```console
 NAME          AGE
 vela-app-v1   50s
 ```

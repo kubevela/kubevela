@@ -240,7 +240,9 @@ In KubeVela, definition entities are mutable. Each time a `ComponentDefinition` 
 For example, we can design a new parameter named `args` for the `webservice` component definition by applying a new definition with same name as below.
 
 ```shell
-$ kubectl vela show webservice
+kubectl vela show webservice
+```
+```console
 # Properties
 +-------+----------------------------------------------------+----------+----------+---------+
 | NAME  |                    DESCRIPTION                     |   TYPE   | REQUIRED | DEFAULT |
@@ -256,7 +258,9 @@ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/
 The change will take effect immediately.
 
 ```shell
-$ kubectl vela show webservice
+kubectl vela show webservice
+```
+```console
 # Properties
 +-------+----------------------------------------------------+----------+----------+---------+
 | NAME  |                    DESCRIPTION                     |   TYPE   | REQUIRED | DEFAULT |
@@ -269,7 +273,9 @@ $ kubectl vela show webservice
 We will see a new definition revision will be automatically generated, `v2` is the latest version, `v1` is the previous one.
 
 ```shell
-$  kubectl get definitionrevision -l="componentdefinition.oam.dev/name=webservice" -n vela-system
+kubectl get definitionrevision -l="componentdefinition.oam.dev/name=webservice" -n vela-system
+```
+```console
 NAME            REVISION   HASH               TYPE
 webservice-v1   1          3f6886d9832021ba   Component
 webservice-v2   2          b3b9978e7164d973   Component

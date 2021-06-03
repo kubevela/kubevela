@@ -88,8 +88,8 @@ In the following workflow, we will build and deploy an example NodeJS app under 
 git clone and go to the testapp directory:
 
 ```bash
-$ git clone https://github.com/oam-dev/kubevela.git
-$ cd kubevela/docs/examples/testapp
+git clone https://github.com/oam-dev/kubevela.git
+cd kubevela/docs/examples/testapp
 ```
 
 The example contains NodeJS app code, Dockerfile to build the app.
@@ -108,7 +108,9 @@ We are going to use it to build and deploy the app.
 Run the following command:
 
 ```bash
-$ vela up
+vela up
+```
+```console
 Parsing vela.yaml ...
 Loading templates ...
 
@@ -139,7 +141,9 @@ App has not been deployed, creating a new deployment...
 Check the status of the service:
 
 ```bash
-$ vela status testapp
+vela status testapp
+```
+```console
   About:
   
     Name:       testapp
@@ -179,7 +183,7 @@ Add local option to `build`:
 Then deploy the app to kind:
 
 ```bash
-$ vela up
+vela up
 ```
 
 <details><summary>(Advanced) Check rendered manifests</summary>
@@ -237,7 +241,7 @@ services:
 Then deploy Appfile again to update the application:
 
 ```bash
-$ vela up
+vela up
 ```
 
 Congratulations! You have just deployed an app using `Appfile`.

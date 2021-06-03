@@ -135,7 +135,7 @@ parameter: {
 After everything is done, there's a script [`vela-templates/mergedef.sh`](https://github.com/oam-dev/kubevela/blob/master/vela-templates/mergedef.sh) to merge the `def.yaml` and `def.cue` into a completed Definition Object.
 
 ```shell
-$ ./vela-templates/mergedef.sh def.yaml def.cue > microservice-def.yaml
+./vela-templates/mergedef.sh def.yaml def.cue > microservice-def.yaml
 ```
 
 ## Debug CUE template
@@ -143,7 +143,9 @@ $ ./vela-templates/mergedef.sh def.yaml def.cue > microservice-def.yaml
 ### Use `cue vet` to Validate
 
 ```shell
-$ cue vet def.cue
+cue vet def.cue
+```
+```console
 output.metadata.name: reference "context" not found:
     ./def.cue:6:14
 output.spec.selector.matchLabels.app: reference "context" not found:
@@ -174,14 +176,18 @@ context: {
 Then execute the command:
 
 ```shell
-$ cue vet def.cue
+cue vet def.cue
+```
+```console
 some instances are incomplete; use the -c flag to show errors or suppress this message
 ```
 
 The `reference "context" not found` error is gone, but  `cue vet` only validates the data type which is not enough to ensure the login in template is correct. Hence we need to use `cue vet -c` for complete validation:
 
 ```shell
-$ cue vet def.cue -c
+cue vet def.cue -c
+```
+```console
 context.name: incomplete value string
 output.metadata.name: incomplete value string
 output.spec.selector.matchLabels.app: incomplete value string
@@ -226,7 +232,9 @@ cue vet def.cue -c
 The `cue export` can export rendered result in YAMl foramt:
 
 ```shell
-$ cue export -e output def.cue --out yaml
+cue export -e output def.cue --out yaml
+```
+```console
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -250,7 +258,9 @@ spec:
 ```
 
 ```shell
-$ cue export -e outputs.service def.cue --out yaml
+cue export -e outputs.service def.cue --out yaml
+```
+```console
 apiVersion: v1
 kind: Service
 metadata:
@@ -286,7 +296,9 @@ There are two kinds of ways to import internal `kube` packages.
 2. Import them with third-party packages style. You can run `vela system cue-packages` to list all build-in `kube` packages
    to know the `third-party packages` supported currently.
     ```shell
-    $ vela system cue-packages
+    vela system cue-packages
+    ```
+    ```console
     DEFINITION-NAME                	IMPORT-PATH                         	 USAGE
     #Deployment                    	k8s.io/apps/v1                      	Kube Object for apps/v1.Deployment
     #Service                       	k8s.io/core/v1                      	Kube Object for v1.Service
@@ -520,7 +532,9 @@ parameter: {
 Use `cue export` to see the export result.
 
 ```shell
-$ cue export def.cue --out yaml
+cue export def.cue --out yaml
+```
+```console
 output:
   metadata:
     name: test
@@ -576,7 +590,7 @@ When CUE template is good, we can use `vela system dry-run` to dry run and check
 First, we need use `mergedef.sh` to merge the definition and cue files.
 
 ```shell
-$ mergedef.sh def.yaml def.cue > componentdef.yaml
+mergedef.sh def.yaml def.cue > componentdef.yaml
 ```
 
 Then, let's create an Application named `test-app.yaml`.
@@ -604,7 +618,9 @@ spec:
 Dry run the application by using `vela system dry-run`.
 
 ```shell
-$ vela system dry-run -f test-app.yaml -d componentdef.yaml
+vela system dry-run -f test-app.yaml -d componentdef.yaml
+```
+```console
 ---
 # Application(boutique) -- Comopnent(frontend)
 ---

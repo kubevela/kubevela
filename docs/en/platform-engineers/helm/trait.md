@@ -40,18 +40,24 @@ spec:
 
 Check the `scaler` trait takes effect.
 ```shell
-$ kubectl get manualscalertrait
+kubectl get manualscalertrait
+```
+```console
 NAME                            AGE
 demo-podinfo-scaler-d8f78c6fc   13m
 ```
 ```shell
-$ kubectl get deployment myapp-demo-podinfo -o json | jq .spec.replicas
+kubectl get deployment myapp-demo-podinfo -o json | jq .spec.replicas
+```
+```console
 4
 ```
 
 Check the `virtualgroup` trait.
 ```shell
-$ kubectl get deployment myapp-demo-podinfo -o json | jq .spec.template.metadata.labels
+kubectl get deployment myapp-demo-podinfo -o json | jq .spec.template.metadata.labels
+```
+```console
 {
   "app.cluster.virtual.group": "my-group1",
   "app.kubernetes.io/name": "myapp-demo-podinfo"
@@ -93,25 +99,33 @@ Apply the new configuration and check the results after several minutes.
 
 Check the new values (`image.tag = 5.1.3`) from application's `properties` are assigned to the chart.
 ```shell
-$ kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.containers[0].image'
+kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.containers[0].image'
+```
+```console
 "ghcr.io/stefanprodan/podinfo:5.1.3"
 ```
 Under the hood, Helm makes an upgrade to the release (revision 1 => 2).
 ```shell
-$ helm ls -A
+helm ls -A
+```
+```console
 NAME              	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART        	APP VERSION
 myapp-demo-podinfo	default  	2       	2021-03-15 08:52:00.037690148 +0000 UTC	deployed	podinfo-5.1.4	5.1.4
 ```
 
 Check the `scaler` trait.
 ```shell
-$ kubectl get deployment myapp-demo-podinfo -o json | jq .spec.replicas
+kubectl get deployment myapp-demo-podinfo -o json | jq .spec.replicas
+```
+```console
 2
 ```
 
 Check the `virtualgroup` trait.
 ```shell
-$ kubectl get deployment myapp-demo-podinfo -o json | jq .spec.template.metadata.labels
+kubectl get deployment myapp-demo-podinfo -o json | jq .spec.template.metadata.labels
+```
+```console
 {
   "app.cluster.virtual.group": "my-group2",
   "app.kubernetes.io/name": "myapp-demo-podinfo"
@@ -147,7 +161,9 @@ spec:
 
 Apply the application and check `manualscalertrait` has been deleted.
 ```shell
-$ kubectl get manualscalertrait
+kubectl get manualscalertrait
+```
+```console
 No resources found
 ```
 

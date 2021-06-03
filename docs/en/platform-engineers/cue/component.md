@@ -354,11 +354,17 @@ spec:
 It will generate and manage below API resources in target cluster:
 
 ```shell
-$ kubectl get deployment
+kubectl get deployment
+```
+```console
 NAME             READY   UP-TO-DATE   AVAILABLE   AGE
 hello-world-v1   1/1     1            1           15s
+```
 
-$ kubectl get svc
+```shell
+kubectl get svc
+```
+```console
 NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
 hello-world-trait-7bdcff98f7   ClusterIP   <your ip>       <none>        8000/TCP   32s
 ```

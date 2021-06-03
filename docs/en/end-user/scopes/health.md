@@ -37,7 +37,7 @@ spec:
 ```
 3. Check the reference of the aggregated health probe (`status.service.scopes`).
 ```shell
-$ kubectl get app vela-app -o yaml
+kubectl get app vela-app -o yaml
 ```
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -57,7 +57,7 @@ status:
 ```
 4.Check health scope detail.
 ```shell
-$ kubectl get healthscope health-check -o yaml
+kubectl get healthscope health-check -o yaml
 ```
 ```yaml
 apiVersion: core.oam.dev/v1alpha2

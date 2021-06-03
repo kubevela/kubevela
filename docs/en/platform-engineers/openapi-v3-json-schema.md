@@ -14,7 +14,9 @@ Thus, we use `ConfigMap` to store the parameter information of different version
 This `ConfigMap` will have a common label `definition.oam.dev=schema`, the default `ConfigMap` without a version suffix will point to the latest version,
 you can find easily by:
 ```shell
-$ kubectl get configmap -n vela-system -l definition.oam.dev=schema
+kubectl get configmap -n vela-system -l definition.oam.dev=schema
+```
+```console
 NAME                   DATA     AGE
 schema-ingress         1        46m
 schema-scaler          1        50m
@@ -27,7 +29,9 @@ schema-worker-v2       1        20s
 For the sack of convenience, we also specify a unified label for the `ConfigMap` which stores the parameter information of the same Definition. 
 And we can list the ConfigMap which stores the parameter of the same Definition by specifying the label like `definition.oam.dev/name=definitionName`, where the `definitionName` is the specific name of your component or trait. 
 ```shell
-$ kubectl get configmap -l definition.oam.dev/name=worker
+kubectl get configmap -l definition.oam.dev/name=worker
+```
+```console
 NAME                   DATA     AGE
 schema-worker          1        1m50s
 schema-worker-v1       1        1m
@@ -40,7 +44,9 @@ and the data key is `openapi-v3-json-schema`.
 For example, we can use the following command to get the JSON schema of `webservice`.
 
 ```shell
-$ kubectl get configmap schema-webservice -n vela-system -o yaml
+kubectl get configmap schema-webservice -n vela-system -o yaml
+```
+```console
 apiVersion: v1
 kind: ConfigMap
 metadata:
