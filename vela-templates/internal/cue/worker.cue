@@ -43,7 +43,7 @@ output: {
 					}
 
 					if parameter["volumes"] != _|_ {
-						volumemounts: [ for v in parameter.volumes {
+						volumeMounts: [ for v in parameter.volumes {
 							{
 								mountPath: v.mountPath
 								name:      v.name
