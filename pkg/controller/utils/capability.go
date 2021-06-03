@@ -48,6 +48,17 @@ import (
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
 const ErrNoSectionParameterInCue = "capability %s doesn't contain section `parameter`"
 
+// data types of parameter value
+const (
+	TerraformVariableString string = "string"
+	TerraformVariableNumber string = "number"
+	TerraformVariableBool   string = "bool"
+	TerraformVariableList   string = "list"
+	TerraformVariableTuple  string = "tuple"
+	TerraformVariableMap    string = "map"
+	TerraformVariableObject string = "object"
+)
+
 // CapabilityDefinitionInterface is the interface for Capability (WorkloadDefinition and TraitDefinition)
 type CapabilityDefinitionInterface interface {
 	GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error)
@@ -62,8 +73,9 @@ type CapabilityComponentDefinition struct {
 	WorkloadType    util.WorkloadType `json:"workloadType"`
 	WorkloadDefName string            `json:"workloadDefName"`
 
-	Helm *commontypes.Helm `json:"helm"`
-	Kube *commontypes.Kube `json:"kube"`
+	Helm      *commontypes.Helm      `json:"helm"`
+	Kube      *commontypes.Kube      `json:"kube"`
+	Terraform *commontypes.Terraform `json:"terraform"`
 	CapabilityBaseDefinition
 }
 
@@ -133,7 +145,44 @@ func (def *CapabilityComponentDefinition) GetKubeSchematicOpenAPISchema(params [
 		}
 		properties[p.Name] = tmp
 	}
-	s := openapi3.NewObjectSchema().WithProperties(properties)
+	return generateJSONSchemaWithRequiredProperty(properties, required)
+}
+
+// GetOpenAPISchemaFromTerraformComponentDefinition gets OpenAPI v3 schema by WorkloadDefinition name
+func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]byte, error) {
+	schemas := make(map[string]*openapi3.Schema)
+	var required []string
+	variables, err := common.ParseTerraformVariables(configuration)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate capability properties")
+	}
+	for k, v := range variables {
+		var schema *openapi3.Schema
+		switch v.Type {
+		case TerraformVariableString:
+			schema = openapi3.NewStringSchema()
+		case TerraformVariableNumber:
+			schema = openapi3.NewFloat64Schema()
+		case TerraformVariableBool:
+			schema = openapi3.NewBoolSchema()
+		case TerraformVariableList, TerraformVariableTuple:
+			schema = openapi3.NewArraySchema()
+		case TerraformVariableMap, TerraformVariableObject:
+			schema = openapi3.NewObjectSchema()
+		}
+		schema.Title = k
+		required = append(required, k)
+		if v.Default != nil {
+			schema.Default = v.Default
+		}
+		schema.Description = v.Description
+		schemas[v.Name] = schema
+	}
+	return generateJSONSchemaWithRequiredProperty(schemas, required)
+}
+
+func generateJSONSchemaWithRequiredProperty(schemas map[string]*openapi3.Schema, required []string) ([]byte, error) {
+	s := openapi3.NewObjectSchema().WithProperties(schemas)
 	if len(required) > 0 {
 		s.Required = required
 	}
@@ -154,6 +203,11 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		jsonSchema, err = helm.GetChartValuesJSONSchema(ctx, def.Helm)
 	case util.KubeDef:
 		jsonSchema, err = def.GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
+	case util.TerraformDef:
+		if def.Terraform == nil {
+			return fmt.Errorf("no Configuration is set in Terraform specification: %s", def.Name)
+		}
+		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(def.Terraform.Configuration)
 	default:
 		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
 	}

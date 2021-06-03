@@ -44,11 +44,17 @@ func (h *handler) CreateWorkloadDefinition(ctx context.Context) (util.WorkloadTy
 		workloadType = util.ReferWorkload
 		workloadName = h.cd.Spec.Workload.Type
 	}
-	if h.cd.Spec.Schematic != nil && h.cd.Spec.Schematic.HELM != nil {
-		workloadType = util.HELMDef
-	}
-	if h.cd.Spec.Schematic != nil && h.cd.Spec.Schematic.KUBE != nil {
-		workloadType = util.KubeDef
+
+	if h.cd.Spec.Schematic != nil {
+		if h.cd.Spec.Schematic.HELM != nil {
+			workloadType = util.HELMDef
+		}
+		if h.cd.Spec.Schematic.KUBE != nil {
+			workloadType = util.KubeDef
+		}
+		if h.cd.Spec.Schematic.Terraform != nil {
+			workloadType = util.TerraformDef
+		}
 	}
 
 	wd := new(v1beta1.WorkloadDefinition)

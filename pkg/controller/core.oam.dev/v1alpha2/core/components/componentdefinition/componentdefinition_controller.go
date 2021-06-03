@@ -138,6 +138,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		def.Helm = componentDefinition.Spec.Schematic.HELM
 	case util.KubeDef:
 		def.Kube = componentDefinition.Spec.Schematic.KUBE
+	case util.TerraformDef:
+		def.Terraform = componentDefinition.Spec.Schematic.Terraform
 	default:
 	}
 
