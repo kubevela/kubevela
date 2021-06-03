@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/ghodss/yaml"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -121,9 +120,8 @@ var _ = Describe("Test Application apply", func() {
 			}},
 		}
 		handler = appHandler{
-			r:      reconciler,
-			app:    app,
-			logger: reconciler.Log.WithValues("application", "unit-test"),
+			r:   reconciler,
+			app: app,
 		}
 		By("Create the Namespace for test")
 		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
@@ -184,7 +182,7 @@ var _ = Describe("Test Application apply", func() {
 		By("verify that the revision is the set correctly and newRevision is true")
 		Expect(err).ShouldNot(HaveOccurred())
 		// verify the revision actually contains the right component
-		Expect(utils.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
+		Expect(utils.CompareWithRevision(ctx, handler.r, component.GetName(),
 			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
 		preRevision := revision
 
@@ -203,7 +201,7 @@ var _ = Describe("Test Application apply", func() {
 		By("verify that the revision is changed and newRevision is true")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(revision).ShouldNot(BeIdenticalTo(preRevision))
-		Expect(utils.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
+		Expect(utils.CompareWithRevision(ctx, handler.r, component.GetName(),
 			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
 		// revision increased
 		Expect(strings.Compare(revision, preRevision) > 0).Should(BeTrue())
@@ -251,9 +249,8 @@ var _ = Describe("Test applyHelmModuleResources", func() {
 		ctx = context.TODO()
 		app = &v1beta1.Application{}
 		handler = appHandler{
-			r:      reconciler,
-			app:    app,
-			logger: reconciler.Log.WithValues("application", "unit-test"),
+			r:   reconciler,
+			app: app,
 		}
 		handler.r.applicator = apply.NewAPIApplicator(reconciler.Client)
 	})

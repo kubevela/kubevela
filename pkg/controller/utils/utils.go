@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/mitchellh/hashstructure/v2"
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -216,14 +216,14 @@ func ExtractRevision(revisionName string) (int, error) {
 }
 
 // CompareWithRevision compares a component's spec with the component's latest revision content
-func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Logger, componentName, nameSpace,
+func CompareWithRevision(ctx context.Context, c client.Client, componentName, nameSpace,
 	latestRevision string, curCompSpec *v1alpha2.ComponentSpec) (bool, error) {
 	oldRev := &appsv1.ControllerRevision{}
 	// retry on NotFound since we update the component last revision first
 	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
 		err := c.Get(ctx, client.ObjectKey{Namespace: nameSpace, Name: latestRevision}, oldRev)
 		if err != nil && !kerrors.IsNotFound(err) {
-			logger.Info(fmt.Sprintf("get old controllerRevision %s error %v",
+			klog.InfoS(fmt.Sprintf("get old controllerRevision %s error %v",
 				latestRevision, err), "componentName", componentName)
 			return false, err
 		}
@@ -234,8 +234,7 @@ func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Lo
 	}
 	oldComp, err := util.UnpackRevisionData(oldRev)
 	if err != nil {
-		logger.Info(fmt.Sprintf("Unmarshal old controllerRevision %s error %v",
-			latestRevision, err), "componentName", componentName)
+		klog.InfoS("Unmarshal old controllerRevision", latestRevision, "error", err, "componentName", componentName)
 		return true, err
 	}
 	if reflect.DeepEqual(curCompSpec, &oldComp.Spec) {

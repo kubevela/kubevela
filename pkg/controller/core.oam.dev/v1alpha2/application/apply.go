@@ -24,9 +24,7 @@ import (
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/go-logr/logr"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
@@ -80,7 +78,6 @@ type appHandler struct {
 	r                        *Reconciler
 	app                      *v1beta1.Application
 	appfile                  *appfile.Appfile
-	logger                   logr.Logger
 	inplace                  bool
 	isNewRevision            bool
 	revisionHash             string
@@ -99,7 +96,7 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 	if nerr != nil {
-		h.logger.Error(nerr, "[Update] application status")
+		klog.InfoS("Failed to update application status", "err", nerr)
 	}
 	return ctrl.Result{
 		RequeueAfter: time.Second * 10,
@@ -315,7 +312,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		if err = h.r.Create(ctx, comp); err != nil {
 			return "", err
 		}
-		h.logger.Info("Created a new component", "component name", comp.GetName())
+		klog.InfoS("Created a new component", "component", klog.KObj(comp))
 	} else {
 		// remember the revision if there is a previous component
 		if curComp.Status.LatestRevision != nil {
@@ -325,7 +322,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		if err := h.r.Update(ctx, comp); err != nil {
 			return "", err
 		}
-		h.logger.Info("Updated a component", "component name", comp.GetName())
+		klog.InfoS("Updated a component", "component", klog.KObj(comp))
 	}
 	// remove the object from the raw extension before we can compare with the existing componentRevision whose
 	// object is persisted as Raw data after going through api server
@@ -336,19 +333,18 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		updatedComp.Spec.Helm.Repository.Object = nil
 	}
 	if len(preRevisionName) != 0 {
-		needNewRevision, err := utils.CompareWithRevision(ctx, h.r,
-			logging.NewLogrLogger(h.logger), compName, compNameSpace, preRevisionName, &updatedComp.Spec)
+		needNewRevision, err := utils.CompareWithRevision(ctx, h.r, compName, compNameSpace, preRevisionName, &updatedComp.Spec)
 		if err != nil {
 			return "", errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
 				preRevisionName))
 		}
 		if !needNewRevision {
-			h.logger.Info("no need to wait for a new component revision", "component name", updatedComp.GetName(),
+			klog.InfoS("No need to wait for a new component revision", "component", klog.KObj(updatedComp),
 				"revision", preRevisionName)
 			return preRevisionName, nil
 		}
 	}
-	h.logger.Info("wait for a new component revision", "component name", compName,
+	klog.InfoS("Wait for a new component revision", "component name", compName,
 		"previous revision", preRevisionName)
 	// get the new component revision that contains the component with retry
 	checkForRevision := func() (bool, error) {
@@ -360,7 +356,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == preRevisionName {
 			return false, nil
 		}
-		needNewRevision, err := utils.CompareWithRevision(ctx, h.r, logging.NewLogrLogger(h.logger), compName,
+		needNewRevision, err := utils.CompareWithRevision(ctx, h.r, compName,
 			compNameSpace, curComp.Status.LatestRevision.Name, &updatedComp.Spec)
 		if err != nil {
 			// retry no matter what
@@ -370,7 +366,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		// end the loop if we find the revision
 		if !needNewRevision {
 			curRevisionName = curComp.Status.LatestRevision.Name
-			h.logger.Info("get a matching component revision", "component name", compName,
+			klog.InfoS("Get a matching component revision", "component name", compName,
 				"current revision", curRevisionName)
 		}
 		return !needNewRevision, nil
@@ -418,13 +414,13 @@ func (h *appHandler) createOrUpdateAppContext(ctx context.Context, owners []meta
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		klog.InfoS("create a new appContext", "application name",
+		klog.InfoS("Create a new appContext", "application name",
 			appContext.GetName(), "revision it points to", appContext.Spec.ApplicationRevisionName)
 		return h.r.Create(ctx, &appContext)
 	}
 
 	// we don't need to create another appConfig
-	klog.InfoS("replace the existing appContext", "application name", appContext.GetName(),
+	klog.InfoS("Replace the existing appContext", "appContext", klog.KObj(&appContext),
 		"revision it points to", appContext.Spec.ApplicationRevisionName)
 	appContext.ResourceVersion = curAppContext.ResourceVersion
 	return h.r.Update(ctx, &appContext)
@@ -538,7 +534,7 @@ func (h *appHandler) removeResourceTracker(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	h.logger.Info("delete application resourceTracker")
+	klog.Info("Delete application resourceTracker")
 	meta.RemoveFinalizer(h.app, resourceTrackerFinalizer)
 	h.app.Status.ResourceTracker = nil
 	return true, nil

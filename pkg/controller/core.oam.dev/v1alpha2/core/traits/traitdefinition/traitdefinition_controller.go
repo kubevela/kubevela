@@ -58,8 +58,7 @@ type Reconciler struct {
 
 // Reconcile is the main logic for TraitDefinition controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	definitionName := req.NamespacedName.Name
-	klog.InfoS("Reconciling TraitDefinition...", "Name", definitionName, "Namespace", req.Namespace)
+	klog.InfoS("Reconcile traitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 	ctx := context.Background()
 
 	var traitdefinition v1beta1.TraitDefinition
@@ -80,7 +79,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		err := utils.RefreshPackageDiscover(r.dm, r.pd, common.WorkloadGVK{},
 			traitdefinition.Spec.Reference, types.TypeTrait)
 		if err != nil {
-			klog.ErrorS(err, "cannot refresh packageDiscover")
+			klog.InfoS("Could not refresh packageDiscover", "err", err)
 			r.record.Event(&traitdefinition, event.Warning("cannot refresh packageDiscover", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
@@ -90,22 +89,22 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// generate DefinitionRevision from traitDefinition
 	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &traitdefinition)
 	if err != nil {
-		klog.ErrorS(err, "cannot generate DefinitionRevision", "TraitDefinitionName", traitdefinition.Name)
-		r.record.Event(&traitdefinition, event.Warning("cannot generate DefinitionRevision", err))
+		klog.InfoS("Could not generate definitionRevision", "traitDefinition", klog.KObj(&traitdefinition), "err", err)
+		r.record.Event(&traitdefinition, event.Warning("Could not generate DefinitionRevision", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, traitdefinition.Name, err)))
 	}
 	if !isNewRevision {
 		if err = r.createOrUpdateTraitDefRevision(ctx, req.Namespace, &traitdefinition, defRev); err != nil {
-			klog.ErrorS(err, "cannot update DefinitionRevision")
+			klog.InfoS("Could not update DefinitionRevision", "err", err)
 			r.record.Event(&(traitdefinition), event.Warning("cannot update DefinitionRevision", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &(traitdefinition),
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
+		klog.InfoS("Successfully update definitionRevision", "definitionRevision", klog.KObj(defRev))
 
 		if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
-			klog.Error("[Garbage collection]")
+			klog.InfoS("Failed to collect garbage", "err", err)
 			r.record.Event(&traitdefinition, event.Warning("failed to garbage collect DefinitionRevision of type TraitDefinition", err))
 		}
 		return ctrl.Result{}, nil
@@ -130,7 +129,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.TraitDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
-	klog.InfoS("Successfully create DefinitionRevision", "name", defRev.Name)
+	klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
 
 	def.TraitDefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,

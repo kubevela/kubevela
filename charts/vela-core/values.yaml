@@ -79,6 +79,13 @@ admissionWebhooks:
     enabled: false
 
 
+#If non-empty, write log files in this path
+logFilePath: ""
+
+#Defines the maximum size a log file can grow to. Unit is megabytes.
+#If the value is 0, the maximum file size is unlimited.
+logFileMaxSize: 1024
+
 systemDefinitionNamespace: vela-system
 
 applicationRevisionLimit: 10
