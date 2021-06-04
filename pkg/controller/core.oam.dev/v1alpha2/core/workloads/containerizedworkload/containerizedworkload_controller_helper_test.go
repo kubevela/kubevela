@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -64,7 +63,6 @@ func TestRenderDeployment(t *testing.T) {
 
 	r := Reconciler{
 		Client: nil,
-		log:    ctrl.Log.WithName("ContainerizedWorkload"),
 		record: nil,
 		Scheme: scheme,
 	}
@@ -152,7 +150,6 @@ func TestRenderConfigMaps(t *testing.T) {
 
 	r := Reconciler{
 		Client: nil,
-		log:    ctrl.Log.WithName("ContainerizedWorkload"),
 		record: nil,
 		Scheme: scheme,
 	}

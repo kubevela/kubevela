@@ -19,7 +19,6 @@ package applicationconfiguration
 import (
 	"context"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -27,13 +26,13 @@ import (
 
 // A ControllerHooks provide customized reconcile logic for an ApplicationConfiguration
 type ControllerHooks interface {
-	Exec(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error)
+	Exec(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error)
 }
 
 // ControllerHooksFn reconciles an ApplicationConfiguration
-type ControllerHooksFn func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error)
+type ControllerHooksFn func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error)
 
 // Exec the customized reconcile logic on the ApplicationConfiguration
-func (fn ControllerHooksFn) Exec(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
-	return fn(ctx, ac, logger)
+func (fn ControllerHooksFn) Exec(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
+	return fn(ctx, ac)
 }

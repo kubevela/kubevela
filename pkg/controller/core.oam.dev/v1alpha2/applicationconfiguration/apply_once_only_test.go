@@ -20,9 +20,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	"k8s.io/apimachinery/pkg/types"
 
 	. "github.com/onsi/ginkgo"
@@ -311,7 +308,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 	When("ApplyOnceOnlyForce is enabled", func() {
 		It("tests the situation where workload is not applied at the first because of unsatisfied dependency",
 			func() {
-				componentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler"))}
+				componentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100}
 
 				By("Enable ApplyOnceOnlyForce")
 				reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce
@@ -461,7 +458,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 		It("tests the situation where workload is not applied at the first because of unsatisfied dependency and revision specified",
 			func() {
-				componentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler"))}
+				componentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100}
 
 				By("Enable ApplyOnceOnlyForce")
 				reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce

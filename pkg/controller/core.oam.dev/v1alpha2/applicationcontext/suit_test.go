@@ -26,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -93,17 +92,14 @@ var _ = BeforeSuite(func(done Done) {
 
 	var name = "ApplicationContext"
 
-	logr := ctrl.Log.WithName("ApplicationContext")
 	r = Reconciler{
 		client:    mgr.GetClient(),
-		log:       logging.NewLogrLogger(logr).WithValues("suitTest", name),
 		mgr:       mgr,
 		record:    event.NewAPIRecorder(mgr.GetEventRecorderFor(name)),
 		applyMode: core.ApplyOnceOnlyOff,
 	}
 	compHandler := &ac.ComponentHandler{
 		Client:                mgr.GetClient(),
-		Logger:                logging.NewLogrLogger(logr),
 		RevisionLimit:         defRevisionLimit,
 		CustomRevisionHookURL: "",
 	}
