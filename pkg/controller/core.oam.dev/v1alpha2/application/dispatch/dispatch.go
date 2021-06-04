@@ -156,15 +156,6 @@ func (a *AppManifestsDispatcher) createOrGetResourceTracker(ctx context.Context)
 	}
 	klog.InfoS("Going to create a resource tracker", "resourceTracker", a.newRTName)
 	rt.SetName(a.newRTName)
-	// use AppRevision as the controller owner of resource tracker
-	ctrlOwnerRef := metav1.OwnerReference{
-		APIVersion: a.appRev.APIVersion,
-		Kind:       a.appRev.Kind,
-		Name:       a.appRev.Name,
-		UID:        a.appRev.UID,
-		Controller: pointer.BoolPtr(true),
-	}
-	rt.SetOwnerReferences([]metav1.OwnerReference{ctrlOwnerRef})
 	if err := a.c.Create(ctx, rt); err != nil {
 		klog.ErrorS(err, "Failed to create a resource tracker", "resourceTracker", a.newRTName)
 		return errors.Wrap(err, "cannot create resource tracker")
