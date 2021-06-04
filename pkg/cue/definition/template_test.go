@@ -950,6 +950,162 @@ parameter: [string]: string`,
 	}
 }
 
+func TestWorkloadTemplateCompleteRenderOrder(t *testing.T) {
+	testcases := map[string]struct {
+		template string
+		order    []struct {
+			name    string
+			content string
+		}
+	}{
+		"dict-order": {
+			template: `
+output: {
+	kind: "Deployment"
+}
+
+outputs: configMap :{
+	name: "test-configMap"
+}
+
+outputs: ingress :{
+	name: "test-ingress"
+}
+
+outputs: service :{
+	name: "test-service"
+}
+`,
+			order: []struct {
+				name    string
+				content string
+			}{{
+				name:    "configMap",
+				content: "name: \"test-configMap\"\n",
+			}, {
+				name:    "ingress",
+				content: "name: \"test-ingress\"\n",
+			}, {
+				name:    "service",
+				content: "name: \"test-service\"\n",
+			}},
+		},
+		"non-dict-order": {
+			template: `
+output: {
+	name: "base"
+}
+outputs: route :{
+	name: "test-route"
+}
+
+outputs: service :{
+	name: "test-service"
+}
+`,
+			order: []struct {
+				name    string
+				content string
+			}{{
+				name:    "route",
+				content: "name: \"test-route\"\n",
+			}, {
+				name:    "service",
+				content: "name: \"test-service\"\n",
+			}},
+		},
+	}
+	for k, v := range testcases {
+		wd := NewWorkloadAbstractEngine(k, &packages.PackageDiscover{})
+		ctx := process.NewContext("default", k, "myapp", "myapp-v1")
+		err := wd.Complete(ctx, v.template, map[string]interface{}{})
+		assert.NoError(t, err)
+		_, assists := ctx.Output()
+		for i, ss := range assists {
+			assert.Equal(t, ss.Name, v.order[i].name)
+			assert.Equal(t, ss.Ins.String(), v.order[i].content)
+		}
+	}
+}
+
+func TestTraitTemplateCompleteRenderOrder(t *testing.T) {
+	testcases := map[string]struct {
+		template string
+		order    []struct {
+			name    string
+			content string
+		}
+	}{
+		"dict-order": {
+			template: `
+outputs: abc :{
+	name: "test-abc"
+}
+
+outputs: def :{
+	name: "test-def"
+}
+
+outputs: ghi :{
+	name: "test-ghi"
+}
+`,
+			order: []struct {
+				name    string
+				content string
+			}{{
+				name:    "abc",
+				content: "name: \"test-abc\"\n",
+			}, {
+				name:    "def",
+				content: "name: \"test-def\"\n",
+			}, {
+				name:    "ghi",
+				content: "name: \"test-ghi\"\n",
+			}},
+		},
+		"non-dict-order": {
+			template: `
+outputs: zyx :{
+	name: "test-zyx"
+}
+
+outputs: lmn :{
+	name: "test-lmn"
+}
+
+outputs: abc :{
+	name: "test-abc"
+}
+`,
+			order: []struct {
+				name    string
+				content string
+			}{{
+				name:    "zyx",
+				content: "name: \"test-zyx\"\n",
+			}, {
+				name:    "lmn",
+				content: "name: \"test-lmn\"\n",
+			}, {
+				name:    "abc",
+				content: "name: \"test-abc\"\n",
+			}},
+		},
+	}
+	for k, v := range testcases {
+		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
+		ctx := process.NewContext("default", k, "myapp", "myapp-v1")
+		err := td.Complete(ctx, v.template, map[string]interface{}{})
+		assert.NoError(t, err)
+		_, assists := ctx.Output()
+		for i, ss := range assists {
+			assert.Equal(t, ss.Name, v.order[i].name)
+			assert.Equal(t, ss.Ins.String(), v.order[i].content)
+		}
+	}
+}
+
 func TestCheckHealth(t *testing.T) {
 	cases := map[string]struct {
 		tpContext  map[string]interface{}
