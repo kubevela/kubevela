@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -147,4 +148,74 @@ func TestGenerateOpenAPISchemaFromCapabilityParameter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetOpenAPISchemaFromTerraformComponentDefinition(t *testing.T) {
+	configuration := `
+module "rds" {
+  source = "terraform-alicloud-modules/rds/alicloud"
+  engine = "MySQL"
+  engine_version = "8.0"
+  instance_type = "rds.mysql.c1.large"
+  instance_storage = "20"
+  instance_name = var.instance_name
+  account_name = var.account_name
+  password = var.password
+}
+
+output "DB_NAME" {
+  value = module.rds.this_db_instance_name
+}
+output "DB_USER" {
+  value = module.rds.this_db_database_account
+}
+output "DB_PORT" {
+  value = module.rds.this_db_instance_port
+}
+output "DB_HOST" {
+  value = module.rds.this_db_instance_connection_string
+}
+output "DB_PASSWORD" {
+  value = module.rds.this_db_instance_port
+}
+
+variable "instance_name" {
+  description = "RDS instance name"
+  type = string
+  default = "poc"
+}
+
+variable "account_name" {
+  description = "RDS instance user account name"
+  type = "string"
+  default = "oam"
+}
+
+variable "password" {
+  description = "RDS instance account password"
+  type = "string"
+  default = "xxx"
+}
+
+variable "intVar" {
+  type = "number"
+}
+
+variable "boolVar" {
+  type = "bool"
+}
+
+variable "listVar" {
+  type = "list"
+}
+
+variable "mapVar" {
+  type = "map"
+}`
+
+	schema, err := GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
+	assert.NilError(t, err)
+	data := string(schema)
+	assert.Equal(t, strings.Contains(data, "account_name"), true)
+	assert.Equal(t, strings.Contains(data, "intVar"), true)
 }

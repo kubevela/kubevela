@@ -239,3 +239,75 @@ func TestRealtimePrintCommandOutput(t *testing.T) {
 	assert.Contains(t, string(data), hello)
 	os.Remove(logFile)
 }
+
+func TestParseTerraformVariables(t *testing.T) {
+	configuration := `
+module "rds" {
+  source = "terraform-alicloud-modules/rds/alicloud"
+  engine = "MySQL"
+  engine_version = "8.0"
+  instance_type = "rds.mysql.c1.large"
+  instance_storage = "20"
+  instance_name = var.instance_name
+  account_name = var.account_name
+  password = var.password
+}
+
+output "DB_NAME" {
+  value = module.rds.this_db_instance_name
+}
+output "DB_USER" {
+  value = module.rds.this_db_database_account
+}
+output "DB_PORT" {
+  value = module.rds.this_db_instance_port
+}
+output "DB_HOST" {
+  value = module.rds.this_db_instance_connection_string
+}
+output "DB_PASSWORD" {
+  value = module.rds.this_db_instance_port
+}
+
+variable "instance_name" {
+  description = "RDS instance name"
+  type = string
+  default = "poc"
+}
+
+variable "account_name" {
+  description = "RDS instance user account name"
+  type = "string"
+  default = "oam"
+}
+
+variable "password" {
+  description = "RDS instance account password"
+  type = "string"
+  default = "xxx"
+}
+
+variable "intVar" {
+  type = "number"
+}
+
+variable "boolVar" {
+  type = "bool"
+}
+
+variable "listVar" {
+  type = "list"
+}
+
+variable "mapVar" {
+  type = "map"
+}`
+
+	variables, err := ParseTerraformVariables(configuration)
+	assert.NoError(t, err)
+	_, passwordExisted := variables["password"]
+	assert.True(t, passwordExisted)
+
+	_, intVarExisted := variables["password"]
+	assert.True(t, intVarExisted)
+}

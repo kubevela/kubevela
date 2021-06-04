@@ -28,8 +28,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -588,21 +586,6 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 	return nil
 }
 
-// parseTerraformVariables get variables from Terraform Configuration
-func (ref *ParseReference) parseTerraformVariables(configuration string) (map[string]*tfconfig.Variable, error) {
-	p := hclparse.NewParser()
-	hclFile, diagnostic := p.ParseHCL([]byte(configuration), "")
-	if diagnostic != nil {
-		return nil, errors.New(diagnostic.Error())
-	}
-	mod := tfconfig.Module{Variables: map[string]*tfconfig.Variable{}}
-	diagnostic = tfconfig.LoadModuleFromFile(hclFile, &mod)
-	if diagnostic != nil {
-		return nil, errors.New(diagnostic.Error())
-	}
-	return mod.Variables, nil
-}
-
 // getCUEPrintableDefaultValue converts the value in `interface{}` type to be printable
 func (ref *ParseReference) getCUEPrintableDefaultValue(v interface{}) string {
 	if v == nil {
@@ -729,7 +712,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeConnectionSecretToRefReferenceParameter.Required = false
 	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
 
-	variables, err := ref.parseTerraformVariables(capability.TerraformConfiguration)
+	variables, err := common.ParseTerraformVariables(capability.TerraformConfiguration)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate capability properties")
 	}
