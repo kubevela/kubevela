@@ -22,7 +22,6 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 
@@ -270,7 +269,7 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1beta1.Application,
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, args core.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, args core.Args) error {
 	reconciler := Reconciler{
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),

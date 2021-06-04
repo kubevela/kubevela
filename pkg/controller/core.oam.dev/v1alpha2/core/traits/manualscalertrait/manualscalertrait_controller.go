@@ -23,15 +23,14 @@ import (
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	cpmeta "github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
+	"k8s.io/klog/v2"
 	"k8s.io/kube-openapi/pkg/util/proto"
 	"k8s.io/kubectl/pkg/explain"
 	"k8s.io/kubectl/pkg/util/openapi"
@@ -52,12 +51,11 @@ const (
 )
 
 // Setup adds a controller that reconciles ContainerizedWorkload.
-func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, args controller.Args) error {
 	reconciler := Reconciler{
 		Client:          mgr.GetClient(),
 		DiscoveryClient: *discovery.NewDiscoveryClientForConfigOrDie(mgr.GetConfig()),
 		dm:              args.DiscoveryMapper,
-		log:             ctrl.Log.WithName("ManualScalarTrait"),
 		record:          event.NewAPIRecorder(mgr.GetEventRecorderFor("ManualScalarTrait")),
 		Scheme:          mgr.GetScheme(),
 	}
@@ -69,7 +67,6 @@ type Reconciler struct {
 	client.Client
 	discovery.DiscoveryClient
 	dm     discoverymapper.DiscoveryMapper
-	log    logr.Logger
 	record event.Recorder
 	Scheme *runtime.Scheme
 }
@@ -83,9 +80,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	mLog := r.log.WithValues("manualscalar trait", req.NamespacedName)
-
-	mLog.Info("Reconcile manualscalar trait")
+	klog.InfoS("Reconcile manualscalar trait", "trait", klog.KRef(req.Namespace, req.Name))
 
 	var manualScalar oamv1alpha2.ManualScalerTrait
 	if err := r.Get(ctx, req.NamespacedName, &manualScalar); err != nil {
@@ -94,13 +89,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	ctx = util.SetNamespaceInCtx(ctx, manualScalar.Namespace)
 
-	r.log.Info("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
+	klog.InfoS("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
 		"Annotations", manualScalar.GetAnnotations())
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &manualScalar)
 	if eventObj == nil {
 		// fallback to workload itself
-		mLog.Error(err, "Failed to find the parent resource", "manualScalar", manualScalar.Name)
+		klog.ErrorS(err, "Failed to find the parent resource", "manualScalar", manualScalar.Name)
 		eventObj = &manualScalar
 	}
 	// Fetch the workload instance this trait is referring to
@@ -114,7 +109,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Fetch the child resources list from the corresponding workload
 	resources, err := util.FetchWorkloadChildResources(ctx, r, r.dm, workload)
 	if err != nil {
-		mLog.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
+		klog.ErrorS(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
 		return util.ReconcileWaitResult, util.PatchCondition(ctx, r, &manualScalar,
 			cpv1alpha1.ReconcileError(errors.New(util.ErrFetchChildResources)))
@@ -124,7 +119,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		resources = append(resources, workload)
 	}
 	// Scale the child resources that we know how to scale
-	result, err := r.scaleResources(ctx, mLog, manualScalar, resources)
+	result, err := r.scaleResources(ctx, manualScalar, resources)
 	// the scaleResources function will patch error message and should return here to prevent the condition override by the following patch.
 	if result == util.ReconcileWaitResult {
 		return result, err
@@ -140,8 +135,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 // identify child resources and scale them
-func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
-	manualScalar oamv1alpha2.ManualScalerTrait, resources []*unstructured.Unstructured) (ctrl.Result, error) {
+func (r *Reconciler) scaleResources(ctx context.Context, manualScalar oamv1alpha2.ManualScalerTrait, resources []*unstructured.Unstructured) (ctrl.Result, error) {
 	// scale all the resources that we can scale
 	isController := false
 	bod := true
@@ -170,27 +164,27 @@ func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
 		if locateReplicaField(document, res) {
 			found = true
 			resPatch := client.MergeFrom(res.DeepCopyObject())
-			mLog.Info("Get the resource the trait is going to modify",
+			klog.InfoS("Get the resource the trait is going to modify",
 				"resource name", res.GetName(), "UID", res.GetUID())
 			cpmeta.AddOwnerReference(res, ownerRef)
 			err := unstructured.SetNestedField(res.Object, int64(manualScalar.Spec.ReplicaCount), "spec", "replicas")
 			if err != nil {
-				mLog.Error(err, "Failed to patch a resource for scaling")
+				klog.ErrorS(err, "Failed to patch a resource for scaling")
 				return util.ReconcileWaitResult,
 					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errPatchTobeScaledResource)))
 			}
 			// merge patch to scale the resource
 			if err := r.Patch(ctx, res, resPatch, client.FieldOwner(manualScalar.GetUID())); err != nil {
-				mLog.Error(err, "Failed to scale a resource")
+				klog.ErrorS(err, "Failed to scale a resource")
 				return util.ReconcileWaitResult,
 					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleResource)))
 			}
-			mLog.Info("Successfully scaled a resource", "resource GVK", res.GroupVersionKind().String(),
+			klog.InfoS("Successfully scaled a resource", "resource GVK", res.GroupVersionKind().String(),
 				"res UID", res.GetUID(), "target replica", manualScalar.Spec.ReplicaCount)
 		}
 	}
 	if !found {
-		mLog.Info("Cannot locate any resource", "total resources", len(resources))
+		klog.InfoS("Cannot locate any resource", "total resources", len(resources))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.New(errScaleResource)))
 	}

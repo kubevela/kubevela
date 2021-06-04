@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -34,18 +33,18 @@ import (
 )
 
 // Setup workload controllers.
-func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
-	for _, setup := range []func(ctrl.Manager, controller.Args, logging.Logger) error{
+func Setup(mgr ctrl.Manager, args controller.Args) error {
+	for _, setup := range []func(ctrl.Manager, controller.Args) error{
 		containerizedworkload.Setup, manualscalertrait.Setup, healthscope.Setup,
 		application.Setup, applicationrollout.Setup, applicationcontext.Setup, appdeployment.Setup,
 		traitdefinition.Setup, componentdefinition.Setup,
 	} {
-		if err := setup(mgr, args, l); err != nil {
+		if err := setup(mgr, args); err != nil {
 			return err
 		}
 	}
 	if args.ApplicationConfigurationInstalled {
-		return applicationconfiguration.Setup(mgr, args, l)
+		return applicationconfiguration.Setup(mgr, args)
 	}
 	return nil
 }
