@@ -131,8 +131,44 @@ Start to test.
 ```
 make e2e-test
 ```
+## Logging Conventions
 
-### Contribute Docs
+
+### Structured logging
+
+We recommend using `klog.InfoS` to structure the log, the `message` argument need start from a capital letter.
+and name arguments should always use lowerCamelCase.
+
+```golang
+klog.InfoS("Reconcile traitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
+// output:
+// I0605 10:10:57.308074   22276 traitdefinition_controller.go:59] "Reconcile traitDefinition" traitDefinition="vela-system/expose"
+```
+
+### Use `klog.KObj` and `klog.KRef` for Kubernetes objects
+
+`klog.KObj` and `klog.KRef` can unify the output of kubernetes object.
+
+```golang
+// KObj is used to create ObjectRef when logging information about Kubernetes objects
+klog.InfoS("Start to reconcile", "appDeployment", klog.KObj(appDeployment))
+// KRef is used to create ObjectRef when logging information about Kubernetes objects without access to metav1.Object
+klog.InfoS("Reconcile application", "application", klog.KRef(req.Namespace, req.Name))
+```
+
+### Logging Level
+
+[This file](https://github.com/oam-dev/kubevela/blob/master/pkg/controller/common/logs.go) contains KubeVela's log level,
+you can set the log level by `klog.V(level)`.
+
+```golang
+// you can use klog.V(common.LogDebug) to print debug log
+klog.V(common.LogDebug).InfoS("Successfully applied components", "workloads", len(workloads))
+```
+
+more detail in [Structured Logging Guide](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/migration-to-structured-logging.md#structured-logging-in-kubernetes).
+
+## Contribute Docs
 
 Please read [the documentation](https://github.com/oam-dev/kubevela/tree/master/docs/README.md) before contributing to the docs.
 
