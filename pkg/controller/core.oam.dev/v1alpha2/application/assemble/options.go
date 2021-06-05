@@ -85,7 +85,7 @@ func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledW
 		}
 	}
 
-	workloadByHelm := &unstructured.Unstructured{}
+	workloadByHelm := assembledWorkload.DeepCopy()
 	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: qualifiedWorkloadName}, workloadByHelm); err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledW
 			"annotations", annots, "labels", labels)
 		return err
 	}
-	*assembledWorkload = *workloadByHelm
+	assembledWorkload.SetName(qualifiedWorkloadName)
 	return nil
 }
 

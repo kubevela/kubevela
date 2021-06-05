@@ -41,12 +41,16 @@ func TestExtractAppNameFromResourceTrackerName(t *testing.T) {
 
 	for _, tc := range testcases {
 		gotRTName := ConstructResourceTrackerName(tc.appRevName, tc.ns)
-		gotAppName := extractAppNameFromResourceTrackerName(gotRTName, tc.ns)
+		gotAppName := ExtractAppName(gotRTName, tc.ns)
+		gotAppRevName := ExtractAppRevisionName(gotRTName, tc.ns)
 		if gotRTName != tc.wantRTName {
 			t.Fatalf("expect resource tracker name %q but got %q", tc.wantRTName, gotRTName)
 		}
 		if gotAppName != tc.wantAppName {
 			t.Fatalf("expect app name %q but got %q", tc.wantAppName, gotAppName)
+		}
+		if gotAppRevName != tc.appRevName {
+			t.Fatalf("expect app revision name %q but got %q", tc.appRevName, gotAppRevName)
 		}
 	}
 }

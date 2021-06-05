@@ -93,8 +93,8 @@ func (h *GCHandler) validate() error {
 	oldRTName := h.oldRT.Name
 	newRTName := h.newRT.Name
 	if strings.HasSuffix(oldRTName, h.namespace) && strings.HasSuffix(newRTName, h.namespace) {
-		if extractAppNameFromResourceTrackerName(oldRTName, h.namespace) ==
-			extractAppNameFromResourceTrackerName(newRTName, h.namespace) {
+		if ExtractAppName(oldRTName, h.namespace) ==
+			ExtractAppName(newRTName, h.namespace) {
 			return nil
 		}
 	}
