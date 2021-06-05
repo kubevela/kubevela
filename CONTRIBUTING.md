@@ -136,10 +136,11 @@ make e2e-test
 
 ### Structured logging
 
-We recommend using `klog.InfoS` to structure the log, the `message` argument need start from a capital letter.
+We recommend using `klog.InfoS` to structure the log. The `msg` argument need start from a capital letter.
 and name arguments should always use lowerCamelCase.
 
 ```golang
+// func InfoS(msg string, keysAndValues ...interface{})
 klog.InfoS("Reconcile traitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 // output:
 // I0605 10:10:57.308074   22276 traitdefinition_controller.go:59] "Reconcile traitDefinition" traitDefinition="vela-system/expose"
