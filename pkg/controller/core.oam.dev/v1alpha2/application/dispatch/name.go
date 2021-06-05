@@ -28,7 +28,13 @@ func ConstructResourceTrackerName(appRevName, ns string) string {
 	return fmt.Sprintf("%s-%s", appRevName, ns)
 }
 
-func extractAppNameFromResourceTrackerName(name, ns string) string {
-	splits := strings.Split(strings.TrimSuffix(name, "-"+ns), "-")
+// ExtractAppName get application name from resource tracker name
+func ExtractAppName(resourceTrackerName, ns string) string {
+	splits := strings.Split(strings.TrimSuffix(resourceTrackerName, "-"+ns), "-")
 	return strings.Join(splits[0:len(splits)-1], "-")
+}
+
+// ExtractAppRevisionName get application revision name from resource tracker name
+func ExtractAppRevisionName(resourceTrackerName, ns string) string {
+	return strings.TrimSuffix(resourceTrackerName, "-"+ns)
 }
