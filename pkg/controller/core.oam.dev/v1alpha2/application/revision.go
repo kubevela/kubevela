@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -339,21 +340,23 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 
 // gatherUsingAppRevision get all using appRevisions include app's status pointing to and appContext point to
 func gatherUsingAppRevision(ctx context.Context, h *appHandler) (map[string]bool, error) {
+	ns := h.app.Namespace
 	listOpts := []client.ListOption{
-		client.InNamespace(h.app.Namespace),
-		client.MatchingLabels{oam.LabelAppName: h.app.Name},
-	}
+		client.MatchingLabels{
+			oam.LabelAppName:      h.app.Name,
+			oam.LabelAppNamespace: ns,
+		}}
 	usingRevision := map[string]bool{}
 	if h.app.Status.LatestRevision != nil && len(h.app.Status.LatestRevision.Name) != 0 {
 		usingRevision[h.app.Status.LatestRevision.Name] = true
 	}
-	appContextList := new(v1alpha2.ApplicationContextList)
-	err := h.r.List(ctx, appContextList, listOpts...)
-	if err != nil {
+	rtList := &v1beta1.ResourceTrackerList{}
+	if err := h.r.List(ctx, rtList, listOpts...); err != nil {
 		return nil, err
 	}
-	for _, appContext := range appContextList.Items {
-		usingRevision[appContext.Spec.ApplicationRevisionName] = true
+	for _, rt := range rtList.Items {
+		appRev := dispatch.ExtractAppRevisionName(rt.Name, ns)
+		usingRevision[appRev] = true
 	}
 	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r, h.app.Namespace, h.app.Name)
 	if err != nil {
