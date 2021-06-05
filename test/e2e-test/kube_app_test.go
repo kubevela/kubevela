@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -200,26 +199,15 @@ spec:
 		By("Create application")
 		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
 
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 60*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
 		By("Verify two traits are applied to the workload")
 		Eventually(func() bool {
-			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy); err != nil {
 				return false
@@ -272,21 +260,12 @@ spec:
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is update successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return ac.Generation == 2
-		}, 10*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(deployment) is created successfully")
 		deploy = &appsv1.Deployment{}
-		deployName = ac.Status.Workloads[0].Reference.Name
+		deployName = compName
 
 		By("Verify the changes are applied to the workload")
 		Eventually(func() bool {
-			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy); err != nil {
 				return false
@@ -348,19 +327,9 @@ spec:
 		By("Create application")
 		Expect(k8sClient.Create(ctx, &appTest)).Should(Succeed())
 
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appTestName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 15*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 15*time.Second, 3*time.Second).Should(Succeed())

@@ -43,7 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Test application cross namespace resource", func() {
+var _ = PDescribe("Test application cross namespace resource", func() {
 	ctx := context.Background()
 	var namespace, crossNamespace string
 
