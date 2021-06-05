@@ -94,6 +94,10 @@ func (am *AppManifests) WithWorkloadOption(wo WorkloadOption) *AppManifests {
 }
 
 // AssembledManifests do assemble and merge all assembled resources(except referenced scopes) into one array
+// The result guarantee the order of resources as defined in application originally.
+// If it contains more than one component, the resources are well-orderred and also grouped.
+// For example, if app = comp1 (wl1 + trait1 + trait2) + comp2 (wl2 + trait3 +trait4),
+// the result is [wl1, trait1, trait2, wl2, trait3, trait4]
 func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, error) {
 	if !am.finalized {
 		am.assemble()
@@ -102,10 +106,9 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 		return nil, am.err
 	}
 	r := make([]*unstructured.Unstructured, 0)
-	for _, wl := range am.assembledWorkloads {
+	for compName, wl := range am.assembledWorkloads {
 		r = append(r, wl.DeepCopy())
-	}
-	for _, ts := range am.assembledTraits {
+		ts := am.assembledTraits[compName]
 		for _, t := range ts {
 			r = append(r, t.DeepCopy())
 		}
@@ -250,11 +253,12 @@ func (am *AppManifests) complete() {
 
 func (am *AppManifests) finalizeAssemble(err error) {
 	am.finalized = true
-	if err != nil {
-		klog.ErrorS(err, "Failed assembling manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
-		am.err = errors.WithMessagef(err, "cannot assemble resources' manifests for application %q", am.appName)
+	if err == nil {
+		klog.InfoS("Successfully assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName(), "namespace", am.appNamespace)
+		return
 	}
-	klog.InfoS("Successfully assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName(), "namespace", am.appNamespace)
+	klog.ErrorS(err, "Failed assembling manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
+	am.err = errors.WithMessagef(err, "cannot assemble resources' manifests for application %q", am.appName)
 }
 
 // AssembleOptions is highly coulped with AppRevision, should check the AppRevision provides all info
