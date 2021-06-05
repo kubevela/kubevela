@@ -24,6 +24,7 @@ import (
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -198,26 +198,15 @@ var _ = Describe("Test application of the specified definition version", func() 
 		By("Create application")
 		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
 
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 60*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(deployment) is created successfully")
-		Expect(len(ac.Status.Workloads)).Should(Equal(len(app.Spec.Components)))
 		webServiceDeploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := comp1Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceDeploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
 		workerDeploy := &appsv1.Deployment{}
-		deployName = ac.Status.Workloads[1].Reference.Name
+		deployName = comp2Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, workerDeploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -264,25 +253,29 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is update successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
+		By("Wait for dispatching v2 resources successfully")
+		Eventually(func() error {
+			requestReconcileNow(ctx, &app)
+			rt := &v1beta1.ResourceTracker{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v2-%s", appName, namespace)}, rt); err != nil {
+				return err
 			}
-			return ac.Generation == 2
-		}, 10*time.Second, time.Second).Should(BeTrue())
+			if len(rt.Status.TrackedResources) != 0 {
+				return nil
+			}
+			return errors.New("v2 resources have not been dispatched")
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
-		Expect(len(ac.Status.Workloads)).Should(Equal(len(app.Spec.Components)))
 		webServiceV1Deploy := &appsv1.Deployment{}
-		deployName = ac.Status.Workloads[0].Reference.Name
+		deployName = comp1Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceV1Deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
 		By("Verify the workload(job) is created successfully")
 		workerJob := &batchv1.Job{}
-		jobName := ac.Status.Workloads[1].Reference.Name
+		jobName := comp2Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, workerJob)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -417,13 +410,6 @@ var _ = Describe("Test application of the specified definition version", func() 
 		By("Create application")
 		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
 
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created successfully")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
-		}, 30*time.Second, time.Second).Should(Succeed())
-
 		By("Verify the workload(deployment) is created successfully by Helm")
 		deploy := &appsv1.Deployment{}
 		deployName := fmt.Sprintf("%s-%s-podinfo", appName, compName)
@@ -438,7 +424,6 @@ var _ = Describe("Test application of the specified definition version", func() 
 
 		By("Verify trait is applied to the workload")
 		Eventually(func() bool {
-			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy); err != nil {
 				return false
@@ -470,15 +455,6 @@ var _ = Describe("Test application of the specified definition version", func() 
 
 		By("Create application")
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
-
-		By("Verify the ApplicationContext is updated")
-		Eventually(func() bool {
-			ac = &v1alpha2.ApplicationContext{}
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return ac.GetGeneration() == 2
-		}, 15*time.Second, 3*time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is update successfully by Helm")
 		deploy = &appsv1.Deployment{}
@@ -589,19 +565,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 		By("Create application")
 		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
 
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 60*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(job) is created successfully")
 		job := &batchv1.Job{}
-		jobName := ac.Status.Workloads[0].Reference.Name
+		jobName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, job)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -640,18 +606,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is update successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return ac.Generation == 2
-		}, 10*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(deployment) is created successfully")
-		Expect(len(ac.Status.Workloads)).Should(Equal(len(app.Spec.Components)))
 		deploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())

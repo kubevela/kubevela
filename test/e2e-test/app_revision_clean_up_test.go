@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -108,8 +107,6 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return nil
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())
 		}
-		appContext := new(v1alpha2.ApplicationContext)
-		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(BeNil())
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabels{
@@ -124,12 +121,6 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			}
 			if len(appRevisionList.Items) != appRevisionLimit+1 {
 				return fmt.Errorf("error appRevison number wants %d, actually %d", appRevisionLimit+1, len(appRevisionList.Items))
-			}
-			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
-		Eventually(func() error {
-			if err := k8sClient.Get(ctx, appKey, appContext); err != nil {
-				return err
 			}
 			return nil
 		}, time.Second*30, time.Microsecond*300).Should(BeNil())
@@ -217,8 +208,6 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return nil
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())
 		}
-		appContext := new(v1alpha2.ApplicationContext)
-		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(util.NotFoundMatcher{})
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabels{
