@@ -40,6 +40,7 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -89,25 +90,28 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		r:   r,
 		app: app,
 	}
+	if app.Status.LatestRevision != nil {
+		// record previous app revision name
+		handler.previousRevisionName = app.Status.LatestRevision.Name
+	}
 
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
-		if registerFinalizers(app) {
+		if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
+			meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
 			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizers", app.ObjectMeta.Finalizers)
 			return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 	} else {
-		needUpdate, err := handler.removeResourceTracker(ctx)
-		if err != nil {
-			klog.InfoS("Failed to remove application resourceTracker", "err", err)
+		// finalize the last resource tracker
+		latestTracker := &v1beta1.ResourceTracker{}
+		latestTracker.SetName(dispatch.ConstructResourceTrackerName(handler.previousRevisionName, app.Namespace))
+		if err := r.Client.Delete(ctx, latestTracker); err != nil && !kerrors.IsNotFound(err) {
+			klog.ErrorS(err, "Failed to remove latest resource tracker", "name", latestTracker.Name)
 			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
 		}
-		if needUpdate {
-			klog.InfoS("Remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
-			return ctrl.Result{}, errors.Wrap(r.Update(ctx, app), errUpdateApplicationFinalizer)
-		}
-		// deleting and no need to handle finalizer
-		return reconcile.Result{}, nil
+		meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+		return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 	}
 
 	klog.Info("Start Rendering")
@@ -147,14 +151,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.InfoS("Failed to generate applicationConfiguration", "err", err)
 		app.Status.SetConditions(errorCondition("Built", err))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return handler.handleErr(err)
-	}
-
-	err = handler.handleResourceTracker(ctx, comps, ac)
-	if err != nil {
-		klog.InfoS("Failed to handle resourceTracker", "err", err)
-		app.Status.SetConditions(errorCondition("Handle resourceTracker", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
 	}
@@ -239,15 +235,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	app.Status.Components = refComps
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	return ctrl.Result{}, r.UpdateStatus(ctx, app)
-}
-
-// if any finalizers newly registered, return true
-func registerFinalizers(app *v1beta1.Application) bool {
-	if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) && app.Status.ResourceTracker != nil {
-		meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
-		return true
-	}
-	return false
 }
 
 // SetupWithManager install to manager
