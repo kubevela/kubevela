@@ -37,7 +37,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -77,11 +76,8 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
-			Expect(err).Should(BeNil())
+			reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
-		appContext := new(v1alpha2.ApplicationContext)
-		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(BeNil())
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabels{
@@ -161,11 +157,8 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
-			Expect(err).Should(BeNil())
+			reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
-		appContext := new(v1alpha2.ApplicationContext)
-		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(util.NotFoundMatcher{})
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabels{
@@ -251,11 +244,8 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
-			Expect(err).Should(BeNil())
+			reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
-		appContext := new(v1alpha2.ApplicationContext)
-		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(util.NotFoundMatcher{})
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabels{
@@ -381,11 +371,13 @@ var _ = Describe("Test gatherUsingAppRevision func", func() {
 			Name: appName + "-v1",
 		}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-		appContext := getAppContext(namespace, appName+"-ctx", appName+"-v2")
-		appContext.Labels = map[string]string{
-			oam.LabelAppName: appName,
-		}
-		Expect(k8sClient.Create(ctx, appContext)).Should(BeNil())
+		rt := &v1beta1.ResourceTracker{}
+		rt.SetName(appName + "-v2-" + namespace)
+		rt.SetLabels(map[string]string{
+			oam.LabelAppName:      appName,
+			oam.LabelAppNamespace: namespace,
+		})
+		Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
 		handler := appHandler{
 			r:   reconciler,
 			app: app,
@@ -408,19 +400,3 @@ var _ = Describe("Test gatherUsingAppRevision func", func() {
 		}, time.Second*60, time.Microsecond).Should(BeNil())
 	})
 })
-
-func getAppContext(namespace, name string, pointingRev string) *v1alpha2.ApplicationContext {
-	return &v1alpha2.ApplicationContext{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha2.ApplicationContextKindAPIVersion,
-			Kind:       v1alpha2.ApplicationContextKind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      "app-rollout",
-		},
-		Spec: v1alpha2.ApplicationContextSpec{
-			ApplicationRevisionName: pointingRev,
-		},
-	}
-}

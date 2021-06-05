@@ -29,7 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -259,20 +258,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(len(curAppRevision.GetOwnerReferences())).Should(BeEquivalentTo(1))
 		Expect(curAppRevision.GetOwnerReferences()[0].Kind).Should(Equal(v1alpha2.ApplicationKind))
 
-		By("Verify that an application context is created to point to the correct appRevision")
-		curAC := &v1alpha2.ApplicationContext{}
-		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name},
-			curAC)).NotTo(HaveOccurred())
-		Expect(curAC.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
-		Expect(curAC.Spec.ApplicationRevisionName).Should(Equal(curApp.Status.LatestRevision.Name))
-		Expect(curAC.GetAnnotations()[annoKey1]).ShouldNot(BeEmpty())
-		Expect(curAC.GetAnnotations()[oam.AnnotationInplaceUpgrade]).Should(Equal("true"))
-
-		Expect(metav1.GetControllerOf(curAC)).ShouldNot(BeNil())
-		Expect(metav1.GetControllerOf(curAC).Kind).Should(Equal(v1alpha2.ApplicationKind))
 		By("Apply the application again without any spec change")
-		// there can be annotation change and appContext should have the exact label/annotation as app
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
@@ -301,15 +287,6 @@ var _ = Describe("test generate revision ", func() {
 			time.Second*5, time.Millisecond*500).Should(BeNil())
 		Expect(err).Should(Succeed())
 		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
-		By("Verify that an application context is created to point to the same appRevision")
-		curAC = &v1alpha2.ApplicationContext{}
-		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name},
-			curAC)).NotTo(HaveOccurred())
-		Expect(curAC.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
-		Expect(curAC.Spec.ApplicationRevisionName).Should(Equal(lastRevision))
-		Expect(curAC.GetAnnotations()[annoKey1]).Should(BeEmpty())
-		Expect(curAC.GetAnnotations()[annoKey2]).ShouldNot(BeEmpty())
 
 		By("Change the application and apply again")
 		// bump the image tag
@@ -354,15 +331,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(appHash1).ShouldNot(Equal(appHash2))
 		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash2))
 		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(appHash2))
-		By("Verify that an application context is created to point to the right appRevision")
-		curAC = &v1alpha2.ApplicationContext{}
-		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name},
-			curAC)).NotTo(HaveOccurred())
-		Expect(curAC.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash2))
-		Expect(curAC.Spec.ApplicationRevisionName).Should(Equal(curApp.Status.LatestRevision.Name))
-		Expect(curAC.GetAnnotations()[annoKey2]).ShouldNot(BeEmpty())
-		Expect(metav1.GetControllerOf(curAC).Kind).Should(Equal(v1alpha2.ApplicationKind))
 	})
 
 	It("Test App with rollout template", func() {
@@ -406,19 +374,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(len(curAppRevision.GetOwnerReferences())).Should(BeEquivalentTo(1))
 		Expect(curAppRevision.GetOwnerReferences()[0].Kind).Should(Equal(v1alpha2.ApplicationKind))
 
-		By("Verify that no application context is created")
-		curACs := &v1alpha2.ApplicationContextList{}
-		opts := []client.ListOption{
-			client.InNamespace(namespaceName),
-		}
-		Eventually(
-			func() error {
-				return handler.r.List(ctx, curACs, opts...)
-			}, time.Second*5, time.Microsecond*500).Should(Succeed())
-		Expect(len(curACs.Items)).Should(BeEquivalentTo(0))
-
 		By("Apply the application again without any spec change but remove the rollout annotation")
-		// there can be annotation change and appContext should have the exact label/annotation as app
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
@@ -448,14 +404,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
 		Expect(curAppRevision.GetAnnotations()[annoKey2]).ShouldNot(BeEmpty())
-		By("Verify that an application context is created to point to the same appRevision")
-		curAC := &v1alpha2.ApplicationContext{}
-		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name},
-			curAC)).NotTo(HaveOccurred())
-		Expect(curAC.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
-		Expect(curAC.Spec.ApplicationRevisionName).Should(Equal(lastRevision))
-		Expect(curAC.GetAnnotations()[annoKey2]).ShouldNot(BeEmpty())
 
 		By("Change the application and apply again with rollout")
 		// bump the image tag
@@ -503,12 +451,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(appHash2))
 		Expect(curAppRevision.GetAnnotations()[annoKey2]).Should(BeEmpty())
 		Expect(curAppRevision.GetAnnotations()[oam.AnnotationAppRollout]).ShouldNot(BeEmpty())
-		By("Verify that no more application context is created")
-		Eventually(
-			func() error {
-				return handler.r.List(ctx, curACs, opts...)
-			}, time.Second*5, time.Microsecond*500).Should(Succeed())
-		Expect(len(curACs.Items)).Should(BeEquivalentTo(1))
 	})
 
 	It("Test apply passes all label and annotation from app to appRevision", func() {
@@ -550,7 +492,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(appHash1).Should(Equal(curApp.Status.LatestRevision.RevisionHash))
 		Expect(curAppRevision.GetLabels()[labelKey1]).Should(Equal("true"))
 		Expect(curAppRevision.GetAnnotations()[annoKey1]).Should(Equal("true"))
-		// there can be annotation change and appContext should have the exact label/annotation as app
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		labelKey2 := "labelKey2"
