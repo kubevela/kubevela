@@ -32,7 +32,6 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -41,17 +40,20 @@ import (
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-// RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
 const (
-	RolloutReconcileWaitTime      = time.Second * 3
-	resourceTrackerFinalizer      = "resourceTracker.finalizer.core.oam.dev"
 	errUpdateApplicationStatus    = "cannot update application status"
 	errUpdateApplicationFinalizer = "cannot update application finalizer"
+)
+
+const (
+	resourceTrackerFinalizer = "latestResourceTracker.finalizer.core.oam.dev"
+	onlyRevisionFinalizer    = "onlyRevision.finalizer.core.oam.dev"
 )
 
 // Reconciler reconciles a Application object
@@ -93,23 +95,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		handler.previousRevisionName = app.Status.LatestRevision.Name
 	}
 
-	if app.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
-			meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
-			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizers", app.ObjectMeta.Finalizers)
-			return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
-		}
-	} else {
-		// finalize the last resource tracker
-		latestTracker := &v1beta1.ResourceTracker{}
-		latestTracker.SetName(dispatch.ConstructResourceTrackerName(handler.previousRevisionName, app.Namespace))
-		if err := r.Client.Delete(ctx, latestTracker); err != nil && !kerrors.IsNotFound(err) {
-			klog.ErrorS(err, "Failed to remove latest resource tracker", "name", latestTracker.Name)
-			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
-			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
-		}
-		meta.RemoveFinalizer(app, resourceTrackerFinalizer)
-		return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+	if endReconcile, err := r.handleFinalizers(ctx, app); endReconcile {
+		return ctrl.Result{}, err
 	}
 
 	klog.Info("Start Rendering")
@@ -233,6 +220,67 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	app.Status.Components = refComps
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	return ctrl.Result{}, r.UpdateStatus(ctx, app)
+}
+
+func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Application) (bool, error) {
+	if app.ObjectMeta.DeletionTimestamp.IsZero() {
+		// NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
+		// by setting application(namespace-scoped) as their owner. So we must delete all
+		// resource trackers through app controller's finalizer logic.
+
+		// 'resourceTrackerFinalizer' is used to delete the resource tracker of the last app revision
+		if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
+			meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
+			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", resourceTrackerFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+		// 'onlyRevisionFinalizer' is used to delete all resource trackers of app revisions which
+		// may be used out of the domain of app controller, e.g., AppRollout controller.
+		if app.Annotations[oam.AnnotationAppRevisionOnly] == "true" &&
+			!meta.FinalizerExists(&app.ObjectMeta, onlyRevisionFinalizer) {
+			meta.AddFinalizer(&app.ObjectMeta, onlyRevisionFinalizer)
+			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", onlyRevisionFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+	} else {
+		if meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
+			if app.Status.LatestRevision != nil && len(app.Status.LatestRevision.Name) != 0 {
+				// finalize the last resource tracker
+				latestTracker := &v1beta1.ResourceTracker{}
+				latestTracker.SetName(dispatch.ConstructResourceTrackerName(app.Status.LatestRevision.Name, app.Namespace))
+				if err := r.Client.Delete(ctx, latestTracker); err != nil && !kerrors.IsNotFound(err) {
+					klog.ErrorS(err, "Failed to delete latest resource tracker", "name", latestTracker.Name)
+					app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+					return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+				}
+			}
+			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+		if meta.FinalizerExists(&app.ObjectMeta, onlyRevisionFinalizer) {
+			listOpts := []client.ListOption{
+				client.MatchingLabels{
+					oam.LabelAppName:      app.Name,
+					oam.LabelAppNamespace: app.Namespace,
+				}}
+			rtList := &v1beta1.ResourceTrackerList{}
+			if err := r.Client.List(ctx, rtList, listOpts...); err != nil {
+				klog.ErrorS(err, "Failed to list resource tracker of app", "name", app.Name)
+				app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+				return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+			}
+			for _, rt := range rtList.Items {
+				if err := r.Client.Delete(ctx, &rt); err != nil && !kerrors.IsNotFound(err) {
+					klog.ErrorS(err, "Failed to delete resource tracker", "name", rt.Name)
+					app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+					return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+				}
+			}
+			meta.RemoveFinalizer(app, onlyRevisionFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+	}
+	return false, nil
 }
 
 // SetupWithManager install to manager
