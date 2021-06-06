@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -181,7 +182,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}, time.Second*30, time.Microsecond*300).Should(BeNil())
 	})
 
-	It("Test clean up rollout appRevision", func() {
+	PIt("Test clean up rollout appRevision", func() {
 		appName := "app-2"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")
@@ -287,9 +288,10 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				TargetAppRevisionName: appName + "-v3",
 				ComponentList:         []string{"comp1"},
 				RolloutPlan: v1alpha1.RolloutPlan{
+					TargetSize: pointer.Int32Ptr(2),
 					RolloutBatches: []v1alpha1.RolloutBatch{
 						{
-							Replicas: intstr.FromInt(1),
+							Replicas: intstr.FromInt(2),
 						},
 					},
 				},

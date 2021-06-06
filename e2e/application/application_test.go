@@ -86,15 +86,6 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 				return app.Status.LatestRevision != nil
 			}, 180*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
-			ginkgo.By("check AppContext reconciled ready")
-			gomega.Eventually(func() int {
-				appContext := &v1alpha2.ApplicationContext{}
-				_ = k8sclient.Get(context2.Background(), client.ObjectKey{
-					Name:      applicationName,
-					Namespace: "default"}, appContext)
-				return len(appContext.Status.Workloads)
-			}, 180*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
-
 			cli := fmt.Sprintf("vela status %s", applicationName)
 			output, err := e2e.LongTimeExec(cli, 120*time.Second)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

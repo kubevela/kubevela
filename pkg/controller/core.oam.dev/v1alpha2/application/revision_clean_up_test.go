@@ -151,6 +151,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationAppRollout, "true")
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationRollingComponent, "comp1")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
 		checkApp := new(v1beta1.Application)
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -238,6 +239,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationAppRollout, "true")
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationRollingComponent, "comp1")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
 		checkApp := new(v1beta1.Application)
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
