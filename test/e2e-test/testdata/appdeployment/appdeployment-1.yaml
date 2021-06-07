@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1beta1
+kind: AppDeployment
+metadata:
+  name: app-deployment-e2e
+spec:
+  appRevisions:
+    - revisionName: appdeployment-app-e2e-v1
+      placement:
+        - distribution:
+            replicas: 2
