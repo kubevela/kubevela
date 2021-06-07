@@ -100,6 +100,7 @@ func main() {
 		"controller shared informer lister full re-sync period")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 
+	flag.Parse()
 	// setup logging
 	klog.InitFlags(nil)
 	if logDebug {
@@ -111,7 +112,6 @@ func main() {
 		_ = flag.Set("log_file", logFilePath)
 		_ = flag.Set("log_file_max_size", strconv.FormatUint(logFileMaxSize, 10))
 	}
-	flag.Parse()
 
 	klog.InfoS("KubeVela information", "version", version.VelaVersion, "revision", version.GitRevision)
 	klog.InfoS("Disable capabilities", "name", disableCaps)
