@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net/http"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
@@ -100,8 +102,10 @@ func (h *ValidatingHandler) validateRevisions(appDeployment *v1beta1.AppDeployme
 			targetAppRevision := &v1beta1.ApplicationRevision{}
 			if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeployment.Namespace, Name: appRevisionName},
 				targetAppRevision); err != nil {
-				allErrs = append(allErrs, field.NotFound(fldPath.Child("revisionName"), appRevisionName))
-				continue
+				// Other errors will be handled in the Reconcile
+				if apierrors.IsNotFound(err) {
+					allErrs = append(allErrs, field.NotFound(fldPath.Child("revisionName"), appRevisionName))
+				}
 			}
 		}
 	}
