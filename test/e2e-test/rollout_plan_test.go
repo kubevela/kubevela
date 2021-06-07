@@ -142,6 +142,22 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			}, time.Second*5, time.Millisecond*100).Should(Succeed())
 	}
 
+	verifyRolloutOwnsCloneset := func() {
+		By("Verify that rollout controller owns the cloneset")
+		clonesetName := appRollout.Spec.ComponentList[0]
+		Eventually(
+			func() string {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
+				clonesetOwner := metav1.GetControllerOf(&kc)
+				if clonesetOwner == nil {
+					return ""
+				}
+				return clonesetOwner.Kind
+			}, time.Second*10, time.Millisecond*100).Should(BeEquivalentTo(v1beta1.AppRolloutKind))
+		clonesetOwner := metav1.GetControllerOf(&kc)
+		Expect(clonesetOwner.APIVersion).Should(BeEquivalentTo(v1beta1.SchemeGroupVersion.String()))
+	}
+
 	verifyRolloutDeleted := func() {
 		By("Wait for the rollout delete")
 		Eventually(
@@ -170,7 +186,6 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
 			},
 			time.Second*30, time.Millisecond*500).Should(BeNil())
-		//Expect(clonesetOwner.Name).Should(BeEquivalentTo(targetAppName))
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		// make sure all pods are upgraded
 		image := kc.Spec.Template.Spec.Containers[0].Image
@@ -304,7 +319,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Expect(appRollout.Status.BatchRollingState).Should(BeEquivalentTo(oamstd.BatchReadyState))
 		Expect(appRollout.Status.CurrentBatch).Should(BeEquivalentTo(batchPartition))
 
-		//verifyRolloutOwnsCloneset()
+		verifyRolloutOwnsCloneset()
 
 		By("Finish the application rollout")
 		// set the partition as the same size as the array
@@ -312,7 +327,6 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			RolloutBatches) - 1))
 		Expect(k8sClient.Update(ctx, &appRollout)).Should(Succeed())
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		//verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
 	})
 
 	It("Test pause and modify rollout plan after rolling succeeded", func() {
@@ -367,7 +381,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		}
 		Expect((&lt).Before(&beforeSleep)).Should(BeTrue())
 
-		//verifyRolloutOwnsCloneset()
+		verifyRolloutOwnsCloneset()
 
 		By("Finish the application rollout")
 		// remove the batch restriction
@@ -410,7 +424,6 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*10, time.Millisecond*10).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-
 		rollForwardToSource()
 	})
 
@@ -464,6 +477,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*10, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
+		verifyRolloutOwnsCloneset()
+
 		By("Remove the application rollout")
 		// remove the rollout
 		Expect(k8sClient.Delete(ctx, &appRollout)).Should(Succeed())
@@ -504,6 +519,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return appRollout.Status.RollingState
 			},
 			time.Second*10, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
+
+		verifyRolloutOwnsCloneset()
 
 		By("Revert the application rollout")
 		Eventually(

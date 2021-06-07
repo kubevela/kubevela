@@ -136,7 +136,6 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 	})
 
 	verifyRolloutSucceeded := func(targetAppContextName string, cpu string) {
-		By(fmt.Sprintf("Wait for the rollout `%s` to succeed", targetAppContextName))
 		Eventually(
 			func() error {
 				app = v1beta1.Application{}

@@ -341,19 +341,23 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 func gatherUsingAppRevision(ctx context.Context, h *appHandler) (map[string]bool, error) {
 	listOpts := []client.ListOption{
 		client.InNamespace(h.app.Namespace),
-		client.MatchingLabels{oam.LabelAppName: h.app.Name},
 	}
 	usingRevision := map[string]bool{}
 	if h.app.Status.LatestRevision != nil && len(h.app.Status.LatestRevision.Name) != 0 {
 		usingRevision[h.app.Status.LatestRevision.Name] = true
 	}
-	appContextList := new(v1alpha2.ApplicationContextList)
-	err := h.r.List(ctx, appContextList, listOpts...)
+	appRolloutList := new(v1alpha2.AppRolloutList)
+	err := h.r.List(ctx, appRolloutList, listOpts...)
 	if err != nil {
 		return nil, err
 	}
-	for _, appContext := range appContextList.Items {
-		usingRevision[appContext.Spec.ApplicationRevisionName] = true
+	for _, appRollout := range appRolloutList.Items {
+		if len(appRollout.Spec.SourceAppRevisionName) != 0 {
+			usingRevision[appRollout.Spec.SourceAppRevisionName] = true
+		}
+		if len(appRollout.Spec.TargetAppRevisionName) != 0 {
+			usingRevision[appRollout.Spec.TargetAppRevisionName] = true
+		}
 	}
 	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r, h.app.Namespace, h.app.Name)
 	if err != nil {

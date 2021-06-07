@@ -56,11 +56,14 @@ func rolloutWorkloadName() assemble.WorkloadOption {
 
 // appRollout should take over updating workload, so disable previous controller owner(resourceTracker)
 func disableControllerOwner(workload *unstructured.Unstructured) {
-	owenrRefs := workload.GetOwnerReferences()
-	for i, ref := range owenrRefs {
-		if *ref.Controller {
-			owenrRefs[i].Controller = pointer.BoolPtr(false)
+	if workload == nil {
+		return
+	}
+	ownerRefs := workload.GetOwnerReferences()
+	for i, ref := range ownerRefs {
+		if ref.Controller != nil && *ref.Controller {
+			ownerRefs[i].Controller = pointer.BoolPtr(false)
 		}
 	}
-	workload.SetOwnerReferences(owenrRefs)
+	workload.SetOwnerReferences(ownerRefs)
 }

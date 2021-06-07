@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 // DoReconcile is real reconcile logic for appRollout.
 // 1.prepare rollout info: use assemble module in application pkg to generate manifest with appRevision
-// 2.determine witch component is the common component between source and target AppRevision
+// 2.determine which component is the common component between source and target AppRevision
 // 3.if target workload isn't exist yet, template the targetAppRevision to apply target manifest
 // 4.extract target workload and source workload(if sourceAppRevision not empty)
 // 5.generate a rolloutPlan controller with source and target workload and call rolloutPlan's reconcile func

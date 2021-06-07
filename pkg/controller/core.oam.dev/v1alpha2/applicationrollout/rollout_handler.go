@@ -20,26 +20,22 @@ import (
 	"context"
 	"fmt"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
-
-	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-
-	"k8s.io/klog/v2"
-
-	assemble "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
-	appUtil "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
-
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/crossplane/crossplane-runtime/pkg/event"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	appUtil "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
 )
 
 type rolloutHandler struct {
@@ -185,7 +181,18 @@ func (h *rolloutHandler) handleRolloutModified() {
 
 // templateTargetManifest call dispatch to template target manifest to cluster
 func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
-	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision)
+	var rt *v1beta1.ResourceTracker
+	// only when sourceAppRevision is not nil, we need gc old revision resources
+	if h.sourceAppRevision != nil {
+		rt := new(v1beta1.ResourceTracker)
+		err := h.Get(ctx, types.NamespacedName{Name: dispatch.ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	// use source resourceTracker to handle same resource owner transfer
+	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).EnableUpgradeAndSkipGC(rt)
 	_, err := dispatcher.Dispatch(ctx, h.targetManifests)
 	if err != nil {
 		return err
@@ -217,11 +224,11 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 			return err
 		}
 	}
-	// dispatch here do two things
-	// 1.let resource tracker take over controller owner again
-	// 2.gc useless workloads/traits
+	// dispatch here gc useless workloads/traits
 	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).EnableGC(rt)
-	_, err := dispatcher.Dispatch(ctx, h.targetManifests)
+
+	// must guarantee manifest is nil, only do GC don't dispatch any more
+	_, err := dispatcher.Dispatch(ctx, nil)
 	if err != nil {
 		return err
 	}
