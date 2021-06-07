@@ -225,7 +225,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.R
 		}
 	} else {
 		if err := r.workloads.Finalize(ctx, ac); err != nil {
-			klog.V(common.LogDebug).InfoS("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
+			klog.InfoS("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
 				"err", err)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
@@ -254,7 +254,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		for name, hook := range r.postHooks {
 			exeResult, err := hook.Exec(ctx, ac)
 			if err != nil {
-				klog.V(common.LogDebug).InfoS("Failed to execute post-hooks", "hook name", name, "error", err,
+				klog.InfoS("Failed to execute post-hooks", "hook name", name, "err", err,
 					"requeue-after", result.RequeueAfter)
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
 				ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
@@ -270,7 +270,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	for name, hook := range r.preHooks {
 		result, err := hook.Exec(ctx, ac)
 		if err != nil {
-			klog.V(common.LogDebug).InfoS("Failed to execute pre-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
+			klog.InfoS("Failed to execute pre-hooks", "hook name", name, "requeue-after", result.RequeueAfter, "err", err)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
 			return result
@@ -306,7 +306,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode)}
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
-		klog.V(common.LogDebug).InfoS("Cannot apply workload", "err", err)
+		klog.InfoS("Cannot apply workload", "err", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
 		return reconcile.Result{}
@@ -334,13 +334,13 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 
 		err := r.confirmDeleteOnApplyOnceMode(ctx, ac.GetNamespace(), &e)
 		if err != nil {
-			klog.V(common.LogDebug).InfoS("Confirm component can't be garbage collected", "err", err)
+			klog.InfoS("Confirm component can't be garbage collected", "err", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
 			return reconcile.Result{}
 		}
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
-			klog.V(common.LogDebug).InfoS("Cannot garbage collect component", "err", err)
+			klog.InfoS("Cannot garbage collect component", "err", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
 			return reconcile.Result{}

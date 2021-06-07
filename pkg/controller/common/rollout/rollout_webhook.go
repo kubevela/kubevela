@@ -29,7 +29,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 // issue an http call to the an end ponit
@@ -125,7 +124,7 @@ func callWebhook(ctx context.Context, resource klog.KMetadata, phase string, rw 
 	}
 	if !accepted {
 		err := fmt.Errorf("http request to the webhook not accepeted, http status = %d", status)
-		klog.V(common.LogDebug).InfoS("the status is not expected", "expected status", rw.ExpectedStatus)
+		klog.ErrorS(err, "The status is not expected", "expected status", rw.ExpectedStatus)
 		return err
 	}
 	return nil
