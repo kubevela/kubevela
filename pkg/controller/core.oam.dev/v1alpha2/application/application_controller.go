@@ -57,7 +57,7 @@ const (
 type Reconciler struct {
 	client.Client
 	dm               discoverymapper.DiscoveryMapper
-	pd               *packages.PackageDiscover
+	pd               *definition.PackageDiscover
 	Scheme           *runtime.Scheme
 	Recorder         event.Recorder
 	applicator       apply.Applicator
