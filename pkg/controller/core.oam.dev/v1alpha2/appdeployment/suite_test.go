@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -54,6 +55,16 @@ func TestAPIs(t *testing.T) {
 	RunSpecsWithDefaultAndCustomReporters(t,
 		"Controller Suite",
 		[]Reporter{printer.NewlineReporter{}})
+}
+
+// NewReconciler returns a new instance of Reconciler
+func NewReconciler(cli client.Client, sch *runtime.Scheme, dm discoverymapper.DiscoveryMapper) *Reconciler {
+	return &Reconciler{
+		dm:     dm,
+		Client: cli,
+		Scheme: sch,
+		wr:     NewWorkloadRenderer(cli),
+	}
 }
 
 var _ = BeforeSuite(func(done Done) {

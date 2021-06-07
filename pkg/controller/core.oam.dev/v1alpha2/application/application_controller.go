@@ -24,6 +24,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,12 +57,13 @@ const (
 // Reconciler reconciles a Application object
 type Reconciler struct {
 	client.Client
-	dm               discoverymapper.DiscoveryMapper
-	pd               *packages.PackageDiscover
-	Scheme           *runtime.Scheme
-	Recorder         event.Recorder
-	applicator       apply.Applicator
-	appRevisionLimit int
+	dm                   discoverymapper.DiscoveryMapper
+	pd                   *packages.PackageDiscover
+	Scheme               *runtime.Scheme
+	Recorder             event.Recorder
+	applicator           apply.Applicator
+	appRevisionLimit     int
+	concurrentReconciles int
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -252,6 +254,9 @@ func registerFinalizers(app *v1beta1.Application) bool {
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1beta1.Application{}).
 		Complete(r)
 }
@@ -271,13 +276,14 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1beta1.Application,
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, args core.Args) error {
 	reconciler := Reconciler{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		Recorder:         event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		dm:               args.DiscoveryMapper,
-		pd:               args.PackageDiscover,
-		applicator:       apply.NewAPIApplicator(mgr.GetClient()),
-		appRevisionLimit: args.AppRevisionLimit,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		dm:                   args.DiscoveryMapper,
+		pd:                   args.PackageDiscover,
+		applicator:           apply.NewAPIApplicator(mgr.GetClient()),
+		appRevisionLimit:     args.AppRevisionLimit,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return reconciler.SetupWithManager(mgr)
 }

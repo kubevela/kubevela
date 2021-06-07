@@ -32,10 +32,11 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
@@ -47,11 +48,12 @@ import (
 // Reconciler reconciles a WorkflowStepDefinition object
 type Reconciler struct {
 	client.Client
-	dm          discoverymapper.DiscoveryMapper
-	pd          *packages.PackageDiscover
-	Scheme      *runtime.Scheme
-	record      event.Recorder
-	defRevLimit int
+	dm                   discoverymapper.DiscoveryMapper
+	pd                   *packages.PackageDiscover
+	Scheme               *runtime.Scheme
+	record               event.Recorder
+	defRevLimit          int
+	concurrentReconciles int
 }
 
 // Reconcile is the main logic for WorkflowStepDefinition controller
@@ -187,12 +189,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("WorkflowStepDefinition")).
 		WithAnnotations("controller", "WorkflowStepDefinition")
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1beta1.WorkflowStepDefinition{}).
 		Complete(r)
 }
 
 // Setup adds a controller that reconciles WorkflowStepDefinition.
-func Setup(mgr ctrl.Manager, args controller.Args) error {
+func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	r := Reconciler{
 		Client:      mgr.GetClient(),
 		Scheme:      mgr.GetScheme(),

@@ -99,6 +99,9 @@ func main() {
 	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 60*time.Minute,
 		"controller shared informer lister full re-sync period")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
+	flag.IntVar(&controllerArgs.ConcurrentReconciles, "concurrent-reconciles", 4, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
+	flag.DurationVar(&controllerArgs.DependCheckWait, "depend-check-wait", 30*time.Second, "depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready."+
+		"The default value is 30s, which means if dependent resources were not prepared, the ApplicationConfiguration would be reconciled after 30s.")
 
 	flag.Parse()
 	// setup logging
