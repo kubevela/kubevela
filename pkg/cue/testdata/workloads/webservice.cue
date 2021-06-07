@@ -8,7 +8,6 @@ output: {
 				"app.oam.dev/appRevision": context.appRevision
 			}
 		}
-
 		template: {
 			metadata: labels: {
 				"app.oam.dev/component": context.name
@@ -16,35 +15,12 @@ output: {
 					"app.oam.dev/appRevision": context.appRevision
 				}
 			}
-
 			spec: {
 				containers: [{
 					name:  context.name
 					image: parameter.image
-
-					if parameter["cmd"] != _|_ {
-						command: parameter.cmd
-					}
-
 					if parameter["env"] != _|_ {
 						env: parameter.env
-					}
-
-					if context["config"] != _|_ {
-						env: context.config
-					}
-
-					ports: [{
-						containerPort: parameter.port
-					}]
-
-					if parameter["cpu"] != _|_ {
-						resources: {
-							limits:
-								cpu: parameter.cpu
-							requests:
-								cpu: parameter.cpu
-						}
 					}
 				}]
 		  }
@@ -55,10 +31,6 @@ parameter: {
 	// +usage=Which image would you like to use for your service
 	// +short=i
 	image: string
-
-	// +usage=Which port do you want customer traffic sent to
-	// +short=p
-	port: *80 | int
 	// +usage=Define arguments by using environment variables
 	env?: [...{
 		// +usage=Environment variable name
@@ -77,12 +49,8 @@ parameter: {
 			}
 		}
 	}]
-	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
-	cpu?: string
-
   // +ignore
 	// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods
 	addRevisionLabel: *false | bool
-
 }
 

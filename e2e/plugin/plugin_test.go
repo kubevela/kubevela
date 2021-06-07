@@ -157,7 +157,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
-			Expect(output).ShouldNot(ContainSubstring("secretKey"))
+			Expect(output).ShouldNot(ContainSubstring("mySecretKey"))
 		})
 	})
 
@@ -656,29 +656,9 @@ spec:
         				containers: [{
         					name:  context.name
         					image: parameter.image
-        					ports: [{
-        						containerPort: parameter.port
-        					}]
-
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
 
         					if parameter["env"] != _|_ {
         						env: parameter.env
-        					}
-
-        					if context["config"] != _|_ {
-        						env: context.config
-        					}
-
-        					if parameter["cpu"] != _|_ {
-        						resources: {
-        							limits:
-        								cpu: parameter.cpu
-        							requests:
-        								cpu: parameter.cpu
-        						}
         					}
         				}]
         		    }
@@ -690,16 +670,9 @@ spec:
         	// +short=i
         	image: string
 
-        	// +usage=Which port do you want customer traffic sent to
-        	// +short=p
-        	port: *80 | int
-
         	// +ignore
         	// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods
         	addRevisionLabel: *false | bool
-
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
 
         	// +usage=Define arguments by using environment variables
         	env?: [...{
@@ -715,7 +688,7 @@ spec:
         				name: string
                         // +ignore
         				// +usage=The key of the secret to select from. Must be a valid secret key
-        				secretKey: string
+        				mySecretKey: string
         			}
         		}
         	}]
