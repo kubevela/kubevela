@@ -144,8 +144,9 @@ const (
 )
 
 // RetrieveComments will retrieve Usage, Short, Alias and Ignore from CUE Value
-func RetrieveComments(value cue.Value) (string, string, string, string) {
-	var short, usage, alias, ignore string
+func RetrieveComments(value cue.Value) (string, string, string, bool) {
+	var short, usage, alias string
+	var ignore bool
 	docs := value.Doc()
 	for _, doc := range docs {
 		lines := strings.Split(doc.Text(), "\n")
@@ -157,7 +158,7 @@ func RetrieveComments(value cue.Value) (string, string, string, string) {
 				short = strings.TrimPrefix(line, ShortPrefix)
 			}
 			if strings.HasPrefix(line, IgnorePrefix) {
-				ignore = strings.TrimPrefix(line, IgnorePrefix)
+				ignore = true
 			}
 			if strings.HasPrefix(line, UsagePrefix) {
 				usage = strings.TrimPrefix(line, UsagePrefix)

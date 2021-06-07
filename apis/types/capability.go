@@ -134,7 +134,7 @@ type Parameter struct {
 	Required bool        `json:"required,omitempty"`
 	Default  interface{} `json:"default,omitempty"`
 	Usage    string      `json:"usage,omitempty"`
-	Ignore   string      `json:"ignore,omitempty"`
+	Ignore   bool        `json:"ignore,omitempty"`
 	Type     cue.Kind    `json:"type,omitempty"`
 	Alias    string      `json:"alias,omitempty"`
 	JSONType string      `json:"jsonType,omitempty"`

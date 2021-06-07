@@ -67,17 +67,15 @@ func TestGetParameter(t *testing.T) {
 	assert.Equal(t, exp, params)
 
 	data, _ = ioutil.ReadFile("testdata/workloads/webservice.cue") // test cue parameter with "// +ignore" annotation
-	params, err = GetParameters(string(data))
+	params, err = GetParameters(string(data))                      // Only test for func RetrieveComments
 	assert.NoError(t, err)
+	var flag bool
 	for _, para := range params {
 		if para.Name == "addRevisionLabel" {
-			assert.Equal(t, para.Usage, "")
-			assert.Equal(t, para.Ignore, " If addRevisionLabel is true, the appRevision label will be added to the underlying pods")
-		}
-		if para.Name == "secretKey" { // test cue parameter at deeper nesting depth
-			assert.Equal(t, para.Usage, "")
-			assert.Equal(t, para.Ignore, " The key of the secret to select from. Must be a valid secret key")
+			flag = true
+			assert.Equal(t, para.Usage, "If addRevisionLabel is true, the appRevision label will be added to the underlying pods")
+			assert.Equal(t, para.Ignore, true)
 		}
 	}
-
+	assert.Equal(t, flag, true)
 }

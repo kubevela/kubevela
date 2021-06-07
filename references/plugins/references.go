@@ -469,8 +469,10 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 	switch category {
 	case types.CUECategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
+			if !p.Ignore {
+				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
+				refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
+			}
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
@@ -500,8 +502,10 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 	switch category {
 	case types.CUECategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+			if !p.Ignore {
+				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
+				table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+			}
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
@@ -559,9 +563,6 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 				param.Default = velacue.GetDefault(def)
 			}
 			param.Short, param.Usage, param.Alias, param.Ignore = velacue.RetrieveComments(val)
-			if param.Ignore != "" {
-				continue
-			}
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
