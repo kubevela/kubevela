@@ -311,7 +311,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: dependCheckWait},
+				result: reconcile.Result{RequeueAfter: 10 * time.Second},
 			},
 		},
 		"FailedPreHook": {

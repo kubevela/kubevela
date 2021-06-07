@@ -48,6 +48,7 @@ type chartArgs struct {
 	imageRepo       string
 	imageTag        string
 	imagePullPolicy string
+	dependCheckWait string
 	more            []string
 }
 
@@ -131,6 +132,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "", "vela core image pull policy, this will align to chart value image.pullPolicy")
 	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "", "vela core image repo, this will align to chart value image.repo")
 	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "", "vela core image repo, this will align to chart value image.tag")
+	flag.StringVarP(&i.chartArgs.dependCheckWait, "depend-check-wait", "", "", "depend-check-wait, this the time to wait for ApplicationConfiguration's dependent-resource ready")
 	flag.StringVarP(&i.waitReady, "wait", "w", "0s", "wait until vela-core is ready to serve, default will not wait")
 	flag.StringSliceVarP(&i.chartArgs.more, "set", "s", []string{}, "arguments for installing vela-core chart")
 
@@ -227,6 +229,9 @@ func (i *initCmd) resolveValues() (map[string]interface{}, error) {
 	}
 	if i.chartArgs.imagePullPolicy != "" {
 		valuesConfig = append(valuesConfig, fmt.Sprintf("image.pullPolicy=%s", i.chartArgs.imagePullPolicy))
+	}
+	if i.chartArgs.dependCheckWait != "" {
+		valuesConfig = append(valuesConfig, fmt.Sprintf("dependCheckWait=%s", i.chartArgs.dependCheckWait))
 	}
 	valuesConfig = append(valuesConfig, i.chartArgs.more...)
 

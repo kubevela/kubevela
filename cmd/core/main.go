@@ -100,11 +100,13 @@ func main() {
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.StringVar(&storageDriver, "storage-driver", driver.LocalDriverName, "Application file save to the storage driver")
-	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 5*time.Minute,
-		"controller shared informer lister full re-sync period")
+	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 2*time.Hour, "controller shared informer lister full re-sync period. The default value is 2 hours")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.DurationVar(&controllerArgs.LongWait, "long-wait", 1*time.Minute, "long-wait is controller next reconcile interval time like 30s, 2m etc. The default value is 1m,"+
 		" you can set it to 0 for no reconcile routine after success")
+	flag.IntVar(&controllerArgs.ConcurrentReconciles, "concurrent-reconciles", 4, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
+	flag.DurationVar(&controllerArgs.DependCheckWait, "depend-check-wait", 30*time.Second, "depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready."+
+		"The default value is 30s, which means if dependent resources were not prepared, the ApplicationConfiguration would be reconciled after 30s.")
 	flag.Parse()
 
 	// setup logging

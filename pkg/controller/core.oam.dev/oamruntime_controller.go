@@ -52,4 +52,10 @@ type Args struct {
 
 	// LongWait is controller next reconcile interval time
 	LongWait time.Duration
+
+	// ConcurrentReconciles is the concurrent reconcile number of the controller
+	ConcurrentReconciles int
+
+	// DependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
+	DependCheckWait time.Duration
 }
