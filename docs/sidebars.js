@@ -169,7 +169,6 @@ module.exports = {
             'cli/vela_cap',
           ],
         },
-        'developers/references/restful-api/rest',
         'developers/references/kubectl-plugin'
       ],
     },
