@@ -46,7 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = PDescribe("Cloneset based rollout tests", func() {
+var _ = Describe("Cloneset based rollout tests", func() {
 	ctx := context.Background()
 	var namespaceName, appRolloutName string
 	var ns corev1.Namespace
@@ -134,7 +134,7 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 		Eventually(
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
-				app.Spec = targetApp.Spec
+				app.Spec = targetApp.DeepCopy().Spec
 				return k8sClient.Update(ctx, &app)
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 
@@ -148,7 +148,7 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 				}
 				return false
 			},
-			time.Second*30, time.Millisecond*500).Should(BeTrue())
+			time.Second*15, time.Millisecond*500).Should(BeTrue())
 	}
 
 	createAppRolling := func(newAppRollout *v1beta1.AppRollout) {
@@ -614,6 +614,7 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 		CreateIngressDef()
 		applySourceApp("app-with-ingress-source.yaml")
 		By("Apply the application rollout go directly to the target")
+		appRollout = v1beta1.AppRollout{}
 		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &appRollout)).Should(BeNil())
 		appRollout.Namespace = namespaceName
 		appRollout.Spec.SourceAppRevisionName = ""
@@ -645,6 +646,7 @@ var _ = PDescribe("Cloneset based rollout tests", func() {
 		CreateIngressDef()
 		applySourceApp("app-with-ingress-source.yaml")
 		By("Apply the application rollout go directly to the target")
+		appRollout = v1beta1.AppRollout{}
 		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &appRollout)).Should(BeNil())
 		appRollout.Namespace = namespaceName
 		appRollout.Spec.SourceAppRevisionName = ""
