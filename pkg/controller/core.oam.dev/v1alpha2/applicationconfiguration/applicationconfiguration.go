@@ -38,6 +38,7 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -50,10 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-const (
-	reconcileTimeout = 1 * time.Minute
-	dependCheckWait  = 10 * time.Second
-)
+const reconcileTimeout = 1 * time.Minute
 
 // Reconcile error strings.
 const (
@@ -87,12 +85,18 @@ const (
 func Setup(mgr ctrl.Manager, args core.Args) error {
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationConfigurationGroupKind)
 
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr)
+	builder.WithOptions(controller.Options{
+		MaxConcurrentReconciles: args.ConcurrentReconciles,
+	})
+
+	return builder.
 		Named(name).
 		For(&v1alpha2.ApplicationConfiguration{}).
 		Complete(NewReconciler(mgr, args.DiscoveryMapper,
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-			WithApplyOnceOnlyMode(args.ApplyMode)))
+			WithApplyOnceOnlyMode(args.ApplyMode),
+			WithDependCheckWait(args.DependCheckWait)))
 }
 
 // An OAMApplicationReconciler reconciles OAM ApplicationConfigurations by rendering and
@@ -107,6 +111,7 @@ type OAMApplicationReconciler struct {
 	preHooks          map[string]ControllerHooks
 	postHooks         map[string]ControllerHooks
 	applyOnceOnlyMode core.ApplyOnceOnlyMode
+	dependCheckWait   time.Duration
 }
 
 // A ReconcilerOption configures a Reconciler.
@@ -161,6 +166,13 @@ func WithPosthook(name string, hook ControllerHooks) ReconcilerOption {
 func WithApplyOnceOnlyMode(mode core.ApplyOnceOnlyMode) ReconcilerOption {
 	return func(r *OAMApplicationReconciler) {
 		r.applyOnceOnlyMode = mode
+	}
+}
+
+// WithDependCheckWait set depend check wait
+func WithDependCheckWait(dependCheckWait time.Duration) ReconcilerOption {
+	return func(r *OAMApplicationReconciler) {
+		r.dependCheckWait = dependCheckWait
 	}
 }
 
@@ -355,7 +367,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	ac.Status.Dependency = v1alpha2.DependencyStatus{}
 	var waitTime time.Duration
 	if len(depStatus.Unsatisfied) != 0 {
-		waitTime = dependCheckWait
+		waitTime = r.dependCheckWait
 		ac.Status.Dependency = *depStatus
 	}
 

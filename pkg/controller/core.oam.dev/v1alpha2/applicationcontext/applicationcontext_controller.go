@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -52,10 +53,11 @@ const reconcileTimeout = 1 * time.Minute
 // Reconciler reconciles an Application Context by constructing an in-memory
 // application configuration and reuse its reconcile logic
 type Reconciler struct {
-	client    client.Client
-	record    event.Recorder
-	mgr       ctrl.Manager
-	applyMode core.ApplyOnceOnlyMode
+	client               client.Client
+	record               event.Recorder
+	mgr                  ctrl.Manager
+	applyMode            core.ApplyOnceOnlyMode
+	concurrentReconciles int
 }
 
 // Reconcile reconcile an application context
@@ -125,6 +127,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.Componen
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 		WithAnnotations("controller", "AppRollout")
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1alpha2.ApplicationContext{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, compHandler).
 		Complete(r)
@@ -135,10 +140,11 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationContextGroupKind)
 	record := event.NewAPIRecorder(mgr.GetEventRecorderFor(name))
 	reconciler := Reconciler{
-		client:    mgr.GetClient(),
-		mgr:       mgr,
-		record:    record,
-		applyMode: args.ApplyMode,
+		client:               mgr.GetClient(),
+		mgr:                  mgr,
+		record:               record,
+		applyMode:            args.ApplyMode,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	compHandler := &ac.ComponentHandler{
 		Client:                mgr.GetClient(),

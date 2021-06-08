@@ -30,6 +30,7 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamv1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -37,7 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
-	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -54,9 +55,10 @@ const (
 // Reconciler reconciles an AppRollout object
 type Reconciler struct {
 	client.Client
-	dm     discoverymapper.DiscoveryMapper
-	record event.Recorder
-	Scheme *runtime.Scheme
+	dm                   discoverymapper.DiscoveryMapper
+	record               event.Recorder
+	Scheme               *runtime.Scheme
+	concurrentReconciles int
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=approllouts,verbs=get;list;watch;create;update;patch;delete
@@ -339,10 +341,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRo
 // NewReconciler render a applicationRollout reconciler
 func NewReconciler(c client.Client, dm discoverymapper.DiscoveryMapper, record event.Recorder, scheme *runtime.Scheme) *Reconciler {
 	return &Reconciler{
-		c,
-		dm,
-		record,
-		scheme,
+		Client: c,
+		dm:     dm,
+		record: record,
+		Scheme: scheme,
 	}
 }
 
@@ -351,17 +353,21 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 		WithAnnotations("controller", "AppRollout")
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1beta1.AppRollout{}).
 		Owns(&v1beta1.Application{}).
 		Complete(r)
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, args controller.Args) error {
+func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	reconciler := Reconciler{
-		Client: mgr.GetClient(),
-		dm:     args.DiscoveryMapper,
-		Scheme: mgr.GetScheme(),
+		Client:               mgr.GetClient(),
+		dm:                   args.DiscoveryMapper,
+		Scheme:               mgr.GetScheme(),
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return reconciler.SetupWithManager(mgr)
 }
