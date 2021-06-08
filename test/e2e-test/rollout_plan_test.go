@@ -21,6 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
+
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	. "github.com/onsi/ginkgo"
@@ -28,6 +32,7 @@ import (
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	corev1beta1 "k8s.io/api/networking/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -86,6 +91,18 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &cd)
+			},
+			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	}
+
+	CreateIngressDef := func() {
+		By("Install Ingress trait definition")
+		var td v1beta1.TraitDefinition
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/ingressDefinition.yaml", &td)).Should(BeNil())
+		// create the traitDefinition if not exist
+		Eventually(
+			func() error {
+				return k8sClient.Create(ctx, &td)
 			},
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	}
@@ -182,22 +199,28 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		clonesetName := appRollout.Spec.ComponentList[0]
 
 		By("Wait for resourceTracker to resume the control of cloneset")
-		var clonesetOwner *metav1.OwnerReference
+
 		Eventually(
-			func() string {
+			func() error {
+				var clonesetOwner *metav1.OwnerReference
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
 				if err != nil {
-					return ""
+					return err
 				}
 				clonesetOwner = metav1.GetControllerOf(&kc)
-				if clonesetOwner != nil {
-					return clonesetOwner.Kind
+				if clonesetOwner == nil {
+					return fmt.Errorf("controller owner missed")
 				}
-				return ""
+				if clonesetOwner.Kind != v1beta1.ResourceTrackerKind {
+					return fmt.Errorf("controller kind missmatch wants %s actually %s", v1beta1.ResourceTrackerKind, clonesetOwner.Kind)
+				}
+				resourceTrackerName := dispatch.ConstructResourceTrackerName(targetAppName, namespaceName)
+				if resourceTrackerName != clonesetOwner.Name {
+					return fmt.Errorf("controller name missmatch wants %s actually %s", resourceTrackerName, clonesetOwner.Name)
+				}
+				return nil
 			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
-		resourceTrackerName := fmt.Sprintf("%s-%s", targetAppName, appRollout.Namespace)
-		Expect(clonesetOwner.Name).Should(BeEquivalentTo(resourceTrackerName))
+			time.Second*60, time.Millisecond*500).Should(BeNil())
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		// make sure all pods are upgraded
 		image := kc.Spec.Template.Spec.Containers[0].Image
@@ -209,6 +232,31 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			Expect(pod.Spec.Containers[0].Image).Should(Equal(image))
 			Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
 		}
+	}
+
+	verifyIngress := func(domain string) {
+		ingress := &corev1beta1.Ingress{}
+		Eventually(func() error {
+			var err error
+			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: appRollout.Spec.ComponentList[0]}, ingress); err != nil {
+				return err
+			}
+			owner := metav1.GetControllerOf(ingress)
+			if owner == nil {
+				return fmt.Errorf("ingress don't have controller owner")
+			}
+			if owner.Kind != v1beta1.ResourceTrackerKind {
+				return fmt.Errorf("ingress owner kind miss match wants %s actually %s", v1beta1.ResourceTrackerKind, owner.Kind)
+			}
+			rtName := dispatch.ConstructResourceTrackerName(appRollout.Spec.TargetAppRevisionName, appRollout.Namespace)
+			if owner.Name != rtName {
+				return fmt.Errorf("ingress owner error wants %s actually %s", rtName, owner.Name)
+			}
+			if ingress.Spec.Rules[0].Host != domain {
+				return fmt.Errorf("domain mismatch wants %s actually %s", domain, ingress.Spec.Rules[0].Host)
+			}
+			return nil
+		}, time.Second*30, time.Microsecond*300).Should(BeNil())
 	}
 
 	applyTwoAppVersion := func() {
@@ -559,6 +607,72 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				}
 				return clonesetOwner.Kind
 			}, time.Second*30, time.Second).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
+	})
+
+	It("Test rollout will update same name trait", func() {
+		CreateClonesetDef()
+		CreateIngressDef()
+		applySourceApp("app-with-ingress-source.yaml")
+		By("Apply the application rollout go directly to the target")
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &appRollout)).Should(BeNil())
+		appRollout.Namespace = namespaceName
+		appRollout.Spec.SourceAppRevisionName = ""
+		appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+		appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(7)
+		appRollout.Spec.RolloutPlan.BatchPartition = nil
+		createAppRolling(&appRollout)
+		appRolloutName = appRollout.Name
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		By("verify ingress status")
+		verifyIngress("test.example.com")
+		By("rollout to revision 2")
+		updateApp("app-with-ingress-target.yaml")
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRollout.Name}, &appRollout)
+				appRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
+				appRollout.Spec.RolloutPlan.BatchPartition = nil
+				return k8sClient.Update(ctx, &appRollout)
+			}, time.Second*10, time.Millisecond*500).Should(Succeed())
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		By("verify after rollout ingress status")
+		verifyIngress("test-1.example.com")
+	})
+
+	It("Test rollout succeed will gc useless trait", func() {
+		CreateClonesetDef()
+		CreateIngressDef()
+		applySourceApp("app-with-ingress-source.yaml")
+		By("Apply the application rollout go directly to the target")
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &appRollout)).Should(BeNil())
+		appRollout.Namespace = namespaceName
+		appRollout.Spec.SourceAppRevisionName = ""
+		appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+		appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(7)
+		appRollout.Spec.RolloutPlan.BatchPartition = nil
+		createAppRolling(&appRollout)
+		appRolloutName = appRollout.Name
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		By("verify ingress status")
+		verifyIngress("test.example.com")
+		By("rollout to revision 2 to disable ingress trait")
+
+		updateApp("app-remove-ingress.yaml")
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRollout.Name}, &appRollout)
+				appRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
+				appRollout.Spec.RolloutPlan.BatchPartition = nil
+				return k8sClient.Update(ctx, &appRollout)
+			}, time.Second*10, time.Millisecond*500).Should(Succeed())
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		By("verify after rollout ingress have been removed")
+		Eventually(func() error {
+			ingress := &corev1beta1.Ingress{}
+			return k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: appRollout.Spec.ComponentList[0]}, ingress)
+		}, time.Second*30, 300*time.Microsecond).Should(util.NotFoundMatcher{})
 	})
 
 	PIt("Test rolling by changing the definition", func() {
