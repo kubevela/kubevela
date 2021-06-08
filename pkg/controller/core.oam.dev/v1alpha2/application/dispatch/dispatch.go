@@ -179,7 +179,7 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		klog.InfoS("Going to apply or upgrade resources", "from", a.previousRT.Name, "to", a.currentRTName)
 		// if two RT's names are different, it means dispatching operation happens in an upgrade or rollout scenario
 		// in such two scenarios, for those unchanged manifests, we will
-		// - make sure existing resources are controlled by any of these two resouce trackers
+		// - make sure existing resources are controlled by any of these two resource trackers
 		// - set new resource tracker as their controller owner
 		ctrlUIDs = append(ctrlUIDs, a.previousRT.UID)
 	}

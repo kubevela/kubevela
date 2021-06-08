@@ -228,16 +228,21 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 
 	// only when sourceAppRevision is not nil, we need gc old revision resources
 	if h.sourceAppRevision != nil {
-		rt := &v1beta1.ResourceTracker{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: dispatch.ConstructResourceTrackerName(h.sourceAppRevision.Name, h.sourceAppRevision.Namespace),
-			},
+		oldRT := &v1beta1.ResourceTracker{}
+		err := h.Client.Get(ctx, client.ObjectKey{
+			Name: dispatch.ConstructResourceTrackerName(h.sourceAppRevision.Name, h.sourceAppRevision.Namespace)}, oldRT)
+		if err != nil && apierrors.IsNotFound(err) {
+			return nil
 		}
-		err := h.Delete(ctx, rt)
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil {
+			return err
+		}
+		d := dispatch.NewAppManifestsDispatcher(h.Client, h.targetAppRevision).
+			EnableUpgradeAndGC(oldRT)
+		// no need to dispatch manifest again, just do GC
+		if _, err := d.Dispatch(ctx, nil); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
