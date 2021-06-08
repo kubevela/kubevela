@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -51,7 +52,6 @@ import (
 
 const (
 	reconcileTimeout = 1 * time.Minute
-	dependCheckWait  = 10 * time.Second
 	shortWait        = 30 * time.Second
 )
 
@@ -92,7 +92,12 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 	}
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationConfigurationGroupKind)
 
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr)
+	builder.WithOptions(controller.Options{
+		MaxConcurrentReconciles: args.ConcurrentReconciles,
+	})
+
+	return builder.
 		Named(name).
 		For(&v1alpha2.ApplicationConfiguration{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &ComponentHandler{
@@ -105,7 +110,8 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 			l.WithValues("controller", name),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 			WithApplyOnceOnlyMode(args.ApplyMode),
-			WithLongWaitTime(args.LongWait)))
+			WithLongWaitTime(args.LongWait),
+			WithDependCheckWait(args.DependCheckWait)))
 }
 
 // An OAMApplicationReconciler reconciles OAM ApplicationConfigurations by rendering and
@@ -122,6 +128,7 @@ type OAMApplicationReconciler struct {
 	postHooks         map[string]ControllerHooks
 	applyOnceOnlyMode core.ApplyOnceOnlyMode
 	longWait          time.Duration
+	dependCheckWait   time.Duration
 }
 
 // A ReconcilerOption configures a Reconciler.
@@ -183,6 +190,13 @@ func WithApplyOnceOnlyMode(mode core.ApplyOnceOnlyMode) ReconcilerOption {
 func WithLongWaitTime(longWait time.Duration) ReconcilerOption {
 	return func(r *OAMApplicationReconciler) {
 		r.longWait = longWait
+	}
+}
+
+// WithDependCheckWait set depend check wait
+func WithDependCheckWait(dependCheckWait time.Duration) ReconcilerOption {
+	return func(r *OAMApplicationReconciler) {
+		r.dependCheckWait = dependCheckWait
 	}
 }
 
@@ -349,7 +363,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	ac.Status.Dependency = v1alpha2.DependencyStatus{}
 	waitTime := r.longWait
 	if len(depStatus.Unsatisfied) != 0 {
-		waitTime = dependCheckWait
+		waitTime = r.dependCheckWait
 		ac.Status.Dependency = *depStatus
 	}
 

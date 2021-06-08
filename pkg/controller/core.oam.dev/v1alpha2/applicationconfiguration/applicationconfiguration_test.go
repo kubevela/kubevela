@@ -183,6 +183,7 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return nil, &v1alpha2.DependencyStatus{}, errBoom
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -212,6 +213,7 @@ func TestReconciler(t *testing.T) {
 					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus, _ []Workload, _ ...apply.ApplyOption) error {
 						return errBoom
 					}}),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -245,6 +247,7 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*workload}
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -308,10 +311,11 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: dependCheckWait},
+				result: reconcile.Result{RequeueAfter: 10 * time.Second},
 			},
 		},
 		"FailedPreHook": {
@@ -352,6 +356,7 @@ func TestReconciler(t *testing.T) {
 					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: shortWait}, nil
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -422,6 +427,7 @@ func TestReconciler(t *testing.T) {
 					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -472,6 +478,7 @@ func TestReconciler(t *testing.T) {
 					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -540,6 +547,7 @@ func TestReconciler(t *testing.T) {
 						return reconcile.Result{RequeueAfter: shortWait}, nil
 					})),
 					WithLongWaitTime(1 * time.Minute),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -584,6 +592,9 @@ func TestReconciler(t *testing.T) {
 						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
 					},
 				},
+				o: []ReconcilerOption{
+					WithDependCheckWait(10 * time.Second),
+				},
 			},
 			want: want{
 				result: reconcile.Result{},
@@ -615,6 +626,9 @@ func TestReconciler(t *testing.T) {
 						}),
 						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
 					},
+				},
+				o: []ReconcilerOption{
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -652,6 +666,7 @@ func TestReconciler(t *testing.T) {
 					WithApplicator(WorkloadApplyFns{FinalizeFn: func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error {
 						return errBoom
 					}}),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{

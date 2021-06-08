@@ -86,3 +86,9 @@ certificate:
   caBundle: replace-me
 
 systemDefinitionNamespace: vela-system
+
+# concurrentReconciles is the concurrent reconcile number of the controller
+concurrentReconciles: 4
+
+# dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
+dependCheckWait: 30s

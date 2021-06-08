@@ -117,6 +117,8 @@ spec:
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
+            - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
+            - "--depend-check-wait={{ .Values.dependCheckWait }}"
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
