@@ -306,10 +306,6 @@ func (am *AppManifests) setNamespace(obj *unstructured.Unstructured) {
 	}
 }
 
-func (am *AppManifests) setOwnerReference(obj *unstructured.Unstructured) {
-	obj.SetOwnerReferences([]metav1.OwnerReference{*am.appOwnerRef})
-}
-
 func (am *AppManifests) assembleWorkload(comp *v1alpha2.Component, labels map[string]string) (*unstructured.Unstructured, error) {
 	compName := comp.Name
 	wl, err := util.RawExtension2Unstructured(&comp.Spec.Workload)
@@ -322,7 +318,6 @@ func (am *AppManifests) assembleWorkload(comp *v1alpha2.Component, labels map[st
 	am.setWorkloadLabels(wl, labels)
 	am.setAnnotations(wl)
 	am.setNamespace(wl)
-	am.setOwnerReference(wl)
 
 	workloadType := wl.GetLabels()[oam.WorkloadTypeLabel]
 	compDefinition := am.AppRevision.Spec.ComponentDefinitions[workloadType]
@@ -368,7 +363,6 @@ func (am *AppManifests) assembleTrait(compTrait v1alpha2.ComponentTrait, compNam
 	am.setTraitLabels(trait, labels)
 	am.setAnnotations(trait)
 	am.setNamespace(trait)
-	am.setOwnerReference(trait)
 	klog.InfoS("Successfully assemble a trait", "trait", klog.KObj(trait), "APIVersion", trait.GetAPIVersion(), "Kind", trait.GetKind())
 	return trait, nil
 }

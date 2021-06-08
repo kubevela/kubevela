@@ -27,14 +27,17 @@ import (
 	"github.com/ghodss/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Test application controller finalizer logic", func() {
@@ -70,6 +73,8 @@ var _ = Describe("Test application controller finalizer logic", func() {
 
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
+		Expect(k8sClient.DeleteAllOf(ctx, &appsv1.Deployment{}, client.InNamespace(namespace)))
+		Expect(k8sClient.DeleteAllOf(ctx, &v1alpha2.ManualScalerTrait{}, client.InNamespace(namespace)))
 	})
 
 	It("Test component have normal workload", func() {

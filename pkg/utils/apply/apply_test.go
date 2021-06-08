@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -367,6 +368,48 @@ func TestMustBeControllableBy(t *testing.T) {
 			err := ao(ctx, tc.current, nil)
 			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nMustBeControllableBy(...)(...): -want error, +got error\n%s\n", tc.reason, diff)
+			}
+		})
+	}
+}
+
+func TestMustBeControllableByAny(t *testing.T) {
+	ctrlByAny := []types.UID{"owner1", "owner2"}
+	cases := map[string]struct {
+		reason  string
+		current runtime.Object
+		want    error
+	}{
+		"NoExistingObject": {
+			reason: "No error should be returned if no existing object",
+		},
+		"Adoptable": {
+			reason:  "A current object with no controller reference may be adopted and controlled",
+			current: &testObject{},
+		},
+		"ControlledBySuppliedUID": {
+			reason: "A current object that is already controlled by the supplied UID is controllable",
+			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+				UID:        types.UID("owner1"),
+				Controller: pointer.BoolPtr(true),
+			}}}},
+		},
+		"ControlledBySomeoneElse": {
+			reason: "A current object that is already controlled by a different UID is not controllable",
+			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+				UID:        types.UID("some-other-uid"),
+				Controller: pointer.BoolPtr(true),
+			}}}},
+			want: errors.Errorf("existing object is not controlled by any of UID %q", ctrlByAny),
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			ao := MustBeControllableByAny(ctrlByAny)
+			err := ao(context.TODO(), tc.current, nil)
+			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\nMustBeControllableByAny(...)(...): -want error, +got error\n%s\n", tc.reason, diff)
 			}
 		})
 	}

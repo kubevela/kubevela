@@ -1483,7 +1483,28 @@ spec:
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
-	// 1st time reconcile to add finalizer
+	// 1st and 2nd time reconcile to add finalizer
+	Eventually(func() error {
+		result, err := r.Reconcile(req)
+		if err != nil {
+			By(fmt.Sprintf("reconcile err: %+v ", err))
+		} else if result.Requeue || result.RequeueAfter > 0 {
+			By("reconcile timeout as it still needs to requeue")
+			return fmt.Errorf("reconcile timeout as it still needs to requeue")
+		}
+		return err
+	}, 3*time.Second, time.Second).Should(BeNil())
+	Eventually(func() error {
+		result, err := r.Reconcile(req)
+		if err != nil {
+			By(fmt.Sprintf("reconcile err: %+v ", err))
+		} else if result.Requeue || result.RequeueAfter > 0 {
+			By("reconcile timeout as it still needs to requeue")
+			return fmt.Errorf("reconcile timeout as it still needs to requeue")
+		}
+		return err
+	}, 3*time.Second, time.Second).Should(BeNil())
+	// 3rd time reconcile to process main logic of app controller
 	Eventually(func() error {
 		result, err := r.Reconcile(req)
 		if err != nil {
@@ -1494,19 +1515,7 @@ func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 			return fmt.Errorf("reconcile timeout as it still needs to requeue")
 		}
 		return err
-	}, 30*time.Second, time.Second).Should(BeNil())
-	// 2nd time reconcile to process main logic of app controller
-	Eventually(func() error {
-		result, err := r.Reconcile(req)
-		if err != nil {
-			By(fmt.Sprintf("reconcile err: %+v ", err))
-		} else if result.Requeue || result.RequeueAfter > 0 {
-			// retry if we need to requeue
-			By("reconcile timeout as it still needs to requeue")
-			return fmt.Errorf("reconcile timeout as it still needs to requeue")
-		}
-		return err
-	}, 30*time.Second, time.Second).Should(BeNil())
+	}, 3*time.Second, time.Second).Should(BeNil())
 }
 
 func reconcileOnce(r reconcile.Reconciler, req reconcile.Request) {

@@ -183,7 +183,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		if len(h.previousRevisionName) != 0 {
 			latestTracker := &v1beta1.ResourceTracker{}
 			latestTracker.SetName(dispatch.ConstructResourceTrackerName(h.previousRevisionName, h.app.Namespace))
-			d = d.EnableGC(latestTracker)
+			d = d.EnableUpgradeAndGC(latestTracker)
 		}
 		if _, err := d.Dispatch(ctx, manifests); err != nil {
 			return errors.WithMessage(err, "cannot dispatch resources' manifests")
