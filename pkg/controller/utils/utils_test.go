@@ -25,14 +25,12 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
-	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -95,7 +93,6 @@ func TestConstructExtract(t *testing.T) {
 
 func TestCompareWithRevision(t *testing.T) {
 	ctx := context.TODO()
-	logger := logging.NewLogrLogger(controllerruntime.Log.WithName("util-test"))
 	componentName := "testComp"
 	nameSpace := "namespace"
 	latestRevision := "revision"
@@ -194,7 +191,7 @@ func TestCompareWithRevision(t *testing.T) {
 			tclient := test.MockClient{
 				MockGet: test.NewMockGetFn(nil, tt.getFunc),
 			}
-			same, err := CompareWithRevision(ctx, &tclient, logger, componentName, nameSpace, latestRevision,
+			same, err := CompareWithRevision(ctx, &tclient, componentName, nameSpace, latestRevision,
 				tt.curCompSpec)
 			if err != tt.expectedErr {
 				t.Errorf("CompareWithRevision() error = %v, wantErr %v", err, tt.expectedErr)

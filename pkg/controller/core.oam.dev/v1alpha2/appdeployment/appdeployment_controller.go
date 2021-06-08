@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	istioapiv1beta1 "istio.io/api/networking/v1beta1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -34,12 +33,13 @@ import (
 	"k8s.io/kubectl/pkg/util/slice"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamcorealpha "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
-	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -57,20 +57,11 @@ var (
 
 // Reconciler reconciles an AppDeployment object
 type Reconciler struct {
-	Client client.Client
-	dm     discoverymapper.DiscoveryMapper
-	wr     WorkloadRenderer
-	Scheme *runtime.Scheme
-}
-
-// NewReconciler returns a new instance of Reconciler
-func NewReconciler(cli client.Client, sch *runtime.Scheme, dm discoverymapper.DiscoveryMapper) *Reconciler {
-	return &Reconciler{
-		dm:     dm,
-		Client: cli,
-		Scheme: sch,
-		wr:     NewWorkloadRenderer(cli),
-	}
+	Client               client.Client
+	dm                   discoverymapper.DiscoveryMapper
+	wr                   WorkloadRenderer
+	Scheme               *runtime.Scheme
+	concurrentReconciles int
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=appdeployments,verbs=get;list;watch;create;update;patch;delete
@@ -454,6 +445,9 @@ func (r *Reconciler) updateStatus(ctx context.Context, appd *oamcore.AppDeployme
 // SetupWithManager setup the controller with manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&oamcore.AppDeployment{}).
 		Complete(r)
 }
@@ -553,7 +547,12 @@ func removeString(slice []string, s string) (result []string) {
 }
 
 // Setup adds a controller that reconciles AppDeployment.
-func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
-	r := NewReconciler(mgr.GetClient(), mgr.GetScheme(), args.DiscoveryMapper)
+func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
+	r := &Reconciler{
+		dm:     args.DiscoveryMapper,
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		wr:     NewWorkloadRenderer(mgr.GetClient()),
+	}
 	return r.SetupWithManager(mgr)
 }

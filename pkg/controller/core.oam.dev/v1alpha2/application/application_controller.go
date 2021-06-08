@@ -22,17 +22,16 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -57,13 +56,13 @@ const (
 // Reconciler reconciles a Application object
 type Reconciler struct {
 	client.Client
-	dm               discoverymapper.DiscoveryMapper
-	pd               *definition.PackageDiscover
-	Log              logr.Logger
-	Scheme           *runtime.Scheme
-	Recorder         event.Recorder
-	applicator       apply.Applicator
-	appRevisionLimit int
+	dm                   discoverymapper.DiscoveryMapper
+	pd                   *definition.PackageDiscover
+	Scheme               *runtime.Scheme
+	Recorder             event.Recorder
+	applicator           apply.Applicator
+	appRevisionLimit     int
+	concurrentReconciles int
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -72,7 +71,8 @@ type Reconciler struct {
 // Reconcile process app event
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	applog := r.Log.WithValues("application", req.NamespacedName)
+	klog.InfoS("Reconcile application", "application", klog.KRef(req.Namespace, req.Name))
+
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
@@ -85,43 +85,42 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	handler := &appHandler{
-		r:      r,
-		app:    app,
-		logger: applog,
+		r:   r,
+		app: app,
 	}
 
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(app) {
-			applog.Info("Register new finalizer", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizers", app.ObjectMeta.Finalizers)
 			return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 	} else {
 		needUpdate, err := handler.removeResourceTracker(ctx)
 		if err != nil {
-			applog.Error(err, "Failed to remove application resourceTracker")
+			klog.InfoS("Failed to remove application resourceTracker", "err", err)
 			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
 		}
 		if needUpdate {
-			applog.Info("remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			klog.InfoS("Remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
 			return ctrl.Result{}, errors.Wrap(r.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 		// deleting and no need to handle finalizer
 		return reconcile.Result{}, nil
 	}
 
-	applog.Info("Start Rendering")
+	klog.Info("Start Rendering")
 
 	app.Status.Phase = common.ApplicationRendering
 
-	applog.Info("parse template")
+	klog.Info("Parse template")
 	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	generatedAppfile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
-		applog.Error(err, "[Handle Parse]")
+		klog.InfoS("Failed to parse application", "err", err)
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
@@ -132,7 +131,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	appRev, err := handler.GenerateAppRevision(ctx)
 	if err != nil {
-		applog.Error(err, "[Handle Calculate Revision]")
+		klog.InfoS("Failed to calculate appRevision", "err", err)
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
@@ -141,11 +140,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Record the revision so it can be used to render data in context.appRevision
 	generatedAppfile.RevisionName = appRev.Name
 
-	applog.Info("build template")
+	klog.Info("Build template")
 	// build template to applicationconfig & component
 	ac, comps, err := generatedAppfile.GenerateApplicationConfiguration()
 	if err != nil {
-		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
+		klog.InfoS("Failed to generate applicationConfiguration", "err", err)
 		app.Status.SetConditions(errorCondition("Built", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
@@ -153,7 +152,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	err = handler.handleResourceTracker(ctx, comps, ac)
 	if err != nil {
-		applog.Error(err, "[Handle resourceTracker]")
+		klog.InfoS("Failed to handle resourceTracker", "err", err)
 		app.Status.SetConditions(errorCondition("Handle resourceTracker", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
@@ -164,10 +163,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.SetConditions(readyCondition("Built"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-	applog.Info("apply application revision & component to the cluster")
+	klog.Info("Apply application revision & component to the cluster")
 	// apply application revision & component to the cluster
 	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
-		applog.Error(err, "[Handle apply]")
+		klog.InfoS("Failed to apply application revision & component to the cluster", "err", err)
 		app.Status.SetConditions(errorCondition("Applied", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return handler.handleErr(err)
@@ -177,7 +176,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if handler.app.Spec.RolloutPlan != nil {
 		res, err := handler.handleRollout(ctx)
 		if err != nil {
-			applog.Error(err, "[handle rollout]")
+			klog.InfoS("Failed to handle rollout", "err", err)
 			app.Status.SetConditions(errorCondition("Rollout", err))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
 			return handler.handleErr(err)
@@ -192,18 +191,18 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// there is no need reconcile immediately, that means the rollout operation have finished
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
 		app.Status.SetConditions(readyCondition("Rollout"))
-		applog.Info("rollout finished")
+		klog.Info("Finished rollout ")
 	}
 
 	// The following logic will be skipped if rollout have not finished
 	app.Status.SetConditions(readyCondition("Applied"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonFailedApply, velatypes.MessageApplied))
 	app.Status.Phase = common.ApplicationHealthChecking
-	applog.Info("check application health status")
+	klog.Info("Check application health status")
 	// check application health status
 	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
 	if err != nil {
-		applog.Error(err, "[status aggregate]")
+		klog.InfoS("Failed to aggregate status", "err", err)
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
 		return handler.handleErr(err)
@@ -222,7 +221,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	err = garbageCollection(ctx, handler)
 	if err != nil {
-		applog.Error(err, "[Garbage collection]")
+		klog.InfoS("Failed to run Garbage collection", "err", err)
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 	}
 
@@ -254,6 +253,9 @@ func registerFinalizers(app *v1beta1.Application) bool {
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1beta1.Application{}).
 		Complete(r)
 }
@@ -271,16 +273,16 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1beta1.Application,
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, args core.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, args core.Args) error {
 	reconciler := Reconciler{
-		Client:           mgr.GetClient(),
-		Log:              ctrl.Log.WithName("Application"),
-		Scheme:           mgr.GetScheme(),
-		Recorder:         event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		dm:               args.DiscoveryMapper,
-		pd:               args.PackageDiscover,
-		applicator:       apply.NewAPIApplicator(mgr.GetClient()),
-		appRevisionLimit: args.AppRevisionLimit,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		dm:                   args.DiscoveryMapper,
+		pd:                   args.PackageDiscover,
+		applicator:           apply.NewAPIApplicator(mgr.GetClient()),
+		appRevisionLimit:     args.AppRevisionLimit,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return reconciler.SetupWithManager(mgr)
 }

@@ -24,6 +24,7 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,11 +54,11 @@ func (h *appHandler) UpdateRevisionStatus(ctx context.Context, revName, hash str
 	}
 	// make sure that we persist the latest revision first
 	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
-		h.logger.Error(err, "update the latest appConfig revision to status", "application name", h.app.GetName(),
-			"latest revision", revName)
+		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
+			"latest revision", revName, "err", err)
 		return err
 	}
-	h.logger.Info("recorded the latest appConfig revision", "application name", h.app.GetName(),
+	klog.InfoS("Recorded the latest appConfig revision", "application", klog.KObj(h.app),
 		"latest revision", revName)
 	return nil
 }
@@ -130,7 +131,8 @@ func (h *appHandler) gatherRevisionSpec() (*v1beta1.ApplicationRevision, string,
 	}
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
-		h.logger.Error(err, "compute hash of appRevision for application", "application name", h.app.GetName())
+		klog.InfoS("Failed to compute hash of appRevision for application", "application", klog.KObj(h.app),
+			"err", err)
 		return appRev, "", err
 	}
 	return appRev, appRevisionHash, nil
@@ -153,8 +155,8 @@ func (h *appHandler) compareWithLastRevisionSpec(ctx context.Context, newAppRevi
 	lastAppRevision := &v1beta1.ApplicationRevision{}
 	if err := h.r.Get(ctx, client.ObjectKey{Name: h.app.Status.LatestRevision.Name,
 		Namespace: h.app.Namespace}, lastAppRevision); err != nil {
-		h.logger.Error(err, "get the last appRevision from K8s", "application name",
-			h.app.GetName(), "revision", h.app.Status.LatestRevision.Name)
+		klog.InfoS("Failed to get the last appRevision from K8s", "application",
+			klog.KObj(h.app), "revision", h.app.Status.LatestRevision.Name, "err", err)
 		return false, errors.Wrapf(err, "fail to get applicationRevision %s", h.app.Status.LatestRevision.Name)
 	}
 	if DeepEqualRevision(lastAppRevision, newAppRevision) {
@@ -315,7 +317,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 	if needKill <= 0 {
 		return nil
 	}
-	h.logger.Info("application controller cleanup old appRevisions", "needKillNum", needKill)
+	klog.InfoS("Application controller cleanup old appRevisions", "needKillNum", needKill)
 	sortedRevision := appRevisionList.Items
 	sort.Sort(historiesByRevision(sortedRevision))
 

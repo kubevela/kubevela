@@ -24,7 +24,6 @@ import (
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,11 +32,12 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
@@ -49,17 +49,17 @@ import (
 // Reconciler reconciles a ComponentDefinition object
 type Reconciler struct {
 	client.Client
-	dm          discoverymapper.DiscoveryMapper
-	pd          *definition.PackageDiscover
-	Scheme      *runtime.Scheme
-	record      event.Recorder
-	defRevLimit int
+	dm                   discoverymapper.DiscoveryMapper
+	pd                   *definition.PackageDiscover
+	Scheme               *runtime.Scheme
+	record               event.Recorder
+	defRevLimit          int
+	concurrentReconciles int
 }
 
 // Reconcile is the main logic for ComponentDefinition controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	definitionName := req.NamespacedName.Name
-	klog.InfoS("Reconciling ComponentDefinition", "Name", definitionName, "Namespace", req.Namespace)
+	klog.InfoS("Reconcile componentDefinition", "componentDefinition", klog.KRef(req.Namespace, req.Name))
 	ctx := context.Background()
 
 	var componentDefinition v1beta1.ComponentDefinition
@@ -96,20 +96,20 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// generate DefinitionRevision from componentDefinition
 	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &componentDefinition)
 	if err != nil {
-		klog.ErrorS(err, "cannot generate DefinitionRevision", "ComponentDefinitionName", componentDefinition.Name)
-		r.record.Event(handler.cd, event.Warning("cannot generate DefinitionRevision", err))
+		klog.InfoS("Could not generate DefinitionRevision", "componentDefinition", klog.KObj(&componentDefinition), "err", err)
+		r.record.Event(&componentDefinition, event.Warning("Could not generate DefinitionRevision", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, componentDefinition.Name, err)))
 	}
 
 	if !isNewRevision {
 		if err = r.createOrUpdateComponentDefRevision(ctx, req.Namespace, &componentDefinition, defRev); err != nil {
-			klog.ErrorS(err, "cannot update DefinitionRevision")
-			r.record.Event(&(componentDefinition), event.Warning("cannot update DefinitionRevision", err))
+			klog.InfoS("Could not update DefinitionRevision", "err", err)
+			r.record.Event(&(componentDefinition), event.Warning("Could not update DefinitionRevision", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
+		klog.InfoS("Successfully update definitionRevision", "definitionRevision", klog.KObj(defRev))
 
 		if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &componentDefinition, r.defRevLimit); err != nil {
 			klog.Error("[Garbage collection]")
@@ -159,7 +159,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
-	klog.InfoS("Successfully create DefinitionRevision", "name", defRev.Name)
+	klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
 
 	def.ComponentDefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,
@@ -232,18 +232,22 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("ComponentDefinition")).
 		WithAnnotations("controller", "ComponentDefinition")
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1beta1.ComponentDefinition{}).
 		Complete(r)
 }
 
 // Setup adds a controller that reconciles ComponentDefinition.
-func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	r := Reconciler{
-		Client:      mgr.GetClient(),
-		Scheme:      mgr.GetScheme(),
-		dm:          args.DiscoveryMapper,
-		pd:          args.PackageDiscover,
-		defRevLimit: args.DefRevisionLimit,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		dm:                   args.DiscoveryMapper,
+		pd:                   args.PackageDiscover,
+		defRevLimit:          args.DefRevisionLimit,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return r.SetupWithManager(mgr)
 }
