@@ -181,11 +181,23 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Expect(appRollout.Status.UpgradedReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetSize))
 		clonesetName := appRollout.Spec.ComponentList[0]
 
+		By("Wait for resourceTracker to resume the control of cloneset")
+		var clonesetOwner *metav1.OwnerReference
 		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
+			func() string {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
+				if err != nil {
+					return ""
+				}
+				clonesetOwner = metav1.GetControllerOf(&kc)
+				if clonesetOwner != nil {
+					return clonesetOwner.Kind
+				}
+				return ""
 			},
-			time.Second*30, time.Millisecond*500).Should(BeNil())
+			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
+		resourceTrackerName := fmt.Sprintf("%s-%s", targetAppName, appRollout.Namespace)
+		Expect(clonesetOwner.Name).Should(BeEquivalentTo(resourceTrackerName))
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		// make sure all pods are upgraded
 		image := kc.Spec.Template.Spec.Containers[0].Image
@@ -289,6 +301,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
 				return k8sClient.Update(ctx, &appRollout)
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
+
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
 			func() oamstd.RollingState {
@@ -296,6 +309,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return appRollout.Status.RollingState
 			},
 			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
+
 		By("Wait for rollout to finish one batch")
 		Eventually(
 			func() int32 {
@@ -533,6 +547,18 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 		time.Sleep(5 * time.Second)
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+
+		By("Verify that resourceTracker control the cloneset")
+		clonesetName := appRollout.Spec.ComponentList[0]
+		Eventually(
+			func() string {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
+				clonesetOwner := metav1.GetControllerOf(&kc)
+				if clonesetOwner == nil {
+					return ""
+				}
+				return clonesetOwner.Kind
+			}, time.Second*30, time.Second).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
 	})
 
 	PIt("Test rolling by changing the definition", func() {

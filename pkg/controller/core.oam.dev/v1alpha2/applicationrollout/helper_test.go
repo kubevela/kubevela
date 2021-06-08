@@ -19,6 +19,9 @@ package applicationrollout
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -36,5 +39,23 @@ func TestDisableControllerOwner(t *testing.T) {
 	assert.Equal(t, 2, len(w.GetOwnerReferences()))
 	for _, reference := range w.GetOwnerReferences() {
 		assert.Equal(t, false, *reference.Controller)
+	}
+}
+
+func TestEnableControllerOwner(t *testing.T) {
+	w := &unstructured.Unstructured{}
+	owners := []metav1.OwnerReference{
+		{Name: "test-1", Controller: pointer.BoolPtr(false), Kind: v1beta1.ResourceTrackerKind},
+		{Name: "test-2", Controller: pointer.BoolPtr(false), Kind: v1alpha2.ApplicationKind},
+	}
+	w.SetOwnerReferences(owners)
+	enableControllerOwner(w)
+	assert.Equal(t, 2, len(w.GetOwnerReferences()))
+	for _, reference := range w.GetOwnerReferences() {
+		if reference.Kind == v1beta1.ResourceTrackerKind {
+			assert.Equal(t, true, *reference.Controller)
+		} else {
+			assert.Equal(t, false, *reference.Controller)
+		}
 	}
 }

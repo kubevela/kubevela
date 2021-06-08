@@ -67,3 +67,14 @@ func disableControllerOwner(workload *unstructured.Unstructured) {
 	}
 	workload.SetOwnerReferences(ownerRefs)
 }
+
+// enableControllerOwner yield controller owner back to resourceTracker
+func enableControllerOwner(workload *unstructured.Unstructured) {
+	owners := workload.GetOwnerReferences()
+	for i, owner := range owners {
+		if owner.Kind == v1beta1.ResourceTrackerKind && owner.Controller != nil && !*owner.Controller {
+			owners[i].Controller = pointer.BoolPtr(true)
+		}
+	}
+	workload.SetOwnerReferences(owners)
+}

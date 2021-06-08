@@ -224,12 +224,23 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 			return err
 		}
 	}
-	// dispatch here gc useless workloads/traits
+	//  gc useless workloads/traits
 	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).EnableGC(rt)
 
 	// must guarantee manifest is nil, only do GC don't dispatch any more
 	_, err := dispatcher.Dispatch(ctx, nil)
 	if err != nil {
+		return err
+	}
+
+	// yield controller owner back to resourceTracker
+	workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
+	if err != nil {
+		return err
+	}
+	wlPatch := client.MergeFrom(workload.DeepCopy())
+	enableControllerOwner(workload)
+	if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
 		return err
 	}
 	return nil
