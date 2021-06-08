@@ -247,28 +247,25 @@ func TestGetAppRevison(t *testing.T) {
 }
 
 func TestExtractAppName(t *testing.T) {
-	tests := []string{"tam1", "test-comp", "xx", "tt-x-x-c"}
-	revisionNum := []int{1, 5, 10, 100000}
-	for idx, AppName := range tests {
-		t.Run(fmt.Sprintf("tests %d for appName[%s]", idx, AppName), func(t *testing.T) {
-			revisionName := ConstructRevisionName(AppName, int64(revisionNum[idx]))
-			got := ExtractAppName(revisionName)
-			if got != AppName {
-				t.Errorf("want to get %s from %s but got %s", AppName, revisionName, got)
-			}
-			revision, _ := ExtractRevision(revisionName)
-			if revision != revisionNum[idx] {
-				t.Errorf("want to get %d from %s but got %d", revisionNum[idx], revisionName, revision)
-			}
-		})
+	testcases := []struct {
+		revisionName string
+		appName      string
+	}{
+		{
+			revisionName: "app-v1",
+			appName:      "app",
+		},
+		{
+			revisionName: "my-app-v1",
+			appName:      "my-app",
+		},
+		{
+			revisionName: "my-v1-app-v2",
+			appName:      "my-v1-app",
+		},
 	}
-	badRevision := []string{"xx", "yy-", "zz-0.1"}
-	t.Run(fmt.Sprintf("tests %s for extractRevision", badRevision), func(t *testing.T) {
-		for _, revisionName := range badRevision {
-			_, err := ExtractRevision(revisionName)
-			if err == nil {
-				t.Errorf("want to get err from %s but got nil", revisionName)
-			}
-		}
-	})
+
+	for _, testcase := range testcases {
+		assert.Equal(t, testcase.appName, ExtractAppName(testcase.revisionName))
+	}
 }
