@@ -352,10 +352,10 @@ func gatherUsingAppRevision(ctx context.Context, h *appHandler) (map[string]bool
 		return nil, err
 	}
 	for _, appRollout := range appRolloutList.Items {
-		if len(appRollout.Spec.SourceAppRevisionName) != 0 {
+		if len(appRollout.Spec.SourceAppRevisionName) != 0 && h.app.Name == utils.ExtractAppName(appRollout.Spec.SourceAppRevisionName) {
 			usingRevision[appRollout.Spec.SourceAppRevisionName] = true
 		}
-		if len(appRollout.Spec.TargetAppRevisionName) != 0 {
+		if len(appRollout.Spec.TargetAppRevisionName) != 0 && h.app.Name == utils.ExtractAppName(appRollout.Spec.TargetAppRevisionName) {
 			usingRevision[appRollout.Spec.TargetAppRevisionName] = true
 		}
 	}

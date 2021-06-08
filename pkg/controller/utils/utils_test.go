@@ -245,3 +245,30 @@ func TestGetAppRevison(t *testing.T) {
 	assert.Equal(t, revisionName, "myapp-v4")
 	assert.Equal(t, latestRevision, int64(4))
 }
+
+func TestExtractAppName(t *testing.T) {
+	tests := []string{"tam1", "test-comp", "xx", "tt-x-x-c"}
+	revisionNum := []int{1, 5, 10, 100000}
+	for idx, AppName := range tests {
+		t.Run(fmt.Sprintf("tests %d for appName[%s]", idx, AppName), func(t *testing.T) {
+			revisionName := ConstructRevisionName(AppName, int64(revisionNum[idx]))
+			got := ExtractAppName(revisionName)
+			if got != AppName {
+				t.Errorf("want to get %s from %s but got %s", AppName, revisionName, got)
+			}
+			revision, _ := ExtractRevision(revisionName)
+			if revision != revisionNum[idx] {
+				t.Errorf("want to get %d from %s but got %d", revisionNum[idx], revisionName, revision)
+			}
+		})
+	}
+	badRevision := []string{"xx", "yy-", "zz-0.1"}
+	t.Run(fmt.Sprintf("tests %s for extractRevision", badRevision), func(t *testing.T) {
+		for _, revisionName := range badRevision {
+			_, err := ExtractRevision(revisionName)
+			if err == nil {
+				t.Errorf("want to get err from %s but got nil", revisionName)
+			}
+		}
+	})
+}
