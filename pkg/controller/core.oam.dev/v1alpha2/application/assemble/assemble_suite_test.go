@@ -22,7 +22,6 @@ import (
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -103,8 +102,6 @@ var _ = Describe("Test Assemble Options", func() {
 			oam.WorkloadTypeLabel,
 			oam.LabelOAMResourceType))
 		Expect(len(wl.GetAnnotations())).Should(Equal(1))
-		ownerRef := metav1.GetControllerOf(wl)
-		Expect(ownerRef.Kind).Should(Equal("Application"))
 
 		By("Verify trait metadata (name, namespace, labels, annotations, ownerRef)")
 		trait := traits[compName][0]
@@ -124,8 +121,6 @@ var _ = Describe("Test Assemble Options", func() {
 			oam.TraitTypeLabel,
 			oam.LabelOAMResourceType))
 		Expect(len(wl.GetAnnotations())).Should(Equal(1))
-		ownerRef = metav1.GetControllerOf(trait)
-		Expect(ownerRef.Kind).Should(Equal("Application"))
 
 		By("Verify set workload reference to trait")
 		scaler := traits[compName][2]

@@ -26,10 +26,8 @@ import (
 	kruisev1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -126,12 +124,7 @@ func PrepareWorkloadForRollout() WorkloadOption {
 			advancedStatefulSetDisablePath = "spec.updateStrategy.rollingUpdate.paused"
 			deploymentDisablePath          = "spec.paused"
 		)
-		// change the ownerReference and rollout controller will take it over
-		ownerRef := metav1.GetControllerOf(assembledWorkload)
-		ownerRef.Controller = pointer.BoolPtr(false)
-
 		pv := fieldpath.Pave(assembledWorkload.UnstructuredContent())
-
 		// TODO: we can get the workloadDefinition name from workload.GetLabels()["oam.WorkloadTypeLabel"]
 		// and use a special field like "disablePath" in the definition to allow configurable behavior
 

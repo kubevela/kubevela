@@ -24,6 +24,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -62,9 +63,10 @@ type AppManifestsDispatcher struct {
 	currentRT     *v1beta1.ResourceTracker
 }
 
-// EnableGC return an AppManifestsDispatcher that always do GC after dispatching resources.
+// EnableUpgradeAndGC return an AppManifestsDispatcher that always do GC after dispatching resources.
+// For resources exists in two revision, dispatcher will update their owner to the new resource tracker.
 // GC will calculate diff between the dispatched resouces and ones recorded in the given resource tracker.
-func (a *AppManifestsDispatcher) EnableGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
+func (a *AppManifestsDispatcher) EnableUpgradeAndGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
 	if rt != nil {
 		a.previousRT = rt.DeepCopy()
 	}
@@ -72,7 +74,7 @@ func (a *AppManifestsDispatcher) EnableGC(rt *v1beta1.ResourceTracker) *AppManif
 }
 
 // EnableUpgradeAndSkipGC return an AppManifestsDispatcher that skips GC after dispatching resources.
-// For the unchanged resources, dispatcher will update their owner to the newly created resource tracker.
+// For resources exists in two revision, dispatcher will update their owner to the new resource tracker.
 // It's helpful in a rollout scenario where new revision is going to create a new workload while the old one should not
 // be deleted before rollout is terminated.
 func (a *AppManifestsDispatcher) EnableUpgradeAndSkipGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
@@ -172,18 +174,16 @@ func (a *AppManifestsDispatcher) createOrGetResourceTracker(ctx context.Context)
 }
 
 func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, manifests []*unstructured.Unstructured) error {
-	applyOpts := []apply.ApplyOption{}
+	ctrlUIDs := []types.UID{a.currentRT.UID}
 	if a.previousRT != nil && a.previousRT.Name != a.currentRTName {
-		klog.InfoS("Going to apply and upgrade resources", "from", a.previousRT.Name, "to", a.currentRTName)
+		klog.InfoS("Going to apply or upgrade resources", "from", a.previousRT.Name, "to", a.currentRTName)
 		// if two RT's names are different, it means dispatching operation happens in an upgrade or rollout scenario
 		// in such two scenarios, for those unchanged manifests, we will
-		// - check existing resources are controlled by the old resource tracker
+		// - make sure existing resources are controlled by any of these two resouce trackers
 		// - set new resource tracker as their controller owner
-		applyOpts = append(applyOpts, apply.MustBeControllableBy(a.previousRT.UID))
-	} else {
-		applyOpts = append(applyOpts, apply.MustBeControllableBy(a.currentRT.UID))
+		ctrlUIDs = append(ctrlUIDs, a.previousRT.UID)
 	}
-
+	applyOpts := []apply.ApplyOption{apply.MustBeControllableByAny(ctrlUIDs)}
 	ownerRef := metav1.OwnerReference{
 		APIVersion:         v1beta1.SchemeGroupVersion.String(),
 		Kind:               reflect.TypeOf(v1beta1.ResourceTracker{}).Name(),

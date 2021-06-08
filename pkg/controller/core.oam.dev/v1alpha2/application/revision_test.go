@@ -259,6 +259,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(curAppRevision.GetOwnerReferences()[0].Kind).Should(Equal(v1alpha2.ApplicationKind))
 
 		By("Apply the application again without any spec change")
+		handler.previousRevisionName = "revision-apply-test-v1"
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
