@@ -184,7 +184,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	var rt *v1beta1.ResourceTracker
 	// only when sourceAppRevision is not nil, we need gc old revision resources
 	if h.sourceAppRevision != nil {
-		rt := new(v1beta1.ResourceTracker)
+		rt = new(v1beta1.ResourceTracker)
 		err := h.Get(ctx, types.NamespacedName{Name: dispatch.ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err
@@ -215,24 +215,6 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 
 // handle rollout succeed work left
 func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
-	var rt *v1beta1.ResourceTracker
-	// only when sourceAppRevision is not nil, we need gc old revision resources
-	if h.sourceAppRevision != nil {
-		rt := new(v1beta1.ResourceTracker)
-		err := h.Get(ctx, types.NamespacedName{Name: dispatch.ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return err
-		}
-	}
-	//  gc useless workloads/traits
-	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).EnableGC(rt)
-
-	// must guarantee manifest is nil, only do GC don't dispatch any more
-	_, err := dispatcher.Dispatch(ctx, nil)
-	if err != nil {
-		return err
-	}
-
 	// yield controller owner back to resourceTracker
 	workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
 	if err != nil {
@@ -243,5 +225,19 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 	if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
 		return err
 	}
+
+	// only when sourceAppRevision is not nil, we need gc old revision resources
+	if h.sourceAppRevision != nil {
+		rt := &v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: dispatch.ConstructResourceTrackerName(h.sourceAppRevision.Name, h.sourceAppRevision.Namespace),
+			},
+		}
+		err := h.Delete(ctx, rt)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+
 	return nil
 }
