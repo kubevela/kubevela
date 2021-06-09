@@ -67,7 +67,7 @@ type rolloutHandler struct {
 func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 	var err error
 	h.targetAppRevision = new(v1beta1.ApplicationRevision)
-	if err := h.Get(ctx, types.NamespacedName{Namespace: h.appRollout.Namespace, Name: h.targetRevName}, h.targetAppRevision); err != nil && !apierrors.IsNotFound(err) {
+	if err := h.Get(ctx, types.NamespacedName{Namespace: h.appRollout.Namespace, Name: h.targetRevName}, h.targetAppRevision); err != nil {
 		return err
 	}
 
@@ -92,7 +92,7 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 
 	if len(h.sourceRevName) != 0 {
 		h.sourceAppRevision = new(v1beta1.ApplicationRevision)
-		if err := h.Get(ctx, types.NamespacedName{Namespace: h.appRollout.Namespace, Name: h.sourceRevName}, h.sourceAppRevision); err != nil && apierrors.IsNotFound(err) {
+		if err := h.Get(ctx, types.NamespacedName{Namespace: h.appRollout.Namespace, Name: h.sourceRevName}, h.sourceAppRevision); err != nil {
 			return err
 		}
 		// construct a assemble manifest for sourceAppRevision
@@ -134,10 +134,12 @@ func (h *rolloutHandler) fetchSourceAndTargetWorkload(ctx context.Context) (*uns
 	if len(h.sourceRevName) == 0 {
 		klog.Info("source app fields not filled, this is a scale operation")
 	} else if sourceWorkload, err = h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent]); err != nil {
-		klog.Error("specified sourceRevName bug cannot fetch source workload")
+		klog.Errorf("specified sourceRevName but cannot fetch source workload %s: %v",
+			h.appRollout.Spec.SourceAppRevisionName, err)
 		return nil, nil, err
 	}
 	if targetWorkload, err = h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent]); err != nil {
+		klog.Errorf("cannot fetch target workload %s: %v", h.appRollout.Spec.TargetAppRevisionName, err)
 		return nil, nil, err
 	}
 	return sourceWorkload, targetWorkload, nil
@@ -186,7 +188,9 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	if h.sourceAppRevision != nil {
 		rt = new(v1beta1.ResourceTracker)
 		err := h.Get(ctx, types.NamespacedName{Name: dispatch.ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil {
+			klog.Errorf("specified sourceAppRevisionName %s but cannot fetch the sourceResourceTracker %v",
+				h.appRollout.Spec.SourceAppRevisionName, err)
 			return err
 		}
 	}
@@ -195,6 +199,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).EnableUpgradeAndSkipGC(rt)
 	_, err := dispatcher.Dispatch(ctx, h.targetManifests)
 	if err != nil {
+		klog.Errorf("dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
 		return err
 	}
 	workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
