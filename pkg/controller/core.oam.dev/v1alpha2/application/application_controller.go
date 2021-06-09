@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -53,8 +54,12 @@ const (
 )
 
 const (
-	resourceTrackerFinalizer = "latestResourceTracker.finalizer.core.oam.dev"
-	onlyRevisionFinalizer    = "onlyRevision.finalizer.core.oam.dev"
+	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
+	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
+	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
+	// onlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
+	// out of the domain of app controller, e.g., AppRollout controller.
+	onlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
 )
 
 // Reconciler reconciles a Application object
@@ -87,6 +92,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 		return ctrl.Result{}, err
 	}
+	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	if endReconcile, err := r.handleFinalizers(ctx, app); endReconcile {
+		return ctrl.Result{}, err
+	}
 
 	handler := &appHandler{
 		r:   r,
@@ -97,70 +106,60 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		handler.previousRevisionName = app.Status.LatestRevision.Name
 	}
 
-	if endReconcile, err := r.handleFinalizers(ctx, app); endReconcile {
-		return ctrl.Result{}, err
-	}
-
-	klog.Info("Start Rendering")
-
 	app.Status.Phase = common.ApplicationRendering
-
-	klog.Info("Parse template")
-	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
-
-	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	generatedAppfile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
-		klog.InfoS("Failed to parse application", "err", err)
+		klog.ErrorS(err, "Failed to parse application", "application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
 	}
-
 	app.Status.SetConditions(readyCondition("Parsed"))
-	handler.appfile = generatedAppfile
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 
+	handler.appfile = generatedAppfile
 	appRev, err := handler.GenerateAppRevision(ctx)
 	if err != nil {
-		klog.InfoS("Failed to calculate appRevision", "err", err)
+		klog.ErrorS(err, "Failed to calculate appRevision", "application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
 	}
-	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
-	// Record the revision so it can be used to render data in context.appRevision
-	generatedAppfile.RevisionName = appRev.Name
+	klog.Info("Successfully calculate appRevision", "revisionName", appRev.Name,
+		"revisionHash", handler.revisionHash, "isNewRevision", handler.isNewRevision)
 
-	klog.Info("Build template")
+	// pass appRevision to appfile, so it can be used to render data in context.appRevision
+	generatedAppfile.RevisionName = appRev.Name
 	// build template to applicationconfig & component
 	ac, comps, err := generatedAppfile.GenerateApplicationConfiguration()
 	if err != nil {
-		klog.InfoS("Failed to generate applicationConfiguration", "err", err)
+		klog.ErrorS(err, "Failed to generate applicationConfiguration", "application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("Built", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
 	}
-
-	// pass the App label and annotation to ac except some app specific ones
-	oamutil.PassLabelAndAnnotation(app, ac)
-
 	app.Status.SetConditions(readyCondition("Built"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-	klog.Info("Apply application revision & component to the cluster")
-	// apply application revision & component to the cluster
+	klog.Info("Successfully render application resources", "application", klog.KObj(app))
+
+	// pass application's labels and annotations to ac
+	oamutil.PassLabelAndAnnotation(app, ac)
+	// apply application resources' manifests to the cluster
 	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
-		klog.InfoS("Failed to apply application revision & component to the cluster", "err", err)
+		klog.ErrorS(err, "Failed to apply application resources' manifests",
+			"application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("Applied", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return handler.handleErr(err)
 	}
+	klog.Info("Successfully apply application resources' manifests", "application", klog.KObj(app))
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if handler.app.Spec.RolloutPlan != nil {
 		res, err := handler.handleRollout(ctx)
 		if err != nil {
-			klog.InfoS("Failed to handle rollout", "err", err)
+			klog.ErrorS(err, "Failed to handle rollout", "application", klog.KObj(app))
 			app.Status.SetConditions(errorCondition("Rollout", err))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
 			return handler.handleErr(err)
@@ -186,7 +185,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// check application health status
 	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
 	if err != nil {
-		klog.InfoS("Failed to aggregate status", "err", err)
+		klog.ErrorS(err, "Failed to aggregate status", "application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
 		return handler.handleErr(err)
@@ -203,11 +202,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	app.Status.Phase = common.ApplicationRunning
 
-	err = garbageCollection(ctx, handler)
-	if err != nil {
-		klog.InfoS("Failed to run Garbage collection", "err", err)
+	if err := garbageCollection(ctx, handler); err != nil {
+		klog.ErrorS(err, "Failed to run Garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 	}
+	klog.Info("Successfully garbage collect", "application", klog.KObj(app))
 
 	// Gather status of components
 	var refComps []v1alpha1.TypedReference
@@ -224,22 +223,17 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, r.UpdateStatus(ctx, app)
 }
 
+// NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
+// by setting application(namespace-scoped) as their owner.
+// We delete all resource trackers related to an application through below finalizer logic.
 func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Application) (bool, error) {
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
-		// NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
-		// by setting application(namespace-scoped) as their owner. So we must delete all
-		// resource trackers through app controller's finalizer logic.
-
-		// 'resourceTrackerFinalizer' is used to delete the resource tracker of the last app revision
 		if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
 			meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
 			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", resourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
-		// 'onlyRevisionFinalizer' is used to delete all resource trackers of app revisions which
-		// may be used out of the domain of app controller, e.g., AppRollout controller.
-		if app.Annotations[oam.AnnotationAppRevisionOnly] == "true" ||
-			len(app.Annotations[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil {
+		if len(app.Annotations[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil {
 			if !meta.FinalizerExists(&app.ObjectMeta, onlyRevisionFinalizer) {
 				meta.AddFinalizer(&app.ObjectMeta, onlyRevisionFinalizer)
 				klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", onlyRevisionFinalizer)
@@ -247,6 +241,19 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 			}
 		}
 	} else {
+		if meta.FinalizerExists(&app.ObjectMeta, legacyResourceTrackerFinalizer) {
+			// TODO(roywang) legacyResourceTrackerFinalizer will be deprecated in the future
+			// Below logic is for backward compatibility.
+			rt := &v1beta1.ResourceTracker{}
+			rt.SetName(fmt.Sprintf("%s-%s", app.Namespace, app.Name))
+			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to delete legacy resource tracker", "name", rt.Name)
+				app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+				return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+			}
+			meta.RemoveFinalizer(app, legacyResourceTrackerFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
 		if meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
 			if app.Status.LatestRevision != nil && len(app.Status.LatestRevision.Name) != 0 {
 				latestTracker := &v1beta1.ResourceTracker{}
