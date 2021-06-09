@@ -17,11 +17,13 @@ limitations under the License.
 package applicationrollout
 
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"sort"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var _ = Describe("Application Deployment Common Function Test", func() {
@@ -87,4 +89,54 @@ func fillApplication(app *v1alpha2.ApplicationConfigurationSpec, componentNames 
 			RevisionName: utils.ConstructRevisionName(name, 1),
 		})
 	}
+}
+
+var _ = Describe("Test find common component func", func() {
+	It("Test source app is nil", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		common := FindCommonComponentWithManifest(target, nil)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"a", "b", "c"}))
+	})
+
+	It("Test has one component", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		source := fillWorkloads([]string{"c"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"c"}))
+	})
+
+	It("Test has one common components", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		source := fillWorkloads([]string{"d", "c"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"c"}))
+	})
+
+	It("Test has more than 1 common component", func() {
+		target := fillWorkloads([]string{"b", "a", "c"})
+		source := fillWorkloads([]string{"c", "b"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"b", "c"}))
+	})
+
+	It("Test has more than 1 common component", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		source := fillWorkloads([]string{"d", "e", "c", "a"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"a", "c"}))
+	})
+})
+
+func fillWorkloads(componentNames []string) map[string]*unstructured.Unstructured {
+	w := make(map[string]*unstructured.Unstructured)
+	for _, s := range componentNames {
+		// we don't need real workload
+		w[s] = nil
+	}
+	return w
 }
