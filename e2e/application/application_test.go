@@ -157,7 +157,7 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 						a: "mysvc",
 					},
 					{
-						q: "what would you configure for parameter 'addRevisionLabel' (optional, default is false):",
+						q: "If addRevisionLabel is true, the appRevision label will be added to the underlying pods (optional, default is false):",
 						a: "N",
 					},
 					{

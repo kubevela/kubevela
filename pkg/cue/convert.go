@@ -79,7 +79,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 		if param.Default == nil {
 			param.Default = getDefaultByKind(param.Type)
 		}
-		param.Short, param.Usage, param.Alias = RetrieveComments(val)
+		param.Short, param.Usage, param.Alias, param.Ignore = RetrieveComments(val)
 
 		params = append(params, param)
 	}
@@ -139,11 +139,14 @@ const (
 	ShortPrefix = "+short="
 	// AliasPrefix is an alias of the name of a parameter element, in order to making it more friendly to Cli users
 	AliasPrefix = "+alias="
+	// IgnorePrefix defines parameter in system level which we don't want our end user to see for KubeVela CLI
+	IgnorePrefix = "+ignore"
 )
 
-// RetrieveComments will retrieve Usage, Short and Alias from CUE Value
-func RetrieveComments(value cue.Value) (string, string, string) {
+// RetrieveComments will retrieve Usage, Short, Alias and Ignore from CUE Value
+func RetrieveComments(value cue.Value) (string, string, string, bool) {
 	var short, usage, alias string
+	var ignore bool
 	docs := value.Doc()
 	for _, doc := range docs {
 		lines := strings.Split(doc.Text(), "\n")
@@ -154,6 +157,9 @@ func RetrieveComments(value cue.Value) (string, string, string) {
 			if strings.HasPrefix(line, ShortPrefix) {
 				short = strings.TrimPrefix(line, ShortPrefix)
 			}
+			if strings.HasPrefix(line, IgnorePrefix) {
+				ignore = true
+			}
 			if strings.HasPrefix(line, UsagePrefix) {
 				usage = strings.TrimPrefix(line, UsagePrefix)
 			}
@@ -162,5 +168,5 @@ func RetrieveComments(value cue.Value) (string, string, string) {
 			}
 		}
 	}
-	return short, usage, alias
+	return short, usage, alias, ignore
 }

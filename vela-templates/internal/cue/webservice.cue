@@ -120,7 +120,8 @@ parameter: {
 	// +short=p
 	port: *80 | int
 
-	// If addRevisionLabel is true, the appRevision label will be added to the underlying pods
+	// +ignore
+	// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods
 	addRevisionLabel: *false | bool
 
 	// +usage=Commands to run in the container

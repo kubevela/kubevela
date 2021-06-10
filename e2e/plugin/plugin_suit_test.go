@@ -46,6 +46,7 @@ var testShowTdDef v1beta1.TraitDefinition
 var testCdDef v1beta1.ComponentDefinition
 var testCdDefWithHelm v1beta1.ComponentDefinition
 var testCdDefWithKube v1beta1.ComponentDefinition
+var testCdWithDeepCue v1beta1.ComponentDefinition
 var testTdDef v1beta1.TraitDefinition
 var testTdDefWithKube v1beta1.TraitDefinition
 
@@ -88,6 +89,10 @@ var _ = BeforeSuite(func(done Done) {
 	err = k8sClient.Create(ctx, &testCdDefWithKube)
 	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+	Expect(yaml.Unmarshal([]byte(componentWithDeepCue), &testCdWithDeepCue)).Should(BeNil())
+	err = k8sClient.Create(ctx, &testCdWithDeepCue)
+	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 	Expect(yaml.Unmarshal([]byte(traitDef), &testTdDef)).Should(BeNil())
 	err = k8sClient.Create(ctx, &testTdDef)
 	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -122,6 +127,7 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(ctx, &testCdDef)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testCdDefWithHelm)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testCdDefWithKube)).Should(BeNil())
+	Expect(k8sClient.Delete(ctx, &testCdWithDeepCue)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testTdDef)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testTdDefWithKube)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testShowCdDef)).Should(BeNil())
