@@ -91,4 +91,7 @@ const (
 
 	// AnnotationWorkflowContext is used to pass in the workflow context marshalled in json format.
 	AnnotationWorkflowContext = "app.oam.dev/workflow-context"
+
+	// AnnotationKubeVelaVersion is used to record current KubeVela version
+	AnnotationKubeVelaVersion = "oam.dev/kubevela-version"
 )

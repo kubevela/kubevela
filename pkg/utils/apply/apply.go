@@ -189,10 +189,20 @@ func MustBeControllableByAny(ctrlUIDs []types.UID) ApplyOption {
 		if existing == nil || len(ctrlUIDs) == 0 {
 			return nil
 		}
-		c := metav1.GetControllerOf(existing.(metav1.Object))
+		existingObjMeta, _ := existing.(metav1.Object)
+		c := metav1.GetControllerOf(existingObjMeta)
 		if c == nil {
 			return nil
 		}
+
+		// NOTE This is for backward compatibility after ApplicationContext is deprecated.
+		// In legacy clusters, existing resources are ctrl-owned by ApplicationContext or ResourceTracker (only for
+		// cx-namespace and cluster-scope resources).  We use a particular annotation to identify legacy resources.
+		if len(existingObjMeta.GetAnnotations()[oam.AnnotationKubeVelaVersion]) == 0 {
+			// just skip checking UIDs, '3-way-merge' will remove the legacy ctrl-owner automatically
+			return nil
+		}
+
 		for _, u := range ctrlUIDs {
 			if c.UID == u {
 				return nil

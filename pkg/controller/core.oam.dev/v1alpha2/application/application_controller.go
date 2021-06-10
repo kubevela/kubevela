@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/version"
 )
 
 const (
@@ -93,6 +94,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	// this annotation will be propogated to all resources created by the application
+	if len(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]) == 0 {
+		oamutil.AddAnnotations(app, map[string]string{
+			oam.AnnotationKubeVelaVersion: version.VelaVersion,
+		})
+	}
 	if endReconcile, err := r.handleFinalizers(ctx, app); endReconcile {
 		return ctrl.Result{}, err
 	}
@@ -243,7 +250,7 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 	} else {
 		if meta.FinalizerExists(&app.ObjectMeta, legacyResourceTrackerFinalizer) {
 			// TODO(roywang) legacyResourceTrackerFinalizer will be deprecated in the future
-			// Below logic is for backward compatibility.
+			// this is for backward compatibility
 			rt := &v1beta1.ResourceTracker{}
 			rt.SetName(fmt.Sprintf("%s-%s", app.Namespace, app.Name))
 			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {

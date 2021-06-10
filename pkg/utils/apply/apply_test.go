@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var ctx = context.Background()
@@ -384,23 +385,43 @@ func TestMustBeControllableByAny(t *testing.T) {
 			reason: "No error should be returned if no existing object",
 		},
 		"Adoptable": {
-			reason:  "A current object with no controller reference may be adopted and controlled",
-			current: &testObject{},
+			reason: "A current object with no controller reference may be adopted and controlled",
+			current: &testObject{ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					oam.AnnotationKubeVelaVersion: "undefined",
+				}},
+			},
 		},
 		"ControlledBySuppliedUID": {
 			reason: "A current object that is already controlled by the supplied UID is controllable",
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-				UID:        types.UID("owner1"),
-				Controller: pointer.BoolPtr(true),
-			}}}},
+			current: &testObject{ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					oam.AnnotationKubeVelaVersion: "undefined",
+				},
+				OwnerReferences: []metav1.OwnerReference{{
+					UID:        types.UID("owner1"),
+					Controller: pointer.BoolPtr(true),
+				}}}},
 		},
 		"ControlledBySomeoneElse": {
 			reason: "A current object that is already controlled by a different UID is not controllable",
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-				UID:        types.UID("some-other-uid"),
-				Controller: pointer.BoolPtr(true),
-			}}}},
+			current: &testObject{ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					oam.AnnotationKubeVelaVersion: "undefined",
+				},
+				OwnerReferences: []metav1.OwnerReference{{
+					UID:        types.UID("some-other-uid"),
+					Controller: pointer.BoolPtr(true),
+				}}}},
 			want: errors.Errorf("existing object is not controlled by any of UID %q", ctrlByAny),
+		},
+		"BackwardCompatability": {
+			reason: "A current object without annotation 'kubevelavesion' is legacy",
+			current: &testObject{ObjectMeta: metav1.ObjectMeta{
+				OwnerReferences: []metav1.OwnerReference{{
+					UID:        types.UID("some-other-uid"),
+					Controller: pointer.BoolPtr(true),
+				}}}},
 		},
 	}
 
