@@ -21,29 +21,26 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	corev1beta1 "k8s.io/api/networking/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 )
 
 var _ = Describe("Cloneset based rollout tests", func() {
@@ -593,7 +590,6 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
-		time.Sleep(5 * time.Second)
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 
 		By("Verify that resourceTracker control the cloneset")

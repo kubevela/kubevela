@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
@@ -52,12 +51,15 @@ type rolloutHandler struct {
 	targetAppRevision *v1beta1.ApplicationRevision
 
 	// sourceWorkloads is assembled by appRevision in assemble phase
-	// please be aware that they are real status in k8s, they are just generate from appRevision include GVK+namespace+name
+	// please be aware that they are not real status in k8s, they are just generate from appRevision include GVK+namespace+name
 	sourceWorkloads map[string]*unstructured.Unstructured
 	targetWorkloads map[string]*unstructured.Unstructured
 
 	// targetManifests used by dispatch(template targetRevision) and handleSucceed(GC) phase
 	targetManifests []*unstructured.Unstructured
+
+	// sourceManifests used by dispatch(template targetRevision) and handleSucceed(GC) phase
+	sourceManifests []*unstructured.Unstructured
 
 	// needRollComponent is find common component between source and target revision
 	needRollComponent string
@@ -207,7 +209,38 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 		return err
 	}
 	ref := metav1.GetControllerOfNoCopy(workload)
-	if ref.Kind == v1beta1.ResourceTrackerKind {
+	if ref != nil && ref.Kind == v1beta1.ResourceTrackerKind {
+		wlPatch := client.MergeFrom(workload.DeepCopy())
+		// guarantee resourceTracker isn't controller owner of workload
+		disableControllerOwner(workload)
+		if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// templateTargetManifest call dispatch to template target manifest to cluster
+func (h *rolloutHandler) templateSourceManifest(ctx context.Context) error {
+
+	// only when sourceAppRevision is not nil, we need template sourceRevision revision
+	if h.sourceAppRevision == nil {
+		return nil
+	}
+
+	// use source resourceTracker to handle same resource owner transfer
+	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.sourceAppRevision)
+	_, err := dispatcher.Dispatch(ctx, h.sourceManifests)
+	if err != nil {
+		klog.Errorf("dispatch sourceRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
+		return err
+	}
+	workload, err := h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent])
+	if err != nil {
+		return err
+	}
+	ref := metav1.GetControllerOfNoCopy(workload)
+	if ref != nil && ref.Kind == v1beta1.ResourceTrackerKind {
 		wlPatch := client.MergeFrom(workload.DeepCopy())
 		// guarantee resourceTracker isn't controller owner of workload
 		disableControllerOwner(workload)
