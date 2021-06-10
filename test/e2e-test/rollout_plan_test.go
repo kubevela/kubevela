@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 )
 
 var _ = Describe("Cloneset based rollout tests", func() {
