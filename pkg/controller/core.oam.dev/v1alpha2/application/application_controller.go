@@ -26,6 +26,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -49,6 +50,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -58,6 +60,8 @@ const (
 )
 
 const (
+	// WorkflowReconcileWaitTime is the time to wait before reconcile again workflow running
+	WorkflowReconcileWaitTime      = time.Second * 3
 	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
 	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
@@ -149,6 +153,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
 	}
+	policies, wfSteps, err := generatedAppfile.GenerateWorkflowAndPolicy()
+	if err != nil {
+		klog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
+		app.Status.SetConditions(errorCondition("Built", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+		return handler.handleErr(err)
+	}
+
 	app.Status.SetConditions(readyCondition("Built"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 	klog.Info("Successfully render application resources", "application", klog.KObj(app))
@@ -156,7 +168,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// pass application's labels and annotations to ac
 	oamutil.PassLabelAndAnnotation(app, ac)
 	// apply application resources' manifests to the cluster
-	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
+	if err := handler.apply(ctx, appRev, ac, comps, policies); err != nil {
 		klog.ErrorS(err, "Failed to apply application resources' manifests",
 			"application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("Applied", err))
@@ -164,6 +176,17 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return handler.handleErr(err)
 	}
 	klog.Info("Successfully apply application resources' manifests", "application", klog.KObj(app))
+
+	done, err := workflow.NewWorkflow(app, handler.r.applicator).ExecuteSteps(ctx, appRev.Name, wfSteps)
+	if err != nil {
+		klog.Error(err, "[handle workflow]")
+		app.Status.SetConditions(errorCondition("Workflow", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
+		return handler.handleErr(err)
+	}
+	if !done {
+		return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.UpdateStatus(ctx, app)
+	}
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if handler.app.Spec.RolloutPlan != nil {

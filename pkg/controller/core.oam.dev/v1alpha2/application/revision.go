@@ -17,13 +17,17 @@ limitations under the License.
 package application
 
 import (
+	"bytes"
 	"context"
 	"sort"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,6 +89,66 @@ func (h *appHandler) setRevisionWithRenderedResult(appRev *v1beta1.ApplicationRe
 	comps []*v1alpha2.Component) {
 	appRev.Spec.Components = ConvertComponents2RawRevisions(comps)
 	appRev.Spec.ApplicationConfiguration = util.Object2RawExtension(ac)
+	appRev.Spec.ResourcesConfigMap.Name = appRev.Name
+}
+
+const (
+	// ConfigMapKeyResources is the key in ConfigMap Data field for containing data of resources
+	ConfigMapKeyResources = "resources"
+)
+
+func (h *appHandler) createResourcesConfigMap(ctx context.Context,
+	appRev *v1beta1.ApplicationRevision,
+	ac *v1alpha2.ApplicationConfiguration,
+	comps []*v1alpha2.Component,
+	policies []*unstructured.Unstructured) error {
+
+	buf := &bytes.Buffer{}
+	for _, c := range comps {
+		r := makeFinalResource(c.Spec.Workload, c.Name, c.Namespace)
+		buf.Write(util.MustJSONMarshal(r))
+	}
+	for _, acc := range ac.Spec.Components {
+		for _, tr := range acc.Traits {
+			r := makeFinalResource(tr.Trait, acc.ComponentName, ac.Namespace)
+			buf.Write(util.MustJSONMarshal(r))
+		}
+	}
+	for _, policy := range policies {
+		buf.Write(util.MustJSONMarshal(policy))
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appRev.Name,
+			Namespace: appRev.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(appRev, v1beta1.ApplicationRevisionGroupVersionKind),
+			},
+		},
+		Data: map[string]string{
+			ConfigMapKeyResources: buf.String(),
+		},
+	}
+
+	err := h.r.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
+	if err == nil {
+		return nil
+	}
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return h.r.Client.Create(ctx, cm)
+}
+
+func makeFinalResource(raw runtime.RawExtension, name, ns string) *unstructured.Unstructured {
+	u, err := util.Object2Unstructured(raw)
+	if err != nil {
+		panic(err)
+	}
+	u.SetName(name)
+	u.SetNamespace(ns)
+	return u
 }
 
 // gatherRevisionSpec will gather all revision spec withouth metadata and rendered result.
@@ -196,7 +260,6 @@ func (h *appHandler) FinalizeAppRevision(appRev *v1beta1.ApplicationRevision,
 
 	h.setRevisionMetadata(appRev)
 	h.setRevisionWithRenderedResult(appRev, ac, comps)
-
 }
 
 // ConvertComponents2RawRevisions convert to ComponentMap
