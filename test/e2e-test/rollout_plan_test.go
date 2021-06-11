@@ -32,8 +32,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -217,20 +215,36 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				if resourceTrackerName != clonesetOwner.Name {
 					return fmt.Errorf("controller name missmatch wants %s actually %s", resourceTrackerName, clonesetOwner.Name)
 				}
+				if kc.Status.UpdatedReplicas != *kc.Spec.Replicas {
+					return fmt.Errorf("cloneset updated replicas haven't updated all")
+				}
 				return nil
 			},
 			time.Second*60, time.Millisecond*500).Should(BeNil())
-		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		// make sure all pods are upgraded
 		image := kc.Spec.Template.Spec.Containers[0].Image
-		podList := corev1.PodList{}
-		Expect(k8sClient.List(ctx, &podList, client.MatchingLabels(kc.Spec.Template.Labels),
-			client.InNamespace(namespaceName))).Should(Succeed())
-		Expect(len(podList.Items)).Should(BeEquivalentTo(*kc.Spec.Replicas))
-		for _, pod := range podList.Items {
-			Expect(pod.Spec.Containers[0].Image).Should(Equal(image))
-			Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
-		}
+		Eventually(func() error {
+			podList := corev1.PodList{}
+			err := k8sClient.List(ctx, &podList, client.MatchingLabels(kc.Spec.Template.Labels),
+				client.InNamespace(namespaceName))
+			if err != nil {
+				return err
+			}
+			if len(podList.Items) != int(*kc.Spec.Replicas) {
+				return fmt.Errorf("pod number missmamtch wants %d accutally %d", *kc.Spec.Replicas, len(podList.Items))
+			}
+
+			for _, pod := range podList.Items {
+				if pod.Spec.Containers[0].Image != image {
+					return fmt.Errorf("pod image missmatch wants %s accutally %s", image, pod.Spec.Containers[0].Image)
+				}
+				if pod.Status.Phase != corev1.PodRunning {
+					return fmt.Errorf("pod satus not running")
+				}
+			}
+			return nil
+		}, 60*time.Second, 300*time.Microsecond).Should(BeNil())
+
 	}
 
 	verifyIngress := func(domain string) {
