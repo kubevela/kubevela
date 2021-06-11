@@ -429,6 +429,12 @@ spec:
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", checkApp.Status.LatestRevision.Name, checkApp.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		By("Check Component Created with the expected workload spec")
 		var component v1alpha2.Component
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -475,6 +481,12 @@ spec:
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", checkApp.Status.LatestRevision.Name, checkApp.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		By("Check Component Created with the expected workload spec")
 		component := &v1alpha2.Component{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -519,6 +531,12 @@ spec:
 			Namespace: app.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		gotTrait := unstructured.Unstructured{}
 
@@ -587,6 +605,12 @@ spec:
 			Namespace: app.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
 		Expect(err).Should(BeNil())
@@ -689,6 +713,12 @@ spec:
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		gotTrait := unstructured.Unstructured{}
 		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
 		Expect(err).Should(BeNil())
@@ -751,6 +781,12 @@ spec:
 			Namespace: app.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		gotTrait := unstructured.Unstructured{}
 		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
@@ -822,6 +858,12 @@ spec:
 		}, appRevision)).Should(BeNil())
 		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
+
+		By("Check affiliated resource tracker is upgraded")
+		expectRTName = fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		Expect(ac.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
@@ -993,12 +1035,12 @@ spec:
 
 		By("Check App running successfully")
 
+		checkApp := &v1beta1.Application{}
 		Eventually(func() string {
 			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
 			if err != nil {
 				return err.Error()
 			}
-			checkApp := &v1beta1.Application{}
 			err = k8sClient.Get(ctx, appKey, checkApp)
 			if err != nil {
 				return err.Error()
@@ -1008,6 +1050,12 @@ spec:
 			}
 			return string(checkApp.Status.Phase)
 		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(common.ApplicationRunning))
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", checkApp.Status.LatestRevision.Name, checkApp.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -1044,6 +1092,12 @@ spec:
 			Name:      utils.ConstructRevisionName(rolloutApp.Name, 1),
 		}, appRevision)).Should(BeNil())
 
+		By("Check affiliated resource tracker is not created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
+
 		By("Check Component Created with the expected workload spec")
 		var component v1alpha2.Component
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -1060,13 +1114,19 @@ spec:
 		Expect(ac.Spec.Components[0].ComponentName).Should(BeEmpty())
 		Expect(ac.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))
 
-		By("Reconcile again to make sure we are not creating more appConfigs")
+		By("Reconcile again to make sure we are not creating more resource trackers")
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Verify that no new AppRevision created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
 			Name:      utils.ConstructRevisionName(rolloutApp.Name, 2),
 		}, appRevision)).ShouldNot(Succeed())
+
+		By("Check no new affiliated resource tracker is created")
+		expectRTName = fmt.Sprintf("%s-%s", utils.ConstructRevisionName(rolloutApp.Name, 2), rolloutApp.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
 
 		By("Check no new Component created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -1077,18 +1137,26 @@ spec:
 		Expect(component.Status.LatestRevision.Revision).ShouldNot(BeNil())
 		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
-		By("Remove rollout annotation should lead to new appContext created")
+		By("Remove rollout annotation should lead to new resource tracker created")
 		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
 		rolloutApp.SetAnnotations(map[string]string{
 			"keep": "true",
 		})
 		Expect(k8sClient.Update(ctx, rolloutApp)).Should(BeNil())
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
 		By("Verify that no new AppRevision created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
 			Name:      utils.ConstructRevisionName(rolloutApp.Name, 2),
 		}, appRevision)).ShouldNot(Succeed())
+
+		By("Check no new affiliated resource tracker is created")
+		expectRTName = fmt.Sprintf("%s-%s", utils.ConstructRevisionName(rolloutApp.Name, 2), rolloutApp.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
+
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, rolloutApp)).Should(BeNil())
 	})
@@ -1294,6 +1362,12 @@ spec:
 			Namespace: curApp.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 	})
 
 	It("app with two components and one component refer to an existing WorkloadDefinition", func() {
@@ -1407,6 +1481,12 @@ spec:
 					Backend: v1beta12.IngressBackend{ServiceName: "myweb", ServicePort: intstr.FromInt(80)}}}}}}},
 			}})).Should(BeEquivalentTo(""))
 
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		By("Check Component Created with the expected workload spec")
 		var component v1alpha2.Component
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -1515,7 +1595,7 @@ func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 			return fmt.Errorf("reconcile timeout as it still needs to requeue")
 		}
 		return err
-	}, 3*time.Second, time.Second).Should(BeNil())
+	}, 5*time.Second, time.Second).Should(BeNil())
 }
 
 func reconcileOnce(r reconcile.Reconciler, req reconcile.Request) {
