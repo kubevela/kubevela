@@ -74,15 +74,9 @@ type appHandler struct {
 	app                  *v1beta1.Application
 	appfile              *appfile.Appfile
 	previousRevisionName string
-	inplace              bool
 	isNewRevision        bool
 	revisionHash         string
 	autodetect           bool
-}
-
-// setInplace will mark if the application should upgrade the workload within the same instance(name never changed)
-func (h *appHandler) setInplace(isInplace bool) {
-	h.inplace = isInplace
 }
 
 func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
@@ -99,6 +93,12 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 }
 
 func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
+	// don't create components if revision-only annotation is set
+	if ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+		h.FinalizeAppRevision(appRev, ac, comps)
+		return h.createOrUpdateAppRevision(ctx, appRev)
+	}
+
 	owners := []metav1.OwnerReference{{
 		APIVersion: v1beta1.SchemeGroupVersion.String(),
 		Kind:       v1beta1.ApplicationKind,
@@ -106,26 +106,12 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}}
-
-	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
-		h.setInplace(true)
-	} else {
-		h.setInplace(false)
-	}
-
-	// don't create components if revision-only annotation is set
-	if ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
-		h.FinalizeAppRevision(appRev, ac, comps)
-		return h.createOrUpdateAppRevision(ctx, appRev)
-	}
-
+	ac.SetOwnerReferences(owners)
 	var err error
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
 
-		// If the helm mode component doesn't specify the workload
-		// we just install a helm chart resources
-		if h.checkAutoDetect(comp) {
+		if h.isNewRevision && h.checkAutoDetect(comp) {
 			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
 				return errors.Wrap(err, "cannot apply Helm module resources")
 			}
@@ -138,7 +124,6 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		if err != nil {
 			return err
 		}
-		// find the ACC that contains this component
 		for i := 0; i < len(ac.Spec.Components); i++ {
 			// update the AC using the component revision instead of component name
 			// we have to make AC immutable including the component it's pointing to
@@ -155,7 +140,6 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 			}
 		}
 	}
-	ac.SetOwnerReferences(owners)
 	h.FinalizeAppRevision(appRev, ac, comps)
 
 	if h.autodetect {
@@ -167,13 +151,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		return err
 	}
 
-	// `h.inplace`: the rollout will create AppContext which will launch the real K8s resources.
-	// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
-	// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
-	// `!h.autodetect`: If the workload type of the helm mode component is not clear, an autodetect type workload will be specified by default
-	// In this case, the traits attached to the helm mode component will fail to generate,
-	// so we only call applyHelmModuleResources to create the helm resource, don't generate ApplicationContext.
-	if h.inplace && !h.autodetect {
+	if !h.appReleasedByRollout() && !h.autodetect {
 		a := assemble.NewAppManifests(appRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
 		manifests, err := a.AssembledManifests()
 		if err != nil {
@@ -209,6 +187,17 @@ func (h *appHandler) createOrUpdateAppRevision(ctx context.Context, appRev *v1be
 	}
 
 	return h.r.Update(ctx, appRev)
+}
+
+// appReleasedByRollout will judge whether this application will be released by rollout.
+// If it's true, application controller will only create or update application revision but not emit any other K8s
+// resources into the cluster. And rollout controller will use application revision to do real release works.
+func (h *appHandler) appReleasedByRollout() bool {
+	if len(h.app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || h.app.Spec.RolloutPlan != nil {
+		klog.InfoS("Found an application which will be released by rollout", "application", klog.KObj(h.app))
+		return true
+	}
+	return false
 }
 
 func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
@@ -411,6 +400,9 @@ func (h *appHandler) applyHelmModuleResources(ctx context.Context, comp *v1alpha
 	return nil
 }
 
+// checkAutoDetect judge whether the workload type of a helm mode component is not clear, an autodetect type workload
+// will be specified by default In this case, the traits attached to the helm mode component will fail to generate, so
+// we only call applyHelmModuleResources to create the helm resource, don't generate other K8s resources.
 func (h *appHandler) checkAutoDetect(component *v1alpha2.Component) bool {
 	if len(component.Spec.Workload.Raw) == 0 && component.Spec.Workload.Object == nil && component.Spec.Helm != nil {
 		h.autodetect = true
