@@ -133,14 +133,15 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
 				app.Spec = targetApp.DeepCopy().Spec
-				return k8sClient.Update(ctx, &app)
+				return k8sClient.Update(ctx, app.DeepCopy())
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		By("Get Application Revision created with more than one")
 		Eventually(
 			func() bool {
 				var appRevList = &v1beta1.ApplicationRevisionList{}
-				_ = k8sClient.List(ctx, appRevList, client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
+				_ = k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
+					client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
 				if appRevList != nil {
 					return len(appRevList.Items) >= 2
 				}
@@ -205,6 +206,10 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				if err != nil {
 					return err
 				}
+				if kc.Status.UpdatedReplicas != *kc.Spec.Replicas {
+					return fmt.Errorf("expect cloneset updated replicas %d, but got %d",
+						kc.Status.UpdatedReplicas, *kc.Spec.Replicas)
+				}
 				clonesetOwner = metav1.GetControllerOf(&kc)
 				if clonesetOwner == nil {
 					return fmt.Errorf("controller owner missed")
@@ -219,17 +224,28 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return nil
 			},
 			time.Second*60, time.Millisecond*500).Should(BeNil())
-		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		// make sure all pods are upgraded
 		image := kc.Spec.Template.Spec.Containers[0].Image
 		podList := corev1.PodList{}
-		Expect(k8sClient.List(ctx, &podList, client.MatchingLabels(kc.Spec.Template.Labels),
-			client.InNamespace(namespaceName))).Should(Succeed())
-		Expect(len(podList.Items)).Should(BeEquivalentTo(*kc.Spec.Replicas))
-		for _, pod := range podList.Items {
-			Expect(pod.Spec.Containers[0].Image).Should(Equal(image))
-			Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
-		}
+		Eventually(func() error {
+			if err := k8sClient.List(ctx, &podList, client.MatchingLabels(kc.Spec.Template.Labels),
+				client.InNamespace(namespaceName)); err != nil {
+				return err
+			}
+			if len(podList.Items) != int(*kc.Spec.Replicas) {
+				return fmt.Errorf("expect pod numbers %q, got %q", int(*kc.Spec.Replicas), len(podList.Items))
+			}
+			for _, pod := range podList.Items {
+				gotImage := pod.Spec.Containers[0].Image
+				if gotImage != image {
+					return fmt.Errorf("expect pod container image %q, got %q", image, gotImage)
+				}
+				if pod.Status.Phase != corev1.PodRunning {
+					return fmt.Errorf("expect pod phase %q, got %q", corev1.PodRunning, pod.Status.Phase)
+				}
+			}
+			return nil
+		}, 60*time.Second, 500*time.Millisecond).Should(Succeed())
 	}
 
 	verifyIngress := func(domain string) {
