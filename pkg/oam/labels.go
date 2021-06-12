@@ -33,6 +33,8 @@ const (
 	LabelOAMResourceType = "app.oam.dev/resourceType"
 	// LabelAppRevisionHash records the Hash value of the application revision
 	LabelAppRevisionHash = "app.oam.dev/app-revision-hash"
+	// LabelAppNamespace records the namespace of Application
+	LabelAppNamespace = "app.oam.dev/namesapce"
 
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
@@ -89,4 +91,7 @@ const (
 
 	// AnnotationWorkflowContext is used to pass in the workflow context marshalled in json format.
 	AnnotationWorkflowContext = "app.oam.dev/workflow-context"
+
+	// AnnotationKubeVelaVersion is used to record current KubeVela version
+	AnnotationKubeVelaVersion = "oam.dev/kubevela-version"
 )

@@ -256,8 +256,13 @@ var _ = Describe("Test WorkloadOption", func() {
 				helm: &common.Helm{
 					Release: runtime.RawExtension{Raw: releaseRaw},
 				},
-				wantWorkload: wl.DeepCopy(),
-				wantErr:      nil,
+				wantWorkload: func() *unstructured.Unstructured {
+					r := &unstructured.Unstructured{}
+					r.SetNamespace(ns)
+					r.SetName("test-rls-test-chart")
+					return r
+				}(),
+				wantErr: nil,
 			}),
 		)
 	})

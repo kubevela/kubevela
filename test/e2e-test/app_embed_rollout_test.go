@@ -33,9 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -137,8 +135,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 	})
 
-	verifyRolloutSucceeded := func(targetAppContextName string, cpu string) {
-		By(fmt.Sprintf("Wait for the rollout `%s` to succeed", targetAppContextName))
+	verifyRolloutSucceeded := func(targetAppRevisionName string, cpu string) {
 		Eventually(
 			func() error {
 				app = v1beta1.Application{}
@@ -155,23 +152,6 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		Expect(app.Status.Rollout.UpgradedReplicas).Should(BeEquivalentTo(app.Status.Rollout.RolloutTargetSize))
 		clonesetName := app.Spec.Components[0].Name
 		Expect(app.Status.Phase).Should(BeEquivalentTo(apicommon.ApplicationRunning))
-		By("Verify AppContext rolling status")
-		appContext := &v1alpha2.ApplicationContext{}
-		Eventually(
-			func() error {
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: targetAppContextName}, appContext); err != nil {
-					return err
-				}
-				if appContext.Status.RollingStatus != types.RollingCompleted {
-					return fmt.Errorf("appcontext %s rolling state mismatch actualy %s", targetAppContextName, appContext.Status.RollingStatus)
-				}
-				owner := metav1.GetControllerOf(appContext)
-				if owner.Name != appName && owner.Kind != app.Kind && owner.APIVersion != app.APIVersion {
-					return fmt.Errorf("appcontext owner mismatch")
-				}
-				return nil
-			},
-			time.Second*120, time.Microsecond*300).Should(BeNil())
 
 		By("Verify cloneset  status")
 		var clonesetOwner *metav1.OwnerReference
@@ -181,16 +161,22 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 					return err
 				}
 				clonesetOwner = metav1.GetControllerOf(&kc)
-				if clonesetOwner.Kind != v1alpha2.ApplicationContextKind {
-					return fmt.Errorf("cloneset owner mismatch actually %s", v1alpha2.ApplicationContextKind)
+				if clonesetOwner == nil {
+					return fmt.Errorf("cloneset don't have any controller owner")
+				}
+				if clonesetOwner.Kind != v1beta1.ResourceTrackerKind {
+					return fmt.Errorf("cloneset owner mismatch wants %s actually  %s", v1beta1.ResourceTrackerKind, clonesetOwner.Kind)
 				}
 				if kc.Status.UpdatedReplicas != *kc.Spec.Replicas {
 					return fmt.Errorf("upgraded pod number error")
 				}
+				resourceTrackerName := fmt.Sprintf("%s-%s", targetAppRevisionName, app.Namespace)
+				if clonesetOwner.Name != resourceTrackerName {
+					return fmt.Errorf("resourceTracker haven't take back controller owner")
+				}
 				return nil
 			},
 			time.Second*30, time.Millisecond*500).Should(BeNil())
-		Expect(clonesetOwner.Name).Should(BeEquivalentTo(targetAppContextName))
 		By("Verify  pod status")
 		Eventually(func() error {
 			podList := corev1.PodList{}
