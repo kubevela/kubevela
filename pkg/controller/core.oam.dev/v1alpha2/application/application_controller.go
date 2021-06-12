@@ -212,6 +212,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := garbageCollection(ctx, handler); err != nil {
 		klog.ErrorS(err, "Failed to run Garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+		return handler.handleErr(err)
 	}
 	klog.Info("Successfully garbage collect", "application", klog.KObj(app))
 
@@ -235,20 +236,21 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 // We delete all resource trackers related to an application through below finalizer logic.
 func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Application) (bool, error) {
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
-			meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
+		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
+			meta.AddFinalizer(app, resourceTrackerFinalizer)
 			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", resourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
-		if len(app.Annotations[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil {
-			if !meta.FinalizerExists(&app.ObjectMeta, onlyRevisionFinalizer) {
-				meta.AddFinalizer(&app.ObjectMeta, onlyRevisionFinalizer)
+		if appWillReleaseByRollout(app) {
+			klog.InfoS("Found an application which will be released by rollout", "application", klog.KObj(app))
+			if !meta.FinalizerExists(app, onlyRevisionFinalizer) {
+				meta.AddFinalizer(app, onlyRevisionFinalizer)
 				klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", onlyRevisionFinalizer)
 				return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 			}
 		}
 	} else {
-		if meta.FinalizerExists(&app.ObjectMeta, legacyResourceTrackerFinalizer) {
+		if meta.FinalizerExists(app, legacyResourceTrackerFinalizer) {
 			// TODO(roywang) legacyResourceTrackerFinalizer will be deprecated in the future
 			// this is for backward compatibility
 			rt := &v1beta1.ResourceTracker{}
@@ -261,7 +263,7 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 			meta.RemoveFinalizer(app, legacyResourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
-		if meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) {
+		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
 			if app.Status.LatestRevision != nil && len(app.Status.LatestRevision.Name) != 0 {
 				latestTracker := &v1beta1.ResourceTracker{}
 				latestTracker.SetName(dispatch.ConstructResourceTrackerName(app.Status.LatestRevision.Name, app.Namespace))
@@ -274,7 +276,7 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
-		if meta.FinalizerExists(&app.ObjectMeta, onlyRevisionFinalizer) {
+		if meta.FinalizerExists(app, onlyRevisionFinalizer) {
 			listOpts := []client.ListOption{
 				client.MatchingLabels{
 					oam.LabelAppName:      app.Name,
@@ -298,6 +300,13 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 		}
 	}
 	return false, nil
+}
+
+// appWillReleaseByRollout judge whether the application will be released by rollout.
+// If it's true, application controller will only create or update application revision but not emit any other K8s
+// resources into the cluster. Rollout controller will do real release works.
+func appWillReleaseByRollout(app *v1beta1.Application) bool {
+	return len(app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil
 }
 
 // SetupWithManager install to manager

@@ -387,9 +387,3 @@ func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condTy
 
 	return nil, false, nil
 }
-
-// ExtractAppName will extract the extractAppName from a revisionName
-func ExtractAppName(revisionName string) string {
-	splits := strings.Split(revisionName, "-")
-	return strings.Join(splits[0:len(splits)-1], "-")
-}

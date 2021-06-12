@@ -65,7 +65,7 @@ type AppManifestsDispatcher struct {
 
 // EnableUpgradeAndGC return an AppManifestsDispatcher that always do GC after dispatching resources.
 // For resources exists in two revision, dispatcher will update their owner to the new resource tracker.
-// GC will calculate diff between the dispatched resouces and ones recorded in the given resource tracker.
+// GC will calculate diff between the dispatched resources and ones recorded in the given resource tracker.
 func (a *AppManifestsDispatcher) EnableUpgradeAndGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
 	if rt != nil {
 		a.previousRT = rt.DeepCopy()
@@ -132,7 +132,7 @@ func (a *AppManifestsDispatcher) validateAndComplete(ctx context.Context) error 
 	a.namespace = a.appRev.Namespace
 	a.currentRTName = ConstructResourceTrackerName(a.appRevName, a.namespace)
 
-	// no matter GC or UpgradeAndSkipGC, it requires a valid and existing resource tracker
+	// if upgrade is enbabled (no matter GC or skip GC), it requires a valid existing resource tracker
 	if a.previousRT != nil && a.previousRT.Name != a.currentRTName {
 		klog.InfoS("Validate previous resource tracker exists", "previous", klog.KObj(a.previousRT))
 		gotPreviousRT := &v1beta1.ResourceTracker{}

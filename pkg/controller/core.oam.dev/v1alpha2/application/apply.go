@@ -151,7 +151,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		return err
 	}
 
-	if !h.appReleasedByRollout() && !h.autodetect {
+	if !appWillReleaseByRollout(h.app) && !h.autodetect {
 		a := assemble.NewAppManifests(appRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
 		manifests, err := a.AssembledManifests()
 		if err != nil {
@@ -187,17 +187,6 @@ func (h *appHandler) createOrUpdateAppRevision(ctx context.Context, appRev *v1be
 	}
 
 	return h.r.Update(ctx, appRev)
-}
-
-// appReleasedByRollout will judge whether this application will be released by rollout.
-// If it's true, application controller will only create or update application revision but not emit any other K8s
-// resources into the cluster. And rollout controller will use application revision to do real release works.
-func (h *appHandler) appReleasedByRollout() bool {
-	if len(h.app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || h.app.Spec.RolloutPlan != nil {
-		klog.InfoS("Found an application which will be released by rollout", "application", klog.KObj(h.app))
-		return true
-	}
-	return false
 }
 
 func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {

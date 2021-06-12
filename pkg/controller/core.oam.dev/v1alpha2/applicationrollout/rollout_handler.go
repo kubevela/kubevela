@@ -86,7 +86,7 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 		return err
 	}
 
-	// we only use workloads group by component name to find out witch same workload in source and target worklaod
+	// we only use workloads group by component name to find common workloads in source and target revision
 	h.targetWorkloads, _, _, err = targetAssemble.GroupAssembledManifests()
 	if err != nil {
 		klog.Error("appRollout targetAppRevision failed to assemble target workload", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
@@ -184,10 +184,11 @@ func (h *rolloutHandler) handleRolloutModified() {
 	h.appRollout.Status.StateTransition(v1alpha1.RollingModifiedEvent)
 }
 
-// templateTargetManifest call dispatch to template target manifest to cluster
+// templateTargetManifest call dispatch to template target app revision's manifests to cluster
 func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	var rt *v1beta1.ResourceTracker
-	// only when sourceAppRevision is not nil, we need gc old revision resources
+	// if sourceAppRevision is not nil, we should upgrade existing resources which are also needed by target app
+	// revision
 	if h.sourceAppRevision != nil {
 		rt = new(v1beta1.ResourceTracker)
 		err := h.Get(ctx, types.NamespacedName{Name: dispatch.ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
@@ -221,7 +222,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	return nil
 }
 
-// templateTargetManifest call dispatch to template target manifest to cluster
+// templateTargetManifest call dispatch to template source app revision's manifests to cluster
 func (h *rolloutHandler) templateSourceManifest(ctx context.Context) error {
 
 	// only when sourceAppRevision is not nil, we need template sourceRevision revision
@@ -271,6 +272,8 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 		err := h.Client.Get(ctx, client.ObjectKey{
 			Name: dispatch.ConstructResourceTrackerName(h.sourceAppRevision.Name, h.sourceAppRevision.Namespace)}, oldRT)
 		if err != nil && apierrors.IsNotFound(err) {
+			// end finalizing if source revision's tracker is already gone
+			// this guarantees finalizeRollingSucceeded will only GC once
 			return nil
 		}
 		if err != nil {
