@@ -34,13 +34,16 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
+	ac "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -310,13 +313,14 @@ func appWillReleaseByRollout(app *v1beta1.Application) bool {
 }
 
 // SetupWithManager install to manager
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.ComponentHandler) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
 		For(&v1beta1.Application{}).
+		Watches(&source.Kind{Type: &v1alpha2.Component{}}, compHandler).
 		Complete(r)
 }
 
@@ -344,5 +348,10 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		appRevisionLimit:     args.AppRevisionLimit,
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
-	return reconciler.SetupWithManager(mgr)
+	compHandler := &ac.ComponentHandler{
+		Client:                mgr.GetClient(),
+		RevisionLimit:         args.RevisionLimit,
+		CustomRevisionHookURL: args.CustomRevisionHookURL,
+	}
+	return reconciler.SetupWithManager(mgr, compHandler)
 }
