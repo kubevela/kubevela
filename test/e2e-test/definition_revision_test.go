@@ -196,7 +196,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
 		webServiceDeploy := &appsv1.Deployment{}
@@ -408,7 +410,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully by Helm")
 		deploy := &appsv1.Deployment{}
@@ -563,7 +567,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(job) is created successfully")
 		job := &batchv1.Job{}

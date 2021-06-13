@@ -197,7 +197,9 @@ spec:
 			},
 		}
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
@@ -325,7 +327,9 @@ spec:
 			},
 		}
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &appTest)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, appTest.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}

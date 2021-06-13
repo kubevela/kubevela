@@ -167,7 +167,9 @@ var _ = Describe("Test application containing helm module", func() {
 			},
 		}
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully by Helm")
 		deploy := &appsv1.Deployment{}
@@ -301,7 +303,9 @@ var _ = Describe("Test application containing helm module", func() {
 			},
 		}
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &appTest)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, appTest.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully by Helm")
 		deploy := &appsv1.Deployment{}
@@ -353,7 +357,9 @@ var _ = Describe("Test application containing helm module", func() {
 			},
 		}
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, newApp.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully by Helm")
 		deploy := &appsv1.Deployment{}
@@ -375,6 +381,6 @@ var _ = Describe("Test application containing helm module", func() {
 				return errors.New("json schema is not found in the ConfigMap")
 			}
 			return nil
-		}, 60*time.Second, 5*time.Second).Should(Succeed())
+		}, 60*time.Second, 500*time.Millisecond).Should(Succeed())
 	})
 })
