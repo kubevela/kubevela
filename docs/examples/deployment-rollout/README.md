@@ -17,17 +17,20 @@ kubectl apply -f docs/examples/deployment-rollout/app-source.yaml
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-target.yaml
 ```
-
-4. Apply the application deployment with pause
+4. Apply scale appRollout
+```shell
+kubectl apply -f docs/examples/deployment-rollout/app-rollout-scale.yaml
+```
+5. Apply the application deployment with pause
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-rollout-pause.yaml
 ```
 Check the status of the ApplicationRollout and see the step by step rolling out.
 This rollout will pause after the second batch.
 
-7. Apply the application deployment that completes the rollout
+6. Apply the application deployment that completes the rollout
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-rollout-finish.yaml
 ```
-Check the status of the ApplicationRollout and see the rollout completes, and the 
-ApplicationRollout's "Rolling State" becomes `rolloutSucceed`
+Check the status of the AppRollout and see the rollout completes, and the 
+AppRollout's "Rolling State" becomes `rolloutSucceed`
