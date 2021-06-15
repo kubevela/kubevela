@@ -107,6 +107,11 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 			klog.Error("appRollout sourceAppRevision failed to assemble workloads", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
 			return err
 		}
+		h.sourceManifests, err = sourceAssemble.AssembledManifests()
+		if err != nil {
+			klog.Error("appRollout sourceAppRevision failed to assemble manifest", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
+			return err
+		}
 	}
 	return nil
 }
