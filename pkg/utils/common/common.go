@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/ghodss/yaml"
@@ -130,14 +131,42 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 	if inst.Err != nil {
 		return nil, inst.Err
 	}
+	paramOnlyIns, err := RefineParameterInstance(inst)
+	if err != nil {
+		return nil, err
+	}
 	defaultConfig := &openapi.Config{}
-	b, err := openapi.Gen(inst, defaultConfig)
+	b, err := openapi.Gen(paramOnlyIns, defaultConfig)
 	if err != nil {
 		return nil, err
 	}
 	var out = &bytes.Buffer{}
 	_ = json.Indent(out, b, "", "   ")
 	return out.Bytes(), nil
+}
+
+// RefineParameterInstance refines cue instance to merely include `parameter` identifier
+func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
+	r := cue.Runtime{}
+	paramVal := inst.LookupDef(velacue.ParameterTag)
+	var paramOnlyStr string
+	switch k := paramVal.IncompleteKind(); k {
+	case cue.StructKind, cue.ListKind:
+		sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
+		paramSyntax, _ := format.Node(paramVal.Syntax(sysopts...))
+		paramOnlyStr = fmt.Sprintf("#%s: %s\n", velacue.ParameterTag, string(paramSyntax))
+	case cue.IntKind, cue.StringKind, cue.FloatKind, cue.BoolKind:
+		paramOnlyStr = fmt.Sprintf("#%s: %v", velacue.ParameterTag, paramVal)
+	case cue.BottomKind:
+		paramOnlyStr = fmt.Sprintf("#%s: {}", velacue.ParameterTag)
+	default:
+		return nil, fmt.Errorf("unsupport parameter kind: %s", k.String())
+	}
+	paramOnlyIns, err := r.Compile("-", paramOnlyStr)
+	if err != nil {
+		return nil, err
+	}
+	return paramOnlyIns, nil
 }
 
 // RealtimePrintCommandOutput prints command output in real time

@@ -171,52 +171,49 @@ name
 
 func TestGenOpenAPI(t *testing.T) {
 	type want struct {
-		data []byte
-		err  error
+		targetSchemaFile string
+		err              error
 	}
-	var dir = "testdata"
-	var validCueFile = "workload1.cue"
-	var validTargetSchema = "workload1.json"
-	targetFile := filepath.Join(dir, validTargetSchema)
-	expect, _ := ioutil.ReadFile(targetFile)
-
-	normalWant := want{
-		data: expect,
-		err:  nil,
-	}
-
-	f := filepath.FromSlash(validCueFile)
-
-	inst := cue.Build(load.Instances([]string{f}, &load.Config{
-		Dir: dir,
-	}))[0]
-
 	cases := map[string]struct {
 		reason       string
-		fileDir      string
 		fileName     string
 		targetSchema string
 		want         want
 	}{
 		"GenOpenAPI": {
-			reason:       "generate OpenAPI schema",
-			fileDir:      dir,
-			fileName:     validCueFile,
-			targetSchema: validTargetSchema,
-			want:         normalWant,
+			reason:   "generate valid OpenAPI schema with context",
+			fileName: "workload1.cue",
+			want: want{
+				targetSchemaFile: "workload1.json",
+				err:              nil,
+			},
+		},
+		"EmptyOpenAPI": {
+			reason:   "generate empty OpenAPI schema",
+			fileName: "emptyParameter.cue",
+			want: want{
+				targetSchemaFile: "emptyParameter.json",
+				err:              nil,
+			},
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
+			inst := cue.Build(load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
+				Dir: "testdata",
+			}))[0]
 			got, err := GenOpenAPI(inst)
 			if tc.want.err != nil {
 				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
 					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
 				}
 			}
-
-			if diff := cmp.Diff(tc.want.data, got); diff != "" {
+			if tc.want.targetSchemaFile == "" {
+				return
+			}
+			wantSchema, _ := ioutil.ReadFile(filepath.Join("testdata", tc.want.targetSchemaFile))
+			if diff := cmp.Diff(wantSchema, got); diff != "" {
 				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want, +got:\n%s", tc.reason, diff)
 			}
 		})
