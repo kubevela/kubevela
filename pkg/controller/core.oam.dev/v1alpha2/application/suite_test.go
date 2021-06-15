@@ -31,6 +31,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -51,6 +52,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -120,6 +122,8 @@ var _ = BeforeSuite(func(done Done) {
 
 	terraformv1beta1.AddToScheme(testScheme)
 
+	crdv1.AddToScheme(testScheme)
+
 	// +kubebuilder:scaffold:scheme
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
@@ -135,6 +139,7 @@ var _ = BeforeSuite(func(done Done) {
 		pd:               pd,
 		Recorder:         event.NewAPIRecorder(recorder),
 		appRevisionLimit: appRevisionLimit,
+		applicator:       apply.NewAPIApplicator(k8sClient),
 	}
 	// setup the controller manager since we need the component handler to run in the background
 	ctlManager, err = ctrl.NewManager(cfg, ctrl.Options{

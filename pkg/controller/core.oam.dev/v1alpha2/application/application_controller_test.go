@@ -26,8 +26,6 @@ import (
 	"strconv"
 	"time"
 
-	velatypes "github.com/oam-dev/kubevela/apis/types"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -49,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -902,7 +901,7 @@ spec:
 	})
 
 	It("app-with-trait will create workload and trait with http task", func() {
-		s := NewMock()
+		s := newMockHTTP()
 		defer s.Close()
 		expTrait := expectScalerTrait(appWithTrait.Spec.Components[0].Name, appWithTrait.Name)
 		expTrait.Object["spec"].(map[string]interface{})["token"] = "test-token"
@@ -2334,7 +2333,7 @@ spec:
 `
 )
 
-func NewMock() *httptest.Server {
+func newMockHTTP() *httptest.Server {
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			fmt.Printf("Expected 'GET' request, got '%s'", r.Method)

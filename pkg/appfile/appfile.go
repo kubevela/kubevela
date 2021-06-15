@@ -163,6 +163,42 @@ type Appfile struct {
 	Namespace    string
 	RevisionName string
 	Workloads    []*Workload
+
+	Policies      []*Workload
+	WorkflowSteps []*Workload
+}
+
+// GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
+func (af *Appfile) GenerateWorkflowAndPolicy() (policies, steps []*unstructured.Unstructured, err error) {
+	policies, err = af.generateUnstructureds(af.Policies)
+	if err != nil {
+		return
+	}
+	steps, err = af.generateUnstructureds(af.WorkflowSteps)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
+	uns := []*unstructured.Unstructured{}
+	for _, wl := range workloads {
+		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		if err != nil {
+			return nil, err
+		}
+		uns = append(uns, un)
+	}
+	return uns, nil
+}
+
+func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string) (*unstructured.Unstructured, error) {
+	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
+	if err != nil {
+		return nil, err
+	}
+	return makeWorkloadWithContext(pCtx, wl, ns, appName)
 }
 
 // GenerateApplicationConfiguration converts an appFile to applicationConfig & Components

@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
@@ -92,11 +93,15 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 	}, nil
 }
 
-func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
-	// don't create components if revision-only annotation is set
-	if ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, policies []*unstructured.Unstructured) error {
+
+	if h.app.Spec.Workflow != nil || ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
 		h.FinalizeAppRevision(appRev, ac, comps)
-		return h.createOrUpdateAppRevision(ctx, appRev)
+		err := h.createOrUpdateAppRevision(ctx, appRev)
+		if err != nil {
+			return err
+		}
+		return h.createResourcesConfigMap(ctx, appRev, ac, comps, policies)
 	}
 
 	owners := []metav1.OwnerReference{{
