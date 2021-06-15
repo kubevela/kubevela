@@ -6,7 +6,7 @@ The rollout plan feature in KubeVela is essentially provided by `AppRollout` API
 
 ## AppRollout
 
-Below is an example for rolling update an application from v1 to v2 in three batches. The 
+Below is an example for rolling update an application from v1 to v2 in three batches. The
 first batch contains only 1 pod while the rest of the batches split the rest.
 
 ```yaml
@@ -27,6 +27,7 @@ spec:
       - replicas: 50%
     batchPartition: 1
 ```
+
 ## Basic Usage
 
 1. Deploy application
@@ -76,7 +77,7 @@ spec:
           - replicas: 50%
         targetSize: 5
     ```
-    Use can check the status of the ApplicationRollout and wait for the rollout to complete.
+    User can check the status of the ApplicationRollout and wait for the rollout to complete.
 
 3. User can continue to modify the application image tag and apply.This will generate new AppRevision `test-rolling-v2`
     ```yaml
@@ -207,13 +208,13 @@ Using `AppRollout` separately can enable some advanced use case.
             - replicas: 2
     ```
 
-## More Details About `AppRollout` 
+## More Details About `AppRollout`
 
 ### Design Principles and Goals
 
-There are several attempts at solving rollout problem in the cloud native community. However, none 
-of them provide a true rolling style upgrade. For example, flagger supports Blue/Green, Canary 
-and A/B testing. Therefore, we decide to add support for batch based rolling upgrade as 
+There are several attempts at solving rollout problem in the cloud native community. However, none
+of them provide a true rolling style upgrade. For example, flagger supports Blue/Green, Canary
+and A/B testing. Therefore, we decide to add support for batch based rolling upgrade as
 our first style to support in KubeVela.
 
 We design KubeVela rollout solutions with the following principles in mind
@@ -226,7 +227,6 @@ We design KubeVela rollout solutions with the following principles in mind
   does state transition explicitly.
 - Finally, the controllers can support all the rollout/upgrade needs of an application running
   in a production environment including Blue/Green, Canary and A/B testing.
-
 
 ### State Transition
 Here is the high level state transition graph
