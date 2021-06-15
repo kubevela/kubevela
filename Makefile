@@ -52,9 +52,7 @@ build: fmt vet lint staticcheck vela-cli kubectl-vela
 	@$(OK) build succeed
 
 vela-cli:
-	go run hack/chart/generate.go
 	$(GOBUILD_ENV) go build -o bin/vela -a -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
-	git checkout references/cmd/cli/fake/chart_source.go
 
 kubectl-vela:
 	$(GOBUILD_ENV) go build -o bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
@@ -88,10 +86,8 @@ generate-source:
 cross-build:
 	rm -rf _bin
 	go get github.com/mitchellh/gox@v0.4.0
-	go run hack/chart/generate.go
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/vela/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./references/cmd/cli
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/kubectl-vela/{{.OS}}-{{.Arch}}/kubectl-vela" -osarch='$(TARGETS)' ./cmd/plugin
-	git checkout references/cmd/cli/fake/chart_source.go
 
 compress:
 	( \

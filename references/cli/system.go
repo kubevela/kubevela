@@ -20,24 +20,17 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"os"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/hack/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // VelaRuntimeStatus enums vela-core runtime status
@@ -50,23 +43,6 @@ const (
 	Ready
 	Error
 )
-
-type initCmd struct {
-	namespace string
-	ioStreams cmdutil.IOStreams
-	client    client.Client
-	chartPath string
-	chartArgs chartArgs
-	waitReady string
-	c         common.Args
-}
-
-type chartArgs struct {
-	imageRepo       string
-	imageTag        string
-	imagePullPolicy string
-	more            []string
-}
 
 type infoCmd struct {
 	out io.Writer
@@ -116,174 +92,6 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 	ioStreams.Infof("kubevela: %s \n", clusterVersion)
 	// TODO(wonderflow): we should print all helm charts installed by vela, including plugins
 
-	return nil
-}
-
-// NewInstallCommand creates `install` command
-func NewInstallCommand(c common.Args, chartContent string, ioStreams cmdutil.IOStreams) *cobra.Command {
-	i := &initCmd{ioStreams: ioStreams}
-	cmd := &cobra.Command{
-		Use:   "install",
-		Short: "Install Vela Core with built-in capabilities",
-		Long:  "Install Vela Core with built-in capabilities",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-			i.client = newClient
-			i.namespace = types.DefaultKubeVelaNS
-			i.c = c
-			return i.run(ioStreams, chartContent)
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
-		},
-		Deprecated: "vela install is DEPRECATED and we will remove it after Kubevela 1.0. Please use helm chart instead",
-	}
-
-	flag := cmd.Flags()
-	flag.StringVarP(&i.chartPath, "vela-chart-path", "p", "", "path to vela core chart to override default chart")
-	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "", "vela core image pull policy, this will align to chart value image.pullPolicy")
-	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "", "vela core image repo, this will align to chart value image.repo")
-	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "", "vela core image repo, this will align to chart value image.tag")
-	flag.StringVarP(&i.waitReady, "wait", "w", "0s", "wait until vela-core is ready to serve, default will not wait")
-	flag.StringSliceVarP(&i.chartArgs.more, "set", "s", []string{}, "arguments for installing vela-core chart")
-
-	return cmd
-}
-
-func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
-	waitDuration, err := time.ParseDuration(i.waitReady)
-	if err != nil {
-		return fmt.Errorf("invalid wait timeoout duration %w, should use '120s', '5m' like format", err)
-	}
-
-	ioStreams.Info("- Installing Vela Core Chart:")
-	exist, err := cmdutil.DoesNamespaceExist(i.client, types.DefaultKubeVelaNS)
-	if err != nil {
-		return err
-	}
-	if !exist {
-		if err := cmdutil.NewNamespace(i.client, types.DefaultKubeVelaNS); err != nil {
-			return err
-		}
-		ioStreams.Info("created namespace", types.DefaultKubeVelaNS)
-	}
-
-	if helm.IsHelmReleaseRunning(types.DefaultKubeVelaReleaseName, types.DefaultKubeVelaChartName, types.DefaultKubeVelaNS, i.ioStreams) {
-		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
-	} else {
-		vals, err := i.resolveValues()
-		if err != nil {
-			i.ioStreams.Errorf("resolve values for vela-core chart err %v, will install with default values", err)
-			vals = make(map[string]interface{})
-		}
-		if err := InstallOamRuntime(i.chartPath, chartSource, vals, ioStreams); err != nil {
-			return err
-		}
-	}
-	if err = CheckCapabilityReady(context.Background(), i.c, waitDuration); err != nil {
-		ioStreams.Infof("- Vela-Core was installed successfully while some capabilities were still installing background, "+
-			"try running 'vela workloads' or 'vela traits' to check after a while, details: %v", err)
-		return nil
-	}
-	ioStreams.Info("- Finished successfully.")
-
-	if waitDuration > 0 {
-		_, err := PrintTrackVelaRuntimeStatus(context.Background(), i.client, ioStreams, waitDuration)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// CheckCapabilityReady waits unitl capability is installed successfully
-func CheckCapabilityReady(ctx context.Context, c common.Args, timeout time.Duration) error {
-	if timeout < 5*time.Minute {
-		timeout = 5 * time.Minute
-	}
-	tmpdir, err := ioutil.TempDir(".", "tmpcap")
-	if err != nil {
-		return err
-	}
-	//nolint:errcheck
-	defer os.RemoveAll(tmpdir)
-
-	start := time.Now()
-	spiner := newTrackingSpinnerWithDelay("Waiting Capability ready to install ...", 10*time.Second)
-	spiner.Start()
-	defer spiner.Stop()
-
-	for {
-		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
-		if err == nil {
-			return nil
-		}
-		if time.Since(start) > timeout {
-			return fmt.Errorf("timeout when checking capability readiness: \nWarning: %w", err)
-		}
-		time.Sleep(5 * time.Second)
-	}
-}
-
-func (i *initCmd) resolveValues() (map[string]interface{}, error) {
-	finalValues := map[string]interface{}{}
-	var valuesConfig []string
-	// By default align values.yaml in chart
-	if i.chartArgs.imageRepo != "" {
-		valuesConfig = append(valuesConfig, fmt.Sprintf("image.repository=%s", i.chartArgs.imageRepo))
-	}
-	if i.chartArgs.imageTag != "" {
-		valuesConfig = append(valuesConfig, fmt.Sprintf("image.tag=%s", i.chartArgs.imageTag))
-	}
-	if i.chartArgs.imagePullPolicy != "" {
-		valuesConfig = append(valuesConfig, fmt.Sprintf("image.pullPolicy=%s", i.chartArgs.imagePullPolicy))
-	}
-	valuesConfig = append(valuesConfig, i.chartArgs.more...)
-
-	for _, val := range valuesConfig {
-		// parses Helm strvals line and merges into a map for the final overrides for values.yaml
-		if err := strvals.ParseInto(val, finalValues); err != nil {
-			return nil, err
-		}
-	}
-	return finalValues, nil
-}
-
-// InstallOamRuntime installs vela-core runtime from helm chart
-func InstallOamRuntime(chartPath, chartSource string, vals map[string]interface{}, ioStreams cmdutil.IOStreams) error {
-	var err error
-	var chartRequested *chart.Chart
-	if chartPath != "" {
-		ioStreams.Infof("Use customized chart at: %s", chartPath)
-		chartRequested, err = loader.Load(chartPath)
-	} else {
-		chartRequested, err = utils.LoadChart(chartSource)
-		if chartRequested != nil {
-			m, l := chartRequested.Metadata, len(chartRequested.Raw)
-			ioStreams.Infof("install chart %s, version %s, desc : %s, contains %d file\n", m.Name, m.Version, m.Description, l)
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("error loading chart for installation: %w", err)
-	}
-	installClient, err := helm.NewHelmInstall("", types.DefaultKubeVelaNS, types.DefaultKubeVelaReleaseName)
-	if err != nil {
-		return fmt.Errorf("error create helm install client: %w", err)
-	}
-	release, err := installClient.Run(chartRequested, vals)
-	if err != nil {
-		ioStreams.Errorf("Failed to install the chart with error: %+v\n", err)
-		return err
-	}
-	ioStreams.Infof("Successfully installed the chart, status: %s, last deployed time = %s\n",
-		release.Info.Status,
-		release.Info.LastDeployed.String())
 	return nil
 }
 
