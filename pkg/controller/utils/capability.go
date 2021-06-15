@@ -44,9 +44,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-// ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
-const ErrNoSectionParameterInCue = "capability %s doesn't contain section `parameter`"
-
 // data types of parameter value
 const (
 	TerraformVariableString string = "string"
@@ -57,6 +54,15 @@ const (
 	TerraformVariableMap    string = "map"
 	TerraformVariableObject string = "object"
 )
+
+// ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
+type ErrNoSectionParameterInCue struct {
+	capName string
+}
+
+func (e ErrNoSectionParameterInCue) Error() string {
+	return fmt.Sprintf("capability %s doesn't contain section `parameter`", e.capName)
+}
 
 // CapabilityDefinitionInterface is the interface for Capability (WorkloadDefinition and TraitDefinition)
 type CapabilityDefinitionInterface interface {
@@ -369,6 +375,12 @@ func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover)
 func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
 	template, err := prepareParameterCue(capability.Name, capability.CueTemplate)
 	if err != nil {
+		if errors.As(err, &ErrNoSectionParameterInCue{}) {
+			// return OpenAPI with empty object parameter, making it possible to generate ConfigMap
+			var r cue.Runtime
+			cueInst, _ := r.Compile("-", "")
+			return common.GenOpenAPI(cueInst)
+		}
 		return nil, err
 	}
 
@@ -421,7 +433,7 @@ func prepareParameterCue(capabilityName, capabilityTemplate string) (string, err
 	}
 
 	if !withParameterFlag {
-		return "", fmt.Errorf(ErrNoSectionParameterInCue, capabilityName)
+		return "", ErrNoSectionParameterInCue{capName: capabilityName}
 	}
 	return template, nil
 }

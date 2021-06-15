@@ -18,9 +18,7 @@
 package utils
 
 import (
-	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -32,11 +30,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 const TestDir = "testdata/definition"
@@ -92,6 +88,54 @@ annotations: {
 `,
 			want: want{data: "{\"type\":\"string\"}", err: nil},
 		},
+		"parameter in cue is a list type,": {
+			reason: "Prepare a list parameter cue file",
+			name:   "workload4",
+			data: `
+annotations: {
+	"test":parameter
+}
+
+   parameter:[...string]
+`,
+			want: want{data: "{\"items\":{\"type\":\"string\"},\"type\":\"array\"}", err: nil},
+		},
+		"parameter in cue is an int type,": {
+			reason: "Prepare an int parameter cue file",
+			name:   "workload5",
+			data: `
+annotations: {
+	"test":parameter
+}
+
+   parameter: int
+`,
+			want: want{data: "{\"type\":\"integer\"}", err: nil},
+		},
+		"parameter in cue is a float type,": {
+			reason: "Prepare a float parameter cue file",
+			name:   "workload6",
+			data: `
+annotations: {
+	"test":parameter
+}
+
+   parameter: float
+`,
+			want: want{data: "{\"type\":\"number\"}", err: nil},
+		},
+		"parameter in cue is a bool type,": {
+			reason: "Prepare a bool parameter cue file",
+			name:   "workload7",
+			data: `
+annotations: {
+	"test":parameter
+}
+
+   parameter: bool
+`,
+			want: want{data: "{\"type\":\"boolean\"}", err: nil},
+		},
 		"cue doesn't contain parameter section": {
 			reason: "Prepare a cue file which doesn't contain `parameter` section",
 			name:   "invalidWorkload",
@@ -104,7 +148,28 @@ noParameter: {
 	min: int
 }
 `,
-			want: want{data: "", err: fmt.Errorf("capability invalidWorkload doesn't contain section `parameter`")},
+			want: want{data: "{\"type\":\"object\"}", err: nil},
+		},
+		"cue doesn't parse other sections except parameter": {
+			reason: "Prepare a cue file which contains `context.appName` field",
+			name:   "withContextField",
+			data: `
+patch: {
+	spec: template: metadata: labels: {
+		for k, v in parameter {
+			"\(k)": v
+		}
+	}
+	spec: template: metadata: annotations: {
+		"route-name.oam.dev": #routeName
+	}
+}
+
+#routeName: "\(context.appName)-\(context.name)"
+
+parameter: [string]: string
+`,
+			want: want{data: "{\"additionalProperties\":{\"type\":\"string\"},\"type\":\"object\"}", err: nil},
 		},
 	}
 
@@ -150,42 +215,6 @@ func TestFixOpenAPISchema(t *testing.T) {
 			fixedSchema, _ := schema.MarshalJSON()
 			expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, tc.fixedFile))
 			assert.Equal(t, string(fixedSchema), string(expectedSchema))
-		})
-	}
-}
-
-func TestGenerateOpenAPISchemaFromCapabilityParameter(t *testing.T) {
-	var invalidWorkloadName = "IAmAnInvalidWorkloadDefinition"
-	capabilityDir, _ := system.GetCapabilityDir()
-	if _, err := os.Stat(capabilityDir); err != nil && os.IsNotExist(err) {
-		os.MkdirAll(capabilityDir, 0755)
-	}
-
-	type want struct {
-		data []byte
-		err  error
-	}
-
-	cases := map[string]struct {
-		reason     string
-		capability types.Capability
-		want       want
-	}{
-		"GenerateOpenAPISchemaFromInvalidCapability": {
-			reason:     "generate OpenAPI schema for an invalid Workload/Trait",
-			capability: types.Capability{Name: invalidWorkloadName},
-			want:       want{data: nil, err: fmt.Errorf("capability IAmAnInvalidWorkloadDefinition doesn't contain section `parameter`")},
-		},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got, err := generateOpenAPISchemaFromCapabilityParameter(tc.capability, pd)
-			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\ngetDefinition(...): -want error, +got error:\n%s", tc.reason, diff)
-			}
-			if diff := cmp.Diff(tc.want.data, got); diff != "" {
-				t.Errorf("\n%s\ngetDefinition(...): -want, +got:\n%s", tc.reason, diff)
-			}
 		})
 	}
 }
