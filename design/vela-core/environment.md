@@ -40,10 +40,10 @@ kind: Environment
 metadata:
   name: prod
 spec:
-  # An environment consists of multiple system components.
+  # An environment consists of multiple system resources.
   # An environment is a grouping of these shared resources for user applications.
-  components:
-    - app:
+  resources:
+    - template:
         # We can use Application to deploy the resources that an environment needs.
         # An environment setup can be done just like deploying applications in system level.
         apiVersion: core.oam.dev/v1beta1
@@ -85,8 +85,8 @@ kind: Environment
 metadata:
   name: prod-env
 spec:
-  components:
-  - app:
+  resources:
+    - template:
       apiVersion: core.oam.dev/v1beta1
       kind: Application
       metadata:
@@ -141,8 +141,8 @@ kind: Environment
 metadata:
   name: prod-env
 spec:
-  components:
-  - app:
+  resources:
+    - template:
       apiVersion: core.oam.dev/v1beta1
       kind: Application
       metadata:
@@ -202,8 +202,9 @@ kind: Environment
 metadata:
   name: prod-env
 spec:
-  components:
-  - app:
+  resources:
+    - template:
+      apiVersion: core.oam.dev/v1beta1
       kind: Application
       metadata:
         name: prod-env-operators
@@ -242,8 +243,9 @@ kind: Environment
 metadata:
   name: prod-env
 spec:
-  components:
-  - app:
+  resources:
+    - template:
+      apiVersion: core.oam.dev/v1beta1
       kind: Application
       metadata:
         name: prod-env
