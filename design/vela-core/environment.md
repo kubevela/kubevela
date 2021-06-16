@@ -43,7 +43,11 @@ spec:
   # An environment consists of multiple system resources.
   # An environment is a grouping of these shared resources for user applications.
   resources:
-    - template:
+    - # mustOwn indicates that this resource should be owned by this env.
+      mustOwn: true
+
+      # template defines the resource template that will be applied.
+      template:
         # We can use Application to deploy the resources that an environment needs.
         # An environment setup can be done just like deploying applications in system level.
         apiVersion: core.oam.dev/v1beta1
@@ -87,20 +91,20 @@ metadata:
 spec:
   resources:
     - template:
-      apiVersion: core.oam.dev/v1beta1
-      kind: Application
-      metadata:
-        name: prod-env-clusters
-      spec:
-        components:
-          - name: prod-env-clusters
-            type: cluster-selector
-            properties:
-              # cluster with given names or matched labels will belong to this env
-              clusterSelector:
-                names: ["prod-1"， "prod-2"]
-                labels:
-                  tier: prod
+        apiVersion: core.oam.dev/v1beta1
+        kind: Application
+        metadata:
+          name: prod-env-clusters
+        spec:
+          components:
+            - name: prod-env-clusters
+              type: cluster-selector
+              properties:
+                # cluster with given names or matched labels will belong to this env
+                clusterSelector:
+                  names: ["prod-1"， "prod-2"]
+                  labels:
+                    tier: prod
 ```
 
 Developers would define how to deploy to clusters based on environments via Workflow:
@@ -143,26 +147,26 @@ metadata:
 spec:
   resources:
     - template:
-      apiVersion: core.oam.dev/v1beta1
-      kind: Application
-      metadata:
-        name: prod-env-policies
-      spec:
-        components:
-          - name: prod-env-slo-policy
-            type: slo-policy
-            properties:
-              # slo indicates the service in this env must be 99.99% up
-              slo: "99.99"
-          - name: prod-env-chaos-policy
-            type: chaos-policy
-            properties:
-              io:
-                action: fault
-                volumePath: /var/run/etcd
-                path: /var/run/etcd/**/*
-                percent: 50
-                duration: "400s"
+        apiVersion: core.oam.dev/v1beta1
+        kind: Application
+        metadata:
+          name: prod-env-policies
+        spec:
+          components:
+            - name: prod-env-slo-policy
+              type: slo-policy
+              properties:
+                # slo indicates the service in this env must be 99.99% up
+                slo: "99.99"
+            - name: prod-env-chaos-policy
+              type: chaos-policy
+              properties:
+                io:
+                  action: fault
+                  volumePath: /var/run/etcd
+                  path: /var/run/etcd/**/*
+                  percent: 50
+                  duration: "400s"
 ```
 
 Developers would specify an environment to deploy via Workflow, which automatically does policy checks in the background:
@@ -204,27 +208,27 @@ metadata:
 spec:
   resources:
     - template:
-      apiVersion: core.oam.dev/v1beta1
-      kind: Application
-      metadata:
-        name: prod-env-operators
-      spec:
-        components:
-          - name: prod-monitoring-operator
-            # Reuse the built-in Helm/Kustomize ComponentDefinition to deploy Operators from Git repo.
-            type: helm-git
-            properties:
-              chart:
-                repository: operator-git-repo-url
-                name: monitoring-operator
-                version: 3.2.0
-          - name: prod-logging-operator
-            type: kustomize-git
-            properties:
-              sourceRef:
-                kind: GitRepository
-                name: logging-operator
-              path: ./apps/prod
+        apiVersion: core.oam.dev/v1beta1
+        kind: Application
+        metadata:
+          name: prod-env-operators
+        spec:
+          components:
+            - name: prod-monitoring-operator
+              # Reuse the built-in Helm/Kustomize ComponentDefinition to deploy Operators from Git repo.
+              type: helm-git
+              properties:
+                chart:
+                  repository: operator-git-repo-url
+                  name: monitoring-operator
+                  version: 3.2.0
+            - name: prod-logging-operator
+              type: kustomize-git
+              properties:
+                sourceRef:
+                  kind: GitRepository
+                  name: logging-operator
+                path: ./apps/prod
 ```
 
 Under the hood, Vela will support built-in ComponentDefinitions to deploy Helm charts or Kustomize folders
@@ -245,42 +249,42 @@ metadata:
 spec:
   resources:
     - template:
-      apiVersion: core.oam.dev/v1beta1
-      kind: Application
-      metadata:
-        name: prod-env
-      spec:
-        components:
-          - name: prod-policy-env
-            # Reuse the built-in Helm ComponentDefinition to deploy Crossplane resource.
-            type: helm-git
-            properties:
-              chart:
-                repository: crossplane-mysql-url
-                name: mysql
-                version: 3.2.0
-          - name: prod-policy-env
-            # Reuse the built-in Terraform ComponentDefinition to deploy cloud resource.
-            type: terraform-git
-            properties:
-              module:
-                source: "git::https://github.com/catalog/kafka.git"
-              outputs:
-                - key: queue_urls
-                  moduleOutputName: queue_urls
-                - key: json_string
-                  moduleOutputName: json_string
-              variables:
-                - key: ACCESS_KEY_ID
-                  sensitive: true
-                  environmentVariable: true
-                - key: SECRET_ACCESS_KEY
-                  sensitive: true
-                  environmentVariable: true
-                - key: CONFIRM_DESTROY
-                  value: "1"
-                  sensitive: false
-                  environmentVariable: true
+        apiVersion: core.oam.dev/v1beta1
+        kind: Application
+        metadata:
+          name: prod-env
+        spec:
+          components:
+            - name: prod-policy-env
+              # Reuse the built-in Helm ComponentDefinition to deploy Crossplane resource.
+              type: helm-git
+              properties:
+                chart:
+                  repository: crossplane-mysql-url
+                  name: mysql
+                  version: 3.2.0
+            - name: prod-policy-env
+              # Reuse the built-in Terraform ComponentDefinition to deploy cloud resource.
+              type: terraform-git
+              properties:
+                module:
+                  source: "git::https://github.com/catalog/kafka.git"
+                outputs:
+                  - key: queue_urls
+                    moduleOutputName: queue_urls
+                  - key: json_string
+                    moduleOutputName: json_string
+                variables:
+                  - key: ACCESS_KEY_ID
+                    sensitive: true
+                    environmentVariable: true
+                  - key: SECRET_ACCESS_KEY
+                    sensitive: true
+                    environmentVariable: true
+                  - key: CONFIRM_DESTROY
+                    value: "1"
+                    sensitive: false
+                    environmentVariable: true
 ```
 
 
