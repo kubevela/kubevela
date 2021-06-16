@@ -19,6 +19,7 @@ package componentdefinition
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -43,6 +44,8 @@ type MutatingHandler struct {
 	Client client.Client
 	// Decoder decodes objects
 	Decoder *admission.Decoder
+	// AutoGenWorkloadDef indicates whether create workloadDef which componentDef refers to
+	AutoGenWorkloadDef bool
 }
 
 var _ admission.Handler = &MutatingHandler{}
@@ -79,32 +82,44 @@ func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
 	klog.InfoS("mutate", "name", obj.Name)
 
 	// If the Type field is not empty, it means that ComponentDefinition refers to an existing WorkloadDefinition
-	if obj.Spec.Workload.Type != "" {
-		return nil
+	if obj.Spec.Workload.Type != "" && obj.Spec.Workload.Definition == (common.WorkloadGVK{}) {
+		workloadDef := new(v1beta1.WorkloadDefinition)
+		return h.Client.Get(context.TODO(), client.ObjectKey{Name: obj.Spec.Workload.Type, Namespace: obj.Namespace}, workloadDef)
 	}
+
 	if obj.Spec.Workload.Definition != (common.WorkloadGVK{}) {
 		// If only Definition field exists, fill Type field according to Definition.
 		defRef, err := util.ConvertWorkloadGVK2Definition(h.Mapper, obj.Spec.Workload.Definition)
 		if err != nil {
 			return err
 		}
-		obj.Spec.Workload.Type = defRef.Name
 
-		// Create workloadDefinition which componentDefinition refers to
+		if obj.Spec.Workload.Type == "" {
+			obj.Spec.Workload.Type = defRef.Name
+		}
+
 		workloadDef := new(v1beta1.WorkloadDefinition)
 		err = h.Client.Get(context.TODO(), client.ObjectKey{Name: defRef.Name, Namespace: obj.Namespace}, workloadDef)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				workloadDef.SetName(defRef.Name)
-				workloadDef.SetNamespace(obj.Namespace)
-				workloadDef.Spec.Reference = defRef
-				return h.Client.Create(context.TODO(), workloadDef)
+				// Create workloadDefinition which componentDefinition refers to
+				if h.AutoGenWorkloadDef {
+					workloadDef.SetName(defRef.Name)
+					workloadDef.SetNamespace(obj.Namespace)
+					workloadDef.Spec.Reference = defRef
+					return h.Client.Create(context.TODO(), workloadDef)
+				}
+
+				return fmt.Errorf("workloadDefinition %s referenced by componentDefinition is not found, please create the workloadDefinition first", defRef.Name)
 			}
 			return err
 		}
 		return nil
 	}
-	obj.Spec.Workload.Type = types.AutoDetectWorkloadDefinition
+
+	if obj.Spec.Workload.Type == "" {
+		obj.Spec.Workload.Type = types.AutoDetectWorkloadDefinition
+	}
 	return nil
 }
 
@@ -130,5 +145,7 @@ func (h *MutatingHandler) InjectClient(c client.Client) error {
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/mutating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{Handler: &MutatingHandler{Mapper: args.DiscoveryMapper}})
+	server.Register("/mutating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{
+		Handler: &MutatingHandler{Mapper: args.DiscoveryMapper, AutoGenWorkloadDef: args.AutoGenWorkloadDefinition},
+	})
 }

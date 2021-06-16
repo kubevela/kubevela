@@ -91,6 +91,7 @@ func main() {
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.BoolVar(&controllerArgs.ApplicationConfigurationInstalled, "app-config-installed", true,
 		"app-config-installed indicates if applicationConfiguration CRD is installed")
+	flag.BoolVar(&controllerArgs.AutoGenWorkloadDefinition, "autogen-workload-definition", true, "Automatic generated workloadDefinition which componentDefinition refers to.")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
 	flag.StringVar(&applyOnceOnly, "apply-once-only", "false",
 		"For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force.")
