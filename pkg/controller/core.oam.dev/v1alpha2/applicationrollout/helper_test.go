@@ -19,8 +19,10 @@ package applicationrollout
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -56,6 +58,100 @@ func TestEnableControllerOwner(t *testing.T) {
 			assert.Equal(t, true, *reference.Controller)
 		} else {
 			assert.Equal(t, false, *reference.Controller)
+		}
+	}
+}
+
+func TestHandleTerminated(t *testing.T) {
+	testcases := map[string]struct {
+		rollout v1beta1.AppRollout
+		want    bool
+	}{
+		"succeed": {
+			rollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					SourceAppRevisionName: "v1",
+					TargetAppRevisionName: "v2",
+				},
+				Status: common.AppRolloutStatus{
+					LastSourceAppRevision:         "v1",
+					LastUpgradedTargetAppRevision: "v2",
+					RolloutStatus: oamstandard.RolloutStatus{
+						RollingState: oamstandard.RolloutSucceedState,
+					},
+				},
+			},
+			want: true,
+		},
+		"failed": {
+			rollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					SourceAppRevisionName: "v1",
+					TargetAppRevisionName: "v2",
+				},
+				Status: common.AppRolloutStatus{
+					LastSourceAppRevision:         "v1",
+					LastUpgradedTargetAppRevision: "v2",
+					RolloutStatus: oamstandard.RolloutStatus{
+						RollingState: oamstandard.RolloutFailedState,
+					},
+				},
+			},
+			want: true,
+		},
+		"restart after succeed": {
+			rollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					SourceAppRevisionName: "v2",
+					TargetAppRevisionName: "v3",
+				},
+				Status: common.AppRolloutStatus{
+					LastSourceAppRevision:         "v2",
+					LastUpgradedTargetAppRevision: "v1",
+					RolloutStatus: oamstandard.RolloutStatus{
+						RollingState: oamstandard.RolloutSucceedState,
+					},
+				},
+			},
+			want: false,
+		},
+		"restart after failed": {
+			rollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					SourceAppRevisionName: "v2",
+					TargetAppRevisionName: "v3",
+				},
+				Status: common.AppRolloutStatus{
+					LastSourceAppRevision:         "v2",
+					LastUpgradedTargetAppRevision: "v1",
+					RolloutStatus: oamstandard.RolloutStatus{
+						RollingState: oamstandard.RolloutFailedState,
+					},
+				},
+			},
+			want: false,
+		},
+		"still in middle of rollout": {
+			rollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					SourceAppRevisionName: "v1",
+					TargetAppRevisionName: "v2",
+				},
+				Status: common.AppRolloutStatus{
+					LastSourceAppRevision:         "v2",
+					LastUpgradedTargetAppRevision: "v1",
+					RolloutStatus: oamstandard.RolloutStatus{
+						RollingState: oamstandard.RollingInBatchesState,
+					},
+				},
+			},
+			want: false,
+		},
+	}
+	for casename, c := range testcases {
+		got := handleRollingTerminated(c.rollout)
+		if got != c.want {
+			t.Errorf("%s result missmatch want:%v got: %v", casename, c.want, got)
 		}
 	}
 }
