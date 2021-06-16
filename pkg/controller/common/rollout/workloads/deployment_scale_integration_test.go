@@ -104,7 +104,7 @@ var _ = Describe("deployment controller", func() {
 		k8sClient.Delete(ctx, &deployment)
 	})
 
-	Context("TestNewDeploymentController", func() {
+	Context("TestNewDeploymentRolloutController", func() {
 		It("init a Deployment Controller", func() {
 			recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 				WithAnnotations("controller", "AppRollout")
