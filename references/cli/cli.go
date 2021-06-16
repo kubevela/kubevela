@@ -70,7 +70,6 @@ func NewCommand() *cobra.Command {
 
 	cmds.AddCommand(
 		// Getting Start
-		NewInstallCommand(commandArgs, fake.ChartSource, ioStream),
 		NewInitCommand(commandArgs, ioStream),
 		NewUpCommand(commandArgs, ioStream),
 		NewExportCommand(commandArgs, ioStream),
