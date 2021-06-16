@@ -129,7 +129,7 @@ var _ = Describe("deployment controller", func() {
 	})
 
 	Context("TestNewDeploymentRolloutController", func() {
-		It("init a Deployment Controller", func() {
+		It("init a Deployment Rollout Controller", func() {
 			recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 				WithAnnotations("controller", "AppRollout")
 			parentController := &v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: sourceName}}
