@@ -330,7 +330,7 @@ touch def.cue
 In KubeVela, we don't need to download these packages as they're automatically generated from K8s API.
 But for local test, we need to use `cue get go` to fetch Go packages and convert them to CUE format files.
 
-So, by using K8s `Deployment` and `Serivice`, we need download and convert to CUE definitions for the `core` and `apps` Kubernetes modules like below:
+So, by using K8s `Deployment` and `Service`, we need download and convert to CUE definitions for the `core` and `apps` Kubernetes modules like below:
 
 ```shell
 cue get go k8s.io/api/core/v1

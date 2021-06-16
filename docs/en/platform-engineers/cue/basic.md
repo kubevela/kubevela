@@ -12,7 +12,7 @@ The reasons for KubeVela supports CUE as a first-class solution to design abstra
 
 - **CUE is designed for large scale configuration.** CUE has the ability to understand a
  configuration worked on by engineers across a whole company and to safely change a value that modifies thousands of objects in a configuration. This aligns very well with KubeVela's original goal to define and ship production level applications at web scale.
-- **CUE supports first-class code generation and automation.** CUE can integrate with existing tools and workflows naturally while other tools would have to build complex custom solutions. For example, generate OpenAPI schemas wigh Go code. This is how KubeVela build developer tools and GUI interfaces based on the CUE templates.
+- **CUE supports first-class code generation and automation.** CUE can integrate with existing tools and workflows naturally while other tools would have to build complex custom solutions. For example, generate OpenAPI schemas with Go code. This is how KubeVela build developer tools and GUI interfaces based on the CUE templates.
 - **CUE integrates very well with Go.**
  KubeVela is built with GO just like most projects in Kubernetes system. CUE is also implemented in and exposes a rich API in Go. KubeVela integrates with CUE as its core library and works as a Kubernetes controller. With the help of CUE, KubeVela can easily handle data constraint problems.
 
@@ -57,7 +57,7 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
     cue fmt first.cue
     ```
 
-* Schema Check, besides `cue fmt`, you can also use `vue vet` to check schema.
+* Schema Check, besides `cue fmt`, you can also use `cue vet` to check schema.
     ```shell
     cue vet first.cue
     ```

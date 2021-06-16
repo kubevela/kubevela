@@ -108,7 +108,7 @@ Hence, the `properties` section of `backend` only exposes two parameters to fill
 
 Traits (`TraitDefinition` API) are operational features provided by the platform. A trait augments the component instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc.
 
-To attach a trait to component instance, the user will declare `.type` field to reference the specific `TraitDefinition`, and `.properties` field to set property values of the given trait. Similarly, `TraitDefiniton` also allows you to define *template* for operational features.
+To attach a trait to component instance, the user will declare `.type` field to reference the specific `TraitDefinition`, and `.properties` field to set property values of the given trait. Similarly, `TraitDefinition` also allows you to define *template* for operational features.
 
 In the above example, `type: autoscaler` in `frontend` means the specification (i.e. `properties` section) of this trait will be enforced by a `TraitDefinition` object named `autoscaler` as below:
 
