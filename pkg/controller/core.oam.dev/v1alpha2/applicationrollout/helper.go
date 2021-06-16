@@ -27,6 +27,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -77,4 +78,18 @@ func enableControllerOwner(workload *unstructured.Unstructured) {
 		}
 	}
 	workload.SetOwnerReferences(owners)
+}
+
+func handleRollingTerminated(appRollout v1beta1.AppRollout) bool {
+	// handle rollout completed
+	if appRollout.Status.RollingState == oamstd.RolloutSucceedState ||
+		appRollout.Status.RollingState == oamstd.RolloutFailedState {
+		if appRollout.Status.LastUpgradedTargetAppRevision == appRollout.Spec.TargetAppRevisionName &&
+			appRollout.Status.LastSourceAppRevision == appRollout.Spec.SourceAppRevisionName {
+			klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
+				"target", appRollout.Spec.TargetAppRevisionName)
+			return true
+		}
+	}
+	return false
 }

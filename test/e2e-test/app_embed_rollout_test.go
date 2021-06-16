@@ -136,6 +136,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 	})
 
 	verifyRolloutSucceeded := func(targetAppRevisionName string, cpu string) {
+		By("verify application status")
 		Eventually(
 			func() error {
 				app = v1beta1.Application{}
@@ -143,7 +144,10 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 					return err
 				}
 				if app.Status.Rollout.RollingState != v1alpha1.RolloutSucceedState {
-					return fmt.Errorf("app status rollingStatus not running %s", app.Status.Rollout.RollingState)
+					return fmt.Errorf("app status rollingStatus not succeed acctually  %s", app.Status.Rollout.RollingState)
+				}
+				if app.Status.Phase != apicommon.ApplicationRunning {
+					return fmt.Errorf("app status not running acctually  %s", app.Status.Phase)
 				}
 				return nil
 			},
@@ -151,7 +155,6 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		Expect(app.Status.Rollout.UpgradedReadyReplicas).Should(BeEquivalentTo(app.Status.Rollout.RolloutTargetSize))
 		Expect(app.Status.Rollout.UpgradedReplicas).Should(BeEquivalentTo(app.Status.Rollout.RolloutTargetSize))
 		clonesetName := app.Spec.Components[0].Name
-		Expect(app.Status.Phase).Should(BeEquivalentTo(apicommon.ApplicationRunning))
 
 		By("Verify cloneset  status")
 		var clonesetOwner *metav1.OwnerReference

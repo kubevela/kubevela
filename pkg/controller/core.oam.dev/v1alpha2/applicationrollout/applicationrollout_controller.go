@@ -121,7 +121,7 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 	var err error
 
 	// no need to proceed if rollout is already in a terminal state and there is no source/target change
-	doneReconcile := r.handleRollingTerminated(*appRollout)
+	doneReconcile := handleRollingTerminated(*appRollout)
 	if doneReconcile {
 		return reconcile.Result{}, nil
 	}
@@ -252,20 +252,6 @@ func (r *Reconciler) handleFinalizer(ctx context.Context, appRollout *v1beta1.Ap
 		appRollout.Status.StateTransition(v1alpha1.RollingDeletedEvent)
 	}
 	return false, reconcile.Result{}, nil
-}
-
-func (r *Reconciler) handleRollingTerminated(appRollout v1beta1.AppRollout) bool {
-	// handle rollout completed
-	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
-		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
-		if appRollout.Status.LastUpgradedTargetAppRevision == appRollout.Spec.TargetAppRevisionName &&
-			appRollout.Status.LastSourceAppRevision == appRollout.Spec.TargetAppRevisionName {
-			klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
-				"target", appRollout.Spec.TargetAppRevisionName)
-			return true
-		}
-	}
-	return false
 }
 
 // UpdateStatus updates v1alpha2.AppRollout's Status with retry.RetryOnConflict
