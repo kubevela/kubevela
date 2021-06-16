@@ -86,10 +86,34 @@ func handleRollingTerminated(appRollout v1beta1.AppRollout) bool {
 		appRollout.Status.RollingState == oamstd.RolloutFailedState {
 		if appRollout.Status.LastUpgradedTargetAppRevision == appRollout.Spec.TargetAppRevisionName &&
 			appRollout.Status.LastSourceAppRevision == appRollout.Spec.SourceAppRevisionName {
+			// spec.targetSize could be nil, If targetSize isn't nil and not equal to status.RolloutTargetSize it's
+			// means user have modified targetSize to restart an scale operation
+			if appRollout.Spec.RolloutPlan.TargetSize != nil {
+				if appRollout.Status.RolloutTargetSize == *appRollout.Spec.RolloutPlan.TargetSize {
+					klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
+						"target", appRollout.Spec.TargetAppRevisionName)
+					return true
+				}
+				return false
+			}
 			klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
 				"target", appRollout.Spec.TargetAppRevisionName)
 			return true
 		}
 	}
 	return false
+}
+
+// check if either the source or the target of the appRollout has changed.
+// when reset the state machine, the controller will set the status.RolloutTargetSize as -1 in AppLocating phase
+// so we should ignore this case.
+// if status.RolloutTargetSize isn't equal to Spec.RolloutPlan.TargetSize, it's means user want trigger another scale operation.
+func isRolloutModified(appRollout v1beta1.AppRollout) bool {
+	return appRollout.Status.RollingState != oamstd.RolloutDeletingState &&
+		((appRollout.Status.LastUpgradedTargetAppRevision != "" &&
+			appRollout.Status.LastUpgradedTargetAppRevision != appRollout.Spec.TargetAppRevisionName) ||
+			(appRollout.Status.LastSourceAppRevision != "" &&
+				appRollout.Status.LastSourceAppRevision != appRollout.Spec.SourceAppRevisionName) ||
+			(appRollout.Spec.RolloutPlan.TargetSize != nil && appRollout.Status.RolloutTargetSize != -1 &&
+				appRollout.Status.RolloutTargetSize != *appRollout.Spec.RolloutPlan.TargetSize))
 }

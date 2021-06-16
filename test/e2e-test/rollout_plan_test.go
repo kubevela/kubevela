@@ -181,7 +181,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRolloutName}, &appRollout)
 				return apierrors.IsNotFound(err)
 			},
-			time.Second*3, time.Millisecond*500).Should(BeTrue())
+			time.Second*15, time.Millisecond*500).Should(BeTrue())
 	}
 
 	verifyRolloutSucceeded := func(targetAppName string) {
@@ -688,6 +688,48 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			ingress := &corev1beta1.Ingress{}
 			return k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: appRollout.Spec.ComponentList[0]}, ingress)
 		}, time.Second*30, 300*time.Microsecond).Should(util.NotFoundMatcher{})
+	})
+
+	It("Test scale again by modify targetSize", func() {
+		var err error
+		CreateClonesetDef()
+		applySourceApp("app-no-replica.yaml")
+		By("Apply the application rollout go directly to the target")
+		appRollout = v1beta1.AppRollout{}
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRolloutScale.yaml", &appRollout)).Should(BeNil())
+		appRollout.Namespace = namespaceName
+		appRollout.Spec.SourceAppRevisionName = ""
+		appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+		appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(3)
+		appRollout.Spec.RolloutPlan.BatchPartition = nil
+		By("create appRollout initial targetSize is 3")
+		createAppRolling(&appRollout)
+		appRolloutName = appRollout.Name
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		By("modify appRollout targetSize to 5")
+		Eventually(func() error {
+			if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRolloutName}, &appRollout); err != nil {
+				return err
+			}
+			appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(5)
+			if err = k8sClient.Update(ctx, &appRollout); err != nil {
+				return err
+			}
+			return nil
+		}, 60*time.Second, 300*time.Microsecond).Should(BeNil())
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		By("modify appRollout targetSize to 7")
+		Eventually(func() error {
+			if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRolloutName}, &appRollout); err != nil {
+				return err
+			}
+			appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(7)
+			if err = k8sClient.Update(ctx, &appRollout); err != nil {
+				return err
+			}
+			return nil
+		}, 60*time.Second, 300*time.Microsecond).Should(BeNil())
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 	})
 
 	PIt("Test rolling by changing the definition", func() {

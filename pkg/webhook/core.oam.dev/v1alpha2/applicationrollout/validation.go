@@ -155,6 +155,11 @@ func (h *ValidatingHandler) ValidateUpdate(new, old *v1beta1.AppRollout) field.E
 		if old.Spec.SourceAppRevisionName == new.Spec.SourceAppRevisionName &&
 			old.Spec.TargetAppRevisionName == new.Spec.TargetAppRevisionName {
 			if !apiequality.Semantic.DeepEqual(&old.Spec.RolloutPlan, &new.Spec.RolloutPlan) {
+				// here we allow user restart a scale rollout by modifying rollout targetSize
+				if old.Spec.RolloutPlan.TargetSize != nil && new.Spec.RolloutPlan.TargetSize != nil &&
+					*old.Spec.RolloutPlan.TargetSize != *new.Spec.RolloutPlan.TargetSize {
+					return errList
+				}
 				errList = append(errList, field.Invalid(fldPath, new.Spec,
 					"a successful or failed rollout cannot be modified without changing the target or the source"))
 				return errList
