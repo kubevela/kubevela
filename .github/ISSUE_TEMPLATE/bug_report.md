@@ -15,9 +15,9 @@ A clear and concise description of what the bug is.
 **To Reproduce**
 <!--
 Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
+1. The YAML files of Component/Trait I used.
+2. The YAML file of Application I applied.
+3. Other operations I have done.
 4. See error
 -->
 
@@ -29,6 +29,12 @@ A clear and concise description of what you expected to happen.
 **Screenshots**
 <!--
 If applicable, add screenshots to help explain your problem.
+-->
+
+**KubeVela Version**
+
+<!--
+Describe your KubeVela controller or CLI version information.
 -->
 
 **Cluster information**
