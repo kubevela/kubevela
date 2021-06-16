@@ -37,7 +37,7 @@ If you believe you've found a security vulnerability, please read our [security 
 
 ### Suggest enhancements
 
-If you have an idea of how to improve KubeVela, submit an [feature request](https://github.com/oam-dev/kubevela/issues/new?assignees=&labels=kind%2Ffeature&template=feature_request.md&title=%5BFeature%5D).
+If you have an idea to improve KubeVela, submit an [feature request](https://github.com/oam-dev/kubevela/issues/new?assignees=&labels=kind%2Ffeature&template=feature_request.md&title=%5BFeature%5D).
 
 ### Triage issues
 
