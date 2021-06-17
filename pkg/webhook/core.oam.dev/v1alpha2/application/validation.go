@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -38,6 +39,9 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
 		// cannot generate appfile, no need to validate further
 		return componentErrs
+	}
+	if i, err := appParser.ValidateComponentNames(ctx, af); err != nil {
+		componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error()))
 	}
 	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))

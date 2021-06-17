@@ -206,4 +206,27 @@ var _ = Describe("Application Normal tests", func() {
 		newApp.Namespace = namespaceName
 		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
 	})
+
+	It("Test app have components with same name", func() {
+		By("Apply an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app8.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
+	})
+
+	It("Test two app have component with same name", func() {
+		By("Apply an application")
+		var firstApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app9.yaml", &firstApp)).Should(BeNil())
+		firstApp.Namespace = namespaceName
+		firstApp.Name = "first-app"
+		Expect(k8sClient.Create(ctx, &firstApp)).Should(BeNil())
+
+		var secondApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app9.yaml", &secondApp)).Should(BeNil())
+		secondApp.Namespace = namespaceName
+		secondApp.Name = "second-app"
+		Expect(k8sClient.Create(ctx, &secondApp)).ShouldNot(BeNil())
+	})
 })
