@@ -181,7 +181,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRolloutName}, &appRollout)
 				return apierrors.IsNotFound(err)
 			},
-			time.Second*15, time.Millisecond*500).Should(BeTrue())
+			time.Second*60, time.Millisecond*500).Should(BeTrue())
 	}
 
 	verifyRolloutSucceeded := func(targetAppName string) {
