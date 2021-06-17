@@ -326,8 +326,20 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
-		k8sClient.Delete(ctx, &app)
-		k8sClient.Delete(ctx, &appRollout)
+		Eventually(func() error {
+			err := k8sClient.Delete(ctx, &app)
+			if err == nil || apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}, 15*time.Second, 300*time.Microsecond).Should(BeNil())
+		Eventually(func() error {
+			err := k8sClient.Delete(ctx, &appRollout)
+			if err == nil || apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}, 15*time.Second, 300*time.Microsecond).Should(BeNil())
 		verifyRolloutDeleted()
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		// delete the namespaceName with all its resources
