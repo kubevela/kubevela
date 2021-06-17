@@ -138,10 +138,46 @@ func TestHandleTerminated(t *testing.T) {
 					TargetAppRevisionName: "v2",
 				},
 				Status: common.AppRolloutStatus{
-					LastSourceAppRevision:         "v2",
-					LastUpgradedTargetAppRevision: "v1",
+					LastSourceAppRevision:         "v1",
+					LastUpgradedTargetAppRevision: "v2",
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
+					},
+				},
+			},
+			want: false,
+		},
+		"last scale have finished": {
+			rollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					TargetAppRevisionName: "v1",
+					RolloutPlan: oamstandard.RolloutPlan{
+						TargetSize: pointer.Int32Ptr(2),
+					},
+				},
+				Status: common.AppRolloutStatus{
+					LastUpgradedTargetAppRevision: "v1",
+					RolloutStatus: oamstandard.RolloutStatus{
+						RollingState:      oamstandard.RolloutSucceedState,
+						RolloutTargetSize: 2,
+					},
+				},
+			},
+			want: true,
+		},
+		"modify targetSize trigger scale operation again": {
+			rollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					TargetAppRevisionName: "v1",
+					RolloutPlan: oamstandard.RolloutPlan{
+						TargetSize: pointer.Int32Ptr(4),
+					},
+				},
+				Status: common.AppRolloutStatus{
+					LastUpgradedTargetAppRevision: "v1",
+					RolloutStatus: oamstandard.RolloutStatus{
+						RollingState:      oamstandard.RollingInBatchesState,
+						RolloutTargetSize: 2,
 					},
 				},
 			},
