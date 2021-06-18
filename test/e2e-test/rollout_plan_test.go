@@ -729,6 +729,19 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			}
 			return nil
 		}, 60*time.Second, 300*time.Microsecond).Should(BeNil())
+		// before check status, we must guarantee the cloneset has been update
+		Eventually(func() error {
+			clonesetName := appRollout.Spec.ComponentList[0]
+			kc = kruise.CloneSet{}
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
+			if err != nil {
+				return err
+			}
+			if *kc.Spec.Replicas != 5 {
+				return fmt.Errorf("pod replicas mismatch")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Microsecond).Should(BeNil())
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 		By("modify appRollout targetSize to 7")
 		Eventually(func() error {
@@ -741,6 +754,19 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			}
 			return nil
 		}, 60*time.Second, 300*time.Microsecond).Should(BeNil())
+		// before check status, we must guarantee the cloneset has been update
+		Eventually(func() error {
+			kc = kruise.CloneSet{}
+			clonesetName := appRollout.Spec.ComponentList[0]
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
+			if err != nil {
+				return err
+			}
+			if *kc.Spec.Replicas != 7 {
+				return fmt.Errorf("pod replicas mismatch")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Microsecond).Should(BeNil())
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 	})
 
