@@ -118,6 +118,7 @@ spec:
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
+            - "--autogen-workload-definition={{ .Values.admissionWebhooks.autoGenWorkloadDefinition }}"
             {{ end }}
             {{ if not .Values.useAppConfig }}
             - "--app-config-installed=false"

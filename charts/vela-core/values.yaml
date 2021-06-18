@@ -77,6 +77,8 @@ admissionWebhooks:
     tolerations: []
   certManager:
     enabled: false
+  # If autoGenWorkloadDefinition is true, webhook will auto generated workloadDefinition which componentDefinition refers to
+  autoGenWorkloadDefinition: true
 
 #Enable debug logs for development purpose
 logDebug: false

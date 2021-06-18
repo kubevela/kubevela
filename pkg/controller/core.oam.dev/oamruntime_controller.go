@@ -76,4 +76,7 @@ type Args struct {
 
 	// DependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
 	DependCheckWait time.Duration
+
+	// AutoGenWorkloadDefinition indicates whether automatic generated workloadDefinition which componentDefinition refers to
+	AutoGenWorkloadDefinition bool
 }
