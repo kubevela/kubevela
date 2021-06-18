@@ -269,6 +269,11 @@ We will discuss the details of implementation plan in this section.
 
 - Add a new Initializer CRD and controller skeleton in KubeVela.
 - In reconcile logic:
+  - If finalizer doesn't exist, add finalizer to the object.
+  - If obj DeletionTimestamp is not zero (being deleted):
+    - Wait until all contained component resources are deleted.
+      In this way other remote resources (e.g. placement rules on other clusters) can be cleaned up entirely.
+    - Then remote finalizer.
   - Check initializer dependency:
     - If any of them does not exist, try reconcile later.
   - Handle each resource:
