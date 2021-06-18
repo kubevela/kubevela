@@ -290,7 +290,19 @@ spec:
 
 ## Implementation Plan
 
-TODO: Here are the detailed planning of how to implement each support operator.
+We will discuss the details of implementation plan in this section.
+
+### Environment Controller
+
+- Add a new Environment CRD and controller skeleton in KubeVela.
+- In reconcile logic:
+  - Check environment dependency
+  - Handle each resource:
+    - Render the template into a resource object.
+    - If `mustOwn` is true, check if the resource ownerRef is the current Environment CR.
+    - Put Vela-related labels into the object.
+    - Put current Environment CR into the ownerRef of the object.
+    - Apply the resource object.
 
 
 ## Considerations
