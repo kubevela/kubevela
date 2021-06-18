@@ -110,7 +110,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+source, &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
-		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, &newApp)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Get Application latest status")
 		Eventually(

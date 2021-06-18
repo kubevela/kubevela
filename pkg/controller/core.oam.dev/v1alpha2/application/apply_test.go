@@ -35,13 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 const workloadDefinition = `
@@ -90,7 +86,6 @@ spec:
 `
 
 var _ = Describe("Test Application apply", func() {
-	var handler appHandler
 	var app *v1beta1.Application
 	var namespaceName string
 	var ns corev1.Namespace
@@ -119,10 +114,6 @@ var _ = Describe("Test Application apply", func() {
 				},
 			}},
 		}
-		handler = appHandler{
-			r:   reconciler,
-			app: app,
-		}
 		By("Create the Namespace for test")
 		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
 	})
@@ -130,81 +121,6 @@ var _ = Describe("Test Application apply", func() {
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
 		Expect(k8sClient.Delete(context.TODO(), &ns)).Should(Succeed())
-	})
-
-	It("Test update or create component", func() {
-		ctx := context.TODO()
-		By("[TEST] Setting up the testing environment")
-		imageV1 := "wordpress:4.6.1-apache"
-		imageV2 := "wordpress:4.6.2-apache"
-		cwV1 := v1alpha2.ContainerizedWorkload{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ContainerizedWorkload",
-				APIVersion: "core.oam.dev/v1alpha2",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespaceName,
-			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: imageV1,
-						Ports: []v1alpha2.ContainerPort{
-							{
-								Name: "wordpress",
-								Port: 80,
-							},
-						},
-					},
-				},
-			},
-		}
-		component := &v1alpha2.Component{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Component",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      "myweb",
-				Namespace: namespaceName,
-				Labels:    map[string]string{"application.oam.dev": "test"},
-			},
-			Spec: v1alpha2.ComponentSpec{
-				Workload: runtime.RawExtension{
-					Object: &cwV1,
-				},
-			}}
-
-		By("[TEST] Creating a component the first time")
-		// take a copy so the component's workload still uses object instead of raw data
-		// just like the way we use it in prod. The raw data will be filled by the k8s for some reason.
-		revision, err := handler.createOrUpdateComponent(ctx, component.DeepCopy())
-		By("verify that the revision is the set correctly and newRevision is true")
-		Expect(err).ShouldNot(HaveOccurred())
-		// verify the revision actually contains the right component
-		Expect(utils.CompareWithRevision(ctx, handler.r, component.GetName(),
-			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
-		preRevision := revision
-
-		By("[TEST] update the component without any changes (mimic reconcile behavior)")
-		revision, err = handler.createOrUpdateComponent(ctx, component.DeepCopy())
-		By("verify that the revision is the same and newRevision is false")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(revision).Should(BeIdenticalTo(preRevision))
-
-		By("[TEST] update the component")
-		// modify the component spec through object
-		cwV2 := cwV1.DeepCopy()
-		cwV2.Spec.Containers[0].Image = imageV2
-		component.Spec.Workload.Object = cwV2
-		revision, err = handler.createOrUpdateComponent(ctx, component.DeepCopy())
-		By("verify that the revision is changed and newRevision is true")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(revision).ShouldNot(BeIdenticalTo(preRevision))
-		Expect(utils.CompareWithRevision(ctx, handler.r, component.GetName(),
-			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
-		// revision increased
-		Expect(strings.Compare(revision, preRevision) > 0).Should(BeTrue())
 	})
 
 	It("Test update or create app revision", func() {
@@ -240,51 +156,6 @@ var _ = Describe("Test Application apply", func() {
 	})
 })
 
-var _ = Describe("Test applyHelmModuleResources", func() {
-	var handler appHandler
-	var app *v1beta1.Application
-	var ctx context.Context
-
-	BeforeEach(func() {
-		ctx = context.TODO()
-		app = &v1beta1.Application{}
-		handler = appHandler{
-			r:   reconciler,
-			app: app,
-		}
-		handler.r.applicator = apply.NewAPIApplicator(reconciler.Client)
-	})
-
-	It("helm component is complete", func() {
-		release := map[string]interface{}{"chart": map[string]interface{}{"spec": map[string]interface{}{"chart": "abc", "version": "v1"}}}
-		repo := map[string]interface{}{"url": "http://abc.com"}
-		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
-			Release:    util.Object2RawExtension(release),
-			Repository: util.Object2RawExtension(repo),
-		}}}
-		err := handler.applyHelmModuleResources(ctx, comp, nil)
-		Expect(err).Should(HaveOccurred())
-
-	})
-
-	It("helm repo format is invalid", func() {
-		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
-			Repository: runtime.RawExtension{Raw: []byte("abc")}}}}
-		err := handler.applyHelmModuleResources(ctx, comp, nil)
-		Expect(err).Should(HaveOccurred())
-	})
-
-	It("helm release format is invalid", func() {
-		repo := map[string]interface{}{"url": "http://abc.com"}
-		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
-			Release:    runtime.RawExtension{Raw: []byte("abc")},
-			Repository: util.Object2RawExtension(repo),
-		}}}
-		err := handler.applyHelmModuleResources(ctx, comp, nil)
-		Expect(err).Should(HaveOccurred())
-	})
-})
-
 var _ = Describe("Test statusAggregate", func() {
 	It("the component is Terraform type", func() {
 		var (
@@ -311,7 +182,7 @@ var _ = Describe("Test statusAggregate", func() {
 		)
 
 		By("aggregate status")
-		statuses, healthy, err := h.statusAggregate(appFile)
+		statuses, healthy, err := h.aggregateHealthStatus(appFile)
 		Expect(statuses).Should(BeNil())
 		Expect(healthy).Should(Equal(false))
 		Expect(err).Should(HaveOccurred())
@@ -324,7 +195,7 @@ var _ = Describe("Test statusAggregate", func() {
 		k8sClient.Create(ctx, &configuration)
 
 		By("aggregate status again")
-		statuses, healthy, err = h.statusAggregate(appFile)
+		statuses, healthy, err = h.aggregateHealthStatus(appFile)
 		Expect(len(statuses)).Should(Equal(1))
 		Expect(healthy).Should(Equal(false))
 		Expect(err).Should(BeNil())
@@ -336,7 +207,7 @@ var _ = Describe("Test statusAggregate", func() {
 		k8sClient.Status().Update(ctx, &gotConfiguration)
 
 		By("aggregate status one more time")
-		statuses, healthy, err = h.statusAggregate(appFile)
+		statuses, healthy, err = h.aggregateHealthStatus(appFile)
 		Expect(len(statuses)).Should(Equal(1))
 		Expect(healthy).Should(Equal(true))
 		Expect(err).Should(BeNil())

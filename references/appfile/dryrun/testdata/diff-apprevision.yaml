@@ -2,6 +2,11 @@ apiVersion: core.oam.dev/v1beta1
 kind: ApplicationRevision
 metadata:
   annotations:
+    oam.dev/kubevela-version: undefined
+  generation: 1
+  labels:
+    app.oam.dev/app-revision-hash: c2207054644744d
+    app.oam.dev/name: livediff-demo
   name: livediff-demo-v1
   namespace: default
 spec:
@@ -39,31 +44,21 @@ spec:
           lives: "3"
         type: myworker
     status:
-      batchRollingState: ""
-      currentBatch: 0
-      rollingState: ""
-      upgradedReadyReplicas: 0
-      upgradedReplicas: 0
+      rollout:
+        batchRollingState: ""
+        currentBatch: 0
+        lastTargetAppRevision: ""
+        rollingState: ""
+        upgradedReadyReplicas: 0
+        upgradedReplicas: 0
   applicationConfiguration:
     apiVersion: core.oam.dev/v1alpha2
     kind: ApplicationConfiguration
-    metadata:
-      annotations:
-        kubectl.kubernetes.io/last-applied-configuration: |
-          {"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"annotations":{},"name":"livediff-demo","namespace":"default"},"spec":{"components":[{"name":"myweb-1","properties":{"cmd":["sleep","1000"],"enemies":"alien","image":"busybox","lives":"3"},"traits":[{"properties":{"domain":"www.example.com","http":{"/":80}},"type":"myingress"},{"properties":{"replicas":2},"type":"myscaler"}],"type":"myworker"},{"name":"myweb-2","properties":{"cmd":["sleep","1000"],"enemies":"alien","image":"busybox","lives":"3"},"type":"myworker"}]}}
-      labels:
-        app.oam.dev/name: livediff-demo
-      name: livediff-demo
-      namespace: default
-      ownerReferences:
-      - apiVersion: core.oam.dev/v1beta1
-        controller: true
-        kind: Application
-        name: livediff-demo
-        uid: afdaa0dc-b226-4045-a255-2c282f258481
+    metadata: {}
     spec:
       components:
-      - revisionName: myweb-1-v1
+      - componentName: myweb-1
+        revisionName: myweb-1-v1
         traits:
         - trait:
             apiVersion: v1
@@ -114,7 +109,8 @@ spec:
                 trait.oam.dev/type: myscaler
             spec:
               replicaCount: 2
-      - revisionName: myweb-2-v1
+      - componentName: myweb-2
+        revisionName: myweb-2-v1
     status:
       dependency: {}
       observedGeneration: 0
@@ -139,6 +135,7 @@ spec:
           definition:
             apiVersion: apps/v1
             kind: Deployment
+          type: deployments.apps
       status: {}
   components:
   - raw:
@@ -146,15 +143,8 @@ spec:
       kind: Component
       metadata:
         labels:
-          app.oam.dev/name: livediff-demo
+          app.oam.dev/component-revision-hash: b63b8ddf2352632a
         name: myweb-1
-        namespace: default
-        ownerReferences:
-        - apiVersion: core.oam.dev/v1beta1
-          controller: true
-          kind: Application
-          name: livediff-demo
-          uid: afdaa0dc-b226-4045-a255-2c282f258481
       spec:
         workload:
           apiVersion: apps/v1
@@ -187,15 +177,8 @@ spec:
       kind: Component
       metadata:
         labels:
-          app.oam.dev/name: livediff-demo
+          app.oam.dev/component-revision-hash: 85369ee876f97b85
         name: myweb-2
-        namespace: default
-        ownerReferences:
-        - apiVersion: core.oam.dev/v1beta1
-          controller: true
-          kind: Application
-          name: livediff-demo
-          uid: afdaa0dc-b226-4045-a255-2c282f258481
       spec:
         workload:
           apiVersion: apps/v1
@@ -223,6 +206,8 @@ spec:
                   name: myweb-2
       status:
         observedGeneration: 0
+  resourcesConfigMap:
+    name: livediff-demo-v1
   traitDefinitions:
     myingress:
       apiVersion: core.oam.dev/v1beta1
@@ -254,7 +239,7 @@ spec:
       metadata: {}
       spec:
         appliesToWorkloads:
-          - deployments.apps
+        - deployments.apps
         definitionRef:
           name: manualscalertraits.core.oam.dev
         schematic:
@@ -265,4 +250,3 @@ spec:
               | int\n}\n"
         workloadRefPath: spec.workloadRef
       status: {}
-

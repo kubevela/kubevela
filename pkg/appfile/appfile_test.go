@@ -36,11 +36,9 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -113,59 +111,43 @@ var _ = Describe("Test Helm schematic appfile", func() {
 			},
 		}
 		By("Generate ApplicationConfiguration and Components")
-		ac, components, err := appFile.GenerateApplicationConfiguration()
+		components, err := appFile.GenerateComponentManifests()
 		Expect(err).To(BeNil())
 
-		manuscaler := util.Object2RawExtension(&unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "core.oam.dev/v1alpha2",
-				"kind":       "ManualScalerTrait",
-				"metadata": map[string]interface{}{
-					"labels": map[string]interface{}{
-						"app.oam.dev/component":   compName,
-						"app.oam.dev/name":        appName,
-						"trait.oam.dev/type":      "scaler",
-						"trait.oam.dev/resource":  "scaler",
-						"app.oam.dev/appRevision": appName + "-v1",
-					},
-				},
-				"spec": map[string]interface{}{"replicaCount": int64(10)},
-			},
-		})
-		expectAppConfig := &v1alpha2.ApplicationConfiguration{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ApplicationConfiguration",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      appName,
-				Namespace: "default",
-				Labels:    map[string]string{oam.LabelAppName: appName},
-			},
-			Spec: v1alpha2.ApplicationConfigurationSpec{
-				Components: []v1alpha2.ApplicationConfigurationComponent{
-					{
-						ComponentName: compName,
-						Traits: []v1alpha2.ComponentTrait{
-							{
-								Trait: manuscaler,
+		expectCompManifest := &oamtypes.ComponentManifest{
+			Name: compName,
+			StandardWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"metadata": map[string]interface{}{
+						"labels": map[string]interface{}{
+							"workload.oam.dev/type":   "webapp-chart",
+							"app.oam.dev/component":   compName,
+							"app.oam.dev/name":        appName,
+							"app.oam.dev/appRevision": appName + "-v1",
+						}}}},
+			Traits: []*unstructured.Unstructured{
+				{
+					Object: map[string]interface{}{
+						"apiVersion": "core.oam.dev/v1alpha2",
+						"kind":       "ManualScalerTrait",
+						"metadata": map[string]interface{}{
+							"labels": map[string]interface{}{
+								"app.oam.dev/component":   compName,
+								"app.oam.dev/name":        appName,
+								"trait.oam.dev/type":      "scaler",
+								"trait.oam.dev/resource":  "scaler",
+								"app.oam.dev/appRevision": appName + "-v1",
 							},
 						},
+						"spec": map[string]interface{}{"replicaCount": int64(10)},
 					},
 				},
 			},
-		}
-		expectComponent := &v1alpha2.Component{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Component",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      compName,
-				Namespace: "default",
-				Labels:    map[string]string{oam.LabelAppName: appName},
-			},
-			Spec: v1alpha2.ComponentSpec{
-				Helm: &common.Helm{
-					Release: util.Object2RawExtension(map[string]interface{}{
+			PackagedWorkloadResources: []*unstructured.Unstructured{
+				{
+					Object: map[string]interface{}{
 						"apiVersion": "helm.toolkit.fluxcd.io/v2beta1",
 						"kind":       "HelmRelease",
 						"metadata": map[string]interface{}{
@@ -189,8 +171,10 @@ var _ = Describe("Test Helm schematic appfile", func() {
 								},
 							},
 						},
-					}),
-					Repository: util.Object2RawExtension(map[string]interface{}{
+					},
+				},
+				{
+					Object: map[string]interface{}{
 						"apiVersion": "source.toolkit.fluxcd.io/v1beta1",
 						"kind":       "HelmRepository",
 						"metadata": map[string]interface{}{
@@ -200,27 +184,12 @@ var _ = Describe("Test Helm schematic appfile", func() {
 						"spec": map[string]interface{}{
 							"url": "http://oam.dev/catalog/",
 						},
-					}),
-				},
-				Workload: util.Object2RawExtension(map[string]interface{}{
-					"apiVersion": "apps/v1",
-					"kind":       "Deployment",
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
-							"workload.oam.dev/type":   "webapp-chart",
-							"app.oam.dev/component":   compName,
-							"app.oam.dev/name":        appName,
-							"app.oam.dev/appRevision": appName + "-v1",
-						},
 					},
-				}),
+				},
 			},
 		}
-		By("Verify expected ApplicationConfiguration")
-		diff := cmp.Diff(ac, expectAppConfig)
-		Expect(diff).Should(BeEmpty())
-		By("Verify expected Component")
-		diff = cmp.Diff(components[0], expectComponent)
+		By("Verify expected ComponentManifest")
+		diff := cmp.Diff(components[0], expectCompManifest)
 		Expect(diff).ShouldNot(BeEmpty())
 	})
 
@@ -250,26 +219,7 @@ spec:
 		b, _ := yaml.YAMLToJSON([]byte(yamlStr))
 		return runtime.RawExtension{Raw: b}
 	}
-	var expectWorkload = func() runtime.RawExtension {
-		yamlStr := `apiVersion: apps/v1
-kind: Deployment
-spec:
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:1.14.0
-      ports:
-      - containerPort: 80 `
-		b, _ := yaml.YAMLToJSON([]byte(yamlStr))
-		return runtime.RawExtension{Raw: b}
-	}
+
 	var testAppfile = func() *Appfile {
 		return &Appfile{
 			RevisionName: appName + "-v1",
@@ -331,68 +281,57 @@ spec:
 
 	}
 
-	manuscaler := util.Object2RawExtension(&unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "core.oam.dev/v1alpha2",
-			"kind":       "ManualScalerTrait",
-			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{
-					"app.oam.dev/component":   compName,
-					"app.oam.dev/name":        appName,
-					"app.oam.dev/appRevision": appName + "-v1",
-					"trait.oam.dev/type":      "scaler",
-					"trait.oam.dev/resource":  "scaler",
-				},
-			},
-			"spec": map[string]interface{}{"replicaCount": int64(10)},
-		},
-	})
-
 	It("Test generate AppConfig resources from Kube schematic", func() {
 		By("Generate ApplicationConfiguration and Components")
-		ac, components, err := testAppfile().GenerateApplicationConfiguration()
+		comps, err := testAppfile().GenerateComponentManifests()
 		Expect(err).To(BeNil())
 
-		expectAppConfig := &v1alpha2.ApplicationConfiguration{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ApplicationConfiguration",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      appName,
-				Namespace: "default",
-				Labels:    map[string]string{oam.LabelAppName: appName},
-			},
-			Spec: v1alpha2.ApplicationConfigurationSpec{
-				Components: []v1alpha2.ApplicationConfigurationComponent{
-					{
-						ComponentName: compName,
-						Traits: []v1alpha2.ComponentTrait{
-							{
-								Trait: manuscaler,
+		expectWorkload := func() *unstructured.Unstructured {
+			yamlStr := `apiVersion: apps/v1
+kind: Deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.0
+      ports:
+      - containerPort: 80 `
+			r := &unstructured.Unstructured{}
+			_ = yaml.Unmarshal([]byte(yamlStr), r)
+			return r
+		}()
+
+		expectCompManifest := &oamtypes.ComponentManifest{
+			Name:             compName,
+			StandardWorkload: expectWorkload,
+			Traits: []*unstructured.Unstructured{
+				{
+					Object: map[string]interface{}{
+						"apiVersion": "core.oam.dev/v1alpha2",
+						"kind":       "ManualScalerTrait",
+						"metadata": map[string]interface{}{
+							"labels": map[string]interface{}{
+								"app.oam.dev/component":   compName,
+								"app.oam.dev/name":        appName,
+								"app.oam.dev/appRevision": appName + "-v1",
+								"trait.oam.dev/type":      "scaler",
+								"trait.oam.dev/resource":  "scaler",
 							},
 						},
+						"spec": map[string]interface{}{"replicaCount": int64(10)},
 					},
 				},
 			},
 		}
-		expectComponent := &v1alpha2.Component{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Component",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      compName,
-				Namespace: "default",
-				Labels:    map[string]string{oam.LabelAppName: appName},
-			},
-			Spec: v1alpha2.ComponentSpec{
-				Workload: expectWorkload(),
-			},
-		}
-		By("Verify expected ApplicationConfiguration")
-		diff := cmp.Diff(ac, expectAppConfig)
-		Expect(diff).Should(BeEmpty())
 		By("Verify expected Component")
-		diff = cmp.Diff(components[0], expectComponent)
+		diff := cmp.Diff(comps[0], expectCompManifest)
 		Expect(diff).ShouldNot(BeEmpty())
 	})
 
@@ -400,7 +339,7 @@ spec:
 		appfile := testAppfile()
 		// remove parameter settings
 		appfile.Workloads[0].Params = nil
-		_, _, err := appfile.GenerateApplicationConfiguration()
+		_, err := appfile.GenerateComponentManifests()
 
 		expectError := errors.WithMessage(errors.New(`require parameter "image"`), "cannot resolve parameter settings")
 		diff := cmp.Diff(expectError, err, test.EquateErrors())
@@ -488,23 +427,6 @@ variable "password" {
 			Namespace:    ns,
 		}
 
-		expectedAppConfig := &v1alpha2.ApplicationConfiguration{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ApplicationConfiguration",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      appName,
-				Namespace: ns,
-				Labels:    map[string]string{oam.LabelAppName: appName},
-			},
-			Spec: v1alpha2.ApplicationConfigurationSpec{
-				Components: []v1alpha2.ApplicationConfigurationComponent{
-					{
-						ComponentName: compName,
-					},
-				},
-			},
-		}
 		variable := map[string]interface{}{"account_name": "oamtest"}
 		data, _ := json.Marshal(variable)
 		raw := &runtime.RawExtension{}
@@ -534,23 +456,16 @@ variable "password" {
 			Status: terraformapi.ConfigurationStatus{},
 		}
 
-		expectedComponent := &v1alpha2.Component{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Component",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      compName,
-				Namespace: "default",
-				Labels:    map[string]string{oam.LabelAppName: appName},
-			},
-			Spec: v1alpha2.ComponentSpec{
-				Workload: util.Object2RawExtension(workload),
-			},
+		expectCompManifest := &oamtypes.ComponentManifest{
+			Name: compName,
+			StandardWorkload: func() *unstructured.Unstructured {
+				r, _ := util.Object2Unstructured(workload)
+				return r
+			}(),
 		}
 
-		acc, comp, err := af.GenerateApplicationConfiguration()
-		Expect(acc).Should(Equal(expectedAppConfig))
-		diff := cmp.Diff(comp[0], expectedComponent)
+		comps, err := af.GenerateComponentManifests()
+		diff := cmp.Diff(comps[0], expectCompManifest)
 		Expect(diff).ShouldNot(BeEmpty())
 		Expect(err).Should(BeNil())
 	})
@@ -736,8 +651,6 @@ var _ = Describe("Test evalWorkloadWithContext", func() {
 		var (
 			ns       = "default"
 			compName = "sample-db"
-			comp     *v1alpha2.Component
-			acc      *v1alpha2.ApplicationConfigurationComponent
 			err      error
 		)
 		type appArgs struct {
@@ -813,9 +726,9 @@ variable "password" {
 		}
 
 		pCtx := NewBasicContext(args.wl, args.appName, args.revision, ns)
-		comp, acc, err = evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
-		Expect(comp.Spec.Workload).ShouldNot(BeNil())
-		Expect(acc.ComponentName).Should(Equal(""))
+		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
+		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		Expect(comp.Name).Should(Equal(""))
 		Expect(err).Should(BeNil())
 	})
 })

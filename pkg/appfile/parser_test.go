@@ -21,25 +21,21 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/ghodss/yaml"
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -228,7 +224,7 @@ var _ = Describe("Test application parser", func() {
 
 		// Create mock client
 		tclient := test.MockClient{
-			MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
 				switch o := obj.(type) {
 				case *v1beta1.ComponentDefinition:
 					wd, err := util.UnMarshalStringToComponentDefinition(componenetDefinition)
@@ -383,67 +379,9 @@ var _ = Describe("Test appFile parser", func() {
 			Data:       map[string]string{"c1": "v1", "c2": "v2"},
 		}
 		Expect(k8sClient.Create(context.Background(), cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		ac, components, err := TestApp.GenerateApplicationConfiguration()
+		comps, err := TestApp.GenerateComponentManifests()
 		Expect(err).To(BeNil())
-		manuscaler := util.Object2RawExtension(&unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "core.oam.dev/v1alpha2",
-				"kind":       "ManualScalerTrait",
-				"metadata": map[string]interface{}{
-					"labels": map[string]interface{}{
-						"app.oam.dev/component":   "myweb",
-						"app.oam.dev/appRevision": "test-v1",
-						"app.oam.dev/name":        "test",
-						"trait.oam.dev/type":      "scaler",
-						"trait.oam.dev/resource":  "scaler",
-					},
-				},
-				"spec": map[string]interface{}{"replicaCount": int64(10)},
-			},
-		})
-		expectAppConfig := &v1alpha2.ApplicationConfiguration{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ApplicationConfiguration",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
-				Namespace: "default",
-				Labels:    map[string]string{oam.LabelAppName: "test"},
-			},
-			Spec: v1alpha2.ApplicationConfigurationSpec{
-				Components: []v1alpha2.ApplicationConfigurationComponent{
-					{
-						ComponentName: "myweb",
-						Scopes: []v1alpha2.ComponentScope{
-							{
-								ScopeReference: v1alpha1.TypedReference{
-									APIVersion: "core.oam.dev/v1alpha2",
-									Kind:       "HealthScope",
-									Name:       "test-scope",
-								},
-							},
-						},
-						Traits: []v1alpha2.ComponentTrait{
-							{
-								Trait: manuscaler,
-							},
-						},
-					},
-				},
-			},
-		}
-		fmt.Println(cmp.Diff(expectAppConfig, ac))
-		Expect(assert.ObjectsAreEqual(expectAppConfig, ac)).To(Equal(true))
 
-		expectComponent := &v1alpha2.Component{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Component",
-				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: metav1.ObjectMeta{
-				Name:      "myweb",
-				Namespace: "default",
-				Labels:    map[string]string{oam.LabelAppName: "test"},
-			}}
 		expectWorkload := &unstructured.Unstructured{
 			Object: map[string]interface{}{
 				"apiVersion": "apps/v1",
@@ -479,6 +417,37 @@ var _ = Describe("Test appFile parser", func() {
 				},
 			},
 		}
+
+		expectCompManifest := &types.ComponentManifest{
+			Name:             "myweb",
+			StandardWorkload: expectWorkload,
+			Traits: []*unstructured.Unstructured{
+				{
+					Object: map[string]interface{}{
+						"apiVersion": "core.oam.dev/v1alpha2",
+						"kind":       "ManualScalerTrait",
+						"metadata": map[string]interface{}{
+							"labels": map[string]interface{}{
+								"app.oam.dev/component":   "myweb",
+								"app.oam.dev/appRevision": "test-v1",
+								"app.oam.dev/name":        "test",
+								"trait.oam.dev/type":      "scaler",
+								"trait.oam.dev/resource":  "scaler",
+							},
+						},
+						"spec": map[string]interface{}{"replicaCount": int64(10)},
+					},
+				},
+			},
+			Scopes: []*corev1.ObjectReference{
+				{
+					APIVersion: "core.oam.dev/v1alpha2",
+					Kind:       "HealthScope",
+					Name:       "test-scope",
+				},
+			},
+		}
+
 		// assertion util cannot compare slices embedded in map correctly while slice order is not required
 		// e.g., .containers[0].env in this case
 		// as a workaround, prepare two expected targets covering all possible slice order
@@ -497,13 +466,14 @@ var _ = Describe("Test appFile parser", func() {
 		}, "spec", "template", "spec", "containers")
 
 		By(" built components' length must be 1")
-		Expect(len(components)).To(BeEquivalentTo(1))
-		Expect(components[0].ObjectMeta).To(BeEquivalentTo(expectComponent.ObjectMeta))
-		Expect(components[0].TypeMeta).To(BeEquivalentTo(expectComponent.TypeMeta))
-		By(string(components[0].Spec.Workload.Raw))
-		Expect(components[0].Spec.Workload).Should(SatisfyAny(
-			BeEquivalentTo(util.Object2RawExtension(expectWorkload)),
-			BeEquivalentTo(util.Object2RawExtension(expectWorkloadOptional))))
+		Expect(len(comps)).To(BeEquivalentTo(1))
+		comp := comps[0]
+		Expect(comp.Name).Should(Equal(expectCompManifest.Name))
+		Expect(comp.Traits).Should(Equal(expectCompManifest.Traits))
+		Expect(comp.Scopes).Should(Equal(expectCompManifest.Scopes))
+		Expect(comp.StandardWorkload).Should(SatisfyAny(
+			BeEquivalentTo(expectWorkload),
+			BeEquivalentTo(expectWorkloadOptional)))
 	})
 
 })

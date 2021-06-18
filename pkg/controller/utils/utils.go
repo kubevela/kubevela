@@ -204,10 +204,7 @@ func ConstructRevisionName(componentName string, revision int64) string {
 }
 
 // ExtractComponentName will extract the componentName from a revisionName
-func ExtractComponentName(revisionName string) string {
-	splits := strings.Split(revisionName, "-")
-	return strings.Join(splits[0:len(splits)-1], "-")
-}
+var ExtractComponentName = util.ExtractComponentName
 
 // ExtractRevision will extract the revision from a revisionName
 func ExtractRevision(revisionName string) (int, error) {

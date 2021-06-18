@@ -28,7 +28,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -111,27 +110,27 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 
 	dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
-	ac, comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
+	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return buff, errors.WithMessage(err, "generate OAM objects")
 	}
 
-	var components = make(map[string]runtime.RawExtension)
+	var components = make(map[string]*unstructured.Unstructured)
 	for _, comp := range comps {
-		components[comp.Name] = comp.Spec.Workload
+		components[comp.Name] = comp.StandardWorkload
 	}
-	for _, c := range ac.Spec.Components {
-		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Comopnent(%s) \n---\n\n", ac.Name, c.ComponentName)))
-		result, err := yaml.Marshal(components[c.ComponentName])
+	for _, c := range comps {
+		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Comopnent(%s) \n---\n\n", app.Name, c.Name)))
+		result, err := yaml.Marshal(components[c.Name])
 		if err != nil {
-			return buff, errors.WithMessage(err, "marshal result for component "+c.ComponentName+" object in yaml format")
+			return buff, errors.WithMessage(err, "marshal result for component "+c.Name+" object in yaml format")
 		}
 		buff.Write(result)
 		buff.Write([]byte("\n---\n"))
 		for _, t := range c.Traits {
-			result, err := yaml.Marshal(t.Trait)
+			result, err := yaml.Marshal(t)
 			if err != nil {
-				return buff, errors.WithMessage(err, "marshal result for component "+c.ComponentName+" object in yaml format")
+				return buff, errors.WithMessage(err, "marshal result for component "+c.Name+" object in yaml format")
 			}
 			buff.Write(result)
 			buff.Write([]byte("\n---\n"))

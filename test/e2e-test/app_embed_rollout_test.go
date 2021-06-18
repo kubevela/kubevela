@@ -144,10 +144,10 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 					return err
 				}
 				if app.Status.Rollout.RollingState != v1alpha1.RolloutSucceedState {
-					return fmt.Errorf("app status rollingStatus not succeed acctually  %s", app.Status.Rollout.RollingState)
+					return fmt.Errorf("app status rollingStatus not succeed acctually %s", app.Status.Rollout.RollingState)
 				}
 				if app.Status.Phase != apicommon.ApplicationRunning {
-					return fmt.Errorf("app status not running acctually  %s", app.Status.Phase)
+					return fmt.Errorf("app status not running acctually %s", app.Status.Phase)
 				}
 				return nil
 			},
@@ -411,7 +411,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 1), "1")
 		updateAppWithCpuAndPlan(app, "2", plan)
 
-		By("Wait for the rollout phase change to rolling in batches")
+		By("Wait for rollout phase change to rolling in batches")
 		checkApp := new(v1beta1.Application)
 		Eventually(func() error {
 			if err := k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp); err != nil {

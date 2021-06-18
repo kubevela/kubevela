@@ -22,8 +22,8 @@ import (
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -33,7 +33,7 @@ import (
 
 // DryRun executes dry-run on an application
 type DryRun interface {
-	ExecuteDryRun(ctx context.Context, app *v1beta1.Application) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error)
+	ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([]*types.ComponentManifest, error)
 }
 
 // NewDryRunOption creates a dry-run option
@@ -53,19 +53,19 @@ type Option struct {
 }
 
 // ExecuteDryRun simulates applying an application into cluster and returns rendered
-// resoures but not persist them into cluster.
-func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
+// resources but not persist them into cluster.
+func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([]*types.ComponentManifest, error) {
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.DiscoveryMapper, d.PackageDiscover, d.Auxiliaries)
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
 	appFile, err := parser.GenerateAppFile(ctx, app)
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
+		return nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
-	ac, comps, err := appFile.GenerateApplicationConfiguration()
+	comps, err := appFile.GenerateComponentManifests()
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "cannot generate AppConfig and Components")
+		return nil, errors.WithMessage(err, "cannot generate AppConfig and Components")
 	}
-	return ac, comps, nil
+	return comps, nil
 }

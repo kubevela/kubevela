@@ -36,19 +36,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test WorkloadOption", func() {
 	var (
-		compName    = "test-comp"
-		compRevName = "test-comp-v1"
-
-		appRev *v1beta1.ApplicationRevision
+		compName = "test-comp"
+		appRev   *v1beta1.ApplicationRevision
 	)
 
 	BeforeEach(func() {
@@ -59,33 +55,18 @@ var _ = Describe("Test WorkloadOption", func() {
 		Expect(err).Should(BeNil())
 	})
 
-	It("test NameNonInplaceUpgradableWorkload WorkloadOption", func() {
-		By("Add NameNonInplaceUpgradableWorkload workload option")
-		ao := NewAppManifests(appRev).WithWorkloadOption(NameNonInplaceUpgradableWorkload())
-		workloads, _, _, err := ao.GroupAssembledManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(workloads)).Should(Equal(1))
-
-		By("Verify workload name is set as component revision name")
-		wl := workloads[compName]
-		Expect(wl.GetName()).Should(Equal(compRevName))
-	})
-
 	Context("test PrepareWorkloadForRollout WorkloadOption", func() {
 		It("test rollout OpenKruise CloneSet", func() {
 			By("Use openkruise CloneSet as workload")
-			cs := v1alpha1.CloneSet{}
+			cs := &unstructured.Unstructured{}
 			cs.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.CloneSet{}).Name()))
-			comp := v1alpha2.Component{}
-			comp.SetName(compName)
-			comp.Spec.Workload = util.Object2RawExtension(cs)
-			Expect(len(appRev.Spec.Components) > 0).Should(BeTrue())
-			appRev.Spec.Components[0] = common.RawComponent{
-				Raw: util.Object2RawExtension(comp),
+			comp := types.ComponentManifest{
+				Name:             compName,
+				StandardWorkload: cs,
 			}
-
 			By("Add PrepareWorkloadForRollout WorkloadOption")
 			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout())
+			ao.componentManifests = []*types.ComponentManifest{&comp}
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
 			Expect(len(workloads)).Should(Equal(1))
@@ -101,18 +82,15 @@ var _ = Describe("Test WorkloadOption", func() {
 
 		It("test rollout OpenKruise StatefulSet", func() {
 			By("Use openkruise CloneSet as workload")
-			sts := v1alpha1.StatefulSet{}
+			sts := &unstructured.Unstructured{}
 			sts.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.StatefulSet{}).Name()))
-			comp := v1alpha2.Component{}
-			comp.SetName(compName)
-			comp.Spec.Workload = util.Object2RawExtension(sts)
-			Expect(len(appRev.Spec.Components) > 0).Should(BeTrue())
-			appRev.Spec.Components[0] = common.RawComponent{
-				Raw: util.Object2RawExtension(comp),
+			comp := types.ComponentManifest{
+				Name:             compName,
+				StandardWorkload: sts,
 			}
-
 			By("Add PrepareWorkloadForRollout WorkloadOption")
 			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout())
+			ao.componentManifests = []*types.ComponentManifest{&comp}
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
 			Expect(len(workloads)).Should(Equal(1))
@@ -159,13 +137,13 @@ var _ = Describe("Test WorkloadOption", func() {
 				},
 			},
 		}, "spec")
-		releaseRaw, _ := release.MarshalJSON()
 
 		rlsWithoutChart := release.DeepCopy()
 		unstructured.SetNestedMap(rlsWithoutChart.Object, nil, "spec", "chart")
-		rlsWithoutChartRaw, _ := rlsWithoutChart.MarshalJSON()
 
 		wl := &unstructured.Unstructured{}
+		wl.SetAPIVersion("apps/v1")
+		wl.SetKind("Deployment")
 		wl.SetLabels(map[string]string{
 			"app.kubernetes.io/managed-by": "Helm",
 		})
@@ -176,7 +154,7 @@ var _ = Describe("Test WorkloadOption", func() {
 		type SubCase struct {
 			reason         string
 			c              client.Reader
-			helm           *common.Helm
+			helm           *unstructured.Unstructured
 			workloadInComp *unstructured.Unstructured
 			wantWorkload   *unstructured.Unstructured
 			wantErr        error
@@ -184,15 +162,11 @@ var _ = Describe("Test WorkloadOption", func() {
 
 		DescribeTable("Test cases for DiscoveryHelmBasedWorkload", func(tc SubCase) {
 			By(tc.reason)
-			comp := &v1alpha2.Component{}
-			if tc.workloadInComp != nil {
-				wlRaw, _ := tc.workloadInComp.MarshalJSON()
-				comp.Spec.Workload = runtime.RawExtension{Raw: wlRaw}
-			}
-			comp.Spec.Helm = tc.helm
 			assembledWorkload := &unstructured.Unstructured{}
+			assembledWorkload.SetAPIVersion("apps/v1")
+			assembledWorkload.SetKind("Deployment")
 			assembledWorkload.SetNamespace(ns)
-			err := discoverHelmModuleWorkload(context.Background(), tc.c, assembledWorkload, comp)
+			err := discoverHelmModuleWorkload(context.Background(), tc.c, assembledWorkload, nil, []*unstructured.Unstructured{tc.helm})
 
 			By("Verify error")
 			diff := cmp.Diff(tc.wantErr, err, test.EquateErrors())
@@ -205,34 +179,25 @@ var _ = Describe("Test WorkloadOption", func() {
 			}
 		},
 			Entry("CannotGetReleaseFromComp", SubCase{
-				reason: "An error should occur because cannot get release",
-				helm: &common.Helm{
-					Release: runtime.RawExtension{Raw: []byte("boom")},
-				},
-				wantErr: errors.Wrap(errors.New("invalid character 'b' looking for beginning of value"),
-					"cannot get helm release from component"),
+				reason:  "An error should occur because cannot get release",
+				helm:    &unstructured.Unstructured{},
+				wantErr: errors.New("cannot get helm release"),
 			}),
 			Entry("CannotGetChartFromRelease", SubCase{
-				reason: "An error should occur because cannot get chart info",
-				helm: &common.Helm{
-					Release: runtime.RawExtension{Raw: rlsWithoutChartRaw},
-				},
+				reason:  "An error should occur because cannot get chart info",
+				helm:    rlsWithoutChart.DeepCopy(),
 				wantErr: errors.New("cannot get helm chart name"),
 			}),
 			Entry("CannotGetWorkload", SubCase{
-				reason: "An error should occur because cannot get workload from k8s cluster",
-				helm: &common.Helm{
-					Release: runtime.RawExtension{Raw: releaseRaw},
-				},
+				reason:         "An error should occur because cannot get workload from k8s cluster",
+				helm:           release.DeepCopy(),
 				workloadInComp: &unstructured.Unstructured{},
 				c:              &test.MockClient{MockGet: test.NewMockGetFn(errors.New("boom"))},
 				wantErr:        errors.New("boom"),
 			}),
 			Entry("GetNotMatchedWorkload", SubCase{
-				reason: "An error should occur because the found workload is not managed by Helm",
-				helm: &common.Helm{
-					Release: runtime.RawExtension{Raw: releaseRaw},
-				},
+				reason:         "An error should occur because the found workload is not managed by Helm",
+				helm:           release.DeepCopy(),
 				workloadInComp: &unstructured.Unstructured{},
 				c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
 					o, _ := obj.(*unstructured.Unstructured)
@@ -253,11 +218,11 @@ var _ = Describe("Test WorkloadOption", func() {
 					return nil
 				})},
 				workloadInComp: wl.DeepCopy(),
-				helm: &common.Helm{
-					Release: runtime.RawExtension{Raw: releaseRaw},
-				},
+				helm:           release.DeepCopy(),
 				wantWorkload: func() *unstructured.Unstructured {
 					r := &unstructured.Unstructured{}
+					r.SetAPIVersion("apps/v1")
+					r.SetKind("Deployment")
 					r.SetNamespace(ns)
 					r.SetName("test-rls-test-chart")
 					return r

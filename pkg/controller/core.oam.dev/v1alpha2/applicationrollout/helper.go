@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
@@ -33,7 +32,7 @@ import (
 )
 
 func rolloutWorkloadName() assemble.WorkloadOption {
-	return assemble.WorkloadOptionFn(func(w *unstructured.Unstructured, component *v1alpha2.Component, definition *v1beta1.ComponentDefinition) error {
+	return assemble.WorkloadOptionFn(func(w *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 		// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
 		// we support is cloneset/statefulset for now. We can easily add more later.
 		if w.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {
@@ -41,8 +40,9 @@ func rolloutWorkloadName() assemble.WorkloadOption {
 				w.GetKind() == reflect.TypeOf(v1alpha1.StatefulSet{}).Name() {
 				// we use the component name alone for those resources that do support in-place upgrade
 				klog.InfoS("we reuse the component name for resources that support in-place upgrade",
-					"GVK", w.GroupVersionKind(), "instance name", component.Name)
-				w.SetName(component.Name)
+					"GVK", w.GroupVersionKind(), "instance name", w.GetName())
+				// assemble use component name as workload name by default
+				// so no need to re-set name
 				return nil
 			}
 		}

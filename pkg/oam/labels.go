@@ -51,6 +51,11 @@ const (
 	LabelPolicyDefinitionName = "policydefinition.oam.dev/name"
 	// LabelWorkflowStepDefinitionName records the name of WorkflowStepDefinition
 	LabelWorkflowStepDefinitionName = "workflowstepdefinition.oam.dev/name"
+
+	// LabelControllerRevisionComponent indicate which component the revision belong to
+	LabelControllerRevisionComponent = "controller.oam.dev/component"
+	// LabelComponentRevisionHash records the hash value of a component
+	LabelComponentRevisionHash = "app.oam.dev/component-revision-hash"
 )
 
 const (

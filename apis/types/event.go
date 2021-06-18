@@ -20,6 +20,7 @@ package types
 const (
 	ReasonParsed      = "Parsed"
 	ReasonRendered    = "Rendered"
+	ReasonRevisoned   = "Revisioned"
 	ReasonApplied     = "Applied"
 	ReasonHealthCheck = "HealthChecked"
 	ReasonDeployed    = "Deployed"
@@ -27,6 +28,7 @@ const (
 
 	ReasonFailedParse       = "FailedParse"
 	ReasonFailedRender      = "FailedRender"
+	ReasonFailedRevision    = "FailedRevision"
 	ReasonFailedWorkflow    = "FailedWorkflow"
 	ReasonFailedApply       = "FailedApply"
 	ReasonFailedHealthCheck = "FailedHealthCheck"
@@ -38,6 +40,7 @@ const (
 const (
 	MessageParsed      = "Parsed successfully"
 	MessageRendered    = "Rendered successfully"
+	MessageRevisioned  = "Revisioned successfully"
 	MessageApplied     = "Applied successfully"
 	MessageHealthCheck = "Health checked healthy"
 	MessageDeployed    = "Deployed successfully"
@@ -45,6 +48,7 @@ const (
 
 	MessageFailedParse       = "fail to parse application, err: %v"
 	MessageFailedRender      = "fail to render application, err: %v"
+	MessageFailedRevision    = "fail to handle application revision, err: %v"
 	MessageFailedApply       = "fail to apply component, err: %v"
 	MessageFailedHealthCheck = "fail to health check, err: %v"
 	MessageFailedGC          = "fail to garbage collection, err: %v"

@@ -229,7 +229,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: pvName1}, &corev1.PersistentVolume{})).Should(Succeed())
 
 			By("Dispatch application revision 1 again with v1 as latest RT")
-			dp = NewAppManifestsDispatcher(k8sClient, appRev1).EnableUpgradeAndGC(rtForAppV1)
+			dp = NewAppManifestsDispatcher(k8sClient, appRev1).EndAndGC(rtForAppV1)
 			_, err = dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			By("Verify resources still exist")
@@ -250,7 +250,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: pvName1}, &corev1.PersistentVolume{})).Should(Succeed())
 
 			By("Dispatch application revision 2 with v1 as latest RT")
-			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2).EnableUpgradeAndGC(rtForAppV1)
+			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2).EndAndGC(rtForAppV1)
 			_, err = dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc2, pv2})
 			Expect(err).Should(BeNil())
 			By("Verify v2 resources are applied successfully")
@@ -284,7 +284,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			Expect(owner.Name).Should(Equal(rtForAppV1.Name))
 
 			By("Dispatch application revision 2 with v1 as latest RT")
-			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2).EnableUpgradeAndGC(rtForAppV1)
+			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2).EndAndGC(rtForAppV1)
 			rtForAppV2, err := dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc1, pv2}) // manifests have 'svc1'
 			Expect(err).Should(BeNil())
 
@@ -315,7 +315,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			By("Dispatch application revision 2 with v1 as latest RT")
 			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2)
 			By("Ask dispatcher to skip GC")
-			dp2 = dp2.EnableUpgradeAndSkipGC(rtForAppV1)
+			dp2 = dp2.StartAndSkipGC(rtForAppV1)
 			_, err = dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc2, pv2})
 			Expect(err).Should(BeNil())
 			By("Verify v2 resources are applied successfully")

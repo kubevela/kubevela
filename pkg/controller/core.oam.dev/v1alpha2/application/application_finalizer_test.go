@@ -75,6 +75,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		By("[TEST] Clean up resources after an integration test")
 		Expect(k8sClient.DeleteAllOf(ctx, &appsv1.Deployment{}, client.InNamespace(namespace)))
 		Expect(k8sClient.DeleteAllOf(ctx, &v1alpha2.ManualScalerTrait{}, client.InNamespace(namespace)))
+		Expect(k8sClient.DeleteAllOf(ctx, &appsv1.ControllerRevision{}, client.InNamespace(namespace)))
 	})
 
 	It("Test component have normal workload", func() {
