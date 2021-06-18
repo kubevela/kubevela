@@ -52,6 +52,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	// there is no need validate deleted rollout, th
+	if !obj.DeletionTimestamp.IsZero() {
+		klog.InfoS("skip validate deleted rollout ", "namespace", obj.Namespace, "name", obj.Name)
+		return admission.ValidationResponse(true, "")
+	}
+
 	switch req.AdmissionRequest.Operation {
 	case admissionv1beta1.Create:
 		if allErrs := h.ValidateCreate(obj); len(allErrs) > 0 {
