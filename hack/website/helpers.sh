@@ -18,13 +18,13 @@
 set -e
 
 checkDocusaurus(){
-  if [ --d $1 ]; then
-  echo "generate docs failed"
+  if [ ! -d $1 ]; then
+    echo "generate docs failed"
     exit 1;
   else
     count=`ls $1 | wc -w`
     if [ "$count" > "0" ]; then
-      echo "generate docs failed"
+      echo "generate docs success"
     fi
   fi
 }

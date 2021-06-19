@@ -66,6 +66,8 @@ then
     rm versions.json.bak
   fi
 
+  python ../hack/website/format.py json versions.json
+
   yarn add nodejieba
   if [ -e yarn.lock ]; then
   yarn install --frozen-lockfile
@@ -97,6 +99,8 @@ then
     sed -i.bak "/${version}/d" versions.json
     rm versions.json.bak
   fi
+
+  python ../hack/website/format.py json versions.json
 
   yarn add nodejieba
   if [ -e yarn.lock ]; then
