@@ -26,7 +26,7 @@ require (
 	github.com/go-openapi/spec v0.19.8 // indirect
 	github.com/go-openapi/swag v0.19.11 // indirect
 	github.com/go-playground/validator/v10 v10.4.1 // indirect
-	github.com/google/go-cmp v0.5.2
+	github.com/google/go-cmp v0.5.5
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/hcl/v2 v2.9.1
@@ -37,10 +37,10 @@ require (
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.1.6
+	github.com/oam-dev/terraform-controller v0.1.10
 	github.com/olekukonko/tablewriter v0.0.2
-	github.com/onsi/ginkgo v1.13.0
-	github.com/onsi/gomega v1.10.3
+	github.com/onsi/ginkgo v1.16.2
+	github.com/onsi/gomega v1.12.0
 	github.com/openkruise/kruise-api v0.7.0
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
@@ -57,7 +57,6 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
-	golang.org/x/net v0.0.0-20201209123823-ac852fbbde11 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
