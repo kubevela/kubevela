@@ -4,7 +4,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "dynamically specify service account"
-  name: service-account
+  name: dynamic-sa
 spec:
   appliesToWorkloads:
     - deployments.apps
