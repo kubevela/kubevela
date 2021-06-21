@@ -51,15 +51,18 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
+			filePath, err := cmd.Flags().GetString(appFilePath)
+			if err == nil {
+				return nil
+			}
+			err = common.ApplyApplication(filePath, ioStream, kubecli)
+			if err == nil {
+				return nil
+			}
 			o := &common.AppfileOptions{
 				Kubecli: kubecli,
 				IO:      ioStream,
 				Env:     velaEnv,
-			}
-			filePath, err := cmd.Flags().GetString(appFilePath)
-			if err != nil {
-				return err
 			}
 			return o.Run(filePath, velaEnv.Namespace, c)
 		},
