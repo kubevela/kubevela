@@ -65,9 +65,9 @@ require (
 	helm.sh/helm/v3 v3.2.4
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
-	k8s.io/api v0.18.8
+	k8s.io/api v0.18.12
 	k8s.io/apiextensions-apiserver v0.18.6
-	k8s.io/apimachinery v0.18.8
+	k8s.io/apimachinery v0.18.12
 	k8s.io/cli-runtime v0.18.6
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/klog v1.0.0
@@ -90,5 +90,5 @@ replace (
 	// fix build issue https://github.com/ory/dockertest/issues/208
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4
 	// clint-go had a buggy release, https://github.com/kubernetes/client-go/issues/749
-	k8s.io/client-go => k8s.io/client-go v0.18.8
+	k8s.io/client-go => k8s.io/client-go v0.18.12
 )
