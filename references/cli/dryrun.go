@@ -45,7 +45,6 @@ type DryRunCmdOptions struct {
 	cmdutil.IOStreams
 	ApplicationFile string
 	DefinitionFile  string
-	NameSpace       string
 }
 
 // NewDryRunCommand creates `dry-run` command
