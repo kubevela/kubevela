@@ -45,10 +45,12 @@ type DryRunCmdOptions struct {
 	cmdutil.IOStreams
 	ApplicationFile string
 	DefinitionFile  string
+	NameSpace       string
 }
 
 // NewDryRunCommand creates `dry-run` command
 func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var namespace string
 	o := &DryRunCmdOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:                   "dry-run",
@@ -60,11 +62,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetEnv(cmd)
-			if err != nil {
-				return err
-			}
-			buff, err := DryRunApplication(o, c, velaEnv.Namespace)
+			buff, err := DryRunApplication(o, c, namespace)
 			if err != nil {
 				return err
 			}
@@ -75,6 +73,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "specify namespace of the definition file, by default is default namespace")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
