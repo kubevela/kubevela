@@ -14,7 +14,7 @@ spec:
   podDisruptive: true
   schematic:
     cue:
-      template: |
+      template: |-
         outputs: scaler: {
         	apiVersion: "core.oam.dev/v1alpha2"
         	kind:       "ManualScalerTrait"
