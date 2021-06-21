@@ -131,7 +131,10 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		Eventually(
 			func() error {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
+				if err != nil {
+					return err
+				}
 				app.Spec = targetApp.DeepCopy().Spec
 				return k8sClient.Update(ctx, app.DeepCopy())
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
@@ -142,12 +145,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				var appRevList = &v1beta1.ApplicationRevisionList{}
 				_ = k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
 					client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
-				if appRevList != nil {
-					return len(appRevList.Items) >= 2
-				}
-				return false
+				return len(appRevList.Items) >= 2
 			},
-			time.Second*15, time.Millisecond*500).Should(BeTrue())
+			time.Second*30, time.Millisecond*300).Should(BeTrue())
 	}
 
 	createAppRolling := func(newAppRollout *v1beta1.AppRollout) {
