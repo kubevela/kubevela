@@ -8,7 +8,8 @@ spec:
   podDisruptive: false
   schematic:
     cue:
-      template: |-        parameter: {
+      template: |-
+        parameter: {
         	domain: string
         	http: [string]: int
         }

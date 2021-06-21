@@ -5,7 +5,7 @@ title:  Attach Traits
 All traits in the KubeVela system works well with the simple template based Component. 
 
 In this sample, we will attach two traits,
-[scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml)
+[scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/scaler.yaml)
 and
 [virtualgroup](https://github.com/oam-dev/kubevela/blob/master/docs/examples/kube-module/virtual-group-td.yaml) to a component
 

@@ -13,4 +13,4 @@ spec:
   podDisruptive: true
   schematic:
     cue:
-      template: |
+      template: |-
