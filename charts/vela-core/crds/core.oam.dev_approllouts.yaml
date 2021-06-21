@@ -44,35 +44,50 @@ spec:
         description: AppRollout is the Schema for the AppRollout API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
           spec:
-            description: AppRolloutSpec defines how to describe an upgrade between different apps
+            description: AppRolloutSpec defines how to describe an upgrade between
+              different apps
             properties:
               componentList:
-                description: 'The list of component to upgrade in the application. We only support single component application so far TODO: (RZ) Support multiple components in an application'
+                description: 'The list of component to upgrade in the application.
+                  We only support single component application so far TODO: (RZ) Support
+                  multiple components in an application'
                 items:
                   type: string
                 type: array
               revertOnDelete:
-                description: RevertOnDelete revert the rollout when the rollout CR is deleted It will remove the target app from the kubernetes if it's set to true
+                description: RevertOnDelete revert the rollout when the rollout CR
+                  is deleted It will remove the target app from the kubernetes if
+                  it's set to true
                 type: boolean
               rolloutPlan:
                 description: RolloutPlan is the details on how to rollout the resources
                 properties:
                   batchPartition:
-                    description: All pods in the batches up to the batchPartition (included) will have the target resource specification while the rest still have the source resource This is designed for the operators to manually rollout Default is the the number of batches which will rollout all the batches
+                    description: All pods in the batches up to the batchPartition
+                      (included) will have the target resource specification while
+                      the rest still have the source resource This is designed for
+                      the operators to manually rollout Default is the the number
+                      of batches which will rollout all the batches
                     format: int32
                     type: integer
                   canaryMetric:
-                    description: CanaryMetric provides a way for the rollout process to automatically check certain metrics before complete the process
+                    description: CanaryMetric provides a way for the rollout process
+                      to automatically check certain metrics before complete the process
                     items:
-                      description: CanaryMetric holds the reference to metrics used for canary analysis
+                      description: CanaryMetric holds the reference to metrics used
+                        for canary analysis
                       properties:
                         interval:
                           description: Interval represents the windows size
@@ -128,17 +143,26 @@ spec:
                     description: Paused the rollout, default is false
                     type: boolean
                   rolloutBatches:
-                    description: The exact distribution among batches. its size has to be exactly the same as the NumBatches (if set) The total number cannot exceed the targetSize or the size of the source resource We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum We highly recommend to leave the last batch's replica field empty
+                    description: The exact distribution among batches. its size has
+                      to be exactly the same as the NumBatches (if set) The total
+                      number cannot exceed the targetSize or the size of the source
+                      resource We will IGNORE the last batch's replica field if it's
+                      a percentage since round errors can lead to inaccurate sum We
+                      highly recommend to leave the last batch's replica field empty
                     items:
-                      description: RolloutBatch is used to describe how the each batch rollout should be
+                      description: RolloutBatch is used to describe how the each batch
+                        rollout should be
                       properties:
                         batchRolloutWebhooks:
-                          description: RolloutWebhooks provides a way for the batch rollout to interact with an external process
+                          description: RolloutWebhooks provides a way for the batch
+                            rollout to interact with an external process
                           items:
-                            description: RolloutWebhook holds the reference to external checks used for canary analysis
+                            description: RolloutWebhook holds the reference to external
+                              checks used for canary analysis
                             properties:
                               expectedStatus:
-                                description: ExpectedStatus contains all the expected http status code that we will accept as success
+                                description: ExpectedStatus contains all the expected
+                                  http status code that we will accept as success
                                 items:
                                   type: integer
                                 type: array
@@ -148,7 +172,8 @@ spec:
                                 description: Metadata (key-value pairs) for this webhook
                                 type: object
                               method:
-                                description: Method the HTTP call method, default is POST
+                                description: Method the HTTP call method, default
+                                  is POST
                                 type: string
                               name:
                                 description: Name of this webhook
@@ -166,9 +191,12 @@ spec:
                             type: object
                           type: array
                         canaryMetric:
-                          description: CanaryMetric provides a way for the batch rollout process to automatically check certain metrics before moving to the next batch
+                          description: CanaryMetric provides a way for the batch rollout
+                            process to automatically check certain metrics before
+                            moving to the next batch
                           items:
-                            description: CanaryMetric holds the reference to metrics used for canary analysis
+                            description: CanaryMetric holds the reference to metrics
+                              used for canary analysis
                             properties:
                               interval:
                                 description: Interval represents the windows size
@@ -193,7 +221,8 @@ spec:
                                 description: Name of the metric
                                 type: string
                               templateRef:
-                                description: TemplateRef references a metric template object
+                                description: TemplateRef references a metric template
+                                  object
                                 properties:
                                   apiVersion:
                                     description: APIVersion of the referenced object.
@@ -217,17 +246,23 @@ spec:
                             type: object
                           type: array
                         instanceInterval:
-                          description: The wait time, in seconds, between instances upgrades, default = 0
+                          description: The wait time, in seconds, between instances
+                            upgrades, default = 0
                           format: int32
                           type: integer
                         maxUnavailable:
                           anyOf:
                           - type: integer
                           - type: string
-                          description: MaxUnavailable is the max allowed number of pods that is unavailable during the upgrade. We will mark the batch as ready as long as there are less or equal number of pods unavailable than this number. default = 0
+                          description: MaxUnavailable is the max allowed number of
+                            pods that is unavailable during the upgrade. We will mark
+                            the batch as ready as long as there are less or equal
+                            number of pods unavailable than this number. default =
+                            0
                           x-kubernetes-int-or-string: true
                         podList:
-                          description: The list of Pods to get upgraded it is mutually exclusive with the Replicas field
+                          description: The list of Pods to get upgraded it is mutually
+                            exclusive with the Replicas field
                           items:
                             type: string
                           type: array
@@ -235,20 +270,28 @@ spec:
                           anyOf:
                           - type: integer
                           - type: string
-                          description: 'Replicas is the number of pods to upgrade in this batch it can be an absolute number (ex: 5) or a percentage of total pods we will ignore the percentage of the last batch to just fill the gap it is mutually exclusive with the PodList field'
+                          description: 'Replicas is the number of pods to upgrade
+                            in this batch it can be an absolute number (ex: 5) or
+                            a percentage of total pods we will ignore the percentage
+                            of the last batch to just fill the gap it is mutually
+                            exclusive with the PodList field'
                           x-kubernetes-int-or-string: true
                       type: object
                     type: array
                   rolloutStrategy:
-                    description: RolloutStrategy defines strategies for the rollout plan The default is IncreaseFirstRolloutStrategyType
+                    description: RolloutStrategy defines strategies for the rollout
+                      plan The default is IncreaseFirstRolloutStrategyType
                     type: string
                   rolloutWebhooks:
-                    description: RolloutWebhooks provide a way for the rollout to interact with an external process
+                    description: RolloutWebhooks provide a way for the rollout to
+                      interact with an external process
                     items:
-                      description: RolloutWebhook holds the reference to external checks used for canary analysis
+                      description: RolloutWebhook holds the reference to external
+                        checks used for canary analysis
                       properties:
                         expectedStatus:
-                          description: ExpectedStatus contains all the expected http status code that we will accept as success
+                          description: ExpectedStatus contains all the expected http
+                            status code that we will accept as success
                           items:
                             type: integer
                           type: array
@@ -276,15 +319,19 @@ spec:
                       type: object
                     type: array
                   targetSize:
-                    description: The size of the target resource. The default is the same as the size of the source resource.
+                    description: The size of the target resource. The default is the
+                      same as the size of the source resource.
                     format: int32
                     type: integer
                 type: object
               sourceAppRevisionName:
-                description: SourceAppRevisionName contains the name of the applicationRevision that we need to upgrade from. it can be empty only when the rolling is only a scale event
+                description: SourceAppRevisionName contains the name of the applicationRevision
+                  that we need to upgrade from. it can be empty only when the rolling
+                  is only a scale event
                 type: string
               targetAppRevisionName:
-                description: TargetAppRevisionName contains the name of the applicationRevision that we need to upgrade to.
+                description: TargetAppRevisionName contains the name of the applicationRevision
+                  that we need to upgrade to.
                 type: string
             required:
             - rolloutPlan
@@ -294,10 +341,13 @@ spec:
             description: AppRolloutStatus defines the observed state of AppRollout
             properties:
               LastSourceAppRevision:
-                description: LastSourceAppRevision contains the name of the app that we need to upgrade from. We will restart the rollout if this is not the same as the spec
+                description: LastSourceAppRevision contains the name of the app that
+                  we need to upgrade from. We will restart the rollout if this is
+                  not the same as the spec
                 type: string
               batchRollingState:
-                description: BatchRollingState only meaningful when the Status is rolling
+                description: BatchRollingState only meaningful when the Status is
+                  rolling
                 type: string
               conditions:
                 description: Conditions of the resource.
@@ -305,20 +355,25 @@ spec:
                   description: A Condition that may apply to a resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                      description: LastTransitionTime is the last time this condition
+                        transitioned from one status to another.
                       format: date-time
                       type: string
                     message:
-                      description: A Message containing details about this condition's last transition from one status to another, if any.
+                      description: A Message containing details about this condition's
+                        last transition from one status to another, if any.
                       type: string
                     reason:
-                      description: A Reason for this condition's last transition from one status to another.
+                      description: A Reason for this condition's last transition from
+                        one status to another.
                       type: string
                     status:
-                      description: Status of this condition; is it currently True, False, or Unknown?
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
                       type: string
                     type:
-                      description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                      description: Type of this condition. At most one of each condition
+                        type may apply to a resource at any point in time.
                       type: string
                   required:
                   - lastTransitionTime
@@ -328,35 +383,49 @@ spec:
                   type: object
                 type: array
               currentBatch:
-                description: The current batch the rollout is working on/blocked it starts from 0
+                description: The current batch the rollout is working on/blocked it
+                  starts from 0
                 format: int32
                 type: integer
               lastAppliedPodTemplateIdentifier:
-                description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
+                description: lastAppliedPodTemplateIdentifier is a string that uniquely
+                  represent the last pod template each workload type could use different
+                  ways to identify that so we cannot compare between resources We
+                  update this field only after a successful rollout
                 type: string
               lastTargetAppRevision:
-                description: LastUpgradedTargetAppRevision contains the name of the app that we upgraded to We will restart the rollout if this is not the same as the spec
+                description: LastUpgradedTargetAppRevision contains the name of the
+                  app that we upgraded to We will restart the rollout if this is not
+                  the same as the spec
                 type: string
               rollingState:
                 description: RollingState is the Rollout State
                 type: string
               rolloutOriginalSize:
-                description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                description: RolloutTargetSize is the size of the target resources.
+                  This is determined once the initial spec verification and does not
+                  change until the rollout is restarted
                 format: int32
                 type: integer
               rolloutTargetSize:
-                description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                description: RolloutTargetSize is the size of the target resources.
+                  This is determined once the initial spec verification and does not
+                  change until the rollout is restarted
                 format: int32
                 type: integer
               targetGeneration:
-                description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
+                description: NewPodTemplateIdentifier is a string that uniquely represent
+                  the new pod template each workload type could use different ways
+                  to identify that so we cannot compare between resources
                 type: string
               upgradedReadyReplicas:
-                description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+                description: UpgradedReadyReplicas is the number of Pods upgraded
+                  by the rollout controller that have a Ready Condition.
                 format: int32
                 type: integer
               upgradedReplicas:
-                description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
+                description: UpgradedReplicas is the number of Pods upgraded by the
+                  rollout controller
                 format: int32
                 type: integer
             required:
@@ -396,35 +465,50 @@ spec:
         description: AppRollout is the Schema for the AppRollout API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
           spec:
-            description: AppRolloutSpec defines how to describe an upgrade between different apps
+            description: AppRolloutSpec defines how to describe an upgrade between
+              different apps
             properties:
               componentList:
-                description: 'The list of component to upgrade in the application. We only support single component application so far TODO: (RZ) Support multiple components in an application'
+                description: 'The list of component to upgrade in the application.
+                  We only support single component application so far TODO: (RZ) Support
+                  multiple components in an application'
                 items:
                   type: string
                 type: array
               revertOnDelete:
-                description: RevertOnDelete revert the failed rollout when the rollout CR is deleted It will revert the change back to the source version at once (not in batches) Default is false
+                description: RevertOnDelete revert the failed rollout when the rollout
+                  CR is deleted It will revert the change back to the source version
+                  at once (not in batches) Default is false
                 type: boolean
               rolloutPlan:
                 description: RolloutPlan is the details on how to rollout the resources
                 properties:
                   batchPartition:
-                    description: All pods in the batches up to the batchPartition (included) will have the target resource specification while the rest still have the source resource This is designed for the operators to manually rollout Default is the the number of batches which will rollout all the batches
+                    description: All pods in the batches up to the batchPartition
+                      (included) will have the target resource specification while
+                      the rest still have the source resource This is designed for
+                      the operators to manually rollout Default is the the number
+                      of batches which will rollout all the batches
                     format: int32
                     type: integer
                   canaryMetric:
-                    description: CanaryMetric provides a way for the rollout process to automatically check certain metrics before complete the process
+                    description: CanaryMetric provides a way for the rollout process
+                      to automatically check certain metrics before complete the process
                     items:
-                      description: CanaryMetric holds the reference to metrics used for canary analysis
+                      description: CanaryMetric holds the reference to metrics used
+                        for canary analysis
                       properties:
                         interval:
                           description: Interval represents the windows size
@@ -480,17 +564,26 @@ spec:
                     description: Paused the rollout, default is false
                     type: boolean
                   rolloutBatches:
-                    description: The exact distribution among batches. its size has to be exactly the same as the NumBatches (if set) The total number cannot exceed the targetSize or the size of the source resource We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum We highly recommend to leave the last batch's replica field empty
+                    description: The exact distribution among batches. its size has
+                      to be exactly the same as the NumBatches (if set) The total
+                      number cannot exceed the targetSize or the size of the source
+                      resource We will IGNORE the last batch's replica field if it's
+                      a percentage since round errors can lead to inaccurate sum We
+                      highly recommend to leave the last batch's replica field empty
                     items:
-                      description: RolloutBatch is used to describe how the each batch rollout should be
+                      description: RolloutBatch is used to describe how the each batch
+                        rollout should be
                       properties:
                         batchRolloutWebhooks:
-                          description: RolloutWebhooks provides a way for the batch rollout to interact with an external process
+                          description: RolloutWebhooks provides a way for the batch
+                            rollout to interact with an external process
                           items:
-                            description: RolloutWebhook holds the reference to external checks used for canary analysis
+                            description: RolloutWebhook holds the reference to external
+                              checks used for canary analysis
                             properties:
                               expectedStatus:
-                                description: ExpectedStatus contains all the expected http status code that we will accept as success
+                                description: ExpectedStatus contains all the expected
+                                  http status code that we will accept as success
                                 items:
                                   type: integer
                                 type: array
@@ -500,7 +593,8 @@ spec:
                                 description: Metadata (key-value pairs) for this webhook
                                 type: object
                               method:
-                                description: Method the HTTP call method, default is POST
+                                description: Method the HTTP call method, default
+                                  is POST
                                 type: string
                               name:
                                 description: Name of this webhook
@@ -518,9 +612,12 @@ spec:
                             type: object
                           type: array
                         canaryMetric:
-                          description: CanaryMetric provides a way for the batch rollout process to automatically check certain metrics before moving to the next batch
+                          description: CanaryMetric provides a way for the batch rollout
+                            process to automatically check certain metrics before
+                            moving to the next batch
                           items:
-                            description: CanaryMetric holds the reference to metrics used for canary analysis
+                            description: CanaryMetric holds the reference to metrics
+                              used for canary analysis
                             properties:
                               interval:
                                 description: Interval represents the windows size
@@ -545,7 +642,8 @@ spec:
                                 description: Name of the metric
                                 type: string
                               templateRef:
-                                description: TemplateRef references a metric template object
+                                description: TemplateRef references a metric template
+                                  object
                                 properties:
                                   apiVersion:
                                     description: APIVersion of the referenced object.
@@ -569,17 +667,23 @@ spec:
                             type: object
                           type: array
                         instanceInterval:
-                          description: The wait time, in seconds, between instances upgrades, default = 0
+                          description: The wait time, in seconds, between instances
+                            upgrades, default = 0
                           format: int32
                           type: integer
                         maxUnavailable:
                           anyOf:
                           - type: integer
                           - type: string
-                          description: MaxUnavailable is the max allowed number of pods that is unavailable during the upgrade. We will mark the batch as ready as long as there are less or equal number of pods unavailable than this number. default = 0
+                          description: MaxUnavailable is the max allowed number of
+                            pods that is unavailable during the upgrade. We will mark
+                            the batch as ready as long as there are less or equal
+                            number of pods unavailable than this number. default =
+                            0
                           x-kubernetes-int-or-string: true
                         podList:
-                          description: The list of Pods to get upgraded it is mutually exclusive with the Replicas field
+                          description: The list of Pods to get upgraded it is mutually
+                            exclusive with the Replicas field
                           items:
                             type: string
                           type: array
@@ -587,20 +691,28 @@ spec:
                           anyOf:
                           - type: integer
                           - type: string
-                          description: 'Replicas is the number of pods to upgrade in this batch it can be an absolute number (ex: 5) or a percentage of total pods we will ignore the percentage of the last batch to just fill the gap it is mutually exclusive with the PodList field'
+                          description: 'Replicas is the number of pods to upgrade
+                            in this batch it can be an absolute number (ex: 5) or
+                            a percentage of total pods we will ignore the percentage
+                            of the last batch to just fill the gap it is mutually
+                            exclusive with the PodList field'
                           x-kubernetes-int-or-string: true
                       type: object
                     type: array
                   rolloutStrategy:
-                    description: RolloutStrategy defines strategies for the rollout plan The default is IncreaseFirstRolloutStrategyType
+                    description: RolloutStrategy defines strategies for the rollout
+                      plan The default is IncreaseFirstRolloutStrategyType
                     type: string
                   rolloutWebhooks:
-                    description: RolloutWebhooks provide a way for the rollout to interact with an external process
+                    description: RolloutWebhooks provide a way for the rollout to
+                      interact with an external process
                     items:
-                      description: RolloutWebhook holds the reference to external checks used for canary analysis
+                      description: RolloutWebhook holds the reference to external
+                        checks used for canary analysis
                       properties:
                         expectedStatus:
-                          description: ExpectedStatus contains all the expected http status code that we will accept as success
+                          description: ExpectedStatus contains all the expected http
+                            status code that we will accept as success
                           items:
                             type: integer
                           type: array
@@ -628,15 +740,20 @@ spec:
                       type: object
                     type: array
                   targetSize:
-                    description: The size of the target resource. The default is the same as the size of the source resource.
+                    description: The size of the target resource. The default is the
+                      same as the size of the source resource.
                     format: int32
                     type: integer
                 type: object
               sourceAppRevisionName:
-                description: SourceAppRevisionName contains the name of the applicationConfiguration that we need to upgrade from. it can be empty only when it's the first time to deploy the application
+                description: SourceAppRevisionName contains the name of the applicationConfiguration
+                  that we need to upgrade from. it can be empty only when it's the
+                  first time to deploy the application
                 type: string
               targetAppRevisionName:
-                description: TargetAppRevisionName contains the name of the applicationConfiguration that we need to upgrade to. Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
+                description: TargetAppRevisionName contains the name of the applicationConfiguration
+                  that we need to upgrade to. Here we use an applicationConfiguration
+                  as a revision of an application, thus the name alone is suffice
                 type: string
             required:
             - rolloutPlan
@@ -646,10 +763,13 @@ spec:
             description: AppRolloutStatus defines the observed state of AppRollout
             properties:
               LastSourceAppRevision:
-                description: LastSourceAppRevision contains the name of the app that we need to upgrade from. We will restart the rollout if this is not the same as the spec
+                description: LastSourceAppRevision contains the name of the app that
+                  we need to upgrade from. We will restart the rollout if this is
+                  not the same as the spec
                 type: string
               batchRollingState:
-                description: BatchRollingState only meaningful when the Status is rolling
+                description: BatchRollingState only meaningful when the Status is
+                  rolling
                 type: string
               conditions:
                 description: Conditions of the resource.
@@ -657,20 +777,25 @@ spec:
                   description: A Condition that may apply to a resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                      description: LastTransitionTime is the last time this condition
+                        transitioned from one status to another.
                       format: date-time
                       type: string
                     message:
-                      description: A Message containing details about this condition's last transition from one status to another, if any.
+                      description: A Message containing details about this condition's
+                        last transition from one status to another, if any.
                       type: string
                     reason:
-                      description: A Reason for this condition's last transition from one status to another.
+                      description: A Reason for this condition's last transition from
+                        one status to another.
                       type: string
                     status:
-                      description: Status of this condition; is it currently True, False, or Unknown?
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
                       type: string
                     type:
-                      description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                      description: Type of this condition. At most one of each condition
+                        type may apply to a resource at any point in time.
                       type: string
                   required:
                   - lastTransitionTime
@@ -680,35 +805,49 @@ spec:
                   type: object
                 type: array
               currentBatch:
-                description: The current batch the rollout is working on/blocked it starts from 0
+                description: The current batch the rollout is working on/blocked it
+                  starts from 0
                 format: int32
                 type: integer
               lastAppliedPodTemplateIdentifier:
-                description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
+                description: lastAppliedPodTemplateIdentifier is a string that uniquely
+                  represent the last pod template each workload type could use different
+                  ways to identify that so we cannot compare between resources We
+                  update this field only after a successful rollout
                 type: string
               lastTargetAppRevision:
-                description: LastUpgradedTargetAppRevision contains the name of the app that we upgraded to We will restart the rollout if this is not the same as the spec
+                description: LastUpgradedTargetAppRevision contains the name of the
+                  app that we upgraded to We will restart the rollout if this is not
+                  the same as the spec
                 type: string
               rollingState:
                 description: RollingState is the Rollout State
                 type: string
               rolloutOriginalSize:
-                description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                description: RolloutTargetSize is the size of the target resources.
+                  This is determined once the initial spec verification and does not
+                  change until the rollout is restarted
                 format: int32
                 type: integer
               rolloutTargetSize:
-                description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                description: RolloutTargetSize is the size of the target resources.
+                  This is determined once the initial spec verification and does not
+                  change until the rollout is restarted
                 format: int32
                 type: integer
               targetGeneration:
-                description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
+                description: NewPodTemplateIdentifier is a string that uniquely represent
+                  the new pod template each workload type could use different ways
+                  to identify that so we cannot compare between resources
                 type: string
               upgradedReadyReplicas:
-                description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+                description: UpgradedReadyReplicas is the number of Pods upgraded
+                  by the rollout controller that have a Ready Condition.
                 format: int32
                 type: integer
               upgradedReplicas:
-                description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
+                description: UpgradedReplicas is the number of Pods upgraded by the
+                  rollout controller
                 format: int32
                 type: integer
             required:

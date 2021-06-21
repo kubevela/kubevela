@@ -42,33 +42,37 @@ func TestCapability(t *testing.T) {
 	RunSpecs(t, "Capability Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
-	By("Bootstrapping test environment")
-	useExistCluster := false
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{
-			filepath.Join("../../..", "charts/vela-core/crds"), // this has all the required CRDs,
-		},
-		UseExistingCluster: &useExistCluster,
-	}
-	var err error
-	cfg, err = testEnv.Start()
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
+var _ = BeforeSuite(func() {
+	done := make(chan interface{})
+	go func() {
+		By("Bootstrapping test environment")
+		useExistCluster := false
+		testEnv = &envtest.Environment{
+			CRDDirectoryPaths: []string{
+				filepath.Join("../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			},
+			UseExistingCluster: &useExistCluster,
+		}
+		var err error
+		cfg, err = testEnv.Start()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cfg).ToNot(BeNil())
 
-	err = oamCore.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+		err = oamCore.AddToScheme(scheme.Scheme)
+		Expect(err).NotTo(HaveOccurred())
 
-	By("Create the k8s client")
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
+		By("Create the k8s client")
+		k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(k8sClient).ToNot(BeNil())
 
-	pd, err = packages.NewPackageDiscover(cfg)
-	Expect(err).ToNot(HaveOccurred())
+		pd, err = packages.NewPackageDiscover(cfg)
+		Expect(err).ToNot(HaveOccurred())
+		close(done)
+	}()
 
-	close(done)
-}, 60)
+	Eventually(done, 60).Should(BeClosed())
+})
 
 var _ = AfterSuite(func() {
 	By("Tearing down the test environment")
