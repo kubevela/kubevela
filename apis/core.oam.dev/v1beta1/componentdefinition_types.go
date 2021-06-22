@@ -83,12 +83,12 @@ type ComponentDefinition struct {
 	Status ComponentDefinitionStatus `json:"status,omitempty"`
 }
 
-// SetConditions set condition for WorkloadDefinition
+// SetConditions set condition for ComponentDefinition
 func (cd *ComponentDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
 	cd.Status.SetConditions(c...)
 }
 
-// GetCondition gets condition from WorkloadDefinition
+// GetCondition gets condition from ComponentDefinition
 func (cd *ComponentDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
 	return cd.Status.GetCondition(conditionType)
 }

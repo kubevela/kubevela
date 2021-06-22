@@ -1,0 +1,682 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+  name: initializers.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    categories:
+    - oam
+    kind: Initializer
+    listKind: InitializerList
+    plural: initializers
+    shortNames:
+    - init
+    singular: initializer
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: Initializer is the Schema for the Initializer API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: A InitializerSpec defines the desired state of a Initializer.
+          properties:
+            appTemplate:
+              description: AppTemplate indicates the application template to render and deploy an system application.
+              properties:
+                apiVersion:
+                  description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+                  type: string
+                kind:
+                  description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                  type: string
+                metadata:
+                  type: object
+                spec:
+                  description: ApplicationSpec is the spec of Application
+                  properties:
+                    components:
+                      items:
+                        description: ApplicationComponent describe the component of application
+                        properties:
+                          name:
+                            type: string
+                          properties:
+                            type: object
+                            
+                          scopes:
+                            additionalProperties:
+                              type: string
+                            description: scopes in ApplicationComponent defines the component-level scopes the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
+                            type: object
+                            
+                          traits:
+                            description: Traits define the trait of one component, the type must be array to keep the order.
+                            items:
+                              description: ApplicationTrait defines the trait of application
+                              properties:
+                                properties:
+                                  type: object
+                                  
+                                type:
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                            type: array
+                          type:
+                            type: string
+                        required:
+                        - name
+                        - type
+                        type: object
+                      type: array
+                    policies:
+                      description: Policies defines the global policies for all components in the app, e.g. security, metrics, gitops, multi-cluster placement rules, etc. Policies are applied after components are rendered and before workflow steps are executed.
+                      items:
+                        description: AppPolicy defines a global policy for all components in the app.
+                        properties:
+                          name:
+                            description: Name is the unique name of the policy.
+                            type: string
+                          properties:
+                            type: object
+                            
+                          type:
+                            type: string
+                        required:
+                        - name
+                        - type
+                        type: object
+                      type: array
+                    rolloutPlan:
+                      description: RolloutPlan is the details on how to rollout the resources The controller simply replace the old resources with the new one if there is no rollout plan involved
+                      properties:
+                        batchPartition:
+                          description: All pods in the batches up to the batchPartition (included) will have the target resource specification while the rest still have the source resource This is designed for the operators to manually rollout Default is the the number of batches which will rollout all the batches
+                          format: int32
+                          type: integer
+                        canaryMetric:
+                          description: CanaryMetric provides a way for the rollout process to automatically check certain metrics before complete the process
+                          items:
+                            description: CanaryMetric holds the reference to metrics used for canary analysis
+                            properties:
+                              interval:
+                                description: Interval represents the windows size
+                                type: string
+                              metricsRange:
+                                description: Range value accepted for this metric
+                                properties:
+                                  max:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: Maximum value
+                                    x-kubernetes-int-or-string: true
+                                  min:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: Minimum value
+                                    x-kubernetes-int-or-string: true
+                                type: object
+                              name:
+                                description: Name of the metric
+                                type: string
+                              templateRef:
+                                description: TemplateRef references a metric template object
+                                properties:
+                                  apiVersion:
+                                    description: APIVersion of the referenced object.
+                                    type: string
+                                  kind:
+                                    description: Kind of the referenced object.
+                                    type: string
+                                  name:
+                                    description: Name of the referenced object.
+                                    type: string
+                                  uid:
+                                    description: UID of the referenced object.
+                                    type: string
+                                required:
+                                - apiVersion
+                                - kind
+                                - name
+                                type: object
+                            required:
+                            - name
+                            type: object
+                          type: array
+                        numBatches:
+                          description: The number of batches, default = 1
+                          format: int32
+                          type: integer
+                        paused:
+                          description: Paused the rollout, default is false
+                          type: boolean
+                        rolloutBatches:
+                          description: The exact distribution among batches. its size has to be exactly the same as the NumBatches (if set) The total number cannot exceed the targetSize or the size of the source resource We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum We highly recommend to leave the last batch's replica field empty
+                          items:
+                            description: RolloutBatch is used to describe how the each batch rollout should be
+                            properties:
+                              batchRolloutWebhooks:
+                                description: RolloutWebhooks provides a way for the batch rollout to interact with an external process
+                                items:
+                                  description: RolloutWebhook holds the reference to external checks used for canary analysis
+                                  properties:
+                                    expectedStatus:
+                                      description: ExpectedStatus contains all the expected http status code that we will accept as success
+                                      items:
+                                        type: integer
+                                      type: array
+                                    metadata:
+                                      additionalProperties:
+                                        type: string
+                                      description: Metadata (key-value pairs) for this webhook
+                                      type: object
+                                    method:
+                                      description: Method the HTTP call method, default is POST
+                                      type: string
+                                    name:
+                                      description: Name of this webhook
+                                      type: string
+                                    type:
+                                      description: Type of this webhook
+                                      type: string
+                                    url:
+                                      description: URL address of this webhook
+                                      type: string
+                                  required:
+                                  - name
+                                  - type
+                                  - url
+                                  type: object
+                                type: array
+                              canaryMetric:
+                                description: CanaryMetric provides a way for the batch rollout process to automatically check certain metrics before moving to the next batch
+                                items:
+                                  description: CanaryMetric holds the reference to metrics used for canary analysis
+                                  properties:
+                                    interval:
+                                      description: Interval represents the windows size
+                                      type: string
+                                    metricsRange:
+                                      description: Range value accepted for this metric
+                                      properties:
+                                        max:
+                                          anyOf:
+                                          - type: integer
+                                          - type: string
+                                          description: Maximum value
+                                          x-kubernetes-int-or-string: true
+                                        min:
+                                          anyOf:
+                                          - type: integer
+                                          - type: string
+                                          description: Minimum value
+                                          x-kubernetes-int-or-string: true
+                                      type: object
+                                    name:
+                                      description: Name of the metric
+                                      type: string
+                                    templateRef:
+                                      description: TemplateRef references a metric template object
+                                      properties:
+                                        apiVersion:
+                                          description: APIVersion of the referenced object.
+                                          type: string
+                                        kind:
+                                          description: Kind of the referenced object.
+                                          type: string
+                                        name:
+                                          description: Name of the referenced object.
+                                          type: string
+                                        uid:
+                                          description: UID of the referenced object.
+                                          type: string
+                                      required:
+                                      - apiVersion
+                                      - kind
+                                      - name
+                                      type: object
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                              instanceInterval:
+                                description: The wait time, in seconds, between instances upgrades, default = 0
+                                format: int32
+                                type: integer
+                              maxUnavailable:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: MaxUnavailable is the max allowed number of pods that is unavailable during the upgrade. We will mark the batch as ready as long as there are less or equal number of pods unavailable than this number. default = 0
+                                x-kubernetes-int-or-string: true
+                              podList:
+                                description: The list of Pods to get upgraded it is mutually exclusive with the Replicas field
+                                items:
+                                  type: string
+                                type: array
+                              replicas:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: 'Replicas is the number of pods to upgrade in this batch it can be an absolute number (ex: 5) or a percentage of total pods we will ignore the percentage of the last batch to just fill the gap it is mutually exclusive with the PodList field'
+                                x-kubernetes-int-or-string: true
+                            type: object
+                          type: array
+                        rolloutStrategy:
+                          description: RolloutStrategy defines strategies for the rollout plan The default is IncreaseFirstRolloutStrategyType
+                          type: string
+                        rolloutWebhooks:
+                          description: RolloutWebhooks provide a way for the rollout to interact with an external process
+                          items:
+                            description: RolloutWebhook holds the reference to external checks used for canary analysis
+                            properties:
+                              expectedStatus:
+                                description: ExpectedStatus contains all the expected http status code that we will accept as success
+                                items:
+                                  type: integer
+                                type: array
+                              metadata:
+                                additionalProperties:
+                                  type: string
+                                description: Metadata (key-value pairs) for this webhook
+                                type: object
+                              method:
+                                description: Method the HTTP call method, default is POST
+                                type: string
+                              name:
+                                description: Name of this webhook
+                                type: string
+                              type:
+                                description: Type of this webhook
+                                type: string
+                              url:
+                                description: URL address of this webhook
+                                type: string
+                            required:
+                            - name
+                            - type
+                            - url
+                            type: object
+                          type: array
+                        targetSize:
+                          description: The size of the target resource. The default is the same as the size of the source resource.
+                          format: int32
+                          type: integer
+                      type: object
+                    workflow:
+                      description: 'Workflow defines how to customize the control logic. If workflow is specified, Vela won''t apply any resource, but provide rendered output in AppRevision. Workflow steps are executed in array order, and each step: - will have a context in annotation. - should mark "finish" phase in status.conditions.'
+                      items:
+                        description: WorkflowStep defines how to execute a workflow step.
+                        properties:
+                          name:
+                            description: Name is the unique name of the workflow step.
+                            type: string
+                          properties:
+                            type: object
+                            
+                          type:
+                            type: string
+                        required:
+                        - name
+                        - type
+                        type: object
+                      type: array
+                  required:
+                  - components
+                  type: object
+                status:
+                  description: AppStatus defines the observed state of Application
+                  properties:
+                    components:
+                      description: Components record the related Components created by Application Controller
+                      items:
+                        description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                        properties:
+                          apiVersion:
+                            description: APIVersion of the referenced object.
+                            type: string
+                          kind:
+                            description: Kind of the referenced object.
+                            type: string
+                          name:
+                            description: Name of the referenced object.
+                            type: string
+                          uid:
+                            description: UID of the referenced object.
+                            type: string
+                        required:
+                        - apiVersion
+                        - kind
+                        - name
+                        type: object
+                      type: array
+                    conditions:
+                      description: Conditions of the resource.
+                      items:
+                        description: A Condition that may apply to a resource.
+                        properties:
+                          lastTransitionTime:
+                            description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                            format: date-time
+                            type: string
+                          message:
+                            description: A Message containing details about this condition's last transition from one status to another, if any.
+                            type: string
+                          reason:
+                            description: A Reason for this condition's last transition from one status to another.
+                            type: string
+                          status:
+                            description: Status of this condition; is it currently True, False, or Unknown?
+                            type: string
+                          type:
+                            description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                    latestRevision:
+                      description: LatestRevision of the application configuration it generates
+                      properties:
+                        name:
+                          type: string
+                        revision:
+                          format: int64
+                          type: integer
+                        revisionHash:
+                          description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                          type: string
+                      required:
+                      - name
+                      - revision
+                      type: object
+                    resourceTracker:
+                      description: ResourceTracker record the status of the ResourceTracker
+                      properties:
+                        apiVersion:
+                          description: APIVersion of the referenced object.
+                          type: string
+                        kind:
+                          description: Kind of the referenced object.
+                          type: string
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        uid:
+                          description: UID of the referenced object.
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                    rollout:
+                      description: AppRolloutStatus defines the observed state of AppRollout
+                      properties:
+                        LastSourceAppRevision:
+                          description: LastSourceAppRevision contains the name of the app that we need to upgrade from. We will restart the rollout if this is not the same as the spec
+                          type: string
+                        batchRollingState:
+                          description: BatchRollingState only meaningful when the Status is rolling
+                          type: string
+                        conditions:
+                          description: Conditions of the resource.
+                          items:
+                            description: A Condition that may apply to a resource.
+                            properties:
+                              lastTransitionTime:
+                                description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                                format: date-time
+                                type: string
+                              message:
+                                description: A Message containing details about this condition's last transition from one status to another, if any.
+                                type: string
+                              reason:
+                                description: A Reason for this condition's last transition from one status to another.
+                                type: string
+                              status:
+                                description: Status of this condition; is it currently True, False, or Unknown?
+                                type: string
+                              type:
+                                description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                                type: string
+                            required:
+                            - lastTransitionTime
+                            - reason
+                            - status
+                            - type
+                            type: object
+                          type: array
+                        currentBatch:
+                          description: The current batch the rollout is working on/blocked it starts from 0
+                          format: int32
+                          type: integer
+                        lastAppliedPodTemplateIdentifier:
+                          description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
+                          type: string
+                        lastTargetAppRevision:
+                          description: LastUpgradedTargetAppRevision contains the name of the app that we upgraded to We will restart the rollout if this is not the same as the spec
+                          type: string
+                        rollingState:
+                          description: RollingState is the Rollout State
+                          type: string
+                        rolloutOriginalSize:
+                          description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                          format: int32
+                          type: integer
+                        rolloutTargetSize:
+                          description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                          format: int32
+                          type: integer
+                        targetGeneration:
+                          description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
+                          type: string
+                        upgradedReadyReplicas:
+                          description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+                          format: int32
+                          type: integer
+                        upgradedReplicas:
+                          description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
+                          format: int32
+                          type: integer
+                      required:
+                      - currentBatch
+                      - lastTargetAppRevision
+                      - rollingState
+                      - upgradedReadyReplicas
+                      - upgradedReplicas
+                      type: object
+                    services:
+                      description: Services record the status of the application services
+                      items:
+                        description: ApplicationComponentStatus record the health status of App component
+                        properties:
+                          healthy:
+                            type: boolean
+                          message:
+                            type: string
+                          name:
+                            type: string
+                          scopes:
+                            items:
+                              description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion of the referenced object.
+                                  type: string
+                                kind:
+                                  description: Kind of the referenced object.
+                                  type: string
+                                name:
+                                  description: Name of the referenced object.
+                                  type: string
+                                uid:
+                                  description: UID of the referenced object.
+                                  type: string
+                              required:
+                              - apiVersion
+                              - kind
+                              - name
+                              type: object
+                            type: array
+                          traits:
+                            items:
+                              description: ApplicationTraitStatus records the trait health status
+                              properties:
+                                healthy:
+                                  type: boolean
+                                message:
+                                  type: string
+                                type:
+                                  type: string
+                              required:
+                              - healthy
+                              - type
+                              type: object
+                            type: array
+                          workloadDefinition:
+                            description: WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
+                            properties:
+                              apiVersion:
+                                type: string
+                              kind:
+                                type: string
+                            required:
+                            - apiVersion
+                            - kind
+                            type: object
+                        required:
+                        - healthy
+                        - name
+                        type: object
+                      type: array
+                    status:
+                      description: ApplicationPhase is a label for the condition of a application at the current time
+                      type: string
+                    workflow:
+                      description: Workflow record the status of workflow steps
+                      items:
+                        description: WorkflowStepStatus record the status of a workflow step
+                        properties:
+                          name:
+                            type: string
+                          phase:
+                            description: WorkflowStepPhase describes the phase of a workflow step.
+                            type: string
+                          resourceRef:
+                            description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                            properties:
+                              apiVersion:
+                                description: APIVersion of the referenced object.
+                                type: string
+                              kind:
+                                description: Kind of the referenced object.
+                                type: string
+                              name:
+                                description: Name of the referenced object.
+                                type: string
+                              uid:
+                                description: UID of the referenced object.
+                                type: string
+                            required:
+                            - apiVersion
+                            - kind
+                            - name
+                            type: object
+                          type:
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+              type: object
+            dependsOn:
+              description: DependsOn indicates the other initializers that this depends on. It will not apply its components until all dependencies exist.
+              items:
+                description: TypedLocalObjectReference contains enough information to let you locate the typed referenced object inside the same namespace.
+                properties:
+                  apiGroup:
+                    description: APIGroup is the group for the resource being referenced. If APIGroup is not specified, the specified Kind must be in the core API group. For any other third-party types, APIGroup is required.
+                    type: string
+                  kind:
+                    description: Kind is the type of resource being referenced
+                    type: string
+                  name:
+                    description: Name is the name of resource being referenced
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+              type: array
+          required:
+          - appTemplate
+          type: object
+        status:
+          description: InitializerStatus is the status of Initializer
+          properties:
+            conditions:
+              description: Conditions of the resource.
+              items:
+                description: A Condition that may apply to a resource.
+                properties:
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A Message containing details about this condition's last transition from one status to another, if any.
+                    type: string
+                  reason:
+                    description: A Reason for this condition's last transition from one status to another.
+                    type: string
+                  status:
+                    description: Status of this condition; is it currently True, False, or Unknown?
+                    type: string
+                  type:
+                    description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                    type: string
+                required:
+                - lastTransitionTime
+                - reason
+                - status
+                - type
+                type: object
+              type: array
+            observedGeneration:
+              description: The generation observed by the Initializer controller.
+              format: int64
+              type: integer
+          type: object
+      type: object
+  version: v1beta1
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
