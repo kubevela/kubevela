@@ -209,6 +209,20 @@ func LoadRepos() ([]CapCenterConfig, error) {
 	if err = yaml.Unmarshal(data, &repos); err != nil {
 		return nil, err
 	}
+	defaultRepo := CapCenterConfig{
+		Name:    "default-cap-center",
+		Address: "https://github.com/oam-dev/catalog/tree/master/registry",
+	}
+	haveDefault := false
+	for _, repo := range repos {
+		if repo.Address == defaultRepo.Address {
+			haveDefault = true
+			break
+		}
+	}
+	if !haveDefault {
+		repos = append(repos, defaultRepo)
+	}
 	return repos, nil
 }
 
@@ -288,6 +302,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 		return err
 	}
 	repoDir := filepath.Join(dir, g.centerName)
+	_, _ = system.CreateIfNotExist(repoDir)
 	var success int
 	items, err := g.getRepoFile()
 	if err != nil {
@@ -296,7 +311,8 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	for _, item := range items {
 		addon, err := item.toAddon()
 		if err != nil {
-			return err
+			fmt.Printf("CRD for %s not found\n", item.name)
+			continue
 		}
 		//nolint:gosec
 		err = ioutil.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
