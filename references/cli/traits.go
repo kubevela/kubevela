@@ -40,6 +40,7 @@ import (
 func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "traits",
+		Aliases:               []string{"trait"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List traits",
 		Long:                  "List traits",
