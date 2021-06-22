@@ -147,6 +147,10 @@ type RemoteCapabilities []RemoteCapability
 // LoadRepos will load all cap center repos
 // TODO(wonderflow): we can make default(built-in) repo configurable, then we should make default inside the answer
 func LoadRepos() ([]CapCenterConfig, error) {
+	defaultRepo := CapCenterConfig{
+		Name:    "default-cap-center",
+		Address: "https://github.com/oam-dev/catalog/tree/master/registry",
+	}
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return nil, err
@@ -154,17 +158,13 @@ func LoadRepos() ([]CapCenterConfig, error) {
 	data, err := ioutil.ReadFile(filepath.Clean(config))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []CapCenterConfig{}, nil
+			return []CapCenterConfig{defaultRepo}, nil
 		}
 		return nil, err
 	}
 	var repos []CapCenterConfig
 	if err = yaml.Unmarshal(data, &repos); err != nil {
 		return nil, err
-	}
-	defaultRepo := CapCenterConfig{
-		Name:    "default-cap-center",
-		Address: "https://github.com/oam-dev/catalog/tree/master/registry",
 	}
 	haveDefault := false
 	for _, repo := range repos {
@@ -264,7 +264,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	for _, item := range items {
 		addon, err := item.toAddon()
 		if err != nil {
-			fmt.Printf("CRD for %s not found\n", item.name)
+			fmt.Printf("[INFO] CRD for %s not found\n", item.name)
 			continue
 		}
 		//nolint:gosec
