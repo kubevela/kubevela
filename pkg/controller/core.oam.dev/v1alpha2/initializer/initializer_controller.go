@@ -22,7 +22,6 @@ import (
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -87,14 +86,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) checkDependsOn(ctx context.Context, ns string, depends []corev1.TypedLocalObjectReference) error {
+func (r *Reconciler) checkDependsOn(ctx context.Context, ns string, depends []v1beta1.DependsOn) error {
 	for _, depend := range depends {
 		dependInit := new(v1beta1.Initializer)
-		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: ns, Name: depend.Name}, dependInit); err != nil {
+		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: ns, Name: depend.Ref.Name}, dependInit); err != nil {
 			return err
 		}
 		if dependInit.Status.ObservedGeneration < dependInit.Generation {
-			return fmt.Errorf("initializer %s you depend on is not ready", depend.Name)
+			return fmt.Errorf("initializer %s you depend on is not ready", depend.Ref.Name)
 		}
 	}
 	return nil

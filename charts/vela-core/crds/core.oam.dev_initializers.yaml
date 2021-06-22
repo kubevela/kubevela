@@ -613,20 +613,24 @@ spec:
               dependsOn:
                 description: DependsOn indicates the other initializers that this depends on. It will not apply its components until all dependencies exist.
                 items:
-                  description: TypedLocalObjectReference contains enough information to let you locate the typed referenced object inside the same namespace.
+                  description: DependsOn refer to an object which Initializer depends on
                   properties:
-                    apiGroup:
-                      description: APIGroup is the group for the resource being referenced. If APIGroup is not specified, the specified Kind must be in the core API group. For any other third-party types, APIGroup is required.
-                      type: string
-                    kind:
-                      description: Kind is the type of resource being referenced
-                      type: string
-                    name:
-                      description: Name is the name of resource being referenced
-                      type: string
+                    ref:
+                      description: ObjectReference refer to a k8s resource
+                      properties:
+                        apiVersion:
+                          type: string
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
                   required:
-                  - kind
-                  - name
+                  - ref
                   type: object
                 type: array
             required:
