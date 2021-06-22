@@ -206,7 +206,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		controller := metav1.GetControllerOf(pv)
 		Expect(controller.Kind == v1beta1.ResourceTrackerKind).Should(BeTrue())
 
-		By("Remove the cluster-scope trait from application")
+		By("Remove the cluster-scope trait from application ")
 		app = &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appName,
@@ -279,7 +279,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		By("check resource tracker has been created and app status ")
 		resourceTracker := new(v1beta1.ResourceTracker)
 		Eventually(func() error {
@@ -356,7 +358,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 	})
 
-	It("Test update application by add  a cross namespace trait resource", func() {
+	It("Test update application by add  a cross namespace trait resource ", func() {
 		var (
 			appName       = "test-app-2"
 			app           = new(v1beta1.Application)
@@ -389,8 +391,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 		By("application contain a normal workload, check application and workload status")
 		Eventually(func() error {
@@ -510,7 +513,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 		By("create application will create a cross ns trait, and resourceTracker. check those status")
 		Eventually(func() error {
@@ -620,7 +625,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 		}
 
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 
 		By("create application will generate two workload, and generate resourceTracker")
@@ -743,7 +750,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		By("check resource tracker has been created and app status ")
 		resourceTracker := new(v1beta1.ResourceTracker)
 		Eventually(func() error {
@@ -905,7 +914,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 		}
 
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 
 		By("create application will generate two workload, and generate resourceTracker")
@@ -1058,7 +1069,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 		}
 
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 		By("create app and check resource and app status")
 		Eventually(func() error {
@@ -1207,7 +1220,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		By("check resource tracker has been created and app status ")
 		resourceTracker := new(v1beta1.ResourceTracker)
 		Eventually(func() error {
