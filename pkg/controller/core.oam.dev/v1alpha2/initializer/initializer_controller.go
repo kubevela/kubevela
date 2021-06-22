@@ -25,12 +25,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -69,19 +71,19 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Initializers which you depend on are not ready")
 		r.record.Event(init, event.Warning("Initializers which you depend on are not ready", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, init,
-			cpv1alpha1.ReconcileError(err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
 
-	if err = r.createOrUpdateApplication(ctx, init); err != nil {
+	if err = r.applyResources(ctx, init); err != nil {
 		klog.ErrorS(err, "Could not create resources via application to initialize the env")
 		r.record.Event(init, event.Warning("Could not create resources via application", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, init,
-			cpv1alpha1.ReconcileError(err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
 
 	if err = r.updateObservedGeneration(ctx, init); err != nil {
-		return ctrl.Result{}, err
+		klog.ErrorS(err, "Could not update ObservedGeneration")
+		r.record.Event(init, event.Warning("Could not update ObservedGeneration", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
 	return ctrl.Result{}, nil
 }
@@ -103,10 +105,10 @@ func (r *Reconciler) updateObservedGeneration(ctx context.Context, init *v1beta1
 	if init.Status.ObservedGeneration != init.Generation {
 		init.Status.ObservedGeneration = init.Generation
 	}
-	return r.Client.Status().Update(ctx, init)
+	return r.UpdateStatus(ctx, init)
 }
 
-func (r *Reconciler) createOrUpdateApplication(ctx context.Context, init *v1beta1.Initializer) error {
+func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializer) error {
 	// set ownerReference for system adddons(application)
 	ownerReference := []metav1.OwnerReference{{
 		APIVersion:         init.APIVersion,
@@ -125,6 +127,22 @@ func (r *Reconciler) createOrUpdateApplication(ctx context.Context, init *v1beta
 		"app.oam.dev/initializer-name": init.Name,
 	})
 
+	if err := r.createOrUpdateResource(ctx, app); err != nil {
+		return err
+	}
+
+	klog.InfoS("check the status of Application", "app", klog.KObj(app))
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app)
+	if err != nil {
+		return err
+	}
+	if app.Status.Phase != common.ApplicationRunning {
+		return fmt.Errorf("the Application is in %s", app.Status.Phase)
+	}
+	return nil
+}
+
+func (r *Reconciler) createOrUpdateResource(ctx context.Context, app *v1beta1.Application) error {
 	klog.InfoS("Create or update resources", "app", klog.KObj(app))
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app)
 	if err != nil {
@@ -134,6 +152,18 @@ func (r *Reconciler) createOrUpdateApplication(ctx context.Context, init *v1beta
 		return err
 	}
 	return r.Update(ctx, app)
+}
+
+// UpdateStatus updates v1beta1.Initializer's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, def *v1beta1.Initializer, opts ...client.UpdateOption) error {
+	status := def.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, def); err != nil {
+			return
+		}
+		def.Status = status
+		return r.Status().Update(ctx, def, opts...)
+	})
 }
 
 // SetupWithManager will setup with event recorder
