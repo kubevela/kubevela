@@ -20,6 +20,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationdeployment"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
@@ -31,12 +33,17 @@ func Setup(mgr ctrl.Manager, disableCaps string) error {
 	case common.DisableNoneCaps:
 		functions = []func(ctrl.Manager) error{
 			podspecworkload.Setup,
+			application.Setup,
+			applicationdeployment.Setup,
 		}
 	case common.DisableAllCaps:
 	default:
 		disableCapsSet := utils.StoreInSet(disableCaps)
 		if !disableCapsSet.Contains(common.PodspecWorkloadControllerName) {
 			functions = append(functions, podspecworkload.Setup)
+		}
+		if !disableCapsSet.Contains(common.ApplicationControllerName) {
+			functions = append(functions, application.Setup)
 		}
 	}
 

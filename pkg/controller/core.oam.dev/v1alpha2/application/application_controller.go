@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,7 +33,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -178,7 +176,7 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application
 }
 
 // Setup adds a controller that reconciles ApplicationDeployment.
-func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {
 		return fmt.Errorf("create discovery dm fail %w", err)
