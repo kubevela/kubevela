@@ -40,6 +40,7 @@ import (
 func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "components",
+		Aliases:               []string{"comp", "component"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List components",
 		Long:                  "List components",
