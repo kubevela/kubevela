@@ -19,6 +19,7 @@ package initializer
 import (
 	"context"
 	"fmt"
+	"time"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -31,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -38,6 +40,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
+
+// InitializerReconcileWaitTime is the time to wait before reconcile again
+const InitializerReconcileWaitTime = time.Second * 1
 
 // Reconciler reconciles a Initializer object
 type Reconciler struct {
@@ -71,13 +76,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Initializers which you depend on are not ready")
 		r.record.Event(init, event.Warning("Initializers which you depend on are not ready", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
+		return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, util.PatchCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
 
 	if err = r.applyResources(ctx, init); err != nil {
 		klog.ErrorS(err, "Could not create resources via application to initialize the env")
 		r.record.Event(init, event.Warning("Could not create resources via application", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
+		return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, util.PatchCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
 
 	if err = r.updateObservedGeneration(ctx, init); err != nil {
@@ -131,7 +136,7 @@ func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializ
 		return err
 	}
 
-	klog.InfoS("check the status of Application", "app", klog.KObj(app))
+	klog.InfoS("Check the status of Application", "app", klog.KObj(app))
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app)
 	if err != nil {
 		return err
