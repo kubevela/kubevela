@@ -34,25 +34,24 @@ import (
 var _ = Describe("Test Capability", func() {
 	ctx := context.Background()
 	var (
-		namespace = "ns-cap"
-		ns        corev1.Namespace
+		namespace               = "ns-cap"
+		ns                      corev1.Namespace
+		componentDefinitionName = "web1"
+		traitDefinitionName     = "scaler1"
 	)
+	BeforeEach(func() {
+		ns = corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+			},
+		}
+		By("Create a namespace")
+		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+	})
 
-	Context("When the definition is ComponentDefinition", func() {
-		var componentDefinitionName = "web1"
-		BeforeEach(func() {
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			By("Create a namespace")
-			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
-
-		It("Test CapabilityComponentDefinition", func() {
-			By("Apply ComponentDefinition")
-			var validComponentDefinition = `
+	It("Test CapabilityComponentDefinition when the definition is ComponentDefinition", func() {
+		By("Apply ComponentDefinition")
+		var validComponentDefinition = `
 apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
@@ -102,36 +101,22 @@ spec:
         }
 
 `
-			var componentDefinition v1beta1.ComponentDefinition
-			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &componentDefinition)).Should(BeNil())
-			Expect(k8sClient.Create(ctx, &componentDefinition)).Should(Succeed())
+		var componentDefinition v1beta1.ComponentDefinition
+		Expect(yaml.Unmarshal([]byte(validComponentDefinition), &componentDefinition)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &componentDefinition)).Should(Succeed())
 
-			By("Test GetCapabilityObject")
-			def := &CapabilityComponentDefinition{Name: componentDefinitionName, ComponentDefinition: *componentDefinition.DeepCopy()}
+		By("Test GetCapabilityObject")
+		def := &CapabilityComponentDefinition{Name: componentDefinitionName, ComponentDefinition: *componentDefinition.DeepCopy()}
 
-			By("Test GetOpenAPISchema")
-			schema, err := def.GetOpenAPISchema(pd, namespace)
-			Expect(err).Should(BeNil())
-			Expect(schema).Should(Not(BeNil()))
-		})
+		By("Test GetOpenAPISchema")
+		schema, err := def.GetOpenAPISchema(pd, namespace)
+		Expect(err).Should(BeNil())
+		Expect(schema).Should(Not(BeNil()))
 	})
 
-	Context("When the definition is TraitDefinition", func() {
-		var traitDefinitionName = "scaler1"
-
-		BeforeEach(func() {
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			By("Create a namespace")
-			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
-
-		It("Test CapabilityTraitDefinition", func() {
-			By("Apply TraitDefinition")
-			var validTraitDefinition = `
+	It("Test CapabilityTraitDefinition when the definition is TraitDefinition", func() {
+		By("Apply TraitDefinition")
+		var validTraitDefinition = `
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
@@ -162,45 +147,32 @@ spec:
         }
 `
 
-			var traitDefinition v1beta1.TraitDefinition
-			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &traitDefinition)).Should(BeNil())
-			Expect(k8sClient.Create(ctx, &traitDefinition)).Should(Succeed())
+		var traitDefinition v1beta1.TraitDefinition
+		Expect(yaml.Unmarshal([]byte(validTraitDefinition), &traitDefinition)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &traitDefinition)).Should(Succeed())
 
-			def := &CapabilityTraitDefinition{Name: traitDefinitionName, TraitDefinition: *traitDefinition.DeepCopy()}
+		def := &CapabilityTraitDefinition{Name: traitDefinitionName, TraitDefinition: *traitDefinition.DeepCopy()}
 
-			By("Test GetOpenAPISchema")
-			var expectedSchema = "{\"properties\":{\"replicas\":{\"default\":1,\"description\":\"Replicas of the workload\",\"title\":\"replicas\",\"type\":\"integer\"}},\"required\":[\"replicas\"],\"type\":\"object\"}"
-			schema, err := def.GetOpenAPISchema(pd, traitDefinitionName)
-			Expect(err).Should(BeNil())
-			Expect(string(schema)).Should(Equal(expectedSchema))
-		})
+		By("Test GetOpenAPISchema")
+		var expectedSchema = "{\"properties\":{\"replicas\":{\"default\":1,\"description\":\"Replicas of the workload\",\"title\":\"replicas\",\"type\":\"integer\"}},\"required\":[\"replicas\"],\"type\":\"object\"}"
+		schema, err := def.GetOpenAPISchema(pd, traitDefinitionName)
+		Expect(err).Should(BeNil())
+		Expect(string(schema)).Should(Equal(expectedSchema))
 	})
 
-	Context("When the definition is CapabilityBaseDefinition", func() {
-		BeforeEach(func() {
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			By("Create a namespace")
-			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
-
-		It("Test CapabilityTraitDefinition", func() {
-			By("Test CreateOrUpdateConfigMap")
-			definitionName := "n1"
-			def := &CapabilityBaseDefinition{}
-			ownerReference := []metav1.OwnerReference{{
-				APIVersion:         "v1",
-				Kind:               "k1",
-				Name:               definitionName,
-				UID:                "123456",
-				Controller:         pointer.BoolPtr(true),
-				BlockOwnerDeletion: pointer.BoolPtr(true),
-			}}
-			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, []byte(""), ownerReference)
-			Expect(err).Should(BeNil())
-		})
+	It("Test CapabilityTraitDefinition when the definition is CapabilityBaseDefinition", func() {
+		By("Test CreateOrUpdateConfigMap")
+		definitionName := "n1"
+		def := &CapabilityBaseDefinition{}
+		ownerReference := []metav1.OwnerReference{{
+			APIVersion:         "v1",
+			Kind:               "k1",
+			Name:               definitionName,
+			UID:                "123456",
+			Controller:         pointer.BoolPtr(true),
+			BlockOwnerDeletion: pointer.BoolPtr(true),
+		}}
+		_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, []byte(""), ownerReference)
+		Expect(err).Should(BeNil())
 	})
 })
