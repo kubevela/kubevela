@@ -49,16 +49,27 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			isDiscover, _ := cmd.Flags().GetBool("discover")
 			env, err := GetEnv(cmd)
 			if err != nil {
 				return err
 			}
-			return printComponentList(env.Namespace, c, ioStreams)
+			if !isDiscover {
+				return printComponentList(env.Namespace, c, ioStreams)
+			}
+			option := types.TypeComponentDefinition
+			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option)
+			if err != nil {
+				return err
+			}
+
+			return nil
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
+	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

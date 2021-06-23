@@ -203,17 +203,11 @@ func NewCapListCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			capabilityList, err := common.ListCapabilities(env.Namespace, c, repoName)
+
+			err = printCenterCapabilities(env.Namespace, repoName, c, ioStreams, nil)
 			if err != nil {
 				return err
 			}
-			table := newUITable()
-			table.AddRow("NAME", "CENTER", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
-
-			for _, c := range capabilityList {
-				table.AddRow(c.Name, c.Center, c.Type, c.CrdName, c.Status, c.AppliesTo)
-			}
-			ioStreams.Info(table.String())
 			return nil
 		},
 	}
@@ -273,4 +267,23 @@ func removeCapCenter(args []string, ioStreams cmdutil.IOStreams) error {
 		ioStreams.Info(msg)
 	}
 	return err
+}
+func printCenterCapabilities(namespace, repoName string, args common2.Args, ioStreams cmdutil.IOStreams, option *types.CapType) error {
+	capabilityList, err := common.ListCapabilities(namespace, args, repoName)
+	if err != nil {
+		return err
+	}
+	table := newUITable()
+	table.AddRow("NAME", "CENTER", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
+
+	for _, c := range capabilityList {
+		if option == nil {
+			table.AddRow(c.Name, c.Center, c.Type, c.CrdName, c.Status, c.AppliesTo)
+		}
+		if option != nil && c.Type == *option {
+			table.AddRow(c.Name, c.Center, c.Type, c.CrdName, c.Status, c.AppliesTo)
+		}
+	}
+	ioStreams.Info(table.String())
+	return nil
 }

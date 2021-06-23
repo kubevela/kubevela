@@ -400,7 +400,6 @@ func ListCapabilities(userNamespace string, c common.Args, capabilityCenterName 
 	}
 	return capabilityList, nil
 }
-
 func listCenterCapabilities(userNamespace string, c common.Args, repoDir string) ([]types.Capability, error) {
 	dm, err := c.GetDiscoveryMapper()
 	if err != nil {
