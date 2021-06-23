@@ -533,6 +533,9 @@ func ApplyApplication(applicationFilePath string, ioStream cmdutil.IOStreams, cl
 	if err != nil {
 		return err
 	}
+	if app.APIVersion == "" && app.Kind == "" {
+		return errors.Errorf("%s is not an K8s GVK format file", applicationFilePath)
+	}
 	if app.Namespace == "" {
 		app.Namespace = types.DefaultAppNamespace
 	}

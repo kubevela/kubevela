@@ -52,8 +52,8 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 				return err
 			}
 			filePath, err := cmd.Flags().GetString(appFilePath)
-			if err == nil {
-				return nil
+			if err != nil {
+				return err
 			}
 			err = common.ApplyApplication(filePath, ioStream, kubecli)
 			if err == nil {
