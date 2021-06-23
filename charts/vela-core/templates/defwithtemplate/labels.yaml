@@ -9,7 +9,6 @@ metadata:
 spec:
   appliesToWorkloads:
     - deployments.apps
-  podDisruptive: true
   schematic:
     cue:
       template: |-
