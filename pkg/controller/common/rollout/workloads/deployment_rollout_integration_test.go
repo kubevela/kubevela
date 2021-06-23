@@ -128,8 +128,8 @@ var _ = Describe("deployment controller", func() {
 		k8sClient.Delete(ctx, &targetDeploy)
 	})
 
-	Context("TestNewDeploymentController", func() {
-		It("init a Deployment Controller", func() {
+	Context("TestNewDeploymentRolloutController", func() {
+		It("init a Deployment Rollout Controller", func() {
 			recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 				WithAnnotations("controller", "AppRollout")
 			parentController := &v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: sourceName}}
@@ -141,7 +141,7 @@ var _ = Describe("deployment controller", func() {
 			}
 			rolloutStatus := &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState}
 			workloadNamespacedName := client.ObjectKey{Name: sourceName, Namespace: namespaceName}
-			got := NewDeploymentController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus,
+			got := NewDeploymentRolloutController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus,
 				workloadNamespacedName, workloadNamespacedName)
 			c := &DeploymentRolloutController{
 				workloadController: workloadController{

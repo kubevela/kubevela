@@ -351,7 +351,7 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.Deployment{}).Name() {
 			// check whether current rollout plan is for workload rolling or scaling
 			if r.sourceWorkload != nil {
-				return workloads.NewDeploymentController(r.client, r.recorder, r.parentController,
+				return workloads.NewDeploymentRolloutController(r.client, r.recorder, r.parentController,
 					r.rolloutSpec, r.rolloutStatus, source, target), nil
 			}
 			return workloads.NewDeploymentScaleController(r.client, r.recorder, r.parentController,

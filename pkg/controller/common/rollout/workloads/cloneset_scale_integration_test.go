@@ -105,8 +105,8 @@ var _ = Describe("cloneset controller", func() {
 		k8sClient.Delete(ctx, &cloneSet)
 	})
 
-	Context("TestNewCloneSetController", func() {
-		It("init a CloneSet Controller", func() {
+	Context("TestNewCloneSetScaleController", func() {
+		It("init a CloneSet Scale Controller", func() {
 			recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 				WithAnnotations("controller", "AppRollout")
 			parentController := &v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
