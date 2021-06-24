@@ -527,13 +527,18 @@ func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, c
 	if app.Namespace == "" {
 		app.Namespace = types.DefaultAppNamespace
 	}
-	_, _ = ioStream.Out.Write([]byte("Applying an application in K8S format...\n"))
-	applicator := apply.NewAPIApplicator(clt)
-	err := applicator.Apply(context.Background(), &app)
+	_, err := ioStream.Out.Write([]byte("Applying an application in K8S format...\n"))
 	if err != nil {
 		return err
 	}
-	_, _ = ioStream.Out.Write([]byte("Successfully apply application"))
+	applicator := apply.NewAPIApplicator(clt)
+	err = applicator.Apply(context.Background(), &app)
+	if err != nil {
+		return err
+	}
+	_, err = ioStream.Out.Write([]byte("Successfully apply application"))
+	if err != nil {
+		return err
+	}
 	return nil
-
 }
