@@ -248,10 +248,7 @@ func (p *Parser) ValidateComponentNames(ctx context.Context, af *Appfile) (int, 
 	for _, existApp := range existApps.Items {
 		ea := existApp.DeepCopy()
 		existAf, err := p.GenerateAppFile(ctx, ea)
-		if err != nil {
-			return 0, err
-		}
-		if existAf.Name == af.Name {
+		if err != nil || existAf.Name == af.Name {
 			continue
 		}
 		for _, existComp := range existAf.Workloads {

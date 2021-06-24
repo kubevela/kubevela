@@ -3,6 +3,7 @@ kind: Application
 metadata:
   annotations:
     helm.sh/hook: test-success
+    helm.sh/hook-delete-policy: hook-succeeded
   name: helm-test-vela-app
 spec:
   components:
@@ -24,6 +25,7 @@ metadata:
   name: "{{ .Release.Name }}-application-test"
   annotations:
     "helm.sh/hook": test
+    helm.sh/hook-delete-policy: hook-succeeded
 spec:
   serviceAccountName: kubevela-vela-core
   containers:
