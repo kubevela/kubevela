@@ -523,25 +523,13 @@ func (o *AppfileOptions) Info(app *corev1beta1.Application) string {
 }
 
 // ApplyApplication will apply an application file in K8s GVK format
-func ApplyApplication(applicationFilePath string, ioStream cmdutil.IOStreams, clt client.Client) error {
-	var app corev1beta1.Application
-	fileContent, err := ioutil.ReadFile(filepath.Clean(applicationFilePath))
-	if err != nil {
-		return err
-	}
-	err = yaml.Unmarshal(fileContent, &app)
-	if err != nil {
-		return err
-	}
-	if app.APIVersion == "" && app.Kind == "" {
-		return errors.Errorf("%s is not an K8s GVK format file", applicationFilePath)
-	}
+func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, clt client.Client) error {
 	if app.Namespace == "" {
 		app.Namespace = types.DefaultAppNamespace
 	}
 	_, _ = ioStream.Out.Write([]byte("Applying an application in K8S format...\n"))
 	applicator := apply.NewAPIApplicator(clt)
-	err = applicator.Apply(context.Background(), &app)
+	err := applicator.Apply(context.Background(), &app)
 	if err != nil {
 		return err
 	}

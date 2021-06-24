@@ -17,7 +17,14 @@ limitations under the License.
 package cli
 
 import (
+	"github.com/pkg/errors"
+	"io/ioutil"
+	"path/filepath"
+
+	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
+
+	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -55,16 +62,29 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = common.ApplyApplication(filePath, ioStream, kubecli)
-			if err == nil {
-				return nil
+			fileContent, err := ioutil.ReadFile(filepath.Clean(filePath))
+			if err != nil {
+				return err
 			}
-			o := &common.AppfileOptions{
-				Kubecli: kubecli,
-				IO:      ioStream,
-				Env:     velaEnv,
+			var app corev1beta1.Application
+			err = yaml.Unmarshal(fileContent, &app)
+			if err != nil {
+				return errors.Wrap(err, "File format is illegal")
 			}
-			return o.Run(filePath, velaEnv.Namespace, c)
+			if app.APIVersion != "" && app.Kind != "" {
+				err = common.ApplyApplication(app, ioStream, kubecli)
+				if err != nil {
+					return err
+				}
+			} else {
+				o := &common.AppfileOptions{
+					Kubecli: kubecli,
+					IO:      ioStream,
+					Env:     velaEnv,
+				}
+				return o.Run(filePath, velaEnv.Namespace, c)
+			}
+			return nil
 		},
 	}
 	cmd.SetOut(ioStream.Out)
