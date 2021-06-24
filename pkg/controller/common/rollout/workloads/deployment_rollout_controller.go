@@ -75,8 +75,7 @@ func (c *DeploymentRolloutController) VerifySpec(ctx context.Context) (bool, err
 		}
 	}()
 
-	err := c.fetchDeployments(ctx)
-	if err != nil {
+	if err := c.fetchDeployments(ctx); err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		// do not fail the rollout just because we can't get the resource
 		// nolint:nilerr
@@ -142,21 +141,23 @@ func (c *DeploymentRolloutController) VerifySpec(ctx context.Context) (bool, err
 
 // Initialize makes sure that the source and target deployment is under our control
 func (c *DeploymentRolloutController) Initialize(ctx context.Context) (bool, error) {
-	err := c.fetchDeployments(ctx)
-	if err != nil {
+	if err := c.fetchDeployments(ctx); err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
-	_, err = c.claimDeployment(ctx, &c.sourceDeploy, nil)
-	if err != nil {
+
+	// claim source deployment
+	if _, err := c.claimDeployment(ctx, &c.sourceDeploy, nil); err != nil {
 		return false, nil
 	}
+
+	// claim target deployment
 	// make sure we start with the matching replicas and target
 	targetInitSize := pointer.Int32Ptr(c.rolloutStatus.RolloutTargetSize - getDeployReplicaSize(&c.sourceDeploy))
-	_, err = c.claimDeployment(ctx, &c.targetDeploy, targetInitSize)
-	if err != nil {
+	if _, err := c.claimDeployment(ctx, &c.targetDeploy, targetInitSize); err != nil {
 		return false, nil
 	}
+
 	// mark the rollout initialized
 	c.recorder.Event(c.parentController, event.Normal("Rollout Initialized", "Rollout resource are initialized"))
 	return true, nil
@@ -165,30 +166,33 @@ func (c *DeploymentRolloutController) Initialize(ctx context.Context) (bool, err
 // RolloutOneBatchPods calculates the number of pods we can upgrade once according to the rollout spec
 // and then set the partition accordingly
 func (c *DeploymentRolloutController) RolloutOneBatchPods(ctx context.Context) (bool, error) {
-	err := c.fetchDeployments(ctx)
-	if err != nil {
+	if err := c.fetchDeployments(ctx); err != nil {
 		// don't fail the rollout just because of we can't get the resource
 		// nolint:nilerr
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
+
 	currentSizeSetting := *c.sourceDeploy.Spec.Replicas + *c.targetDeploy.Spec.Replicas
 	// get the rollout strategy
 	rolloutStrategy := v1alpha1.IncreaseFirstRolloutStrategyType
 	if len(c.rolloutSpec.RolloutStrategy) != 0 {
 		rolloutStrategy = c.rolloutSpec.RolloutStrategy
 	}
+
 	// Determine if we are the first or the second part of the current batch rollout
 	if currentSizeSetting == c.rolloutStatus.RolloutTargetSize {
 		// we need to finish the first part of the rollout,
 		// this may conclude that we've already reached the size (in a rollback case)
 		return c.rolloutBatchFirstHalf(ctx, rolloutStrategy)
 	}
+
 	// we are at the second half
 	targetSize := c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetSize)
 	if !c.rolloutBatchSecondHalf(ctx, rolloutStrategy, targetSize) {
 		return false, nil
 	}
+
 	// record the finished upgrade action
 	klog.InfoS("upgraded one batch", "current batch", c.rolloutStatus.CurrentBatch,
 		"target deployment size", targetSize)
@@ -200,12 +204,12 @@ func (c *DeploymentRolloutController) RolloutOneBatchPods(ctx context.Context) (
 
 // CheckOneBatchPods checks to see if the pods are all available according to the rollout plan
 func (c *DeploymentRolloutController) CheckOneBatchPods(ctx context.Context) (bool, error) {
-	err := c.fetchDeployments(ctx)
-	if err != nil {
+	if err := c.fetchDeployments(ctx); err != nil {
 		// don't fail the rollout just because of we can't get the resource
 		// nolint:nilerr
 		return false, nil
 	}
+
 	// get the number of ready pod from target
 	readyTargetPodCount := c.targetDeploy.Status.ReadyReplicas
 	sourcePodCount := c.sourceDeploy.Status.Replicas
@@ -236,6 +240,7 @@ func (c *DeploymentRolloutController) CheckOneBatchPods(ctx context.Context) (bo
 			c.rolloutStatus.CurrentBatch, readyTargetPodCount, sourcePodCount, maxUnavail))
 		return false, nil
 	}
+
 	// record the successful upgrade
 	c.rolloutStatus.UpgradedReadyReplicas = readyTargetPodCount
 	klog.InfoS("all pods in current batch are ready", "current batch", c.rolloutStatus.CurrentBatch)
@@ -246,16 +251,16 @@ func (c *DeploymentRolloutController) CheckOneBatchPods(ctx context.Context) (bo
 
 // FinalizeOneBatch makes sure that the rollout status are updated correctly
 func (c *DeploymentRolloutController) FinalizeOneBatch(ctx context.Context) (bool, error) {
-	err := c.fetchDeployments(ctx)
-	if err != nil {
+	if err := c.fetchDeployments(ctx); err != nil {
 		// don't fail the rollout just because of we can't get the resource
 		// nolint:nilerr
 		return false, nil
 	}
+
 	sourceTarget := getDeployReplicaSize(&c.sourceDeploy)
 	targetTarget := getDeployReplicaSize(&c.targetDeploy)
 	if sourceTarget+targetTarget != c.rolloutStatus.RolloutTargetSize {
-		err = fmt.Errorf("deployment targets don't match total rollout, sourceTarget = %d, targetTarget = %d, "+
+		err := fmt.Errorf("deployment targets don't match total rollout, sourceTarget = %d, targetTarget = %d, "+
 			"rolloutTargetSize = %d", sourceTarget, targetTarget, c.rolloutStatus.RolloutTargetSize)
 		klog.ErrorS(err, "the batch is not valid", "current batch", c.rolloutStatus.CurrentBatch)
 		return false, err
@@ -265,21 +270,23 @@ func (c *DeploymentRolloutController) FinalizeOneBatch(ctx context.Context) (boo
 
 // Finalize makes sure the Deployment is all upgraded
 func (c *DeploymentRolloutController) Finalize(ctx context.Context, succeed bool) bool {
-	err := c.fetchDeployments(ctx)
-	if err != nil {
+	if err := c.fetchDeployments(ctx); err != nil {
 		// don't fail the rollout just because of we can't get the resource
 		return false
 	}
-	err = c.releaseDeployment(ctx, &c.sourceDeploy)
-	if err != nil {
+
+	// release source deployment
+	if err := c.releaseDeployment(ctx, &c.sourceDeploy); err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false
 	}
-	err = c.releaseDeployment(ctx, &c.targetDeploy)
-	if err != nil {
+
+	// release target deployment
+	if err := c.releaseDeployment(ctx, &c.targetDeploy); err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false
 	}
+
 	// mark the resource finalized
 	c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
 	c.recorder.Event(c.parentController, event.Normal("Rollout Finalized",
@@ -291,21 +298,20 @@ func (c *DeploymentRolloutController) Finalize(ctx context.Context, succeed bool
 The functions below are helper functions
 ------------------------------------- */
 func (c *DeploymentRolloutController) fetchDeployments(ctx context.Context) error {
-	err := c.client.Get(ctx, c.sourceNamespacedName, &c.sourceDeploy)
-	if err != nil {
+	if err := c.client.Get(ctx, c.sourceNamespacedName, &c.sourceDeploy); err != nil {
 		if !apierrors.IsNotFound(err) {
-			c.recorder.Event(c.parentController, event.Warning("Failed to get the Deployment", err))
+			c.recorder.Event(c.parentController, event.Warning("Failed to get the source Deployment", err))
 		}
 		return err
 	}
 
-	err = c.client.Get(ctx, c.targetNamespacedName, &c.targetDeploy)
-	if err != nil {
+	if err := c.client.Get(ctx, c.targetNamespacedName, &c.targetDeploy); err != nil {
 		if !apierrors.IsNotFound(err) {
-			c.recorder.Event(c.parentController, event.Warning("Failed to get the Deployment", err))
+			c.recorder.Event(c.parentController, event.Warning("Failed to get the target Deployment", err))
 		}
 		return err
 	}
+
 	return nil
 }
 
@@ -368,11 +374,7 @@ func (c *DeploymentRolloutController) calculateRolloutTotalSize() (int32, error)
 // check if the replicas in all the rollout batches add up to the right number
 func (c *DeploymentRolloutController) verifyRolloutBatchReplicaValue(totalReplicas int32) error {
 	// use a common function to check if the sum of all the batches can match the Deployment size
-	err := verifyBatchesWithRollout(c.rolloutSpec, totalReplicas)
-	if err != nil {
-		return err
-	}
-	return nil
+	return verifyBatchesWithRollout(c.rolloutSpec, totalReplicas)
 }
 
 // the target deploy size for the current batch
@@ -401,6 +403,7 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 			c.rolloutStatus.UpgradedReplicas = targetSize
 		}
 	}()
+
 	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType {
 		// set the target replica first which should increase its size
 		if targetSize > getDeployReplicaSize(&c.targetDeploy) {
@@ -418,6 +421,7 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 			"deployment size", getDeployReplicaSize(&c.targetDeploy), "targetSize", targetSize)
 		return true, nil
 	}
+
 	if rolloutStrategy == v1alpha1.DecreaseFirstRolloutStrategyType {
 		// set the source replicas first which should shrink its size
 		sourceSize := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
@@ -436,6 +440,7 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 			"deployment size", getDeployReplicaSize(&c.sourceDeploy), "sourceSize", sourceSize)
 		return true, nil
 	}
+
 	return false, fmt.Errorf("encountered an unknown rolloutStrategy `%s`", rolloutStrategy)
 }
 
@@ -491,5 +496,6 @@ func (c *DeploymentRolloutController) rolloutBatchSecondHalf(ctx context.Context
 			return false
 		}
 	}
+
 	return true
 }
