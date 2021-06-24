@@ -476,10 +476,39 @@ func PassLabel(parentObj, childObj labelAnnotationObject) {
 // PassLabelAndAnnotation passes through labels and annotation objectMeta from the parent to the child object
 // when annotation or labels has conflicts, the parentObj will override the childObj.
 func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
+	in := func(a string, list []string) bool {
+		for _, b := range list {
+			if b == a {
+				return true
+			}
+		}
+		return false
+	}
+	filter := func(before map[string]string, notAllowedKey []string) map[string]string {
+		after := make(map[string]string, 0)
+		for key, value := range before {
+			if !in(key, notAllowedKey) {
+				after[key] = value
+			}
+		}
+		return after
+	}
+
+	parentLabels := parentObj.GetLabels()
+	parentAnnotations := parentObj.GetAnnotations()
+	notPassAnnoKeys, ok := parentAnnotations[oam.AnnotationFilterAnnotationKeys]
+	if ok {
+		parentAnnotations = filter(parentAnnotations, strings.Split(notPassAnnoKeys, ","))
+	}
+	notPassLabelKeys, ok := parentAnnotations[oam.AnnotationFilterLabelKeys]
+	if ok {
+		parentLabels = filter(parentLabels, strings.Split(notPassLabelKeys, ","))
+	}
+
 	// pass app-config labels
-	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentObj.GetLabels()))
+	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentLabels))
 	// pass app-config annotation
-	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentObj.GetAnnotations()))
+	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentAnnotations))
 }
 
 // RemoveLabels removes keys that contains in the removekeys slice from the label
