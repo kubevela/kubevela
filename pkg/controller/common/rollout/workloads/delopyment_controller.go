@@ -82,3 +82,31 @@ func (c *deploymentController) scaleDeployment(ctx context.Context, deploy *apps
 		deploy.GetName(), "target replica size", size, "batch", c.rolloutStatus.CurrentBatch)
 	return nil
 }
+
+// remove the parent controller from the deployment's owner list
+func (c *deploymentController) releaseDeployment(ctx context.Context, deploy *apps.Deployment) (bool, error) {
+	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
+
+	var newOwnerList []metav1.OwnerReference
+	found := false
+	for _, owner := range deploy.GetOwnerReferences() {
+		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+			found = true
+			continue
+		}
+		newOwnerList = append(newOwnerList, owner)
+	}
+	if !found {
+		klog.InfoS("the deployment is already released", "deploy", deploy.Name)
+		return true, nil
+	}
+	deploy.SetOwnerReferences(newOwnerList)
+
+	// patch the Deployment
+	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning("Failed to the finalize the Deployment", err))
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return false, err
+	}
+	return false, nil
+}

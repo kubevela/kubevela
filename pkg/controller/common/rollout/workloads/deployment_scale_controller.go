@@ -29,7 +29,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -260,33 +259,15 @@ func (s *DeploymentScaleController) Finalize(ctx context.Context, succeed bool) 
 		return false
 	}
 
-	deployPatch := client.MergeFrom(s.deploy.DeepCopyObject())
-	// remove the parent controller from the resources' owner list
-	var newOwnerList []metav1.OwnerReference
-	isOwner := false
-	for _, owner := range s.deploy.GetOwnerReferences() {
-		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
-			isOwner = true
-			continue
-		}
-		newOwnerList = append(newOwnerList, owner)
-	}
-	if !isOwner {
-		// nothing to do if we are already not the owner
-		klog.InfoS("the deployment is already released and not controlled by rollout", "deployment", s.deploy.Name)
-		return true
-	}
-
-	s.deploy.SetOwnerReferences(newOwnerList)
-	// patch the deployment
-	if err := s.client.Patch(ctx, s.deploy, deployPatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
-		s.recorder.Event(s.parentController, event.Warning("Failed to the finalize the deployment", err))
-		s.rolloutStatus.RolloutRetry(err.Error())
+	releasedBefore, err := s.releaseDeployment(ctx, s.deploy)
+	if err != nil {
 		return false
 	}
-	// mark the resource finalized
-	s.recorder.Event(s.parentController, event.Normal("Scale Finalized",
-		fmt.Sprintf("Scale resource are finalized, succeed := %t", succeed)))
+	if !releasedBefore {
+		// mark the resource finalized
+		s.recorder.Event(s.parentController, event.Normal("Scale Finalized",
+			fmt.Sprintf("Scale resource are finalized, succeed := %t", succeed)))
+	}
 	return true
 }
 

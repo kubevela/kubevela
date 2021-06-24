@@ -30,8 +30,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -276,14 +274,12 @@ func (c *DeploymentRolloutController) Finalize(ctx context.Context, succeed bool
 	}
 
 	// release source deployment
-	if err := c.releaseDeployment(ctx, &c.sourceDeploy); err != nil {
-		c.rolloutStatus.RolloutRetry(err.Error())
+	if _, err := c.releaseDeployment(ctx, &c.sourceDeploy); err != nil {
 		return false
 	}
 
 	// release target deployment
-	if err := c.releaseDeployment(ctx, &c.targetDeploy); err != nil {
-		c.rolloutStatus.RolloutRetry(err.Error())
+	if _, err := c.releaseDeployment(ctx, &c.targetDeploy); err != nil {
 		return false
 	}
 
@@ -312,32 +308,6 @@ func (c *DeploymentRolloutController) fetchDeployments(ctx context.Context) erro
 		return err
 	}
 
-	return nil
-}
-
-func (c *DeploymentRolloutController) releaseDeployment(ctx context.Context, deploy *apps.Deployment) error {
-	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
-	// remove the parent controller from the resources' owner list
-	var newOwnerList []metav1.OwnerReference
-	found := false
-	for _, owner := range deploy.GetOwnerReferences() {
-		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
-			found = true
-			continue
-		}
-		newOwnerList = append(newOwnerList, owner)
-	}
-	if !found {
-		klog.InfoS("the deployment is already released", "deploy", deploy.Name)
-		return nil
-	}
-	deploy.SetOwnerReferences(newOwnerList)
-	// patch the Deployment
-	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
-		c.recorder.Event(c.parentController, event.Warning("Failed to the finalize the Deployment", err))
-		c.rolloutStatus.RolloutRetry(err.Error())
-		return err
-	}
 	return nil
 }
 
