@@ -20,13 +20,13 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -43,29 +43,20 @@ type AppManifests struct {
 	AppRevision     *v1beta1.ApplicationRevision
 	WorkloadOptions []WorkloadOption
 
-	appComponents []applicationComponent
-	components    []*v1alpha2.Component
-
-	appName        string
-	appNamespace   string
-	appLabels      map[string]string
-	appAnnotations map[string]string
-	appOwnerRef    *metav1.OwnerReference
+	componentManifests []*types.ComponentManifest
+	appName            string
+	appNamespace       string
+	appLabels          map[string]string
+	appAnnotations     map[string]string
+	appOwnerRef        *metav1.OwnerReference
 
 	assembledWorkloads map[string]*unstructured.Unstructured
 	assembledTraits    map[string][]*unstructured.Unstructured
 	// key is workload reference, values are the references of scopes the workload belongs to
-	referencedScopes map[runtimev1alpha1.TypedReference][]runtimev1alpha1.TypedReference
+	referencedScopes map[corev1.ObjectReference][]corev1.ObjectReference
 
 	finalized bool
 	err       error
-}
-
-// this is a helper struct to replace v1alpha2.ApplicationConfiguration for this moment
-type applicationComponent struct {
-	revisionName string
-	traits       []v1alpha2.ComponentTrait
-	scopes       []runtimev1alpha1.TypedReference
 }
 
 // WorkloadOption will be applied to each workloads AFTER it has been assembled by generic rules shown below:
@@ -81,7 +72,7 @@ type applicationComponent struct {
 // - oam.LabelAppComponent
 // - oam.LabelAppComponentRevision
 type WorkloadOption interface {
-	ApplyToWorkload(workload *unstructured.Unstructured, comp *v1alpha2.Component, compDefinition *v1beta1.ComponentDefinition) error
+	ApplyToWorkload(*unstructured.Unstructured, *v1beta1.ComponentDefinition, []*unstructured.Unstructured) error
 }
 
 // WithWorkloadOption add a WorkloadOption to plug in custom logic applied to each workload
@@ -117,16 +108,16 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 }
 
 // ReferencedScopes do assemble and return workload reference and referenced scopes
-func (am *AppManifests) ReferencedScopes() (map[runtimev1alpha1.TypedReference][]runtimev1alpha1.TypedReference, error) {
+func (am *AppManifests) ReferencedScopes() (map[corev1.ObjectReference][]corev1.ObjectReference, error) {
 	if !am.finalized {
 		am.assemble()
 	}
 	if am.err != nil {
 		return nil, am.err
 	}
-	r := make(map[runtimev1alpha1.TypedReference][]runtimev1alpha1.TypedReference)
+	r := make(map[corev1.ObjectReference][]corev1.ObjectReference)
 	for k, refs := range am.referencedScopes {
-		r[k] = make([]runtimev1alpha1.TypedReference, len(refs))
+		r[k] = make([]corev1.ObjectReference, len(refs))
 		copy(r[k], refs)
 	}
 	return r, nil
@@ -136,7 +127,7 @@ func (am *AppManifests) ReferencedScopes() (map[runtimev1alpha1.TypedReference][
 func (am *AppManifests) GroupAssembledManifests() (
 	map[string]*unstructured.Unstructured,
 	map[string][]*unstructured.Unstructured,
-	map[runtimev1alpha1.TypedReference][]runtimev1alpha1.TypedReference, error) {
+	map[corev1.ObjectReference][]corev1.ObjectReference, error) {
 	if !am.finalized {
 		am.assemble()
 	}
@@ -154,9 +145,9 @@ func (am *AppManifests) GroupAssembledManifests() (
 			traits[k][i] = t.DeepCopy()
 		}
 	}
-	scopes := make(map[runtimev1alpha1.TypedReference][]runtimev1alpha1.TypedReference)
+	scopes := make(map[corev1.ObjectReference][]corev1.ObjectReference)
 	for k, v := range am.referencedScopes {
-		scopes[k] = make([]runtimev1alpha1.TypedReference, len(v))
+		scopes[k] = make([]corev1.ObjectReference, len(v))
 		copy(scopes[k], v)
 	}
 	return workloads, traits, scopes, nil
@@ -169,36 +160,25 @@ func (am *AppManifests) assemble() {
 		am.finalizeAssemble(err)
 		return
 	}
-	for _, ac := range am.appComponents {
-		compRevisionName := ac.revisionName
-		compName := ctrlutil.ExtractComponentName(compRevisionName)
+	for _, comp := range am.componentManifests {
+		compRevisionName := comp.RevisionName
+		compName := comp.Name
 		commonLabels := am.generateCommonLabels(compName, compRevisionName)
-		var workloadRef runtimev1alpha1.TypedReference
 		klog.InfoS("Assemble manifests for component", "name", compName)
-		for _, comp := range am.components {
-			if comp.Name == compName {
-				wl, err := am.assembleWorkload(comp, commonLabels)
-				if err != nil {
-					am.finalizeAssemble(err)
-					return
-				}
-				am.assembledWorkloads[compName] = wl
-				workloadRef = runtimev1alpha1.TypedReference{
-					APIVersion: wl.GetAPIVersion(),
-					Kind:       wl.GetKind(),
-					Name:       wl.GetName(),
-				}
-				break
-			}
+		wl, err := am.assembleWorkload(compName, comp.StandardWorkload, commonLabels, comp.PackagedWorkloadResources)
+		if err != nil {
+			am.finalizeAssemble(err)
+			return
 		}
-
-		am.assembledTraits[compName] = make([]*unstructured.Unstructured, len(ac.traits))
-		for i, compTrait := range ac.traits {
-			trait, err := am.assembleTrait(compTrait, compName, commonLabels)
-			if err != nil {
-				am.finalizeAssemble(err)
-				return
-			}
+		am.assembledWorkloads[compName] = wl
+		workloadRef := corev1.ObjectReference{
+			APIVersion: wl.GetAPIVersion(),
+			Kind:       wl.GetKind(),
+			Name:       wl.GetName(),
+		}
+		am.assembledTraits[compName] = make([]*unstructured.Unstructured, len(comp.Traits))
+		for i, trait := range comp.Traits {
+			trait := am.assembleTrait(trait, compName, commonLabels)
 			if err := am.setWorkloadRefToTrait(workloadRef, trait); err != nil {
 				am.finalizeAssemble(errors.WithMessagef(err, "cannot set workload reference to trait %q", trait.GetName()))
 				return
@@ -206,49 +186,28 @@ func (am *AppManifests) assemble() {
 			am.assembledTraits[compName][i] = trait
 		}
 
-		am.referencedScopes[workloadRef] = make([]runtimev1alpha1.TypedReference, len(ac.scopes))
-		for i, scope := range ac.scopes {
-			am.referencedScopes[workloadRef][i] = scope
+		am.referencedScopes[workloadRef] = make([]corev1.ObjectReference, len(comp.Scopes))
+		for i, scope := range comp.Scopes {
+			am.referencedScopes[workloadRef][i] = *scope
 		}
 	}
 	am.finalizeAssemble(nil)
 }
 
 func (am *AppManifests) complete() {
-	// safe to skip error-check
-	appConfig, _ := convertRawExtention2AppConfig(am.AppRevision.Spec.ApplicationConfiguration)
-	// convert v1alpha2.ApplicationConfiguration to a helper struct
-	am.appComponents = make([]applicationComponent, len(appConfig.Spec.Components))
-	for i, acc := range appConfig.Spec.Components {
-		am.appComponents[i] = applicationComponent{
-			revisionName: acc.RevisionName,
-		}
-		am.appComponents[i].traits = make([]v1alpha2.ComponentTrait, len(acc.Traits))
-		copy(am.appComponents[i].traits, acc.Traits)
-		am.appComponents[i].scopes = make([]runtimev1alpha1.TypedReference, len(acc.Scopes))
-		for j, s := range acc.Scopes {
-			am.appComponents[i].scopes[j] = s.ScopeReference
-		}
+	if len(am.componentManifests) == 0 {
+		am.componentManifests, _ = util.AppConfig2ComponentManifests(am.AppRevision.Spec.ApplicationConfiguration,
+			am.AppRevision.Spec.Components)
 	}
-	// Application entity in the ApplicationRevision has no metadata,
-	// so we have to get below information from AppConfig.
-	// Up-stream process must set these to AppConfig.
-	am.appName = appConfig.GetName()
-	am.appNamespace = appConfig.GetNamespace()
-	am.appLabels = appConfig.GetLabels()
-	am.appAnnotations = appConfig.GetAnnotations()
-	am.appOwnerRef = metav1.GetControllerOf(appConfig)
-
-	am.components = make([]*v1alpha2.Component, len(am.AppRevision.Spec.Components))
-	for i, rawComp := range am.AppRevision.Spec.Components {
-		// safe to skip error-check
-		comp, _ := convertRawExtention2Component(rawComp.Raw)
-		am.components[i] = comp
-	}
+	am.appNamespace = am.AppRevision.GetNamespace()
+	am.appLabels = am.AppRevision.GetLabels()
+	am.appName = am.AppRevision.GetLabels()[oam.LabelAppName]
+	am.appAnnotations = am.AppRevision.GetAnnotations()
+	am.appOwnerRef = metav1.GetControllerOf(am.AppRevision)
 
 	am.assembledWorkloads = make(map[string]*unstructured.Unstructured)
 	am.assembledTraits = make(map[string][]*unstructured.Unstructured)
-	am.referencedScopes = make(map[runtimev1alpha1.TypedReference][]runtimev1alpha1.TypedReference)
+	am.referencedScopes = make(map[corev1.ObjectReference][]corev1.ObjectReference)
 }
 
 func (am *AppManifests) finalizeAssemble(err error) {
@@ -267,8 +226,11 @@ func (am *AppManifests) validate() error {
 	if am.appOwnerRef == nil {
 		return errors.New("AppRevision must have an Application as owner")
 	}
+	if len(am.AppRevision.Labels[oam.LabelAppName]) == 0 {
+		return errors.New("AppRevision must have app name in the label")
+	}
 	if len(am.AppRevision.Labels[oam.LabelAppRevisionHash]) == 0 {
-		return errors.New("AppRevision must have revision hash recorded in the label")
+		return errors.New("AppRevision must have revision hash in the label")
 	}
 	return nil
 }
@@ -306,12 +268,8 @@ func (am *AppManifests) setNamespace(obj *unstructured.Unstructured) {
 	}
 }
 
-func (am *AppManifests) assembleWorkload(comp *v1alpha2.Component, labels map[string]string) (*unstructured.Unstructured, error) {
-	compName := comp.Name
-	wl, err := util.RawExtension2Unstructured(&comp.Spec.Workload)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "cannot convert raw workload in component %q", compName)
-	}
+func (am *AppManifests) assembleWorkload(compName string, wl *unstructured.Unstructured,
+	labels map[string]string, resources []*unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	// use component name as workload name
 	// override the name set in render phase if exist
 	wl.SetName(compName)
@@ -321,8 +279,12 @@ func (am *AppManifests) assembleWorkload(comp *v1alpha2.Component, labels map[st
 
 	workloadType := wl.GetLabels()[oam.WorkloadTypeLabel]
 	compDefinition := am.AppRevision.Spec.ComponentDefinitions[workloadType]
+	copyPackagedResources := make([]*unstructured.Unstructured, len(resources))
+	for i, v := range resources {
+		copyPackagedResources[i] = v.DeepCopy()
+	}
 	for _, wo := range am.WorkloadOptions {
-		if err := wo.ApplyToWorkload(wl, comp.DeepCopy(), compDefinition.DeepCopy()); err != nil {
+		if err := wo.ApplyToWorkload(wl, compDefinition.DeepCopy(), copyPackagedResources); err != nil {
 			klog.ErrorS(err, "Failed applying a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
 			return nil, errors.Wrapf(err, "cannot apply workload option for component %q", compName)
 		}
@@ -348,23 +310,19 @@ func (am *AppManifests) setWorkloadLabels(wl *unstructured.Unstructured, commonL
 	*/
 }
 
-func (am *AppManifests) assembleTrait(compTrait v1alpha2.ComponentTrait, compName string, labels map[string]string) (*unstructured.Unstructured, error) {
-	trait, err := util.RawExtension2Unstructured(&compTrait.Trait)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "cannot convert raw trait in component")
-	}
+func (am *AppManifests) assembleTrait(trait *unstructured.Unstructured, compName string, labels map[string]string) *unstructured.Unstructured {
 	traitType := trait.GetLabels()[oam.TraitTypeLabel]
 	// only set generated name when name is unspecified
 	// it's by design to set arbitrary name in render phase
 	if len(trait.GetName()) == 0 {
-		traitName := util.GenTraitName(compName, &compTrait, traitType)
+		traitName := util.GenTraitNameCompatible(compName, trait, traitType)
 		trait.SetName(traitName)
 	}
 	am.setTraitLabels(trait, labels)
 	am.setAnnotations(trait)
 	am.setNamespace(trait)
 	klog.InfoS("Successfully assemble a trait", "trait", klog.KObj(trait), "APIVersion", trait.GetAPIVersion(), "Kind", trait.GetKind())
-	return trait, nil
+	return trait
 }
 
 func (am *AppManifests) setTraitLabels(trait *unstructured.Unstructured, commonLabels map[string]string) {
@@ -384,13 +342,19 @@ func (am *AppManifests) setTraitLabels(trait *unstructured.Unstructured, commonL
 	*/
 }
 
-func (am *AppManifests) setWorkloadRefToTrait(wlRef runtimev1alpha1.TypedReference, trait *unstructured.Unstructured) error {
+func (am *AppManifests) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *unstructured.Unstructured) error {
 	traitType := trait.GetLabels()[oam.TraitTypeLabel]
 	traitDef := am.AppRevision.Spec.TraitDefinitions[traitType]
 	workloadRefPath := traitDef.Spec.WorkloadRefPath
 	// only add workload reference to the trait if it asks for it
 	if len(workloadRefPath) != 0 {
-		if err := fieldpath.Pave(trait.UnstructuredContent()).SetValue(workloadRefPath, wlRef); err != nil {
+		// TODO(roywang) this is for backward compatibility, remove crossplane/runtime/v1alpha1 in the future
+		tmpWLRef := runtimev1alpha1.TypedReference{
+			APIVersion: wlRef.APIVersion,
+			Kind:       wlRef.Kind,
+			Name:       wlRef.Name,
+		}
+		if err := fieldpath.Pave(trait.UnstructuredContent()).SetValue(workloadRefPath, tmpWLRef); err != nil {
 			return err
 		}
 	}

@@ -20,8 +20,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -137,14 +137,14 @@ var _ = Describe("Test Assemble Options", func() {
 		By("Verify referenced scopes")
 		scopes, err := ao.ReferencedScopes()
 		Expect(err).Should(BeNil())
-		wlTypedRef := runtimev1alpha1.TypedReference{
+		wlTypedRef := corev1.ObjectReference{
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 			Name:       compName,
 		}
 		Expect(len(scopes[wlTypedRef]) > 0).Should(BeTrue())
 		wlScope := scopes[wlTypedRef][0]
-		wantScopeRef := runtimev1alpha1.TypedReference{
+		wantScopeRef := corev1.ObjectReference{
 			APIVersion: "core.oam.dev/v1beta1",
 			Kind:       "HealthScope",
 			Name:       "sample-health-scope",

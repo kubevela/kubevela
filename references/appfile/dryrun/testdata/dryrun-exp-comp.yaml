@@ -1,34 +1,66 @@
-apiVersion: core.oam.dev/v1alpha2
-kind: Component
-metadata:
-  creationTimestamp: null
-  labels:
-    app.oam.dev/name: app-dryrun
-  name: myweb
-spec:
-  workload:
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app.oam.dev/appRevision: ""
+Name: myweb
+PackagedTraitResources: null
+PackagedWorkloadResources: null
+RevisionHash: ""
+RevisionName: ""
+Scopes: []
+StandardWorkload:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    labels:
+      app.oam.dev/appRevision: ""
+      app.oam.dev/component: myweb
+      app.oam.dev/name: app-dryrun
+      workload.oam.dev/type: myworker
+  spec:
+    selector:
+      matchLabels:
         app.oam.dev/component: myweb
-        app.oam.dev/name: app-dryrun
-        workload.oam.dev/type: myworker
-    spec:
-      selector:
-        matchLabels:
+    template:
+      metadata:
+        labels:
           app.oam.dev/component: myweb
-      template:
-        metadata:
-          labels:
-            app.oam.dev/component: myweb
-        spec:
-          containers:
-          - command:
-            - sleep
-            - "1000"
-            image: busybox
-            name: myweb
-status:
-  observedGeneration: 0
+      spec:
+        containers:
+        - command:
+          - sleep
+          - "1000"
+          image: busybox
+          name: myweb
+Traits:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app.oam.dev/appRevision: ""
+      app.oam.dev/component: myweb
+      app.oam.dev/name: app-dryrun
+      trait.oam.dev/resource: service
+      trait.oam.dev/type: myingress
+    name: myweb
+  spec:
+    ports:
+    - port: 80
+      targetPort: 80
+    selector:
+      app.oam.dev/component: myweb
+- apiVersion: networking.k8s.io/v1beta1
+  kind: Ingress
+  metadata:
+    labels:
+      app.oam.dev/appRevision: ""
+      app.oam.dev/component: myweb
+      app.oam.dev/name: app-dryrun
+      trait.oam.dev/resource: ingress
+      trait.oam.dev/type: myingress
+    name: myweb
+  spec:
+    rules:
+    - host: www.example.com
+      http:
+        paths:
+        - backend:
+            serviceName: myweb
+            servicePort: 80
+          path: /

@@ -305,13 +305,6 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), checkRt); err != nil {
 				return err
 			}
-			component := &v1alpha2.Component{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
-				return fmt.Errorf("cannot generate component %v", err)
-			}
-			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
-				return fmt.Errorf("component error label ")
-			}
 			depolys := new(appsv1.DeploymentList)
 			opts := []client.ListOption{
 				client.InNamespace(crossNamespace),
@@ -558,7 +551,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{}
 			return k8sClient.Update(ctx, app)
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
-		fmt.Println(app.ResourceVersion)
+
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
@@ -772,13 +765,6 @@ var _ = Describe("Test application cross namespace resource", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		var workload appsv1.Deployment
 		Eventually(func() error {
-			component := &v1alpha2.Component{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
-				return fmt.Errorf("cannot generate component %v", err)
-			}
-			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
-				return fmt.Errorf("component error label ")
-			}
 			depolys := new(appsv1.DeploymentList)
 			opts := []client.ListOption{
 				client.InNamespace(crossNamespace),
@@ -822,13 +808,6 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
 		Eventually(func() error {
-			component := &v1alpha2.Component{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
-				return fmt.Errorf("cannot generate component %v", err)
-			}
-			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
-				return fmt.Errorf("component error label ")
-			}
 			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker); err != nil {
 				return err
 			}

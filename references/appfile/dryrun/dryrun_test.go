@@ -40,23 +40,15 @@ var _ = Describe("Test DryRun", func() {
 		Expect(err).Should(BeNil())
 
 		By("Execute DryRun")
-		ac, comps, err := dryrunOpt.ExecuteDryRun(context.Background(), app)
+		comps, err := dryrunOpt.ExecuteDryRun(context.Background(), app)
 		Expect(err).Should(BeNil())
-
-		expectACYAML := readDataFromFile("./testdata/dryrun-exp-ac.yaml")
-
-		By("Verify generated AppConfig")
-		resultACstr, err := yaml.Marshal(ac)
-		Expect(err).Should(BeNil())
-		diff := cmp.Diff(expectACYAML, string(resultACstr))
-		Expect(diff).Should(BeEmpty())
 
 		expectCompYAML := readDataFromFile("./testdata/dryrun-exp-comp.yaml")
 		By("Verify generated Comp")
 		Expect(comps).ShouldNot(BeEmpty())
 		resultCompStr, err := yaml.Marshal(comps[0])
 		Expect(err).Should(BeNil())
-		diff = cmp.Diff(expectCompYAML, string(resultCompStr))
+		diff := cmp.Diff(expectCompYAML, string(resultCompStr))
 		Expect(diff).Should(BeEmpty())
 	})
 })

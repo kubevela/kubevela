@@ -30,42 +30,51 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // WorkloadOptionFn implement interface WorkloadOption
-type WorkloadOptionFn func(*unstructured.Unstructured, *v1alpha2.Component, *v1beta1.ComponentDefinition) error
+type WorkloadOptionFn func(*unstructured.Unstructured, *v1beta1.ComponentDefinition, []*unstructured.Unstructured) error
 
 // ApplyToWorkload will apply the manipulation defined in the function to assembled workload
-func (fn WorkloadOptionFn) ApplyToWorkload(wl *unstructured.Unstructured, comp *v1alpha2.Component, compDefinition *v1beta1.ComponentDefinition) error {
-	return fn(wl, comp, compDefinition)
+func (fn WorkloadOptionFn) ApplyToWorkload(wl *unstructured.Unstructured,
+	compDefinition *v1beta1.ComponentDefinition, packagedWorkloadResources []*unstructured.Unstructured) error {
+	return fn(wl, compDefinition, packagedWorkloadResources)
 }
 
 // DiscoveryHelmBasedWorkload only works for Helm-based component. It computes a qualifiedFullName for the workload and
 // try to get it from K8s cluster.
 // If not found, block down-streaming process until Helm creates the workload successfully.
 func DiscoveryHelmBasedWorkload(ctx context.Context, c client.Reader) WorkloadOption {
-	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, comp *v1alpha2.Component, _ *v1beta1.ComponentDefinition) error {
-		return discoverHelmModuleWorkload(ctx, c, assembledWorkload, comp)
+	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, compDef *v1beta1.ComponentDefinition, resources []*unstructured.Unstructured) error {
+		return discoverHelmModuleWorkload(ctx, c, assembledWorkload, compDef, resources)
 	})
 }
 
-func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledWorkload *unstructured.Unstructured, comp *v1alpha2.Component) error {
-	if comp == nil || comp.Spec.Helm == nil {
+func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledWorkload *unstructured.Unstructured,
+	_ *v1beta1.ComponentDefinition, helmResources []*unstructured.Unstructured) error {
+	if len(helmResources) == 0 {
 		return nil
 	}
-
+	if len(assembledWorkload.GetAPIVersion()) == 0 &&
+		len(assembledWorkload.GetKind()) == 0 {
+		// workload GVK remains to auto-detect
+		// we cannot discover workload without GVK, and caller should skip dispatching the assembled workload
+		return nil
+	}
 	ns := assembledWorkload.GetNamespace()
-	rls, err := util.RawExtension2Unstructured(&comp.Spec.Helm.Release)
-	if err != nil {
-		return errors.Wrap(err, "cannot get helm release from component")
+	var rls *unstructured.Unstructured
+	for _, v := range helmResources {
+		if v.GetKind() == helmapi.HelmReleaseGVK.Kind {
+			rls = v.DeepCopy()
+			break
+		}
+	}
+	if rls == nil {
+		return errors.New("cannot get helm release")
 	}
 	rlsName := rls.GetName()
-
 	chartName, ok, err := unstructured.NestedString(rls.Object, helmapi.HelmChartNamePath...)
 	if err != nil || !ok {
 		return errors.New("cannot get helm chart name")
@@ -104,20 +113,11 @@ func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledW
 	return nil
 }
 
-// NameNonInplaceUpgradableWorkload set workload name with component revision name to override component name.
-func NameNonInplaceUpgradableWorkload() WorkloadOption {
-	return WorkloadOptionFn(func(wl *unstructured.Unstructured, comp *v1alpha2.Component, _ *v1beta1.ComponentDefinition) error {
-		compRevName := wl.GetLabels()[oam.LabelAppComponentRevision]
-		wl.SetName(compRevName)
-		return nil
-	})
-}
-
 // PrepareWorkloadForRollout prepare the workload before it is emit to the k8s. The current approach is to mark it
 // as disabled so that it's spec won't take effect immediately. The rollout controller can take over the resources
 // and enable it on its own since app controller here won't override their change
 func PrepareWorkloadForRollout() WorkloadOption {
-	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, _ *v1alpha2.Component, _ *v1beta1.ComponentDefinition) error {
+	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 		const (
 			// below are the resources that we know how to disable
 			cloneSetDisablePath            = "spec.updateStrategy.paused"

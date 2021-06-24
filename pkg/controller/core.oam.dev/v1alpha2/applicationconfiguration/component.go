@@ -36,11 +36,12 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ControllerRevisionComponentLabel indicate which component the revision belong to
 // This label is to filter revision by client api
-const ControllerRevisionComponentLabel = "controller.oam.dev/component"
+const ControllerRevisionComponentLabel = oam.LabelControllerRevisionComponent
 
 // ComponentHandler will watch component change and generate Revision automatically.
 type ComponentHandler struct {
