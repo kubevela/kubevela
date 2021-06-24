@@ -18,11 +18,14 @@ package workloads
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apps "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -61,4 +64,21 @@ func (c *deploymentController) claimDeployment(ctx context.Context, deploy *apps
 		return false, err
 	}
 	return false, nil
+}
+
+// scale the deployment
+func (c *deploymentController) scaleDeployment(ctx context.Context, deploy *apps.Deployment, size int32) error {
+	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
+	deploy.Spec.Replicas = pointer.Int32Ptr(size)
+
+	// patch the Deployment
+	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning(event.Reason(fmt.Sprintf(
+			"Failed to update the deployment %s to the correct target %d", deploy.GetName(), size)), err))
+		return err
+	}
+
+	klog.InfoS("Submitted upgrade quest for deployment", "deployment",
+		deploy.GetName(), "target replica size", size, "batch", c.rolloutStatus.CurrentBatch)
+	return nil
 }

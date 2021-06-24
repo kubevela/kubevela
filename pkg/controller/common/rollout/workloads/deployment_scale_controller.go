@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -151,17 +150,15 @@ func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bo
 		return false, nil
 	}
 
-	deployPatch := client.MergeFrom(s.deploy.DeepCopyObject())
 	// set the replica according to the batch
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
-	s.deploy.Spec.Replicas = pointer.Int32Ptr(int32(newPodTarget))
-	// patch the deployment
-	if err := s.client.Patch(ctx, s.deploy, deployPatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
-		s.recorder.Event(s.parentController, event.Warning("Failed to update the deployment to upgrade", err))
+
+	if err := s.scaleDeployment(ctx, s.deploy, int32(newPodTarget)); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
+
 	// record the scale
 	klog.InfoS("scale one batch", "current batch", s.rolloutStatus.CurrentBatch)
 	s.recorder.Event(s.parentController, event.Normal("Batch Rollout",

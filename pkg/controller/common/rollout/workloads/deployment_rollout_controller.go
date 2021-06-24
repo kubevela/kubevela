@@ -315,21 +315,6 @@ func (c *DeploymentRolloutController) fetchDeployments(ctx context.Context) erro
 	return nil
 }
 
-// patch the deployment's target, returns if succeeded
-func (c *DeploymentRolloutController) patchDeployment(ctx context.Context, target int32, deploy *apps.Deployment) error {
-	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
-	deploy.Spec.Replicas = pointer.Int32Ptr(target)
-	// patch the Deployment
-	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
-		c.recorder.Event(c.parentController, event.Warning(event.Reason(fmt.Sprintf(
-			"Failed to update the deployment %s to the correct target %d", deploy.GetName(), target)), err))
-		return err
-	}
-	klog.InfoS("Submitted upgrade quest for deployment", "deployment",
-		deploy.GetName(), "target replica size", target, "batch", c.rolloutStatus.CurrentBatch)
-	return nil
-}
-
 func (c *DeploymentRolloutController) releaseDeployment(ctx context.Context, deploy *apps.Deployment) error {
 	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
 	// remove the parent controller from the resources' owner list
@@ -406,9 +391,9 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 
 	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType {
 		// set the target replica first which should increase its size
-		if targetSize > getDeployReplicaSize(&c.targetDeploy) {
+		if getDeployReplicaSize(&c.targetDeploy) < targetSize {
 			klog.InfoS("set target deployment replicas", "deploy", c.targetDeploy.Name, "targetSize", targetSize)
-			if err := c.patchDeployment(ctx, targetSize, &c.targetDeploy); err != nil {
+			if err := c.scaleDeployment(ctx, &c.targetDeploy, targetSize); err != nil {
 				c.rolloutStatus.RolloutRetry(err.Error())
 			}
 			c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
@@ -416,7 +401,8 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 					c.rolloutStatus.CurrentBatch, targetSize)))
 			return false, nil
 		}
-		// do nothing if the target is ready reached
+
+		// do nothing if the target is already reached
 		klog.InfoS("target deployment replicas overshoot the size already", "deploy", c.targetDeploy.Name,
 			"deployment size", getDeployReplicaSize(&c.targetDeploy), "targetSize", targetSize)
 		return true, nil
@@ -425,9 +411,9 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 	if rolloutStrategy == v1alpha1.DecreaseFirstRolloutStrategyType {
 		// set the source replicas first which should shrink its size
 		sourceSize := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
-		if sourceSize < getDeployReplicaSize(&c.sourceDeploy) {
+		if getDeployReplicaSize(&c.sourceDeploy) > sourceSize {
 			klog.InfoS("set source deployment replicas", "source deploy", c.sourceDeploy.Name, "sourceSize", sourceSize)
-			if err := c.patchDeployment(ctx, sourceSize, &c.sourceDeploy); err != nil {
+			if err := c.scaleDeployment(ctx, &c.sourceDeploy, sourceSize); err != nil {
 				c.rolloutStatus.RolloutRetry(err.Error())
 			}
 			c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
@@ -435,7 +421,8 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 					c.rolloutStatus.CurrentBatch, sourceSize)))
 			return false, nil
 		}
-		// do nothing if the reduce target is ready reached
+
+		// do nothing if the reduce target is already reached
 		klog.InfoS("source deployment replicas overshoot the size already", "source deploy", c.sourceDeploy.Name,
 			"deployment size", getDeployReplicaSize(&c.sourceDeploy), "sourceSize", sourceSize)
 		return true, nil
@@ -459,7 +446,7 @@ func (c *DeploymentRolloutController) rolloutBatchSecondHalf(ctx context.Context
 		if c.targetDeploy.Status.ReadyReplicas+int32(maxUnavail) >= targetSize {
 			// set the source replicas now which should shrink its size
 			klog.InfoS("set source deployment replicas", "deploy", c.sourceDeploy.Name, "sourceSize", sourceSize)
-			if err = c.patchDeployment(ctx, sourceSize, &c.sourceDeploy); err != nil {
+			if err = c.scaleDeployment(ctx, &c.sourceDeploy, sourceSize); err != nil {
 				c.rolloutStatus.RolloutRetry(err.Error())
 				return false
 			}
@@ -480,7 +467,7 @@ func (c *DeploymentRolloutController) rolloutBatchSecondHalf(ctx context.Context
 			// we can increase the target deployment as soon as the source deployment's replica is correct
 			// no need to wait for them to be ready
 			klog.InfoS("set target deployment replicas", "deploy", c.targetDeploy.Name, "targetSize", targetSize)
-			if err = c.patchDeployment(ctx, targetSize, &c.targetDeploy); err != nil {
+			if err = c.scaleDeployment(ctx, &c.targetDeploy, targetSize); err != nil {
 				c.rolloutStatus.RolloutRetry(err.Error())
 				return false
 			}
