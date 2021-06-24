@@ -26,9 +26,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/go-github/v32/github"
+	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -43,10 +43,10 @@ type Registry interface {
 
 // GithubRegistry is Registry's implementation treat github url as resource
 type GithubRegistry struct {
-	client *github.Client
-	cfg    *GithubContent
-	ctx    context.Context
-	name   string // to be used to cache registry
+	client     *github.Client
+	cfg        *GithubContent
+	ctx        context.Context
+	centerName string // to be used to cache registry
 }
 
 // NewRegistry will create a registry implementation
@@ -64,7 +64,7 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 			)
 			tc = oauth2.NewClient(ctx, ts)
 		}
-		return GithubRegistry{client: github.NewClient(tc), cfg: &cfg.GithubContent, ctx: ctx, name: registryName}, nil
+		return GithubRegistry{client: github.NewClient(tc), cfg: &cfg.GithubContent, ctx: ctx, centerName: registryName}, nil
 	case TypeOss:
 		var tc http.Client
 		return OssRegistry{
@@ -161,7 +161,8 @@ func (g *GithubRegistry) getRepoFile() ([]RegistryFile, error) {
 // OssRegistry is Registry's implementation treat OSS url as resource
 type OssRegistry struct {
 	*http.Client
-	bucketURL string
+	bucketURL  string
+	centerName string
 }
 
 // GetCap return capability object and raw data specified by cap name
@@ -196,6 +197,22 @@ func (o OssRegistry) GetCap(addonName string) (types.Capability, []byte, error) 
 
 // ListCaps list all capabilities of registry
 func (o OssRegistry) ListCaps() ([]types.Capability, error) {
+	rfs, err := o.getRegFiles()
+	if err != nil {
+		return []types.Capability{}, errors.Wrap(err, "Get raw files fail")
+	}
+	capas := make([]types.Capability, 0)
+
+	for _, rf := range rfs {
+		capa, err := rf.toAddon()
+		if err != nil {
+			fmt.Printf("[WARN] Parse file %s fail\n", rf.name)
+		}
+		capas = append(capas, capa)
+	}
+	return capas, nil
+}
+func (o OssRegistry) getRegFiles() ([]RegistryFile, error) {
 	req, _ := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
@@ -204,30 +221,42 @@ func (o OssRegistry) ListCaps() ([]types.Capability, error) {
 	)
 	resp, err := o.Client.Do(req)
 	if err != nil {
-		return []types.Capability{}, err
+		return []RegistryFile{}, err
 	}
 	data, err := ioutil.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil {
-		return []types.Capability{}, err
+		return []RegistryFile{}, err
 	}
 	list := &ListBucketResult{}
 	err = xml.Unmarshal(data, list)
 	if err != nil {
-		return []types.Capability{}, err
+		return []RegistryFile{}, err
 	}
-	capas := make([]types.Capability, 0)
+	rfs := make([]RegistryFile, 0)
 
 	for _, fileName := range list.File {
-		addonName := strings.Split(fileName, ".")[0]
-		capa, _, err := o.GetCap(addonName)
+		req, _ := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			o.bucketURL+fileName,
+			nil,
+		)
+		resp, err := o.Client.Do(req)
 		if err != nil {
-			fmt.Printf("Get %s err: %s\n", fileName, err)
+			fmt.Printf("[WARN] %s download fail\n", fileName)
 			continue
 		}
-		capas = append(capas, capa)
+		data, _ := ioutil.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		rf := RegistryFile{
+			data: data,
+			name: fileName,
+		}
+		rfs = append(rfs, rf)
+
 	}
-	return capas, nil
+	return rfs, nil
 }
 
 // LocalRegistry is Registry's implementation treat local url as resource
@@ -282,7 +311,7 @@ func (item RegistryFile) toAddon() (types.Capability, error) {
 	if err != nil {
 		return types.Capability{}, err
 	}
-	capability, err := ParseAndSyncCapability(dm, item.data)
+	capability, err := ParseCapability(dm, item.data)
 	if err != nil {
 		return types.Capability{}, err
 	}
