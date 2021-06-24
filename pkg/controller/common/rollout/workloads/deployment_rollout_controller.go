@@ -363,9 +363,7 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 		// set the target replica first which should increase its size
 		if getDeployReplicaSize(&c.targetDeploy) < targetSize {
 			klog.InfoS("set target deployment replicas", "deploy", c.targetDeploy.Name, "targetSize", targetSize)
-			if err := c.scaleDeployment(ctx, &c.targetDeploy, targetSize); err != nil {
-				c.rolloutStatus.RolloutRetry(err.Error())
-			}
+			_ = c.scaleDeployment(ctx, &c.targetDeploy, targetSize)
 			c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
 				fmt.Sprintf("Submitted the increase part of upgrade quests for batch %d, target size = %d",
 					c.rolloutStatus.CurrentBatch, targetSize)))
@@ -383,9 +381,7 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 		sourceSize := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
 		if getDeployReplicaSize(&c.sourceDeploy) > sourceSize {
 			klog.InfoS("set source deployment replicas", "source deploy", c.sourceDeploy.Name, "sourceSize", sourceSize)
-			if err := c.scaleDeployment(ctx, &c.sourceDeploy, sourceSize); err != nil {
-				c.rolloutStatus.RolloutRetry(err.Error())
-			}
+			_ = c.scaleDeployment(ctx, &c.sourceDeploy, sourceSize)
 			c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
 				fmt.Sprintf("Submitted the decrease part of upgrade quests for batch %d, source size = %d",
 					c.rolloutStatus.CurrentBatch, sourceSize)))
@@ -403,8 +399,8 @@ func (c *DeploymentRolloutController) rolloutBatchFirstHalf(ctx context.Context,
 
 func (c *DeploymentRolloutController) rolloutBatchSecondHalf(ctx context.Context,
 	rolloutStrategy v1alpha1.RolloutStrategyType, targetSize int32) bool {
-	var err error
 	sourceSize := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
+
 	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType {
 		// calculate the max unavailable given the target size
 		maxUnavail := 0
@@ -416,8 +412,7 @@ func (c *DeploymentRolloutController) rolloutBatchSecondHalf(ctx context.Context
 		if c.targetDeploy.Status.ReadyReplicas+int32(maxUnavail) >= targetSize {
 			// set the source replicas now which should shrink its size
 			klog.InfoS("set source deployment replicas", "deploy", c.sourceDeploy.Name, "sourceSize", sourceSize)
-			if err = c.scaleDeployment(ctx, &c.sourceDeploy, sourceSize); err != nil {
-				c.rolloutStatus.RolloutRetry(err.Error())
+			if err := c.scaleDeployment(ctx, &c.sourceDeploy, sourceSize); err != nil {
 				return false
 			}
 			c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
@@ -437,8 +432,7 @@ func (c *DeploymentRolloutController) rolloutBatchSecondHalf(ctx context.Context
 			// we can increase the target deployment as soon as the source deployment's replica is correct
 			// no need to wait for them to be ready
 			klog.InfoS("set target deployment replicas", "deploy", c.targetDeploy.Name, "targetSize", targetSize)
-			if err = c.scaleDeployment(ctx, &c.targetDeploy, targetSize); err != nil {
-				c.rolloutStatus.RolloutRetry(err.Error())
+			if err := c.scaleDeployment(ctx, &c.targetDeploy, targetSize); err != nil {
 				return false
 			}
 			c.recorder.Event(c.parentController, event.Normal("Batch Rollout",

@@ -75,6 +75,7 @@ func (c *deploymentController) scaleDeployment(ctx context.Context, deploy *apps
 	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning(event.Reason(fmt.Sprintf(
 			"Failed to update the deployment %s to the correct target %d", deploy.GetName(), size)), err))
+		c.rolloutStatus.RolloutRetry(err.Error())
 		return err
 	}
 

@@ -154,7 +154,6 @@ func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bo
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
 
 	if err := s.scaleDeployment(ctx, s.deploy, int32(newPodTarget)); err != nil {
-		s.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
 
