@@ -79,10 +79,14 @@ var _ = BeforeSuite(func(done Done) {
 	} else {
 		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
 	}
+	compCRD := "../../../../../charts/oam-runtime/crds/core.oam.dev_components.yaml"
+	acCRD := "../../../../../charts/oam-runtime/crds/core.oam.dev_applicationconfigurations.yaml"
 	logf.Log.Info("start applicationconfiguration suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
+			compCRD,
+			acCRD,
 		},
 	}
 	var err error

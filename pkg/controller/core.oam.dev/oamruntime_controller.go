@@ -43,8 +43,6 @@ const (
 
 // Args args used by controller
 type Args struct {
-	// ApplicationConfigurationInstalled indicates if we have installed the ApplicationConfiguration CRD
-	ApplicationConfigurationInstalled bool
 
 	// RevisionLimit is the maximum number of revisions that will be maintained.
 	// The default value is 50.
@@ -79,4 +77,7 @@ type Args struct {
 
 	// AutoGenWorkloadDefinition indicates whether automatic generated workloadDefinition which componentDefinition refers to
 	AutoGenWorkloadDefinition bool
+
+	// OAMSpecVer is the oam spec version controller want to setup
+	OAMSpecVer string
 }

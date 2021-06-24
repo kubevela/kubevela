@@ -150,6 +150,7 @@ e2e-setup:
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
 	sh ./hack/e2e/modify_charts.sh
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
+	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
@@ -229,9 +230,12 @@ manifests: installcue kustomize
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
-	mv config/crd/base/* charts/vela-core/crds
-	./vela-templates/gen_definitions.sh
 	./hack/crd/cleanup.sh
+	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds
+	go run hack/crd/update.go charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml
+	rm -f config/crd/base/*
+	./vela-templates/gen_definitions.sh
+
 
 GOLANGCILINT_VERSION ?= v1.31.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')

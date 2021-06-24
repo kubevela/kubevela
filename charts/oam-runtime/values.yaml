@@ -6,7 +6,7 @@ replicaCount: 1
 # Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
 
-disableCaps: ""
+disableCaps: "all"
 image:
   repository: oamdev/vela-core
   tag: latest
@@ -46,10 +46,10 @@ resources:
 
 webhookService:
   type: ClusterIP
-  port: 9443
+  port: 11443
 
 healthCheck:
-  port: 9440
+  port: 11440
 
 nodeSelector: {}
 
@@ -88,11 +88,7 @@ logFilePath: ""
 #If the value is 0, the maximum file size is unlimited.
 logFileMaxSize: 1024
 
-systemDefinitionNamespace: vela-system
-
-applicationRevisionLimit: 10
-
-definitionRevisionLimit: 20
+systemDefinitionNamespace: oam-runtime-system
 
 # concurrentReconciles is the concurrent reconcile number of the controller
 concurrentReconciles: 4
@@ -101,4 +97,4 @@ concurrentReconciles: 4
 dependCheckWait: 30s
 
 # OAMSpecVer is the oam spec version controller want to setup
-OAMSpecVer: "v0.3"
+OAMSpecVer: "v0.2"
