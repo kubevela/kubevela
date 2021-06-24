@@ -132,6 +132,7 @@ func (s *DeploymentScaleController) Initialize(ctx context.Context) (bool, error
 
 	claimedBefore, err := s.claimDeployment(ctx, s.deploy, nil)
 	if err != nil {
+		// nolint:nilerr
 		return false, nil
 	}
 	if !claimedBefore {
@@ -154,6 +155,7 @@ func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bo
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
 
 	if err := s.scaleDeployment(ctx, s.deploy, int32(newPodTarget)); err != nil {
+		// nolint:nilerr
 		return false, nil
 	}
 
