@@ -132,26 +132,14 @@ func (s *DeploymentScaleController) Initialize(ctx context.Context) (bool, error
 		return false, nil
 	}
 
-	if controller := metav1.GetControllerOf(s.deploy); controller != nil {
-		if controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
-			// it's already there
-			return true, nil
-		}
-	}
-	// add the parent controller to the owner of the deployment
-	deployPatch := client.MergeFrom(s.deploy.DeepCopyObject())
-	ref := metav1.NewControllerRef(s.parentController, v1beta1.AppRolloutKindVersionKind)
-	s.deploy.SetOwnerReferences(append(s.deploy.GetOwnerReferences(), *ref))
-	s.deploy.Spec.Paused = false
-
-	// patch the deployment
-	if err := s.client.Patch(ctx, s.deploy, deployPatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
-		s.recorder.Event(s.parentController, event.Warning("Failed to the start the deployment update", err))
-		s.rolloutStatus.RolloutRetry(err.Error())
+	claimedBefore, err := s.claimDeployment(ctx, s.deploy, nil)
+	if err != nil {
 		return false, nil
 	}
-	// mark the rollout initialized
-	s.recorder.Event(s.parentController, event.Normal("Scale Initialized", "deployment is initialized"))
+	if !claimedBefore {
+		// mark the rollout initialized
+		s.recorder.Event(s.parentController, event.Normal("Scale Initialized", "deployment is initialized"))
+	}
 	return true, nil
 }
 

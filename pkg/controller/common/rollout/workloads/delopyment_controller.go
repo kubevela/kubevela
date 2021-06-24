@@ -16,10 +16,49 @@ limitations under the License.
 
 package workloads
 
-import "k8s.io/apimachinery/pkg/types"
+import (
+	"context"
+
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	apps "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+)
 
 // deploymentController is the place to hold fields needed for handle Deployment type of workloads
 type deploymentController struct {
 	workloadController
 	targetNamespacedName types.NamespacedName
+}
+
+// add the parent controller to the owner of the deployment, unpause it and initialize the size
+// before kicking start the update and start from every pod in the old version
+func (c *deploymentController) claimDeployment(ctx context.Context, deploy *apps.Deployment, initSize *int32) (bool, error) {
+	if controller := metav1.GetControllerOf(deploy); controller != nil &&
+		controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		// it's already there
+		return true, nil
+	}
+
+	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
+
+	// add the parent controller to the owner of the deployment
+	ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
+	deploy.SetOwnerReferences(append(deploy.GetOwnerReferences(), *ref))
+
+	deploy.Spec.Paused = false
+	if initSize != nil {
+		deploy.Spec.Replicas = initSize
+	}
+
+	// patch the Deployment
+	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning("Failed to the start the Deployment update", err))
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return false, err
+	}
+	return false, nil
 }

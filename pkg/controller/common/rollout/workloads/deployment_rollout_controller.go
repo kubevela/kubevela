@@ -147,16 +147,14 @@ func (c *DeploymentRolloutController) Initialize(ctx context.Context) (bool, err
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
-	err = c.claimDeployment(ctx, &c.sourceDeploy, nil)
+	_, err = c.claimDeployment(ctx, &c.sourceDeploy, nil)
 	if err != nil {
-		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
 	// make sure we start with the matching replicas and target
 	targetInitSize := pointer.Int32Ptr(c.rolloutStatus.RolloutTargetSize - getDeployReplicaSize(&c.sourceDeploy))
-	err = c.claimDeployment(ctx, &c.targetDeploy, targetInitSize)
+	_, err = c.claimDeployment(ctx, &c.targetDeploy, targetInitSize)
 	if err != nil {
-		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
 	// mark the rollout initialized
@@ -306,26 +304,6 @@ func (c *DeploymentRolloutController) fetchDeployments(ctx context.Context) erro
 		if !apierrors.IsNotFound(err) {
 			c.recorder.Event(c.parentController, event.Warning("Failed to get the Deployment", err))
 		}
-		return err
-	}
-	return nil
-}
-
-// add the parent controller to the owner of the deployment, unpause it and initialize the size
-// before kicking start the update and start from every pod in the old version
-func (c *DeploymentRolloutController) claimDeployment(ctx context.Context, deploy *apps.Deployment, initSize *int32) error {
-	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
-	if controller := metav1.GetControllerOf(deploy); controller == nil {
-		ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
-		deploy.SetOwnerReferences(append(deploy.GetOwnerReferences(), *ref))
-	}
-	deploy.Spec.Paused = false
-	if initSize != nil {
-		deploy.Spec.Replicas = initSize
-	}
-	// patch the Deployment
-	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
-		c.recorder.Event(c.parentController, event.Warning("Failed to the start the Deployment update", err))
 		return err
 	}
 	return nil
