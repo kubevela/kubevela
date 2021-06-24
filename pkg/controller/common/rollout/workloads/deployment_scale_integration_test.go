@@ -51,28 +51,30 @@ var _ = Describe("deployment controller", func() {
 		appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
 		namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
 		s = DeploymentScaleController{
-			workloadController: workloadController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					TargetSize: pointer.Int32Ptr(10),
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
-						},
-						{
-							Replicas: intstr.FromString("20%"),
-						},
-						{
-							Replicas: intstr.FromString("80%"),
+			deploymentController: deploymentController{
+				workloadController: workloadController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						TargetSize: pointer.Int32Ptr(10),
+						RolloutBatches: []v1alpha1.RolloutBatch{
+							{
+								Replicas: intstr.FromInt(1),
+							},
+							{
+								Replicas: intstr.FromString("20%"),
+							},
+							{
+								Replicas: intstr.FromString("80%"),
+							},
 						},
 					},
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
 				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
+				targetNamespacedName: namespacedName,
 			},
-			targetNamespacedName: namespacedName,
 		}
 
 		deployment = appsv1.Deployment{
@@ -119,14 +121,16 @@ var _ = Describe("deployment controller", func() {
 			workloadNamespacedName := client.ObjectKey{Name: name, Namespace: namespace}
 			got := NewDeploymentScaleController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus, workloadNamespacedName)
 			controller := &DeploymentScaleController{
-				workloadController: workloadController{
-					client:           k8sClient,
-					recorder:         recorder,
-					parentController: parentController,
-					rolloutSpec:      rolloutSpec,
-					rolloutStatus:    rolloutStatus,
+				deploymentController: deploymentController{
+					workloadController: workloadController{
+						client:           k8sClient,
+						recorder:         recorder,
+						parentController: parentController,
+						rolloutSpec:      rolloutSpec,
+						rolloutStatus:    rolloutStatus,
+					},
+					targetNamespacedName: workloadNamespacedName,
 				},
-				targetNamespacedName: workloadNamespacedName,
 			}
 			Expect(got).Should(Equal(controller))
 		})

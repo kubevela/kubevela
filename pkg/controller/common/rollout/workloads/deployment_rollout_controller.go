@@ -39,8 +39,7 @@ import (
 
 // DeploymentRolloutController is responsible for handling rollout deployment type of workloads
 type DeploymentRolloutController struct {
-	workloadController
-	targetNamespacedName types.NamespacedName
+	deploymentController
 	sourceNamespacedName types.NamespacedName
 	sourceDeploy         apps.Deployment
 	targetDeploy         apps.Deployment
@@ -51,14 +50,16 @@ func NewDeploymentRolloutController(client client.Client, recorder event.Recorde
 	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, sourceNamespacedName,
 	targetNamespacedName types.NamespacedName) *DeploymentRolloutController {
 	return &DeploymentRolloutController{
-		workloadController: workloadController{
-			client:           client,
-			recorder:         recorder,
-			parentController: parentController,
-			rolloutSpec:      rolloutSpec,
-			rolloutStatus:    rolloutStatus,
+		deploymentController: deploymentController{
+			workloadController: workloadController{
+				client:           client,
+				recorder:         recorder,
+				parentController: parentController,
+				rolloutSpec:      rolloutSpec,
+				rolloutStatus:    rolloutStatus,
+			},
+			targetNamespacedName: targetNamespacedName,
 		},
-		targetNamespacedName: targetNamespacedName,
 		sourceNamespacedName: sourceNamespacedName,
 	}
 }
