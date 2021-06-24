@@ -87,7 +87,6 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		},
 	}
 	cmd.SetOut(ioStream.Out)
-
 	cmd.Flags().StringP(appFilePath, "f", "", "specify file path for appfile")
 	return cmd
 }
