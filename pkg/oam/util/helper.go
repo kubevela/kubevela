@@ -476,6 +476,14 @@ func PassLabel(parentObj, childObj labelAnnotationObject) {
 // PassLabelAndAnnotation passes through labels and annotation objectMeta from the parent to the child object
 // when annotation or labels has conflicts, the parentObj will override the childObj.
 func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
+	// pass app-config labels
+	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentObj.GetLabels()))
+	// pass app-config annotation
+	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentObj.GetAnnotations()))
+}
+
+// PassFilterLabelAndAnnotation filter some label and annotations from parentObj
+func PassFilterLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
 	in := func(a string, list []string) bool {
 		for _, b := range list {
 			if b == a {
@@ -493,21 +501,19 @@ func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
 		}
 		return after
 	}
-
 	parentLabels := parentObj.GetLabels()
 	parentAnnotations := parentObj.GetAnnotations()
 	notPassAnnoKeys, ok := parentAnnotations[oam.AnnotationFilterAnnotationKeys]
 	if ok {
+		delete(parentAnnotations, oam.AnnotationFilterAnnotationKeys)
 		parentAnnotations = filter(parentAnnotations, strings.Split(notPassAnnoKeys, ","))
 	}
 	notPassLabelKeys, ok := parentAnnotations[oam.AnnotationFilterLabelKeys]
 	if ok {
+		delete(parentAnnotations, oam.AnnotationFilterLabelKeys)
 		parentLabels = filter(parentLabels, strings.Split(notPassLabelKeys, ","))
 	}
-
-	// pass app-config labels
 	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentLabels))
-	// pass app-config annotation
 	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentAnnotations))
 }
 
