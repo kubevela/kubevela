@@ -133,20 +133,20 @@ var (
 	AppDeploymentKindVersionKind = SchemeGroupVersion.WithKind(AppDeploymentKind)
 )
 
-// Initializer type metadata.
-var (
-	InitializerKind            = reflect.TypeOf(Initializer{}).Name()
-	InitializerGroupKind       = schema.GroupKind{Group: Group, Kind: InitializerKind}.String()
-	InitializerKindAPIVersion  = InitializerKind + "." + SchemeGroupVersion.String()
-	InitializerKindVersionKind = SchemeGroupVersion.WithKind(InitializerKind)
-)
-
 // Cluster type metadata.
 var (
 	ClusterKind            = reflect.TypeOf(Cluster{}).Name()
 	ClusterGroupKind       = schema.GroupKind{Group: Group, Kind: ClusterKind}.String()
 	ClusterKindAPIVersion  = ApplicationKind + "." + SchemeGroupVersion.String()
 	ClusterKindVersionKind = SchemeGroupVersion.WithKind(ClusterKind)
+)
+
+// Initializer type metadata.
+var (
+	InitializerKind            = reflect.TypeOf(Initializer{}).Name()
+	InitializerGroupKind       = schema.GroupKind{Group: Group, Kind: InitializerKind}.String()
+	InitializerKindAPIVersion  = InitializerKind + "." + SchemeGroupVersion.String()
+	InitializerKindVersionKind = SchemeGroupVersion.WithKind(InitializerKind)
 )
 
 func init() {

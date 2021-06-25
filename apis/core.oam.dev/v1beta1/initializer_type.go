@@ -18,14 +18,13 @@ package v1beta1
 
 import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // DependsOn refer to an object which Initializer depends on
 type DependsOn struct {
-	Ref common.ObjectReference `json:"ref"`
+	Ref corev1.ObjectReference `json:"ref"`
 }
 
 // A InitializerSpec defines the desired state of a Initializer.

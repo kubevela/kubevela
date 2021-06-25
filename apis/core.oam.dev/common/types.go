@@ -133,13 +133,6 @@ type DefinitionReference struct {
 	Version string `json:"version,omitempty"`
 }
 
-// ObjectReference refer to a k8s resource
-type ObjectReference struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Name       string `json:"name"`
-}
-
 // A ChildResourceKind defines a child Kubernetes resource kind with a selector
 type ChildResourceKind struct {
 	// APIVersion of the child resource

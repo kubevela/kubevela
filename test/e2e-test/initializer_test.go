@@ -120,7 +120,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				return fmt.Errorf("environment was not successfully initialized")
 			}
 			return nil
-		}, 30*time.Second, 3*time.Second).Should(Succeed())
+		}, 30*time.Second, 5*time.Second).Should(Succeed())
 	})
 
 	It("Test apply initializer depends on other initializer", func() {
@@ -158,24 +158,6 @@ var _ = Describe("Initializer Normal tests", func() {
 			return k8sClient.Create(ctx, init)
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		By("Verify the application is created successfully")
-		app := new(v1beta1.Application)
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: init.Name, Namespace: namespace}, app)
-		}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		By("Verify the initializer env2 successfully initialized the environment")
-		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: init.Name, Namespace: namespace}, init)
-			if err != nil {
-				return err
-			}
-			if init.Status.ObservedGeneration < init.Generation {
-				return fmt.Errorf("environment was not successfully initialized")
-			}
-			return nil
-		}, 30*time.Second, 3*time.Second).Should(Succeed())
-
 		compName2 := "env3-comp"
 		init2 := &v1beta1.Initializer{
 			TypeMeta: metav1.TypeMeta{
@@ -201,6 +183,15 @@ var _ = Describe("Initializer Normal tests", func() {
 						},
 					},
 				},
+				DependsOn: []v1beta1.DependsOn{
+					{
+						Ref: corev1.ObjectReference{
+							APIVersion: "core.oam.dev/v1beta1",
+							Kind:       "Initializer",
+							Name:       "env2",
+						},
+					},
+				},
 			},
 		}
 
@@ -213,7 +204,7 @@ var _ = Describe("Initializer Normal tests", func() {
 		app2 := new(v1beta1.Application)
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: init2.Name, Namespace: namespace}, app2)
-		}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
+		}, 60*time.Second, 2*time.Millisecond).Should(Succeed())
 
 		By("Verify the initializer env3 successfully initialized the environment")
 		Eventually(func() error {
@@ -225,6 +216,6 @@ var _ = Describe("Initializer Normal tests", func() {
 				return fmt.Errorf("environment was not successfully initialized")
 			}
 			return nil
-		}, 30*time.Second, 3*time.Second).Should(Succeed())
+		}, 30*time.Second, 5*time.Second).Should(Succeed())
 	})
 })
