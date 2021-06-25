@@ -100,9 +100,9 @@ const (
 	// AnnotationKubeVelaVersion is used to record current KubeVela version
 	AnnotationKubeVelaVersion = "oam.dev/kubevela-version"
 
-	// AnnotationFilterAnnotationKeys is used to filter annotations passed to workload and trait
+	// AnnotationFilterAnnotationKeys is used to filter annotations passed to workload and trait, split by comma
 	AnnotationFilterAnnotationKeys = "filter.oam.dev/annotation-keys"
 
-	// AnnotationFilterLabelKeys is used to filter labels passed to workload and trait
+	// AnnotationFilterLabelKeys is used to filter labels passed to workload and trait, split by comma
 	AnnotationFilterLabelKeys = "filter.oam.dev/label-keys"
 )

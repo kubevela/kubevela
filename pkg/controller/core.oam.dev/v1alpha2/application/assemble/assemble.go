@@ -239,22 +239,11 @@ func (am *AppManifests) validate() error {
 
 // workload and trait in the same component both have these labels
 func (am *AppManifests) generateAndFilterCommonLabels(compName, compRevisionName string) map[string]string {
-	in := func(a string, list []string) bool {
-		for _, b := range list {
-			if b == a {
-				return true
-			}
+	filter := func(labels map[string]string, notAllowedKey []string) {
+		for _, _l := range notAllowedKey {
+			l := strings.Trim(_l, " ")
+			delete(labels, l)
 		}
-		return false
-	}
-	filter := func(before map[string]string, notAllowedKey []string) map[string]string {
-		after := make(map[string]string)
-		for key, value := range before {
-			if !in(key, notAllowedKey) {
-				after[key] = value
-			}
-		}
-		return after
 	}
 	Labels := map[string]string{
 		oam.LabelAppName:              am.appName,
@@ -267,9 +256,8 @@ func (am *AppManifests) generateAndFilterCommonLabels(compName, compRevisionName
 	finalLabels := util.MergeMapOverrideWithDst(Labels, am.appLabels)
 	filterLabels, ok := am.appAnnotations[oam.AnnotationFilterLabelKeys]
 	if ok {
-		finalLabels = filter(finalLabels, strings.Split(filterLabels, ","))
+		filter(finalLabels, strings.Split(filterLabels, ","))
 	}
-
 	return finalLabels
 }
 
