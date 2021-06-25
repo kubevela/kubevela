@@ -146,7 +146,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
 			app.Status.SetConditions(errorCondition("Render", err))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-			return handler.handleErr(err)
+			//return handler.handleErr(err)
 		}
 		if err := handler.handleComponentsRevision(ctx, comps); err != nil {
 			klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))

@@ -203,35 +203,40 @@ func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns strin
 // GenerateComponentManifests converts an appFile to a slice of ComponentManifest
 func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, error) {
 	compManifests := make([]*types.ComponentManifest, len(af.Workloads))
+	var retErr error
 	for i, wl := range af.Workloads {
 		switch wl.CapabilityCategory {
 		case types.HelmCategory:
 			cm, err := generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				compManifests[i] = cm
+				continue
 			}
-			compManifests[i] = cm
+			retErr = err
 		case types.KubeCategory:
 			cm, err := generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				compManifests[i] = cm
+				continue
 			}
-			compManifests[i] = cm
+			retErr = err
 		case types.TerraformCategory:
 			cm, err := generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				compManifests[i] = cm
+				continue
 			}
-			compManifests[i] = cm
+			retErr = err
 		default:
 			cm, err := generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				compManifests[i] = cm
+				continue
 			}
-			compManifests[i] = cm
+			retErr = err
 		}
 	}
-	return compManifests, nil
+	return compManifests, retErr
 }
 
 // PrepareProcessContext prepares a DSL process Context
