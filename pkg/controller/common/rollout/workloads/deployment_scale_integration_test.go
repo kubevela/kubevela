@@ -136,7 +136,7 @@ var _ = Describe("deployment controller", func() {
 		})
 	})
 
-	Context("VerifySpec", func() {
+	Context("TestVerifySpec", func() {
 		It("rollout need a target size", func() {
 			s.rolloutSpec.TargetSize = nil
 			ligit, err := s.VerifySpec(ctx)

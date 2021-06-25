@@ -105,7 +105,7 @@ func (c *deploymentController) releaseDeployment(ctx context.Context, deploy *ap
 
 	// patch the Deployment
 	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
-		c.recorder.Event(c.parentController, event.Warning("Failed to the finalize the Deployment", err))
+		c.recorder.Event(c.parentController, event.Warning("Failed to the release the Deployment", err))
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, err
 	}
