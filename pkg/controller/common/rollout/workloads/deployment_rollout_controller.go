@@ -336,7 +336,10 @@ func (c *DeploymentRolloutController) verifyRolloutBatchReplicaValue(totalReplic
 
 // the target deploy size for the current batch
 func (c *DeploymentRolloutController) calculateCurrentTarget(totalSize int32) int32 {
-	return int32(calculateNewBatchTarget(c.rolloutSpec, 0, int(totalSize), int(c.rolloutStatus.CurrentBatch)))
+	targetSize := int32(calculateNewBatchTarget(c.rolloutSpec, 0, int(totalSize), int(c.rolloutStatus.CurrentBatch)))
+	klog.InfoS("Calculated the number of pods in the target deployment after current batch",
+		"current batch", c.rolloutStatus.CurrentBatch, "target deploy size", targetSize)
+	return targetSize
 }
 
 // the source deploy size for the current batch
