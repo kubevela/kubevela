@@ -117,6 +117,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app: app,
 	}
 
+	retry := ctrl.Result{}
+
 	// parse application to appfile
 	app.Status.Phase = common.ApplicationRendering
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
@@ -146,6 +148,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
 			app.Status.SetConditions(errorCondition("Render", err))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+			retry.RequeueAfter = 5 * time.Second
 			// return handler.handleErr(err)
 		}
 		if err := handler.handleComponentsRevision(ctx, comps); err != nil {
@@ -263,7 +266,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	klog.Info("Successfully garbage collect", "application", klog.KObj(app))
 
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
-	return ctrl.Result{}, r.UpdateStatus(ctx, app)
+	return retry, r.UpdateStatus(ctx, app)
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
