@@ -17,6 +17,8 @@ limitations under the License.
 package assemble
 
 import (
+	"strings"
+
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
@@ -163,7 +165,7 @@ func (am *AppManifests) assemble() {
 	for _, comp := range am.componentManifests {
 		compRevisionName := comp.RevisionName
 		compName := comp.Name
-		commonLabels := am.generateCommonLabels(compName, compRevisionName)
+		commonLabels := am.generateAndFilterCommonLabels(compName, compRevisionName)
 		klog.InfoS("Assemble manifests for component", "name", compName)
 		wl, err := am.assembleWorkload(compName, comp.StandardWorkload, commonLabels, comp.PackagedWorkloadResources)
 		if err != nil {
@@ -236,7 +238,24 @@ func (am *AppManifests) validate() error {
 }
 
 // workload and trait in the same component both have these labels
-func (am *AppManifests) generateCommonLabels(compName, compRevisionName string) map[string]string {
+func (am *AppManifests) generateAndFilterCommonLabels(compName, compRevisionName string) map[string]string {
+	in := func(a string, list []string) bool {
+		for _, b := range list {
+			if b == a {
+				return true
+			}
+		}
+		return false
+	}
+	filter := func(before map[string]string, notAllowedKey []string) map[string]string {
+		after := make(map[string]string)
+		for key, value := range before {
+			if !in(key, notAllowedKey) {
+				after[key] = value
+			}
+		}
+		return after
+	}
 	Labels := map[string]string{
 		oam.LabelAppName:              am.appName,
 		oam.LabelAppRevision:          am.AppRevision.Name,
@@ -244,20 +263,39 @@ func (am *AppManifests) generateCommonLabels(compName, compRevisionName string) 
 		oam.LabelAppComponent:         compName,
 		oam.LabelAppComponentRevision: compRevisionName,
 	}
-	// pass application's all labels to workload/trait
-	return util.MergeMapOverrideWithDst(Labels, am.appLabels)
+	// merge application's all labels
+	finalLabels := util.MergeMapOverrideWithDst(Labels, am.appLabels)
+	filterLabels, ok := am.appAnnotations[oam.AnnotationFilterLabelKeys]
+	if ok {
+		finalLabels = filter(finalLabels, strings.Split(filterLabels, ","))
+	}
+
+	return finalLabels
+}
+
+// DefaultFilterAnnots are annotations won't pass to workload or trait
+var DefaultFilterAnnots = []string{
+	oam.AnnotationAppRollout,
+	oam.AnnotationRollingComponent,
+	oam.AnnotationInplaceUpgrade,
+	oam.AnnotationFilterLabelKeys,
+	oam.AnnotationFilterAnnotationKeys,
 }
 
 // workload and trait both have these annotations
-func (am *AppManifests) setAnnotations(obj *unstructured.Unstructured) {
+func (am *AppManifests) filterAndSetAnnotations(obj *unstructured.Unstructured) {
+	var allFilterAnnotation []string
+	allFilterAnnotation = append(allFilterAnnotation, DefaultFilterAnnots...)
+
+	passedFilterAnnotation, ok := am.appAnnotations[oam.AnnotationFilterAnnotationKeys]
+	if ok {
+		allFilterAnnotation = append(allFilterAnnotation, strings.Split(passedFilterAnnotation, ",")...)
+	}
+
 	// pass application's all annotations
 	util.AddAnnotations(obj, am.appAnnotations)
 	// remove useless annotations for workload/trait
-	util.RemoveAnnotations(obj, []string{
-		oam.AnnotationAppRollout,
-		oam.AnnotationRollingComponent,
-		oam.AnnotationInplaceUpgrade,
-	})
+	util.RemoveAnnotations(obj, allFilterAnnotation)
 }
 
 func (am *AppManifests) setNamespace(obj *unstructured.Unstructured) {
@@ -274,7 +312,7 @@ func (am *AppManifests) assembleWorkload(compName string, wl *unstructured.Unstr
 	// override the name set in render phase if exist
 	wl.SetName(compName)
 	am.setWorkloadLabels(wl, labels)
-	am.setAnnotations(wl)
+	am.filterAndSetAnnotations(wl)
 	am.setNamespace(wl)
 
 	workloadType := wl.GetLabels()[oam.WorkloadTypeLabel]
@@ -319,7 +357,7 @@ func (am *AppManifests) assembleTrait(trait *unstructured.Unstructured, compName
 		trait.SetName(traitName)
 	}
 	am.setTraitLabels(trait, labels)
-	am.setAnnotations(trait)
+	am.filterAndSetAnnotations(trait)
 	am.setNamespace(trait)
 	klog.InfoS("Successfully assemble a trait", "trait", klog.KObj(trait), "APIVersion", trait.GetAPIVersion(), "Kind", trait.GetKind())
 	return trait

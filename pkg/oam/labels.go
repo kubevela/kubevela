@@ -104,5 +104,5 @@ const (
 	AnnotationFilterAnnotationKeys = "filter.oam.dev/annotation-keys"
 
 	// AnnotationFilterLabelKeys is used to filter labels passed to workload and trait
-	AnnotationFilterLabelKeys = "filter.oam.dev/annotation-keys"
+	AnnotationFilterLabelKeys = "filter.oam.dev/label-keys"
 )

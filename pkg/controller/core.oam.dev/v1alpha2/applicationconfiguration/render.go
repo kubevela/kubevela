@@ -194,7 +194,7 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 		inplaceUpgrade = acAnnotations[oam.AnnotationInplaceUpgrade]
 	}
 	// pass through labels and annotation from app-config to workload
-	util.PassFilterLabelAndAnnotation(ac, w)
+	util.PassLabelAndAnnotation(ac, w)
 	// don't pass the following annotation as those are for appConfig only
 	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
 	ref := getOwnerFromAC(ac)
@@ -216,7 +216,7 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 		util.AddAnnotations(t, compInfoAnnotations)
 
 		// pass through labels and annotation from app-config to trait
-		util.PassFilterLabelAndAnnotation(ac, t)
+		util.PassLabelAndAnnotation(ac, t)
 		util.RemoveAnnotations(t, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
 		traits = append(traits, &Trait{Object: *t, Definition: *traitDef})
 		traitDefs = append(traitDefs, *traitDef)

@@ -482,41 +482,6 @@ func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
 	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentObj.GetAnnotations()))
 }
 
-// PassFilterLabelAndAnnotation filter some label and annotations from parentObj
-func PassFilterLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
-	in := func(a string, list []string) bool {
-		for _, b := range list {
-			if b == a {
-				return true
-			}
-		}
-		return false
-	}
-	filter := func(before map[string]string, notAllowedKey []string) map[string]string {
-		after := make(map[string]string, 0)
-		for key, value := range before {
-			if !in(key, notAllowedKey) {
-				after[key] = value
-			}
-		}
-		return after
-	}
-	parentLabels := parentObj.GetLabels()
-	parentAnnotations := parentObj.GetAnnotations()
-	notPassAnnoKeys, ok := parentAnnotations[oam.AnnotationFilterAnnotationKeys]
-	if ok {
-		delete(parentAnnotations, oam.AnnotationFilterAnnotationKeys)
-		parentAnnotations = filter(parentAnnotations, strings.Split(notPassAnnoKeys, ","))
-	}
-	notPassLabelKeys, ok := parentAnnotations[oam.AnnotationFilterLabelKeys]
-	if ok {
-		delete(parentAnnotations, oam.AnnotationFilterLabelKeys)
-		parentLabels = filter(parentLabels, strings.Split(notPassLabelKeys, ","))
-	}
-	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentLabels))
-	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentAnnotations))
-}
-
 // RemoveLabels removes keys that contains in the removekeys slice from the label
 func RemoveLabels(o labelAnnotationObject, removeKeys []string) {
 	exist := o.GetLabels()
