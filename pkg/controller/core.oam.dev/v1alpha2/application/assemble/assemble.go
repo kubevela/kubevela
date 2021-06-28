@@ -240,9 +240,8 @@ func (am *AppManifests) validate() error {
 // workload and trait in the same component both have these labels
 func (am *AppManifests) generateAndFilterCommonLabels(compName, compRevisionName string) map[string]string {
 	filter := func(labels map[string]string, notAllowedKey []string) {
-		for _, _l := range notAllowedKey {
-			l := strings.Trim(_l, " ")
-			delete(labels, l)
+		for _, l := range notAllowedKey {
+			delete(labels, strings.TrimSpace(l))
 		}
 	}
 	Labels := map[string]string{
