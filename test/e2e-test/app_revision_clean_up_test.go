@@ -180,7 +180,10 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		app := getApp(appName, namespace, "normal-worker")
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationAppRollout, "true")
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationRollingComponent, "comp1")
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			err := k8sClient.Create(ctx, app)
+			return err
+		}, 15*time.Second, 300*time.Millisecond).Should(BeNil())
 		checkApp := new(v1beta1.Application)
 		for i := 0; i < appRevisionLimit; i++ {
 			Eventually(func() error {

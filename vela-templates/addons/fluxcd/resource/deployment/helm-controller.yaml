@@ -2,9 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
+    app.kubernetes.io/instance: flux-system
     control-plane: controller
   name: helm-controller
-  namespace: vela-system
+  namespace: flux-system
 spec:
   replicas: 1
   selector:
@@ -60,8 +61,8 @@ spec:
           volumeMounts:
             - mountPath: /tmp
               name: temp
-      serviceAccountName: helm-controller-serviceaccount
+      serviceAccountName: sa-helm-controller
       terminationGracePeriodSeconds: 600
       volumes:
-        - emptyDir: {}
+        - emptyDir: { }
           name: temp

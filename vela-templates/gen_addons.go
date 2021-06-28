@@ -43,6 +43,9 @@ const (
 
 	// DescAnnotation records the description of addon
 	DescAnnotation = "addons.oam.dev/description"
+
+	// MarkLabel is annotation key marks configMap as an addon
+	MarkLabel = "addons.oam.dev/type"
 )
 
 type velaFile struct {
@@ -166,6 +169,11 @@ func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
 	return init, err
 }
 
+func setConfigMapLabels(addonInfo *AddonInfo) map[string]string {
+	return map[string]string{
+		MarkLabel: addonInfo.Name,
+	}
+}
 func setConfigMapAnnotations(addonInfo *AddonInfo) map[string]string {
 	return map[string]string{
 		DescAnnotation: addonInfo.Description,
@@ -183,6 +191,7 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	configMap.SetName(addonInfo.Name)
 	configMap.SetNamespace(addonInfo.Namespace)
 	configMap.SetAnnotations(setConfigMapAnnotations(addonInfo))
+	configMap.SetLabels(setConfigMapLabels(addonInfo))
 
 	data := make(map[string]string, 1)
 	initContent, err := yaml.Marshal(initializer)
@@ -195,7 +204,7 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	if err != nil {
 		return err
 	}
-	clearStr := "\n.*?creationTimestamp:.*?null"
+	clearStr := "(\n.*?metadata:.*?)?\n.*?creationTimestamp:.*?null"
 	var re = regexp.MustCompile(clearStr)
 	raw := re.ReplaceAllString(string(content), "")
 

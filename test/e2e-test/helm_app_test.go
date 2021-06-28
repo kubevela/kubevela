@@ -315,7 +315,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 240*time.Second, 5*time.Second).Should(Succeed())
 	})
 
-	It("Test deploy an application containing helm module and the componet refer to autodetect type worklaod", func() {
+	It("Test deploy an application containing helm module and the componet refer to autodetect type workload", func() {
 		cd := v1beta1.ComponentDefinition{}
 		cd.SetName("podinfo")
 		cd.SetNamespace(namespace)

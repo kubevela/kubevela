@@ -54,7 +54,7 @@ var (
 	}
 )
 
-// TODO: chagne this into a mock UT to avoid remote call.
+// TODO: change this into a mock UT to avoid remote call.
 
 var _ = ginkgo.Describe("Capability", func() {
 	ginkgo.Context("capability center", func() {
