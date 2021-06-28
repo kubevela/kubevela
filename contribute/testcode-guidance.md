@@ -66,7 +66,7 @@ However, integration/e2e test is usually split into subsystem boundaries, whose 
 Combined with the characteristics of all three, the best way to balance is to comply with the pyramid model. The chassis is unittest, the middle is integration test, and the top layer is e2e.
 ​
 
-
+```
              \                        
             / \                       
            /   \                      
@@ -81,6 +81,7 @@ Combined with the characteristics of all three, the best way to balance is to co
   /      unit-test      \             
  /                       \            
 ---------------------------           
+```
 
 KubeVela would like to follow the 70/20/10 principle. that is, 70% unittest,20% integration test, and 10% e2e test. Each module has some differences. However, the higher the upper layer, the larger the test coverage, but the smaller the test case set. This pyramid model remains unchanged. The following situations need to be avoided:
 ​
