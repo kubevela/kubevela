@@ -97,10 +97,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		Name:      req.Name,
 		Namespace: req.Namespace,
 	}, app); err != nil {
-		if kerrors.IsNotFound(err) {
-			err = nil
-		}
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	if len(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]) == 0 {
