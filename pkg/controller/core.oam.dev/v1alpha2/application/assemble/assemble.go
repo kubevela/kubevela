@@ -33,6 +33,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
+// DefaultFilterAnnots are annotations won't pass to workload or trait
+var DefaultFilterAnnots = []string{
+	oam.AnnotationAppRollout,
+	oam.AnnotationRollingComponent,
+	oam.AnnotationInplaceUpgrade,
+	oam.AnnotationFilterLabelKeys,
+	oam.AnnotationFilterAnnotationKeys,
+}
+
 // NewAppManifests create a AppManifests
 func NewAppManifests(appRevision *v1beta1.ApplicationRevision) *AppManifests {
 	return &AppManifests{AppRevision: appRevision}
@@ -258,15 +267,6 @@ func (am *AppManifests) generateAndFilterCommonLabels(compName, compRevisionName
 		filter(finalLabels, strings.Split(filterLabels, ","))
 	}
 	return finalLabels
-}
-
-// DefaultFilterAnnots are annotations won't pass to workload or trait
-var DefaultFilterAnnots = []string{
-	oam.AnnotationAppRollout,
-	oam.AnnotationRollingComponent,
-	oam.AnnotationInplaceUpgrade,
-	oam.AnnotationFilterLabelKeys,
-	oam.AnnotationFilterAnnotationKeys,
 }
 
 // workload and trait both have these annotations

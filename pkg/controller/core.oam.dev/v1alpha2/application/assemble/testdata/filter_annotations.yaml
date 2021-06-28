@@ -10,91 +10,11 @@ metadata:
     notPassAnno1: Annotation-filtered
     notPassAnno2: Annotation-filtered
     oam.dev/kubevela-version: UNKNOWN
-  creationTimestamp: "2021-06-28T02:40:18Z"
-  generation: 1
   labels:
     app.oam.dev/app-revision-hash: 1a087b23fa07c15f
     app.oam.dev/name: website
     canPassLabel: Label-passed
     notPassLabel: Label-filtered
-  managedFields:
-    - apiVersion: core.oam.dev/v1beta1
-      fieldsType: FieldsV1
-      fieldsV1:
-        f:metadata:
-          f:annotations:
-            .: {}
-            f:canPassAnno: {}
-            f:filter.oam.dev/annotation-keys: {}
-            f:filter.oam.dev/label-keys: {}
-            f:kubectl.kubernetes.io/last-applied-configuration: {}
-            f:notPassAnno1: {}
-            f:notPassAnno2: {}
-            f:oam.dev/kubevela-version: {}
-          f:labels:
-            .: {}
-            f:app.oam.dev/app-revision-hash: {}
-            f:app.oam.dev/name: {}
-            f:canPassLabel: {}
-            f:notPassLabel: {}
-          f:ownerReferences: {}
-        f:spec:
-          .: {}
-          f:application:
-            .: {}
-            f:apiVersion: {}
-            f:kind: {}
-            f:metadata: {}
-            f:spec:
-              .: {}
-              f:components: {}
-            f:status:
-              .: {}
-              f:rollout:
-                .: {}
-                f:batchRollingState: {}
-                f:currentBatch: {}
-                f:lastTargetAppRevision: {}
-                f:rollingState: {}
-                f:upgradedReadyReplicas: {}
-                f:upgradedReplicas: {}
-          f:applicationConfiguration:
-            .: {}
-            f:apiVersion: {}
-            f:kind: {}
-            f:metadata: {}
-            f:spec:
-              .: {}
-              f:components: {}
-            f:status:
-              .: {}
-              f:dependency: {}
-              f:observedGeneration: {}
-          f:componentDefinitions:
-            .: {}
-            f:webservice:
-              .: {}
-              f:apiVersion: {}
-              f:kind: {}
-              f:metadata: {}
-              f:spec:
-                .: {}
-                f:schematic:
-                  .: {}
-                  f:cue:
-                    .: {}
-                    f:template: {}
-                f:workload:
-                  .: {}
-                  f:definition:
-                    .: {}
-                    f:apiVersion: {}
-                    f:kind: {}
-              f:status: {}
-          f:components: {}
-      manager: kubevela
-      operation: Update
-      time: "2021-06-28T02:40:18Z"
   name: website-v1
   namespace: default
   ownerReferences:
@@ -103,8 +23,6 @@ metadata:
       kind: Application
       name: website
       uid: 5bd96a5d-f8fb-4d61-9345-0cca63869882
-  resourceVersion: "451595"
-  uid: 5b1a349e-c641-4814-b4a4-47af288edbee
 spec:
   application:
     apiVersion: core.oam.dev/v1beta1
@@ -183,7 +101,3 @@ spec:
                       name: frontend
                       ports:
                         - containerPort: 80
-        status:
-          observedGeneration: 0
-  resourcesConfigMap:
-    name: website-v1
