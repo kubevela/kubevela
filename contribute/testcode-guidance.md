@@ -66,8 +66,23 @@ However, integration/e2e test is usually split into subsystem boundaries, whose 
 Combined with the characteristics of all three, the best way to balance is to comply with the pyramid model. The chassis is unittest, the middle is integration test, and the top layer is e2e.
 ​
 
-![image.png](https://intranetproxy.alipay.com/skylark/lark/0/2021/png/4374/1624848015798-93fafed4-67fa-4a18-9b60-cc2c19faa8ac.png#clientId=uf7011f6a-71b3-4&from=paste&height=72&id=u495ee5ac&margin=%5Bobject%20Object%5D&name=image.png&originHeight=145&originWidth=168&originalType=binary&ratio=3&size=6148&status=done&style=none&taskId=u934be7c9-2aea-4df0-9242-d1e8e9fb028&width=82.99431610107422)
-big and expierienced companies like Google and alibaba, basically follows the 70/20/10 principle. that is, 70% unittest,20% integration test, and 10% e2e test. Each team has some differences. However, the higher the upper layer, the larger the test coverage, but the smaller the test case set. This pyramid model remains unchanged. The following situations need to be avoided:
+
+             \                        
+            / \                       
+           /   \                      
+          /     \                     
+         /  e2e  \                    
+        /----------                   
+       /           \                  
+      /intergeration\                 
+     /               \                
+    /-----------------\               
+   /                   \              
+  /      unit-test      \             
+ /                       \            
+---------------------------           
+
+KubeVela would like to follow the 70/20/10 principle. that is, 70% unittest,20% integration test, and 10% e2e test. Each module has some differences. However, the higher the upper layer, the larger the test coverage, but the smaller the test case set. This pyramid model remains unchanged. The following situations need to be avoided:
 ​
 
 
