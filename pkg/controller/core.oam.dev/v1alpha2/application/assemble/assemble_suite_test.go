@@ -151,4 +151,59 @@ var _ = Describe("Test Assemble Options", func() {
 		}
 		Expect(wlScope).Should(Equal(wantScopeRef))
 	})
+
+	It("test annotation and label filter", func() {
+		var (
+			compName = "frontend"
+		)
+		appRev := &v1beta1.ApplicationRevision{}
+		b, err := ioutil.ReadFile("./testdata/filter_annotations.yaml")
+		getKeys := func(m map[string]string) []string {
+			var keys []string
+			for k := range m {
+				keys = append(keys, k)
+			}
+			return keys
+		}
+		//this appRev is generated on below this app:
+		/*
+			metadata:
+			  name: website
+			  annotations:
+			    filter.oam.dev/annotation-keys: "notPassAnno1, notPassAnno2"
+			    filter.oam.dev/label-keys: "notPassLabel"
+			    notPassAnno1: "Annotation-filtered"
+			    notPassAnno2: "Annotation-filtered"
+			    canPassAnno: "Annotation-passed"
+			  labels:
+			    notPassLabel: "Label-filtered"
+			    canPassLabel: "Label-passed"
+			spec:
+			  components:
+			    - name: frontend
+			      type: webservice
+			      properties:
+			        image: nginx
+		*/
+
+		Expect(err).Should(BeNil())
+		err = yaml.Unmarshal(b, appRev)
+		Expect(err).Should(BeNil())
+
+		ao := NewAppManifests(appRev)
+		workloads, _, _, err := ao.GroupAssembledManifests()
+		Expect(err).Should(BeNil())
+
+		By("verify labels specified should be filtered")
+		wl := workloads[compName]
+		labelKeys := getKeys(wl.GetLabels())
+
+		Expect(labelKeys).ShouldNot(ContainElements("notPassLabel"))
+		Expect(labelKeys).Should(ContainElements("canPassLabel"))
+
+		By("verify annotations specified should be filtered")
+		annotationKeys := getKeys(wl.GetAnnotations())
+		Expect(annotationKeys).ShouldNot(ContainElements("notPassAnno1", "notPassAnno2"))
+		Expect(annotationKeys).Should(ContainElements("canPassAnno"))
+	})
 })
