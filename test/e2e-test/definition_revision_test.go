@@ -35,6 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -75,6 +76,31 @@ var _ = Describe("Test application of the specified definition version", func() 
 		labelV2DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "label-v2", Namespace: namespace}, labelV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		webserviceV1 := webServiceWithNoTemplate.DeepCopy()
+		webserviceV1.Spec.Schematic.CUE.Template = webServiceV1Template
+		webserviceV1.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, webserviceV1)).Should(Succeed())
+
+		webserviceV1DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "webservice-v1", Namespace: namespace}, webserviceV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		webserviceV2 := new(v1beta1.ComponentDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "webservice", Namespace: namespace}, webserviceV2)
+			if err != nil {
+				return err
+			}
+			webserviceV2.Spec.Schematic.CUE.Template = webServiceV2Template
+			return k8sClient.Update(ctx, webserviceV2)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		webserviceV2DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "webservice-v2", Namespace: namespace}, webserviceV2DefRev)
 		}, 15*time.Second, time.Second).Should(BeNil())
 	})
 
@@ -132,31 +158,6 @@ var _ = Describe("Test application of the specified definition version", func() 
 		workerV2DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "worker-v2", Namespace: namespace}, workerV2DefRev)
-		}, 15*time.Second, time.Second).Should(BeNil())
-
-		webserviceV1 := webServiceWithNoTemplate.DeepCopy()
-		webserviceV1.Spec.Schematic.CUE.Template = webServiceV1Template
-		webserviceV1.SetNamespace(namespace)
-		Expect(k8sClient.Create(ctx, webserviceV1)).Should(Succeed())
-
-		webserviceV1DefRev := new(v1beta1.DefinitionRevision)
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: "webservice-v1", Namespace: namespace}, webserviceV1DefRev)
-		}, 15*time.Second, time.Second).Should(BeNil())
-
-		webserviceV2 := new(v1beta1.ComponentDefinition)
-		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: "webservice", Namespace: namespace}, webserviceV2)
-			if err != nil {
-				return err
-			}
-			webserviceV2.Spec.Schematic.CUE.Template = webServiceV2Template
-			return k8sClient.Update(ctx, webserviceV2)
-		}, 15*time.Second, time.Second).Should(BeNil())
-
-		webserviceV2DefRev := new(v1beta1.DefinitionRevision)
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: "webservice-v2", Namespace: namespace}, webserviceV2DefRev)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
@@ -644,6 +645,91 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(HaveOccurred())
 	})
 
+	// refer to https://github.com/oam-dev/kubevela/discussions/1810#discussioncomment-914295
+	It("Test k8s resources created by application whether with correct label", func() {
+		var (
+			appName  = "test-resources-labels"
+			compName = "web"
+		)
+
+		exposeV1 := exposeWithNoTemplate.DeepCopy()
+		exposeV1.Spec.Schematic.CUE.Template = exposeV1Template
+		exposeV1.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, exposeV1)).Should(Succeed())
+
+		exposeV1DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "expose-v1", Namespace: namespace}, exposeV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		exposeV2 := new(v1beta1.TraitDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "expose", Namespace: namespace}, exposeV2)
+			if err != nil {
+				return err
+			}
+			exposeV2.Spec.Schematic.CUE.Template = exposeV2Templae
+			return k8sClient.Update(ctx, exposeV2)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		exposeV2DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "expose-v2", Namespace: namespace}, exposeV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		app := v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name: compName,
+						Type: "webservice@v1",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+							"port":  8000,
+						}),
+						Traits: []v1beta1.ApplicationTrait{
+							{
+								Type: "expose@v1",
+								Properties: util.Object2RawExtension(map[string]interface{}{
+									"port": []int{8000},
+								}),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		By("Create application")
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Verify the workload(deployment) is created successfully")
+		webServiceDeploy := &appsv1.Deployment{}
+		deployName := compName
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceDeploy)
+		}, 30*time.Second, 3*time.Second).Should(Succeed())
+
+		By("Verify the workload label generated by KubeVela")
+		workloadLabel := webServiceDeploy.GetLabels()[oam.WorkloadTypeLabel]
+		Expect(workloadLabel).Should(Equal("webservice-v1"))
+
+		By("Verify the trait(service) is created successfully")
+		exposeSVC := &corev1.Service{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: compName, Namespace: namespace}, exposeSVC)
+		}, 30*time.Second, 3*time.Second).Should(Succeed())
+
+		By("Verify the trait label generated by KubeVela")
+		traitLabel := exposeSVC.GetLabels()[oam.TraitTypeLabel]
+		Expect(traitLabel).Should(Equal("expose-v1"))
+	})
 })
 
 var webServiceWithNoTemplate = &v1beta1.ComponentDefinition{
@@ -713,6 +799,23 @@ var labelWithNoTemplate = &v1beta1.TraitDefinition{
 	},
 	ObjectMeta: metav1.ObjectMeta{
 		Name: "label",
+	},
+	Spec: v1beta1.TraitDefinitionSpec{
+		Schematic: &common.Schematic{
+			CUE: &common.CUE{
+				Template: "",
+			},
+		},
+	},
+}
+
+var exposeWithNoTemplate = &v1beta1.TraitDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "TraitDefinition",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "expose",
 	},
 	Spec: v1beta1.TraitDefinitionSpec{
 		Schematic: &common.Schematic{
@@ -966,4 +1069,75 @@ spec:
         command:
         - "sleep"
         - "1000"
+`
+
+var exposeV1Template = `
+outputs: service: {
+	apiVersion: "v1"
+	kind:       "Service"
+	metadata:
+		name: context.name
+	spec: {
+		selector:
+			"app.oam.dev/component": context.name
+		ports: [
+			for p in parameter.port {
+				port:       p
+				targetPort: p
+			},
+		]
+	}
+}
+parameter: {
+	// +usage=Specify the exposion ports
+	port: [...int]
+}
+`
+
+var exposeV2Templae = `
+outputs: service: {
+	apiVersion: "v1"
+	kind:       "Service"
+	metadata:
+		name: context.name
+	spec: {
+		selector: {
+			"app.oam.dev/component": context.name
+		}
+		ports: [
+			for k, v in parameter.http {
+				port:       v
+				targetPort: v
+			},
+		]
+	}
+}
+
+outputs: ingress: {
+	apiVersion: "networking.k8s.io/v1beta1"
+	kind:       "Ingress"
+	metadata:
+		name: context.name
+	spec: {
+		rules: [{
+			host: parameter.domain
+			http: {
+				paths: [
+					for k, v in parameter.http {
+						path: k
+						backend: {
+							serviceName: context.name
+							servicePort: v
+						}
+					},
+				]
+			}
+		}]
+	}
+}
+
+parameter: {
+	domain: string
+	http: [string]: int
+}
 `
