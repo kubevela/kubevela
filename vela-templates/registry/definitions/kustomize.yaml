@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kustomize
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "kustomize can fetching, building, updating and applying Kustomize manifests from git repo."
+spec:
+  workload:
+    type:
+  schematic:
+    cue:
+      template: |

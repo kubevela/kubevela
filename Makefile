@@ -235,7 +235,7 @@ manifests: installcue kustomize
 	go run hack/crd/update.go charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
-
+	go run ./vela-templates/gen_addons.go --addons-path=./vela-templates/addons --store-path=./charts/vela-core/templates/addons
 
 GOLANGCILINT_VERSION ?= v1.31.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
