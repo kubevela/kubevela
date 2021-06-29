@@ -259,7 +259,7 @@ func LoadCapabilityFromSyncedCenter(mapper discoverymapper.DiscoveryMapper, dir 
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue
 		}
-		tmp, err := ParseAndSyncCapability(mapper, data)
+		tmp, err := ParseCapability(mapper, data)
 		if err != nil {
 			fmt.Printf("get definition of %s err %v\n", f.Name(), err)
 			continue
