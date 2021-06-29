@@ -106,7 +106,7 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	appConfig.SetOwnerReferences(appContext.GetOwnerReferences())
 	// call into the old ac Reconciler and copy the status back
 	acReconciler := ac.NewReconciler(r.mgr, dm, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
-	reconResult := acReconciler.ACReconcile(ctx, appConfig)
+	reconResult, _ := acReconciler.ACReconcile(ctx, appConfig)
 	appContextPatch := client.MergeFrom(appContext.DeepCopy())
 	appContext.Status = appConfig.Status
 	// always update ac status and set the error

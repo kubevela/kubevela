@@ -81,7 +81,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if err != nil {
 			klog.ErrorS(err, "cannot refresh packageDiscover")
 			r.record.Event(&wfstepdefinition, event.Warning("cannot refresh packageDiscover", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &wfstepdefinition,
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &wfstepdefinition,
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
@@ -90,7 +90,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "cannot generate DefinitionRevision", "WorkflowStepDefinitionName", wfstepdefinition.Name)
 		r.record.Event(&wfstepdefinition, event.Warning("cannot generate DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &wfstepdefinition,
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &wfstepdefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, wfstepdefinition.Name, err)))
 	}
 
@@ -98,7 +98,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if err = r.createOrUpdateWFStepDefRevision(ctx, req.Namespace, &wfstepdefinition, defRev); err != nil {
 			klog.ErrorS(err, "cannot update DefinitionRevision")
 			r.record.Event(&(wfstepdefinition), event.Warning("cannot update DefinitionRevision", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &(wfstepdefinition),
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
 		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
@@ -113,7 +113,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err = r.createOrUpdateWFStepDefRevision(ctx, req.Namespace, &wfstepdefinition, defRev); err != nil {
 		klog.ErrorS(err, "cannot create DefinitionRevision")
 		r.record.Event(&(wfstepdefinition), event.Warning("cannot create DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(wfstepdefinition),
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
 	klog.InfoS("Successfully createOrUpdateWFStepDefRevision", "name", defRev.Name)
@@ -127,7 +127,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.UpdateStatus(ctx, &wfstepdefinition); err != nil {
 		klog.ErrorS(err, "cannot update WorkflowStepDefinition Status")
 		r.record.Event(&(wfstepdefinition), event.Warning("cannot update WorkflowStepDefinition Status", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(wfstepdefinition),
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfstepdefinition.Name, err)))
 	}
 

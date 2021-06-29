@@ -81,7 +81,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if err != nil {
 			klog.ErrorS(err, "cannot refresh packageDiscover")
 			r.record.Event(&policydefinition, event.Warning("cannot refresh packageDiscover", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &policydefinition,
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
@@ -91,14 +91,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "cannot generate DefinitionRevision", "PolicyDefinitionName", policydefinition.Name)
 		r.record.Event(&policydefinition, event.Warning("cannot generate DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &policydefinition,
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, policydefinition.Name, err)))
 	}
 	if !isNewRevision {
 		if err = r.createOrUpdatePolicyDefRevision(ctx, req.Namespace, &policydefinition, defRev); err != nil {
 			klog.ErrorS(err, "cannot update DefinitionRevision")
 			r.record.Event(&(policydefinition), event.Warning("cannot update DefinitionRevision", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &(policydefinition),
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
 		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
@@ -113,7 +113,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err = r.createOrUpdatePolicyDefRevision(ctx, req.Namespace, &policydefinition, defRev); err != nil {
 		klog.ErrorS(err, "cannot create DefinitionRevision")
 		r.record.Event(&(policydefinition), event.Warning("cannot create DefinitionRevision", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(policydefinition),
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
 	klog.InfoS("Successfully createOrUpdatePolicyDefRevision", "name", defRev.Name)
@@ -127,7 +127,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.UpdateStatus(ctx, &policydefinition); err != nil {
 		klog.ErrorS(err, "cannot update PolicyDefinition Status")
 		r.record.Event(&(policydefinition), event.Warning("cannot update PolicyDefinition Status", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(policydefinition),
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policydefinition.Name, err)))
 	}
 

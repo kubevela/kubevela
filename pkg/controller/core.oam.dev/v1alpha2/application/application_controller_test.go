@@ -273,7 +273,7 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: appwithNoTrait.Namespace,
 		}
 
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		events, err := recorder.GetEventsWithName(appwithNoTrait.Name)
 		Expect(err).Should(BeNil())
@@ -384,7 +384,7 @@ spec:
 		err = k8sClient.Create(ctx, &app)
 		Expect(err).Should(BeNil())
 
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("checking application")
 		var a v1beta1.Application
@@ -455,7 +455,7 @@ spec:
 		err = k8sClient.Create(ctx, businessApplication)
 		Expect(err).Should(BeNil())
 
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("checking application")
 		var app v1beta1.Application
@@ -485,7 +485,7 @@ spec:
 			Name:      appwithNoTrait.Name,
 			Namespace: appwithNoTrait.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created")
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -535,7 +535,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created")
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -582,7 +582,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -654,7 +654,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -740,7 +740,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -812,7 +812,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -883,7 +883,7 @@ spec:
 			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 		}
 		Expect(k8sClient.Update(ctx, curApp)).Should(BeNil())
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App updated successfully")
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -953,7 +953,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -1057,7 +1057,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 
@@ -1108,7 +1108,7 @@ spec:
 			Name:      rolloutApp.Name,
 			Namespace: rolloutApp.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check AppRevision created as expected")
 		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
@@ -1133,7 +1133,7 @@ spec:
 		Expect(comp.RevisionName).Should(Equal(compName + "-v1"))
 
 		By("Reconcile again to make sure we are not creating more resource trackers")
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Verify that no new AppRevision created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
@@ -1152,7 +1152,7 @@ spec:
 			"keep": "true",
 		})
 		Expect(k8sClient.Update(ctx, rolloutApp)).Should(BeNil())
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Verify that no new AppRevision created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -1294,7 +1294,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		checkApp := &v1beta1.Application{}
@@ -1357,7 +1357,7 @@ spec:
 			Name:      appRefertoWd.Name,
 			Namespace: appRefertoWd.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1406,7 +1406,7 @@ spec:
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1438,7 +1438,7 @@ spec:
 			Name:      appImportPkg.Name,
 			Namespace: appImportPkg.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1536,7 +1536,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1591,13 +1591,13 @@ spec:
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
-		res, _ := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		Expect(res.RequeueAfter).ShouldNot(BeEquivalentTo(0))
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check Application Created with the correct phase")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationHealthChecking))
+		Expect(curApp.GetCondition("HealthCheck").Message).Should(Equal("not healthy"))
 
 		By("Check One of the component created as expected")
 		comp1 := &v1.Deployment{}
@@ -1620,7 +1620,7 @@ spec:
 		sec.Namespace = appMix.Namespace
 		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
 
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check another component is existed")
 		comp2 = &v1.Deployment{}
@@ -1663,8 +1663,8 @@ spec:
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
-		res, _ := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		Expect(res.RequeueAfter).ShouldNot(BeEquivalentTo(0))
+		_, err := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(err).ShouldNot(BeNil())
 
 		By("Check Application Created with the correct phase")
 		curApp := &v1beta1.Application{}
@@ -1692,7 +1692,7 @@ spec:
 		sec.Namespace = appMix.Namespace
 		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
 
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check another component is existed")
 		comp2 = &v1.Deployment{}
@@ -1703,7 +1703,7 @@ spec:
 
 		By("Check PV created by application")
 		var pv corev1.PersistentVolume
-		err := k8sClient.Get(ctx, client.ObjectKey{Name: appMix.Spec.Components[1].Name, Namespace: appMix.Namespace}, &pv)
+		err = k8sClient.Get(ctx, client.ObjectKey{Name: appMix.Spec.Components[1].Name, Namespace: appMix.Namespace}, &pv)
 		Expect(err).Should(BeNil())
 
 		Expect(pv.Spec.CSI.VolumeAttributes["host"]).Should(Equal("test.com"))
@@ -1717,42 +1717,6 @@ func reconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) 
 	r.Reconcile(req)
 
 	return r.Reconcile(req)
-}
-
-func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
-	// 1st and 2nd time reconcile to add finalizer
-	Eventually(func() error {
-		result, err := r.Reconcile(req)
-		if err != nil {
-			By(fmt.Sprintf("reconcile err: %+v ", err))
-		} else if result.Requeue || result.RequeueAfter > 0 {
-			By("reconcile timeout as it still needs to requeue")
-			return fmt.Errorf("reconcile timeout as it still needs to requeue")
-		}
-		return err
-	}, 3*time.Second, time.Second).Should(BeNil())
-	Eventually(func() error {
-		result, err := r.Reconcile(req)
-		if err != nil {
-			By(fmt.Sprintf("reconcile err: %+v ", err))
-		} else if result.Requeue || result.RequeueAfter > 0 {
-			By("reconcile timeout as it still needs to requeue")
-			return fmt.Errorf("reconcile timeout as it still needs to requeue")
-		}
-		return err
-	}, 3*time.Second, time.Second).Should(BeNil())
-	// 3rd time reconcile to process main logic of app controller
-	Eventually(func() error {
-		result, err := r.Reconcile(req)
-		if err != nil {
-			By(fmt.Sprintf("reconcile err: %+v ", err))
-		} else if result.Requeue || result.RequeueAfter > 0 {
-			// retry if we need to requeue
-			By("reconcile timeout as it still needs to requeue")
-			return fmt.Errorf("reconcile timeout as it still needs to requeue")
-		}
-		return err
-	}, 5*time.Second, time.Second).Should(BeNil())
 }
 
 func reconcileOnce(r reconcile.Reconciler, req reconcile.Request) {

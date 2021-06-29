@@ -137,7 +137,7 @@ var _ = Describe("Test Application apply", func() {
 		Expect(err).Should(BeNil())
 
 		By("[TEST] get a application")
-		reconcileRetry(reconciler, reconcile.Request{NamespacedName: types.NamespacedName{Name: app.Name, Namespace: app.Namespace}})
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: types.NamespacedName{Name: app.Name, Namespace: app.Namespace}})
 		testapp := v1beta1.Application{}
 		err = k8sClient.Get(ctx, types.NamespacedName{Name: app.Name, Namespace: app.Namespace}, &testapp)
 		Expect(err).Should(BeNil())

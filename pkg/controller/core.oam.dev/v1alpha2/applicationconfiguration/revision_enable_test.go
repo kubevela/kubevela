@@ -1036,7 +1036,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 
 		By("Check new revision workload created successfully")
 		Eventually(func() error {
-			reconcileRetry(reconciler, req)
+			reconcileRetryAndExpectErr(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: specifiedNameV1}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
@@ -1044,15 +1044,9 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 		Expect(wr.Spec.Template.Spec.Containers[0].Image).Should(BeEquivalentTo("wordpress:v2"))
 
-		By("Check the new workload should only have 1 generation")
-		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
-
-		By("Check reconcile again")
-		reconcileRetry(reconciler, req)
-
 		By("Check appconfig condition should have error")
 		Eventually(func() string {
-			reconcileRetry(reconciler, req)
+			reconcileRetryAndExpectErr(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -1066,7 +1060,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 
 		By("Check the old workload still there")
 		Eventually(func() error {
-			reconcileRetry(reconciler, req)
+			reconcileRetryAndExpectErr(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: specifiedNameBase}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())

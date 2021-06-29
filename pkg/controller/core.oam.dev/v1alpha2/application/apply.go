@@ -18,15 +18,12 @@ package application
 
 import (
 	"context"
-	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/klog/v2"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -53,19 +50,6 @@ type appHandler struct {
 	latestAppRev   *v1beta1.ApplicationRevision
 	isNewRevision  bool
 	currentRevHash string
-}
-
-func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
-	nerr := h.r.UpdateStatus(context.Background(), h.app)
-	if err == nil && nerr == nil {
-		return ctrl.Result{}, nil
-	}
-	if nerr != nil {
-		klog.InfoS("Failed to update application status", "err", nerr)
-	}
-	return ctrl.Result{
-		RequeueAfter: time.Second * 10,
-	}, nil
 }
 
 func (h *appHandler) applyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
