@@ -226,15 +226,20 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 	if err != nil {
 		return nil, err
 	}
+
+	traitName, err := util.ConvertDefinitionRevName(name)
+	if err != nil {
+		traitName = name
+	}
 	return &Trait{
-		Name:               name,
+		Name:               traitName,
 		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
 		Template:           templ.TemplateStr,
 		HealthCheckPolicy:  templ.Health,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
-		engine:             definition.NewTraitAbstractEngine(name, p.pd),
+		engine:             definition.NewTraitAbstractEngine(traitName, p.pd),
 	}, nil
 }
 
