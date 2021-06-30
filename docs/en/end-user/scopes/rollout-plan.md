@@ -62,10 +62,5 @@ spec:
 User can check the status of the application and see the rollout completes, and the
 application's `status.rollout.rollingState` becomes `rolloutSucceed`.
 
-## Advanced Usage
-
-If you want to control and rollout the specific application revisions, or do revert, please refer to [Advanced Usage](advanced-rollout) to learn more details.
-
-
 
 
