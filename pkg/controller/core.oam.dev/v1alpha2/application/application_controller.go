@@ -18,52 +18,70 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
+	ac "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow"
+	"github.com/oam-dev/kubevela/version"
 )
 
-// RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
 const (
-	RolloutReconcileWaitTime      = time.Second * 3
-	resourceTrackerFinalizer      = "resourceTracker.finalizer.core.oam.dev"
 	errUpdateApplicationStatus    = "cannot update application status"
 	errUpdateApplicationFinalizer = "cannot update application finalizer"
+)
+
+const (
+	// WorkflowReconcileWaitTime is the time to wait before reconcile again workflow running
+	WorkflowReconcileWaitTime      = time.Second * 3
+	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
+	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
+	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
+	// onlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
+	// out of the domain of app controller, e.g., AppRollout controller.
+	onlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
 )
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
 	client.Client
-	dm               discoverymapper.DiscoveryMapper
-	pd               *definition.PackageDiscover
-	Log              logr.Logger
-	Scheme           *runtime.Scheme
-	Recorder         event.Recorder
-	applicator       apply.Applicator
-	appRevisionLimit int
+	dm                   discoverymapper.DiscoveryMapper
+	pd                   *packages.PackageDiscover
+	Scheme               *runtime.Scheme
+	Recorder             event.Recorder
+	applicator           apply.Applicator
+	appRevisionLimit     int
+	concurrentReconciles int
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -72,112 +90,129 @@ type Reconciler struct {
 // Reconcile process app event
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	applog := r.Log.WithValues("application", req.NamespacedName)
+	klog.InfoS("Reconcile application", "application", klog.KRef(req.Namespace, req.Name))
+
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
 		Namespace: req.Namespace,
 	}, app); err != nil {
-		if kerrors.IsNotFound(err) {
-			err = nil
-		}
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	if len(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]) == 0 {
+		oamutil.AddAnnotations(app, map[string]string{
+			oam.AnnotationKubeVelaVersion: version.VelaVersion,
+		})
+	}
+	if endReconcile, err := r.handleFinalizers(ctx, app); endReconcile {
 		return ctrl.Result{}, err
 	}
 
 	handler := &appHandler{
-		r:      r,
-		app:    app,
-		logger: applog,
+		r:   r,
+		app: app,
 	}
 
-	if app.ObjectMeta.DeletionTimestamp.IsZero() {
-		if registerFinalizers(app) {
-			applog.Info("Register new finalizer", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
-			return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+	// parse application to appfile
+	app.Status.Phase = common.ApplicationRendering
+	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
+	appFile, err := appParser.GenerateAppFile(ctx, app)
+	if err != nil {
+		klog.ErrorS(err, "Failed to parse application", "application", klog.KObj(app))
+		app.Status.SetConditions(errorCondition("Parsed", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
+		return handler.handleErr(err)
+	}
+	app.Status.SetConditions(readyCondition("Parsed"))
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
+
+	if err := handler.prepareCurrentAppRevision(ctx, appFile); err != nil {
+		klog.ErrorS(err, "Failed to prepare app revision", "application", klog.KObj(app))
+		app.Status.SetConditions(errorCondition("Revision", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+		return handler.handleErr(err)
+	}
+	klog.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
+		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
+
+	var comps []*velatypes.ComponentManifest
+	if handler.isNewRevision {
+		comps, err = appFile.GenerateComponentManifests()
+		if err != nil {
+			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
+			app.Status.SetConditions(errorCondition("Render", err))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+			return handler.handleErr(err)
+		}
+		if err := handler.handleComponentsRevision(ctx, comps); err != nil {
+			klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
+			app.Status.SetConditions(errorCondition("Render", err))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+			return handler.handleErr(err)
 		}
 	} else {
-		needUpdate, err := handler.removeResourceTracker(ctx)
+		comps, err = oamutil.AppConfig2ComponentManifests(handler.latestAppRev.Spec.ApplicationConfiguration,
+			handler.latestAppRev.Spec.Components)
 		if err != nil {
-			applog.Error(err, "Failed to remove application resourceTracker")
-			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
-			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+			klog.ErrorS(err, "Failed to get data from existing app revision", "application", klog.KObj(app))
+			app.Status.SetConditions(errorCondition("Revision", err))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+			return handler.handleErr(err)
 		}
-		if needUpdate {
-			applog.Info("remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
-			return ctrl.Result{}, errors.Wrap(r.Update(ctx, app), errUpdateApplicationFinalizer)
-		}
-		// deleting and no need to handle finalizer
-		return reconcile.Result{}, nil
 	}
-
-	applog.Info("Start Rendering")
-
-	app.Status.Phase = common.ApplicationRendering
-
-	applog.Info("parse template")
-	// parse template
-	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
-
-	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	generatedAppfile, err := appParser.GenerateAppFile(ctx, app)
-	if err != nil {
-		applog.Error(err, "[Handle Parse]")
-		app.Status.SetConditions(errorCondition("Parsed", err))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
+	if err := handler.finalizeAndApplyAppRevision(ctx, comps); err != nil {
+		klog.ErrorS(err, "Failed to apply app revision", "application", klog.KObj(app))
+		app.Status.SetConditions(errorCondition("Revision", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return handler.handleErr(err)
 	}
+	app.Status.SetConditions(readyCondition("Revision"))
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
+	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 
-	app.Status.SetConditions(readyCondition("Parsed"))
-	handler.appfile = generatedAppfile
-
-	appRev, err := handler.GenerateAppRevision(ctx)
+	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy()
 	if err != nil {
-		applog.Error(err, "[Handle Calculate Revision]")
-		app.Status.SetConditions(errorCondition("Parsed", err))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
-		return handler.handleErr(err)
-	}
-	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
-	// Record the revision so it can be used to render data in context.appRevision
-	generatedAppfile.RevisionName = appRev.Name
-
-	applog.Info("build template")
-	// build template to applicationconfig & component
-	ac, comps, err := generatedAppfile.GenerateApplicationConfiguration()
-	if err != nil {
-		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
-		app.Status.SetConditions(errorCondition("Built", err))
+		klog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
+		app.Status.SetConditions(errorCondition("Render", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
 	}
-
-	err = handler.handleResourceTracker(ctx, comps, ac)
-	if err != nil {
-		applog.Error(err, "[Handle resourceTracker]")
-		app.Status.SetConditions(errorCondition("Handle resourceTracker", err))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return handler.handleErr(err)
-	}
-
-	// pass the App label and annotation to ac except some app specific ones
-	oamutil.PassLabelAndAnnotation(app, ac)
-
-	app.Status.SetConditions(readyCondition("Built"))
+	app.Status.SetConditions(readyCondition("Render"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-	applog.Info("apply application revision & component to the cluster")
-	// apply application revision & component to the cluster
-	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
-		applog.Error(err, "[Handle apply]")
+	klog.Info("Successfully render application resources", "application", klog.KObj(app))
+
+	if err := handler.applyAppManifests(ctx, comps, policies); err != nil {
+		klog.ErrorS(err, "Failed to apply application manifests",
+			"application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("Applied", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return handler.handleErr(err)
+	}
+	if err := handler.updateAppLatestRevisionStatus(ctx); err != nil {
+		klog.ErrorS(err, "Failed to update application status", "application", klog.KObj(app))
+		return handler.handleErr(err)
+	}
+	app.Status.SetConditions(readyCondition("Applied"))
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
+	klog.Info("Successfully apply application manifests", "application", klog.KObj(app))
+
+	done, err := workflow.NewWorkflow(app, handler.r.applicator).ExecuteSteps(ctx, handler.currentAppRev.Name, wfSteps)
+	if err != nil {
+		klog.Error(err, "[handle workflow]")
+		app.Status.SetConditions(errorCondition("Workflow", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
+		return handler.handleErr(err)
+	}
+	if !done {
+		return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.UpdateStatus(ctx, app)
 	}
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if handler.app.Spec.RolloutPlan != nil {
 		res, err := handler.handleRollout(ctx)
 		if err != nil {
-			applog.Error(err, "[handle rollout]")
+			klog.ErrorS(err, "Failed to handle rollout", "application", klog.KObj(app))
 			app.Status.SetConditions(errorCondition("Rollout", err))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
 			return handler.handleErr(err)
@@ -192,18 +227,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// there is no need reconcile immediately, that means the rollout operation have finished
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
 		app.Status.SetConditions(readyCondition("Rollout"))
-		applog.Info("rollout finished")
+		klog.Info("Finished rollout ")
 	}
 
-	// The following logic will be skipped if rollout have not finished
-	app.Status.SetConditions(readyCondition("Applied"))
-	r.Recorder.Event(app, event.Normal(velatypes.ReasonFailedApply, velatypes.MessageApplied))
 	app.Status.Phase = common.ApplicationHealthChecking
-	applog.Info("check application health status")
+	klog.Info("Check application health status")
 	// check application health status
-	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
+	appCompStatus, healthy, err := handler.aggregateHealthStatus(appFile)
 	if err != nil {
-		applog.Error(err, "[status aggregate]")
+		klog.ErrorS(err, "Failed to aggregate status", "application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
 		return handler.handleErr(err)
@@ -220,41 +252,123 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	app.Status.Phase = common.ApplicationRunning
 
-	err = garbageCollection(ctx, handler)
-	if err != nil {
-		applog.Error(err, "[Garbage collection]")
+	if err := garbageCollection(ctx, handler); err != nil {
+		klog.ErrorS(err, "Failed to run garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+		return handler.handleErr(err)
 	}
+	klog.Info("Successfully garbage collect", "application", klog.KObj(app))
 
-	// Gather status of components
-	var refComps []v1alpha1.TypedReference
-	for _, comp := range comps {
-		refComps = append(refComps, v1alpha1.TypedReference{
-			APIVersion: comp.APIVersion,
-			Kind:       comp.Kind,
-			Name:       comp.Name,
-			UID:        app.UID,
-		})
-	}
-	app.Status.Components = refComps
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	return ctrl.Result{}, r.UpdateStatus(ctx, app)
 }
 
-// if any finalizers newly registered, return true
-func registerFinalizers(app *v1beta1.Application) bool {
-	if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) && app.Status.ResourceTracker != nil {
-		meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
-		return true
+// NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
+// by setting application(namespace-scoped) as their owners.
+// We must delete all resource trackers related to an application through finalizer logic.
+func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Application) (bool, error) {
+	if app.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
+			meta.AddFinalizer(app, resourceTrackerFinalizer)
+			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", resourceTrackerFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+		if appWillRollout(app) {
+			klog.InfoS("Found an application which will be released by rollout", "application", klog.KObj(app))
+			if !meta.FinalizerExists(app, onlyRevisionFinalizer) {
+				meta.AddFinalizer(app, onlyRevisionFinalizer)
+				klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", onlyRevisionFinalizer)
+				return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+			}
+		}
+	} else {
+		if meta.FinalizerExists(app, legacyResourceTrackerFinalizer) {
+			// TODO(roywang) legacyResourceTrackerFinalizer will be deprecated in the future
+			// this is for backward compatibility
+			rt := &v1beta1.ResourceTracker{}
+			rt.SetName(fmt.Sprintf("%s-%s", app.Namespace, app.Name))
+			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to delete legacy resource tracker", "name", rt.Name)
+				app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+				return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+			}
+			meta.RemoveFinalizer(app, legacyResourceTrackerFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
+			if app.Status.LatestRevision != nil && len(app.Status.LatestRevision.Name) != 0 {
+				latestTracker := &v1beta1.ResourceTracker{}
+				latestTracker.SetName(dispatch.ConstructResourceTrackerName(app.Status.LatestRevision.Name, app.Namespace))
+				if err := r.Client.Delete(ctx, latestTracker); err != nil && !kerrors.IsNotFound(err) {
+					klog.ErrorS(err, "Failed to delete latest resource tracker", "name", latestTracker.Name)
+					app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+					return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+				}
+			}
+			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+		if meta.FinalizerExists(app, onlyRevisionFinalizer) {
+			listOpts := []client.ListOption{
+				client.MatchingLabels{
+					oam.LabelAppName:      app.Name,
+					oam.LabelAppNamespace: app.Namespace,
+				}}
+			rtList := &v1beta1.ResourceTrackerList{}
+			if err := r.Client.List(ctx, rtList, listOpts...); err != nil {
+				klog.ErrorS(err, "Failed to list resource tracker of app", "name", app.Name)
+				app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+				return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+			}
+			for _, rt := range rtList.Items {
+				if err := r.Client.Delete(ctx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
+					klog.ErrorS(err, "Failed to delete resource tracker", "name", rt.Name)
+					app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+					return true, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+				}
+			}
+			meta.RemoveFinalizer(app, onlyRevisionFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
 	}
-	return false
+	return false, nil
+}
+
+// appWillRollout judge whether the application will be released by rollout.
+// If it's true, application controller will only create or update application revision but not emit any other K8s
+// resources into the cluster. Rollout controller will do real release works.
+func appWillRollout(app *v1beta1.Application) bool {
+	return len(app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil
+}
+
+func errorCondition(tpy string, err error) v1alpha1.Condition {
+	return v1alpha1.Condition{
+		Type:               v1alpha1.ConditionType(tpy),
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             v1alpha1.ReasonReconcileError,
+		Message:            err.Error(),
+	}
+}
+
+func readyCondition(tpy string) v1alpha1.Condition {
+	return v1alpha1.Condition{
+		Type:               v1alpha1.ConditionType(tpy),
+		Status:             corev1.ConditionTrue,
+		Reason:             v1alpha1.ReasonAvailable,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+	}
 }
 
 // SetupWithManager install to manager
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.ComponentHandler) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1beta1.Application{}).
+		Watches(&source.Kind{Type: &v1alpha2.Component{}}, compHandler).
 		Complete(r)
 }
 
@@ -271,16 +385,21 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1beta1.Application,
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, args core.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, args core.Args) error {
 	reconciler := Reconciler{
-		Client:           mgr.GetClient(),
-		Log:              ctrl.Log.WithName("Application"),
-		Scheme:           mgr.GetScheme(),
-		Recorder:         event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		dm:               args.DiscoveryMapper,
-		pd:               args.PackageDiscover,
-		applicator:       apply.NewAPIApplicator(mgr.GetClient()),
-		appRevisionLimit: args.AppRevisionLimit,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		dm:                   args.DiscoveryMapper,
+		pd:                   args.PackageDiscover,
+		applicator:           apply.NewAPIApplicator(mgr.GetClient()),
+		appRevisionLimit:     args.AppRevisionLimit,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
-	return reconciler.SetupWithManager(mgr)
+	compHandler := &ac.ComponentHandler{
+		Client:                mgr.GetClient(),
+		RevisionLimit:         args.RevisionLimit,
+		CustomRevisionHookURL: args.CustomRevisionHookURL,
+	}
+	return reconciler.SetupWithManager(mgr, compHandler)
 }

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -182,6 +181,7 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return nil, &v1alpha2.DependencyStatus{}, errBoom
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -212,6 +212,7 @@ func TestReconciler(t *testing.T) {
 						_ []Workload, _ ...apply.ApplyOption) error {
 						return errBoom
 					}}),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -246,6 +247,7 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*workload}
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -310,10 +312,11 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: dependCheckWait},
+				result: reconcile.Result{RequeueAfter: 10 * time.Second},
 			},
 		},
 		"FailedPreHook": {
@@ -346,15 +349,16 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
-					WithPrehook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPrehook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, nil
 					})),
-					WithPrehook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPrehook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
-					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{}, nil
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -420,12 +424,13 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
-					WithPosthook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPosthook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{}, nil
 					})),
-					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -465,18 +470,19 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
-					WithPrehook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPrehook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, nil
 					})),
-					WithPrehook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPrehook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
-					WithPosthook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPosthook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{}, nil
 					})),
-					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -538,10 +544,10 @@ func TestReconciler(t *testing.T) {
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
-					WithPrehook("preHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPrehook("preHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{}, nil
 					})),
-					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
+					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (reconcile.Result, error) {
 						return reconcile.Result{}, nil
 					})),
 				},
@@ -588,6 +594,9 @@ func TestReconciler(t *testing.T) {
 						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
 					},
 				},
+				o: []ReconcilerOption{
+					WithDependCheckWait(10 * time.Second),
+				},
 			},
 			want: want{
 				result: reconcile.Result{},
@@ -619,6 +628,9 @@ func TestReconciler(t *testing.T) {
 						}),
 						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
 					},
+				},
+				o: []ReconcilerOption{
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -656,6 +668,7 @@ func TestReconciler(t *testing.T) {
 					WithApplicator(WorkloadApplyFns{FinalizeFn: func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error {
 						return errBoom
 					}}),
+					WithDependCheckWait(10 * time.Second),
 				},
 			},
 			want: want{
@@ -666,7 +679,7 @@ func TestReconciler(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := NewReconciler(tc.args.m, nil, logging.NewNopLogger(), tc.args.o...)
+			r := NewReconciler(tc.args.m, nil, tc.args.o...)
 			got, err := r.Reconcile(reconcile.Request{})
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
@@ -1879,7 +1892,7 @@ func TestUpdateStatus(t *testing.T) {
 		},
 	}
 
-	r := NewReconciler(m, nil, logging.NewNopLogger())
+	r := NewReconciler(m, nil)
 
 	ac := &v1alpha2.ApplicationConfiguration{}
 	err := r.client.Get(context.Background(), types.NamespacedName{Name: "example-appconfig"}, ac)

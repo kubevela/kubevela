@@ -27,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -176,6 +177,7 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -266,6 +268,7 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -275,7 +278,208 @@ spec:
 		})
 	})
 
-	Context("When the ComponentDefinition is invalid, should hit issues", func() {
+	Context("When the ComponentDefinition contains Helm Module, should create a ConfigMap", func() {
+		var componentDefinitionName = "cd-with-helm-module"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
+
+		It("Applying ComponentDefinition with Helm module", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetName(componentDefinitionName)
+			cd.SetNamespace(namespace)
+			cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
+			cd.Spec.Schematic = &common.Schematic{
+				HELM: &common.Helm{
+					Release: util.Object2RawExtension(map[string]interface{}{
+						"chart": map[string]interface{}{
+							"spec": map[string]interface{}{
+								"chart":   "podinfo",
+								"version": "5.1.4",
+							},
+						},
+					}),
+					Repository: util.Object2RawExtension(map[string]interface{}{
+						"url": "http://oam.dev/catalog/",
+					}),
+				},
+			}
+			By("Create ComponentDefinition")
+			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
+			reconcileRetry(&r, req)
+
+			By("Check whether ConfigMap is created")
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+
+			By("Check whether ConfigMapRef refer to right ConfigMap")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: cd.Namespace, Name: cd.Name}, &cd)
+				return cd.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
+		})
+	})
+
+	Context("When the ComponentDefinition contains Kube Module, should create a ConfigMap", func() {
+		var componentDefinitionName = "cd-with-kube-module"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
+
+		It("Applying ComponentDefinition with kube Module", func() {
+			cd := v1beta1.ComponentDefinition{}
+			cd.SetName(componentDefinitionName)
+			cd.SetNamespace(namespace)
+			cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
+			cd.Spec.Schematic = &common.Schematic{
+				KUBE: &common.Kube{
+					Template: generateTemplate(KUBEWorkerTemplate),
+					Parameters: []common.KubeParameter{
+						{
+							Name:        "image",
+							ValueType:   common.StringType,
+							FieldPaths:  []string{"spec.template.spec.containers[0].image"},
+							Required:    pointer.BoolPtr(true),
+							Description: pointer.StringPtr("test description"),
+						},
+					},
+				},
+			}
+			By("Create ComponentDefinition")
+			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
+			reconcileRetry(&r, req)
+
+			By("Check whether ConfigMap is created")
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+
+			By("Check whether ConfigMapRef refer to right ConfigMap")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: cd.Namespace, Name: cd.Name}, &cd)
+				return cd.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
+		})
+	})
+
+	Context("When the ComponentDefinition contains Terraform Module, should create a ConfigMap", func() {
+		var componentDefinitionName = "alibaba-rds-test"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
+
+		It("Applying Terraform ComponentDefinition", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: alibaba-rds-test
+  annotations:
+    definition.oam.dev/description: Terraform configuration for Alibaba Cloud RDS object
+    type: terraform
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    terraform:
+      configuration: |
+        module "rds" {
+          source = "terraform-alicloud-modules/rds/alicloud"
+          engine = "MySQL"
+          engine_version = "8.0"
+          instance_type = "rds.mysql.c1.large"
+          instance_storage = "20"
+          instance_name = var.instance_name
+          account_name = var.account_name
+          password = var.password
+        }
+
+        output "DB_NAME" {
+          value = module.rds.this_db_instance_name
+        }
+        output "DB_USER" {
+          value = module.rds.this_db_database_account
+        }
+        output "DB_PORT" {
+          value = module.rds.this_db_instance_port
+        }
+        output "DB_HOST" {
+          value = module.rds.this_db_instance_connection_string
+        }
+        output "DB_PASSWORD" {
+          value = module.rds.this_db_instance_port
+        }
+
+        variable "instance_name" {
+          description = "RDS instance name"
+          type = string
+          default = "poc"
+        }
+
+        variable "account_name" {
+          description = "RDS instance user account name"
+          type = "string"
+          default = "oam"
+        }
+
+        variable "password" {
+          description = "RDS instance account password"
+          type = "string"
+          default = "xxx"
+        }
+
+        variable "intVar" {
+          type = "number"
+        }
+
+        variable "boolVar" {
+          type = "bool"
+        }
+
+        variable "listVar" {
+          type = "list"
+        }
+
+        variable "mapVar" {
+          type = "map"
+        }
+
+`
+
+			var def v1beta1.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
+			def.Namespace = namespace
+			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+			reconcileRetry(&r, req)
+
+			By("Check whether ConfigMap is created")
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
+
+			By("Check whether ConfigMapRef reference to the right ComponentDefinition")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
+				return def.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
+		})
+	})
+
+	Context("When the ComponentDefinition is invalid, should raise errors", func() {
 		var namespace = "ns-def"
 		BeforeEach(func() {
 			ns = corev1.Namespace{
@@ -404,226 +608,8 @@ spec:
 		})
 	})
 
-	Context("When the ComponentDefinition only contains Workload.Definition, should create a WorkloadDefinition", func() {
-		var componentDefinitionName = "cd-with-workload-definition"
-		var namespace = "default"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
-
-		It("Applying ComponentDefinition with Workload.Definition", func() {
-			By("Apply ComponentDefinition")
-			var validComponentDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: cd-with-workload-definition
-  annotations:
-    definition.oam.dev/description: "test"
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
-        				}]
-        			}
-        		}
-        	}
-        }
-        parameter: {
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
-        }
-`
-			var def v1beta1.ComponentDefinition
-			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
-			def.Namespace = namespace
-			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
-			reconcileRetry(&r, req)
-			By("Check whether WorkloadDefinition is created")
-
-			var wd v1beta1.WorkloadDefinition
-			var wdName = componentDefinitionName
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)
-				return err == nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
-			Expect(wd.Name).Should(Equal(def.Name))
-			Expect(wd.Namespace).Should(Equal(def.Namespace))
-			Expect(wd.Annotations).Should(Equal(def.Annotations))
-			Expect(wd.Spec.Schematic).Should(Equal(def.Spec.Schematic))
-		})
-	})
-
-	Context("When the ComponentDefinition contains Helm schematic", func() {
-		var componentDefinitionName = "cd-with-helm-schematic"
-		var namespace = "default"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
-
-		It("Applying ComponentDefinition with Helm schematic", func() {
-			cd := v1beta1.ComponentDefinition{}
-			cd.SetName(componentDefinitionName)
-			cd.SetNamespace(namespace)
-			cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
-			cd.Spec.Schematic = &common.Schematic{
-				HELM: &common.Helm{
-					Release: util.Object2RawExtension(map[string]interface{}{
-						"chart": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"chart":   "podinfo",
-								"version": "5.1.4",
-							},
-						},
-					}),
-					Repository: util.Object2RawExtension(map[string]interface{}{
-						"url": "http://oam.dev/catalog/",
-					}),
-				},
-			}
-			By("Create ComponentDefinition")
-			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
-			reconcileRetry(&r, req)
-
-			By("Check whether WorkloadDefinition is created")
-			var wd v1beta1.WorkloadDefinition
-			var wdName = componentDefinitionName
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)
-				return err == nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
-			Expect(wd.Name).Should(Equal(cd.Name))
-			Expect(wd.Namespace).Should(Equal(cd.Namespace))
-			Expect(wd.Annotations).Should(Equal(cd.Annotations))
-			Expect(wd.Spec.Schematic).Should(Equal(cd.Spec.Schematic))
-		})
-	})
-
-	Context("When the ComponentDefinition contain Workload.Type, shouldn't create a WorkloadDefinition", func() {
-		var componentDefinitionName = "cd-with-workload-type"
-		var namespace = "default"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
-
-		It("Applying ComponentDefinition with Workload.Type", func() {
-			By("Apply WorkloadDefinition")
-			var taskWorkloadDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: WorkloadDefinition
-metadata:
-  name: worker
-  annotations:
-    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
-spec:
-  definitionRef:
-    name: deployments.apps
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-        
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-        
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-        
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
-        				}]
-        			}
-        		}
-        	}
-        }
-        
-        parameter: {
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
-        }
-`
-			var task v1beta1.WorkloadDefinition
-			Expect(yaml.Unmarshal([]byte(taskWorkloadDefinition), &task)).Should(BeNil())
-			task.Namespace = namespace
-			Expect(k8sClient.Create(ctx, &task)).Should(Succeed())
-
-			By("Apply ComponentDefinition")
-			var validComponentDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: cd-with-workload-type
-spec:
-  workload:
-    type: worker
-`
-			var def v1beta1.ComponentDefinition
-			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
-			def.Namespace = namespace
-			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
-
-			By("Check whether WorkloadDefinition is created")
-			reconcileRetry(&r, req)
-			var wd v1beta1.WorkloadDefinition
-			var wdName = componentDefinitionName
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)).Should(Not(Succeed()))
-
-			By("Check whether ConfigMap is created")
-			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
-				return err == nil
-			}, 15*time.Second, time.Second).Should(BeTrue())
-			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
-
-			By("Check whether ConfigMapRef refer to right")
-			Eventually(func() string {
-				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
-				return def.Status.ConfigMapRef
-			}, 10*time.Second, time.Second).Should(Equal(name))
-		})
-	})
-
 	Context("When the CUE Template in ComponentDefinition import new added CRD", func() {
-		var componentDefinationName = "test-refresh"
+		var componentDefinitionName = "test-refresh"
 		var namespace = "default"
 		It("Applying ComponentDefinition import new crd in CUE Template, should create a ConfigMap", func() {
 			By("create new crd")
@@ -697,26 +683,41 @@ spec:
 			var cd v1beta1.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(componentDef), &cd)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
-			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinationName, Namespace: namespace}}
-
-			By("check workload")
-			var wd v1beta1.WorkloadDefinition
-			var wdName = componentDefinationName
-			Eventually(func() bool {
-				reconcileRetry(&r, req)
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)
-				return err == nil
-			}, 30*time.Second, time.Second).Should(BeTrue())
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinationName)
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
+				reconcileRetry(&r, req)
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
-			}, 15*time.Second, time.Second).Should(BeTrue())
+			}, 30*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
 		})
 
 	})
 })
+
+func generateTemplate(template string) runtime.RawExtension {
+	b, _ := yaml.YAMLToJSON([]byte(template))
+	return runtime.RawExtension{Raw: b}
+}
+
+var KUBEWorkerTemplate = `apiVersion: apps/v1
+kind: Deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+      ports:
+      - containerPort: 80
+`

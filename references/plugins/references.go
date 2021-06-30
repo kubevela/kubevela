@@ -28,15 +28,13 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -347,7 +345,7 @@ var refContent string
 var recurseDepth *int
 var propertyConsole []ConsoleReference
 var displayFormat *string
-var helmRefs []HELMReference
+var commonRefs []CommonReference
 
 func setDisplayFormat(format string) {
 	displayFormat = &format
@@ -416,12 +414,20 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				return err
 			}
 		case types.HelmCategory:
-			properties, _, err := ref.GenerateHELMProperties(ctx, &caps[i])
+			properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &caps[i])
 			if err != nil {
 				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 			}
 			for _, property := range properties {
 				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
+			}
+		case types.KubeCategory:
+			properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &caps[i])
+			if err != nil {
+				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
+			}
+			for _, property := range properties {
+				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.KubeCategory)
 			}
 		case types.TerraformCategory:
 			refContent, err = ref.GenerateTerraformCapabilityProperties(c)
@@ -463,13 +469,20 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 	switch category {
 	case types.CUECategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
+			if !p.Ignore {
+				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
+				refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
+			}
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
+			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
 			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
+		}
+	case types.KubeCategory:
+		for _, p := range parameterList {
+			// Kubeparameter doesn't have default value
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, "")
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
@@ -489,13 +502,20 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 	switch category {
 	case types.CUECategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+			if !p.Ignore {
+				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
+				table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+			}
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
+			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
 			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+		}
+	case types.KubeCategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
@@ -518,6 +538,17 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		if err != nil {
 			return fmt.Errorf("arguments not defined as struct %w", err)
 		}
+		if arguments.Len() == 0 {
+			var param ReferenceParameter
+			param.Name = "undefined"
+			param.Required = true
+			tl := paraValue.Template()
+			if tl != nil { // is map type
+				param.PrintableType = fmt.Sprintf("map[string]%s", tl("").IncompleteKind().String())
+			}
+			params = append(params, param)
+		}
+
 		for i := 0; i < arguments.Len(); i++ {
 			var param ReferenceParameter
 			fi := arguments.Field(i)
@@ -529,9 +560,9 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			param.Name = name
 			param.Required = !fi.IsOptional
 			if def, ok := val.Default(); ok && def.IsConcrete() {
-				param.Default = mycue.GetDefault(def)
+				param.Default = velacue.GetDefault(def)
 			}
-			param.Short, param.Usage, param.Alias = mycue.RetrieveComments(val)
+			param.Short, param.Usage, param.Alias, param.Ignore = velacue.RetrieveComments(val)
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
@@ -588,21 +619,6 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 	return nil
 }
 
-// parseTerraformVariables get variables from Terraform Configuration
-func (ref *ParseReference) parseTerraformVariables(configuration string) (map[string]*tfconfig.Variable, error) {
-	p := hclparse.NewParser()
-	hclFile, diagnostic := p.ParseHCL([]byte(configuration), "")
-	if diagnostic != nil {
-		return nil, errors.New(diagnostic.Error())
-	}
-	mod := tfconfig.Module{Variables: map[string]*tfconfig.Variable{}}
-	diagnostic = tfconfig.LoadModuleFromFile(hclFile, &mod)
-	if diagnostic != nil {
-		return nil, errors.New(diagnostic.Error())
-	}
-	return mod.Variables, nil
-}
-
 // getCUEPrintableDefaultValue converts the value in `interface{}` type to be printable
 func (ref *ParseReference) getCUEPrintableDefaultValue(v interface{}) string {
 	if v == nil {
@@ -622,7 +638,7 @@ func (ref *ParseReference) getCUEPrintableDefaultValue(v interface{}) string {
 	return ""
 }
 
-func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value interface{}) string {
+func (ref *ParseReference) getJSONPrintableDefaultValue(dataType string, value interface{}) string {
 	if value != nil {
 		return strings.TrimSpace(fmt.Sprintf("%v", value))
 	}
@@ -676,24 +692,24 @@ func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Cap
 	return propertyConsole, nil
 }
 
-// HELMReference contains parameters info of HelmCategory type capability
-type HELMReference struct {
+// CommonReference contains parameters info of HelmCategory and KubuCategory type capability at present
+type CommonReference struct {
 	Name       string
 	Parameters []ReferenceParameter
 	Depth      int
 }
 
-// HELMSchema is a struct contains *openapi3.Schema style parameter
-type HELMSchema struct {
+// CommonSchema is a struct contains *openapi3.Schema style parameter
+type CommonSchema struct {
 	Name    string
 	Schemas *openapi3.Schema
 }
 
-// GenerateHELMProperties get all properties of a HelmCategory type capability
-func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capability *types.Capability) ([]HELMReference, []ConsoleReference, error) {
+// GenerateHelmAndKubeProperties get all properties of a Helm/Kube Category type capability
+func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, capability *types.Capability) ([]CommonReference, []ConsoleReference, error) {
 	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
 	var cm v1.ConfigMap
-	helmRefs = make([]HELMReference, 0)
+	commonRefs = make([]CommonReference, 0)
 	if err := ref.Client.Get(ctx, client.ObjectKey{Namespace: capability.Namespace, Name: cmName}, &cm); err != nil {
 		return nil, nil, err
 	}
@@ -710,10 +726,10 @@ func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capabilit
 	WalkParameterSchema(parameters, "Properties", 0)
 
 	var consoleRefs []ConsoleReference
-	for _, item := range helmRefs {
+	for _, item := range commonRefs {
 		consoleRefs = append(consoleRefs, ref.prepareParameter(item.Name, item.Parameters, types.HelmCategory))
 	}
-	return helmRefs, consoleRefs, err
+	return commonRefs, consoleRefs, err
 }
 
 // GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition
@@ -729,7 +745,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeConnectionSecretToRefReferenceParameter.Required = false
 	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
 
-	variables, err := ref.parseTerraformVariables(capability.TerraformConfiguration)
+	variables, err := common.ParseTerraformVariables(capability.TerraformConfiguration)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate capability properties")
 	}
@@ -781,8 +797,8 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	if parameters == nil {
 		return
 	}
-	var schemas []HELMSchema
-	var helmParameters []ReferenceParameter
+	var schemas []CommonSchema
+	var commonParameters []ReferenceParameter
 	for k, v := range parameters.Properties {
 		p := ReferenceParameter{
 			Parameter: types.Parameter{
@@ -803,19 +819,19 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 		p.Required = required
 		if v.Value.Type == "object" {
 			if v.Value.Properties != nil {
-				schemas = append(schemas, HELMSchema{
+				schemas = append(schemas, CommonSchema{
 					Name:    k,
 					Schemas: v.Value,
 				})
 			}
 			p.PrintableType = fmt.Sprintf("[%s](#%s)", k, k)
 		}
-		helmParameters = append(helmParameters, p)
+		commonParameters = append(commonParameters, p)
 	}
 
-	helmRefs = append(helmRefs, HELMReference{
+	commonRefs = append(commonRefs, CommonReference{
 		Name:       fmt.Sprintf("%s %s", strings.Repeat("#", depth+1), name),
-		Parameters: helmParameters,
+		Parameters: commonParameters,
 		Depth:      depth + 1,
 	})
 

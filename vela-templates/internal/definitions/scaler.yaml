@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Manually scale the component."
+  name: scaler
+  namespace: {{.Values.systemDefinitionNamespace}}
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |

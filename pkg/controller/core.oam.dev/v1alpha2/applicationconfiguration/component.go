@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,16 +36,16 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ControllerRevisionComponentLabel indicate which component the revision belong to
 // This label is to filter revision by client api
-const ControllerRevisionComponentLabel = "controller.oam.dev/component"
+const ControllerRevisionComponentLabel = oam.LabelControllerRevisionComponent
 
 // ComponentHandler will watch component change and generate Revision automatically.
 type ComponentHandler struct {
 	Client                client.Client
-	Logger                logging.Logger
 	RevisionLimit         int
 	CustomRevisionHookURL string
 }
@@ -108,7 +107,7 @@ func (c *ComponentHandler) getRelatedAppConfig(object metav1.Object) []reconcile
 	var appConfigs v1alpha2.ApplicationConfigurationList
 	err := c.Client.List(context.Background(), &appConfigs)
 	if err != nil {
-		c.Logger.Info(fmt.Sprintf("error list all applicationConfigurations %v", err))
+		klog.Info(fmt.Sprintf("error list all applicationConfigurations %v", err))
 		return nil
 	}
 	var reqs []reconcile.Request
@@ -126,12 +125,12 @@ func (c *ComponentHandler) IsRevisionDiff(mt klog.KMetadata, curComp *v1alpha2.C
 
 	// client in controller-runtime will use informer cache
 	// use client will be more efficient
-	needNewRevision, err := utils.CompareWithRevision(context.TODO(), c.Client, c.Logger, mt.GetName(), mt.GetNamespace(),
+	needNewRevision, err := utils.CompareWithRevision(context.TODO(), c.Client, mt.GetName(), mt.GetNamespace(),
 		curComp.Status.LatestRevision.Name, &curComp.Spec)
 	// TODO: this might be a bug that we treat all errors getting from k8s as a new revision
 	// but the client go event handler doesn't handle an error. We need to see if we can retry this
 	if err != nil {
-		c.Logger.Info(fmt.Sprintf("Failed to compare the component with its latest revision with err = %+v", err),
+		klog.InfoS(fmt.Sprintf("Failed to compare the component with its latest revision with err = %+v", err),
 			"component", mt.GetName(), "latest revision", curComp.Status.LatestRevision.Name)
 		return true, curComp.Status.LatestRevision.Revision
 	}
@@ -154,7 +153,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 	reqs := c.getRelatedAppConfig(mt)
 	// Hook to custom revision service if exist
 	if err := c.customComponentRevisionHook(reqs, comp); err != nil {
-		c.Logger.Info(fmt.Sprintf("fail to hook from custom revision service(%s) %v", c.CustomRevisionHookURL, err), "componentName", mt.GetName())
+		klog.InfoS(fmt.Sprintf("fail to hook from custom revision service(%s) %v", c.CustomRevisionHookURL, err), "componentName", mt.GetName())
 		return nil, false
 	}
 
@@ -194,21 +193,21 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 	// TODO: we should update the status first. otherwise, the subsequent create will all fail if the update fails
 	err := c.Client.Create(context.TODO(), &revision)
 	if err != nil {
-		c.Logger.Info(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
+		klog.InfoS(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
 		return nil, false
 	}
 
 	err = c.UpdateStatus(context.Background(), comp)
 	if err != nil {
-		c.Logger.Info(fmt.Sprintf("update component status latestRevision %s err %v", revisionName, err), "componentName", mt.GetName())
+		klog.InfoS(fmt.Sprintf("update component status latestRevision %s err %v", revisionName, err), "componentName", mt.GetName())
 		return nil, false
 	}
 
-	c.Logger.Info(fmt.Sprintf("ControllerRevision %s created", revisionName))
+	klog.InfoS("Create ControllerRevision", "name", revisionName)
 	// garbage collect
 	if int64(c.RevisionLimit) < nextRevision {
 		if err := c.cleanupControllerRevision(comp); err != nil {
-			c.Logger.Info(fmt.Sprintf("failed to clean up revisions of Component %v.", err))
+			klog.Info(fmt.Sprintf("failed to clean up revisions of Component %v.", err))
 		}
 	}
 	return reqs, true
@@ -280,7 +279,7 @@ func (c *ComponentHandler) cleanupControllerRevision(curComp *v1alpha2.Component
 		if err := c.Client.Delete(context.TODO(), &revisionToClean); err != nil {
 			return err
 		}
-		c.Logger.Info(fmt.Sprintf("ControllerRevision %s deleted", revision.Name))
+		klog.InfoS("Delete controllerRevision", "name", revision.Name)
 		toKill--
 	}
 	return nil

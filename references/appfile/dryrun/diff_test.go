@@ -21,9 +21,10 @@ import (
 	"context"
 
 	"github.com/ghodss/yaml"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 var _ = Describe("Test Live-Diff", func() {

@@ -3,13 +3,12 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Configures replicas for your service by patch replicas field."
+    definition.oam.dev/description: "Manually scale the component."
   name: scaler
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: false
   schematic:
     cue:

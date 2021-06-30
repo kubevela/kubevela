@@ -17,7 +17,9 @@ limitations under the License.
 package core_oam_dev
 
 import (
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"time"
+
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -67,5 +69,14 @@ type Args struct {
 	// DiscoveryMapper used for CRD discovery in controller, a K8s client is contained in it.
 	DiscoveryMapper discoverymapper.DiscoveryMapper
 	// PackageDiscover used for CRD discovery in CUE packages, a K8s client is contained in it.
-	PackageDiscover *definition.PackageDiscover
+	PackageDiscover *packages.PackageDiscover
+
+	// ConcurrentReconciles is the concurrent reconcile number of the controller
+	ConcurrentReconciles int
+
+	// DependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
+	DependCheckWait time.Duration
+
+	// AutoGenWorkloadDefinition indicates whether automatic generated workloadDefinition which componentDefinition refers to
+	AutoGenWorkloadDefinition bool
 }

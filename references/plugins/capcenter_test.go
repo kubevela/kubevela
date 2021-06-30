@@ -61,7 +61,7 @@ func TestParseURL(t *testing.T) {
 	for caseName, c := range cases {
 		tp, content, err := Parse(c.url)
 		assert.NoError(t, err, caseName)
-		assert.Equal(t, c.exp, content, caseName)
+		assert.Equal(t, c.exp, &content.GithubContent, caseName)
 		assert.Equal(t, c.expType, tp, caseName)
 	}
 }

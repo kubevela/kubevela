@@ -25,10 +25,10 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,11 +36,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -96,7 +95,7 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus)
+	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus, wl.Params)
 }
 
 // EvalHealth eval workload health check
@@ -149,7 +148,7 @@ func (trait *Trait) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval trait status
 func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat)
+	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat, trait.Params)
 }
 
 // EvalHealth eval trait health check
@@ -163,73 +162,89 @@ type Appfile struct {
 	Namespace    string
 	RevisionName string
 	Workloads    []*Workload
+
+	Policies      []*Workload
+	WorkflowSteps []*Workload
 }
 
-// TemplateValidate validate Template format
-func (af *Appfile) TemplateValidate() error {
-	return nil
-}
-
-// GenerateApplicationConfiguration converts an appFile to applicationConfig & Components
-func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConfiguration,
-	[]*v1alpha2.Component, error) {
-	appconfig := &v1alpha2.ApplicationConfiguration{}
-	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
-	appconfig.Name = af.Name
-	appconfig.Namespace = af.Namespace
-
-	if appconfig.Labels == nil {
-		appconfig.Labels = map[string]string{}
+// GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
+func (af *Appfile) GenerateWorkflowAndPolicy() (policies, steps []*unstructured.Unstructured, err error) {
+	policies, err = af.generateUnstructureds(af.Policies)
+	if err != nil {
+		return
 	}
-	appconfig.Labels[oam.LabelAppName] = af.Name
+	steps, err = af.generateUnstructureds(af.WorkflowSteps)
+	if err != nil {
+		return
+	}
+	return
+}
 
-	var components []*v1alpha2.Component
+func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
+	uns := []*unstructured.Unstructured{}
+	for _, wl := range workloads {
+		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		if err != nil {
+			return nil, err
+		}
+		uns = append(uns, un)
+	}
+	return uns, nil
+}
 
-	for _, wl := range af.Workloads {
-		var (
-			comp   *v1alpha2.Component
-			acComp *v1alpha2.ApplicationConfigurationComponent
-			err    error
-		)
+func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string) (*unstructured.Unstructured, error) {
+	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
+	if err != nil {
+		return nil, err
+	}
+	return makeWorkloadWithContext(pCtx, wl, ns, appName)
+}
+
+// GenerateComponentManifests converts an appFile to a slice of ComponentManifest
+func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, error) {
+	compManifests := make([]*types.ComponentManifest, len(af.Workloads))
+	for i, wl := range af.Workloads {
 		switch wl.CapabilityCategory {
 		case types.HelmCategory:
-			comp, acComp, err = generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
+			cm, err := generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
+			compManifests[i] = cm
 		case types.KubeCategory:
-			comp, acComp, err = generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
+			cm, err := generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
+			compManifests[i] = cm
 		case types.TerraformCategory:
-			comp, acComp, err = generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
+			cm, err := generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
+			compManifests[i] = cm
 		default:
-			comp, acComp, err = generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+			cm, err := generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
+			compManifests[i] = cm
 		}
-		components = append(components, comp)
-		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
 	}
-	return appconfig, components, nil
+	return compManifests, nil
 }
 
 // PrepareProcessContext prepares a DSL process Context
 func PrepareProcessContext(wl *Workload, applicationName, revision, namespace string) (process.Context, error) {
-	pCtx := newContext(wl, applicationName, revision, namespace)
+	pCtx := NewBasicContext(wl, applicationName, revision, namespace)
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", applicationName, namespace)
 	}
 	return pCtx, nil
 }
 
-// newContext prepares a basic DSL process Context
-func newContext(wl *Workload, applicationName, revision, namespace string) process.Context {
+// NewBasicContext prepares a basic DSL process Context
+func NewBasicContext(wl *Workload, applicationName, revision, namespace string) process.Context {
 	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
 	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
 	if len(wl.UserConfigs) > 0 {
@@ -238,20 +253,20 @@ func newContext(wl *Workload, applicationName, revision, namespace string) proce
 	return pCtx
 }
 
-func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
 	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	return baseGenerateComponent(pCtx, wl, appName, ns)
 }
 
-func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	pCtx := newContext(wl, appName, revision, ns)
+func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
+	pCtx := NewBasicContext(wl, appName, revision, ns)
 	return baseGenerateComponent(pCtx, wl, appName, ns)
 }
 
-func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
 	var (
 		outputSecretName string
 		err              error
@@ -259,116 +274,110 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	if wl.IsCloudResourceProducer() {
 		outputSecretName, err = GetOutputSecretNames(wl)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		wl.OutputSecretName = outputSecretName
 	}
-
 	for _, tr := range wl.Traits {
 		if err := tr.EvalContext(pCtx); err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
+			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
 		}
 	}
-	var comp *v1alpha2.Component
-	var acComp *v1alpha2.ApplicationConfigurationComponent
-	comp, acComp, err = evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
+	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	comp.Name = wl.Name
-	acComp.ComponentName = comp.Name
+	compManifest.Name = wl.Name
 
-	for _, sc := range wl.Scopes {
-		acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
-			APIVersion: sc.GVK.GroupVersion().String(),
-			Kind:       sc.GVK.Kind,
-			Name:       sc.Name,
-		}})
+	compManifest.Scopes = make([]*corev1.ObjectReference, len(wl.Scopes))
+	for i, s := range wl.Scopes {
+		compManifest.Scopes[i] = &corev1.ObjectReference{
+			APIVersion: s.GVK.GroupVersion().String(),
+			Kind:       s.GVK.Kind,
+			Name:       s.Name,
+		}
 	}
-	if len(comp.Namespace) == 0 {
-		comp.Namespace = ns
-	}
-	if comp.Labels == nil {
-		comp.Labels = map[string]string{}
-	}
-	comp.Labels[oam.LabelAppName] = appName
-	comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
-
-	return comp, acComp, nil
+	return compManifest, nil
 }
 
-// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+// makeWorkloadWithContext evaluate the workload's template to unstructured resource.
+func makeWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName string) (*unstructured.Unstructured, error) {
 	var (
-		commonLabels      map[string]string
-		componentWorkload *unstructured.Unstructured
-		err               error
+		workload *unstructured.Unstructured
+		err      error
 	)
-	base, assists := pCtx.Output()
+	base, _ := pCtx.Output()
 	switch wl.CapabilityCategory {
 	case types.TerraformCategory:
-		componentWorkload, err = generateTerraformConfigurationWorkload(wl, ns)
+		workload, err = generateTerraformConfigurationWorkload(wl, ns)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
+			return nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
 		}
 	default:
-		componentWorkload, err = base.Unstructured()
+		workload, err = base.Unstructured()
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
+			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", wl.Name, appName)
 		}
 	}
-	commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
-	util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
-	component := &v1alpha2.Component{}
-	// we need to marshal the workload to byte array before sending them to the k8s
-	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
+	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
+	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
+	return workload, nil
+}
 
-	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
-	for _, assist := range assists {
+// evalWorkloadWithContext evaluate the workload's template to generate component manifest
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*types.ComponentManifest, error) {
+	compManifest := &types.ComponentManifest{}
+	workload, err := makeWorkloadWithContext(pCtx, wl, ns, appName)
+	if err != nil {
+		return nil, err
+	}
+	compManifest.StandardWorkload = workload
+
+	_, assists := pCtx.Output()
+	compManifest.Traits = make([]*unstructured.Unstructured, len(assists))
+	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
+	for i, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
+			return nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
 		}
 		labels := util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.TraitTypeLabel: assist.Type})
 		if assist.Name != "" {
 			labels[oam.TraitResource] = assist.Name
 		}
 		util.AddLabels(tr, labels)
-		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
-			// we need to marshal the trait to byte array before sending them to the k8s
-			Trait: util.Object2RawExtension(tr),
-		})
+		compManifest.Traits[i] = tr
 	}
-	return component, acComponent, nil
+	return compManifest, nil
 }
 
-func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
 	kubeObj := &unstructured.Unstructured{}
 	err := json.Unmarshal(wl.FullTemplate.Kube.Template.Raw, kubeObj)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot decode Kube template into K8s object")
+		return nil, errors.Wrap(err, "cannot decode Kube template into K8s object")
 	}
 
 	paramValues, err := resolveKubeParameters(wl.FullTemplate.Kube.Parameters, wl.Params)
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "cannot resolve parameter settings")
+		return nil, errors.WithMessage(err, "cannot resolve parameter settings")
 	}
 	if err := setParameterValuesToKubeObj(kubeObj, paramValues); err != nil {
-		return nil, nil, errors.WithMessage(err, "cannot set parameters value")
+		return nil, errors.WithMessage(err, "cannot set parameters value")
 	}
 
 	// convert structured kube obj into CUE (go ==marshal==> json ==decoder==> cue)
 	objRaw, err := kubeObj.MarshalJSON()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot marshal kube object")
+		return nil, errors.Wrap(err, "cannot marshal kube object")
 	}
 	ins, err := json2cue.Decode(&cue.Runtime{}, "", objRaw)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot decode object into CUE")
+		return nil, errors.Wrap(err, "cannot decode object into CUE")
 	}
 	cueRaw, err := format.Node(ins.Value().Syntax())
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot format CUE")
+		return nil, errors.Wrap(err, "cannot format CUE")
 	}
 
 	// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
@@ -378,11 +387,11 @@ output: {
 }`, string(cueRaw))
 
 	// re-use the way CUE module generates comp & acComp
-	comp, acComp, err := generateComponentFromCUEModule(wl, appName, revision, ns)
+	compManifest, err := generateComponentFromCUEModule(wl, appName, revision, ns)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return comp, acComp, nil
+	return compManifest, nil
 }
 
 func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructured.Unstructured, error) {
@@ -517,12 +526,12 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 	return nil
 }
 
-func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.APIVersion)
+func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
+	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Kind)
+	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Definition.Kind)
 
 	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
 	// construct an empty base workload according to its GVK
@@ -533,26 +542,20 @@ output: {
 }`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
 
 	// re-use the way CUE module generates comp & acComp
-	comp, acComp, err := generateComponentFromCUEModule(wl, appName, revision, ns)
-	if err != nil {
-		return nil, nil, err
+	compManifest := &types.ComponentManifest{
+		Name: wl.Name,
+	}
+	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
+		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	release, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, appName, ns, wl.Params)
+	rls, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, appName, ns, wl.Params)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	rlsBytes, err := json.Marshal(release.Object)
-	if err != nil {
-		return nil, nil, err
-	}
-	repoBytes, err := json.Marshal(repo.Object)
-	if err != nil {
-		return nil, nil, err
-	}
-	comp.Spec.Helm = &common.Helm{
-		Release:    runtime.RawExtension{Raw: rlsBytes},
-		Repository: runtime.RawExtension{Raw: repoBytes},
-	}
-	return comp, acComp, nil
+	compManifest.PackagedWorkloadResources = []*unstructured.Unstructured{rls, repo}
+	return compManifest, nil
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -57,32 +57,51 @@ var _ = Describe("Test application of the specified definition version", func() 
 		labelV1.Spec.Schematic.CUE.Template = labelV1Template
 		labelV1.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, labelV1)).Should(Succeed())
-		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: "label", Namespace: namespace}, labelV1)
-			if err != nil {
-				return err
-			}
-			labelV1.Spec.Schematic.CUE.Template = labelV2Template
-			return k8sClient.Update(ctx, labelV1)
-		}, 15*time.Second, time.Second).Should(BeNil())
-		labelDefRevList := new(v1beta1.DefinitionRevisionList)
-		labelDefRevListOpts := []client.ListOption{
-			client.InNamespace(namespace),
-			client.MatchingLabels{
-				oam.LabelTraitDefinitionName: "label",
-			},
-		}
-		Eventually(func() error {
-			err := k8sClient.List(ctx, labelDefRevList, labelDefRevListOpts...)
-			if err != nil {
-				return err
-			}
-			if len(labelDefRevList.Items) != 2 {
-				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(labelDefRevList.Items))
-			}
-			return nil
-		}, 20*time.Second, time.Second).Should(BeNil())
 
+		labelV1DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "label-v1", Namespace: namespace}, labelV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		labelV2 := new(v1beta1.TraitDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "label", Namespace: namespace}, labelV2)
+			if err != nil {
+				return err
+			}
+			labelV2.Spec.Schematic.CUE.Template = labelV2Template
+			return k8sClient.Update(ctx, labelV2)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		labelV2DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "label-v2", Namespace: namespace}, labelV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		webserviceV1 := webServiceWithNoTemplate.DeepCopy()
+		webserviceV1.Spec.Schematic.CUE.Template = webServiceV1Template
+		webserviceV1.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, webserviceV1)).Should(Succeed())
+
+		webserviceV1DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "webservice-v1", Namespace: namespace}, webserviceV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		webserviceV2 := new(v1beta1.ComponentDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "webservice", Namespace: namespace}, webserviceV2)
+			if err != nil {
+				return err
+			}
+			webserviceV2.Spec.Schematic.CUE.Template = webServiceV2Template
+			return k8sClient.Update(ctx, webserviceV2)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		webserviceV2DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "webservice-v2", Namespace: namespace}, webserviceV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
 	})
 
 	AfterEach(func() {
@@ -114,8 +133,15 @@ var _ = Describe("Test application of the specified definition version", func() 
 		workerV1.Spec.Schematic.CUE.Template = workerV1Template
 		workerV1.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, workerV1)).Should(Succeed())
+
+		workerV1DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: "worker", Namespace: namespace}, workerV1)
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "worker-v1", Namespace: namespace}, workerV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		workerV2 := new(v1beta1.ComponentDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "worker", Namespace: namespace}, workerV2)
 			if err != nil {
 				return err
 			}
@@ -125,57 +151,14 @@ var _ = Describe("Test application of the specified definition version", func() 
 					Kind:       "Deployment",
 				},
 			}
-			workerV1.Spec.Schematic.CUE.Template = workerV2Template
-			return k8sClient.Update(ctx, workerV1)
-		}, 15*time.Second, time.Second).Should(BeNil())
-		workerDefRevList := new(v1beta1.DefinitionRevisionList)
-		workerDefRevListOpts := []client.ListOption{
-			client.InNamespace(namespace),
-			client.MatchingLabels{
-				oam.LabelComponentDefinitionName: "worker",
-			},
-		}
-		Eventually(func() error {
-			err := k8sClient.List(ctx, workerDefRevList, workerDefRevListOpts...)
-			if err != nil {
-				return err
-			}
-			if len(workerDefRevList.Items) != 2 {
-				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(workerDefRevList.Items))
-			}
-			return nil
-		}, 20*time.Second, time.Second).Should(BeNil())
-
-		webserviceV1 := webServiceWithNoTemplate.DeepCopy()
-		webserviceV1.Spec.Schematic.CUE.Template = webServiceV1Template
-		webserviceV1.SetNamespace(namespace)
-		Expect(k8sClient.Create(ctx, webserviceV1)).Should(Succeed())
-		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: "webservice", Namespace: namespace}, webserviceV1)
-			if err != nil {
-				return err
-			}
-			webserviceV1.Spec.Schematic.CUE.Template = webServiceV2Template
-			return k8sClient.Update(ctx, webserviceV1)
+			workerV2.Spec.Schematic.CUE.Template = workerV2Template
+			return k8sClient.Update(ctx, workerV2)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
-		webserviceDefRevList := new(v1beta1.DefinitionRevisionList)
-		webserviceDefRevListOpts := []client.ListOption{
-			client.InNamespace(namespace),
-			client.MatchingLabels{
-				oam.LabelComponentDefinitionName: "webservice",
-			},
-		}
+		workerV2DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
-			err := k8sClient.List(ctx, webserviceDefRevList, webserviceDefRevListOpts...)
-			if err != nil {
-				return err
-			}
-			if len(webserviceDefRevList.Items) != 2 {
-				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(webserviceDefRevList.Items))
-			}
-			return nil
-		}, 20*time.Second, time.Second).Should(BeNil())
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "worker-v2", Namespace: namespace}, workerV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -214,28 +197,19 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
-
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 60*time.Second, time.Second).Should(BeTrue())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
-		Expect(len(ac.Status.Workloads)).Should(Equal(len(app.Spec.Components)))
 		webServiceDeploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := comp1Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceDeploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
 		workerDeploy := &appsv1.Deployment{}
-		deployName = ac.Status.Workloads[1].Reference.Name
+		deployName = comp2Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, workerDeploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -282,25 +256,29 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is update successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
+		By("Wait for dispatching v2 resources successfully")
+		Eventually(func() error {
+			requestReconcileNow(ctx, &app)
+			rt := &v1beta1.ResourceTracker{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v2-%s", appName, namespace)}, rt); err != nil {
+				return err
 			}
-			return ac.Generation == 2
-		}, 10*time.Second, time.Second).Should(BeTrue())
+			if len(rt.Status.TrackedResources) != 0 {
+				return nil
+			}
+			return errors.New("v2 resources have not been dispatched")
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
-		Expect(len(ac.Status.Workloads)).Should(Equal(len(app.Spec.Components)))
 		webServiceV1Deploy := &appsv1.Deployment{}
-		deployName = ac.Status.Workloads[0].Reference.Name
+		deployName = comp1Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceV1Deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
 		By("Verify the workload(job) is created successfully")
 		workerJob := &batchv1.Job{}
-		jobName := ac.Status.Workloads[1].Reference.Name
+		jobName := comp2Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, workerJob)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -362,16 +340,24 @@ var _ = Describe("Test application of the specified definition version", func() 
 			},
 		}
 		Expect(k8sClient.Create(ctx, helmworkerV1)).Should(Succeed())
+
+		helmworkerV1DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: "helm-worker", Namespace: namespace}, helmworkerV1)
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "helm-worker-v1", Namespace: namespace}, helmworkerV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		helmworkerV2 := new(v1beta1.ComponentDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "helm-worker", Namespace: namespace}, helmworkerV2)
 			if err != nil {
 				return err
 			}
-			helmworkerV1.Spec.Workload.Definition = common.WorkloadGVK{
+			helmworkerV2.Spec.Workload.Definition = common.WorkloadGVK{
 				APIVersion: "apps/v1",
 				Kind:       "Deployment",
 			}
-			helmworkerV1.Spec.Schematic = &common.Schematic{
+			helmworkerV2.Spec.Workload.Type = "deployments.apps"
+			helmworkerV2.Spec.Schematic = &common.Schematic{
 				HELM: &common.Helm{
 					Release: util.Object2RawExtension(map[string]interface{}{
 						"chart": map[string]interface{}{
@@ -386,26 +372,13 @@ var _ = Describe("Test application of the specified definition version", func() 
 					}),
 				},
 			}
-			return k8sClient.Update(ctx, helmworkerV1)
+			return k8sClient.Update(ctx, helmworkerV2)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
-		helmworkerDefRevList := new(v1beta1.DefinitionRevisionList)
-		helmworkerDefRevListOpts := []client.ListOption{
-			client.InNamespace(namespace),
-			client.MatchingLabels{
-				oam.LabelComponentDefinitionName: "helm-worker",
-			},
-		}
+		helmworkerV2DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
-			err := k8sClient.List(ctx, helmworkerDefRevList, helmworkerDefRevListOpts...)
-			if err != nil {
-				return err
-			}
-			if len(helmworkerDefRevList.Items) != 2 {
-				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(helmworkerDefRevList.Items))
-			}
-			return nil
-		}, 20*time.Second, time.Second).Should(BeNil())
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "helm-worker-v2", Namespace: namespace}, helmworkerV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -438,14 +411,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
-
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created successfully")
 		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
-		}, 30*time.Second, time.Second).Should(Succeed())
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully by Helm")
 		deploy := &appsv1.Deployment{}
@@ -461,7 +429,6 @@ var _ = Describe("Test application of the specified definition version", func() 
 
 		By("Verify trait is applied to the workload")
 		Eventually(func() bool {
-			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy); err != nil {
 				return false
@@ -493,15 +460,6 @@ var _ = Describe("Test application of the specified definition version", func() 
 
 		By("Create application")
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
-
-		By("Verify the ApplicationContext is updated")
-		Eventually(func() bool {
-			ac = &v1alpha2.ApplicationContext{}
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return ac.GetGeneration() == 2
-		}, 15*time.Second, 3*time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is update successfully by Helm")
 		deploy = &appsv1.Deployment{}
@@ -542,16 +500,24 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 		kubeworkerV1.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, kubeworkerV1)).Should(Succeed())
+
+		kubeworkerV1DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: "kube-worker", Namespace: namespace}, kubeworkerV1)
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "kube-worker-v1", Namespace: namespace}, kubeworkerV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		kubeworkerV2 := new(v1beta1.ComponentDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "kube-worker", Namespace: namespace}, kubeworkerV2)
 			if err != nil {
 				return err
 			}
-			kubeworkerV1.Spec.Workload.Definition = common.WorkloadGVK{
+			kubeworkerV2.Spec.Workload.Definition = common.WorkloadGVK{
 				APIVersion: "batch/v1",
 				Kind:       "Job",
 			}
-			kubeworkerV1.Spec.Schematic = &common.Schematic{
+			kubeworkerV2.Spec.Workload.Type = "jobs.batch"
+			kubeworkerV2.Spec.Schematic = &common.Schematic{
 				KUBE: &common.Kube{
 					Template: generateTemplate(KUBEWorkerV2Template),
 					Parameters: []common.KubeParameter{
@@ -565,26 +531,13 @@ var _ = Describe("Test application of the specified definition version", func() 
 					},
 				},
 			}
-			return k8sClient.Update(ctx, kubeworkerV1)
+			return k8sClient.Update(ctx, kubeworkerV2)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
-		kubeworkerDefRevList := new(v1beta1.DefinitionRevisionList)
-		kubeworkerDefRevListOpts := []client.ListOption{
-			client.InNamespace(namespace),
-			client.MatchingLabels{
-				oam.LabelComponentDefinitionName: "kube-worker",
-			},
-		}
+		kubeworkerV2DefRev := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
-			err := k8sClient.List(ctx, kubeworkerDefRevList, kubeworkerDefRevListOpts...)
-			if err != nil {
-				return err
-			}
-			if len(kubeworkerDefRevList.Items) != 2 {
-				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(kubeworkerDefRevList.Items))
-			}
-			return nil
-		}, 20*time.Second, time.Second).Should(BeNil())
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "kube-worker-v2", Namespace: namespace}, kubeworkerV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -615,21 +568,13 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
-
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 60*time.Second, time.Second).Should(BeTrue())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(job) is created successfully")
 		job := &batchv1.Job{}
-		jobName := ac.Status.Workloads[0].Reference.Name
+		jobName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, job)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -668,18 +613,9 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is update successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return ac.Generation == 2
-		}, 10*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(deployment) is created successfully")
-		Expect(len(ac.Status.Workloads)).Should(Equal(len(app.Spec.Components)))
 		deploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -709,6 +645,91 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(HaveOccurred())
 	})
 
+	// refer to https://github.com/oam-dev/kubevela/discussions/1810#discussioncomment-914295
+	It("Test k8s resources created by application whether with correct label", func() {
+		var (
+			appName  = "test-resources-labels"
+			compName = "web"
+		)
+
+		exposeV1 := exposeWithNoTemplate.DeepCopy()
+		exposeV1.Spec.Schematic.CUE.Template = exposeV1Template
+		exposeV1.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, exposeV1)).Should(Succeed())
+
+		exposeV1DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "expose-v1", Namespace: namespace}, exposeV1DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		exposeV2 := new(v1beta1.TraitDefinition)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "expose", Namespace: namespace}, exposeV2)
+			if err != nil {
+				return err
+			}
+			exposeV2.Spec.Schematic.CUE.Template = exposeV2Templae
+			return k8sClient.Update(ctx, exposeV2)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		exposeV2DefRev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "expose-v2", Namespace: namespace}, exposeV2DefRev)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		app := v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name: compName,
+						Type: "webservice@v1",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+							"port":  8000,
+						}),
+						Traits: []v1beta1.ApplicationTrait{
+							{
+								Type: "expose@v1",
+								Properties: util.Object2RawExtension(map[string]interface{}{
+									"port": []int{8000},
+								}),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		By("Create application")
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Verify the workload(deployment) is created successfully")
+		webServiceDeploy := &appsv1.Deployment{}
+		deployName := compName
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceDeploy)
+		}, 30*time.Second, 3*time.Second).Should(Succeed())
+
+		By("Verify the workload label generated by KubeVela")
+		workloadLabel := webServiceDeploy.GetLabels()[oam.WorkloadTypeLabel]
+		Expect(workloadLabel).Should(Equal("webservice-v1"))
+
+		By("Verify the trait(service) is created successfully")
+		exposeSVC := &corev1.Service{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: compName, Namespace: namespace}, exposeSVC)
+		}, 30*time.Second, 3*time.Second).Should(Succeed())
+
+		By("Verify the trait label generated by KubeVela")
+		traitLabel := exposeSVC.GetLabels()[oam.TraitTypeLabel]
+		Expect(traitLabel).Should(Equal("expose-v1"))
+	})
 })
 
 var webServiceWithNoTemplate = &v1beta1.ComponentDefinition{
@@ -778,6 +799,23 @@ var labelWithNoTemplate = &v1beta1.TraitDefinition{
 	},
 	ObjectMeta: metav1.ObjectMeta{
 		Name: "label",
+	},
+	Spec: v1beta1.TraitDefinitionSpec{
+		Schematic: &common.Schematic{
+			CUE: &common.CUE{
+				Template: "",
+			},
+		},
+	},
+}
+
+var exposeWithNoTemplate = &v1beta1.TraitDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "TraitDefinition",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "expose",
 	},
 	Spec: v1beta1.TraitDefinitionSpec{
 		Schematic: &common.Schematic{
@@ -1031,4 +1069,75 @@ spec:
         command:
         - "sleep"
         - "1000"
+`
+
+var exposeV1Template = `
+outputs: service: {
+	apiVersion: "v1"
+	kind:       "Service"
+	metadata:
+		name: context.name
+	spec: {
+		selector:
+			"app.oam.dev/component": context.name
+		ports: [
+			for p in parameter.port {
+				port:       p
+				targetPort: p
+			},
+		]
+	}
+}
+parameter: {
+	// +usage=Specify the exposion ports
+	port: [...int]
+}
+`
+
+var exposeV2Templae = `
+outputs: service: {
+	apiVersion: "v1"
+	kind:       "Service"
+	metadata:
+		name: context.name
+	spec: {
+		selector: {
+			"app.oam.dev/component": context.name
+		}
+		ports: [
+			for k, v in parameter.http {
+				port:       v
+				targetPort: v
+			},
+		]
+	}
+}
+
+outputs: ingress: {
+	apiVersion: "networking.k8s.io/v1beta1"
+	kind:       "Ingress"
+	metadata:
+		name: context.name
+	spec: {
+		rules: [{
+			host: parameter.domain
+			http: {
+				paths: [
+					for k, v in parameter.http {
+						path: k
+						backend: {
+							serviceName: context.name
+							servicePort: v
+						}
+					},
+				]
+			}
+		}]
+	}
+}
+
+parameter: {
+	domain: string
+	http: [string]: int
+}
 `

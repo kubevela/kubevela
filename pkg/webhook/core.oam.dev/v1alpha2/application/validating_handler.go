@@ -20,8 +20,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -31,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -40,7 +39,7 @@ var _ admission.Handler = &ValidatingHandler{}
 // ValidatingHandler handles application
 type ValidatingHandler struct {
 	dm     discoverymapper.DiscoveryMapper
-	pd     *definition.PackageDiscover
+	pd     *packages.PackageDiscover
 	Client client.Client
 	// Decoder decodes objects
 	Decoder *admission.Decoder

@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/mitchellh/hashstructure/v2"
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,18 +34,19 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -203,10 +204,7 @@ func ConstructRevisionName(componentName string, revision int64) string {
 }
 
 // ExtractComponentName will extract the componentName from a revisionName
-func ExtractComponentName(revisionName string) string {
-	splits := strings.Split(revisionName, "-")
-	return strings.Join(splits[0:len(splits)-1], "-")
-}
+var ExtractComponentName = util.ExtractComponentName
 
 // ExtractRevision will extract the revision from a revisionName
 func ExtractRevision(revisionName string) (int, error) {
@@ -216,14 +214,14 @@ func ExtractRevision(revisionName string) (int, error) {
 }
 
 // CompareWithRevision compares a component's spec with the component's latest revision content
-func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Logger, componentName, nameSpace,
+func CompareWithRevision(ctx context.Context, c client.Client, componentName, nameSpace,
 	latestRevision string, curCompSpec *v1alpha2.ComponentSpec) (bool, error) {
 	oldRev := &appsv1.ControllerRevision{}
 	// retry on NotFound since we update the component last revision first
 	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
 		err := c.Get(ctx, client.ObjectKey{Namespace: nameSpace, Name: latestRevision}, oldRev)
 		if err != nil && !kerrors.IsNotFound(err) {
-			logger.Info(fmt.Sprintf("get old controllerRevision %s error %v",
+			klog.InfoS(fmt.Sprintf("get old controllerRevision %s error %v",
 				latestRevision, err), "componentName", componentName)
 			return false, err
 		}
@@ -234,8 +232,7 @@ func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Lo
 	}
 	oldComp, err := util.UnpackRevisionData(oldRev)
 	if err != nil {
-		logger.Info(fmt.Sprintf("Unmarshal old controllerRevision %s error %v",
-			latestRevision, err), "componentName", componentName)
+		klog.InfoS("Unmarshal old controllerRevision", latestRevision, "error", err, "componentName", componentName)
 		return true, err
 	}
 	if reflect.DeepEqual(curCompSpec, &oldComp.Spec) {
@@ -257,23 +254,45 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 }
 
 // RefreshPackageDiscover help refresh package discover
-func RefreshPackageDiscover(dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, workloadGVK commontypes.WorkloadGVK,
-	workloadref commontypes.DefinitionReference, def oamtypes.CapType) error {
+func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm discoverymapper.DiscoveryMapper,
+	pd *packages.PackageDiscover, definition runtime.Object) error {
 	var gvk schema.GroupVersionKind
 	var err error
-	switch def {
-	case oamtypes.TypeComponentDefinition:
-		gv, err := schema.ParseGroupVersion(workloadGVK.APIVersion)
+	switch def := definition.(type) {
+	case *v1beta1.ComponentDefinition:
+		if def.Spec.Workload.Definition == (commontypes.WorkloadGVK{}) {
+			workloadDef := new(v1beta1.WorkloadDefinition)
+			err = k8sClient.Get(ctx, client.ObjectKey{Name: def.Spec.Workload.Type, Namespace: def.Namespace}, workloadDef)
+			if err != nil {
+				return err
+			}
+			gvk, err = util.GetGVKFromDefinition(dm, workloadDef.Spec.Reference)
+			if err != nil {
+				return err
+			}
+		} else {
+			gv, err := schema.ParseGroupVersion(def.Spec.Workload.Definition.APIVersion)
+			if err != nil {
+				return err
+			}
+			gvk = gv.WithKind(def.Spec.Workload.Definition.Kind)
+		}
+	case *v1beta1.TraitDefinition:
+		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
 		if err != nil {
 			return err
 		}
-		gvk = gv.WithKind(workloadGVK.Kind)
-	case oamtypes.TypeTrait:
-		gvk, err = util.GetGVKFromDefinition(dm, workloadref)
+	case *v1beta1.PolicyDefinition:
+		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
 		if err != nil {
 			return err
 		}
-	case oamtypes.TypeWorkload, oamtypes.TypeScope:
+	case *v1beta1.WorkflowStepDefinition:
+		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
+		if err != nil {
+			return err
+		}
+	default:
 	}
 	targetGVK := metav1.GroupVersionKind{
 		Group:   gvk.Group,
@@ -335,4 +354,33 @@ func CheckAppDeploymentUsingAppRevision(ctx context.Context, c client.Reader, ap
 		}
 	}
 	return res, nil
+}
+
+// GetUnstructuredObjectStatusCondition returns the status.condition with matching condType from an unstructured object.
+func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condType string) (*runtimev1alpha1.Condition, bool, error) {
+	cs, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil {
+		return nil, false, err
+	}
+	if !found {
+		return nil, false, nil
+	}
+	for _, c := range cs {
+		b, err := json.Marshal(c)
+		if err != nil {
+			return nil, false, err
+		}
+		condObj := &runtimev1alpha1.Condition{}
+		err = json.Unmarshal(b, condObj)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if string(condObj.Type) != condType {
+			continue
+		}
+		return condObj, true, nil
+	}
+
+	return nil, false, nil
 }

@@ -17,16 +17,42 @@ limitations under the License.
 package applicationrollout
 
 import (
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
-// FindCommonComponent finds the common components in both the source and target application
+// FindCommonComponentWithManifest finds the common components in both the source and target workloads
 // the source can be nil
-func FindCommonComponent(targetApp, sourceApp *v1alpha2.ApplicationConfiguration) []string {
+func FindCommonComponentWithManifest(target, source map[string]*unstructured.Unstructured) []string {
+	var commonComponents []string
+	if source == nil {
+		for compName := range target {
+			commonComponents = append(commonComponents, compName)
+		}
+		return commonComponents
+	}
+	// find the common components in both the source and target components
+	// write an O(N) algorithm just for fun, totally doesn't worth the extra space
+	targetComponents := make(map[string]bool)
+	for comp := range target {
+		targetComponents[comp] = true
+	}
+	for comp := range source {
+		if targetComponents[comp] {
+			commonComponents = append(commonComponents, comp)
+		}
+	}
+	return commonComponents
+}
+
+// FindCommonComponent finds the common components in both the source and target application
+// only used for rollout webhook, will delete after refactor rollout webhook
+func FindCommonComponent(targetApp, sourceApp []*types.ComponentManifest) []string {
 	var commonComponents []string
 	if sourceApp == nil {
-		for _, comp := range targetApp.Spec.Components {
+		for _, comp := range targetApp {
 			commonComponents = append(commonComponents, utils.ExtractComponentName(comp.RevisionName))
 		}
 		return commonComponents
@@ -34,10 +60,10 @@ func FindCommonComponent(targetApp, sourceApp *v1alpha2.ApplicationConfiguration
 	// find the common components in both the source and target application
 	// write an O(N) algorithm just for fun, totally doesn't worth the extra space
 	targetComponents := make(map[string]bool)
-	for _, comp := range targetApp.Spec.Components {
+	for _, comp := range targetApp {
 		targetComponents[utils.ExtractComponentName(comp.RevisionName)] = true
 	}
-	for _, comp := range sourceApp.Spec.Components {
+	for _, comp := range sourceApp {
 		revisionName := utils.ExtractComponentName(comp.RevisionName)
 		if targetComponents[revisionName] {
 			commonComponents = append(commonComponents, revisionName)

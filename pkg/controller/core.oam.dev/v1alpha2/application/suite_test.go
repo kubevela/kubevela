@@ -18,23 +18,23 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"k8s.io/apimachinery/pkg/api/meta"
-
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/go-logr/logr"
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -46,14 +46,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -101,7 +100,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("start application suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		UseExistingCluster: pointer.BoolPtr(false),
-		CRDDirectoryPaths:  []string{yamlPath},
+		CRDDirectoryPaths:  []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
 	}
 
 	var err error
@@ -120,22 +119,27 @@ var _ = BeforeSuite(func(done Done) {
 
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
+
+	terraformv1beta1.AddToScheme(testScheme)
+
+	crdv1.AddToScheme(testScheme)
+
 	// +kubebuilder:scaffold:scheme
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 	dm, err := discoverymapper.New(cfg)
 	Expect(err).To(BeNil())
-	pd, err := definition.NewPackageDiscover(cfg)
+	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 	reconciler = &Reconciler{
 		Client:           k8sClient,
-		Log:              ctrl.Log.WithName("Application-Test"),
 		Scheme:           testScheme,
 		dm:               dm,
 		pd:               pd,
 		Recorder:         event.NewAPIRecorder(recorder),
 		appRevisionLimit: appRevisionLimit,
+		applicator:       apply.NewAPIApplicator(k8sClient),
 	}
 	// setup the controller manager since we need the component handler to run in the background
 	ctlManager, err = ctrl.NewManager(cfg, ctrl.Options{
@@ -144,19 +148,6 @@ var _ = BeforeSuite(func(done Done) {
 		LeaderElection:          false,
 		LeaderElectionNamespace: "default",
 		LeaderElectionID:        "test",
-	})
-	Expect(err).NotTo(HaveOccurred())
-	// start to run the no op reconciler that creates component revision
-	err = ctrl.NewControllerManagedBy(ctlManager).
-		Named("component").
-		For(&v1alpha2.Component{}).
-		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &applicationconfiguration.ComponentHandler{
-			Client:                ctlManager.GetClient(),
-			Logger:                logging.NewLogrLogger(ctrl.Log.WithName("application-testsuite-component-handler")),
-			RevisionLimit:         100,
-			CustomRevisionHookURL: "",
-		}).Complete(&NoOpReconciler{
-		Log: ctrl.Log.WithName("NoOp-Reconciler"),
 	})
 	Expect(err).NotTo(HaveOccurred())
 	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
@@ -240,4 +231,11 @@ func NewFakeRecorder(bufferSize int) *FakeRecorder {
 		Events:  make(chan string, bufferSize),
 		Message: make(map[string][]*Events),
 	}
+}
+
+// randomNamespaceName generates a random name based on the basic name.
+// Running each ginkgo case in a new namespace with a random name can avoid
+// waiting a long time to GC namesapce.
+func randomNamespaceName(basic string) string {
+	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
 }

@@ -8,64 +8,74 @@ slug: /
 
 ## Motivation
 
-The trend of cloud-native technology is moving towards pursuing consistent application delivery across clouds and on-premises infrastructures using Kubernetes as the common abstraction layer. Kubernetes, although excellent in abstracting low-level infrastructure details, does introduce extra complexity to application developers, namely understanding the concepts of pods, port exposing, privilege escalation, resource claims, CRD, and so on. We’ve seen the nontrivial learning curve and the lack of developer-facing abstraction have impacted user experiences, slowed down productivity, led to unexpected errors or misconfigurations in production. People start to question the value of this revolution: "why am I bothered with all these details?".
+The trend of cloud-native technology is moving towards pursuing consistent application delivery across clouds and on-premises infrastructures using Kubernetes as the common layer. Kubernetes, although excellent in abstracting low-level infrastructure details, does not introduce abstractions to model software deployment on top of today's hybrid and distributed environments. We’ve seen the lack of application level context have impacted user experiences, slowed down productivity, led to unexpected errors or misconfigurations in production.
 
-On the other hand, abstracting Kubernetes to serve developers' requirements is a highly opinionated process, and the resultant abstractions would only make sense had the decision makers been the platform builders. Unfortunately, the platform builders today face the following dilemma:
-
-*There is no tool or framework for them to easily build user friendly yet highly extensible abstractions*. 
-
-Thus, many platforms today are essentially restricted abstractions with in-house add-on mechanisms despite the extensibility of Kubernetes. This makes extending such platforms for developers' requirements or to wider scenarios almost impossible, not to mention taking the full advantage of the rich Kubernetes ecosystems.
-
-In the end, developers complain those platforms are too rigid and slow in response to feature requests or improvements. The platform builders do want to help but the engineering effort is daunting: any simple API change in the platform could easily become a marathon negotiation around the opinionated abstraction design.
+On the other hand, modeling the deployment of a microservice application is a highly opinionated and fragmented process. Thus, many solutions tried to solve above problem so far essentially became restricted systems and barely extensible (regardless of whether they are built with Kubernetes or not). As the needs of your application grow, they are almost certain to outgrow the capabilities of such systems. Application teams complain they are too rigid and slow in response to feature requests or improvements. The platform team do want to help but the engineering effort is daunting: any simple change to such platform could easily become a marathon negotiation around the design of its abstraction.
 
 ## What is KubeVela?
 
-For platform builders, KubeVela serves as a framework that relieves the pains of building developer focused platforms by doing the following:
+KubeVela is a modern application platform that makes deploying and managing applications across today's hybrid, multi-cloud environments easier and faster without any restriction or limitation. This is achieved by doing the following:
 
-**Developer Centric** - KubeVela introduces higher level API to capture a full deployment of microservices, and builds features around the application needs only. Multi-cluster application deployment and rolling update is provided out-of-box. No infrastructure level concerns, simply deploy.
+**Application Centric** - KubeVela introduces declarative yet higher level API (known as [OAM](https://oam.dev/)) to model a full deployment of microservices across hybrid environments in consistent approach. No infrastructure level concerns, simply deploy.
 
-**Natively Extensible** - KubeVela models platform features (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh/) components, and expose them to end users as self-service building blocks. When your needs grow, these capabilities can extend naturally in a programmable approach. No restriction, fully flexible.
+**Natively Extensible** - KubeVela backend is implemented with [CUE](https://cuelang.org/). Whenever your needs grow, KubeVela's capabilities can naturally expand in a IaC-style approach. No restrictions, simply programming.
 
-**Simple yet Reliable** - KubeVela is built with Kubernetes as control plane so unlike traditional X-as-Code solutions, it never leaves configuration drift in your clusters. Also, this makes KubeVela work with any CI/CD or GitOps tools via declarative API without any integration burden.
+**Runtime Agnostic** - KubeVela relies on Kubernetes as control plane but it's adaptable to any runtime infrastructures. It can deploy and manage diverse workload types including container, cloud functions, databases, or even EC2 instances across hybrid environments.
 
-With KubeVela, the platform builders finally have the tooling supports to design easy-to-use application platform with high confidence and low turn around time. 
+## Architecture
 
-For end-users (e.g. app developers and operators), this platform will enable them to design and ship applications to Kubernetes clusters with minimal effort, and instead of managing a handful infrastructure details, a simple application definition that can be easily integrated with any CI/CD pipeline is all they need.
+The overall architecture of KubeVela is shown as below:
+
+![alt](resources/arch.png)
+
+### Control Plane
+
+Control plane is where KubeVela itself lives in. As the project's name implies, KubeVela by design leverages Kubernetes as control plane. This is the key of how KubeVela guarantees full *automation* and strong *determinism* to application delivery at scale. Users will interact with KubeVela via the  application centric API to model the application deployment, and KubeVela will distribute it to target *runtime infrastructure* per policies and rules declared by users.
+
+### Runtime Infrastructures
+
+Runtime infrastructures are where the applications are actually running on. KubeVela allows you to model and deploy applications to any Kubernetes based infrastructure (either local, managed offerings, or IoT/Edge/On-Premise ones), or to public cloud platforms.
 
 ## Comparisons
 
 ### KubeVela vs. Platform-as-a-Service (PaaS) 
 
-The typical examples are Heroku and Cloud Foundry. They provide full application management capabilities and aim to improve developer experience and efficiency. In this context, KubeVela shares the same goal.
+The typical examples are Heroku and Cloud Foundry. They provide full application deployment and management capabilities and aim to improve developer experience and efficiency. In this context, KubeVela shares the same goal.
 
 Though the biggest difference lies in **flexibility**.
 
-KubeVela enables you to serve end users with programmable building blocks which are fully flexible and coded by yourself. Comparing to this mechanism, traditional PaaS systems are highly restricted, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, you always outgrow the capabilities of the PaaS system - this will never happen in KubeVela platform.
-
-So think of KubeVela as a Heroku that is fully extensible to serve your needs as you grow.
+KubeVela is fully programmable. All capabilities in KubeVela are LEGO-sytle CUE modules and can be extended at any time when your needs grow. Comparing to this mechanism, traditional PaaS systems are highly restricted, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, you always outgrow the capabilities of the PaaS system - this will never happen in KubeVela platform.
 
 ### KubeVela vs. Serverless  
 
 Serverless platform such as AWS Lambda provides extraordinary user experience and agility to deploy serverless applications. However, those platforms impose even more constraints in extensibility. They are arguably "hard-coded" PaaS.
 
-Kubernetes based serverless platforms such as Knative, OpenFaaS can be easily integrated with KubeVela by registering themselves as new workload types and traits. Even for AWS Lambda, there is a success story to integrate it with KubeVela by the tools developed by Crossplane.
+KubeVela can easily deploy both Kubernetes based serverless workloads such as Knative/OpenFaaS, or cloud based functions such as AWS Lambda.
 
 ### KubeVela vs. Platform agnostic developer tools
 
 The typical example is Hashicorp's Waypoint. Waypoint is a developer facing tool which introduces a consistent workflow (i.e., build, deploy, release) to ship applications on top of different platforms.
 
-KubeVela can be integrated into such tools as an application platform. In this case, developers could use the Waypoint workflow to manage applications with leverage of abstractions (e.g. application, rollout, ingress, autoscaling etc) you built via KubeVela.
+KubeVela can be integrated with such tools seamlessly. In this case, developers would use the Waypoint workflow as the UI to deploy and release applications with KubeVela as the underlying deployment platform.
 
 ### KubeVela vs. Helm 
 
-Helm is a package manager for Kubernetes that provides package, install, and upgrade a set of YAML files for Kubernetes as a unit. KubeVela can patch, deploy and rollout Helm packaged application components, and it also leverages Helm to manage the capability dependencies in system level.
+Helm is a package manager for Kubernetes that provides package, install, and upgrade a set of YAML files for Kubernetes as a unit. 
 
-Though KubeVela itself is not a package manager, it's a core engine for platform builders to create developer-centric deployment system with easy and repeatable approach.
+KubeVela as a modern deployment system can naturally deploy Helm charts. For example, you could use KubeVela to define an application that is composed by a WordPress chart and a AWS RDS Terraform module, orchestrate the components' topology, and then deploy them to multiple environments following certain strategy.
+
+Furthermore, KubeVela also supports other encapsulation formats including Kustomize etc.
 
 ### KubeVela vs. Kubernetes
 
-KubeVela is a Kubernetes add-on for building developer-centric deployment system. It leverages [Open Application Model](https://github.com/oam-dev/spec) and the native Kubernetes extensibility to resolve a hard problem - making shipping applications enjoyable on Kubernetes.
+KubeVela is a Kubernetes add-on for building modern application deployment system. It leverages [Open Application Model](https://github.com/oam-dev/spec) and Kubernetes as control plane to resolve a hard problem - making shipping applications enjoyable.
 
-## Getting Started
+## What's Next
 
-Now let's [get started](./quick-start) with KubeVela!
+Here are some recommended next steps:
+- [Get started](./quick-start) with KubeVela.
+- Learn KubeVela's [core concepts](./concepts).
+- Learn how to [deploy an application](end-user/application) in detail and understand how it works.
+- Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
+
+Welcome onboard and sail Vela!

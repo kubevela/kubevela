@@ -105,7 +105,7 @@ You must run all commands in that directory.
 1. Create an Application
 
    ```bash
-   $ cat <<EOF | kubectl apply -f -
+   cat <<EOF | kubectl apply -f -
    apiVersion: core.oam.dev/v1beta1
    kind: Application
    metadata:
@@ -126,7 +126,9 @@ You must run all commands in that directory.
    This will create `example-app-v1` AppRevision. Check it:
 
    ```bash
-   $ kubectl get applicationrevisions.core.oam.dev
+   kubectl get applicationrevisions.core.oam.dev
+   ```
+   ```console
    NAME             AGE
    example-app-v1   116s
    ```
@@ -136,7 +138,7 @@ You must run all commands in that directory.
 1. Then use the above AppRevision to create an AppDeployment.
 
    ```bash
-   $ kubectl apply -f appdeployment-1.yaml
+   kubectl apply -f appdeployment-1.yaml
    ```
 
    > Note: in order to AppDeployment to work, your workload object must have a `spec.replicas` field for scaling.
@@ -144,7 +146,9 @@ You must run all commands in that directory.
 1. Now you can check that there will 1 deployment and 2 pod instances deployed
 
    ```bash
-   $ kubectl get deploy
+   kubectl get deploy
+   ```
+   ```console
    NAME         READY   UP-TO-DATE   AVAILABLE   AGE
    testsvc-v1   2/2     2            0           27s
    ```
@@ -152,7 +156,7 @@ You must run all commands in that directory.
 1. Update Application properties:
 
    ```bash
-   $ cat <<EOF | kubectl apply -f -
+   cat <<EOF | kubectl apply -f -
    apiVersion: core.oam.dev/v1beta1
    kind: Application
    metadata:
@@ -173,7 +177,9 @@ You must run all commands in that directory.
    This will create a new `example-app-v2` AppRevision. Check it:
 
    ```bash
-   $ kubectl get applicationrevisions.core.oam.dev
+   kubectl get applicationrevisions.core.oam.dev
+   ```
+   ```console
    NAME
    example-app-v1
    example-app-v2
@@ -182,16 +188,16 @@ You must run all commands in that directory.
 1. Then use the two AppRevisions to update the AppDeployment:
 
    ```bash
-   $ kubectl apply -f appdeployment-2.yaml
+   kubectl apply -f appdeployment-2.yaml
    ```
 
    (Optional) If you have Istio installed, you can apply the AppDeployment with traffic split:
 
    ```bash
    # set up gateway if not yet
-   $ kubectl apply -f gateway.yaml
+   kubectl apply -f gateway.yaml
 
-   $ kubectl apply -f appdeployment-2-traffic.yaml
+   kubectl apply -f appdeployment-2-traffic.yaml
    ```
 
    Note that for traffic split to work, your must set the following pod labels in workload cue templates (see [webservice.cue](https://github.com/oam-dev/kubevela/blob/master/hack/vela-templates/cue/webservice.cue)):
@@ -204,7 +210,9 @@ You must run all commands in that directory.
 1. Now you can check that there will 1 deployment and 1 pod per revision.
 
    ```bash
-   $ kubectl get deploy
+   kubectl get deploy
+   ```
+   ```console
    NAME         READY   UP-TO-DATE   AVAILABLE   AGE
    testsvc-v1   1/1     1            1           2m14s
    testsvc-v2   1/1     1            1           8s
@@ -214,7 +222,9 @@ You must run all commands in that directory.
 
    ```bash
    # run this in another terminal
-   $ kubectl -n istio-system port-forward service/istio-ingressgateway 8080:80
+   kubectl -n istio-system port-forward service/istio-ingressgateway 8080:80
+   ```
+   ```console
    Forwarding from 127.0.0.1:8080 -> 8080
    Forwarding from [::1]:8080 -> 8080
 
@@ -225,6 +235,6 @@ You must run all commands in that directory.
 1. Cleanup:
 
    ```bash
-   kubectl delete appdeployments.core.oam.dev  --all
+   kubectl delete appdeployments.core.oam.dev --all
    kubectl delete applications.core.oam.dev --all
    ```

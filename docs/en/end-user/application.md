@@ -2,7 +2,7 @@
 title: Application
 ---
 
-This documentation will walk through how to use KubeVela to design a simple application without any placement rule.
+This documentation will walk through how to use KubeVela to design a simple application without any polices or placement rule defined.
 
 > Note: since you didn't declare placement rule, KubeVela will deploy this application directly to the control plane cluster (i.e. the cluster your `kubectl` is talking to). This is also the same case if you are using local cluster such as KinD or MiniKube to play KubeVela.
 
@@ -14,6 +14,8 @@ Let's check the available components in fresh new KubeVela.
 
 ```shell
 kubectl get comp -n vela-system
+```
+```console
 NAME              WORKLOAD-KIND   DESCRIPTION                        
 task              Job             Describes jobs that run code or a script to completion.                                                                                          
 webservice        Deployment      Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers. 
@@ -23,7 +25,9 @@ worker            Deployment      Describes long-running, scalable, containerize
 To show the specification for given component, you could use `vela show`. 
 
 ```shell
-$ kubectl vela show webservice
+kubectl vela show webservice
+```
+```console
 # Properties
 +------------------+----------------------------------------------------------------------------------+-----------------------+----------+---------+
 |       NAME       |                                   DESCRIPTION                                    |         TYPE          | REQUIRED | DEFAULT |
@@ -73,18 +77,22 @@ spec:
 Traits are platform provided features that could *overlay* a given component with extra operational behaviors.
 
 ```shell
-$ kubectl get trait -n vela-system
+kubectl get trait -n vela-system
+```
+```console
 NAME                                       APPLIES-TO            DESCRIPTION                                     
-cpuscaler                                  [webservice worker]   configure k8s HPA with CPU metrics for Deployment
-ingress                                    [webservice worker]   Configures K8s ingress and service to enable web traffic for your service. Please use route trait in cap center for advanced usage.
-scaler                                     [webservice worker]   Configures replicas for your service.
-sidecar                                    [webservice worker]   inject a sidecar container into your app
+cpuscaler                                  [webservice worker]   Automatically scale the component based on CPU usage.
+ingress                                    [webservice worker]   Enable public web traffic for the component.
+scaler                                     [webservice worker]   Manually scale the component.
+sidecar                                    [webservice worker]   Inject a sidecar container to the component.
 ```
 
 Let's check the specification of `sidecar` trait.
 
 ```shell
-$ kubectl vela show sidecar
+kubectl vela show sidecar
+```
+```console
 # Properties
 +---------+-----------------------------------------+----------+----------+---------+
 |  NAME   |               DESCRIPTION               |   TYPE   | REQUIRED | DEFAULT |
@@ -116,7 +124,7 @@ spec:
       properties:
         image: nginx
       traits:
-        - type: cpuscaler         # Assign a HPA to scale the component by CPU usage
+        - type: cpuscaler         # Automatically scale the component by CPU usage after deployed
           properties:
             min: 1
             max: 10
@@ -137,14 +145,18 @@ spec:
 ## Step 4: Deploy the Application
 
 ```shell
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/enduser/sample.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/enduser/sample.yaml
+```
+```console
 application.core.oam.dev/website created
 ```
 
 You'll get the application becomes `running`.
 
 ```shell
-$ kubectl get application
+kubectl get application
+```
+```console
 NAME        COMPONENT   TYPE         PHASE     HEALTHY   STATUS   AGE
 website     frontend    webservice   running   true               4m54s
 ```
@@ -152,7 +164,9 @@ website     frontend    webservice   running   true               4m54s
 Check the details of the application.
 
 ```shell
-$ kubectl get app website -o yaml
+kubectl get app website -o yaml
+```
+```console
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -212,54 +226,11 @@ Specifically:
 When updating an application entity, KubeVela will create a new revision for this change.
 
 ```shell
-$ kubectl get apprev -l app.oam.dev/name=website
+kubectl get apprev -l app.oam.dev/name=website
+```
+```console
 NAME           AGE
 website-v1     35m
 ```
 
 Furthermore, the system will decide how to/whether to rollout the application based on the attached [rollout plan](scopes/rollout-plan).
-
-### Verify
-<details>
-
-On the runtime cluster, you could see a Kubernetes Deployment named `frontend` is running, with port exposed, and with a container `fluentd` injected.
-
-```shell
-$ kubectl get deploy frontend
-NAME       READY   UP-TO-DATE   AVAILABLE   AGE
-frontend   1/1     1            1           97s
-```
-
-```shell
-$ kubectl get deploy frontend -o yaml
-...
-    spec:
-      containers:
-      - image: nginx
-        imagePullPolicy: Always
-        name: frontend
-        ports:
-        - containerPort: 80
-          protocol: TCP
-      - image: fluentd
-        imagePullPolicy: Always
-        name: sidecar-test
-...
-```
-
-Another Deployment is also running named `backend`.
-
-```shell
-$ kubectl get deploy backend
-NAME      READY   UP-TO-DATE   AVAILABLE   AGE
-backend   1/1     1            1           111s
-```
-
-An HPA was also created by the `cpuscaler` trait. 
-
-```shell
-$ kubectl get HorizontalPodAutoscaler frontend
-NAME       REFERENCE             TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
-frontend   Deployment/frontend   <unknown>/50%   1         10        1          101m
-```
-</details>

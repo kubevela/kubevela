@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ktype "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -52,16 +53,16 @@ const reconcileTimeout = 1 * time.Minute
 // Reconciler reconciles an Application Context by constructing an in-memory
 // application configuration and reuse its reconcile logic
 type Reconciler struct {
-	client    client.Client
-	log       logging.Logger
-	record    event.Recorder
-	mgr       ctrl.Manager
-	applyMode core.ApplyOnceOnlyMode
+	client               client.Client
+	record               event.Recorder
+	mgr                  ctrl.Manager
+	applyMode            core.ApplyOnceOnlyMode
+	concurrentReconciles int
 }
 
 // Reconcile reconcile an application context
 func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	r.log.Debug("Reconciling")
+	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
 	defer cancel()
 	// fetch the app context
@@ -104,8 +105,8 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// makes sure that the appConfig's owner is the same as the appContext
 	appConfig.SetOwnerReferences(appContext.GetOwnerReferences())
 	// call into the old ac Reconciler and copy the status back
-	acReconciler := ac.NewReconciler(r.mgr, dm, r.log, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
-	reconResult := acReconciler.ACReconcile(ctx, appConfig, r.log)
+	acReconciler := ac.NewReconciler(r.mgr, dm, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
+	reconResult := acReconciler.ACReconcile(ctx, appConfig)
 	appContextPatch := client.MergeFrom(appContext.DeepCopy())
 	appContext.Status = appConfig.Status
 	// always update ac status and set the error
@@ -126,25 +127,27 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.Componen
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 		WithAnnotations("controller", "AppRollout")
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
 		For(&v1alpha2.ApplicationContext{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, compHandler).
 		Complete(r)
 }
 
 // Setup adds a controller that reconciles ApplicationContext
-func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
+func Setup(mgr ctrl.Manager, args core.Args) error {
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationContextGroupKind)
 	record := event.NewAPIRecorder(mgr.GetEventRecorderFor(name))
 	reconciler := Reconciler{
-		client:    mgr.GetClient(),
-		mgr:       mgr,
-		log:       l.WithValues("controller", name),
-		record:    record,
-		applyMode: args.ApplyMode,
+		client:               mgr.GetClient(),
+		mgr:                  mgr,
+		record:               record,
+		applyMode:            args.ApplyMode,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	compHandler := &ac.ComponentHandler{
 		Client:                mgr.GetClient(),
-		Logger:                l,
 		RevisionLimit:         args.RevisionLimit,
 		CustomRevisionHookURL: args.CustomRevisionHookURL,
 	}

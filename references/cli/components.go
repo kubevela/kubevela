@@ -17,10 +17,17 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -33,6 +40,7 @@ import (
 func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "components",
+		Aliases:               []string{"comp", "component"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List components",
 		Long:                  "List components",
@@ -41,16 +49,27 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			isDiscover, _ := cmd.Flags().GetBool("discover")
 			env, err := GetEnv(cmd)
 			if err != nil {
 				return err
 			}
-			return printComponentList(env.Namespace, c, ioStreams)
+			if !isDiscover {
+				return printComponentList(env.Namespace, c, ioStreams)
+			}
+			option := types.TypeComponentDefinition
+			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option)
+			if err != nil {
+				return err
+			}
+
+			return nil
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
+	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
@@ -83,5 +102,88 @@ func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.
 		table.AddRow(r.Name, r.Namespace, workload, plugins.GetDescription(r.Annotations))
 	}
 	ioStreams.Info(table.String())
+	return nil
+}
+
+// PrintComponentListFromRegistry print a table which shows all components from registry
+func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
+	var scheme = runtime.NewScheme()
+	err := core.AddToScheme(scheme)
+	if err != nil {
+		return err
+	}
+	err = clientgoscheme.AddToScheme(scheme)
+	if err != nil {
+		return err
+	}
+	k8sClient, err := client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
+	if err != nil {
+		return err
+	}
+
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from registry: %s\n", url)))
+	caps, err := getCapsFromRegistry(url)
+	if err != nil {
+		return err
+	}
+
+	var installedList v1beta1.ComponentDefinitionList
+	err = k8sClient.List(context.Background(), &installedList, client.InNamespace(types.DefaultKubeVelaNS))
+	if err != nil {
+		return err
+	}
+	table := newUITable()
+	if isDiscover {
+		table.AddRow("NAME", "REGISTRY", "DEFINITION")
+	} else {
+		table.AddRow("NAME", "DEFINITION")
+	}
+	for _, c := range caps {
+		c.Status = uninstalled
+		if c.Type != types.TypeComponentDefinition {
+			continue
+		}
+		for _, ins := range installedList.Items {
+			if ins.Name == c.Name {
+				c.Status = installed
+			}
+		}
+
+		if c.Status == uninstalled && isDiscover {
+			table.AddRow(c.Name, "default", c.CrdName)
+		}
+		if c.Status == installed && !isDiscover {
+			table.AddRow(c.Name, c.CrdName)
+		}
+	}
+	ioStreams.Info(table.String())
+
+	return nil
+}
+
+// InstallCompByName will install given componentName comp to cluster from registry
+func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, regURL string) error {
+
+	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
+	if err != nil {
+		return err
+	}
+	capObj, data, err := g.GetCap(compName)
+	if err != nil {
+		return err
+	}
+
+	k8sClient, err := args.GetClient()
+	if err != nil {
+		return err
+	}
+
+	err = common.InstallComponentDefinition(k8sClient, data, ioStream, &capObj)
+	if err != nil {
+		return err
+	}
+
+	ioStream.Info("Successfully install component:", compName)
+
 	return nil
 }

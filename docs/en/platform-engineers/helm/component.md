@@ -4,7 +4,7 @@ title:  How-to
 
 In this section, it will introduce how to declare Helm charts as components via `ComponentDefinition`.
 
-> Before reading this part, please make sure you've learned [the definition and template concepts](../definition-and-templates.md).
+> Before reading this part, please make sure you've learned [the definition and template concepts](../definition-and-templates).
 
 ## Prerequisite
 
@@ -65,18 +65,24 @@ The component `properties` is exactly the [overlay values](https://github.com/ca
 
 Deploy the application and after several minutes (it may take time to fetch Helm chart), you can check the Helm release is installed.
 ```shell
-$ helm ls -A
+helm ls -A
+```
+```console
 myapp-demo-podinfo  default   1   2021-03-05 02:02:18.692317102 +0000 UTC deployed  podinfo-5.1.4     5.1.4
 ```
 Check the workload defined in the chart has been created successfully.
 ```shell
-$ kubectl get deploy
+kubectl get deploy
+```
+```console
 NAME                     READY   UP-TO-DATE   AVAILABLE   AGE
 myapp-demo-podinfo   1/1     1            1           66m
 ```
 
 Check the values (`image.tag = 5.1.2`) from application's `properties` are assigned to the chart.
 ```shell
-$ kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.containers[0].image'
+kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.containers[0].image'
+```
+```console
 "ghcr.io/stefanprodan/podinfo:5.1.2"
 ```

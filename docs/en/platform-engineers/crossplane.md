@@ -9,6 +9,7 @@ These cloud services are provided by Crossplane.
 ## Prepare Crossplane
 
 <details>
+  
 Please Refer to [Installation](https://github.com/crossplane/provider-alibaba/releases/tag/v0.5.0) 
 to install Crossplane Alibaba provider v0.5.0.
 

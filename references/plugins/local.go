@@ -68,25 +68,30 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 		if err != nil {
 			return nil, err
 		}
-		systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
-		if err != nil {
-			return nil, err
+		if userNamespace != types.DefaultKubeVelaNS {
+			systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+			if err != nil {
+				return nil, err
+			}
+			caps = append(caps, systemCaps...)
 		}
-		caps = append(caps, systemCaps...)
 		return caps, nil
 	case types.TypeTrait:
 		caps, _, err := GetTraitsFromCluster(context.TODO(), userNamespace, c, nil)
 		if err != nil {
 			return nil, err
 		}
-		systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
-		if err != nil {
-			return nil, err
+		if userNamespace != types.DefaultKubeVelaNS {
+			systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+			if err != nil {
+				return nil, err
+			}
+			caps = append(caps, systemCaps...)
 		}
-		caps = append(caps, systemCaps...)
 		return caps, nil
 	case types.TypeScope:
 	case types.TypeWorkload:
+	default:
 	}
 	return nil, nil
 }
@@ -170,6 +175,7 @@ func GetSubDir(dir string, capT types.CapType) string {
 		return filepath.Join(dir, "scopes")
 	case types.TypeComponentDefinition:
 		return filepath.Join(dir, "components")
+	default:
 	}
 	return dir
 }
@@ -253,7 +259,7 @@ func LoadCapabilityFromSyncedCenter(mapper discoverymapper.DiscoveryMapper, dir 
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue
 		}
-		tmp, err := ParseAndSyncCapability(mapper, data)
+		tmp, err := ParseCapability(mapper, data)
 		if err != nil {
 			fmt.Printf("get definition of %s err %v\n", f.Name(), err)
 			continue

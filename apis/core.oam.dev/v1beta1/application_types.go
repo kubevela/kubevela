@@ -50,9 +50,42 @@ type ApplicationComponent struct {
 	Scopes map[string]string `json:"scopes,omitempty"`
 }
 
+// AppPolicy defines a global policy for all components in the app.
+type AppPolicy struct {
+	// Name is the unique name of the policy.
+	Name string `json:"name"`
+
+	Type string `json:"type"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
+}
+
+// WorkflowStep defines how to execute a workflow step.
+type WorkflowStep struct {
+	// Name is the unique name of the workflow step.
+	Name string `json:"name"`
+
+	Type string `json:"type"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
+}
+
 // ApplicationSpec is the spec of Application
 type ApplicationSpec struct {
 	Components []ApplicationComponent `json:"components"`
+
+	// Policies defines the global policies for all components in the app, e.g. security, metrics, gitops,
+	// multi-cluster placement rules, etc.
+	// Policies are applied after components are rendered and before workflow steps are executed.
+	Policies []AppPolicy `json:"policies,omitempty"`
+
+	// Workflow defines how to customize the control logic.
+	// If workflow is specified, Vela won't apply any resource, but provide rendered output in AppRevision.
+	// Workflow steps are executed in array order, and each step:
+	// - will have a context in annotation.
+	// - should mark "finish" phase in status.conditions.
+	Workflow []WorkflowStep `json:"workflow,omitempty"`
 
 	// TODO(wonderflow): we should have application level scopes supported here
 

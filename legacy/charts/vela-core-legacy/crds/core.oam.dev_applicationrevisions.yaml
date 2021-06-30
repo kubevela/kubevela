@@ -544,6 +544,40 @@ spec:
                       status:
                         description: ApplicationPhase is a label for the condition of a application at the current time
                         type: string
+                      workflow:
+                        description: Workflow record the status of workflow steps
+                        items:
+                          description: WorkflowStepStatus record the status of a workflow step
+                          properties:
+                            name:
+                              type: string
+                            phase:
+                              description: WorkflowStepPhase describes the phase of a workflow step.
+                              type: string
+                            resourceRef:
+                              description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion of the referenced object.
+                                  type: string
+                                kind:
+                                  description: Kind of the referenced object.
+                                  type: string
+                                name:
+                                  description: Name of the referenced object.
+                                  type: string
+                                uid:
+                                  description: UID of the referenced object.
+                                  type: string
+                              required:
+                              - apiVersion
+                              - kind
+                              - name
+                              type: object
+                            type:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                 type: object
               applicationConfiguration:
@@ -1291,6 +1325,24 @@ spec:
                           - type
                           type: object
                         type: array
+                      policies:
+                        description: Policies defines the global policies for all components in the app, e.g. security, metrics, gitops, multi-cluster placement rules, etc. Policies are applied after components are rendered and before workflow steps are executed.
+                        items:
+                          description: AppPolicy defines a global policy for all components in the app.
+                          properties:
+                            name:
+                              description: Name is the unique name of the policy.
+                              type: string
+                            properties:
+                              type: object
+                              
+                            type:
+                              type: string
+                          required:
+                          - name
+                          - type
+                          type: object
+                        type: array
                       rolloutPlan:
                         description: RolloutPlan is the details on how to rollout the resources The controller simply replace the old resources with the new one if there is no rollout plan involved
                         properties:
@@ -1509,6 +1561,24 @@ spec:
                             format: int32
                             type: integer
                         type: object
+                      workflow:
+                        description: 'Workflow defines how to customize the control logic. If workflow is specified, Vela won''t apply any resource, but provide rendered output in AppRevision. Workflow steps are executed in array order, and each step: - will have a context in annotation. - should mark "finish" phase in status.conditions.'
+                        items:
+                          description: WorkflowStep defines how to execute a workflow step.
+                          properties:
+                            name:
+                              description: Name is the unique name of the workflow step.
+                              type: string
+                            properties:
+                              type: object
+                              
+                            type:
+                              type: string
+                          required:
+                          - name
+                          - type
+                          type: object
+                        type: array
                     required:
                     - components
                     type: object
@@ -1744,6 +1814,40 @@ spec:
                       status:
                         description: ApplicationPhase is a label for the condition of a application at the current time
                         type: string
+                      workflow:
+                        description: Workflow record the status of workflow steps
+                        items:
+                          description: WorkflowStepStatus record the status of a workflow step
+                          properties:
+                            name:
+                              type: string
+                            phase:
+                              description: WorkflowStepPhase describes the phase of a workflow step.
+                              type: string
+                            resourceRef:
+                              description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion of the referenced object.
+                                  type: string
+                                kind:
+                                  description: Kind of the referenced object.
+                                  type: string
+                                name:
+                                  description: Name of the referenced object.
+                                  type: string
+                                uid:
+                                  description: UID of the referenced object.
+                                  type: string
+                              required:
+                              - apiVersion
+                              - kind
+                              - name
+                              type: object
+                            type:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                 type: object
               applicationConfiguration:
@@ -1981,6 +2085,13 @@ spec:
                   - raw
                   type: object
                 type: array
+              resourcesConfigMap:
+                description: ResourcesConfigMap references the ConfigMap that's generated to contain all final rendered resources.
+                properties:
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                type: object
               scopeDefinitions:
                 additionalProperties:
                   description: A ScopeDefinition registers a kind of Kubernetes custom resource as a valid OAM scope kind by referencing its CustomResourceDefinition. The CRD is used to validate the schema of the scope when it is embedded in an OAM ApplicationConfiguration.

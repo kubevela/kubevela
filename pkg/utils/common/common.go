@@ -30,9 +30,13 @@ import (
 	"path/filepath"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/ghodss/yaml"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/oam-dev/terraform-config-inspect/tfconfig"
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -43,7 +47,7 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 var (
@@ -59,6 +63,7 @@ func init() {
 	_ = istioclientv1beta1.AddToScheme(Scheme)
 	_ = certmanager.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
+	_ = terraformv1beta1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -95,7 +100,7 @@ func HTTPGet(ctx context.Context, url string) ([]byte, error) {
 // GetCUEParameterValue converts definitions to cue format
 func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	r := cue.Runtime{}
-	template, err := r.Compile("", cueStr+mycue.BaseTemplate)
+	template, err := r.Compile("", cueStr+velacue.BaseTemplate)
 	if err != nil {
 		return cue.Value{}, err
 	}
@@ -108,7 +113,7 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == mycue.ParameterTag {
+		if paraDef.Name == velacue.ParameterTag {
 			found = true
 			break
 		}
@@ -126,14 +131,42 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 	if inst.Err != nil {
 		return nil, inst.Err
 	}
+	paramOnlyIns, err := RefineParameterInstance(inst)
+	if err != nil {
+		return nil, err
+	}
 	defaultConfig := &openapi.Config{}
-	b, err := openapi.Gen(inst, defaultConfig)
+	b, err := openapi.Gen(paramOnlyIns, defaultConfig)
 	if err != nil {
 		return nil, err
 	}
 	var out = &bytes.Buffer{}
 	_ = json.Indent(out, b, "", "   ")
 	return out.Bytes(), nil
+}
+
+// RefineParameterInstance refines cue instance to merely include `parameter` identifier
+func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
+	r := cue.Runtime{}
+	paramVal := inst.LookupDef(velacue.ParameterTag)
+	var paramOnlyStr string
+	switch k := paramVal.IncompleteKind(); k {
+	case cue.StructKind, cue.ListKind:
+		sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
+		paramSyntax, _ := format.Node(paramVal.Syntax(sysopts...))
+		paramOnlyStr = fmt.Sprintf("#%s: %s\n", velacue.ParameterTag, string(paramSyntax))
+	case cue.IntKind, cue.StringKind, cue.FloatKind, cue.BoolKind:
+		paramOnlyStr = fmt.Sprintf("#%s: %v", velacue.ParameterTag, paramVal)
+	case cue.BottomKind:
+		paramOnlyStr = fmt.Sprintf("#%s: {}", velacue.ParameterTag)
+	default:
+		return nil, fmt.Errorf("unsupport parameter kind: %s", k.String())
+	}
+	paramOnlyIns, err := r.Compile("-", paramOnlyStr)
+	if err != nil {
+		return nil, err
+	}
+	return paramOnlyIns, nil
 }
 
 // RealtimePrintCommandOutput prints command output in real time
@@ -187,4 +220,19 @@ func ReadYamlToObject(path string, object k8sruntime.Object) error {
 		return err
 	}
 	return yaml.Unmarshal(data, object)
+}
+
+// ParseTerraformVariables get variables from Terraform Configuration
+func ParseTerraformVariables(configuration string) (map[string]*tfconfig.Variable, error) {
+	p := hclparse.NewParser()
+	hclFile, diagnostic := p.ParseHCL([]byte(configuration), "")
+	if diagnostic != nil {
+		return nil, errors.New(diagnostic.Error())
+	}
+	mod := tfconfig.Module{Variables: map[string]*tfconfig.Variable{}}
+	diagnostic = tfconfig.LoadModuleFromFile(hclFile, &mod)
+	if diagnostic != nil {
+		return nil, errors.New(diagnostic.Error())
+	}
+	return mod.Variables, nil
 }

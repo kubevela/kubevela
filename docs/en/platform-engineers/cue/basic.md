@@ -12,7 +12,7 @@ The reasons for KubeVela supports CUE as a first-class solution to design abstra
 
 - **CUE is designed for large scale configuration.** CUE has the ability to understand a
  configuration worked on by engineers across a whole company and to safely change a value that modifies thousands of objects in a configuration. This aligns very well with KubeVela's original goal to define and ship production level applications at web scale.
-- **CUE supports first-class code generation and automation.** CUE can integrate with existing tools and workflows naturally while other tools would have to build complex custom solutions. For example, generate OpenAPI schemas wigh Go code. This is how KubeVela build developer tools and GUI interfaces based on the CUE templates.
+- **CUE supports first-class code generation and automation.** CUE can integrate with existing tools and workflows naturally while other tools would have to build complex custom solutions. For example, generate OpenAPI schemas with Go code. This is how KubeVela build developer tools and GUI interfaces based on the CUE templates.
 - **CUE integrates very well with Go.**
  KubeVela is built with GO just like most projects in Kubernetes system. CUE is also implemented in and exposes a rich API in Go. KubeVela integrates with CUE as its core library and works as a Kubernetes controller. With the help of CUE, KubeVela can easily handle data constraint problems.
 
@@ -57,7 +57,7 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
     cue fmt first.cue
     ```
 
-* Schema Check, besides `cue fmt`, you can also use `vue vet` to check schema.
+* Schema Check, besides `cue fmt`, you can also use `cue vet` to check schema.
     ```shell
     cue vet first.cue
     ```
@@ -66,7 +66,9 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
   You can see the results don't contain `a: float` and `b: int`, because these two variables are calculated.
   While the `e: string` doesn't have definitive results, so it keeps as it is.
     ```shell
-   $ cue eval first.cue
+    cue eval first.cue
+    ```
+    ```console
     a: 1.5
     b: 1
     d: [1, 2, 3]
@@ -78,13 +80,17 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
 
 * Render for specified result. For example, we want only know the result of `b` in the file, then we can specify the parameter `-e`.
     ```shell
-    $ cue eval -e b first.cue
+    cue eval -e b first.cue
+    ```
+    ```console
     1
     ```
 
 * Export the result. `cue export` will export the result with final value. It will report an error if some variables are not definitive.
     ```shell
-    $ cue export first.cue
+    cue export first.cue
+    ```
+    ```console
     e: cannot convert incomplete value "string" to JSON:
         ./first.cue:9:4
     ```
@@ -94,7 +100,9 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
     ```
   Then, the command will work. By default, the result will be rendered in json format.
     ```shell
-    $ cue export first.cue
+    cue export first.cue
+    ```
+    ```console
     {
         "a": 1.5,
         "b": 1,
@@ -112,7 +120,9 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
 
 * Export the result in YAML format.
     ```shell
-    $ cue export first.cue --out yaml
+    cue export first.cue --out yaml
+    ```
+    ```console
     a: 1.5
     b: 1
     d:
@@ -126,7 +136,9 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
 
 * Export the result for specified variable.
     ```shell
-    $ cue export -e g first.cue
+    cue export -e g first.cue
+    ```
+    ```console
     {
         "h": "abc"
     }
@@ -177,7 +189,9 @@ j: null
 Let's name it `second.cue`. Then the `cue export` won't complain as the `#abc` is a type not incomplete value.
 
 ```shell
-$ cue export second.cue
+cue export second.cue
+```
+```console
 {}
 ```
 
@@ -251,7 +265,9 @@ parameter:{
 5. Finally, let's export it in yaml:
 
 ```shell
-$ cue export deployment.cue -e template --out yaml
+cue export deployment.cue -e template --out yaml
+```
+```console
 apiVersion: apps/v1
 kind: Deployment
 spec:
@@ -345,7 +361,9 @@ Saving it in `third.cue` file.
 You can evaluate the result by using `cue eval`:
 
 ```shell
-$ cue eval third.cue
+cue eval third.cue
+```
+```console
 a: 1
 b: 3
 c: 3
@@ -369,7 +387,9 @@ Saving it in `fourth.cue` file.
 You can evaluate the result by using `cue eval`:
 
 ```shell
-$ cue eval fourth.cue
+cue eval fourth.cue
+```
+```console
 price: 200
 feel:  "bad"
 ```

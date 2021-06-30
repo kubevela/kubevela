@@ -46,8 +46,8 @@ type DeploymentRolloutController struct {
 	targetDeploy         apps.Deployment
 }
 
-// NewDeploymentController creates a new deployment rollout controller
-func NewDeploymentController(client client.Client, recorder event.Recorder, parentController oam.Object,
+// NewDeploymentRolloutController creates a new deployment rollout controller
+func NewDeploymentRolloutController(client client.Client, recorder event.Recorder, parentController oam.Object,
 	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, sourceNamespacedName,
 	targetNamespacedName types.NamespacedName) *DeploymentRolloutController {
 	return &DeploymentRolloutController{

@@ -19,6 +19,8 @@ package applicationrollout
 import (
 	"testing"
 
+	"k8s.io/utils/pointer"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -131,6 +133,42 @@ func Test_isRolloutModified(t *testing.T) {
 					},
 					LastUpgradedTargetAppRevision: "target1",
 					LastSourceAppRevision:         "source1",
+				},
+			},
+			want: false,
+		},
+		"restart a scale operation": {
+			appRollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					TargetAppRevisionName: "target1",
+					RolloutPlan: v1alpha1.RolloutPlan{
+						TargetSize: pointer.Int32Ptr(1),
+					},
+				},
+				Status: common.AppRolloutStatus{
+					RolloutStatus: v1alpha1.RolloutStatus{
+						RollingState:      v1alpha1.RolloutSucceedState,
+						RolloutTargetSize: 2,
+					},
+					LastUpgradedTargetAppRevision: "target1",
+				},
+			},
+			want: true,
+		},
+		"scale have finished": {
+			appRollout: v1beta1.AppRollout{
+				Spec: v1beta1.AppRolloutSpec{
+					TargetAppRevisionName: "target1",
+					RolloutPlan: v1alpha1.RolloutPlan{
+						TargetSize: pointer.Int32Ptr(2),
+					},
+				},
+				Status: common.AppRolloutStatus{
+					RolloutStatus: v1alpha1.RolloutStatus{
+						RollingState:      v1alpha1.RolloutSucceedState,
+						RolloutTargetSize: 2,
+					},
+					LastUpgradedTargetAppRevision: "target1",
 				},
 			},
 			want: false,

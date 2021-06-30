@@ -4,7 +4,7 @@ title:  How-to
 
 In this section, it will introduce how to use [CUE](https://cuelang.org/) to declare app components via `ComponentDefinition`.
 
-> Before reading this part, please make sure you've learned the [Definition CRD](../definition-and-templates.md) in KubeVela.
+> Before reading this part, please make sure you've learned the [Definition CRD](../definition-and-templates) in KubeVela.
 
 ## Declare `ComponentDefinition`
 
@@ -221,7 +221,7 @@ output: {
 
 It's common that a component definition is composed by multiple API resources, for example, a `webserver` component that is composed by a Deployment and a Service. CUE is a great solution to achieve this in simplified primitives.
 
-> Another approach to do composition in KubeVela of course is [using Helm](../helm/component.md).
+> Another approach to do composition in KubeVela of course is [using Helm](../helm/component).
 
 ## How-to
 
@@ -354,11 +354,17 @@ spec:
 It will generate and manage below API resources in target cluster:
 
 ```shell
-$ kubectl get deployment
+kubectl get deployment
+```
+```console
 NAME             READY   UP-TO-DATE   AVAILABLE   AGE
 hello-world-v1   1/1     1            1           15s
+```
 
-$ kubectl get svc
+```shell
+kubectl get svc
+```
+```console
 NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
 hello-world-trait-7bdcff98f7   ClusterIP   <your ip>       <none>        8000/TCP   32s
 ```

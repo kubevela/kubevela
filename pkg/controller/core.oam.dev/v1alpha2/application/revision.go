@@ -17,77 +17,116 @@ limitations under the License.
 package application
 
 import (
+	"bytes"
 	"context"
+	"reflect"
 	"sort"
 
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// AppRevisionHash is used to compute the hash value of the AppRevision
-type AppRevisionHash struct {
-	ApplicationSpecHash     string
-	WorkloadDefinitionHash  map[string]string
-	ComponentDefinitionHash map[string]string
-	TraitDefinitionHash     map[string]string
-	ScopeDefinitionHash     map[string]string
-}
+const (
+	// ConfigMapKeyResources is the key in ConfigMap Data field for containing data of resources
+	ConfigMapKeyResources = "resources"
+)
 
-// UpdateRevisionStatus will update the status of Application object mainly for update the revision part
-func (h *appHandler) UpdateRevisionStatus(ctx context.Context, revName, hash string, revision int64) error {
-	h.app.Status.LatestRevision = &common.Revision{
-		Name:         revName,
-		Revision:     revision,
-		RevisionHash: hash,
+func (h *appHandler) createResourcesConfigMap(ctx context.Context,
+	appRev *v1beta1.ApplicationRevision,
+	comps []*types.ComponentManifest,
+	policies []*unstructured.Unstructured) error {
+
+	buf := &bytes.Buffer{}
+	for _, c := range comps {
+		r := c.StandardWorkload.DeepCopy()
+		r.SetName(c.Name)
+		r.SetNamespace(appRev.Namespace)
+		buf.Write(util.MustJSONMarshal(r))
 	}
-	// make sure that we persist the latest revision first
-	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
-		h.logger.Error(err, "update the latest appConfig revision to status", "application name", h.app.GetName(),
-			"latest revision", revName)
+	for _, c := range comps {
+		for _, tr := range c.Traits {
+			r := tr.DeepCopy()
+			r.SetName(c.Name)
+			r.SetNamespace(appRev.Namespace)
+			buf.Write(util.MustJSONMarshal(r))
+		}
+	}
+	for _, policy := range policies {
+		buf.Write(util.MustJSONMarshal(policy))
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appRev.Name,
+			Namespace: appRev.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(appRev, v1beta1.ApplicationRevisionGroupVersionKind),
+			},
+		},
+		Data: map[string]string{
+			ConfigMapKeyResources: buf.String(),
+		},
+	}
+
+	err := h.r.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
+	if err == nil {
+		return nil
+	}
+	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
-	h.logger.Info("recorded the latest appConfig revision", "application name", h.app.GetName(),
-		"latest revision", revName)
+	return h.r.Client.Create(ctx, cm)
+}
+
+// prepareCurrentAppRevision will generate a pure revision without metadata and rendered result
+// the generated revision will be compare with the last revision to see if there's any difference.
+func (h *appHandler) prepareCurrentAppRevision(ctx context.Context, af *appfile.Appfile) error {
+	appRev, appRevisionHash, err := h.gatherRevisionSpec(af)
+	if err != nil {
+		return err
+	}
+	h.currentAppRev = appRev
+	h.currentRevHash = appRevisionHash
+	if err := h.getLatestAppRevision(ctx); err != nil {
+		return err
+	}
+
+	h.isNewRevision = h.currentAppRevIsNew()
+	if h.isNewRevision {
+		h.currentAppRev.Name, _ = utils.GetAppNextRevision(h.app)
+	} else {
+		h.currentAppRev = h.latestAppRev.DeepCopy()
+	}
+	// MUST pass app revision name to appfile
+	// appfile depends it to render resources and do health checking
+	af.RevisionName = h.currentAppRev.Name
 	return nil
-}
-
-// setRevisionMetadata will set the ApplicationRevision with the same annotation/label as the app
-func (h *appHandler) setRevisionMetadata(appRev *v1beta1.ApplicationRevision) {
-	appRev.Namespace = h.app.Namespace
-	appRev.SetAnnotations(h.app.GetAnnotations())
-	appRev.SetLabels(h.app.GetLabels())
-	util.AddLabels(appRev, map[string]string{oam.LabelAppRevisionHash: h.revisionHash})
-	appRev.SetOwnerReferences([]metav1.OwnerReference{{
-		APIVersion: v1beta1.SchemeGroupVersion.String(),
-		Kind:       v1beta1.ApplicationKind,
-		Name:       h.app.Name,
-		UID:        h.app.UID,
-		Controller: pointer.BoolPtr(false),
-	}})
-}
-
-// setRevisionWithRenderedResult will set the ApplicationRevision with the rendered result
-// it's ApplicationConfiguration and Component for now
-func (h *appHandler) setRevisionWithRenderedResult(appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration,
-	comps []*v1alpha2.Component) {
-	appRev.Spec.Components = ConvertComponent2RawRevision(comps)
-	appRev.Spec.ApplicationConfiguration = util.Object2RawExtension(ac)
 }
 
 // gatherRevisionSpec will gather all revision spec withouth metadata and rendered result.
 // the gathered Revision spec will be enough to calculate the hash and compare with the old revision
-func (h *appHandler) gatherRevisionSpec() (*v1beta1.ApplicationRevision, string, error) {
+func (h *appHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
@@ -102,7 +141,7 @@ func (h *appHandler) gatherRevisionSpec() (*v1beta1.ApplicationRevision, string,
 			ScopeDefinitions:     make(map[string]v1beta1.ScopeDefinition),
 		},
 	}
-	for _, w := range h.appfile.Workloads {
+	for _, w := range af.Workloads {
 		if w == nil {
 			continue
 		}
@@ -130,121 +169,24 @@ func (h *appHandler) gatherRevisionSpec() (*v1beta1.ApplicationRevision, string,
 	}
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
-		h.logger.Error(err, "compute hash of appRevision for application", "application name", h.app.GetName())
-		return appRev, "", err
+		klog.ErrorS(err, "Failed to compute hash of appRevision for application", "application", klog.KObj(h.app))
+		return appRev, "", errors.Wrapf(err, "failed to compute app revision hash")
 	}
 	return appRev, appRevisionHash, nil
 }
 
-// compareWithLastRevisionSpec will get the last AppRevision from K8s and compare the Application and Definition's Spec
-func (h *appHandler) compareWithLastRevisionSpec(ctx context.Context, newAppRevisionHash string, newAppRevision *v1beta1.ApplicationRevision) (bool, error) {
-
-	// the last revision doesn't exist.
-	if h.app.Status.LatestRevision == nil {
-		return true, nil
+func (h *appHandler) getLatestAppRevision(ctx context.Context) error {
+	if h.app.Status.LatestRevision == nil || len(h.app.Status.LatestRevision.Name) == 0 {
+		return nil
 	}
-	// the hash value doesn't align
-	if h.app.Status.LatestRevision.RevisionHash != newAppRevisionHash {
-		return true, nil
+	latestRevName := h.app.Status.LatestRevision.Name
+	latestAppRev := &v1beta1.ApplicationRevision{}
+	if err := h.r.Get(ctx, client.ObjectKey{Name: latestRevName, Namespace: h.app.Namespace}, latestAppRev); err != nil {
+		klog.ErrorS(err, "Failed to get latest app revision", "appRevisionName", latestRevName)
+		return errors.Wrapf(err, "fail to get latest app revision %s", latestRevName)
 	}
-
-	// check if the appRevision is deep equal in Spec level
-	// get the last revision from K8s and double check
-	lastAppRevision := &v1beta1.ApplicationRevision{}
-	if err := h.r.Get(ctx, client.ObjectKey{Name: h.app.Status.LatestRevision.Name,
-		Namespace: h.app.Namespace}, lastAppRevision); err != nil {
-		h.logger.Error(err, "get the last appRevision from K8s", "application name",
-			h.app.GetName(), "revision", h.app.Status.LatestRevision.Name)
-		return false, errors.Wrapf(err, "fail to get applicationRevision %s", h.app.Status.LatestRevision.Name)
-	}
-	if DeepEqualRevision(lastAppRevision, newAppRevision) {
-		// No difference on spec, will not create a new revision
-		// align the name and resourceVersion
-		newAppRevision.Name = lastAppRevision.Name
-		newAppRevision.ResourceVersion = lastAppRevision.ResourceVersion
-		return false, nil
-	}
-	// if reach here, it's same hash but different spec
-	return true, nil
-}
-
-// GenerateAppRevision will generate a pure revision without metadata and rendered result
-// the generated revision will be compare with the last revision to see if there's any difference.
-func (h *appHandler) GenerateAppRevision(ctx context.Context) (*v1beta1.ApplicationRevision, error) {
-	appRev, appRevisionHash, err := h.gatherRevisionSpec()
-	if err != nil {
-		return nil, err
-	}
-	isNewRev, err := h.compareWithLastRevisionSpec(ctx, appRevisionHash, appRev)
-	if err != nil {
-		return appRev, err
-	}
-	if isNewRev {
-		appRev.Name, _ = utils.GetAppNextRevision(h.app)
-	}
-	h.isNewRevision = isNewRev
-	h.revisionHash = appRevisionHash
-	return appRev, nil
-}
-
-// FinalizeAppRevision will finalize the AppRevision with metadata and rendered result revision for an Application when created/updated
-func (h *appHandler) FinalizeAppRevision(appRev *v1beta1.ApplicationRevision,
-	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) {
-
-	h.setRevisionMetadata(appRev)
-	h.setRevisionWithRenderedResult(appRev, ac, comps)
-
-}
-
-// ConvertComponent2RawRevision convert to ComponentMap
-func ConvertComponent2RawRevision(comps []*v1alpha2.Component) []common.RawComponent {
-	var objs []common.RawComponent
-	for _, comp := range comps {
-		obj := comp.DeepCopy()
-		objs = append(objs, common.RawComponent{
-			Raw: util.Object2RawExtension(obj),
-		})
-	}
-	return objs
-}
-
-// DeepEqualRevision will compare the spec of Application and Definition to see if the Application is the same revision
-// Spec of AC and Component will not be compared as they are generated by the application and definitions
-// Note the Spec compare can only work when the RawExtension are decoded well in the RawExtension.Object instead of in RawExtension.Raw(bytes)
-func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
-	if len(old.Spec.WorkloadDefinitions) != len(new.Spec.WorkloadDefinitions) {
-		return false
-	}
-	if len(old.Spec.TraitDefinitions) != len(new.Spec.TraitDefinitions) {
-		return false
-	}
-	if len(old.Spec.ComponentDefinitions) != len(new.Spec.ComponentDefinitions) {
-		return false
-	}
-	if len(old.Spec.ScopeDefinitions) != len(new.Spec.ScopeDefinitions) {
-		return false
-	}
-	for key, wd := range new.Spec.WorkloadDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.WorkloadDefinitions[key].Spec, wd.Spec) {
-			return false
-		}
-	}
-	for key, cd := range new.Spec.ComponentDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.ComponentDefinitions[key].Spec, cd.Spec) {
-			return false
-		}
-	}
-	for key, td := range new.Spec.TraitDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.TraitDefinitions[key].Spec, td.Spec) {
-			return false
-		}
-	}
-	for key, sd := range new.Spec.ScopeDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.ScopeDefinitions[key].Spec, sd.Spec) {
-			return false
-		}
-	}
-	return apiequality.Semantic.DeepEqual(&old.Spec.Application.Spec, &new.Spec.Application.Spec)
+	h.latestAppRev = latestAppRev
+	return nil
 }
 
 // ComputeAppRevisionHash computes a single hash value for an appRevision object
@@ -253,6 +195,13 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 	// we first constructs a AppRevisionHash structure to store all the meaningful spec hashes
 	// and avoid computing the annotations. Those fields are all read from k8s already so their
 	// raw extension value are already byte array. Never include any in-memory objects.
+	type AppRevisionHash struct {
+		ApplicationSpecHash     string
+		WorkloadDefinitionHash  map[string]string
+		ComponentDefinitionHash map[string]string
+		TraitDefinitionHash     map[string]string
+		ScopeDefinitionHash     map[string]string
+	}
 	appRevisionHash := AppRevisionHash{
 		WorkloadDefinitionHash:  make(map[string]string),
 		ComponentDefinitionHash: make(map[string]string),
@@ -296,6 +245,300 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 	return utils.ComputeSpecHash(&appRevisionHash)
 }
 
+func (h *appHandler) currentAppRevIsNew() bool {
+	// the last revision doesn't exist.
+	if h.app.Status.LatestRevision == nil {
+		return true
+	}
+	// the hash value doesn't align
+	if h.app.Status.LatestRevision.RevisionHash != h.currentRevHash {
+		return true
+	}
+	if DeepEqualRevision(h.latestAppRev, h.currentAppRev) {
+		return false
+	}
+	// if reach here, it's same hash but different spec
+	return true
+}
+
+// DeepEqualRevision will compare the spec of Application and Definition to see if the Application is the same revision
+// Spec of AC and Component will not be compared as they are generated by the application and definitions
+// Note the Spec compare can only work when the RawExtension are decoded well in the RawExtension.Object instead of in RawExtension.Raw(bytes)
+func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
+	if len(old.Spec.WorkloadDefinitions) != len(new.Spec.WorkloadDefinitions) {
+		return false
+	}
+	if len(old.Spec.TraitDefinitions) != len(new.Spec.TraitDefinitions) {
+		return false
+	}
+	if len(old.Spec.ComponentDefinitions) != len(new.Spec.ComponentDefinitions) {
+		return false
+	}
+	if len(old.Spec.ScopeDefinitions) != len(new.Spec.ScopeDefinitions) {
+		return false
+	}
+	for key, wd := range new.Spec.WorkloadDefinitions {
+		if !apiequality.Semantic.DeepEqual(old.Spec.WorkloadDefinitions[key].Spec, wd.Spec) {
+			return false
+		}
+	}
+	for key, cd := range new.Spec.ComponentDefinitions {
+		if !apiequality.Semantic.DeepEqual(old.Spec.ComponentDefinitions[key].Spec, cd.Spec) {
+			return false
+		}
+	}
+	for key, td := range new.Spec.TraitDefinitions {
+		if !apiequality.Semantic.DeepEqual(old.Spec.TraitDefinitions[key].Spec, td.Spec) {
+			return false
+		}
+	}
+	for key, sd := range new.Spec.ScopeDefinitions {
+		if !apiequality.Semantic.DeepEqual(old.Spec.ScopeDefinitions[key].Spec, sd.Spec) {
+			return false
+		}
+	}
+	return apiequality.Semantic.DeepEqual(&old.Spec.Application.Spec, &new.Spec.Application.Spec)
+}
+
+func (h *appHandler) handleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
+	for _, cm := range compManifests {
+		hash, err := computeComponentRevisionHash(cm)
+		if err != nil {
+			return err
+		}
+		cm.RevisionHash = hash
+
+		crList := &appsv1.ControllerRevisionList{}
+		listOpts := []client.ListOption{client.MatchingLabels{
+			oam.LabelControllerRevisionComponent: cm.Name,
+		}, client.InNamespace(h.app.Namespace)}
+		if err := h.r.List(ctx, crList, listOpts...); err != nil {
+			return err
+		}
+
+		var maxRevisionNum int64
+		needNewRevision := true
+		for _, existingCR := range crList.Items {
+			if existingCR.Revision > maxRevisionNum {
+				maxRevisionNum = existingCR.Revision
+			}
+			if existingCR.GetLabels()[oam.LabelComponentRevisionHash] == cm.RevisionHash {
+				existingComp, err := util.RawExtension2Component(existingCR.Data)
+				if err != nil {
+					return err
+				}
+				currentComp := componentManifest2Component(cm)
+				// further check whether it's truly identical, even hash value is equal
+				if reflect.DeepEqual(existingComp, currentComp) {
+					cm.RevisionName = existingCR.GetName()
+					// found identical revision already exisits
+					// skip creating new one
+					needNewRevision = false
+					break
+				}
+			}
+		}
+		if needNewRevision {
+			cm.RevisionName = utils.ConstructRevisionName(cm.Name, maxRevisionNum+1)
+			if err := h.createControllerRevision(ctx, cm); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func computeComponentRevisionHash(comp *types.ComponentManifest) (string, error) {
+	compRevisionHash := struct {
+		WorkloadHash          string
+		PackagedResourcesHash []string
+	}{}
+	wl := comp.StandardWorkload.DeepCopy()
+	if wl != nil {
+		// remove workload's app revision label before computing component hash
+		// otherwise different app revision will always have different revision component
+		util.RemoveLabels(wl, []string{oam.LabelAppRevision})
+		hash, err := utils.ComputeSpecHash(wl)
+		if err != nil {
+			return "", err
+		}
+		compRevisionHash.WorkloadHash = hash
+	}
+
+	// take packaged workload resources into account because they determine the workload
+	compRevisionHash.PackagedResourcesHash = make([]string, len(comp.PackagedWorkloadResources))
+	for i, v := range comp.PackagedWorkloadResources {
+		hash, err := utils.ComputeSpecHash(v)
+		if err != nil {
+			return "", err
+		}
+		compRevisionHash.PackagedResourcesHash[i] = hash
+	}
+	return utils.ComputeSpecHash(&compRevisionHash)
+}
+
+// createControllerRevision records snapshot of a component
+func (h *appHandler) createControllerRevision(ctx context.Context, cm *types.ComponentManifest) error {
+	comp := componentManifest2Component(cm)
+	revision, _ := utils.ExtractRevision(cm.RevisionName)
+	cr := &appsv1.ControllerRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cm.RevisionName,
+			Namespace: h.app.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: v1beta1.SchemeGroupVersion.String(),
+					Kind:       v1beta1.ApplicationKind,
+					Name:       h.app.Name,
+					UID:        h.app.UID,
+					Controller: pointer.BoolPtr(true),
+				},
+			},
+			Labels: map[string]string{
+				oam.LabelControllerRevisionComponent: cm.Name,
+				oam.LabelComponentRevisionHash:       cm.RevisionHash,
+			},
+		},
+		Revision: int64(revision),
+		Data:     util.Object2RawExtension(comp),
+	}
+	return h.r.Create(ctx, cr)
+}
+
+func componentManifest2Component(cm *types.ComponentManifest) *v1alpha2.Component {
+	component := &v1alpha2.Component{}
+	component.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+	component.SetName(cm.Name)
+	wl := cm.StandardWorkload.DeepCopy()
+	if wl != nil {
+		util.RemoveLabels(wl, []string{oam.LabelAppRevision})
+	}
+	component.Spec.Workload = util.Object2RawExtension(wl)
+	if len(cm.PackagedWorkloadResources) > 0 {
+		helm := &common.Helm{}
+		for _, helmResource := range cm.PackagedWorkloadResources {
+			if helmResource.GetKind() == helmapi.HelmReleaseGVK.Kind {
+				helm.Release = util.Object2RawExtension(helmResource)
+			}
+			if helmResource.GetKind() == helmapi.HelmRepositoryGVK.Kind {
+				helm.Repository = util.Object2RawExtension(helmResource)
+			}
+		}
+		component.Spec.Helm = helm
+	}
+	return component
+}
+
+func (h *appHandler) finalizeAndApplyAppRevision(ctx context.Context, comps []*types.ComponentManifest) error {
+	appRev := h.currentAppRev
+	appRev.Namespace = h.app.Namespace
+	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
+	// pass application's annotations & labels to app revision
+	appRev.SetAnnotations(h.app.GetAnnotations())
+	appRev.SetLabels(h.app.GetLabels())
+	util.AddLabels(appRev, map[string]string{
+		oam.LabelAppName:         h.app.GetName(),
+		oam.LabelAppRevisionHash: h.currentRevHash,
+	})
+	// ApplicationRevision must use Application as ctrl-owner
+	appRev.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.ApplicationKind,
+		Name:       h.app.Name,
+		UID:        h.app.UID,
+		Controller: pointer.BoolPtr(true),
+	}})
+	appRev.Spec.ResourcesConfigMap.Name = appRev.Name
+	appRev.Spec.ApplicationConfiguration, appRev.Spec.Components = componentManifests2AppConfig(comps)
+
+	gotAppRev := &v1beta1.ApplicationRevision{}
+	if err := h.r.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
+		if apierrors.IsNotFound(err) {
+			return h.r.Create(ctx, appRev)
+		}
+		return err
+	}
+	appRev.ResourceVersion = gotAppRev.ResourceVersion
+	return h.r.Update(ctx, appRev)
+}
+
+// helper function to convert a slice of ComponentManifest to AppConfig & Components
+func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawExtension, []common.RawComponent) {
+	ac := v1alpha2.ApplicationConfiguration{}
+	ac.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
+	ac.Spec.Components = make([]v1alpha2.ApplicationConfigurationComponent, len(cms))
+	comps := make([]common.RawComponent, len(cms))
+	for i, cm := range cms {
+		acc := v1alpha2.ApplicationConfigurationComponent{}
+		acc.ComponentName = cm.Name
+		acc.RevisionName = cm.RevisionName
+		acc.Traits = make([]v1alpha2.ComponentTrait, len(cm.Traits))
+		for j, t := range cm.Traits {
+			acc.Traits[j] = v1alpha2.ComponentTrait{
+				Trait: util.Object2RawExtension(t),
+			}
+		}
+		acc.Scopes = make([]v1alpha2.ComponentScope, len(cm.Scopes))
+		for x, s := range cm.Scopes {
+			acc.Scopes[x] = v1alpha2.ComponentScope{
+				ScopeReference: runtimev1alpha1.TypedReference{
+					APIVersion: s.APIVersion,
+					Kind:       s.Kind,
+					Name:       s.Name,
+				},
+			}
+		}
+		comp := &v1alpha2.Component{}
+		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+		comp.SetName(cm.Name)
+		// this label is very important for handling component revision
+		util.AddLabels(comp, map[string]string{
+			oam.LabelComponentRevisionHash: cm.RevisionHash,
+		})
+		comp.Spec.Workload = util.Object2RawExtension(cm.StandardWorkload)
+		if len(cm.PackagedWorkloadResources) > 0 {
+			helm := &common.Helm{}
+			for _, helmResource := range cm.PackagedWorkloadResources {
+				if helmResource.GetKind() == helmapi.HelmReleaseGVK.Kind {
+					helm.Release = util.Object2RawExtension(helmResource)
+				}
+				if helmResource.GetKind() == helmapi.HelmRepositoryGVK.Kind {
+					helm.Repository = util.Object2RawExtension(helmResource)
+				}
+			}
+			comp.Spec.Helm = helm
+		}
+		comps[i] = common.RawComponent{Raw: util.Object2RawExtension(comp)}
+		ac.Spec.Components[i] = acc
+	}
+	acRaw := util.Object2RawExtension(ac)
+	return acRaw, comps
+}
+
+// only call to update app's latest revision status after applying manifests successfully
+// otherwise it will override previous revision which is used during applying to do GC jobs
+func (h *appHandler) updateAppLatestRevisionStatus(ctx context.Context) error {
+	if !h.isNewRevision {
+		// skip update if app revision is not changed
+		return nil
+	}
+	revName := h.currentAppRev.Name
+	revNum, _ := util.ExtractRevisionNum(revName, "-")
+	h.app.Status.LatestRevision = &common.Revision{
+		Name:         h.currentAppRev.Name,
+		Revision:     int64(revNum),
+		RevisionHash: h.currentRevHash,
+	}
+	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
+		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
+			"latest revision", revName, "err", err)
+		return err
+	}
+	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+		"latest revision", revName)
+	return nil
+}
+
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
 func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 	listOpts := []client.ListOption{
@@ -307,15 +550,16 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 	if err := h.r.List(ctx, appRevisionList, listOpts...); err != nil {
 		return err
 	}
-	usingRevision, err := gatherUsingAppRevision(ctx, h)
+	appRevisionInUse, err := gatherUsingAppRevision(ctx, h)
 	if err != nil {
 		return err
 	}
-	needKill := len(appRevisionList.Items) - h.r.appRevisionLimit - len(usingRevision)
+	needKill := len(appRevisionList.Items) - h.r.appRevisionLimit - len(appRevisionInUse)
 	if needKill <= 0 {
 		return nil
 	}
-	h.logger.Info("application controller cleanup old appRevisions", "needKillNum", needKill)
+	klog.InfoS("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
+		"total", len(appRevisionList.Items), "using", len(appRevisionInUse), "kill", needKill)
 	sortedRevision := appRevisionList.Items
 	sort.Sort(historiesByRevision(sortedRevision))
 
@@ -323,8 +567,8 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 		if needKill <= 0 {
 			break
 		}
-		// we shouldn't delete the revision witch appContext pointing to
-		if usingRevision[rev.Name] {
+		// don't delete app revision in use
+		if appRevisionInUse[rev.Name] {
 			continue
 		}
 		if err := h.r.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
@@ -337,21 +581,23 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 
 // gatherUsingAppRevision get all using appRevisions include app's status pointing to and appContext point to
 func gatherUsingAppRevision(ctx context.Context, h *appHandler) (map[string]bool, error) {
+	ns := h.app.Namespace
 	listOpts := []client.ListOption{
-		client.InNamespace(h.app.Namespace),
-		client.MatchingLabels{oam.LabelAppName: h.app.Name},
-	}
+		client.MatchingLabels{
+			oam.LabelAppName:      h.app.Name,
+			oam.LabelAppNamespace: ns,
+		}}
 	usingRevision := map[string]bool{}
 	if h.app.Status.LatestRevision != nil && len(h.app.Status.LatestRevision.Name) != 0 {
 		usingRevision[h.app.Status.LatestRevision.Name] = true
 	}
-	appContextList := new(v1alpha2.ApplicationContextList)
-	err := h.r.List(ctx, appContextList, listOpts...)
-	if err != nil {
+	rtList := &v1beta1.ResourceTrackerList{}
+	if err := h.r.List(ctx, rtList, listOpts...); err != nil {
 		return nil, err
 	}
-	for _, appContext := range appContextList.Items {
-		usingRevision[appContext.Spec.ApplicationRevisionName] = true
+	for _, rt := range rtList.Items {
+		appRev := dispatch.ExtractAppRevisionName(rt.Name, ns)
+		usingRevision[appRev] = true
 	}
 	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r, h.app.Namespace, h.app.Name)
 	if err != nil {
@@ -369,6 +615,75 @@ func (h historiesByRevision) Len() int      { return len(h) }
 func (h historiesByRevision) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h historiesByRevision) Less(i, j int) bool {
 	// the appRevision is generated by vela,  the error always is nil, so ignore it
+	ir, _ := util.ExtractRevisionNum(h[i].Name, "-")
+	ij, _ := util.ExtractRevisionNum(h[j].Name, "-")
+	return ir < ij
+}
+
+func cleanUpComponentRevision(ctx context.Context, h *appHandler) error {
+	appRevInUse, err := gatherUsingAppRevision(ctx, h)
+	if err != nil {
+		return err
+	}
+	// collect component revision in use
+	compRevisionInUse := map[string]map[string]struct{}{}
+	for appRevName := range appRevInUse {
+		appRev := &v1beta1.ApplicationRevision{}
+		if err := h.r.Get(ctx, client.ObjectKey{Name: appRevName, Namespace: h.app.Namespace}, appRev); err != nil {
+			return err
+		}
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
+		if err != nil {
+			return err
+		}
+		for _, comp := range comps {
+			if compRevisionInUse[comp.Name] == nil {
+				compRevisionInUse[comp.Name] = map[string]struct{}{}
+			}
+			compRevisionInUse[comp.Name][comp.RevisionName] = struct{}{}
+		}
+	}
+
+	comps, err := util.AppConfig2ComponentManifests(h.currentAppRev.Spec.ApplicationConfiguration,
+		h.currentAppRev.Spec.Components)
+	if err != nil {
+		return err
+	}
+	for _, curComp := range comps {
+		crList := &appsv1.ControllerRevisionList{}
+		listOpts := []client.ListOption{client.MatchingLabels{
+			oam.LabelControllerRevisionComponent: curComp.Name,
+		}, client.InNamespace(h.app.Namespace)}
+		if err := h.r.List(ctx, crList, listOpts...); err != nil {
+			return err
+		}
+		needKill := len(crList.Items) - h.r.appRevisionLimit - len(compRevisionInUse[curComp.Name])
+		if needKill < 1 {
+			continue
+		}
+		sortedRevision := crList.Items
+		sort.Sort(historiesByComponentRevision(sortedRevision))
+		for _, rev := range sortedRevision {
+			if needKill <= 0 {
+				break
+			}
+			if _, inUse := compRevisionInUse[curComp.Name][rev.Name]; inUse {
+				continue
+			}
+			if err := h.r.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			needKill--
+		}
+	}
+	return nil
+}
+
+type historiesByComponentRevision []appsv1.ControllerRevision
+
+func (h historiesByComponentRevision) Len() int      { return len(h) }
+func (h historiesByComponentRevision) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h historiesByComponentRevision) Less(i, j int) bool {
 	ir, _ := util.ExtractRevisionNum(h[i].Name, "-")
 	ij, _ := util.ExtractRevisionNum(h[j].Name, "-")
 	return ir < ij

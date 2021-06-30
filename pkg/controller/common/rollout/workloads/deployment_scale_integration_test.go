@@ -104,8 +104,8 @@ var _ = Describe("deployment controller", func() {
 		k8sClient.Delete(ctx, &deployment)
 	})
 
-	Context("TestNewDeploymentController", func() {
-		It("init a Deployment Controller", func() {
+	Context("TestNewDeploymentScaleController", func() {
+		It("init a Deployment Scale Controller", func() {
 			recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 				WithAnnotations("controller", "AppRollout")
 			parentController := &v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}

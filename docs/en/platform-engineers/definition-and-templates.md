@@ -70,7 +70,6 @@ metadata:
 spec:
   appliesToWorkloads: 
     - deployments.apps
-    - webservice
   conflictsWith: 
     - service
   workloadRefPath: spec.wrokloadRef
@@ -85,16 +84,15 @@ This field defines the constraints that what kinds of workloads this trait is al
 - It accepts an array of string as value.
 - Each item in the array refers to one or a group of workload types to which this trait is allowded to apply.
 
-There are four approaches to denote one or a group of workload types.
+There are three approaches to denote one or a group of workload types.
 
-- `ComponentDefinition` name, e.g., `webservice`, `worker`
 - `ComponentDefinition` definition reference (CRD name), e.g., `deployments.apps`
 - Resource group of `ComponentDefinition` definition reference prefixed with `*.`, e.g., `*.apps`, `*.oam.dev`. This means the trait is allowded to apply to any workloads in this group.
 - `*` means this trait is allowded to apply to any workloads
 
 If this field is omitted, it means this trait is allowded to apply to any workload types.
 
-KubeVela will raise an error if a trait is applied to a workload which is NOT included in the `appliesToWorkloads`.
+KubeVela will raise an error if a trait is applied to a workload type which is NOT included in the `appliesToWorkloads`.
 
 
 ##### `.spec.conflictsWith` 
@@ -118,7 +116,7 @@ This field defines the field path of the trait which is used to store the refere
 
 If this field is set, KubeVela core will automatically fill the workload reference into target field of the trait. Then the trait controller can get the workload reference from the trait latter. So this field usually accompanies with the traits whose controllers relying on the workload reference at runtime. 
 
-Please check [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml) trait as a demonstration of how to set this field.
+Please check [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/scaler.yaml) trait as a demonstration of how to set this field.
 
 ##### `.spec.podDisruptive`
 
@@ -239,22 +237,51 @@ Also, the `schematic` filed enables you to render UI forms directly based on the
 
 In KubeVela, definition entities are mutable. Each time a `ComponentDefinition` or `TraitDefinition` is updated, a corresponding `DefinitionRevision` will be generated to snapshot this change. Hence, KubeVela allows user to reference a specific revision of definition to declare an application.
 
-### Specify Definition Revision in Application
+For example, we can design a new parameter named `args` for the `webservice` component definition by applying a new definition with same name as below.
 
-For example, we can update the `webservice` component definition by applying a new definition with same name as below.
+```shell
+kubectl vela show webservice
+```
+```console
+# Properties
++-------+----------------------------------------------------+----------+----------+---------+
+| NAME  |                    DESCRIPTION                     |   TYPE   | REQUIRED | DEFAULT |
++-------+----------------------------------------------------+----------+----------+---------+
+| cmd   | Commands to run in the container                   | []string | false    |         |
+... // skip
+```
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/definition-revision/webservice-v2.yaml
 ```
 
-A new definition revision will be automatically generated, `v2` is the latest version, `v1` is the previous one.
+The change will take effect immediately.
 
 ```shell
-$  kubectl get definitionrevision -l="componentdefinition.oam.dev/name=webservice" -n vela-system
+kubectl vela show webservice
+```
+```console
+# Properties
++-------+----------------------------------------------------+----------+----------+---------+
+| NAME  |                    DESCRIPTION                     |   TYPE   | REQUIRED | DEFAULT |
++-------+----------------------------------------------------+----------+----------+---------+
+| cmd   | Commands to run in the container                   | []string | false    |         |
+| args  | Arguments to the cmd                               | []string | false    |         |
+... // skip
+```
+
+We will see a new definition revision will be automatically generated, `v2` is the latest version, `v1` is the previous one.
+
+```shell
+kubectl get definitionrevision -l="componentdefinition.oam.dev/name=webservice" -n vela-system
+```
+```console
 NAME            REVISION   HASH               TYPE
 webservice-v1   1          3f6886d9832021ba   Component
 webservice-v2   2          b3b9978e7164d973   Component
 ```
+
+### Specify Definition Revision in Application
 
 Users can specify the revision with `@version` approach, for example, if a user want to stick to using the `v1` revision of `webservice` component:
 
@@ -269,7 +296,28 @@ spec:
   - name: server
     type: webservice@v1
     properties:
-      image: crccheck/hello-world
-      port: 8000
+      image: foo
+      cmd:
+        - sleep
+        - '1000'
 ```
 If no revision is specified, KubeVela will always use the latest revision for a given component definition.
+
+```yaml
+# testapp.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: testapp
+spec:
+  components:
+  - name: server
+    type: webservice # type: webservice@v2
+    properties:
+      image: foo
+      cmd:
+        - sleep
+        - '1000'
+      args:
+        - wait
+```

@@ -141,7 +141,7 @@ var (
 	WorkloadCapabilityListContext = func() bool {
 		return ginkgo.Context("list workload capabilities", func() {
 			ginkgo.It("should sync capabilities from cluster before listing workload capabilities", func() {
-				output, err := Exec("vela workloads")
+				output, err := Exec("vela components")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("webservice"))
 			})

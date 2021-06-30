@@ -8,3 +8,7 @@
 
 	cpu?: string
 }
+
+#routeName: "\(context.appName)-\(context.name)"
+
+context: {}

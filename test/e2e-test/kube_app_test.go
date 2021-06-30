@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ghodss/yaml"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,9 +30,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ghodss/yaml"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -128,6 +127,17 @@ spec:
 		}
 		Expect(k8sClient.Create(ctx, &td)).Should(Succeed())
 
+		By("Verify ComponentDefinition and TraitDefinition are created successfully")
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cdName, Namespace: namespace}, &v1beta1.ComponentDefinition{}); err != nil {
+				return err
+			}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: tdName, Namespace: namespace}, &v1beta1.TraitDefinition{}); err != nil {
+				return err
+			}
+			return nil
+		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		By("Add 'deployments.apps' to scaler's appliesToWorkloads")
 		scalerTd := v1beta1.TraitDefinition{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler", Namespace: "vela-system"}, &scalerTd)).Should(Succeed())
@@ -187,28 +197,19 @@ spec:
 			},
 		}
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
-
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 60*time.Second, time.Second).Should(BeTrue())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
 		By("Verify two traits are applied to the workload")
 		Eventually(func() bool {
-			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy); err != nil {
 				return false
@@ -261,21 +262,12 @@ spec:
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is update successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return ac.Generation == 2
-		}, 10*time.Second, time.Second).Should(BeTrue())
-
 		By("Verify the workload(deployment) is created successfully")
 		deploy = &appsv1.Deployment{}
-		deployName = ac.Status.Workloads[0].Reference.Name
+		deployName = compName
 
 		By("Verify the changes are applied to the workload")
 		Eventually(func() bool {
-			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy); err != nil {
 				return false
@@ -335,21 +327,13 @@ spec:
 			},
 		}
 		By("Create application")
-		Expect(k8sClient.Create(ctx, &appTest)).Should(Succeed())
-
-		ac := &v1alpha2.ApplicationContext{}
-		acName := appTestName
-		By("Verify the ApplicationContext is created & reconciled successfully")
-		Eventually(func() bool {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
-				return false
-			}
-			return len(ac.Status.Workloads) > 0
-		}, 15*time.Second, time.Second).Should(BeTrue())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, appTest.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := ac.Status.Workloads[0].Reference.Name
+		deployName := compName
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 15*time.Second, 3*time.Second).Should(Succeed())

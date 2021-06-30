@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -43,49 +45,217 @@ import (
 
 var _ = Describe("Test application cross namespace resource", func() {
 	ctx := context.Background()
-	var (
-		namespace      = "app-resource-tracker-test-ns"
-		crossNamespace = "cross-namespace"
-	)
+	var namespace, crossNamespace string
 
 	BeforeEach(func() {
-		crossNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: crossNamespace}}
+		namespace = randomNamespaceName("app-resource-tracker-e2e")
 		ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		crossNamespace = randomNamespaceName("cross-namespace")
+		crossNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: crossNamespace}}
 		Expect(k8sClient.Create(ctx, &crossNs)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Eventually(func() error {
 			ns := new(corev1.Namespace)
 			return k8sClient.Get(ctx, types.NamespacedName{Name: namespace}, ns)
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 		Eventually(func() error {
 			ns := new(corev1.Namespace)
 			return k8sClient.Get(ctx, types.NamespacedName{Name: crossNamespace}, ns)
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 	})
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+
 		Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: crossNamespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		// guarantee namespace have been deleted
-		Eventually(func() error {
-			ns := new(corev1.Namespace)
-			err := k8sClient.Get(ctx, types.NamespacedName{Name: namespace}, ns)
-			if err == nil {
-				return fmt.Errorf("namespace still exist")
-			}
-			err = k8sClient.Get(ctx, types.NamespacedName{Name: crossNamespace}, ns)
-			if err == nil {
-				return fmt.Errorf("namespace still exist")
-			}
-			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 	})
 
-	It("Test application have  cross-namespace workload", func() {
+	It("Test application containing cluster-scoped trait", func() {
+		By("Install TraitDefinition")
+		traitDef := &v1beta1.TraitDefinition{}
+		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(clusterScopeTraitDefYAML, namespace)), traitDef)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, traitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("Create Application")
+		var (
+			appName       = "cluster-scope-trait-app"
+			app           = new(v1beta1.Application)
+			componentName = "cluster-scope-trait-comp"
+		)
+		app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name:       componentName,
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Traits: []v1beta1.ApplicationTrait{{
+							Type:       "cluster-scope-trait",
+							Properties: runtime.RawExtension{Raw: []byte("{}")},
+						}},
+					},
+				},
+			},
+		}
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 20*time.Second, 2*time.Second).Should(Succeed())
+
+		By("Verify the trait is created")
+		// sample cluster-scoped trait is PersistentVolume
+		pv := &corev1.PersistentVolume{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
+		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+		By("Verify cluster-scoped trait's controller is ResourceTracker")
+		controller := metav1.GetControllerOf(pv)
+		Expect(controller.Kind == v1beta1.ResourceTrackerKind).Should(BeTrue())
+
+		By("Delete Application")
+		Expect(k8sClient.Delete(ctx, app)).Should(Succeed())
+		By("Verify cluster-scoped trait is deleted cascadingly")
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil
+				}
+				return errors.Wrap(err, "PersistentVolume has not deleted")
+			}
+			if ctrlutil.ContainsFinalizer(pv, "kubernetes.io/pv-protection") {
+				return nil
+			}
+			return errors.New("PersistentVolume has not deleted")
+		}, 20*time.Second, 500*time.Millisecond).Should(BeNil())
+	})
+
+	It("Test GC for cluster-scoped trait", func() {
+		By("Install cluster-scoped trait's TraitDefinition")
+		clusterTraitDef := &v1beta1.TraitDefinition{}
+		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(clusterScopeTraitDefYAML, namespace)), clusterTraitDef)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, clusterTraitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("Install namespace-scoped trait's TraitDefinition")
+		crossNamespaceTraitDef := &v1beta1.TraitDefinition{}
+		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)), crossNamespaceTraitDef)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, crossNamespaceTraitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("Verify TraitDefinition are created successfully")
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: "cluster-scope-trait", Namespace: namespace}, &v1beta1.TraitDefinition{}); err != nil {
+				return err
+			}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: "cross-scaler", Namespace: namespace}, &v1beta1.TraitDefinition{}); err != nil {
+				return err
+			}
+			return nil
+		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Create Application")
+		var (
+			appName       = "cluster-scope-trait-app"
+			app           = new(v1beta1.Application)
+			componentName = "cluster-scope-trait-comp"
+		)
+		app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name:       componentName,
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Traits: []v1beta1.ApplicationTrait{
+							{
+								Type:       "cluster-scope-trait",
+								Properties: runtime.RawExtension{Raw: []byte("{}")},
+							},
+							{
+								Type:       "cross-scaler",
+								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+							},
+						},
+					},
+				},
+			},
+		}
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 20*time.Second, 2*time.Second).Should(Succeed())
+
+		By("Verify the cluster-scoped trait is created")
+		// sample cluster-scoped trait is PersistentVolume
+		pv := &corev1.PersistentVolume{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
+		}, 60*time.Second, time.Second).Should(Succeed())
+		By("Verify cluster-scoped trait's controller is ResourceTracker")
+		controller := metav1.GetControllerOf(pv)
+		Expect(controller.Kind == v1beta1.ResourceTrackerKind).Should(BeTrue())
+
+		By("Remove the cluster-scope trait from application ")
+		app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name:       componentName,
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Traits: []v1beta1.ApplicationTrait{
+							// remove the cluster-scoped trait and keep the
+							// cross-namespaced trait.
+							// if remove both, the resouce tracker will be deleted,
+							// we intends to test the gc of cluster-scoped trait but
+							// not cascading deletion
+							{
+								Type:       "cross-scaler",
+								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+							}},
+					},
+				},
+			},
+		}
+		Eventually(func() error {
+			if err := k8sClient.Patch(ctx, app.DeepCopy(), client.Merge); err != nil {
+				return err
+			}
+			updatedApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: namespace}, updatedApp); err != nil {
+				return err
+			}
+			if len(updatedApp.Spec.Components) > 0 && len(updatedApp.Spec.Components[0].Traits) == 1 {
+				return nil
+			}
+			return errors.New("the cluster-scope trait has not been removed from application")
+		}, 30*time.Second, 2*time.Second).Should(Succeed())
+
+		By("Verify cluster-scoped trait is deleted")
+		Eventually(func() error {
+			requestReconcileNow(ctx, app)
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
+		}, 20*time.Second, 2*time.Second).Should(SatisfyAll(&util.NotFoundMatcher{}))
+	})
+
+	It("Test application have cross-namespace workload", func() {
 		// install  component definition
-		crossCdJson, _ := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ccd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ccd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -101,7 +271,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       componentName,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -109,7 +279,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		By("check resource tracker has been created and app status ")
 		resourceTracker := new(v1beta1.ResourceTracker)
 		Eventually(func() error {
@@ -117,35 +289,21 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
 				return fmt.Errorf("app not found %v", err)
 			}
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker); err != nil {
 				return err
 			}
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status is not running")
 			}
-			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
-				return fmt.Errorf("appication status error ")
-			}
 			return nil
-		}, time.Second*300, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 		By("check resource is generated correctly")
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		var workload appsv1.Deployment
 		Eventually(func() error {
-			appContext := &v1alpha2.ApplicationContext{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, appContext); err != nil {
-				return fmt.Errorf("cannot generate AppContext %v", err)
-			}
 			checkRt := new(v1beta1.ResourceTracker)
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), checkRt); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), checkRt); err != nil {
 				return err
-			}
-			component := &v1alpha2.Component{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
-				return fmt.Errorf("cannot generate component %v", err)
-			}
-			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
-				return fmt.Errorf("component error label ")
 			}
 			depolys := new(appsv1.DeploymentList)
 			opts := []client.ListOption{
@@ -169,14 +327,13 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", checkRt.Status.TrackedResources[0].Name, workload.Name)
 			}
 			return nil
-		}, time.Second*50, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
 		By("deleting application will remove resourceTracker and related workload will be removed")
-		time.Sleep(3 * time.Second) // wait informer cache to be synced
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker)
 			if err == nil {
 				return fmt.Errorf("resourceTracker still exist")
 			}
@@ -191,22 +348,22 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 	})
 
-	It("Test update application by add  a cross namespace trait resource", func() {
+	It("Test update application by add  a cross namespace trait resource ", func() {
 		var (
 			appName       = "test-app-2"
 			app           = new(v1beta1.Application)
 			componentName = "test-app-2-comp"
 		)
 		// install component definition
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossTdJson, err := yaml.YAMLToJSON([]byte(crossNsTdYaml))
+		crossTdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.TraitDefinition)
 		Expect(json.Unmarshal(crossTdJson, ctd)).Should(BeNil())
@@ -219,7 +376,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       componentName,
 						Type:       "normal-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -227,8 +384,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 		By("application contain a normal workload, check application and workload status")
 		Eventually(func() error {
@@ -251,18 +409,14 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("error workload number %v", err)
 			}
 			workload := depolys.Items[0]
-			if len(workload.OwnerReferences) != 1 || workload.OwnerReferences[0].Kind != v1alpha2.ApplicationContextKind {
+			if len(workload.OwnerReferences) != 1 || workload.OwnerReferences[0].Kind != v1beta1.ResourceTrackerKind {
 				return fmt.Errorf("workload owneRefernece err")
 			}
-			err = k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
-			if err == nil {
-				return fmt.Errorf("resourceTracker should not be created")
-			}
-			if !apierrors.IsNotFound(err) {
+			if err = k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker); err != nil {
 				return err
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)
@@ -270,13 +424,13 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
-				v1beta1.ApplicationTrait{
+				{
 					Type:       "cross-scaler",
 					Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 				},
 			}
 			return k8sClient.Update(ctx, app)
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
 		By("add a cross namespace trait, check resourceTracker and trait status")
 		Eventually(func() error {
@@ -287,7 +441,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker)
 			if err != nil {
 				return fmt.Errorf("resourceTracker not generated %v", err)
 			}
@@ -306,14 +460,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(trait.OwnerReferences) != 1 || trait.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("trait owner reference missmatch")
 			}
-			if len(resourceTracker.Status.TrackedResources) != 1 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
-			}
-			if resourceTracker.Status.TrackedResources[0].Name != trait.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, trait.Name)
+			if len(resourceTracker.Status.TrackedResources) != 2 {
+				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Status.TrackedResources))
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
 	It("Test update application by delete a cross namespace trait resource", func() {
@@ -323,12 +474,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			componentName = "test-app-3-comp"
 		)
 		By("install component definition")
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossTdJson, err := yaml.YAMLToJSON([]byte(crossNsTdYaml))
+		crossTdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.TraitDefinition)
 		Expect(json.Unmarshal(crossTdJson, ctd)).Should(BeNil())
@@ -341,12 +492,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       componentName,
 						Type:       "normal-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Traits: []v1beta1.ApplicationTrait{
-							v1beta1.ApplicationTrait{
+							{
 								Type:       "cross-scaler",
 								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 							},
@@ -355,8 +506,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-		time.Sleep(3 * time.Second) // give informer cache to sync
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 		By("create application will create a cross ns trait, and resourceTracker. check those status")
 		Eventually(func() error {
@@ -367,7 +519,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker)
 			if err != nil {
 				return fmt.Errorf("error to get resourceTracker %v", err)
 			}
@@ -386,23 +538,20 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(trait.OwnerReferences) != 1 || trait.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("trait owner reference missmatch")
 			}
-			if len(resourceTracker.Status.TrackedResources) != 1 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
-			}
-			if resourceTracker.Status.TrackedResources[0].Name != trait.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, trait.Name)
+			if len(resourceTracker.Status.TrackedResources) != 2 {
+				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Status.TrackedResources))
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
-		By("update application trait by delete cross ns trait, will delete resourceTracker and related trait resource")
+		By("update application trait by delete cross ns trait")
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 			app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{}
 			return k8sClient.Update(ctx, app)
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
-		fmt.Println(app.ResourceVersion)
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
+
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
@@ -411,9 +560,8 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
-			if err == nil {
-				return fmt.Errorf("resourceTracker still exist")
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker); err != nil {
+				return err
 			}
 			mts := new(v1alpha2.ManualScalerTraitList)
 			opts := []client.ListOption{
@@ -426,11 +574,8 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err != nil || len(mts.Items) != 0 {
 				return fmt.Errorf("cross ns trait still exist")
 			}
-			if app.Status.ResourceTracker != nil {
-				return fmt.Errorf("application status resourceTracker field still exist %s", string(util.JSONMarshal(app.Status.ResourceTracker)))
-			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
 	It("Test application have two different workload", func() {
@@ -441,12 +586,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			component2Name = "test-app-4-comp-2"
 		)
 		By("install component definition")
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossCdJson, err := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ctd)).Should(BeNil())
@@ -459,12 +604,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       component1Name,
 						Type:       "normal-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
-					v1beta1.ApplicationComponent{
+					{
 						Name:       component2Name,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -473,8 +618,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 		}
 
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-		time.Sleep(3 * time.Second) // give informer cache to sync
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 
 		By("create application will generate two workload, and generate resourceTracker")
@@ -486,7 +632,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker)
 			if err != nil {
 				return fmt.Errorf("error to generate resourceTracker %v", err)
 			}
@@ -508,7 +654,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("failed generate same namespace workload")
 			}
 			sameDeplpoy := same.Items[0]
-			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1alpha2.ApplicationContextKind {
+			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1beta1.ResourceTrackerKind {
 				return fmt.Errorf("same ns deploy have error ownerReference")
 			}
 			err = k8sClient.List(ctx, cross, crossOpts...)
@@ -519,24 +665,18 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(sameDeplpoy.OwnerReferences) != 1 || crossDeplpoy.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("same ns deploy have error ownerReference")
 			}
-			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
-				return fmt.Errorf("app status resourceTracker error")
-			}
-			if len(resourceTracker.Status.TrackedResources) != 1 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
-			}
-			if resourceTracker.Status.TrackedResources[0].Name != crossDeplpoy.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, crossDeplpoy.Name)
+			if len(resourceTracker.Status.TrackedResources) != 2 {
+				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Status.TrackedResources))
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
-		By("update application by delete cross namespace workload, resource tracker will be deleted, then check app status")
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
+		By("update application by delete cross namespace workload")
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 			app.Spec.Components = app.Spec.Components[:1] // delete a component
 			return k8sClient.Update(ctx, app)
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
@@ -545,9 +685,8 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
-			if err == nil {
-				return fmt.Errorf("resourceTracker still exist")
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker); err != nil {
+				return err
 			}
 			sameOpts := []client.ListOption{
 				client.InNamespace(namespace),
@@ -567,23 +706,20 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("failed generate same namespace workload")
 			}
 			sameDeplpoy := same.Items[0]
-			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1alpha2.ApplicationContextKind {
+			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1beta1.ResourceTrackerKind {
 				return fmt.Errorf("same ns deploy have error ownerReference")
 			}
 			err = k8sClient.List(ctx, cross, crossOpts...)
 			if err != nil || len(cross.Items) != 0 {
 				return fmt.Errorf("error : cross namespace workload still exist")
 			}
-			if app.Status.ResourceTracker != nil {
-				return fmt.Errorf("error app status resourceTracker")
-			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 	})
 
 	It("Update a cross namespace workload of application", func() {
 		// install  component definition
-		crossCdJson, _ := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ccd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ccd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -599,7 +735,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       componentName,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -607,7 +743,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		By("check resource tracker has been created and app status ")
 		resourceTracker := new(v1beta1.ResourceTracker)
 		Eventually(func() error {
@@ -615,32 +753,18 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
 				return fmt.Errorf("app not found %v", err)
 			}
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker); err != nil {
 				return err
 			}
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status is not running")
 			}
-			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
-				return fmt.Errorf("appication status error ")
-			}
 			return nil
-		}, time.Second*600, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 		By("check resource is generated correctly")
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		var workload appsv1.Deployment
 		Eventually(func() error {
-			appContext := &v1alpha2.ApplicationContext{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, appContext); err != nil {
-				return fmt.Errorf("cannot generate AppContext %v", err)
-			}
-			component := &v1alpha2.Component{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
-				return fmt.Errorf("cannot generate component %v", err)
-			}
-			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
-				return fmt.Errorf("component error label ")
-			}
 			depolys := new(appsv1.DeploymentList)
 			opts := []client.ListOption{
 				client.InNamespace(crossNamespace),
@@ -653,7 +777,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("error workload number %v", err)
 			}
 			workload = depolys.Items[0]
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker); err != nil {
 				return err
 			}
 			if len(workload.OwnerReferences) != 1 || workload.OwnerReferences[0].UID != resourceTracker.UID {
@@ -663,13 +787,10 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("container image not match")
 			}
 			if len(resourceTracker.Status.TrackedResources) != 1 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
-			}
-			if resourceTracker.Status.TrackedResources[0].Name != workload.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, workload.Name)
+				return fmt.Errorf("expect track %q resources, but got %q", 1, len(resourceTracker.Status.TrackedResources))
 			}
 			return nil
-		}, time.Second*50, time.Microsecond*300).Should(BeNil())
+		}, time.Second*50, time.Millisecond*300).Should(BeNil())
 
 		By("update application and check resource status")
 		Eventually(func() error {
@@ -684,19 +805,14 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
 		Eventually(func() error {
-			appContext := &v1alpha2.ApplicationContext{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, appContext); err != nil {
-				return fmt.Errorf("cannot generate AppContext %v", err)
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker); err != nil {
+				return err
 			}
-			component := &v1alpha2.Component{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
-				return fmt.Errorf("cannot generate component %v", err)
-			}
-			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
-				return fmt.Errorf("component error label ")
+			if len(resourceTracker.Status.TrackedResources) != 1 {
+				return fmt.Errorf("expect track %q resources, but got %q", 1, len(resourceTracker.Status.TrackedResources))
 			}
 			depolys := new(appsv1.DeploymentList)
 			opts := []client.ListOption{
@@ -716,24 +832,14 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if workload.Spec.Template.Spec.Containers[0].Image != "nginx" {
 				return fmt.Errorf("container image not match")
 			}
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker); err != nil {
-				return err
-			}
-			if len(resourceTracker.Status.TrackedResources) != 1 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
-			}
-			if resourceTracker.Status.TrackedResources[0].Name != workload.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, workload.Name)
-			}
 			return nil
-		}, time.Second*60, time.Microsecond*1000).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 
 		By("deleting application will remove resourceTracker and related workload will be removed")
-		time.Sleep(3 * time.Second) // wait informer cache to be synced
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker)
 			if err == nil {
 				return fmt.Errorf("resourceTracker still exist")
 			}
@@ -748,7 +854,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
 	It("Test cross-namespace resource gc logic, delete a cross-ns component", func() {
@@ -760,7 +866,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		)
 		By("install related definition")
 
-		crossCdJson, err := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ctd)).Should(BeNil())
@@ -773,12 +879,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       component1Name,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
-					v1beta1.ApplicationComponent{
+					{
 						Name:       component2Name,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -787,8 +893,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 		}
 
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-		time.Sleep(3 * time.Second) // give informer cache to sync
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 
 		By("create application will generate two workload, and generate resourceTracker")
@@ -800,7 +907,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker)
 			if err != nil {
 				return fmt.Errorf("error to generate resourceTracker %v", err)
 			}
@@ -824,11 +931,8 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(deploy2.OwnerReferences) != 1 || deploy2.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("deploy2 have error ownerReference")
 			}
-			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
-				return fmt.Errorf("app status resourceTracker error")
-			}
 			if len(resourceTracker.Status.TrackedResources) != 2 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
+				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Status.TrackedResources))
 			}
 			if resourceTracker.Status.TrackedResources[0].Namespace != crossNamespace || resourceTracker.Status.TrackedResources[1].Namespace != crossNamespace {
 				return fmt.Errorf("resourceTracker recorde namespace mismatch")
@@ -840,14 +944,14 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, deploy2.Name)
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
-		By("update application by delete a cross namespace workload, resource tracker will still exist, then check app status")
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
+		By("update application by delete a cross namespace workload")
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 			app.Spec.Components = app.Spec.Components[:1] // delete a component
 			return k8sClient.Update(ctx, app)
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
@@ -856,7 +960,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker)
 			if err != nil {
 				return fmt.Errorf("failed to get resourceTracker %v", err)
 			}
@@ -876,28 +980,22 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("same ns deploy have error ownerReference")
 			}
 			checkRt := new(v1beta1.ResourceTracker)
-			err = k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), checkRt)
+			err = k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), checkRt)
 			if err != nil {
 				return fmt.Errorf("error get resourceTracker")
 			}
-			if app.Status.ResourceTracker == nil {
-				return fmt.Errorf("app status resourceTracker error")
-			}
-			if app.Status.ResourceTracker.UID != checkRt.UID {
-				return fmt.Errorf("error app status resourceTracker UID")
-			}
 			if len(checkRt.Status.TrackedResources) != 1 {
-				return fmt.Errorf("error resourceTracker  status trackedResource")
+				return fmt.Errorf("expect track %q resources, but got %q", 1, len(checkRt.Status.TrackedResources))
 			}
 			return nil
-		}, time.Second*80, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 
-		By("deleting application will remove resourceTracker and related resourceTracker will be removed")
+		By("deleting application will remove resourceTracker")
 		app = new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker)
 			if err == nil {
 				return fmt.Errorf("resourceTracker still exist")
 			}
@@ -905,7 +1003,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
 	It("Test cross-namespace resource gc logic, delete a cross-ns trait", func() {
@@ -916,13 +1014,13 @@ var _ = Describe("Test application cross namespace resource", func() {
 		)
 		By("install related definition")
 
-		crossCdJson, err := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		ctd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ctd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ctd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		crossTdJson, err := yaml.YAMLToJSON([]byte(crossNsTdYaml))
+		crossTdJson, err := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossNsTdYaml, namespace, crossNamespace)))
 		Expect(err).Should(BeNil())
 		td := new(v1beta1.TraitDefinition)
 		Expect(json.Unmarshal(crossTdJson, td)).Should(BeNil())
@@ -935,12 +1033,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       componentName,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Traits: []v1beta1.ApplicationTrait{
-							v1beta1.ApplicationTrait{
+							{
 								Type:       "cross-scaler",
 								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 0}`)},
 							},
@@ -950,8 +1048,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 		}
 
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-		time.Sleep(3 * time.Second) // give informer cache to sync
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		resourceTracker := new(v1beta1.ResourceTracker)
 		By("create app and check resource and app status")
 		Eventually(func() error {
@@ -962,7 +1061,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker)
 			if err != nil {
 				return fmt.Errorf("error to get resourceTracker %v", err)
 			}
@@ -978,7 +1077,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("failed generate cross namespace trait")
 			}
 			if len(resourceTracker.Status.TrackedResources) != 2 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
+				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Status.TrackedResources))
 			}
 			trait := mts.Items[0]
 			if len(trait.OwnerReferences) != 1 || trait.OwnerReferences[0].UID != resourceTracker.UID {
@@ -1002,7 +1101,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				}
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 
 		By("update application trait by delete cross ns trait, resourceTracker will still exist")
 		Eventually(func() error {
@@ -1010,7 +1109,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 			app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{}
 			return k8sClient.Update(ctx, app)
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
 		Eventually(func() error {
 			app = new(v1beta1.Application)
@@ -1020,7 +1119,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker)
 			if err != nil {
 				return fmt.Errorf("error to get resourceTracker %v", err)
 			}
@@ -1036,7 +1135,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("cross namespace trait still exist")
 			}
 			if len(resourceTracker.Status.TrackedResources) != 1 {
-				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
+				return fmt.Errorf("expect track %d resources, but got %d", 1, len(resourceTracker.Status.TrackedResources))
 			}
 			deploys := new(appsv1.DeploymentList)
 			err = k8sClient.List(ctx, deploys, opts...)
@@ -1051,13 +1150,13 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("error to record deploy name in app status")
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 		By("deleting application will remove resourceTracker and related resourceTracker will be removed")
 		app = new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker)
 			if err == nil {
 				return fmt.Errorf("resourceTracker still exist")
 			}
@@ -1065,17 +1164,17 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
 	It("Test cross-namespace resource gc logic, update a cross-ns workload's namespace", func() {
 		// install  related definition
-		crossCdJson, _ := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(crossCdJson, ccd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ccd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		normalCdJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
+		normalCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(normalCompDefYaml, namespace)))
 		ncd := new(v1beta1.ComponentDefinition)
 		Expect(json.Unmarshal(normalCdJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -1092,7 +1191,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{
 				Components: []v1beta1.ApplicationComponent{
-					v1beta1.ApplicationComponent{
+					{
 						Name:       componentName,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -1100,7 +1199,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 15*time.Second, 300*time.Microsecond).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		By("check resource tracker has been created and app status ")
 		resourceTracker := new(v1beta1.ResourceTracker)
 		Eventually(func() error {
@@ -1108,23 +1209,20 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
 				return fmt.Errorf("app not found %v", err)
 			}
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker); err != nil {
 				return err
 			}
 			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status is not running")
 			}
-			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
-				return fmt.Errorf("appication status error ")
-			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 		By("check resource is generated correctly")
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
 		var workload appsv1.Deployment
 		Eventually(func() error {
 			checkRt := new(v1beta1.ResourceTracker)
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), checkRt); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), checkRt); err != nil {
 				return err
 			}
 			depolys := new(appsv1.DeploymentList)
@@ -1149,10 +1247,9 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", checkRt.Status.TrackedResources[0].Name, workload.Name)
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 
-		By("update application modify workload namespace  will remove resourceTracker and related old workload will be removed")
-		time.Sleep(3 * time.Second) // wait informer cache to be synced
+		By("update application modify workload namespace")
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)
@@ -1165,16 +1262,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			return nil
-		}, time.Second*30, time.Microsecond).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 		Eventually(func() error {
-			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
-			if err == nil {
-				return fmt.Errorf("resourceTracker still exist")
-			}
-			if !apierrors.IsNotFound(err) {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 2), resourceTracker); err != nil {
 				return err
 			}
-			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: crossNamespace, Name: workload.GetName()}, &workload)
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: crossNamespace, Name: workload.GetName()}, &workload)
 			if err == nil {
 				return fmt.Errorf("wrokload still exist")
 			}
@@ -1187,12 +1280,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("generate same namespace workload error")
 			}
 			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 })
 
-func generateResourceTrackerKey(namespace string, name string) types.NamespacedName {
-	return types.NamespacedName{Name: fmt.Sprintf("%s-%s", namespace, name)}
+func generateResourceTrackerKey(namespace string, appName string, revision int) types.NamespacedName {
+	return types.NamespacedName{Name: fmt.Sprintf("%s-v%d-%s", appName, revision, namespace)}
 }
 
 const (
@@ -1201,7 +1294,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: cross-worker
-  namespace: app-resource-tracker-test-ns
+  namespace: %s
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -1217,7 +1310,7 @@ spec:
           apiVersion: "apps/v1"
           kind:       "Deployment"
           metadata: {
-              namespace: "cross-namespace"
+              namespace: "%s"
           }
           spec: {
               replicas: 0
@@ -1257,7 +1350,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: normal-worker
-  namespace: app-resource-tracker-test-ns
+  namespace: %s
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -1312,11 +1405,10 @@ metadata:
   annotations:
     definition.oam.dev/description: "Manually scale the app"
   name: cross-scaler
-  namespace: app-resource-tracker-test-ns
+  namespace: %s
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
@@ -1326,7 +1418,7 @@ spec:
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
         metadata: {
-            namespace: "cross-namespace"
+            namespace: "%s"
         }
       	spec: {
       		replicaCount: parameter.replicas
@@ -1335,6 +1427,37 @@ spec:
       parameter: {
       	//+short=r
       	replicas: *1 | int
+      }
+`
+	clusterScopeTraitDefYAML = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: cluster-scope-trait
+  namespace: %s
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  extension:
+    template: |-
+      outputs: pv: { 
+        apiVersion: "v1"
+        kind:       "PersistentVolume"
+        metadata: name: "pv-\(context.name)"
+        spec: {
+           accessModes: ["ReadWriteOnce"]
+           capacity: storage: "5Gi"
+           persistentVolumeReclaimPolicy: "Retain"
+           storageClassName:              "test-sc"
+           csi: {
+           	driver:       "gcs.csi.ofek.dev"
+           	volumeHandle: "csi-gcs"
+           	nodePublishSecretRef: {
+           	    name:      "bucket-sa-\(context.name)"
+           	    namespace: context.namespace
+           	}
+           }
+        }
       }
 `
 )

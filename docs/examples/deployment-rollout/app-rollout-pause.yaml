@@ -5,6 +5,7 @@ metadata:
 spec:
   # application (revision) reference
   targetAppRevisionName: test-rolling-v2
+  sourceAppRevisionName: test-rolling-v1
   # HPA reference (optional)
   componentList:
     - metrics-provider

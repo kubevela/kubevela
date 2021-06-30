@@ -37,7 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -179,7 +178,6 @@ func TestLocateParentAppConfig(t *testing.T) {
 func TestFetchWorkloadTraitReference(t *testing.T) {
 
 	t.Log("Setting up variables")
-	log := ctrl.Log.WithName("ManualScalarTraitReconciler")
 	noRefNameTrait := v1alpha2.ManualScalerTrait{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha2.SchemeGroupVersion.String(),
@@ -258,7 +256,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 	for name, tc := range cases {
 		tclient := test.NewMockClient()
 		tclient.MockGet = test.NewMockGetFn(nil, tc.fields.getFunc)
-		gotWL, err := util.FetchWorkload(ctx, tclient, log, tc.fields.trait)
+		gotWL, err := util.FetchWorkload(ctx, tclient, tc.fields.trait)
 		t.Log(fmt.Sprint("Running test: ", name))
 		if tc.want.err == nil {
 			assert.NoError(t, err)
@@ -585,7 +583,6 @@ func TestChildResources(t *testing.T) {
 		},
 	}
 
-	log := ctrl.Log.WithName("ManualScalarTraitReconciler")
 	crkl := []common.ChildResourceKind{
 		{
 			Kind:       "Deployment",
@@ -727,7 +724,7 @@ func TestChildResources(t *testing.T) {
 			MockGet:  test.NewMockGetFn(nil, tc.fields.getFunc),
 			MockList: test.NewMockListFn(nil, tc.fields.listFunc),
 		}
-		got, err := util.FetchWorkloadChildResources(ctx, log, &tclient, mock.NewMockDiscoveryMapper(), unstructuredWorkload)
+		got, err := util.FetchWorkloadChildResources(ctx, &tclient, mock.NewMockDiscoveryMapper(), unstructuredWorkload)
 		t.Log(fmt.Sprint("Running test: ", name))
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.crks, got)
@@ -1918,24 +1915,8 @@ func TestGetScopeDefiniton(t *testing.T) {
 }
 
 func TestConvertComponentDef2WorkloadDef(t *testing.T) {
-	var noNeedErr = errors.New("No need to convert ComponentDefinition")
 	var cd = v1beta1.ComponentDefinition{}
 	mapper := mock.NewMockDiscoveryMapper()
-
-	var componentDefWithWorkloadType = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: cd-with-workload-type
-spec:
-  workload:
-    type: worker
-`
-
-	err := yaml.Unmarshal([]byte(componentDefWithWorkloadType), &cd)
-	assert.Equal(t, nil, err)
-	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
-	assert.Equal(t, noNeedErr.Error(), err.Error())
 
 	var componentDefWithWrongDefinition = `
 apiVersion: core.oam.dev/v1beta1
@@ -1949,7 +1930,7 @@ spec:
       kind: Deployment
 `
 	cd = v1beta1.ComponentDefinition{}
-	err = yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
+	err := yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
 	assert.Equal(t, nil, err)
 	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
 	assert.Error(t, err)
@@ -2163,4 +2144,223 @@ func TestExtractDefinitionRevName(t *testing.T) {
 		assert.Equal(t, tt.wantRevName, revName)
 		assert.Equal(t, tt.hasError, hasError)
 	}
+}
+
+func TestAppConfig2ComponentManifests(t *testing.T) {
+	testcases := []struct {
+		ac        string
+		comp      string
+		expectErr bool
+	}{
+		{
+			ac: `apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata: {}
+spec:
+  components:
+  - componentName: demo-podinfo
+    revisionName: demo-podinfo-v2
+    traits:
+    - trait:
+        apiVersion: networking.k8s.io/v1beta1
+        kind: Ingress
+        metadata:
+          name: demo-podinfo
+        spec:
+          rules:
+          - host: localhost
+            http:
+              paths:
+              - backend:
+                  serviceName: demo-podinfo
+                  servicePort: 8000
+                path: /`,
+			comp: `apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: demo-podinfo
+spec:
+  helm:
+    release:
+      apiVersion: helm.toolkit.fluxcd.io/v2beta1
+      kind: HelmRelease
+      metadata:
+        name: myapp-demo-podinfo
+        namespace: default
+      spec:
+        chart:
+          spec:
+            chart: podinfo
+            sourceRef:
+              kind: HelmRepository
+              name: myapp-demo-podinfo
+              namespace: default
+            version: 5.1.4
+        interval: 5m0s
+        values:
+          image:
+            tag: 5.1.2
+    repository:
+      apiVersion: source.toolkit.fluxcd.io/v1beta1
+      kind: HelmRepository
+      metadata:
+        name: myapp-demo-podinfo
+        namespace: default
+      spec:
+        interval: 5m0s
+        url: http://oam.dev/catalog/
+  workload:
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    spec:
+      replicas: 2`,
+			expectErr: false,
+		},
+		{
+			ac:        `errBoom`,
+			comp:      "",
+			expectErr: true,
+		},
+		{
+			ac: `apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata: {}
+spec:
+  components:
+  - componentName: demo-podinfo
+    revisionName: demo-podinfo-v2`,
+			comp:      `errBoom`,
+			expectErr: true,
+		},
+		{
+			ac: `apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata: {}
+spec:
+  components:
+  - componentName: demo-podinfo
+    revisionName: demo-podinfo-v2`,
+			comp: `apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: demo-podinfo
+spec:
+  workload:
+    errorBoom`,
+			expectErr: true,
+		},
+		{
+			ac: `apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata: {}
+spec:
+  components:
+  - componentName: demo-podinfo
+    revisionName: demo-podinfo-v2`,
+			comp: `apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: demo-podinfo
+spec:
+  helm:
+    release:
+      errorBoom
+    repository:
+      apiVersion: source.toolkit.fluxcd.io/v1beta1
+      kind: HelmRepository
+      metadata:
+        name: myapp-demo-podinfo
+        namespace: default
+      spec:
+        interval: 5m0s
+        url: http://oam.dev/catalog/
+  workload:
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    spec:
+      replicas: 2`,
+			expectErr: true,
+		},
+		{
+			ac: `apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata: {}
+spec:
+  components:
+  - componentName: demo-podinfo
+    revisionName: demo-podinfo-v2`,
+			comp: `apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: demo-podinfo
+spec:
+  helm:
+    release:
+      apiVersion: helm.toolkit.fluxcd.io/v2beta1
+      kind: HelmRelease
+      metadata:
+        name: myapp-demo-podinfo
+        namespace: default
+      spec:
+        chart:
+          spec:
+            chart: podinfo
+            sourceRef:
+              kind: HelmRepository
+              name: myapp-demo-podinfo
+              namespace: default
+            version: 5.1.4
+        interval: 5m0s
+        values:
+          image:
+            tag: 5.1.2
+    repository:
+      errorBoom
+  workload:
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    spec:
+      replicas: 2`,
+			expectErr: true,
+		},
+		{
+			ac: `apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata: {}
+spec:
+  components:
+  - componentName: demo-podinfo
+    revisionName: demo-podinfo-v2
+    traits:
+    - trait:
+        errorBoom`,
+			comp: `apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: demo-podinfo
+spec:
+  workload:
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    spec:
+      replicas: 2`,
+			expectErr: true,
+		},
+	}
+	for _, tc := range testcases {
+		acJSON, _ := yaml.YAMLToJSON([]byte(tc.ac))
+		acRaw := runtime.RawExtension{Raw: acJSON}
+		compJSON, _ := yaml.YAMLToJSON([]byte(tc.comp))
+		compRaw := runtime.RawExtension{Raw: compJSON}
+		_, err := util.AppConfig2ComponentManifests(acRaw, []common.RawComponent{
+			{Raw: compRaw},
+		})
+		hasError := err != nil
+		assert.Equal(t, tc.expectErr, hasError, "err", err)
+	}
+
 }

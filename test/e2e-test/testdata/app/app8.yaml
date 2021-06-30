@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: first-application
+spec:
+  components:
+    - name: myweb
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - "1000"
+    - name: myweb
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - "10000"

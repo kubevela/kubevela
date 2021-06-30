@@ -40,6 +40,7 @@ module.exports = {
             'end-user/traits/annotations-and-labels',
             'end-user/traits/sidecar',
             'end-user/traits/volumes',
+            'end-user/traits/service-binding',
             'end-user/traits/more',
           ]
         },
@@ -168,14 +169,14 @@ module.exports = {
             'cli/vela_cap',
           ],
         },
-        'developers/references/restful-api/rest',
+        'developers/references/kubectl-plugin'
       ],
     },
     {
       type: 'category',
       label: 'Roadmap',
       items: [
-        'roadmap',
+        'roadmap/README',
       ],
     },
     {

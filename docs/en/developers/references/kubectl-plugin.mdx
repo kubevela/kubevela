@@ -1,0 +1,41 @@
+---
+title: Kubectl plugin
+---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Install vela kubectl plugin can help you to ship applications more easily!
+
+## Installation
+
+See [advanced-install](../../advanced-install#install-kubectl-vela-plugin)
+
+## Usage
+
+```shell
+$ kubectl vela -h
+A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.
+
+Usage:
+  kubectl vela [flags]
+  kubectl vela [command]
+
+Available Commands:
+
+    comp        Show components in capability registry
+    dry-run     Dry Run an application, and output the K8s resources as
+                result to stdout, only CUE template supported for now
+    live-diff   Dry-run an application, and do diff on a specific app
+                revison. The provided capability definitions will be used
+                during Dry-run. If any capabilities used in the app are not
+                found in the provided ones, it will try to find from
+                cluster.
+    show        Show the reference doc for a workload type or trait
+    trait       Show traits in capability registry
+    version     Prints out build version information
+
+Flags:
+  -h, --help   help for vela
+
+Use "kubectl vela [command] --help" for more information about a command.
+```

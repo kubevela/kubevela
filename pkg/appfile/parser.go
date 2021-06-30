@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -33,8 +34,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -57,12 +59,12 @@ func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, dm discoverymapper.
 type Parser struct {
 	client     client.Client
 	dm         discoverymapper.DiscoveryMapper
-	pd         *definition.PackageDiscover
+	pd         *packages.PackageDiscover
 	tmplLoader TemplateLoaderFn
 }
 
 // NewApplicationParser create appfile parser
-func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover) *Parser {
+func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover) *Parser {
 	return &Parser{
 		client:     cli,
 		dm:         dm,
@@ -72,7 +74,7 @@ func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper,
 }
 
 // NewDryRunApplicationParser create an appfile parser for DryRun
-func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, defs []oam.Object) *Parser {
+func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, defs []oam.Object) *Parser {
 	return &Parser{
 		client:     cli,
 		dm:         dm,
@@ -98,33 +100,67 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		wds = append(wds, wd)
 	}
 	appfile.Workloads = wds
+
+	var err error
+
+	appfile.Policies, err = p.parsePolicies(ctx, appName, ns, app.Spec.Policies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
+	}
+
+	appfile.WorkflowSteps, err = p.parseWorkflow(ctx, appName, ns, app.Spec.Workflow)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parseWorkflow: %w", err)
+	}
 	return appfile, nil
 }
 
-// parseWorkload resolve an ApplicationComponent and generate a Workload
-// containing ALL information required by an Appfile.
-func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent, appName, ns string) (*Workload, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
-	if err != nil && !kerrors.IsNotFound(err) {
-		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
+func (p *Parser) parsePolicies(ctx context.Context, appName, ns string, policies []v1beta1.AppPolicy) ([]*Workload, error) {
+	ws := []*Workload{}
+	for _, policy := range policies {
+		w, err := p.makeWorkload(ctx, appName, ns, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+		if err != nil {
+			return nil, err
+		}
+		ws = append(ws, w)
 	}
-	settings, err := util.RawExtension2Map(&comp.Properties)
+	return ws, nil
+}
+
+func (p *Parser) parseWorkflow(ctx context.Context, appName, ns string, steps []v1beta1.WorkflowStep) ([]*Workload, error) {
+	ws := []*Workload{}
+	for _, step := range steps {
+		w, err := p.makeWorkload(ctx, appName, ns, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)
+		if err != nil {
+			return nil, err
+		}
+		ws = append(ws, w)
+	}
+	return ws, nil
+}
+
+func (p *Parser) makeWorkload(ctx context.Context, appName, ns, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
+	if err != nil && !kerrors.IsNotFound(err) {
+		return nil, errors.WithMessagef(err, "fetch type of %s", name)
+	}
+	settings, err := util.RawExtension2Map(&props)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
+		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
 	}
 
-	wlType, err := util.ConvertDefinitionRevName(comp.Type)
+	wlType, err := util.ConvertDefinitionRevName(typ)
 	if err != nil {
-		wlType = comp.Type
+		wlType = typ
 	}
 	workload := &Workload{
 		Traits:             []*Trait{},
-		Name:               comp.Name,
+		Name:               name,
 		Type:               wlType,
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             definition.NewWorkloadAbstractEngine(comp.Name, p.pd),
+		engine:             definition.NewWorkloadAbstractEngine(name, p.pd),
 	}
 
 	if workload.IsCloudResourceConsumer() {
@@ -145,6 +181,16 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 			return nil, errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, appName, ns)
 		}
 		workload.UserConfigs = data
+	}
+	return workload, nil
+}
+
+// parseWorkload resolve an ApplicationComponent and generate a Workload
+// containing ALL information required by an Appfile.
+func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent, appName, ns string) (*Workload, error) {
+	workload, err := p.makeWorkload(ctx, appName, ns, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, traitValue := range comp.Traits {
@@ -180,16 +226,53 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 	if err != nil {
 		return nil, err
 	}
+
+	traitName, err := util.ConvertDefinitionRevName(name)
+	if err != nil {
+		traitName = name
+	}
 	return &Trait{
-		Name:               name,
+		Name:               traitName,
 		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
 		Template:           templ.TemplateStr,
 		HealthCheckPolicy:  templ.Health,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
-		engine:             definition.NewTraitAbstractEngine(name, p.pd),
+		engine:             definition.NewTraitAbstractEngine(traitName, p.pd),
 	}, nil
+}
+
+// ValidateComponentNames validate all component name whether repeat in cluster and template
+func (p *Parser) ValidateComponentNames(ctx context.Context, af *Appfile) (int, error) {
+	existCompNames := make(map[string]string)
+	existApps := v1beta1.ApplicationList{}
+	if err := p.client.List(ctx, &existApps); err != nil {
+		return 0, err
+	}
+	for _, existApp := range existApps.Items {
+		ea := existApp.DeepCopy()
+		existAf, err := p.GenerateAppFile(ctx, ea)
+		if err != nil || existAf.Name == af.Name {
+			continue
+		}
+		for _, existComp := range existAf.Workloads {
+			existCompNames[existComp.Name] = existApp.Name
+		}
+	}
+
+	for i, wl := range af.Workloads {
+		if existAfName, ok := existCompNames[wl.Name]; ok {
+			return i, fmt.Errorf("component named '%s' is already exist in application '%s'", wl.Name, existAfName)
+		}
+		for j := i + 1; j < len(af.Workloads); j++ {
+			if wl.Name == af.Workloads[j].Name {
+				return i, fmt.Errorf("component named '%s' is repeat in this appfile", wl.Name)
+			}
+		}
+	}
+
+	return 0, nil
 }
 
 // GetOutputSecretNames set all secret names, which are generated by cloud resource, to context

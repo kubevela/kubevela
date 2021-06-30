@@ -107,10 +107,18 @@ spec:
           args:
             - "--metrics-addr=:8080"
             - "--enable-leader-election"
+            {{ if ne .Values.logFilePath "" }}
+            - "--log-file-path={{ .Values.logFilePath }}"
+            - "--log-file-max-size={{ .Values.logFileMaxSize }}"
+            {{ end }}
+            {{ if .Values.logDebug }}
+            - "--log-debug=true"
+            {{ end }}
             {{ if .Values.admissionWebhooks.enabled }}
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
+            - "--autogen-workload-definition={{ .Values.admissionWebhooks.autoGenWorkloadDefinition }}"
             {{ end }}
             {{ if not .Values.useAppConfig }}
             - "--app-config-installed=false"

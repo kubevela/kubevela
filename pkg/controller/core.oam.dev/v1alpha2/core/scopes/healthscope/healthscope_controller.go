@@ -22,21 +22,20 @@ import (
 	"sync"
 	"time"
 
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
-
-	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 const (
@@ -56,14 +55,13 @@ const (
 )
 
 // Setup adds a controller that reconciles HealthScope.
-func Setup(mgr ctrl.Manager, _ controller.Args, l logging.Logger) error {
+func Setup(mgr ctrl.Manager, _ controller.Args) error {
 	name := "oam/" + strings.ToLower(v1alpha2.HealthScopeGroupKind)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		For(&v1alpha2.HealthScope{}).
 		Complete(NewReconciler(mgr,
-			WithLogger(l.WithValues("controller", name)),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 		))
 }
@@ -71,8 +69,6 @@ func Setup(mgr ctrl.Manager, _ controller.Args, l logging.Logger) error {
 // A Reconciler reconciles OAM Scopes by keeping track of the health status of components.
 type Reconciler struct {
 	client client.Client
-
-	log    logging.Logger
 	record event.Recorder
 	// traitChecker represents checker fetching health condition from HealthCheckTrait
 	traitChecker WorloadHealthChecker
@@ -85,13 +81,6 @@ type Reconciler struct {
 
 // A ReconcilerOption configures a Reconciler.
 type ReconcilerOption func(*Reconciler)
-
-// WithLogger specifies how the Reconciler should log messages.
-func WithLogger(l logging.Logger) ReconcilerOption {
-	return func(r *Reconciler) {
-		r.log = l
-	}
-}
 
 // WithRecorder specifies how the Reconciler should record events.
 func WithRecorder(er event.Recorder) ReconcilerOption {
@@ -121,7 +110,6 @@ func WithChecker(c WorloadHealthChecker) ReconcilerOption {
 func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 	r := &Reconciler{
 		client:       m.GetClient(),
-		log:          logging.NewNopLogger(),
 		record:       event.NewNopRecorder(),
 		traitChecker: WorkloadHealthCheckFn(CheckByHealthCheckTrait),
 		checkers: []WorloadHealthChecker{
@@ -142,8 +130,7 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 
 // Reconcile an OAM HealthScope by keeping track of its health status.
 func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	log := r.log.WithValues("request", req)
-	log.Debug("Reconciling")
+	klog.InfoS("Reconcile healthScope", "healthScope", klog.KRef(req.Namespace, req.Name))
 
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
 	defer cancel()
@@ -164,10 +151,10 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 
 	start := time.Now()
 
-	log = log.WithValues("uid", hs.GetUID(), "version", hs.GetResourceVersion())
+	klog.InfoS("healthScope", "uid", hs.GetUID(), "version", hs.GetResourceVersion())
 
 	scopeCondition, wlConditions := r.GetScopeHealthStatus(ctx, hs)
-	log.Debug("Successfully ran health check", "scope", hs.Name)
+	klog.V(common.LogDebug).InfoS("Successfully ran health check", "scope", hs.Name)
 	r.record.Event(hs, event.Normal(reasonHealthCheck, "Successfully ran health check"))
 
 	elapsed := time.Since(start)
@@ -179,7 +166,7 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 
 // GetScopeHealthStatus get the status of the healthscope based on workload resources.
 func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1alpha2.HealthScope) (ScopeHealthCondition, []*WorkloadHealthCondition) {
-	log := r.log.WithValues("get scope health status", healthScope.GetName())
+	klog.InfoS("Get scope health status", "name", healthScope.GetName())
 	scopeCondition := ScopeHealthCondition{
 		HealthStatus: StatusHealthy, // if no workload referenced, scope is healthy by default
 	}
@@ -207,7 +194,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 
 			wlHealthCondition = r.traitChecker.Check(ctx, r.client, resRef, healthScope.GetNamespace())
 			if wlHealthCondition != nil {
-				log.Debug("get health condition from health check trait ", "workload", resRef, "healthCondition", wlHealthCondition)
+				klog.V(common.LogDebug).InfoS("Get health condition from health check trait ", "workload", resRef, "healthCondition", wlHealthCondition)
 				// get healthCondition from HealthCheckTrait
 				workloadHealthConditionsC <- wlHealthCondition
 				return
@@ -216,14 +203,14 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 			for _, checker := range r.checkers {
 				wlHealthCondition = checker.Check(ctxWithTimeout, r.client, resRef, healthScope.GetNamespace())
 				if wlHealthCondition != nil {
-					log.Debug("get health condition from built-in checker", "workload", resRef, "healthCondition", wlHealthCondition)
+					klog.V(common.LogDebug).InfoS("Get health condition from built-in checker", "workload", resRef, "healthCondition", wlHealthCondition)
 					// found matched checker and get health condition
 					workloadHealthConditionsC <- wlHealthCondition
 					return
 				}
 			}
 			// handle unknown workload
-			log.Debug("get unknown workload", "workload", resRef)
+			klog.V(common.LogDebug).InfoS("Gpkg/controller/core.oam.dev/v1alpha2/setup.go:42:69et unknown workload", "workload", resRef)
 			workloadHealthConditionsC <- r.unknownChecker.Check(ctx, r.client, resRef, healthScope.GetNamespace())
 		}(workloadRef)
 	}

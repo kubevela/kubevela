@@ -22,22 +22,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/ghodss/yaml"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var (
@@ -46,12 +46,12 @@ var (
 
 var _ = Describe("Test application controller clean up appRevision", func() {
 	ctx := context.TODO()
-	namespace := "clean-up-revision"
+	var namespace string
 
 	cd := &v1beta1.ComponentDefinition{}
-	cdDefJson, _ := yaml.YAMLToJSON([]byte(compDefYaml))
 
 	BeforeEach(func() {
+		namespace = randomNamespaceName("clean-up-revision-test")
 		ns := v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
@@ -59,22 +59,19 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}
 		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+		cdDefJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(compDefYaml, namespace)))
 		Expect(json.Unmarshal(cdDefJson, cd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+
 		Expect(k8sClient.Delete(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		// guarantee namespace have been deleted
-		Eventually(func() error {
-			ns := new(v1.Namespace)
-			err := k8sClient.Get(ctx, types.NamespacedName{Name: namespace}, ns)
-			if err == nil {
-				return fmt.Errorf("namespace still exist")
-			}
-			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 	})
 
 	It("Test clean up appRevision", func() {
@@ -83,7 +80,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		app := getApp(appName, namespace, "normal-worker")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		checkApp := new(v1beta1.Application)
-		for i := 0; i < appRevisionLimit+1; i++ {
+		for i := 0; i < appRevisionLimit; i++ {
 			Eventually(func() error {
 				checkApp = new(v1beta1.Application)
 				Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -91,7 +88,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 					return fmt.Errorf("application point to wrong revision")
 				}
 				return nil
-			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+			}, time.Second*10, time.Millisecond*500).Should(BeNil())
 			Eventually(func() error {
 				checkApp = new(v1beta1.Application)
 				Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -101,10 +98,8 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 					return err
 				}
 				return nil
-			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+			}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		}
-		appContext := new(v1alpha2.ApplicationContext)
-		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(BeNil())
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabels{
@@ -121,16 +116,10 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return fmt.Errorf("error appRevison number wants %d, actually %d", appRevisionLimit+1, len(appRevisionList.Items))
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
-		Eventually(func() error {
-			if err := k8sClient.Get(ctx, appKey, appContext); err != nil {
-				return err
-			}
-			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		By("create new appRevision will remove appRevison1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
+		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 5)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		deletedRevison := new(v1beta1.ApplicationRevision)
@@ -151,20 +140,20 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 
 		By("update app again will gc appRevision2")
 		Eventually(func() error {
 			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
+			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			if err := k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
 			return nil
-		})
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		Eventually(func() error {
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
@@ -182,7 +171,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 	})
 
 	It("Test clean up rollout appRevision", func() {
@@ -210,10 +199,8 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 					return err
 				}
 				return nil
-			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+			}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		}
-		appContext := new(v1alpha2.ApplicationContext)
-		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(util.NotFoundMatcher{})
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabels{
@@ -233,10 +220,14 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}, time.Second*300, time.Microsecond*300).Should(BeNil())
 
 		By("create new appRevision will remove appRevison1")
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 5)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
-		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			return k8sClient.Update(ctx, checkApp)
+		}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
@@ -255,13 +246,17 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 
 		By("update app again will gc appRevision2")
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
-		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			return k8sClient.Update(ctx, checkApp)
+		}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 		Eventually(func() error {
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
@@ -279,7 +274,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		appRollout := &v1beta1.AppRollout{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: v1beta1.AppRolloutKindAPIVersion,
@@ -293,9 +288,10 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				TargetAppRevisionName: appName + "-v3",
 				ComponentList:         []string{"comp1"},
 				RolloutPlan: v1alpha1.RolloutPlan{
+					TargetSize: pointer.Int32Ptr(2),
 					RolloutBatches: []v1alpha1.RolloutBatch{
 						{
-							Replicas: intstr.FromInt(1),
+							Replicas: intstr.FromInt(2),
 						},
 					},
 				},
@@ -313,7 +309,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 					return fmt.Errorf("application point to wrong revision")
 				}
 				return nil
-			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+			}, time.Second*10, time.Millisecond*500).Should(BeNil())
 			Eventually(func() error {
 				if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
 					return err
@@ -349,7 +345,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 	})
 })
 
@@ -359,7 +355,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: normal-worker
-  namespace: clean-up-revision
+  namespace: %s
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:

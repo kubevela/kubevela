@@ -19,6 +19,7 @@ package plugin
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -123,6 +124,96 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Properties"))
 		})
+		It("Test show componentDefinition def with raw Kube mode", func() {
+			cdName := "kube-worker"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("image"))
+			Expect(output).Should(ContainSubstring("The value will be applied to fields: [spec.template.spec.containers[0].image]."))
+			Expect(output).Should(ContainSubstring("port"))
+			Expect(output).Should(ContainSubstring("the specific container port num which can accept external request."))
+		})
+		It("Test show traitDefinition def with raw Kube mode", func() {
+			tdName := "service-kube"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("targetPort"))
+			Expect(output).Should(ContainSubstring("target port num for service provider."))
+		})
+		It("Test show traitDefinition def with cue single map parameter", func() {
+			tdName := "annotations"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("map[string]string"))
+		})
+		It("Test show webservice def with cue ignore annotation ", func() {
+			tdName := "webservice"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
+		})
+		It("Test show webservice def with cue ignore annotation ", func() {
+			tdName := "mywebservice"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
+			Expect(output).ShouldNot(ContainSubstring("mySecretKey"))
+		})
+	})
+
+	Context("Test kubectl vela comp discover", func() {
+		It("Test list components in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela comp --discover --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing components from registry"))
+			Expect(output).Should(ContainSubstring("cloneset"))
+		})
+	})
+	Context("Test kubectl vela trait discover", func() {
+		It("Test list traits in local registry", func() {
+			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing traits from registry"))
+			Expect(output).Should(ContainSubstring("init-container"))
+		})
+	})
+	Context("Test kubectl vela comp and trait install", func() {
+		It("Test install a sample component", func() {
+			output, err := e2e.Exec("kubectl-vela comp get cloneset --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install component: cloneset"))
+		})
+		It("Test install a sample trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait get init-container --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install trait: init-container"))
+		})
+	})
+	Context("Test kubectl vela list installed comp and trait", func() {
+		It("Test list installed component", func() {
+			output, err := e2e.Exec("kubectl-vela comp --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("cloneset"))
+		})
+		It("Test list installed trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait --url=" + testRegistryPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("init-container"))
+		})
+	})
+	Context("Test uninstall vela trait", func() {
+		It("Clean the sample component", func() {
+			cmd := exec.Command("kubectl", "delete", "componentDefinition", "cloneset", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("componentdefinition.core.oam.dev \"cloneset\" deleted"))
+		})
+		It("Clean the sample trait", func() {
+			cmd := exec.Command("kubectl", "delete", "traitDefinition", "init-container", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("traitdefinition.core.oam.dev \"init-container\" deleted"))
+		})
 	})
 })
 
@@ -160,7 +251,7 @@ spec:
       properties:
         image: crccheck/hello-world
         port: 5000
-        cpu: 0.5
+        cpu: "0.5"
       traits:
         - type: test-ingress
           properties:
@@ -374,6 +465,49 @@ spec:
         url: "http://oam.dev/catalog/"
 `
 
+var componentDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kube-worker
+  namespace: default
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    kube:
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        spec:
+          selector:
+            matchLabels:
+              app: nginx
+          template:
+            metadata:
+              labels:
+                app: nginx
+            spec:
+              containers:
+                - name: nginx
+                  ports:
+                    - containerPort: 80
+      parameters:
+        - name: image
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].image"
+        - name: port
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].ports[0].containerPort"
+          description: "the specific container port num which can accept external request."
+`
+
 var traitDef = `
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
@@ -395,8 +529,7 @@ spec:
     healthPolicy: |
       isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: false
   schematic:
     cue:
@@ -448,6 +581,118 @@ spec:
         	}
         }
         
+`
+
+var traitDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: service-kube
+  namespace: default
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+    - backend
+  podDisruptive: true
+  schematic:
+    kube:
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: my-service
+        spec:
+          ports:
+            - protocol: TCP
+              port: 80
+              targetPort: 9376
+      parameters:
+        - name: targetPort
+          required: true
+          type: number
+          fieldPaths:
+            - "spec.template.spec.ports[0].targetPort"
+          description: "target port num for service provider."
+`
+
+var componentWithDeepCue = `
+# Test for deeper parameter in cue Template
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+ name: mywebservice
+ namespace: default
+ annotations:
+   definition.oam.dev/description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers."
+spec:
+ workload:
+   definition:
+     apiVersion: apps/v1
+     kind: Deployment
+ schematic:
+   cue:
+     template: |
+       output: {
+       	apiVersion: "apps/v1"
+       	kind:       "Deployment"
+       	spec: {
+       		selector: matchLabels: {
+       			"app.oam.dev/component": context.name
+       			if parameter.addRevisionLabel {
+       				"app.oam.dev/appRevision": context.appRevision
+       			}
+       		}
+
+       		template: {
+       			metadata: labels: {
+       				"app.oam.dev/component": context.name
+       				if parameter.addRevisionLabel {
+       					"app.oam.dev/appRevision": context.appRevision
+       				}
+       			}
+
+       			spec: {
+       				containers: [{
+       					name:  context.name
+       					image: parameter.image
+
+       					if parameter["env"] != _|_ {
+       						env: parameter.env
+       					}
+       				}]
+       		    }
+       	    }
+           }
+       }
+       parameter: {
+       	// +usage=Which image would you like to use for your service
+       	// +short=i
+       	image: string
+
+       	// +ignore
+       	// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods
+       	addRevisionLabel: *false | bool
+
+       	// +usage=Define arguments by using environment variables
+       	env?: [...{
+       		// +usage=Environment variable name
+       		name: string
+       		// +usage=The value of the environment variable
+       		value?: string
+       		// +usage=Specifies a source the value of this var should come from
+       		valueFrom?: {
+       			// +usage=Selects a key of a secret in the pod's namespace
+       			secretKeyRef: {
+       				// +usage=The name of the secret in the pod's namespace to select from
+       				name: string
+                       // +ignore
+       				// +usage=The key of the secret to select from. Must be a valid secret key
+       				mySecretKey: string
+       			}
+       		}
+       	}]
+       }
 `
 
 var dryRunResult = `---
@@ -535,7 +780,7 @@ var livediffResult = `---
 -   - name: express-server
 +   - name: new-express-server
       properties:
-+       cpu: 0.5
++       cpu: "0.5"
         image: crccheck/hello-world
 -       port: 80
 +       port: 5000
@@ -560,39 +805,28 @@ var livediffResult = `---
 ---
 ## Component (express-server) has been removed(-)
 ---
-- apiVersion: core.oam.dev/v1alpha2
-- kind: Component
+- apiVersion: apps/v1
+- kind: Deployment
 - metadata:
--   creationTimestamp: null
 -   labels:
+-     app.oam.dev/appRevision: ""
+-     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
--   name: express-server
+-     workload.oam.dev/type: test-webservice
 - spec:
--   workload:
--     apiVersion: apps/v1
--     kind: Deployment
+-   selector:
+-     matchLabels:
+-       app.oam.dev/component: express-server
+-   template:
 -     metadata:
 -       labels:
--         app.oam.dev/appRevision: ""
 -         app.oam.dev/component: express-server
--         app.oam.dev/name: test-vela-app
--         workload.oam.dev/type: test-webservice
 -     spec:
--       selector:
--         matchLabels:
--           app.oam.dev/component: express-server
--       template:
--         metadata:
--           labels:
--             app.oam.dev/component: express-server
--         spec:
--           containers:
--           - image: crccheck/hello-world
--             name: express-server
--             ports:
--             - containerPort: 80
-- status:
--   observedGeneration: 0
+-       containers:
+-       - image: crccheck/hello-world
+-         name: express-server
+-         ports:
+-         - containerPort: 80
   
 ---
 ### Component (express-server) / Trait (test-ingress/service) has been removed(-)
@@ -640,39 +874,33 @@ var livediffResult = `---
 ---
 ## Component (new-express-server) has been added(+)
 ---
-+ apiVersion: core.oam.dev/v1alpha2
-+ kind: Component
++ apiVersion: apps/v1
++ kind: Deployment
 + metadata:
-+   creationTimestamp: null
 +   labels:
++     app.oam.dev/appRevision: ""
++     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
-+   name: new-express-server
++     workload.oam.dev/type: test-webservice
 + spec:
-+   workload:
-+     apiVersion: apps/v1
-+     kind: Deployment
++   selector:
++     matchLabels:
++       app.oam.dev/component: new-express-server
++   template:
 +     metadata:
 +       labels:
-+         app.oam.dev/appRevision: ""
 +         app.oam.dev/component: new-express-server
-+         app.oam.dev/name: test-vela-app
-+         workload.oam.dev/type: test-webservice
 +     spec:
-+       selector:
-+         matchLabels:
-+           app.oam.dev/component: new-express-server
-+       template:
-+         metadata:
-+           labels:
-+             app.oam.dev/component: new-express-server
-+         spec:
-+           containers:
-+           - image: crccheck/hello-world
-+             name: new-express-server
-+             ports:
-+             - containerPort: 5000
-+ status:
-+   observedGeneration: 0
++       containers:
++       - image: crccheck/hello-world
++         name: new-express-server
++         ports:
++         - containerPort: 5000
++         resources:
++           limits:
++             cpu: "0.5"
++           requests:
++             cpu: "0.5"
   
 ---
 ### Component (new-express-server) / Trait (test-ingress/service) has been added(+)
@@ -778,8 +1006,7 @@ metadata:
   namespace: vela-system
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |-

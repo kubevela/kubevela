@@ -208,20 +208,13 @@ func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig
 	for _, c := range v.validatingComps {
 		// TODO(roywang) consider a CRD group could have multiple versions
 		// and maybe we need to specify the minimum version here in the future
-		// according to OAM convention, Spec.Reference.Name in workloadDefinition is CRD name
-		crdName := c.workloadDefinition.Spec.Reference.Name
-		// according to OAM convention, name of workloadDefinition is the workload type.
-		workloadTypeName := c.workloadDefinition.GetName()
-		workloadGroup := schema.ParseGroupResource(crdName).Group
+		workloadType := c.workloadDefinition.Spec.Reference.Name
+		workloadTypeGroup := schema.ParseGroupResource(workloadType).Group
 
-		klog.Info("validate trait is appliable to workload: ",
-			fmt.Sprintf("workloadDefRefName:%s, workloadDefName(type):%s, workloadGroup:%s",
-				crdName, workloadTypeName, workloadGroup))
+		klog.InfoS("validate trait is appliable to workload: ",
+			"workloadType", workloadType, "workloadTypeGroup", workloadTypeGroup)
 	ValidateApplyTo:
 		for _, t := range c.validatingTraits {
-			klog.Info("validate trait is appliable to workload: ",
-				fmt.Sprintf("trait %q is allowed to apply to %s",
-					t.traitDefinition.GetName(), t.traitDefinition.Spec.AppliesToWorkloads))
 			if len(t.traitDefinition.Spec.AppliesToWorkloads) == 0 {
 				// AppliesToWorkloads is empty, the trait can be applied to ANY workload
 				continue
@@ -231,11 +224,10 @@ func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig
 					// "*" means the trait can be applied to ANY workload
 					continue ValidateApplyTo
 				}
-				if strings.HasPrefix(applyTo, "*.") && workloadGroup == applyTo[2:] {
+				if strings.HasPrefix(applyTo, "*.") && workloadTypeGroup == applyTo[2:] {
 					continue ValidateApplyTo
 				}
-				if crdName == applyTo ||
-					workloadTypeName == applyTo {
+				if workloadType == applyTo {
 					continue ValidateApplyTo
 				}
 			}

@@ -107,83 +107,100 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 	if err != nil {
 		return err
 	}
-	tp.Source = &types.Source{RepoName: centerName}
 	defDir, _ := system.GetCapabilityDir()
+	fileContent, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
+	if err != nil {
+		return err
+	}
 	switch tp.Type {
 	case types.TypeComponentDefinition:
-		var cd v1beta1.ComponentDefinition
-		workloadData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
+		err = InstallComponentDefinition(client, fileContent, ioStreams, &tp)
 		if err != nil {
-			return err
-		}
-		if err = yaml.Unmarshal(workloadData, &cd); err != nil {
-			return err
-		}
-		cd.Namespace = types.DefaultKubeVelaNS
-		ioStreams.Info("Installing component capability " + cd.Name)
-		if tp.Install != nil {
-			tp.Source.ChartName = tp.Install.Helm.Name
-			if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
-				return err
-			}
-			err = addSourceIntoExtension(cd.Spec.Extension, tp.Source)
-			if err != nil {
-				return err
-			}
-		}
-		if cd.Spec.Workload.Type == "" {
-			tp.CrdInfo = &types.CRDInfo{
-				APIVersion: cd.Spec.Workload.Definition.APIVersion,
-				Kind:       cd.Spec.Workload.Definition.Kind,
-			}
-		}
-		if err = client.Create(context.Background(), &cd); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
 	case types.TypeTrait:
-		var td v1beta1.TraitDefinition
-		traitdata, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
+		err = InstallTraitDefinition(client, mapper, fileContent, ioStreams, &tp)
 		if err != nil {
-			return err
-		}
-		if err = yaml.Unmarshal(traitdata, &td); err != nil {
-			return err
-		}
-		td.Namespace = types.DefaultKubeVelaNS
-		ioStreams.Info("Installing trait capability " + td.Name)
-		if tp.Install != nil {
-			tp.Source.ChartName = tp.Install.Helm.Name
-			if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
-				return err
-			}
-			err = addSourceIntoExtension(td.Spec.Extension, tp.Source)
-			if err != nil {
-				return err
-			}
-		}
-		if err = HackForStandardTrait(tp, client); err != nil {
-			return err
-		}
-		gvk, err := util.GetGVKFromDefinition(mapper, td.Spec.Reference)
-		if err != nil {
-			return err
-		}
-		tp.CrdInfo = &types.CRDInfo{
-			APIVersion: gvk.GroupVersion().String(),
-			Kind:       gvk.Kind,
-		}
-		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
 	case types.TypeScope:
 		// TODO(wonderflow): support install scope here
 	case types.TypeWorkload:
 		return fmt.Errorf("unsupported capability type %v", types.TypeWorkload)
+	default:
+		return fmt.Errorf("unsupported type: %v", tp.Type)
 	}
 
 	success := plugins.SinkTemp2Local([]types.Capability{tp}, defDir)
 	if success == 1 {
 		ioStreams.Infof("Successfully installed capability %s from %s\n", capabilityName, centerName)
+	}
+	return nil
+}
+
+// InstallComponentDefinition will add a component into K8s cluster and install it's controller
+func InstallComponentDefinition(client client.Client, workloadData []byte, ioStreams cmdutil.IOStreams, tp *types.Capability) error {
+	var cd v1beta1.ComponentDefinition
+	var err error
+	if err = yaml.Unmarshal(workloadData, &cd); err != nil {
+		return err
+	}
+	cd.Namespace = types.DefaultKubeVelaNS
+	ioStreams.Info("Installing component capability " + cd.Name)
+	if tp.Install != nil {
+		tp.Source.ChartName = tp.Install.Helm.Name
+		if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
+			return err
+		}
+		err = addSourceIntoExtension(cd.Spec.Extension, tp.Source)
+		if err != nil {
+			return err
+		}
+	}
+	if cd.Spec.Workload.Type == "" {
+		tp.CrdInfo = &types.CRDInfo{
+			APIVersion: cd.Spec.Workload.Definition.APIVersion,
+			Kind:       cd.Spec.Workload.Definition.Kind,
+		}
+	}
+	if err = client.Create(context.Background(), &cd); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
+}
+
+// InstallTraitDefinition will add a trait into K8s cluster and install it's controller
+func InstallTraitDefinition(client client.Client, mapper discoverymapper.DiscoveryMapper, traitdata []byte, ioStreams cmdutil.IOStreams, cap *types.Capability) error {
+	var td v1beta1.TraitDefinition
+	var err error
+	if err = yaml.Unmarshal(traitdata, &td); err != nil {
+		return err
+	}
+	td.Namespace = types.DefaultKubeVelaNS
+	ioStreams.Info("Installing trait capability " + td.Name)
+	if cap.Install != nil {
+		cap.Source.ChartName = cap.Install.Helm.Name
+		if err = helm.InstallHelmChart(ioStreams, cap.Install.Helm); err != nil {
+			return err
+		}
+		err = addSourceIntoExtension(td.Spec.Extension, cap.Source)
+		if err != nil {
+			return err
+		}
+	}
+	if err = HackForStandardTrait(*cap, client); err != nil {
+		return err
+	}
+	gvk, err := util.GetGVKFromDefinition(mapper, td.Spec.Reference)
+	if err != nil {
+		return err
+	}
+	cap.CrdInfo = &types.CRDInfo{
+		APIVersion: gvk.GroupVersion().String(),
+		Kind:       gvk.Kind,
+	}
+	if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
 	}
 	return nil
 }
@@ -217,6 +234,7 @@ func GetCapabilityFromCenter(mapper discoverymapper.DiscoveryMapper, repoName, a
 	}
 	for _, t := range templates {
 		if t.Name == addonName {
+			t.Source = &types.Source{RepoName: repoName}
 			return t, nil
 		}
 	}
@@ -315,6 +333,8 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 		return fmt.Errorf("uninstall scope capability was not supported yet")
 	case types.TypeComponentDefinition:
 		obj = &v1beta1.ComponentDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
+	default:
+		return fmt.Errorf("unsupported type: %v", cap.Type)
 	}
 	if err := client.Delete(ctx, obj); err != nil {
 		return err
@@ -347,6 +367,8 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 		if err := os.Remove(filepath.Join(capdir, "components", cap.Name)); err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("unsupported type: %v", cap.Type)
 	}
 	ioStreams.Infof("Successfully uninstalled capability %s", cap.Name)
 	return nil
@@ -378,7 +400,6 @@ func ListCapabilities(userNamespace string, c common.Args, capabilityCenterName 
 	}
 	return capabilityList, nil
 }
-
 func listCenterCapabilities(userNamespace string, c common.Args, repoDir string) ([]types.Capability, error) {
 	dm, err := c.GetDiscoveryMapper()
 	if err != nil {
@@ -392,10 +413,10 @@ func listCenterCapabilities(userNamespace string, c common.Args, repoDir string)
 		return templates, nil
 	}
 	baseDir := filepath.Base(repoDir)
-	workloads := gatherComponents(userNamespace, c, templates)
+	components := gatherComponents(userNamespace, c, templates)
 	for i, p := range templates {
-		status := checkInstallStatus(userNamespace, c, baseDir, p)
-		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
+		status := checkInstallStatus(userNamespace, c, p)
+		convertedApplyTo := ConvertApplyTo(p.AppliesTo, components)
 		templates[i].Center = baseDir
 		templates[i].Status = status
 		templates[i].AppliesTo = convertedApplyTo
@@ -438,23 +459,23 @@ func RemoveCapabilityCenter(centerName string) (string, error) {
 }
 
 func gatherComponents(userNamespace string, c common.Args, templates []types.Capability) []types.Capability {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
+	components, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
 	if err != nil {
-		workloads = make([]types.Capability, 0)
+		components = make([]types.Capability, 0)
 	}
 	for _, t := range templates {
 		if t.Type == types.TypeComponentDefinition {
-			workloads = append(workloads, t)
+			components = append(components, t)
 		}
 	}
-	return workloads
+	return components
 }
 
-func checkInstallStatus(userNamespace string, c common.Args, repoName string, tmp types.Capability) string {
+func checkInstallStatus(userNamespace string, c common.Args, tmp types.Capability) string {
 	var status = "uninstalled"
 	installed, _ := plugins.LoadInstalledCapabilityWithType(userNamespace, c, tmp.Type)
 	for _, i := range installed {
-		if i.Source != nil && i.Source.RepoName == repoName && i.Name == tmp.Name && i.CrdName == tmp.CrdName {
+		if i.Name == tmp.Name && i.CrdName == tmp.CrdName {
 			return "installed"
 		}
 	}

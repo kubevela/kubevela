@@ -171,52 +171,49 @@ name
 
 func TestGenOpenAPI(t *testing.T) {
 	type want struct {
-		data []byte
-		err  error
+		targetSchemaFile string
+		err              error
 	}
-	var dir = "testdata"
-	var validCueFile = "workload1.cue"
-	var validTargetSchema = "workload1.json"
-	targetFile := filepath.Join(dir, validTargetSchema)
-	expect, _ := ioutil.ReadFile(targetFile)
-
-	normalWant := want{
-		data: expect,
-		err:  nil,
-	}
-
-	f := filepath.FromSlash(validCueFile)
-
-	inst := cue.Build(load.Instances([]string{f}, &load.Config{
-		Dir: dir,
-	}))[0]
-
 	cases := map[string]struct {
 		reason       string
-		fileDir      string
 		fileName     string
 		targetSchema string
 		want         want
 	}{
 		"GenOpenAPI": {
-			reason:       "generate OpenAPI schema",
-			fileDir:      dir,
-			fileName:     validCueFile,
-			targetSchema: validTargetSchema,
-			want:         normalWant,
+			reason:   "generate valid OpenAPI schema with context",
+			fileName: "workload1.cue",
+			want: want{
+				targetSchemaFile: "workload1.json",
+				err:              nil,
+			},
+		},
+		"EmptyOpenAPI": {
+			reason:   "generate empty OpenAPI schema",
+			fileName: "emptyParameter.cue",
+			want: want{
+				targetSchemaFile: "emptyParameter.json",
+				err:              nil,
+			},
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
+			inst := cue.Build(load.Instances([]string{filepath.FromSlash(tc.fileName)}, &load.Config{
+				Dir: "testdata",
+			}))[0]
 			got, err := GenOpenAPI(inst)
 			if tc.want.err != nil {
 				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
 					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
 				}
 			}
-
-			if diff := cmp.Diff(tc.want.data, got); diff != "" {
+			if tc.want.targetSchemaFile == "" {
+				return
+			}
+			wantSchema, _ := ioutil.ReadFile(filepath.Join("testdata", tc.want.targetSchemaFile))
+			if diff := cmp.Diff(wantSchema, got); diff != "" {
 				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want, +got:\n%s", tc.reason, diff)
 			}
 		})
@@ -238,4 +235,76 @@ func TestRealtimePrintCommandOutput(t *testing.T) {
 	data, _ := ioutil.ReadFile(logFile)
 	assert.Contains(t, string(data), hello)
 	os.Remove(logFile)
+}
+
+func TestParseTerraformVariables(t *testing.T) {
+	configuration := `
+module "rds" {
+  source = "terraform-alicloud-modules/rds/alicloud"
+  engine = "MySQL"
+  engine_version = "8.0"
+  instance_type = "rds.mysql.c1.large"
+  instance_storage = "20"
+  instance_name = var.instance_name
+  account_name = var.account_name
+  password = var.password
+}
+
+output "DB_NAME" {
+  value = module.rds.this_db_instance_name
+}
+output "DB_USER" {
+  value = module.rds.this_db_database_account
+}
+output "DB_PORT" {
+  value = module.rds.this_db_instance_port
+}
+output "DB_HOST" {
+  value = module.rds.this_db_instance_connection_string
+}
+output "DB_PASSWORD" {
+  value = module.rds.this_db_instance_port
+}
+
+variable "instance_name" {
+  description = "RDS instance name"
+  type = string
+  default = "poc"
+}
+
+variable "account_name" {
+  description = "RDS instance user account name"
+  type = "string"
+  default = "oam"
+}
+
+variable "password" {
+  description = "RDS instance account password"
+  type = "string"
+  default = "xxx"
+}
+
+variable "intVar" {
+  type = "number"
+}
+
+variable "boolVar" {
+  type = "bool"
+}
+
+variable "listVar" {
+  type = "list"
+}
+
+variable "mapVar" {
+  type = "map"
+}`
+
+	variables, err := ParseTerraformVariables(configuration)
+	assert.NoError(t, err)
+	_, passwordExisted := variables["password"]
+	assert.True(t, passwordExisted)
+
+	_, intVarExisted := variables["password"]
+	assert.True(t, intVarExisted)
 }

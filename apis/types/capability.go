@@ -22,6 +22,9 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // Source record the source of Capability
@@ -62,6 +65,10 @@ type Capability struct {
 
 	// Terraform
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
+
+	// KubeTemplate
+	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
+	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }
 
 // Chart defines all necessary information to install a whole chart
@@ -92,6 +99,10 @@ const (
 	TypeTrait CapType = "trait"
 	// TypeScope represent OAM Scope
 	TypeScope CapType = "scope"
+	// TypeWorkflowStep represent OAM Workflow
+	TypeWorkflowStep CapType = "workflowstep"
+	// TypePolicy represent OAM Policy
+	TypePolicy CapType = "policy"
 )
 
 // CapabilityConfigMapNamePrefix is the prefix for capability ConfigMap name
@@ -123,6 +134,7 @@ type Parameter struct {
 	Required bool        `json:"required,omitempty"`
 	Default  interface{} `json:"default,omitempty"`
 	Usage    string      `json:"usage,omitempty"`
+	Ignore   bool        `json:"ignore,omitempty"`
 	Type     cue.Kind    `json:"type,omitempty"`
 	Alias    string      `json:"alias,omitempty"`
 	JSONType string      `json:"jsonType,omitempty"`

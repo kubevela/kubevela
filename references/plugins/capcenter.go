@@ -18,7 +18,6 @@ package plugins
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -37,9 +36,25 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
+
+// Content contains different type of content needed when building Registry
+type Content struct {
+	OssContent
+	GithubContent
+	LocalContent
+}
+
+// LocalContent for local registry
+type LocalContent struct {
+	AbsDir string `json:"abs_dir"`
+}
+
+// OssContent for oss registry
+type OssContent struct {
+	BucketURL string `json:"bucket_url"`
+}
 
 // GithubContent for cap center
 type GithubContent struct {
@@ -69,11 +84,19 @@ func NewCenterClient(ctx context.Context, name, address, token string) (CenterCl
 	}
 	switch Type {
 	case TypeGithub:
-		return NewGithubCenter(ctx, token, name, cfg)
+		return NewGithubCenter(ctx, token, name, &cfg.GithubContent)
+	case TypeOss:
+		return NewOssCenter(fmt.Sprintf("https://%s/", cfg.BucketURL), name), nil
 	default:
 	}
 	return nil, errors.New("we only support github as repository now")
 }
+
+// TypeLocal represents github
+const TypeLocal = "local"
+
+// TypeOss represent oss
+const TypeOss = "oss"
 
 // TypeGithub represents github
 const TypeGithub = "github"
@@ -82,72 +105,86 @@ const TypeGithub = "github"
 const TypeUnknown = "unknown"
 
 // Parse will parse config from address
-func Parse(addr string) (string, *GithubContent, error) {
-	url, err := url.Parse(addr)
+func Parse(addr string) (string, *Content, error) {
+	URL, err := url.Parse(addr)
 	if err != nil {
 		return "", nil, err
 	}
-	l := strings.Split(strings.TrimPrefix(url.Path, "/"), "/")
-	switch url.Host {
-	case "github.com":
-		// We support two valid format:
-		// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
-		// 2. https://github.com/<owner>/<repo>/<path-to-dir>
-		if len(l) < 3 {
-			return "", nil, errors.New("invalid format " + addr)
-		}
-		if l[2] == "tree" {
-			// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
-			if len(l) < 5 {
+	l := strings.Split(strings.TrimPrefix(URL.Path, "/"), "/")
+	switch URL.Scheme {
+	case "http", "https":
+		switch URL.Host {
+		case "github.com":
+			// We support two valid format:
+			// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+			// 2. https://github.com/<owner>/<repo>/<path-to-dir>
+			if len(l) < 3 {
 				return "", nil, errors.New("invalid format " + addr)
 			}
-			return TypeGithub, &GithubContent{
-				Owner: l[0],
-				Repo:  l[1],
-				Path:  strings.Join(l[4:], "/"),
-				Ref:   l[3],
-			}, nil
+			if l[2] == "tree" {
+				// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+				if len(l) < 5 {
+					return "", nil, errors.New("invalid format " + addr)
+				}
+				return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[4:], "/"),
+						Ref:   l[3],
+					},
+				}, nil
+			}
+			// https://github.com/<owner>/<repo>/<path-to-dir>
+			return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[2:], "/"),
+						Ref:   "", // use default branch
+					},
+				},
+				nil
+		case "api.github.com":
+			if len(l) != 5 {
+				return "", nil, errors.New("invalid format " + addr)
+			}
+			//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
+			return TypeGithub, &Content{
+					GithubContent: GithubContent{
+						Owner: l[1],
+						Repo:  l[2],
+						Path:  l[4],
+						Ref:   URL.Query().Get("ref"),
+					},
+				},
+				nil
+		default:
 		}
-		// https://github.com/<owner>/<repo>/<path-to-dir>
-		return TypeGithub, &GithubContent{
-			Owner: l[0],
-			Repo:  l[1],
-			Path:  strings.Join(l[2:], "/"),
-			Ref:   "", // use default branch
+	case "oss":
+		return TypeOss, &Content{
+			OssContent: OssContent{
+				BucketURL: URL.Host,
+			},
 		}, nil
-	case "api.github.com":
-		if len(l) != 5 {
-			return "", nil, errors.New("invalid format " + addr)
-		}
-		//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
-		return TypeGithub, &GithubContent{
-			Owner: l[1],
-			Repo:  l[2],
-			Path:  l[4],
-			Ref:   url.Query().Get("ref"),
+	case "file":
+		return TypeLocal, &Content{
+			LocalContent: LocalContent{
+				AbsDir: URL.Path,
+			},
 		}, nil
-	default:
-		// TODO(wonderflow): support raw url and oss format in the future
+
 	}
+
 	return TypeUnknown, nil, nil
 }
 
-// RemoteCapability defines the capability discovered from remote cap center
-type RemoteCapability struct {
-	// Name MUST be xxx.yaml
-	Name string `json:"name"`
-	URL  string `json:"downloadUrl"`
-	Sha  string `json:"sha"`
-	// Type MUST be file
-	Type string `json:"type"`
-}
-
-// RemoteCapabilities is slice of cap center
-type RemoteCapabilities []RemoteCapability
-
 // LoadRepos will load all cap center repos
-// TODO(wonderflow): we can make default(built-in) repo configurable, then we should make default inside the answer
 func LoadRepos() ([]CapCenterConfig, error) {
+	defaultRepo := CapCenterConfig{
+		Name:    "default-cap-center",
+		Address: "oss://registry.kubevela.net/",
+	}
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return nil, err
@@ -155,13 +192,23 @@ func LoadRepos() ([]CapCenterConfig, error) {
 	data, err := ioutil.ReadFile(filepath.Clean(config))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []CapCenterConfig{}, nil
+			return []CapCenterConfig{defaultRepo}, nil
 		}
 		return nil, err
 	}
 	var repos []CapCenterConfig
 	if err = yaml.Unmarshal(data, &repos); err != nil {
 		return nil, err
+	}
+	haveDefault := false
+	for _, repo := range repos {
+		if repo.Address == defaultRepo.Address {
+			haveDefault = true
+			break
+		}
+	}
+	if !haveDefault {
+		repos = append(repos, defaultRepo)
 	}
 	return repos, nil
 }
@@ -180,8 +227,8 @@ func StoreRepos(repos []CapCenterConfig) error {
 	return ioutil.WriteFile(config, data, 0644)
 }
 
-// ParseAndSyncCapability will convert config from remote center to capability
-func ParseAndSyncCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types.Capability, error) {
+// ParseCapability will convert config from remote center to capability
+func ParseCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types.Capability, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
 	err := yaml.Unmarshal(data, &obj.Object)
 	if err != nil {
@@ -189,16 +236,16 @@ func ParseAndSyncCapability(mapper discoverymapper.DiscoveryMapper, data []byte)
 	}
 	switch obj.GetKind() {
 	case "ComponentDefinition":
-		var rd v1beta1.ComponentDefinition
-		err = yaml.Unmarshal(data, &rd)
+		var cd v1beta1.ComponentDefinition
+		err = yaml.Unmarshal(data, &cd)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		ref, err := util.ConvertWorkloadGVK2Definition(mapper, rd.Spec.Workload.Definition)
+		ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(rd.Name, ref.Name, rd.Annotations, rd.Spec.Extension, types.TypeComponentDefinition, nil, rd.Spec.Schematic)
+		return HandleDefinition(cd.Name, ref.Name, cd.Annotations, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
 	case "TraitDefinition":
 		var td v1beta1.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
@@ -212,18 +259,8 @@ func ParseAndSyncCapability(mapper discoverymapper.DiscoveryMapper, data []byte)
 	return types.Capability{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
 }
 
-// GithubCenter implementation of cap center
-type GithubCenter struct {
-	client     *github.Client
-	cfg        *GithubContent
-	centerName string
-	ctx        context.Context
-}
-
-var _ CenterClient = &GithubCenter{}
-
 // NewGithubCenter will create client by github center implementation
-func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubContent) (*GithubCenter, error) {
+func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubContent) (*GithubRegistry, error) {
 	var tc *http.Client
 	if token != "" {
 		ts := oauth2.StaticTokenSource(
@@ -231,57 +268,78 @@ func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubCon
 		)
 		tc = oauth2.NewClient(ctx, ts)
 	}
-	return &GithubCenter{client: github.NewClient(tc), cfg: r, centerName: centerName, ctx: ctx}, nil
+	return &GithubRegistry{client: github.NewClient(tc), cfg: r, centerName: centerName, ctx: ctx}, nil
 }
 
-// SyncCapabilityFromCenter will sync capability from github cap center
+// SyncCapabilityFromCenter will sync capability from github registry
 // TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
-func (g *GithubCenter) SyncCapabilityFromCenter() error {
-	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
-	if err != nil {
-		return err
-	}
+func (g *GithubRegistry) SyncCapabilityFromCenter() error {
 	dir, err := system.GetCapCenterDir()
 	if err != nil {
 		return err
 	}
 	repoDir := filepath.Join(dir, g.centerName)
 	_, _ = system.CreateIfNotExist(repoDir)
-	c := &common.Args{}
-	dm, err := c.GetDiscoveryMapper()
+	var success int
+	items, err := g.getRepoFile()
 	if err != nil {
 		return err
 	}
-	var success, total int
-	for _, addon := range dirs {
-		if *addon.Type != "file" {
-			continue
-		}
-		total++
-		fileContent, _, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, *addon.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+	for _, item := range items {
+		addon, err := item.toAddon()
 		if err != nil {
-			return err
-		}
-		var data = []byte(*fileContent.Content)
-		if *fileContent.Encoding == "base64" {
-			data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
-			if err != nil {
-				return fmt.Errorf("decode github content %s err %w", *fileContent.Path, err)
-			}
-		}
-		tmp, err := ParseAndSyncCapability(dm, data)
-		if err != nil {
-			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
+			fmt.Printf("[INFO] CRD for %s not found\n", item.name)
 			continue
 		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.Name+".yaml"), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
 		if err != nil {
-			fmt.Printf("write definition %s to %s err %v\n", tmp.Name+".yaml", repoDir, err)
+			fmt.Printf("write definition %s to %s err %v\n", addon.Name+".yaml", repoDir, err)
 			continue
 		}
 		success++
 	}
-	fmt.Printf("successfully sync %d/%d from %s remote center\n", success, total, g.centerName)
+	fmt.Printf("successfully sync %d from %s remote center\n", success, g.centerName)
+	return nil
+}
+
+// NewOssCenter will create OSS center implementation
+func NewOssCenter(bucketURL string, centerName string) *OssRegistry {
+	var tc http.Client
+	return &OssRegistry{
+		Client:     &tc,
+		bucketURL:  bucketURL,
+		centerName: centerName,
+	}
+}
+
+// SyncCapabilityFromCenter will sync capability from oss registry
+func (o *OssRegistry) SyncCapabilityFromCenter() error {
+	dir, err := system.GetCapCenterDir()
+	if err != nil {
+		return err
+	}
+	repoDir := filepath.Join(dir, o.centerName)
+	_, _ = system.CreateIfNotExist(repoDir)
+	var success int
+	items, err := o.getRegFiles()
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		addon, err := item.toAddon()
+		if err != nil {
+			fmt.Printf("[INFO] CRD for %s not found\n", item.name)
+			continue
+		}
+		//nolint:gosec
+		err = ioutil.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
+		if err != nil {
+			fmt.Printf("write definition %s to %s err %v\n", addon.Name+".yaml", repoDir, err)
+			continue
+		}
+		success++
+	}
+	fmt.Printf("successfully sync %d from %s remote center\n", success, o.centerName)
 	return nil
 }

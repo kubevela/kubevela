@@ -315,8 +315,7 @@ spec:
     healthPolicy: |
       isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |
@@ -472,8 +471,7 @@ spec:
     customStatus: testCustomStatus
     healthPolicy: testHealthPolicy 
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: testCUE `
@@ -488,9 +486,11 @@ spec:
 		Health:             "testHealthPolicy",
 		CustomStatus:       "testCustomStatus",
 		CapabilityCategory: types.CUECategory,
-		Reference: common.WorkloadGVK{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
+		Reference: common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			},
 		},
 		Helm:                nil,
 		Kube:                nil,

@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Automatically scale the component based on CPU usage."
+  name: cpuscaler
+  namespace: {{.Values.systemDefinitionNamespace}}
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  schematic:
+    cue:
+      template: |

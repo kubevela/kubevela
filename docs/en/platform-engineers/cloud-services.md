@@ -12,8 +12,8 @@ In KubeVela, the needed cloud services are claimed as *components* in an applica
 
 KubeVela relies on [Terraform Controller](https://github.com/oam-dev/terraform-controller) or [Crossplane](http://crossplane.io/) as providers to talk to the clouds. Please check the documentations below for detailed steps.
 
-- [Terraform](./terraform.md)
-- [Crossplane](./crossplane.md)
+- [Terraform](./terraform)
+- [Crossplane](./crossplane)
 
 ## Can a Instance of Cloud Services be Shared by Multiple Applications?
 

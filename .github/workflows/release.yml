@@ -127,7 +127,12 @@ jobs:
           asset_content_type: text/plain
       - uses: actions/setup-node@v1
         with:
-          node-version: '12.x'
+          node-version: "12.x"
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - name: Clean md files
+        run: python ./hack/website/format.py markdown ./docs/en
       - name: Sync release to kubevela.io Repo
         env:
           SSH_DEPLOY_KEY: ${{ secrets.GH_PAGES_DEPLOY }}

@@ -52,9 +52,7 @@ build: fmt vet lint staticcheck vela-cli kubectl-vela
 	@$(OK) build succeed
 
 vela-cli:
-	go run hack/chart/generate.go
 	$(GOBUILD_ENV) go build -o bin/vela -a -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
-	git checkout references/cmd/cli/fake/chart_source.go
 
 kubectl-vela:
 	$(GOBUILD_ENV) go build -o bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
@@ -66,21 +64,16 @@ doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
 
+PWD := $(shell pwd)
 docs-build:
-ifneq ($(wildcard git-page),)
-	rm -rf git-page
-endif
-	sh ./hack/website/test-build.sh
+	docker run -it -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
+	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
+	 oamdev/vela-webtool:v1 -t build
 
 docs-start:
-ifeq ($(wildcard git-page),)
-	git clone --single-branch --depth 1 https://github.com/oam-dev/kubevela.io.git git-page
-endif
-	rm -r git-page/docs
-	rm git-page/sidebars.js
-	cat docs/sidebars.js > git-page/sidebars.js
-	cp -R docs/en git-page/docs
-	cd git-page && yarn install && yarn start
+	docker run -it -p 3000:3000 -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
+	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
+	 oamdev/vela-webtool:v1 -t start
 
 api-gen:
 	swag init -g references/apiserver/route.go --output references/apiserver/docs
@@ -93,10 +86,8 @@ generate-source:
 cross-build:
 	rm -rf _bin
 	go get github.com/mitchellh/gox@v0.4.0
-	go run hack/chart/generate.go
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/vela/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./references/cmd/cli
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/kubectl-vela/{{.OS}}-{{.Arch}}/kubectl-vela" -osarch='$(TARGETS)' ./cmd/plugin
-	git checkout references/cmd/cli/fake/chart_source.go
 
 compress:
 	( \
@@ -123,8 +114,9 @@ run: fmt vet
 # Run go fmt against code
 fmt: goimports installcue
 	go fmt ./...
-	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w ./pkg ./cmd
-	$(CUE) fmt ./hack/vela-templates/cue/*
+	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w $$(go list -f {{.Dir}} ./...)
+	$(CUE) fmt ./vela-templates/internal/cue/*
+	$(CUE) fmt ./vela-templates/registry/cue/*
 
 # Run go vet against code
 vet:
@@ -157,7 +149,7 @@ e2e-setup:
 	helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
 	sh ./hack/e2e/modify_charts.sh
-	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
+	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
@@ -233,12 +225,12 @@ core-uninstall: manifests
 	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: kustomize
+manifests: installcue kustomize
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	mv config/crd/base/* charts/vela-core/crds
-	./hack/vela-templates/gen_definitions.sh
+	./vela-templates/gen_definitions.sh
 	./hack/crd/cleanup.sh
 
 GOLANGCILINT_VERSION ?= v1.31.0

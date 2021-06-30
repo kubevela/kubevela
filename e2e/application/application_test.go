@@ -86,15 +86,6 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 				return app.Status.LatestRevision != nil
 			}, 180*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
-			ginkgo.By("check AppContext reconciled ready")
-			gomega.Eventually(func() int {
-				appContext := &v1alpha2.ApplicationContext{}
-				_ = k8sclient.Get(context2.Background(), client.ObjectKey{
-					Name:      applicationName,
-					Namespace: "default"}, appContext)
-				return len(appContext.Status.Workloads)
-			}, 180*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
-
 			cli := fmt.Sprintf("vela status %s", applicationName)
 			output, err := e2e.LongTimeExec(cli, 120*time.Second)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -157,7 +148,7 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 						a: "mysvc",
 					},
 					{
-						q: "what would you configure for parameter 'addRevisionLabel' (optional, default is false):",
+						q: "If addRevisionLabel is true, the appRevision label will be added to the underlying pods (optional, default is false):",
 						a: "N",
 					},
 					{
@@ -171,6 +162,10 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 					{
 						q: "Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core) (optional):",
 						a: "0.5",
+					},
+					{
+						q: "Specifies the attributes of the memory resource required for the container. (optional):",
+						a: "200M",
 					},
 				}
 				for _, qa := range data {

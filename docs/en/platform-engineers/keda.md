@@ -46,7 +46,7 @@ This is how you claim and register KEDA `ScaledObject`'s API resource (`scaledob
 
 ### 3. Define `appliesToWorkloads`
 
-A trait can be attached to specified workload types or all (i.e. `"*"` means your trait can work with any workload type).
+A trait can be attached to specified workload types or all (i.e. `"*"` or omitted means your trait can work with any workload type).
 
 For the case of KEAD, we will only allow user to attach it to Kubernetes workload type. So we claim it as below:
 
@@ -105,7 +105,7 @@ This is a CUE based template which only exposes `type` and `value` as trait prop
 As long as the definition file is ready, you just need to apply it to Kubernetes.
 
 ```bash
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/keda-scaler.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/keda-scaler.yaml
 ```
 
 And the new trait will immediately become available for end users to use in `Application` resource.

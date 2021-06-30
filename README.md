@@ -18,17 +18,17 @@ KubeVela is a modern application platform that makes deploying and managing appl
 
 ## Features
 
-**Application Centric** - Leveraging Open Application Model (OAM), KubeVela introduces consistent yet higher level API to capture a full deployment of microservices on top of hybrid environments. Placement strategy and patch, traffic shifting and rolling update are all declared at application level. No infrastructure level concern, no federated types, simply deploy.
+**Application Centric** - KubeVela introduces declarative yet higher level API (known as [OAM](https://oam.dev/)) to model a full deployment of microservices across hybrid environments in consistent approach. No infrastructure level concerns, simply deploy.
 
-**Natively Extensible** - Unlike traditional PaaS systems, application management capabilities in KubeVela (e.g. workload types, operational behaviors, and cloud services) are built as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh/) components and exposed to users as self-service API. When users' needs grow, these capabilities can naturally expand in programmable approach. No restriction, fully flexible.
+**Natively Extensible** - KubeVela backend is implemented with [CUE](https://cuelang.org/). Whenever your needs grow, KubeVela's capabilities can naturally expand in a IaC-style approach. No restrictions, simply programming.
 
-**Runtime Agnostic** - KubeVela has no requirement on runtime. It uses Kubernetes as control plane to deploy (and manage) diverse workload types such as container, cloud functions, databases, or even EC2 instances across hybrid environments. Also, this makes KubeVela seamlessly work with any Kubernetes compatible CI/CD or GitOps tools via declarative API.
+**Runtime Agnostic** - KubeVela relies on Kubernetes as control plane but it's adaptable to any runtime infrastructures. It can deploy and manage diverse workload types including container, cloud functions, databases, or even EC2 instances across hybrid environments.
 
 ## Getting Started
 
+- [Introduction](https://kubevela.io/docs)
 - [Installation](https://kubevela.io/docs/install)
-- [How it works](https://kubevela.io/docs/concepts)
-- [Deploy an Application](https://kubevela.io/docs/application)
+- [Deploy an Application](https://kubevela.io/docs/end-user/application)
 
 ## Documentation
 

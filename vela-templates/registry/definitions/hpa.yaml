@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "configure k8s HPA for Deployment"
+  name: hpa
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  podDisruptive: true
+  schematic:
+    cue:
+      template: |

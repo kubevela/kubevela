@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
 // ValidateCUESchematicAppfile validates CUE schematic workloads in an Appfile

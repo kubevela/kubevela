@@ -61,6 +61,22 @@ var (
 	TraitDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(TraitDefinitionKind)
 )
 
+// PolicyDefinition type metadata.
+var (
+	PolicyDefinitionKind             = reflect.TypeOf(PolicyDefinition{}).Name()
+	PolicyDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: PolicyDefinitionKind}.String()
+	PolicyDefinitionKindAPIVersion   = PolicyDefinitionKind + "." + SchemeGroupVersion.String()
+	PolicyDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(PolicyDefinitionKind)
+)
+
+// WorkflowStepDefinition type metadata.
+var (
+	WorkflowStepDefinitionKind             = reflect.TypeOf(WorkflowStepDefinition{}).Name()
+	WorkflowStepDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: WorkflowStepDefinitionKind}.String()
+	WorkflowStepDefinitionKindAPIVersion   = WorkflowStepDefinitionKind + "." + SchemeGroupVersion.String()
+	WorkflowStepDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(WorkflowStepDefinitionKind)
+)
+
 // DefinitionRevision type metadata.
 var (
 	DefinitionRevisionKind             = reflect.TypeOf(DefinitionRevision{}).Name()
@@ -125,10 +141,20 @@ var (
 	ClusterKindVersionKind = SchemeGroupVersion.WithKind(ClusterKind)
 )
 
+// Initializer type metadata.
+var (
+	InitializerKind            = reflect.TypeOf(Initializer{}).Name()
+	InitializerGroupKind       = schema.GroupKind{Group: Group, Kind: InitializerKind}.String()
+	InitializerKindAPIVersion  = InitializerKind + "." + SchemeGroupVersion.String()
+	InitializerKindVersionKind = SchemeGroupVersion.WithKind(InitializerKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
+	SchemeBuilder.Register(&PolicyDefinition{}, &PolicyDefinitionList{})
+	SchemeBuilder.Register(&WorkflowStepDefinition{}, &WorkflowStepDefinitionList{})
 	SchemeBuilder.Register(&DefinitionRevision{}, &DefinitionRevisionList{})
 	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
@@ -137,4 +163,5 @@ func init() {
 	SchemeBuilder.Register(&AppDeployment{}, &AppDeploymentList{})
 	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
+	SchemeBuilder.Register(&Initializer{}, &InitializerList{})
 }

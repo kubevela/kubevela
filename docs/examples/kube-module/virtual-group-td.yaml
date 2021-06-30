@@ -6,8 +6,6 @@ metadata:
   name: virtualgroup
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
     - deployments.apps
   podDisruptive: true
   extension:

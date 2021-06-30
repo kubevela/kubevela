@@ -115,5 +115,30 @@ webhooks:
           - UPDATE
         resources:
           - podspecworkloads
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutating-core-oam-dev-v1beta1-componentdefinitions
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fail
+    {{- end }}
+    name: mutating.core.oam-dev.v1beta1.componentdefinitions
+    sideEffects: None
+    admissionReviewVersions:
+      - v1beta1
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - componentdefinitions
 
 {{- end -}}

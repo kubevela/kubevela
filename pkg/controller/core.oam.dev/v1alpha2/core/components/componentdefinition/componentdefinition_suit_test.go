@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -84,7 +84,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	_, err = dm.Refresh()
 	Expect(err).ToNot(HaveOccurred())
-	pd, err := definition.NewPackageDiscover(cfg)
+	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	r = Reconciler{

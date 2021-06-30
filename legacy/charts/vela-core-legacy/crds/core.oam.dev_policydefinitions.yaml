@@ -1,0 +1,196 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+  name: policydefinitions.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    categories:
+    - oam
+    kind: PolicyDefinition
+    listKind: PolicyDefinitionList
+    plural: policydefinitions
+    shortNames:
+    - policy
+    singular: policydefinition
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: PolicyDefinition is the Schema for the policydefinitions API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: PolicyDefinitionSpec defines the desired state of PolicyDefinition
+          properties:
+            definitionRef:
+              description: Reference to the CustomResourceDefinition that defines this trait kind.
+              properties:
+                name:
+                  description: Name of the referenced CustomResourceDefinition.
+                  type: string
+                version:
+                  description: Version indicate which version should be used if CRD has multiple versions by default it will use the first one if not specified
+                  type: string
+              required:
+              - name
+              type: object
+            schematic:
+              description: Schematic defines the data format and template of the encapsulation of the policy definition
+              properties:
+                cue:
+                  description: CUE defines the encapsulation in CUE format
+                  properties:
+                    template:
+                      description: Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field. Template is a required field if CUE is defined in Capability Definition.
+                      type: string
+                  required:
+                  - template
+                  type: object
+                helm:
+                  description: A Helm represents resources used by a Helm module
+                  properties:
+                    release:
+                      description: Release records a Helm release used by a Helm module workload.
+                      type: object
+                      
+                    repository:
+                      description: HelmRelease records a Helm repository used by a Helm module workload.
+                      type: object
+                      
+                  required:
+                  - release
+                  - repository
+                  type: object
+                kube:
+                  description: Kube defines the encapsulation in raw Kubernetes resource format
+                  properties:
+                    parameters:
+                      description: Parameters defines configurable parameters
+                      items:
+                        description: A KubeParameter defines a configurable parameter of a component.
+                        properties:
+                          description:
+                            description: Description of this parameter.
+                            type: string
+                          fieldPaths:
+                            description: "FieldPaths specifies an array of fields within this workload that will be overwritten by the value of this parameter. \tAll fields must be of the same type. Fields are specified as JSON field paths without a leading dot, for example 'spec.replicas'."
+                            items:
+                              type: string
+                            type: array
+                          name:
+                            description: Name of this parameter
+                            type: string
+                          required:
+                            
+                            description: Required specifies whether or not a value for this parameter must be supplied when authoring an Application.
+                            type: boolean
+                          type:
+                            description: 'ValueType indicates the type of the parameter value, and only supports basic data types: string, number, boolean.'
+                            enum:
+                            - string
+                            - number
+                            - boolean
+                            type: string
+                        required:
+                        - fieldPaths
+                        - name
+                        - type
+                        type: object
+                      type: array
+                    template:
+                      description: Template defines the raw Kubernetes resource
+                      type: object
+                      
+                  required:
+                  - template
+                  type: object
+                terraform:
+                  description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                  properties:
+                    configuration:
+                      description: Configuration is Terraform Configuration
+                      type: string
+                    type:
+                      default: hcl
+                      description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                      enum:
+                      - hcl
+                      - json
+                      type: string
+                  required:
+                  - configuration
+                  type: object
+              type: object
+          type: object
+        status:
+          description: PolicyDefinitionStatus is the status of PolicyDefinition
+          properties:
+            conditions:
+              description: Conditions of the resource.
+              items:
+                description: A Condition that may apply to a resource.
+                properties:
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A Message containing details about this condition's last transition from one status to another, if any.
+                    type: string
+                  reason:
+                    description: A Reason for this condition's last transition from one status to another.
+                    type: string
+                  status:
+                    description: Status of this condition; is it currently True, False, or Unknown?
+                    type: string
+                  type:
+                    description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                    type: string
+                required:
+                - lastTransitionTime
+                - reason
+                - status
+                - type
+                type: object
+              type: array
+            latestRevision:
+              description: LatestRevision of the component definition
+              properties:
+                name:
+                  type: string
+                revision:
+                  format: int64
+                  type: integer
+                revisionHash:
+                  description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                  type: string
+              required:
+              - name
+              - revision
+              type: object
+          type: object
+      type: object
+  version: v1beta1
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

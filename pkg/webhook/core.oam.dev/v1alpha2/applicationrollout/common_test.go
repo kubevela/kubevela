@@ -17,10 +17,13 @@ limitations under the License.
 package applicationrollout
 
 import (
+	"sort"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
@@ -30,61 +33,100 @@ var _ = Describe("Application Deployment Common Function Test", func() {
 	})
 
 	Context("Test Find Common Component Function", func() {
-		var targetApp, sourceApp *v1alpha2.ApplicationConfiguration
-
-		BeforeEach(func() {
-			targetApp = &v1alpha2.ApplicationConfiguration{
-				Spec: v1alpha2.ApplicationConfigurationSpec{
-					Components: []v1alpha2.ApplicationConfigurationComponent{},
-				},
-			}
-			sourceApp = &v1alpha2.ApplicationConfiguration{
-				Spec: v1alpha2.ApplicationConfigurationSpec{
-					Components: []v1alpha2.ApplicationConfigurationComponent{},
-				},
-			}
-		})
+		var targetApp, sourceApp []*types.ComponentManifest
 
 		It("Test source app is nil", func() {
-			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
+			targetApp = fillApplication([]string{"a", "b", "c"})
 			common := FindCommonComponent(targetApp, nil)
 			Expect(common).Should(BeEquivalentTo([]string{"a", "b", "c"}))
 		})
 
 		It("Test has one component", func() {
-			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
-			fillApplication(&sourceApp.Spec, []string{"c"})
+			targetApp = fillApplication([]string{"a", "b", "c"})
+			sourceApp = fillApplication([]string{"c"})
 			common := FindCommonComponent(targetApp, sourceApp)
 			Expect(common).Should(BeEquivalentTo([]string{"c"}))
 		})
 
 		It("Test has one common components", func() {
-			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
-			fillApplication(&sourceApp.Spec, []string{"d", "c"})
+			targetApp = fillApplication([]string{"a", "b", "c"})
+			sourceApp = fillApplication([]string{"d", "c"})
 			common := FindCommonComponent(targetApp, sourceApp)
 			Expect(common).Should(BeEquivalentTo([]string{"c"}))
 		})
 
 		It("Test has more than 1 common component", func() {
-			fillApplication(&targetApp.Spec, []string{"b", "a", "c"})
-			fillApplication(&sourceApp.Spec, []string{"c", "b"})
+			targetApp = fillApplication([]string{"b", "a", "c"})
+			sourceApp = fillApplication([]string{"c", "b"})
 			common := FindCommonComponent(targetApp, sourceApp)
 			Expect(common).Should(BeEquivalentTo([]string{"c", "b"}))
 		})
 
 		It("Test has more than 1 common component", func() {
-			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
-			fillApplication(&sourceApp.Spec, []string{"d", "e", "c", "a"})
+			targetApp = fillApplication([]string{"a", "b", "c"})
+			sourceApp = fillApplication([]string{"d", "e", "c", "a"})
 			common := FindCommonComponent(targetApp, sourceApp)
 			Expect(common).Should(BeEquivalentTo([]string{"c", "a"}))
 		})
 	})
 })
 
-func fillApplication(app *v1alpha2.ApplicationConfigurationSpec, componentNames []string) {
-	for _, name := range componentNames {
-		app.Components = append(app.Components, v1alpha2.ApplicationConfigurationComponent{
+func fillApplication(componentNames []string) []*types.ComponentManifest {
+	r := make([]*types.ComponentManifest, len(componentNames))
+	for i, name := range componentNames {
+		r[i] = &types.ComponentManifest{
 			RevisionName: utils.ConstructRevisionName(name, 1),
-		})
+		}
 	}
+	return r
+}
+
+var _ = Describe("Test find common component func", func() {
+	It("Test source app is nil", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		common := FindCommonComponentWithManifest(target, nil)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"a", "b", "c"}))
+	})
+
+	It("Test has one component", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		source := fillWorkloads([]string{"c"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"c"}))
+	})
+
+	It("Test has one common components", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		source := fillWorkloads([]string{"d", "c"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"c"}))
+	})
+
+	It("Test has more than 1 common component", func() {
+		target := fillWorkloads([]string{"b", "a", "c"})
+		source := fillWorkloads([]string{"c", "b"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"b", "c"}))
+	})
+
+	It("Test has more than 1 common component", func() {
+		target := fillWorkloads([]string{"a", "b", "c"})
+		source := fillWorkloads([]string{"d", "e", "c", "a"})
+		common := FindCommonComponentWithManifest(target, source)
+		sort.Strings(common)
+		Expect(common).Should(BeEquivalentTo([]string{"a", "c"}))
+	})
+})
+
+func fillWorkloads(componentNames []string) map[string]*unstructured.Unstructured {
+	w := make(map[string]*unstructured.Unstructured)
+	for _, s := range componentNames {
+		// we don't need real workload
+		w[s] = nil
+	}
+	return w
 }
