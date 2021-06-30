@@ -43,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
-	ac "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -361,7 +360,7 @@ func readyCondition(tpy string) v1alpha1.Condition {
 }
 
 // SetupWithManager install to manager
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.ComponentHandler) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{
@@ -395,10 +394,5 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		appRevisionLimit:     args.AppRevisionLimit,
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
-	compHandler := &ac.ComponentHandler{
-		Client:                mgr.GetClient(),
-		RevisionLimit:         args.RevisionLimit,
-		CustomRevisionHookURL: args.CustomRevisionHookURL,
-	}
-	return reconciler.SetupWithManager(mgr, compHandler)
+	return reconciler.SetupWithManager(mgr)
 }

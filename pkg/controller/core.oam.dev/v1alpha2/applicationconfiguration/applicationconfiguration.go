@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/source"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
@@ -93,6 +95,11 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	return builder.
 		Named(name).
 		For(&v1alpha2.ApplicationConfiguration{}).
+		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &ComponentHandler{
+			Client:                mgr.GetClient(),
+			RevisionLimit:         args.RevisionLimit,
+			CustomRevisionHookURL: args.CustomRevisionHookURL,
+		}).
 		Complete(NewReconciler(mgr, args.DiscoveryMapper,
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 			WithApplyOnceOnlyMode(args.ApplyMode),
