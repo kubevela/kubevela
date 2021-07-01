@@ -616,7 +616,7 @@ parameter: {
 	})
 })
 
-var _ = Describe("Test IsCloudResourceProducer", func() {
+var _ = Describe("Test IsSecretProducer", func() {
 	Context("Workload is a Cloud Resource producer", func() {
 		It("", func() {
 			var targetSecretName = "db-conn"
@@ -625,25 +625,25 @@ var _ = Describe("Test IsCloudResourceProducer", func() {
 					"outputSecretName": targetSecretName,
 				},
 			}
-			Expect(wl.IsCloudResourceProducer()).Should(Equal(true))
+			Expect(wl.IsSecretProducer()).Should(Equal(true))
 		})
 	})
 
 	Context("Workload is a Cloud Resource producer", func() {
 		It("", func() {
 			wl := &Workload{}
-			Expect(wl.IsCloudResourceProducer()).Should(Equal(false))
+			Expect(wl.IsSecretProducer()).Should(Equal(false))
 		})
 	})
 })
 
-var _ = Describe("Test IsCloudResourceConsumer", func() {
+var _ = Describe("Test IsSecretConsumer", func() {
 	Context("Workload is a Cloud Resource consumer", func() {
 		It("", func() {
 			wl := &Workload{
 				FullTemplate: &Template{TemplateStr: "// +insertSecretTo=dbConn"},
 			}
-			Expect(wl.IsCloudResourceConsumer()).Should(Equal(true))
+			Expect(wl.IsSecretConsumer()).Should(Equal(true))
 		})
 	})
 
@@ -652,7 +652,7 @@ var _ = Describe("Test IsCloudResourceConsumer", func() {
 			wl := &Workload{
 				FullTemplate: &Template{TemplateStr: "// +useage=dbConn"},
 			}
-			Expect(wl.IsCloudResourceProducer()).Should(Equal(false))
+			Expect(wl.IsSecretProducer()).Should(Equal(false))
 		})
 	})
 })

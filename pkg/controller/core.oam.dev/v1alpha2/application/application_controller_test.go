@@ -1505,7 +1505,83 @@ spec:
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("app with two components and one component can apply first while another one has secret insert", func() {
+		appMix := appWithTwoComp.DeepCopy()
+		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+			Name:       "myconsumer",
+			Type:       "secretconsumer",
+			Properties: runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.14.0", "dbSecret":"mys"}`)},
+		}
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-two-components-insert-secrets",
+			},
+		}
+		appMix.SetName("vela-test-two-components-insert-secrets")
+		appMix.SetNamespace(ns.Name)
+
+		secretconsumer := &v1beta1.ComponentDefinition{}
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(compDefSecretYaml))
+		Expect(json.Unmarshal(wDDefJson, secretconsumer)).Should(BeNil())
+		secretconsumer.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, secretconsumer)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appMix.Name,
+			Namespace: appMix.Namespace,
+		}
+		res, _ := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(res.RequeueAfter).ShouldNot(BeEquivalentTo(0))
+
+		By("Check Application Created with the correct phase")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationHealthChecking))
+
+		By("Check One of the component created as expected")
+		comp1 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[0].Name,
+		}, comp1)).Should(BeNil())
+
+		By("Check another component not existed")
+		comp2 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).ShouldNot(BeNil())
+		sec := &corev1.Secret{Data: map[string][]byte{
+			"username": []byte("abc"),
+			"password": []byte("123"),
+		}}
+		sec.Name = "mys"
+		sec.Namespace = appMix.Namespace
+		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
+
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check another component is existed")
+		comp2 = &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).Should(BeNil())
+		Expect(comp2.Spec.Template.Spec.Containers[0].Env[0].Value).Should(BeEquivalentTo("abc"))
+		Expect(comp2.Spec.Template.Spec.Containers[0].Env[1].Value).Should(BeEquivalentTo("123"))
+	})
 })
+
+func reconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) (reconcile.Result, error) {
+	// 1st and 2nd time reconcile to add finalizer
+	r.Reconcile(req)
+	r.Reconcile(req)
+
+	return r.Reconcile(req)
+}
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 	// 1st and 2nd time reconcile to add finalizer
@@ -2276,6 +2352,67 @@ spec:
       	endpoint: string
       	port:     string
       }
+`
+
+	compDefSecretYaml = `apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: secretconsumer
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        					if parameter["dbSecret"] != _|_ {
+        						env: [
+        							{
+        								name:  "username"
+        								value: dbConn.username
+        							},
+        							{
+        								name:  "DB_PASSWORD"
+        								value: dbConn.password
+        							},
+        						]
+        					}
+        				}]
+        		}
+        		}
+        	}
+        }
+
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+
+        	// +usage=Referred db secret
+        	// +insertSecretTo=dbConn
+        	dbSecret?: string
+        }
+
+        dbConn: {
+        	username: string
+        	password: string
+        }
 `
 )
 

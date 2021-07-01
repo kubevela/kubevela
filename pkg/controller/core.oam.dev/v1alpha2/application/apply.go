@@ -18,7 +18,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -93,8 +92,8 @@ func (h *appHandler) applyAppManifests(ctx context.Context, comps []*types.Compo
 				return errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
-		if checkAutoDetectComponent(comp.StandardWorkload) {
-			return fmt.Errorf("helm mode component doesn't specify workload, the traits attached to the helm mode component will fail to work")
+		if comp.InsertConfigNotReady {
+			continue
 		}
 	}
 	a := assemble.NewAppManifests(appRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
@@ -106,13 +105,6 @@ func (h *appHandler) applyAppManifests(ctx context.Context, comps []*types.Compo
 		return errors.WithMessage(err, "cannot dispatch application manifests")
 	}
 	return nil
-}
-
-// checkAutoDetectComponent will check if the standardWorkload is empty,
-// currently only Helm-based component is possible to be auto-detected
-// TODO implement auto-detect mechanism
-func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
-	return wl == nil || (len(wl.GetAPIVersion()) == 0 && len(wl.GetKind()) == 0)
 }
 
 func (h *appHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
@@ -131,7 +123,15 @@ func (h *appHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			pCtx             process.Context
 		)
 
-		if wl.IsCloudResourceProducer() {
+		// this can help detect the componentManifest not ready and reconcile again
+		if wl.ConfigNotReady {
+			status.Healthy = false
+			status.Message = "secrets or configs not ready"
+			appStatus = append(appStatus, status)
+			healthy = false
+			continue
+		}
+		if wl.IsSecretProducer() {
 			outputSecretName, err = appfile.GetOutputSecretNames(wl)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, setting outputSecretName error", appFile.Name, wl.Name)

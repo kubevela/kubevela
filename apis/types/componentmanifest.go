@@ -34,4 +34,9 @@ type ComponentManifest struct {
 	// Release, Git Repo or anything that can package and run a workload.
 	PackagedWorkloadResources []*unstructured.Unstructured
 	PackagedTraitResources    map[string][]*unstructured.Unstructured
+
+	// InsertConfigNotReady is true indicates the ComponentManifest is not ready to apply for insertSecret and configs
+	// it's possible for some of the component not ready while others are ready, we should not block all of them if only
+	// part is not ready
+	InsertConfigNotReady bool
 }
