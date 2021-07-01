@@ -62,4 +62,4 @@ Here are some recommended next steps:
 
 - Learn KubeVela's [core concepts](./concepts)
 - Learn more details about [`Application`](end-user/application) and what it can do for you.
-- Learn how to attach [rollout plan](end-user/scopes/rollout-plan) to this application, or [place it to multiple runtime clusters](end-user/scopes/appdeploy).
+- Learn how to attach [rollout plan](end-user/scopes/rollout-plan) to this application.

@@ -44,7 +44,6 @@ module.exports = {
             'end-user/traits/more',
           ]
         },
-        'end-user/scopes/appdeploy',
         'end-user/scopes/rollout-plan',
         {
           'Observability': [
