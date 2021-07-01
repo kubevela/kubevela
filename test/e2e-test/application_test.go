@@ -125,6 +125,27 @@ var _ = Describe("Application Normal tests", func() {
 			time.Second*60, time.Millisecond*500).Should(BeNil())
 	}
 
+	verifyComponentRevision := func(compName string, revisionNum int64) {
+		By("Verify Component revision")
+		expectCompRevName := fmt.Sprintf("%s-v%d", compName, revisionNum)
+		Eventually(
+			func() error {
+				gotCR := &v1.ControllerRevision{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: expectCompRevName}, gotCR); err != nil {
+					return err
+				}
+				if gotCR.Revision != revisionNum {
+					return fmt.Errorf("expect revision %d != real %d", revisionNum, gotCR.Revision)
+				}
+				ctrlOwner := metav1.GetControllerOf(gotCR)
+				if ctrlOwner == nil || ctrlOwner.Kind != v1beta1.ApplicationKind {
+					return fmt.Errorf("expect ControllerRevision is control-owned by an Application")
+				}
+				return nil
+			},
+			time.Second*10, time.Millisecond*500).Should(BeNil())
+	}
+
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
 		namespaceName = "app-normal-e2e-test" + "-" + strconv.FormatInt(rand.Int63(), 16)
@@ -143,21 +164,25 @@ var _ = Describe("Application Normal tests", func() {
 		applyApp("app1.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
+		verifyComponentRevision("myweb", 1)
 
 		By("Update app with trait")
 		updateApp("app2.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 2, "stefanprodan/podinfo:4.0.3")
+		verifyComponentRevision("myweb", 2)
 
 		By("Update app with trait updated")
 		updateApp("app3.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 3, "stefanprodan/podinfo:4.0.3")
+		verifyComponentRevision("myweb", 3)
 
 		By("Update app with trait and workload image updated")
 		updateApp("app4.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:5.0.2")
+		verifyComponentRevision("myweb", 4)
 	})
 
 	It("Test app have component with multiple same type traits", func() {
@@ -205,5 +230,28 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(common.ReadYamlToObject("testdata/app/app6.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
 		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
+	})
+
+	It("Test app have components with same name", func() {
+		By("Apply an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app8.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
+	})
+
+	It("Test two app have component with same name", func() {
+		By("Apply an application")
+		var firstApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app9.yaml", &firstApp)).Should(BeNil())
+		firstApp.Namespace = namespaceName
+		firstApp.Name = "first-app"
+		Expect(k8sClient.Create(ctx, &firstApp)).Should(BeNil())
+
+		var secondApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app9.yaml", &secondApp)).Should(BeNil())
+		secondApp.Namespace = namespaceName
+		secondApp.Name = "second-app"
+		Expect(k8sClient.Create(ctx, &secondApp)).ShouldNot(BeNil())
 	})
 })

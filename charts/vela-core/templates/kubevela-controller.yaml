@@ -120,9 +120,6 @@ spec:
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
             - "--autogen-workload-definition={{ .Values.admissionWebhooks.autoGenWorkloadDefinition }}"
             {{ end }}
-            {{ if not .Values.useAppConfig }}
-            - "--app-config-installed=false"
-            {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
             - "--apply-once-only={{ .Values.applyOnceOnly }}"
             {{ if ne .Values.disableCaps "" }}
@@ -131,6 +128,7 @@ spec:
             - "--system-definition-namespace={{ .Values.systemDefinitionNamespace }}"
             - "--application-revision-limit={{ .Values.applicationRevisionLimit }}"
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
+            - "--oam-spec-ver={{ .Values.OAMSpecVer }}"
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:

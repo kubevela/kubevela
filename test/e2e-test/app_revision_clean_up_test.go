@@ -80,7 +80,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		app := getApp(appName, namespace, "normal-worker")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		checkApp := new(v1beta1.Application)
-		for i := 0; i < appRevisionLimit+1; i++ {
+		for i := 0; i < appRevisionLimit; i++ {
 			Eventually(func() error {
 				checkApp = new(v1beta1.Application)
 				Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -119,7 +119,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		By("create new appRevision will remove appRevison1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
+		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 5)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		deletedRevison := new(v1beta1.ApplicationRevision)
@@ -147,13 +147,13 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
+			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			if err := k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
 			return nil
-		})
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 		Eventually(func() error {
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {
@@ -220,10 +220,14 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}, time.Second*300, time.Microsecond*300).Should(BeNil())
 
 		By("create new appRevision will remove appRevison1")
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 5)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
-		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			return k8sClient.Update(ctx, checkApp)
+		}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
@@ -245,10 +249,14 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 
 		By("update app again will gc appRevision2")
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
-		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			return k8sClient.Update(ctx, checkApp)
+		}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 		Eventually(func() error {
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
 			if err != nil {

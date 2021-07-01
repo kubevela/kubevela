@@ -32,7 +32,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1beta12 "k8s.io/api/networking/v1beta1"
@@ -40,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -185,7 +183,7 @@ var _ = Describe("Test Application Controller", func() {
 				},
 			},
 			"spec": map[string]interface{}{
-				"replicaCount": int64(2),
+				"replicaCount": float64(2),
 			},
 		}}
 	}
@@ -333,7 +331,6 @@ var _ = Describe("Test Application Controller", func() {
 		var (
 			appName          = "webapp"
 			ns               = "default"
-			componentName    = "express-server-test"
 			targetSecretName = "db-conn"
 			secretData       = map[string][]byte{
 				"endpoint": []byte("aaa"),
@@ -394,13 +391,21 @@ spec:
 		err = k8sClient.Get(ctx, appKey, &a)
 		Expect(err).Should(BeNil())
 
-		By("Check Component Created with the expected workload spec")
-		var component v1alpha2.Component
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: componentName}, &component)).Should(BeNil())
+		By("check AppRevision created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: a.Name + "-v1", Namespace: a.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
+		Expect(err).Should(BeNil())
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
 
-		var deploy v1.Deployment
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, &deploy)).Should(BeNil())
-		containers := deploy.Spec.Template.Spec.Containers
+		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		gotDeploy := &v1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
+
+		containers := gotDeploy.Spec.Template.Spec.Containers
 		Expect(len(containers)).Should(Equal(1))
 		envs := containers[0].Env
 		Expect(len(envs)).Should(Equal(1))
@@ -434,24 +439,22 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		By("Check Component Created with the expected workload spec")
-		var component v1alpha2.Component
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appwithNoTrait.Namespace,
-			Name:      "myweb2",
-		}, &component)).Should(BeNil())
-		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: "app-with-no-trait"}))
-		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo("app-with-no-trait"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
-		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1beta1"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
-		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
+		By("check AppRevision created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: checkApp.Name + "-v1", Namespace: checkApp.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
+		Expect(err).Should(BeNil())
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
 
-		// check the workload created should be the same as the raw data in the component
-		gotD := &v1.Deployment{}
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
-		fmt.Println(cmp.Diff(expDeployment, gotD))
-		Expect(assert.ObjectsAreEqual(expDeployment, gotD)).Should(BeEquivalentTo(true))
+		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		gotDeploy := &v1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
+		gotDeploy.Annotations = nil
+		Expect(cmp.Diff(gotDeploy, expDeployment)).Should(BeEmpty())
+
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appwithNoTrait)).Should(BeNil())
 	})
@@ -486,18 +489,21 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		By("Check Component Created with the expected workload spec")
-		component := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb1",
-		}, component)).Should(BeNil())
-		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: "app-with-config"}))
-		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo("app-with-config"))
-		gotD := &v1.Deployment{}
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: checkApp.Name + "-v1", Namespace: checkApp.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
+		Expect(err).Should(BeNil())
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
 
-		Expect(gotD).Should(BeEquivalentTo(expConfigDeployment))
+		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		gotDeploy := &v1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
+		Expect(gotDeploy).Should(BeEquivalentTo(expConfigDeployment))
+
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -537,28 +543,26 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		gotTrait := unstructured.Unstructured{}
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
 		Expect(err).Should(BeNil())
-		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw,
-			&gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb3", app.Name)))
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
 
-		By("Check component created as expected")
-		component := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb3",
-		}, component)).Should(BeNil())
-		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: "app-with-trait"}))
-		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo("app-with-trait"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
-		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1beta1"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
-		gotD := &v1.Deployment{}
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
-		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		gotDeploy := &v1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
+		gotDeploy.Annotations = nil
+		Expect(cmp.Diff(gotDeploy, expDeployment)).Should(BeEmpty())
+
+		Expect(len(comp.Traits) > 0).Should(BeTrue())
+		gotTrait := comp.Traits[0]
+		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb3", app.Name))).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -611,17 +615,26 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		By("Check AppRevision Created with the expected workload spec")
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
-		Expect(len(ac.Spec.Components[0].Traits)).Should(BeEquivalentTo(2))
-		Expect(ac.Spec.Components[0].ComponentName).Should(BeEmpty())
-		Expect(ac.Spec.Components[0].RevisionName).ShouldNot(BeEmpty())
-		// component create handler may create a v2 when it can't find v1
-		Expect(ac.Spec.Components[0].RevisionName).Should(
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
+		Expect(comp.RevisionName).Should(
 			SatisfyAny(BeEquivalentTo(utils.ConstructRevisionName(compName, 1)),
 				BeEquivalentTo(utils.ConstructRevisionName(compName, 2))))
+		Expect(comp.RevisionHash).ShouldNot(BeEmpty())
 
-		gotTrait := unstructured.Unstructured{}
+		Expect(comp.StandardWorkload).ShouldNot(BeNil())
+		gotDeploy := &v1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
+		gotDeploy.Annotations = nil
+		expDeployment.ObjectMeta.Labels["workload.oam.dev/type"] = "webserver"
+		expDeployment.Spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{{ContainerPort: 80}}
+		Expect(cmp.Diff(gotDeploy, expDeployment)).Should(BeEmpty())
+
+		Expect(len(comp.Traits)).Should(BeEquivalentTo(2))
+		gotTrait := comp.Traits[0]
 		By("Check the first trait should be service")
 		expectServiceTrait := unstructured.Unstructured{Object: map[string]interface{}{
 			"apiVersion": "v1",
@@ -637,41 +650,18 @@ spec:
 			},
 			"spec": map[string]interface{}{
 				"ports": []interface{}{
-					map[string]interface{}{"port": int64(80), "targetPort": int64(80)},
+					map[string]interface{}{"port": float64(80), "targetPort": float64(80)},
 				},
 				"selector": map[string]interface{}{
 					"app.oam.dev/component": compName,
 				},
 			},
 		}}
-		ac, err = util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
-		Expect(err).Should(BeNil())
-		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		fmt.Println(cmp.Diff(expectServiceTrait, gotTrait))
-		Expect(assert.ObjectsAreEqual(expectServiceTrait, gotTrait)).Should(BeTrue())
+		Expect(cmp.Diff(expectServiceTrait, *gotTrait)).Should(BeEmpty())
 
 		By("Check the second trait should be scaler")
-		gotTrait = unstructured.Unstructured{}
-		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[1].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb-composed-3", app.Name)))
-
-		By("Check component created as expected")
-		component := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      compName,
-		}, component)).Should(BeNil())
-		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: appname}))
-		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo(appname))
-		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
-		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1beta1"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
-		gotD := &v1.Deployment{}
-		expDeployment.ObjectMeta.Labels["workload.oam.dev/type"] = "webserver"
-		expDeployment.Spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{{ContainerPort: 80}}
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
-		fmt.Println(cmp.Diff(expDeployment, gotD))
-		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+		gotTrait = comp.Traits[1]
+		Expect(cmp.Diff(expectScalerTrait("myweb-composed-3", app.Name), *gotTrait)).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -718,32 +708,28 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		gotTrait := unstructured.Unstructured{}
-		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		By("Check AppRevision Created with the expected workload spec")
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
-		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb4", app.Name)))
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
+		Expect(len(comp.Traits) > 0).Should(BeTrue())
+		gotTrait := comp.Traits[0]
+		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb4", app.Name))).Should(BeEmpty())
 
-		Expect(ac.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		Expect(len(comp.Scopes) > 0).Should(BeTrue())
+		gotScope := comp.Scopes[0]
+		Expect(*gotScope).Should(BeEquivalentTo(corev1.ObjectReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "appWithTraitAndScope-default-health",
 		}))
 
-		By("Check component created as expected")
-		component := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb4",
-		}, component)).Should(BeNil())
-		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: "app-with-trait-and-scope"}))
-		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo("app-with-trait-and-scope"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
-		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1beta1"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
+		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		gotD := &v1.Deployment{}
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
-		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotD)).Should(Succeed())
+		gotD.Annotations = nil
+		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -787,47 +773,41 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		gotTrait := unstructured.Unstructured{}
-		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
-		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp1 := comps[0]
+		Expect(len(comp1.Traits) > 0).Should(BeTrue())
+		gotTrait := comp1.Traits[0]
+		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb5", app.Name))).Should(BeEmpty())
 
-		Expect(ac.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		Expect(len(comp1.Scopes) > 0).Should(BeTrue())
+		Expect(*comp1.Scopes[0]).Should(Equal(corev1.ObjectReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "app-with-two-comp-default-health",
 		}))
-		Expect(ac.Spec.Components[1].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		comp2 := comps[1]
+		Expect(len(comp1.Scopes) > 0).Should(BeTrue())
+		Expect(*comp2.Scopes[0]).Should(Equal(corev1.ObjectReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "app-with-two-comp-default-health",
 		}))
 
-		By("Check component created as expected")
-		component5 := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb5",
-		}, component5)).Should(BeNil())
-		Expect(component5.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: app.Name}))
+		Expect(comp1.StandardWorkload).ShouldNot(BeNil())
 		gotD := &v1.Deployment{}
-		Expect(json.Unmarshal(component5.Spec.Workload.Raw, gotD)).Should(BeNil())
-		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp1.StandardWorkload.Object, gotD)).Should(Succeed())
+		gotD.Annotations = nil
+		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
 
 		expDeployment6 := getExpDeployment("myweb6", app.Name)
-		expDeployment6.SetAnnotations(map[string]string{"c1": "v1", "c2": "v2"})
 		expDeployment6.Spec.Template.Spec.Containers[0].Image = "busybox2"
-		component6 := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb6",
-		}, component6)).Should(BeNil())
-		Expect(component6.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: app.Name}))
+		Expect(comp2.StandardWorkload).ShouldNot(BeNil())
 		gotD2 := &v1.Deployment{}
-		Expect(json.Unmarshal(component6.Spec.Workload.Raw, gotD2)).Should(BeNil())
-		fmt.Println(cmp.Diff(expDeployment6, gotD2))
-		Expect(gotD2).Should(BeEquivalentTo(expDeployment6))
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp2.StandardWorkload.Object, gotD2)).Should(Succeed())
+		gotD2.Annotations = nil
+		Expect(cmp.Diff(gotD2, expDeployment6)).Should(BeEmpty())
 
 		By("Update Application with new revision, component5 with new spec, rename component6 it should create new component ")
 
@@ -855,8 +835,6 @@ spec:
 			Namespace: app.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
-		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
 
 		By("Check affiliated resource tracker is upgraded")
 		expectRTName = fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
@@ -864,39 +842,28 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		Expect(ac.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
-			APIVersion: "core.oam.dev/v1alpha2",
-			Kind:       "HealthScope",
-			Name:       "app-with-two-comp-default-health",
-		}))
-		Expect(ac.Spec.Components[1].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
-			APIVersion: "core.oam.dev/v1alpha2",
-			Kind:       "HealthScope",
-			Name:       "app-with-two-comp-default-health",
-		}))
+		comps, err = util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
+		Expect(err).Should(BeNil())
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp1 = comps[0]
 
-		By("Check component created as expected")
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb5",
-		}, component5)).Should(BeNil())
-		Expect(json.Unmarshal(component5.Spec.Workload.Raw, gotD)).Should(BeNil())
 		expDeployment.Spec.Template.Spec.Containers[0].Image = "busybox3"
 		expDeployment.Labels["app.oam.dev/appRevision"] = app.Name + "-v2"
-		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+		Expect(comp1.StandardWorkload).ShouldNot(BeNil())
+		gotD = &v1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp1.StandardWorkload.Object, gotD)).Should(Succeed())
+		gotD.Annotations = nil
+		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
 
 		expDeployment7 := getExpDeployment("myweb7", app.Name)
-		component7 := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb7",
-		}, component7)).Should(BeNil())
-		Expect(component7.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: app.Name}))
-		gotD3 := &v1.Deployment{}
-		Expect(json.Unmarshal(component7.Spec.Workload.Raw, gotD3)).Should(BeNil())
 		expDeployment7.Labels["app.oam.dev/appRevision"] = app.Name + "-v2"
-		fmt.Println(cmp.Diff(gotD3, expDeployment7))
-		Expect(gotD3).Should(BeEquivalentTo(expDeployment7))
+		comp2 = comps[1]
+		Expect(comp2.StandardWorkload).ShouldNot(BeNil())
+		gotD3 := &v1.Deployment{}
+		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp2.StandardWorkload.Object, gotD3)).Should(Succeed())
+		gotD3.Annotations = nil
+		Expect(cmp.Diff(gotD3, expDeployment7)).Should(BeEmpty())
+
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
@@ -940,12 +907,14 @@ spec:
 			Namespace: app.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
-		gotTrait := unstructured.Unstructured{}
 
-		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
-		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expTrait))
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
+		Expect(len(comp.Traits) > 0).Should(BeTrue())
+		gotTrait := comp.Traits[0]
+		Expect(cmp.Diff(*gotTrait, expTrait)).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -1090,6 +1059,7 @@ spec:
 			Namespace: rolloutApp.Namespace,
 			Name:      utils.ConstructRevisionName(rolloutApp.Name, 1),
 		}, appRevision)).Should(BeNil())
+		Expect(appRevision.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
 
 		By("Check affiliated resource tracker is not created")
 		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
@@ -1097,21 +1067,12 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
 
-		By("Check Component Created with the expected workload spec")
-		var component v1alpha2.Component
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: rolloutApp.Namespace,
-			Name:      compName,
-		}, &component)).Should(BeNil())
-		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-		// check that the appconfig has the correct annotation and labels
-		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
-		Expect(ac.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
-		Expect(ac.GetAnnotations()["keep"]).Should(Equal("true"))
-		Expect(ac.Spec.Components[0].ComponentName).Should(BeEmpty())
-		Expect(ac.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
+		Expect(comp.Name).Should(Equal(compName))
+		Expect(comp.RevisionName).Should(Equal(compName + "-v1"))
 
 		By("Reconcile again to make sure we are not creating more resource trackers")
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
@@ -1126,15 +1087,6 @@ spec:
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
-
-		By("Check no new Component created")
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: rolloutApp.Namespace,
-			Name:      compName,
-		}, &component)).Should(BeNil())
-		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(component.Status.LatestRevision.Revision).ShouldNot(BeNil())
-		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
 		By("Remove rollout annotation should lead to new resource tracker created")
 		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
@@ -1442,11 +1394,15 @@ spec:
 			Namespace: curApp.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
-		appConfig, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
-		Expect(err).ShouldNot(HaveOccurred())
-		var gotSvc corev1.Service
-		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotSvc)).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(&gotSvc, &corev1.Service{
+
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
+		Expect(err).Should(BeNil())
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
+
+		gotSvc := &corev1.Service{}
+		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.Traits[0].Object, gotSvc)
+		Expect(cmp.Diff(gotSvc, &corev1.Service{
 			TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: "v1"},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "myweb",
@@ -1461,9 +1417,9 @@ spec:
 				Ports:    []corev1.ServicePort{{Port: 80, TargetPort: intstr.FromInt(80)}},
 				Selector: map[string]string{"app.oam.dev/component": "myweb"},
 			}})).Should(BeEquivalentTo(""))
-		var gotIngress v1beta12.Ingress
-		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[1].Trait.Raw, &gotIngress)).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(&gotIngress, &v1beta12.Ingress{
+		gotIngress := &v1beta12.Ingress{}
+		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.Traits[1].Object, gotIngress)
+		Expect(cmp.Diff(gotIngress, &v1beta12.Ingress{
 			TypeMeta: metav1.TypeMeta{Kind: "Ingress", APIVersion: "networking.k8s.io/v1beta1"},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "myweb",
@@ -1486,27 +1442,15 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		By("Check Component Created with the expected workload spec")
-		var component v1alpha2.Component
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appImportPkg.Namespace,
-			Name:      "myweb",
-		}, &component)).Should(BeNil())
-		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: "app-import-pkg"}))
-		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo("app-import-pkg"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
-		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1beta1"))
-		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
-		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
-
-		// check the workload created should be the same as the raw data in the component
 		gotD := &v1.Deployment{}
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
-		fmt.Println(cmp.Diff(expDeployment, gotD))
-		Expect(assert.ObjectsAreEqual(expDeployment, gotD)).Should(BeEquivalentTo(true))
+		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotD)
+		gotD.Annotations = nil
+		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
+
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appImportPkg)).Should(BeNil())
 	})
+
 	It("revision should exist in created workload render by context.appRevision", func() {
 
 		expDeployment := getExpDeployment("myweb", "revision-app1")
@@ -1542,20 +1486,22 @@ spec:
 		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
-		By("Check Component Created with the expected workload spec")
-		var component v1alpha2.Component
+		appRevision := &v1beta1.ApplicationRevision{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      "myweb",
-		}, &component)).Should(BeNil())
-		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: app.Name}))
-		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
 
-		// check the workload created should be the same as the raw data in the component
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
+		Expect(err).Should(BeNil())
+		Expect(len(comps) > 0).Should(BeTrue())
+		comp := comps[0]
+
 		gotD := &v1.Deployment{}
-		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
-		fmt.Println(cmp.Diff(expDeployment, gotD))
-		Expect(assert.ObjectsAreEqual(expDeployment, gotD)).Should(BeEquivalentTo(true))
+		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotD)
+		gotD.Annotations = nil
+		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
+
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})

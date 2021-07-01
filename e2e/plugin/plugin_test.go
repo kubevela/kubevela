@@ -805,39 +805,28 @@ var livediffResult = `---
 ---
 ## Component (express-server) has been removed(-)
 ---
-- apiVersion: core.oam.dev/v1alpha2
-- kind: Component
+- apiVersion: apps/v1
+- kind: Deployment
 - metadata:
--   creationTimestamp: null
 -   labels:
+-     app.oam.dev/appRevision: ""
+-     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
--   name: express-server
+-     workload.oam.dev/type: test-webservice
 - spec:
--   workload:
--     apiVersion: apps/v1
--     kind: Deployment
+-   selector:
+-     matchLabels:
+-       app.oam.dev/component: express-server
+-   template:
 -     metadata:
 -       labels:
--         app.oam.dev/appRevision: ""
 -         app.oam.dev/component: express-server
--         app.oam.dev/name: test-vela-app
--         workload.oam.dev/type: test-webservice
 -     spec:
--       selector:
--         matchLabels:
--           app.oam.dev/component: express-server
--       template:
--         metadata:
--           labels:
--             app.oam.dev/component: express-server
--         spec:
--           containers:
--           - image: crccheck/hello-world
--             name: express-server
--             ports:
--             - containerPort: 80
-- status:
--   observedGeneration: 0
+-       containers:
+-       - image: crccheck/hello-world
+-         name: express-server
+-         ports:
+-         - containerPort: 80
   
 ---
 ### Component (express-server) / Trait (test-ingress/service) has been removed(-)
@@ -885,44 +874,33 @@ var livediffResult = `---
 ---
 ## Component (new-express-server) has been added(+)
 ---
-+ apiVersion: core.oam.dev/v1alpha2
-+ kind: Component
++ apiVersion: apps/v1
++ kind: Deployment
 + metadata:
-+   creationTimestamp: null
 +   labels:
++     app.oam.dev/appRevision: ""
++     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
-+   name: new-express-server
++     workload.oam.dev/type: test-webservice
 + spec:
-+   workload:
-+     apiVersion: apps/v1
-+     kind: Deployment
++   selector:
++     matchLabels:
++       app.oam.dev/component: new-express-server
++   template:
 +     metadata:
 +       labels:
-+         app.oam.dev/appRevision: ""
 +         app.oam.dev/component: new-express-server
-+         app.oam.dev/name: test-vela-app
-+         workload.oam.dev/type: test-webservice
 +     spec:
-+       selector:
-+         matchLabels:
-+           app.oam.dev/component: new-express-server
-+       template:
-+         metadata:
-+           labels:
-+             app.oam.dev/component: new-express-server
-+         spec:
-+           containers:
-+           - image: crccheck/hello-world
-+             name: new-express-server
-+             ports:
-+             - containerPort: 5000
-+             resources:
-+               limits:
-+                 cpu: "0.5"
-+               requests:
-+                 cpu: "0.5"
-+ status:
-+   observedGeneration: 0
++       containers:
++       - image: crccheck/hello-world
++         name: new-express-server
++         ports:
++         - containerPort: 5000
++         resources:
++           limits:
++             cpu: "0.5"
++           requests:
++             cpu: "0.5"
   
 ---
 ### Component (new-express-server) / Trait (test-ingress/service) has been added(+)

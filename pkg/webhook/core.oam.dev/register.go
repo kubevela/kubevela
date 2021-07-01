@@ -31,16 +31,22 @@ import (
 
 // Register will be called in main and register all validation handlers
 func Register(mgr manager.Manager, args controller.Args) {
-	application.RegisterValidatingHandler(mgr, args)
-	applicationconfiguration.RegisterValidatingHandler(mgr, args)
-	componentdefinition.RegisterMutatingHandler(mgr, args)
-	componentdefinition.RegisterValidatingHandler(mgr, args)
-	traitdefinition.RegisterValidatingHandler(mgr, args)
-	applicationconfiguration.RegisterMutatingHandler(mgr)
-	applicationrollout.RegisterMutatingHandler(mgr)
-	applicationrollout.RegisterValidatingHandler(mgr)
-	component.RegisterMutatingHandler(mgr, args)
-	component.RegisterValidatingHandler(mgr)
+
+	if args.OAMSpecVer == "v0.3" || args.OAMSpecVer == "all" {
+		application.RegisterValidatingHandler(mgr, args)
+		componentdefinition.RegisterMutatingHandler(mgr, args)
+		componentdefinition.RegisterValidatingHandler(mgr, args)
+		traitdefinition.RegisterValidatingHandler(mgr, args)
+		applicationrollout.RegisterMutatingHandler(mgr)
+		applicationrollout.RegisterValidatingHandler(mgr)
+	}
+
+	if args.OAMSpecVer == "v0.2" || args.OAMSpecVer == "all" {
+		applicationconfiguration.RegisterMutatingHandler(mgr)
+		applicationconfiguration.RegisterValidatingHandler(mgr, args)
+		component.RegisterMutatingHandler(mgr, args)
+		component.RegisterValidatingHandler(mgr)
+	}
 
 	server := mgr.GetWebhookServer()
 	server.Register("/convert", &conversion.Webhook{})

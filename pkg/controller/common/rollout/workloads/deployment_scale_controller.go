@@ -27,10 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -38,22 +36,23 @@ import (
 
 // DeploymentScaleController is responsible for handle scale Deployment type of workloads
 type DeploymentScaleController struct {
-	workloadController
-	targetNamespacedName types.NamespacedName
-	deploy               *appsv1.Deployment
+	deploymentController
+	deploy *appsv1.Deployment
 }
 
 // NewDeploymentScaleController creates Deployment scale controller
 func NewDeploymentScaleController(client client.Client, recorder event.Recorder, parentController oam.Object, rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *DeploymentScaleController {
 	return &DeploymentScaleController{
-		workloadController: workloadController{
-			client:           client,
-			recorder:         recorder,
-			parentController: parentController,
-			rolloutSpec:      rolloutSpec,
-			rolloutStatus:    rolloutStatus,
+		deploymentController: deploymentController{
+			workloadController: workloadController{
+				client:           client,
+				recorder:         recorder,
+				parentController: parentController,
+				rolloutSpec:      rolloutSpec,
+				rolloutStatus:    rolloutStatus,
+			},
+			targetNamespacedName: workloadName,
 		},
-		targetNamespacedName: workloadName,
 	}
 }
 
@@ -125,56 +124,41 @@ func (s *DeploymentScaleController) VerifySpec(ctx context.Context) (bool, error
 
 // Initialize makes sure that the deployment is under our control
 func (s *DeploymentScaleController) Initialize(ctx context.Context) (bool, error) {
-	err := s.fetchDeployment(ctx)
-	if err != nil {
+	if err := s.fetchDeployment(ctx); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		// nolint: nilerr
 		return false, nil
 	}
 
-	if controller := metav1.GetControllerOf(s.deploy); controller != nil {
-		if controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
-			// it's already there
-			return true, nil
-		}
-	}
-	// add the parent controller to the owner of the deployment
-	deployPatch := client.MergeFrom(s.deploy.DeepCopyObject())
-	ref := metav1.NewControllerRef(s.parentController, v1beta1.AppRolloutKindVersionKind)
-	s.deploy.SetOwnerReferences(append(s.deploy.GetOwnerReferences(), *ref))
-	s.deploy.Spec.Paused = false
-
-	// patch the deployment
-	if err := s.client.Patch(ctx, s.deploy, deployPatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
-		s.recorder.Event(s.parentController, event.Warning("Failed to the start the deployment update", err))
-		s.rolloutStatus.RolloutRetry(err.Error())
+	claimedBefore, err := s.claimDeployment(ctx, s.deploy, nil)
+	if err != nil {
+		// nolint:nilerr
 		return false, nil
 	}
-	// mark the rollout initialized
-	s.recorder.Event(s.parentController, event.Normal("Scale Initialized", "deployment is initialized"))
+	if !claimedBefore {
+		// mark the rollout initialized
+		s.recorder.Event(s.parentController, event.Normal("Scale Initialized", "deployment is initialized"))
+	}
 	return true, nil
 }
 
 // RolloutOneBatchPods calculates the number of pods we can scale to according to the rollout spec
 func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bool, error) {
-	err := s.fetchDeployment(ctx)
-	if err != nil {
+	if err := s.fetchDeployment(ctx); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		// nolint: nilerr
 		return false, nil
 	}
 
-	deployPatch := client.MergeFrom(s.deploy.DeepCopyObject())
 	// set the replica according to the batch
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
-	s.deploy.Spec.Replicas = pointer.Int32Ptr(int32(newPodTarget))
-	// patch the deployment
-	if err := s.client.Patch(ctx, s.deploy, deployPatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
-		s.recorder.Event(s.parentController, event.Warning("Failed to update the deployment to upgrade", err))
-		s.rolloutStatus.RolloutRetry(err.Error())
+
+	if err := s.scaleDeployment(ctx, s.deploy, int32(newPodTarget)); err != nil {
+		// nolint:nilerr
 		return false, nil
 	}
+
 	// record the scale
 	klog.InfoS("scale one batch", "current batch", s.rolloutStatus.CurrentBatch)
 	s.recorder.Event(s.parentController, event.Normal("Batch Rollout",
@@ -185,12 +169,12 @@ func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bo
 
 // CheckOneBatchPods checks to see if the pods are scaled according to the rollout plan
 func (s *DeploymentScaleController) CheckOneBatchPods(ctx context.Context) (bool, error) {
-	err := s.fetchDeployment(ctx)
-	if err != nil {
+	if err := s.fetchDeployment(ctx); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		// nolint:nilerr
 		return false, nil
 	}
+
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
 	// get the number of ready pod from deployment
@@ -221,6 +205,7 @@ func (s *DeploymentScaleController) CheckOneBatchPods(ctx context.Context) (bool
 			fmt.Sprintf("Batch %d is available", s.rolloutStatus.CurrentBatch)))
 		return true, nil
 	}
+
 	// continue to verify
 	klog.InfoS("the batch is not ready yet", "current batch", s.rolloutStatus.CurrentBatch,
 		"target", newPodTarget, "readyPodCount", readyPodCount, "max unavailable allowed", unavail)
@@ -274,56 +259,33 @@ func (s *DeploymentScaleController) Finalize(ctx context.Context, succeed bool) 
 		s.rolloutStatus.RolloutRetry(err.Error())
 		return false
 	}
-	deployPatch := client.MergeFrom(s.deploy.DeepCopyObject())
-	// remove the parent controller from the resources' owner list
-	var newOwnerList []metav1.OwnerReference
-	isOwner := false
-	for _, owner := range s.deploy.GetOwnerReferences() {
-		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
-			isOwner = true
-			continue
-		}
-		newOwnerList = append(newOwnerList, owner)
-	}
-	if !isOwner {
-		// nothing to do if we are already not the owner
-		klog.InfoS("the deployment is already released and not controlled by rollout", "deployment", s.deploy.Name)
-		return true
-	}
 
-	s.deploy.SetOwnerReferences(newOwnerList)
-	// patch the deployment
-	if err := s.client.Patch(ctx, s.deploy, deployPatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
-		s.recorder.Event(s.parentController, event.Warning("Failed to the finalize the deployment", err))
-		s.rolloutStatus.RolloutRetry(err.Error())
+	releasedBefore, err := s.releaseDeployment(ctx, s.deploy)
+	if err != nil {
 		return false
 	}
-	// mark the resource finalized
-	s.recorder.Event(s.parentController, event.Normal("Scale Finalized",
-		fmt.Sprintf("Scale resource are finalized, succeed := %t", succeed)))
+	if !releasedBefore {
+		// mark the resource finalized
+		s.recorder.Event(s.parentController, event.Normal("Scale Finalized",
+			fmt.Sprintf("Scale resource are finalized, succeed := %t", succeed)))
+	}
 	return true
 }
 
 // size fetches the Deloyment and returns the replicas (not the actual number of pods)
 func (s *DeploymentScaleController) size(ctx context.Context) (int32, error) {
 	if s.deploy == nil {
-		err := s.fetchDeployment(ctx)
-		if err != nil {
+		if err := s.fetchDeployment(ctx); err != nil {
 			return 0, err
 		}
 	}
-	// default is 1
-	if s.deploy.Spec.Replicas == nil {
-		return 1, nil
-	}
-	return *s.deploy.Spec.Replicas, nil
+	return getDeployReplicaSize(s.deploy), nil
 }
 
 func (s *DeploymentScaleController) fetchDeployment(ctx context.Context) error {
 	// get the deployment
 	workload := appsv1.Deployment{}
-	err := s.client.Get(ctx, s.targetNamespacedName, &workload)
-	if err != nil {
+	if err := s.client.Get(ctx, s.targetNamespacedName, &workload); err != nil {
 		if !apierrors.IsNotFound(err) {
 			s.recorder.Event(s.parentController, event.Warning("Failed to get the Deployment", err))
 		}

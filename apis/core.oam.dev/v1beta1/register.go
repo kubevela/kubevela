@@ -141,6 +141,14 @@ var (
 	ClusterKindVersionKind = SchemeGroupVersion.WithKind(ClusterKind)
 )
 
+// Initializer type metadata.
+var (
+	InitializerKind            = reflect.TypeOf(Initializer{}).Name()
+	InitializerGroupKind       = schema.GroupKind{Group: Group, Kind: InitializerKind}.String()
+	InitializerKindAPIVersion  = InitializerKind + "." + SchemeGroupVersion.String()
+	InitializerKindVersionKind = SchemeGroupVersion.WithKind(InitializerKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
@@ -155,4 +163,5 @@ func init() {
 	SchemeBuilder.Register(&AppDeployment{}, &AppDeploymentList{})
 	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
+	SchemeBuilder.Register(&Initializer{}, &InitializerList{})
 }

@@ -120,6 +120,9 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	}
 	// For some reason, traitDefinition is created as a Cluster scope object
+	Expect(k8sClient.Create(context.Background(), manualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	// for oam spec v0.2 e2e-test
+	manualscalertrait.Namespace = "oam-runtime-system"
 	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	// Create manual scaler trait definition with spec.extension field
 	definitionExtension := DefinitionExtension{
@@ -142,6 +145,9 @@ var _ = BeforeSuite(func(done Done) {
 			Extension: in,
 		},
 	}
+	Expect(k8sClient.Create(context.Background(), extendedmanualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	// for oam spec v0.2 e2e-test
+	extendedmanualscalertrait.Namespace = "oam-runtime-system"
 	Expect(k8sClient.Create(context.Background(), &extendedmanualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created extended manualscalertraits.core.oam.dev")
 
@@ -261,6 +267,9 @@ var _ = BeforeSuite(func(done Done) {
 			Scope: crdv1.NamespaceScoped,
 		},
 	}
+	Expect(k8sClient.Create(context.Background(), crd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	// for oam spec v0.2 e2e-test
+	crd.Namespace = "oam-runtime-system"
 	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created a crd for revision mechanism test")
 
@@ -269,10 +278,15 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(common.ReadYamlToObject("testdata/revision/workload-def.yaml", &nwd)).Should(BeNil())
 	Eventually(
 		func() error {
+			return k8sClient.Create(context.Background(), nwd.DeepCopy())
+		},
+		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	nwd.Namespace = "oam-runtime-system"
+	Eventually(
+		func() error {
 			return k8sClient.Create(context.Background(), &nwd)
 		},
 		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 	close(done)
 }, 300)
 

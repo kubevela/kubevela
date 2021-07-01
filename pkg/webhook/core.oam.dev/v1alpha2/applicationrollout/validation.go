@@ -27,9 +27,9 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/util/slice"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/types"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
@@ -72,21 +72,23 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1beta1.AppRollout) field
 		} else {
 			sourceAppRevision = nil
 		}
-		var sourceApp *v1alpha2.ApplicationConfiguration
-		targetApp, err := oamutil.RawExtension2AppConfig(targetAppRevision.Spec.ApplicationConfiguration)
+		var sourceComps []*types.ComponentManifest
+		targetComps, err := oamutil.AppConfig2ComponentManifests(targetAppRevision.Spec.ApplicationConfiguration,
+			targetAppRevision.Spec.Components)
 		if err != nil {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("TargetAppRevisionName"), targetAppName,
 				fmt.Sprintf("the targeted app revision is corrupted,  err = `%s`", err)))
 		}
 		if sourceAppRevision != nil {
-			sourceApp, err = oamutil.RawExtension2AppConfig(sourceAppRevision.Spec.ApplicationConfiguration)
+			sourceComps, err = oamutil.AppConfig2ComponentManifests(sourceAppRevision.Spec.ApplicationConfiguration,
+				sourceAppRevision.Spec.Components)
 			if err != nil {
 				allErrs = append(allErrs, field.Invalid(fldPath.Child("SourceAppRevisionName"), sourceAppName,
 					fmt.Sprintf("the source app revision is corrupted,  err = `%s`", err)))
 			}
 		}
 		// validate the component spec
-		allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, targetApp, sourceApp,
+		allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, targetComps, sourceComps,
 			fldPath.Child("componentList"))...)
 	}
 
@@ -100,7 +102,7 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1beta1.AppRollout) field
 // 2. if there are no components, make sure the applications has only one common component so that's the default
 // 3. it is contained in both source and target application
 // 4. the common component has the same type
-func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.ApplicationConfiguration,
+func validateComponent(componentList []string, targetApp, sourceApp []*types.ComponentManifest,
 	fldPath *field.Path) field.ErrorList {
 	var componentErrs field.ErrorList
 	var commonComponentName string

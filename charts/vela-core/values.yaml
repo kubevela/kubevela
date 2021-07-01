@@ -6,8 +6,7 @@ replicaCount: 1
 # Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
 
-# By default, metrics are disabled due the prometheus dependency
-disableCaps: "metrics"
+disableCaps: ""
 image:
   repository: oamdev/vela-core
   tag: latest
@@ -16,7 +15,6 @@ image:
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
-useAppConfig: true
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -101,3 +99,6 @@ concurrentReconciles: 4
 
 # dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
 dependCheckWait: 30s
+
+# OAMSpecVer is the oam spec version controller want to setup
+OAMSpecVer: "v0.3"

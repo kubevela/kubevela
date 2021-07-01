@@ -170,7 +170,7 @@ func InstallComponentDefinition(client client.Client, workloadData []byte, ioStr
 }
 
 // InstallTraitDefinition will add a trait into K8s cluster and install it's controller
-func InstallTraitDefinition(client client.Client, mapper discoverymapper.DiscoveryMapper, traitdata []byte, ioStreams cmdutil.IOStreams, tp *types.Capability) error {
+func InstallTraitDefinition(client client.Client, mapper discoverymapper.DiscoveryMapper, traitdata []byte, ioStreams cmdutil.IOStreams, cap *types.Capability) error {
 	var td v1beta1.TraitDefinition
 	var err error
 	if err = yaml.Unmarshal(traitdata, &td); err != nil {
@@ -178,24 +178,24 @@ func InstallTraitDefinition(client client.Client, mapper discoverymapper.Discove
 	}
 	td.Namespace = types.DefaultKubeVelaNS
 	ioStreams.Info("Installing trait capability " + td.Name)
-	if tp.Install != nil {
-		tp.Source.ChartName = tp.Install.Helm.Name
-		if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
+	if cap.Install != nil {
+		cap.Source.ChartName = cap.Install.Helm.Name
+		if err = helm.InstallHelmChart(ioStreams, cap.Install.Helm); err != nil {
 			return err
 		}
-		err = addSourceIntoExtension(td.Spec.Extension, tp.Source)
+		err = addSourceIntoExtension(td.Spec.Extension, cap.Source)
 		if err != nil {
 			return err
 		}
 	}
-	if err = HackForStandardTrait(*tp, client); err != nil {
+	if err = HackForStandardTrait(*cap, client); err != nil {
 		return err
 	}
 	gvk, err := util.GetGVKFromDefinition(mapper, td.Spec.Reference)
 	if err != nil {
 		return err
 	}
-	tp.CrdInfo = &types.CRDInfo{
+	cap.CrdInfo = &types.CRDInfo{
 		APIVersion: gvk.GroupVersion().String(),
 		Kind:       gvk.Kind,
 	}
@@ -400,7 +400,6 @@ func ListCapabilities(userNamespace string, c common.Args, capabilityCenterName 
 	}
 	return capabilityList, nil
 }
-
 func listCenterCapabilities(userNamespace string, c common.Args, repoDir string) ([]types.Capability, error) {
 	dm, err := c.GetDiscoveryMapper()
 	if err != nil {
@@ -414,10 +413,10 @@ func listCenterCapabilities(userNamespace string, c common.Args, repoDir string)
 		return templates, nil
 	}
 	baseDir := filepath.Base(repoDir)
-	workloads := gatherComponents(userNamespace, c, templates)
+	components := gatherComponents(userNamespace, c, templates)
 	for i, p := range templates {
-		status := checkInstallStatus(userNamespace, c, baseDir, p)
-		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
+		status := checkInstallStatus(userNamespace, c, p)
+		convertedApplyTo := ConvertApplyTo(p.AppliesTo, components)
 		templates[i].Center = baseDir
 		templates[i].Status = status
 		templates[i].AppliesTo = convertedApplyTo
@@ -460,23 +459,23 @@ func RemoveCapabilityCenter(centerName string) (string, error) {
 }
 
 func gatherComponents(userNamespace string, c common.Args, templates []types.Capability) []types.Capability {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
+	components, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
 	if err != nil {
-		workloads = make([]types.Capability, 0)
+		components = make([]types.Capability, 0)
 	}
 	for _, t := range templates {
 		if t.Type == types.TypeComponentDefinition {
-			workloads = append(workloads, t)
+			components = append(components, t)
 		}
 	}
-	return workloads
+	return components
 }
 
-func checkInstallStatus(userNamespace string, c common.Args, repoName string, tmp types.Capability) string {
+func checkInstallStatus(userNamespace string, c common.Args, tmp types.Capability) string {
 	var status = "uninstalled"
 	installed, _ := plugins.LoadInstalledCapabilityWithType(userNamespace, c, tmp.Type)
 	for _, i := range installed {
-		if i.Source != nil && i.Source.RepoName == repoName && i.Name == tmp.Name && i.CrdName == tmp.CrdName {
+		if i.Name == tmp.Name && i.CrdName == tmp.CrdName {
 			return "installed"
 		}
 	}

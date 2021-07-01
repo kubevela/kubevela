@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/apiserver/apis"
@@ -519,4 +520,25 @@ func (o *AppfileOptions) Info(app *corev1beta1.Application) string {
 		appUpMessage += fmt.Sprintf("  Service status: vela status %s --svc %s\n", appName, comp.Name)
 	}
 	return appUpMessage
+}
+
+// ApplyApplication will apply an application file in K8s GVK format
+func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, clt client.Client) error {
+	if app.Namespace == "" {
+		app.Namespace = types.DefaultAppNamespace
+	}
+	_, err := ioStream.Out.Write([]byte("Applying an application in K8S format...\n"))
+	if err != nil {
+		return err
+	}
+	applicator := apply.NewAPIApplicator(clt)
+	err = applicator.Apply(context.Background(), &app)
+	if err != nil {
+		return err
+	}
+	_, err = ioStream.Out.Write([]byte("Successfully apply application"))
+	if err != nil {
+		return err
+	}
+	return nil
 }

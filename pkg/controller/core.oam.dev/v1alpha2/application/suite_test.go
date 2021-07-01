@@ -18,9 +18,11 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -44,12 +46,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -150,18 +150,6 @@ var _ = BeforeSuite(func(done Done) {
 		LeaderElectionID:        "test",
 	})
 	Expect(err).NotTo(HaveOccurred())
-	// start to run the no op reconciler that creates component revision
-	err = ctrl.NewControllerManagedBy(ctlManager).
-		Named("component").
-		For(&v1alpha2.Component{}).
-		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &applicationconfiguration.ComponentHandler{
-			Client:                ctlManager.GetClient(),
-			RevisionLimit:         100,
-			CustomRevisionHookURL: "",
-		}).Complete(&NoOpReconciler{
-		Log: ctrl.Log.WithName("NoOp-Reconciler"),
-	})
-	Expect(err).NotTo(HaveOccurred())
 	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
 	// start the controller in the background so that new componentRevisions are created
@@ -243,4 +231,11 @@ func NewFakeRecorder(bufferSize int) *FakeRecorder {
 		Events:  make(chan string, bufferSize),
 		Message: make(map[string][]*Events),
 	}
+}
+
+// randomNamespaceName generates a random name based on the basic name.
+// Running each ginkgo case in a new namespace with a random name can avoid
+// waiting a long time to GC namesapce.
+func randomNamespaceName(basic string) string {
+	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
 }

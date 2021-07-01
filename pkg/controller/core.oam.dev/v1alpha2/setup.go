@@ -26,26 +26,28 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/policies/policydefinition"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workflow/workflowstepdefinition"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workloads/containerizedworkload"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/initializer"
 )
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args) error {
-	for _, setup := range []func(ctrl.Manager, controller.Args) error{
-		containerizedworkload.Setup, manualscalertrait.Setup, healthscope.Setup,
-		application.Setup, applicationrollout.Setup, appdeployment.Setup,
-		traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-	} {
-		if err := setup(mgr, args); err != nil {
-			return err
+	if args.OAMSpecVer == "v0.3" || args.OAMSpecVer == "all" {
+		for _, setup := range []func(ctrl.Manager, controller.Args) error{
+			application.Setup, applicationrollout.Setup, appdeployment.Setup,
+			traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
+			initializer.Setup,
+		} {
+			if err := setup(mgr, args); err != nil {
+				return err
+			}
 		}
 	}
-	if args.ApplicationConfigurationInstalled {
-		return applicationconfiguration.Setup(mgr, args)
+	if args.OAMSpecVer == "v0.2" || args.OAMSpecVer == "all" {
+		if err := applicationconfiguration.Setup(mgr, args); err != nil {
+			return err
+		}
 	}
 	return nil
 }

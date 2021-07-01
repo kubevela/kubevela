@@ -82,10 +82,12 @@ func TestCalculateCurrentSource(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			controller := DeploymentRolloutController{
-				workloadController: workloadController{
-					rolloutSpec: tc.rolloutSpec,
-					rolloutStatus: &v1alpha1.RolloutStatus{
-						CurrentBatch: tc.currentBatch,
+				deploymentController: deploymentController{
+					workloadController: workloadController{
+						rolloutSpec: tc.rolloutSpec,
+						rolloutStatus: &v1alpha1.RolloutStatus{
+							CurrentBatch: tc.currentBatch,
+						},
 					},
 				},
 			}

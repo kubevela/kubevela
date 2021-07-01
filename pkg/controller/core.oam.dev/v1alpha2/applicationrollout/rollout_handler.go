@@ -205,7 +205,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	}
 
 	// use source resourceTracker to handle same resource owner transfer
-	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).EnableUpgradeAndSkipGC(rt)
+	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).StartAndSkipGC(rt)
 	_, err := dispatcher.Dispatch(ctx, h.targetManifests)
 	if err != nil {
 		klog.Errorf("dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
@@ -285,7 +285,7 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 			return err
 		}
 		d := dispatch.NewAppManifestsDispatcher(h.Client, h.targetAppRevision).
-			EnableUpgradeAndGC(oldRT)
+			EndAndGC(oldRT)
 		// no need to dispatch manifest again, just do GC
 		if _, err := d.Dispatch(ctx, nil); err != nil {
 			return err

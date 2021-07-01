@@ -18,22 +18,21 @@ package dryrun
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/aryann/difflib"
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // NewLiveDiffOption creates a live-diff option
@@ -93,12 +92,12 @@ type LiveDiffOption struct {
 // Diff does three phases, dry-run on input app, preparing manifest for diff, and
 // calculating diff on manifests.
 func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, appRevision *v1beta1.ApplicationRevision) (*DiffEntry, error) {
-	ac, comps, err := l.ExecuteDryRun(ctx, app)
+	comps, err := l.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot dry-run for app %q", app.Name)
 	}
 	// new refers to the app as input to dry-run
-	newManifest, err := generateManifest(app, ac, comps)
+	newManifest, err := generateManifest(app, comps)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot generate diff manifest for app %q", app.Name)
 	}
@@ -250,7 +249,7 @@ func (l *LiveDiffOption) calculateDiff(oldApp, newApp *manifest) *DiffEntry {
 }
 
 // generateManifest generates a manifest whose top-level is an application
-func generateManifest(app *v1beta1.Application, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) (*manifest, error) {
+func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest) (*manifest, error) {
 	r := &manifest{
 		Name: app.Name,
 		Kind: AppKind,
@@ -269,14 +268,8 @@ func generateManifest(app *v1beta1.Application, ac *v1alpha2.ApplicationConfigur
 			Name: comp.Name,
 			Kind: RawCompKind,
 		}
-		// dry-run doesn't set namespace and ownerRef to a component
-		// we should remove them before comparing
-		comp.SetNamespace("")
-		comp.SetOwnerReferences(nil)
-		if err := emptifyAppRevisionLabel(&comp.Spec.Workload); err != nil {
-			return nil, errors.WithMessagef(err, "cannot emptify appRevision label in component %q", comp.Name)
-		}
-		b, err := yaml.Marshal(comp)
+		emptifyAppRevisionLabel(comp.StandardWorkload)
+		b, err := yaml.Marshal(comp.StandardWorkload)
 		if err != nil {
 			return nil, errors.Wrapf(err, "cannot marshal component %q", comp.Name)
 		}
@@ -285,37 +278,26 @@ func generateManifest(app *v1beta1.Application, ac *v1alpha2.ApplicationConfigur
 	}
 
 	// generate appConfigComponent manifests
-	for _, acc := range ac.Spec.Components {
-		if acc.ComponentName == "" && acc.RevisionName != "" {
-			// dry-run cannot generate revision name
-			// we should compare with comp name rather than revision name
-			acc.ComponentName = extractNameFromRevisionName(acc.RevisionName)
-			acc.RevisionName = ""
-		}
-
-		accM := &manifest{
-			Name: acc.ComponentName,
+	for _, comp := range comps {
+		compM := &manifest{
+			Name: comp.Name,
 			Kind: AppConfigCompKind,
 		}
+		comp.RevisionHash = ""
+		comp.RevisionName = ""
 		// get matched raw component and add it into appConfigComponent's subs
-		subs := []*manifest{rawCompManifests[acc.ComponentName]}
-		for _, t := range acc.Traits {
-			if err := emptifyAppRevisionLabel(&t.Trait); err != nil {
-				return nil, errors.WithMessage(err, "cannot emptify appRevision label of trait")
-			}
-			tObj, err := oamutil.RawExtension2Unstructured(&t.Trait)
-			if err != nil {
-				return nil, errors.WithMessage(err, "cannot parser trait raw")
-			}
+		subs := []*manifest{rawCompManifests[comp.Name]}
+		for _, t := range comp.Traits {
+			emptifyAppRevisionLabel(t)
 
-			tType := tObj.GetLabels()[oam.TraitTypeLabel]
-			tResource := tObj.GetLabels()[oam.TraitResource]
+			tType := t.GetLabels()[oam.TraitTypeLabel]
+			tResource := t.GetLabels()[oam.TraitResource]
 			// dry-run cannot generate name for a trait
-			// a join of trait tyupe&resource is unique in a component
+			// a join of trait type&resource is unique in a component
 			// we use it to identify a trait
 			tUnique := fmt.Sprintf("%s/%s", tType, tResource)
 
-			b, err := yaml.JSONToYAML(t.Trait.Raw)
+			b, err := yaml.Marshal(t)
 			if err != nil {
 				return nil, errors.Wrapf(err, "cannot parse trait %q raw to YAML", tUnique)
 			}
@@ -325,8 +307,8 @@ func generateManifest(app *v1beta1.Application, ac *v1alpha2.ApplicationConfigur
 				Data: string(b),
 			})
 		}
-		accM.Subs = subs
-		appSubs = append(appSubs, accM)
+		compM.Subs = subs
+		appSubs = append(appSubs, compM)
 	}
 	r.Subs = appSubs
 	return r, nil
@@ -334,26 +316,17 @@ func generateManifest(app *v1beta1.Application, ac *v1alpha2.ApplicationConfigur
 
 // generateManifestFromAppRevision generates manifest from an AppRevision
 func generateManifestFromAppRevision(appRevision *v1beta1.ApplicationRevision) (*manifest, error) {
-	ac := &v1alpha2.ApplicationConfiguration{}
-	if err := json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Raw, ac); err != nil {
-		return nil, errors.Wrap(err, "cannot unmarshal appconfig")
+	// comps, err := util.ConvertRawComponentManifests(appRevision.Spec.ComponentManifests)
+	comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
+	if err != nil {
+		return nil, err
 	}
-
-	comps := []*v1alpha2.Component{}
-	for _, rawComp := range appRevision.Spec.Components {
-		c := &v1alpha2.Component{}
-		if err := json.Unmarshal(rawComp.Raw.Raw, c); err != nil {
-			return nil, errors.Wrap(err, "cannot unmarshal component")
-		}
-		comps = append(comps, c)
-	}
-
 	app := appRevision.Spec.Application
 	// app in appRevision has no name & namespace
 	// we should extract/get them from appRappRevision
 	app.Name = extractNameFromRevisionName(appRevision.Name)
 	app.Namespace = appRevision.Namespace
-	return generateManifest(&app, ac, comps)
+	return generateManifest(&app, comps)
 }
 
 // diffManifest calculates diff between data of two manifest line by line
@@ -368,14 +341,10 @@ func extractNameFromRevisionName(r string) string {
 }
 
 // emptifyAppRevisionLabel will set label oam.LabelAppRevision to empty
-// because dry-run cannot set value to this lable
-func emptifyAppRevisionLabel(o *runtime.RawExtension) error {
-	u, err := oamutil.RawExtension2Unstructured(o)
-	if err != nil {
-		return errors.WithMessage(err, "cannot reset appRevision label of raw object")
-	}
+// because dry-run cannot set value to this label
+func emptifyAppRevisionLabel(o *unstructured.Unstructured) {
 	newLabels := map[string]string{}
-	labels := u.GetLabels()
+	labels := o.GetLabels()
 	for k, v := range labels {
 		if k == oam.LabelAppRevision {
 			newLabels[k] = ""
@@ -383,19 +352,13 @@ func emptifyAppRevisionLabel(o *runtime.RawExtension) error {
 		}
 		newLabels[k] = v
 	}
-	u.SetLabels(newLabels)
-	b, err := u.MarshalJSON()
-	if err != nil {
-		return errors.WithMessage(err, "cannot reset appRevision label of raw object")
-	}
-	o.Raw = b
-	return nil
+	o.SetLabels(newLabels)
 }
 
 // hasChanges checks whether existing change in diff records
 func hasChanges(diffs []difflib.DiffRecord) bool {
 	for _, d := range diffs {
-		// diffliib.Common means no change between two sides
+		// difflib.Common means no change between two sides
 		if d.Delta != difflib.Common {
 			return true
 		}

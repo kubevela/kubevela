@@ -110,7 +110,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+source, &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
-		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, &newApp)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Get Application latest status")
 		Eventually(
@@ -135,19 +137,28 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				if err != nil {
 					return err
 				}
+				if app.Status.Phase != oamcomm.ApplicationRunning {
+					return fmt.Errorf("application is still last generating apprev ")
+				}
 				app.Spec = targetApp.DeepCopy().Spec
 				return k8sClient.Update(ctx, app.DeepCopy())
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		By("Get Application Revision created with more than one")
 		Eventually(
-			func() bool {
+			func() error {
 				var appRevList = &v1beta1.ApplicationRevisionList{}
-				_ = k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
+				err := k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
 					client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
-				return len(appRevList.Items) >= 2
+				if err != nil {
+					return err
+				}
+				if len(appRevList.Items) < 2 {
+					return fmt.Errorf("appRevision number mismatch acctually %d", len(appRevList.Items))
+				}
+				return nil
 			},
-			time.Second*30, time.Millisecond*300).Should(BeTrue())
+			time.Second*30, time.Millisecond*300).Should(BeNil())
 	}
 
 	createAppRolling := func(newAppRollout *v1beta1.AppRollout) {

@@ -89,8 +89,6 @@ func main() {
 		"definition-revision-limit is the maximum number of component/trait definition useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 20.")
 	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
-	flag.BoolVar(&controllerArgs.ApplicationConfigurationInstalled, "app-config-installed", true,
-		"app-config-installed indicates if applicationConfiguration CRD is installed")
 	flag.BoolVar(&controllerArgs.AutoGenWorkloadDefinition, "autogen-workload-definition", true, "Automatic generated workloadDefinition which componentDefinition refers to.")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
 	flag.StringVar(&applyOnceOnly, "apply-once-only", "false",
@@ -103,6 +101,7 @@ func main() {
 	flag.IntVar(&controllerArgs.ConcurrentReconciles, "concurrent-reconciles", 4, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
 	flag.DurationVar(&controllerArgs.DependCheckWait, "depend-check-wait", 30*time.Second, "depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready."+
 		"The default value is 30s, which means if dependent resources were not prepared, the ApplicationConfiguration would be reconciled after 30s.")
+	flag.StringVar(&controllerArgs.OAMSpecVer, "oam-spec-ver", "v0.3", "oam-spec-ver is the oam spec version controller want to setup, available options: v0.2, v0.3, all")
 
 	flag.Parse()
 	// setup logging
@@ -193,14 +192,15 @@ func main() {
 	}
 
 	if err = oamv1alpha2.Setup(mgr, controllerArgs); err != nil {
-		klog.ErrorS(err, "Unable to setup the oam core controller")
+		klog.ErrorS(err, "Unable to setup the oam controller")
 		os.Exit(1)
 	}
 
-	if err = standardcontroller.Setup(mgr, disableCaps); err != nil {
+	if err = standardcontroller.Setup(mgr, disableCaps, controllerArgs); err != nil {
 		klog.ErrorS(err, "Unable to setup the vela core controller")
 		os.Exit(1)
 	}
+
 	if driver := os.Getenv(system.StorageDriverEnv); len(driver) == 0 {
 		// first use system environment,
 		err := os.Setenv(system.StorageDriverEnv, storageDriver)

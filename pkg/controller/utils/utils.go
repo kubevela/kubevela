@@ -65,8 +65,8 @@ const LabelPodSpecable = "workload.oam.dev/podspecable"
 
 // allBuiltinCapabilities includes all builtin controllers
 // TODO(zzxwill) needs to automatically discovery all controllers
-var allBuiltinCapabilities = mapset.NewSet(common.MetricsControllerName, common.PodspecWorkloadControllerName,
-	common.RouteControllerName, common.AutoscaleControllerName)
+var allBuiltinCapabilities = mapset.NewSet(common.ManualScalerTraitControllerName, common.PodspecWorkloadControllerName,
+	common.ContainerizedWorkloadControllerName, common.HealthScopeControllerName)
 
 // GetPodSpecPath get podSpec field and label
 func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
@@ -204,10 +204,7 @@ func ConstructRevisionName(componentName string, revision int64) string {
 }
 
 // ExtractComponentName will extract the componentName from a revisionName
-func ExtractComponentName(revisionName string) string {
-	splits := strings.Split(revisionName, "-")
-	return strings.Join(splits[0:len(splits)-1], "-")
-}
+var ExtractComponentName = util.ExtractComponentName
 
 // ExtractRevision will extract the revision from a revisionName
 func ExtractRevision(revisionName string) (int, error) {

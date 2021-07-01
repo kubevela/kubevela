@@ -51,6 +51,11 @@ const (
 	LabelPolicyDefinitionName = "policydefinition.oam.dev/name"
 	// LabelWorkflowStepDefinitionName records the name of WorkflowStepDefinition
 	LabelWorkflowStepDefinitionName = "workflowstepdefinition.oam.dev/name"
+
+	// LabelControllerRevisionComponent indicate which component the revision belong to
+	LabelControllerRevisionComponent = "controller.oam.dev/component"
+	// LabelComponentRevisionHash records the hash value of a component
+	LabelComponentRevisionHash = "app.oam.dev/component-revision-hash"
 )
 
 const (
@@ -94,4 +99,10 @@ const (
 
 	// AnnotationKubeVelaVersion is used to record current KubeVela version
 	AnnotationKubeVelaVersion = "oam.dev/kubevela-version"
+
+	// AnnotationFilterAnnotationKeys is used to filter annotations passed to workload and trait, split by comma
+	AnnotationFilterAnnotationKeys = "filter.oam.dev/annotation-keys"
+
+	// AnnotationFilterLabelKeys is used to filter labels passed to workload and trait, split by comma
+	AnnotationFilterLabelKeys = "filter.oam.dev/label-keys"
 )

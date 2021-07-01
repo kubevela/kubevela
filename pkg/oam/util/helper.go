@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -633,6 +634,80 @@ func RawExtension2AppConfig(raw runtime.RawExtension) (*v1alpha2.ApplicationConf
 	return ac, nil
 }
 
+// RawExtension2Component converts runtime.RawExtention to Component
+func RawExtension2Component(raw runtime.RawExtension) (*v1alpha2.Component, error) {
+	c := &v1alpha2.Component{}
+	b, err := raw.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, c); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// AppConfig2ComponentManifests convert AppConfig and Components to a slice of ComponentManifest.
+func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.RawComponent) ([]*oamtypes.ComponentManifest, error) {
+	var err error
+	ac, err := RawExtension2AppConfig(acRaw)
+	if err != nil {
+		return nil, err
+	}
+	cms := make([]*oamtypes.ComponentManifest, len(ac.Spec.Components))
+	for i, acc := range ac.Spec.Components {
+		cm := &oamtypes.ComponentManifest{
+			Name:         acc.ComponentName,
+			RevisionName: acc.RevisionName,
+		}
+		if acc.ComponentName == "" && acc.RevisionName != "" {
+			cm.Name = ExtractComponentName(acc.RevisionName)
+		}
+		for _, compRaw := range comps {
+			comp, err := RawExtension2Component(compRaw.Raw)
+			if err != nil {
+				return nil, err
+			}
+			cm.RevisionHash = comp.GetLabels()[oam.LabelComponentRevisionHash]
+			if comp.Name == cm.Name {
+				cm.StandardWorkload, err = RawExtension2Unstructured(&comp.Spec.Workload)
+				if err != nil {
+					return nil, err
+				}
+				if comp.Spec.Helm != nil {
+					rls, err := RawExtension2Unstructured(&comp.Spec.Helm.Release)
+					if err != nil {
+						return nil, err
+					}
+					repo, err := RawExtension2Unstructured(&comp.Spec.Helm.Repository)
+					if err != nil {
+						return nil, err
+					}
+					cm.PackagedWorkloadResources = []*unstructured.Unstructured{rls, repo}
+				}
+				break
+			}
+		}
+		cm.Traits = make([]*unstructured.Unstructured, len(acc.Traits))
+		for j, t := range acc.Traits {
+			cm.Traits[j], err = RawExtension2Unstructured(&t.Trait)
+			if err != nil {
+				return nil, err
+			}
+		}
+		cm.Scopes = make([]*corev1.ObjectReference, len(acc.Scopes))
+		for x, s := range acc.Scopes {
+			cm.Scopes[x] = &corev1.ObjectReference{
+				Kind:       s.ScopeReference.Kind,
+				Name:       s.ScopeReference.Name,
+				APIVersion: s.ScopeReference.APIVersion,
+			}
+		}
+		cms[i] = cm
+	}
+	return cms, nil
+}
+
 // Object2Map turn the Object to a map
 func Object2Map(obj interface{}) (map[string]interface{}, error) {
 	var res map[string]interface{}
@@ -686,6 +761,15 @@ func GenTraitName(componentName string, ct *v1alpha2.ComponentTrait, traitType s
 	}
 	return fmt.Sprintf("%s-%s-%s", componentName, traitMiddleName, ComputeHash(ct))
 
+}
+
+// GenTraitNameCompatible generate trait name based on unstructured trait and re-use legacy GenTraitName for backward
+// compatibility
+func GenTraitNameCompatible(componentName string, trait *unstructured.Unstructured, traitType string) string {
+	ct := &v1alpha2.ComponentTrait{
+		Trait: Object2RawExtension(trait),
+	}
+	return GenTraitName(componentName, ct, traitType)
 }
 
 // ComputeHash returns a hash value calculated from pod template and
@@ -800,6 +884,12 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	workloadDef.Spec.Status = componentDef.Spec.Status
 	workloadDef.Spec.Schematic = componentDef.Spec.Schematic
 	return nil
+}
+
+// ExtractComponentName will extract the componentName from a revisionName
+func ExtractComponentName(revisionName string) string {
+	splits := strings.Split(revisionName, "-")
+	return strings.Join(splits[0:len(splits)-1], "-")
 }
 
 // ExtractRevisionNum  extract revision number

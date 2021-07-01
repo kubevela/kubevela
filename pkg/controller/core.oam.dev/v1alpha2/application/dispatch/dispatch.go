@@ -63,21 +63,22 @@ type AppManifestsDispatcher struct {
 	currentRT     *v1beta1.ResourceTracker
 }
 
-// EnableUpgradeAndGC return an AppManifestsDispatcher that always do GC after dispatching resources.
+// EndAndGC return an AppManifestsDispatcher that do GC after dispatching resources.
 // For resources exists in two revision, dispatcher will update their owner to the new resource tracker.
 // GC will calculate diff between the dispatched resources and ones recorded in the given resource tracker.
-func (a *AppManifestsDispatcher) EnableUpgradeAndGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
+func (a *AppManifestsDispatcher) EndAndGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
 	if rt != nil {
 		a.previousRT = rt.DeepCopy()
+		a.skipGC = false
 	}
 	return a
 }
 
-// EnableUpgradeAndSkipGC return an AppManifestsDispatcher that skips GC after dispatching resources.
+// StartAndSkipGC return an AppManifestsDispatcher that skips GC after dispatching resources.
 // For resources exists in two revision, dispatcher will update their owner to the new resource tracker.
 // It's helpful in a rollout scenario where new revision is going to create a new workload while the old one should not
 // be deleted before rollout is terminated.
-func (a *AppManifestsDispatcher) EnableUpgradeAndSkipGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
+func (a *AppManifestsDispatcher) StartAndSkipGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
 	if rt != nil {
 		a.previousRT = rt.DeepCopy()
 		a.skipGC = true

@@ -28,8 +28,6 @@ limitations under the License.
 //go:generate go run -tags generate sigs.k8s.io/controller-tools/cmd/controller-gen object:headerFile=../hack/boilerplate.go.txt paths=./... crd output:artifacts:config=../legacy/charts/vela-core-legacy/crds
 //go:generate go run ../legacy/convert/main.go ../legacy/charts/vela-core-legacy/crds
 
-//go:generate go run ../hack/crd/update.go ../charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml
-
 package apis
 
 import (

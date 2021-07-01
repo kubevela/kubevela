@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"reflect"
 
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/go-logr/logr"
@@ -292,7 +294,7 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, workload *v1alpha1.PodSpe
 }
 
 // Setup adds a controller that reconciles PodSpecWorkload.
-func Setup(mgr ctrl.Manager) error {
+func Setup(mgr ctrl.Manager, args controller.Args) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		log:    ctrl.Log.WithName("PodSpecWorkload"),
