@@ -52,7 +52,7 @@ var _ = Describe("utils", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 		It("disable some capabilities", func() {
-			disableCaps := "autoscale,route"
+			disableCaps := "manualscaler,healthscope"
 			err := CheckDisabledCapabilities(disableCaps)
 			Expect(err).NotTo(HaveOccurred())
 		})

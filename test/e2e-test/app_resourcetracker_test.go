@@ -1150,7 +1150,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("error to record deploy name in app status")
 			}
 			return nil
-		}, time.Second*5, time.Millisecond*500).Should(BeNil())
+		}, time.Second*30, time.Millisecond*500).Should(BeNil())
 		By("deleting application will remove resourceTracker and related resourceTracker will be removed")
 		app = new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())

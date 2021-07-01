@@ -9,6 +9,7 @@ metadata:
     cert-manager.io/inject-ca-from: {{ printf "%s/%s-root-cert" .Release.Namespace (include "kubevela.fullname" .) | quote }}
   {{- end }}
 webhooks:
+  {{- if eq .Values.OAMSpecVer "all"}}
   - clientConfig:
       caBundle: Cg==
       service:
@@ -41,33 +42,6 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        path: /mutating-core-oam-dev-v1beta1-approllout
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: Fail
-    {{- end }}
-    name: mutating.core.oam.dev.v1beta1.approllouts
-    sideEffects: None
-    rules:
-      - apiGroups:
-          - core.oam.dev
-        apiVersions:
-          - v1beta1
-        operations:
-          - CREATE
-          - UPDATE
-        resources:
-          - approllouts
-        scope: Namespaced
-    admissionReviewVersions:
-      - v1beta1
-    timeoutSeconds: 5
-  - clientConfig:
-      caBundle: Cg==
-      service:
-        name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
         path: /mutating-core-oam-dev-v1alpha2-components
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
@@ -86,6 +60,34 @@ webhooks:
           - UPDATE
         resources:
           - components
+        scope: Namespaced
+    admissionReviewVersions:
+      - v1beta1
+    timeoutSeconds: 5
+  {{- end }}
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutating-core-oam-dev-v1beta1-approllout
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fail
+    {{- end }}
+    name: mutating.core.oam.dev.v1beta1.approllouts
+    sideEffects: None
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - approllouts
         scope: Namespaced
     admissionReviewVersions:
       - v1beta1

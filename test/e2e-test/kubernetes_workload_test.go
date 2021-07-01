@@ -81,7 +81,7 @@ var _ = Describe("Test kubernetes native workloads", func() {
 		wd := v1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "deployments.apps",
-				Namespace: "vela-system",
+				Namespace: "oam-runtime-system",
 				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
@@ -92,7 +92,7 @@ var _ = Describe("Test kubernetes native workloads", func() {
 		}
 		logf.Log.Info("Creating workload definition for deployment")
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
-		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, wd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		// create a workload CR
 		workloadName := "example-deployment-workload"
 		wl := appsv1.Deployment{
@@ -153,7 +153,10 @@ var _ = Describe("Test kubernetes native workloads", func() {
 			},
 		}
 		logf.Log.Info("Creating component", "Name", comp.Name, "Namespace", comp.Namespace)
-		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
+
+		Eventually(func() error {
+			return k8sClient.Create(ctx, &comp)
+		}, 30*time.Second, 300*time.Microsecond).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 
 		By("Check component created as expected")
 		Eventually(
