@@ -1,9 +1,9 @@
 ### GitHub & kubevela automation
 
-The bot is configured via [issue-commands.json](https://github.com/oam-dev/kubevela/blob/main/.github/workflows/issue-commands.json) 
-and some other GitHub [workflows](https://github.com/oam-dev/kubevela/blob/main/.github/workflows).
+The bot is configured via [issue-commands.json](https://github.com/oam-dev/kubevela/blob/master/.github/workflows/issue-commands.json) 
+and some other GitHub [workflows](https://github.com/oam-dev/kubevela/blob/master/.github/workflows).
 By default, users with write access to the repo is allowed to use the comments, 
-the [userlist](https://github.com/oam-dev/kubevela/blob/main/.github/comment.userlist) 
+the [userlist](https://github.com/oam-dev/kubevela/blob/master/.github/comment.userlist) 
 file is for adding additional members who do not have access and want to contribute to the issue triage.
 
 Comment commands:
