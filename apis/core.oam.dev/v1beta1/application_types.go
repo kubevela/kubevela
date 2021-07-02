@@ -71,6 +71,11 @@ type WorkflowStep struct {
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 }
 
+// Workflow defines workflow steps and other attributes
+type Workflow struct {
+	Steps []WorkflowStep `json:"steps,omitempty"`
+}
+
 // ApplicationSpec is the spec of Application
 type ApplicationSpec struct {
 	Components []ApplicationComponent `json:"components"`
@@ -85,7 +90,7 @@ type ApplicationSpec struct {
 	// Workflow steps are executed in array order, and each step:
 	// - will have a context in annotation.
 	// - should mark "finish" phase in status.conditions.
-	Workflow []WorkflowStep `json:"workflow,omitempty"`
+	Workflow *Workflow `json:"workflow,omitempty"`
 
 	// TODO(wonderflow): we should have application level scopes supported here
 

@@ -38,18 +38,20 @@ func TestExecuteSteps(t *testing.T) {
 			Namespace: "test",
 		},
 		Spec: oamcore.ApplicationSpec{
-			Workflow: []oamcore.WorkflowStep{},
+			Workflow: &oamcore.Workflow{
+				Steps: []oamcore.WorkflowStep{},
+			},
 		},
 	}
 
 	onestepApp := zerostepApp.DeepCopy()
-	onestepApp.Spec.Workflow = []oamcore.WorkflowStep{{
+	onestepApp.Spec.Workflow.Steps = []oamcore.WorkflowStep{{
 		Name: "test",
 		Type: "test",
 	}}
 
 	twostepsApp := onestepApp.DeepCopy()
-	twostepsApp.Spec.Workflow = append(twostepsApp.Spec.Workflow, oamcore.WorkflowStep{
+	twostepsApp.Spec.Workflow.Steps = append(twostepsApp.Spec.Workflow.Steps, oamcore.WorkflowStep{
 		Name: "test2",
 		Type: "test2",
 	})

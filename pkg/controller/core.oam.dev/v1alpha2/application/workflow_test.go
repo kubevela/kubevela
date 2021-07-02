@@ -56,15 +56,17 @@ var _ = Describe("Test Workflow", func() {
 				Type:       "worker",
 				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 			}},
-			Workflow: []oamcore.WorkflowStep{{
-				Name:       "test-wf1",
-				Type:       "foowf",
-				Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
-			}, {
-				Name:       "test-wf2",
-				Type:       "foowf",
-				Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
-			}},
+			Workflow: &oamcore.Workflow{
+				Steps: []oamcore.WorkflowStep{{
+					Name:       "test-wf1",
+					Type:       "foowf",
+					Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+				}, {
+					Name:       "test-wf2",
+					Type:       "foowf",
+					Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+				}},
+			},
 		},
 	}
 	appWithWorkflowAndPolicy := appWithWorkflow.DeepCopy()
