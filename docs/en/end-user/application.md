@@ -225,6 +225,8 @@ Specifically:
 
 When updating an application entity, KubeVela will create a new revision for this change.
 
+When unused application revison number exceed `applicationRevisionLimit`（ default is 10 ）, KubeVela will remove the oldest revision.
+
 ```shell
 kubectl get apprev -l app.oam.dev/name=website
 ```
