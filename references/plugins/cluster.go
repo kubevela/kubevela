@@ -111,18 +111,24 @@ func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace s
 		if err != nil {
 			return nil, nil, err
 		}
-		ref, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
-		if err != nil {
-			return nil, nil, err
+
+		defRef := commontypes.DefinitionReference{
+			Name: cd.Spec.Workload.Type,
+		}
+		if cd.Spec.Workload.Type != types.AutoDetectWorkloadDefinition {
+			defRef, err = util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 
-		tmp, err := GetCapabilityByComponentDefinitionObject(cd, ref.Name)
+		tmp, err := GetCapabilityByComponentDefinitionObject(cd, defRef.Name)
 		if err != nil {
 			templateErrors = append(templateErrors, err)
 			continue
 		}
-		if validateFlag {
-			if err = validateCapabilities(tmp, dm, cd.Name, ref); err != nil {
+		if validateFlag && defRef.Name != types.AutoDetectWorkloadDefinition {
+			if err = validateCapabilities(tmp, dm, cd.Name, defRef); err != nil {
 				return nil, nil, err
 			}
 		}

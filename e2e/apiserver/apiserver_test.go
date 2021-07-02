@@ -79,6 +79,7 @@ var notExistedEnvMeta = apis.Environment{
 var webserviceWorkloadType = "webservice"
 var workerWorkloadType = "worker"
 var taskWorkloadType = "task"
+var rawWorkloadType = "raw"
 
 var _ = ginkgo.Describe("API", func() {
 	//API Env
@@ -237,7 +238,7 @@ var _ = ginkgo.Describe("API", func() {
 			for _, i := range data {
 				var workloadDefinition = i.(map[string]interface{})
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect([]string{webserviceWorkloadType, workerWorkloadType, taskWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
+				gomega.Expect([]string{webserviceWorkloadType, workerWorkloadType, taskWorkloadType, rawWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
 			}
 		})
 
