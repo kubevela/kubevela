@@ -1,0 +1,148 @@
+[
+  {
+    "type": "comment",
+    "name": "needsMoreInfo",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "needs more info"
+  },
+  {
+    "type": "comment",
+    "name": "needsInvestigation",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "needs investigation"
+  },
+  {
+    "type": "comment",
+    "name": "type/bug",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "type/bug"
+  },
+  {
+    "type": "comment",
+    "name": "type/docs",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "type/docs"
+  },
+  {
+    "type": "comment",
+    "name": "type/enhancement",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "type/enhancement"
+  },
+  {
+    "type": "comment",
+    "name": "priority/critical",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "priority/critical"
+  },
+  {
+    "type": "comment",
+    "name": "priority/important-soon",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "priority/important-soon"
+  },
+  {
+    "type": "comment",
+    "name": "priority/important-longterm",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "priority/important-longterm"
+  },
+  {
+    "type": "comment",
+    "name": "priority/nice-to-have",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "priority/nice-to-have"
+  },
+  {
+    "type": "comment",
+    "name": "priority/awaiting-more-evidence",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "priority/awaiting-more-evidence"
+  },
+  {
+    "type": "comment",
+    "name": "priority/unscheduled",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "priority/unscheduled"
+  },
+  {
+    "type": "comment",
+    "name": "area/appconfig",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "area/appconfig"
+  },
+  {
+    "type": "comment",
+    "name": "area/application",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "area/application"
+  },
+  {
+    "type": "comment",
+    "name": "area/component",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "area/component"
+  },
+  {
+    "type": "comment",
+    "name": "area/controller",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "area/controller"
+  },
+  {
+    "type": "comment",
+    "name": "area/cue",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "area/cue"
+  },
+  {
+    "type": "comment",
+    "name": "area/trait",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "area/trait"
+  },
+  {
+    "type": "comment",
+    "name": "duplicate",
+    "allowUsers": [],
+    "action": "updateLabels",
+    "addLabel": "type/duplicate"
+  },
+  {
+    "type": "label",
+    "name": "bot/duplicate",
+    "addLabel": "type/duplicate",
+    "removeLabel": "bot/duplicate",
+    "action": "close",
+    "comment": "Thanks for creating this issue! It looks like this has already been reported by another user. We’ve closed this in favor of the existing one. Please consider adding any details you think is missing to that issue.\n\nTo avoid having your issue closed in the future, please read our [CONTRIBUTING](https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md) guidelines.\n\nHappy graphing!"
+  },
+  {
+    "type": "label",
+    "name": "bot/no new info",
+    "action": "close",
+    "comment": "We've closed this issue since it needs more information and hasn't had any activity recently. We can re-open it after you you add more information. To avoid having your issue closed in the future, please read our [CONTRIBUTING](https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md) guidelines.\n\nHappy graphing!"
+  },
+  {
+    "type": "label",
+    "name": "bot/close feature request",
+    "action": "close",
+    "comment": "This feature request has been open for a long time with few received upvotes or comments, so we are closing it. We're trying to limit open GitHub issues in order to better track planned work and features.  \r\n\r\nThis doesn't mean that we'll never ever implement it or that we will never accept a PR for it. A closed issue can still attract upvotes and act as a ticket to track feature demand\/interest. \r\n\r\nThank You to you for taking the time to create this issue!"
+  }
+]
