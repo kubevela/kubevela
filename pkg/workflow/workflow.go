@@ -48,15 +48,20 @@ func NewWorkflow(app *oamcore.Application, applicator apply.Applicator) Workflow
 }
 
 func (w *workflow) ExecuteSteps(ctx context.Context, rev string, objects []*unstructured.Unstructured) (bool, error) {
-	steps := w.app.Spec.Workflow
+	if w.app.Spec.Workflow == nil {
+		return true, nil
+	}
 
+	steps := w.app.Spec.Workflow.Steps
 	if len(steps) == 0 {
 		return true, nil
 	}
 
 	w.app.Status.Phase = common.ApplicationRunningWorkflow
 
-	w.app.Status.Workflow = []common.WorkflowStepStatus{}
+	w.app.Status.Workflow = &common.WorkflowStatus{
+		Steps: []common.WorkflowStepStatus{},
+	}
 	for i, step := range steps {
 		obj := objects[i].DeepCopy()
 		obj.SetName(step.Name)
@@ -81,7 +86,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, objects []*unst
 			return false, err
 		}
 
-		w.app.Status.Workflow = append(w.app.Status.Workflow, *status)
+		w.app.Status.Workflow.Steps = append(w.app.Status.Workflow.Steps, *status)
 		switch status.Phase {
 		case common.WorkflowStepPhaseSucceeded: // This one is done. Continue
 		case common.WorkflowStepPhaseRunning: // Need to retry shortly.

@@ -134,7 +134,11 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 	return ws, nil
 }
 
-func (p *Parser) parseWorkflow(ctx context.Context, steps []v1beta1.WorkflowStep) ([]*Workload, error) {
+func (p *Parser) parseWorkflow(ctx context.Context, workflow *v1beta1.Workflow) ([]*Workload, error) {
+	if workflow == nil {
+		return []*Workload{}, nil
+	}
+	steps := workflow.Steps
 	ws := []*Workload{}
 	for _, step := range steps {
 		w, err := p.makeWorkload(ctx, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)

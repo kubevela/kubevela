@@ -70,7 +70,7 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 
 func (h *appHandler) applyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	appRev := h.currentAppRev
-	if h.app.Spec.Workflow != nil || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
 		return h.createResourcesConfigMap(ctx, appRev, comps, policies)
 	}
 	if appWillRollout(h.app) {

@@ -26,12 +26,14 @@ spec:
   # Policies are rendered after components are rendered but before workflow are started
   policies:
     - type: security
+      name: my-rule
       properties:
         rbac: ...
         audit: enabled
         secretBackend: vault
 
     - type: deployment-insights
+      name: my-deploy-insight
       properties:
         leadTime: enabled
         frequency: enabled
@@ -43,6 +45,12 @@ spec:
   # - will have a context in annotation.
   # - should mark "finish" phase in status.conditions.
   workflow:
+    
+    # suspend can manually stop the workflow and resume. it will also allow suspend policy for workflow.
+    suspend:
+      manual: true
+    
+    steps:
   
     # blue-green rollout
     - type: blue-green-rollout
@@ -127,19 +135,22 @@ To support policies and workflow, the application controller will be modified as
       }
       ...more json-marshalled resources...
   ```
-- If workflow is specified, the controller will then apply the ApplicationRevision, but skip applying ApplicationContext. In this way, the resources won't be applied by Vela controller.
+- If workflow is specified, the controller will then apply the ApplicationRevision, but skip applying Resources.
+  In this way, the resources won't be created by Vela controller.
 - The controller will then reconcile the workflow step by step. Each workflow step will be recorded in the Application.status:
   ```yaml
   kind: Application
   status:
     workflow:
-    - type: rollout-promotion
-      phase: running # succeeded | failed | stopped
-      resourceRef:
-        kind: Rollout
-        name: ...
+      steps:
+      - type: rollout-promotion
+        phase: running # succeeded | failed | stopped
+        resourceRef:
+          kind: Rollout
+          name: ...
   ```
-- Note that each workflow step must be idempotent, which means it should be able to process an object that are already submitted and processed. A non-idempotent example would be a controller that keeps appending item to an array field.
+- Note that each workflow step must be idempotent, which means it should be able to process an object that are already submitted and processed.
+  A non-idempotent example would be a controller that keeps appending item to an array field.
 
 Each workflow step has the following interactions with the app controller:
 - The controller will apply the workflow object with annotation `app.oam.dev/workflow-context`. This annotation will pass in the context marshalled in json defined as the following:
@@ -175,6 +186,7 @@ In this case, users want to distribute workflow to multiple clusters. The dispat
 
 ```yaml
 workflow:
+  steps:
   - type: open-cluster-management
     properties:
       placement:
@@ -197,6 +209,7 @@ In this case, users want to rollout a new version of the application components 
 
 ```yaml
 workflow:
+  steps: 
   # blue-green rollout
   - type: blue-green-rollout
     properties:
@@ -232,10 +245,11 @@ The process goes as:
   kind: Application
   status:
     workflow:
-    - type: rollout-promotion
-      resourceRef:
-        kind: Rollout
-        name: ...
+      steps:
+      - type: rollout-promotion
+        resourceRef:
+          kind: Rollout
+          name: ...
   ```
 
 ### Case 3: Data Passing
@@ -253,6 +267,7 @@ components:
 
 
 workflow:
+  steps:
   - type: apply-component 
     properties:
       name: my-db
@@ -290,11 +305,12 @@ In this case, users just want Vela to provide final k8s resources and push them 
 
 ```yaml
 workflow:
-- type: gitops # This part configures how to push resources to Git repo
-  properties:
-    gitRepo: git-repo-url
-    branch: branch
-    credentials: ...
+  steps:
+  - type: gitops # This part configures how to push resources to Git repo
+    properties:
+      gitRepo: git-repo-url
+      branch: branch
+      credentials: ...
 ```
 
 The process goes as:
@@ -307,6 +323,7 @@ In this case, a template for Application object has already been defined. Instea
 
 ```yaml
 workflow:
+  steps:
   - type: helm-template
     stage: pre-render
     properties:
@@ -317,6 +334,7 @@ workflow:
         replicas: 3
 ---
 workflow:
+  steps:
   - type: kustomize-patch
     stage: pre-render
     properties:
