@@ -133,30 +133,20 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 
 	var comps []*velatypes.ComponentManifest
-	if handler.isNewRevision {
-		comps, err = appFile.GenerateComponentManifests()
-		if err != nil {
-			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
-			app.Status.SetConditions(errorCondition("Render", err))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-			return handler.handleErr(err)
-		}
-		if err := handler.handleComponentsRevision(ctx, comps); err != nil {
-			klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
-			app.Status.SetConditions(errorCondition("Render", err))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-			return handler.handleErr(err)
-		}
-	} else {
-		comps, err = oamutil.AppConfig2ComponentManifests(handler.latestAppRev.Spec.ApplicationConfiguration,
-			handler.latestAppRev.Spec.Components)
-		if err != nil {
-			klog.ErrorS(err, "Failed to get data from existing app revision", "application", klog.KObj(app))
-			app.Status.SetConditions(errorCondition("Revision", err))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-			return handler.handleErr(err)
-		}
+	comps, err = appFile.GenerateComponentManifests()
+	if err != nil {
+		klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
+		app.Status.SetConditions(errorCondition("Render", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+		return handler.handleErr(err)
 	}
+	if err := handler.handleComponentsRevision(ctx, comps); err != nil {
+		klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
+		app.Status.SetConditions(errorCondition("Render", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+		return handler.handleErr(err)
+	}
+
 	if err := handler.finalizeAndApplyAppRevision(ctx, comps); err != nil {
 		klog.ErrorS(err, "Failed to apply app revision", "application", klog.KObj(app))
 		app.Status.SetConditions(errorCondition("Revision", err))

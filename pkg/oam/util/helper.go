@@ -660,6 +660,11 @@ func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.Raw
 			Name:         acc.ComponentName,
 			RevisionName: acc.RevisionName,
 		}
+		if acc.RevisionName == "--" {
+			// generate ComponentManifest from appfile
+			cms[i] = cm
+			continue
+		}
 		if acc.ComponentName == "" && acc.RevisionName != "" {
 			cm.Name = ExtractComponentName(acc.RevisionName)
 		}

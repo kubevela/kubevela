@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/klog/v2"
+
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -32,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
@@ -93,32 +94,38 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appfile.Namespace = ns
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
-		wd, err := p.parseWorkload(ctx, comp, appName, ns)
+		wd, err := p.parseWorkload(ctx, comp)
 		if err != nil {
 			return nil, err
 		}
+		if err := GetSecretAndConfigs(p.client, wd, appName, ns); err != nil {
+			klog.InfoS("Failed to get secret and configs", "namespace", ns, "app name", appName, "workload name", wd.Name,
+				"err", err)
+			wd.ConfigNotReady = true
+		}
+
 		wds = append(wds, wd)
 	}
 	appfile.Workloads = wds
 
 	var err error
 
-	appfile.Policies, err = p.parsePolicies(ctx, appName, ns, app.Spec.Policies)
+	appfile.Policies, err = p.parsePolicies(ctx, app.Spec.Policies)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
 
-	appfile.WorkflowSteps, err = p.parseWorkflow(ctx, appName, ns, app.Spec.Workflow)
+	appfile.WorkflowSteps, err = p.parseWorkflow(ctx, app.Spec.Workflow)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parseWorkflow: %w", err)
 	}
 	return appfile, nil
 }
 
-func (p *Parser) parsePolicies(ctx context.Context, appName, ns string, policies []v1beta1.AppPolicy) ([]*Workload, error) {
+func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy) ([]*Workload, error) {
 	ws := []*Workload{}
 	for _, policy := range policies {
-		w, err := p.makeWorkload(ctx, appName, ns, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+		w, err := p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
 		if err != nil {
 			return nil, err
 		}
@@ -127,10 +134,10 @@ func (p *Parser) parsePolicies(ctx context.Context, appName, ns string, policies
 	return ws, nil
 }
 
-func (p *Parser) parseWorkflow(ctx context.Context, appName, ns string, steps []v1beta1.WorkflowStep) ([]*Workload, error) {
+func (p *Parser) parseWorkflow(ctx context.Context, steps []v1beta1.WorkflowStep) ([]*Workload, error) {
 	ws := []*Workload{}
 	for _, step := range steps {
-		w, err := p.makeWorkload(ctx, appName, ns, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)
+		w, err := p.makeWorkload(ctx, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +146,7 @@ func (p *Parser) parseWorkflow(ctx context.Context, appName, ns string, steps []
 	return ws, nil
 }
 
-func (p *Parser) makeWorkload(ctx context.Context, appName, ns, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
+func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", name)
@@ -162,33 +169,13 @@ func (p *Parser) makeWorkload(ctx context.Context, appName, ns, name, typ string
 		Params:             settings,
 		engine:             definition.NewWorkloadAbstractEngine(name, p.pd),
 	}
-
-	if workload.IsCloudResourceConsumer() {
-		requiredSecrets, err := parseWorkloadInsertSecretTo(ctx, p.client, ns, workload)
-		if err != nil {
-			return nil, err
-		}
-		workload.RequiredSecrets = requiredSecrets
-	}
-
-	userConfig := workload.GetUserConfigName()
-	if userConfig != "" {
-		cg := config.Configmap{Client: p.client}
-		// TODO(wonderflow): envName should not be namespace when we have serverside env
-		var envName = ns
-		data, err := cg.GetConfigData(config.GenConfigMapName(appName, workload.Name, userConfig), envName)
-		if err != nil {
-			return nil, errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, appName, ns)
-		}
-		workload.UserConfigs = data
-	}
 	return workload, nil
 }
 
 // parseWorkload resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile.
-func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent, appName, ns string) (*Workload, error) {
-	workload, err := p.makeWorkload(ctx, appName, ns, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent) (*Workload, error) {
+	workload, err := p.makeWorkload(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
 	if err != nil {
 		return nil, err
 	}
