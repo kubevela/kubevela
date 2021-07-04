@@ -142,6 +142,9 @@ type Trait struct {
 	HealthCheckPolicy  string
 	CustomStatusFormat string
 
+	// RequiredSecrets stores secret names which the trait needs from cloud resource component and its context
+	RequiredSecrets []process.RequiredSecrets
+
 	FullTemplate *Template
 	engine       definition.AbstractEngine
 }
@@ -159,6 +162,16 @@ func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string
 // EvalHealth eval trait health check
 func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
 	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
+}
+
+// IsSecretConsumer checks whether a trait is cloud resource consumer role
+func (trait *Trait) IsSecretConsumer() bool {
+	requiredSecretTag := strings.TrimRight(InsertSecretToTag, "=")
+	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(trait.FullTemplate.TemplateStr))
+	if err != nil || !matched {
+		return false
+	}
+	return true
 }
 
 // Appfile describes application
@@ -260,11 +273,21 @@ func NewBasicContext(wl *Workload, applicationName, revision, namespace string) 
 // GetSecretAndConfigs will get secrets and configs the workload requires
 func GetSecretAndConfigs(cli client.Client, workload *Workload, appName, ns string) error {
 	if workload.IsSecretConsumer() {
-		requiredSecrets, err := parseWorkloadInsertSecretTo(context.TODO(), cli, ns, workload)
+		requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, workload.FullTemplate.TemplateStr, workload.Params)
 		if err != nil {
 			return err
 		}
 		workload.RequiredSecrets = requiredSecrets
+	}
+
+	for _, tr := range workload.Traits {
+		if tr.IsSecretConsumer() {
+			requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, tr.FullTemplate.TemplateStr, tr.Params)
+			if err != nil {
+				return err
+			}
+			tr.RequiredSecrets = requiredSecrets
+		}
 	}
 
 	userConfig := workload.GetUserConfigName()
@@ -307,6 +330,7 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 		wl.OutputSecretName = outputSecretName
 	}
 	for _, tr := range wl.Traits {
+		pCtx.InsertSecrets("", tr.RequiredSecrets)
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
 		}

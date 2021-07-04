@@ -412,6 +412,64 @@ spec:
 		Expect(envs[0].Value).Should(Equal("ccc"))
 	})
 
+	It("app contains trait which will consumes cloud resources", func() {
+		var (
+			appName          = "app-share-fs"
+			ns               = "default"
+			targetSecretName = "nas-conn"
+			secretData       = map[string][]byte{
+				"MountTargetDomain": []byte("test.com"),
+			}
+			businessApplication = appwithNoTrait.DeepCopy()
+			appKey              = client.ObjectKey{
+				Name:      appName,
+				Namespace: ns,
+			}
+		)
+		businessApplication.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{{
+			Type:       "share-fs",
+			Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
+		}}
+		businessApplication.SetName(appName)
+		businessApplication.SetNamespace(ns)
+
+		By("apply traitDefinition")
+		td := &v1beta1.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(shareFsTraitDefinition))
+		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("create secret")
+		s := &corev1.Secret{
+			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      targetSecretName,
+				Namespace: ns,
+			},
+			Data: secretData,
+		}
+		err := k8sClient.Create(ctx, s)
+		Expect(err).Should(BeNil())
+
+		By("apply business application")
+		err = k8sClient.Create(ctx, businessApplication)
+		Expect(err).Should(BeNil())
+
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("checking application")
+		var app v1beta1.Application
+		err = k8sClient.Get(ctx, appKey, &app)
+		Expect(err).Should(BeNil())
+
+		By("check PV created by application")
+		var pv corev1.PersistentVolume
+		err = k8sClient.Get(ctx, client.ObjectKey{Name: app.Spec.Components[0].Name, Namespace: ns}, &pv)
+		Expect(err).Should(BeNil())
+
+		Expect(pv.Spec.CSI.VolumeAttributes["host"]).Should(Equal(string(secretData["MountTargetDomain"])))
+	})
+
 	It("app-without-trait will only create workload", func() {
 		expDeployment := getExpDeployment("myweb2", appwithNoTrait.Name)
 		ns := &corev1.Namespace{
@@ -2412,6 +2470,63 @@ spec:
         dbConn: {
         	username: string
         	password: string
+        }
+`
+
+	shareFsTraitDefinition = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: share-fs
+  namespace: default
+spec:
+  schematic:
+    cue:
+      template: |
+        outputs: pv: {
+        	apiVersion: "v1"
+        	kind:       "PersistentVolume"
+        	metadata: {
+        		name:      context.name
+        	}
+        	spec: {
+        		accessModes: ["ReadWriteMany"]
+        		capacity: storage: "999Gi"
+        		persistentVolumeReclaimPolicy: "Retain"
+        		csi: {
+        			driver: "nasplugin.csi.alibabacloud.com"
+        			volumeAttributes: {
+        				host: nasConn.MountTargetDomain
+        				path: "/"
+        				vers: "3.0"
+        			}
+        			volumeHandle: context.name
+        		}
+        	}
+        }
+        outputs: pvc: {
+        	apiVersion: "v1"
+        	kind:       "PersistentVolumeClaim"
+        	metadata: {
+        		name:      parameter.pvcName
+        	}
+        	spec: {
+        		accessModes: ["ReadWriteMany"]
+        		resources: {
+        			requests: {
+        				storage: "999Gi"
+        			}
+        		}
+        		volumeName: context.name
+        	}
+        }
+        parameter: {
+        	pvcName: string
+        	// +insertSecretTo=nasConn
+        	nasSecret: string
+        }
+        nasConn: {
+        	MountTargetDomain: string
         }
 `
 )
