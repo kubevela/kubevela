@@ -48,7 +48,7 @@ type HelmRepositorySpec struct {
 	// For TLS the secret must contain a certFile and keyFile, and/or
 	// caCert fields.
 	// +optional
-	// SecretRef *meta.LocalObjectReference `json:"secretRef,omitempty"`
+	SecretRef *LocalObjectReference `json:"secretRef,omitempty"`
 
 	// The interval at which to check the upstream for updates.
 	// make it optional in KubeVela

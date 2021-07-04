@@ -29,7 +29,7 @@ import (
 )
 
 func TestRenderHelmReleaseAndHelmRepo(t *testing.T) {
-	h := testData("podinfo", "1.0.0", "test.com")
+	h := testData("podinfo", "1.0.0", "test.com", "testSecret")
 	chartValues := map[string]interface{}{
 		"image": map[string]interface{}{
 			"tag": "1.0.1",
@@ -69,7 +69,10 @@ func TestRenderHelmReleaseAndHelmRepo(t *testing.T) {
 	expectRepo.SetName("test-app-test-comp")
 	expectRepo.SetNamespace("test-ns")
 	unstructured.SetNestedMap(expectRepo.Object, map[string]interface{}{
-		"url":      "test.com",
+		"url": "test.com",
+		"secretRef": map[string]interface{}{
+			"name": "testSecret",
+		},
 		"interval": "5m0s",
 	}, "spec")
 
@@ -78,13 +81,16 @@ func TestRenderHelmReleaseAndHelmRepo(t *testing.T) {
 	}
 }
 
-func testData(chart, version, repoURL string) *common.Helm {
+func testData(chart, version, repoURL, secretName string) *common.Helm {
 	rlsStr := fmt.Sprintf(
 		`chart:
   spec:
     chart: "%s"
     version: "%s"`, chart, version)
-	repoStr := fmt.Sprintf(`url: "%s"`, repoURL)
+	repoStr := fmt.Sprintf(
+		`url: "%s"
+secretRef: 
+  name: "%s"`, repoURL, secretName)
 	rlsJson, _ := yaml.YAMLToJSON([]byte(rlsStr))
 	repoJson, _ := yaml.YAMLToJSON([]byte(repoStr))
 
