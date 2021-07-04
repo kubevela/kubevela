@@ -1631,6 +1631,84 @@ spec:
 		Expect(comp2.Spec.Template.Spec.Containers[0].Env[0].Value).Should(BeEquivalentTo("abc"))
 		Expect(comp2.Spec.Template.Spec.Containers[0].Env[1].Value).Should(BeEquivalentTo("123"))
 	})
+
+	It("app with two components and one component can apply first while another one'trait has secret insert", func() {
+		appMix := appWithTwoComp.DeepCopy()
+		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+			Name:       "web-pv",
+			Type:       "worker",
+			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2"}`)},
+			Traits: []v1beta1.ApplicationTrait{{
+				Type:       "share-fs",
+				Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
+			}},
+		}
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-trait-insert-secrets",
+			},
+		}
+		td := &v1beta1.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(shareFsTraitDefinition))
+		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
+		td.SetNamespace(ns.Name)
+
+		appMix.SetName("vela-test-trait-insert-secrets")
+		appMix.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appMix.Name,
+			Namespace: appMix.Namespace,
+		}
+		res, _ := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(res.RequeueAfter).ShouldNot(BeEquivalentTo(0))
+
+		By("Check Application Created with the correct phase")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationHealthChecking))
+
+		By("Check One of the component created as expected")
+		comp1 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[0].Name,
+		}, comp1)).Should(BeNil())
+
+		By("Check another component not existed")
+		comp2 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).ShouldNot(BeNil())
+
+		sec := &corev1.Secret{Data: map[string][]byte{
+			"MountTargetDomain": []byte("test.com"),
+		}}
+		sec.Name = "nas-conn"
+		sec.Namespace = appMix.Namespace
+		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
+
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check another component is existed")
+		comp2 = &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).Should(BeNil())
+
+		By("Check PV created by application")
+		var pv corev1.PersistentVolume
+		err := k8sClient.Get(ctx, client.ObjectKey{Name: appMix.Spec.Components[1].Name, Namespace: appMix.Namespace}, &pv)
+		Expect(err).Should(BeNil())
+
+		Expect(pv.Spec.CSI.VolumeAttributes["host"]).Should(Equal("test.com"))
+
+	})
 })
 
 func reconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) (reconcile.Result, error) {
@@ -2452,7 +2530,7 @@ spec:
         						]
         					}
         				}]
-        		}
+        			}
         		}
         	}
         }
