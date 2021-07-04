@@ -546,7 +546,7 @@ settings: {
 				FullTemplate: &Template{TemplateStr: template},
 			}
 			By("call target function")
-			secrets, err := parseWorkloadInsertSecretTo(ctx, k8sClient, ns, wl)
+			secrets, err := parseInsertSecretTo(ctx, k8sClient, ns, wl.FullTemplate.TemplateStr, wl.Params)
 			Expect(err).Should(BeNil())
 			Expect(secrets).Should(BeNil())
 		})
@@ -609,7 +609,7 @@ parameter: {
 			err := k8sClient.Create(ctx, s)
 			Expect(err).Should(BeNil())
 			By("call target function")
-			secrets, err := parseWorkloadInsertSecretTo(ctx, k8sClient, ns, wl)
+			secrets, err := parseInsertSecretTo(ctx, k8sClient, ns, wl.FullTemplate.TemplateStr, wl.Params)
 			Expect(err).Should(BeNil())
 			Expect(secrets).Should(Equal(targetRequiredSecret))
 		})

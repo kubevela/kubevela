@@ -276,9 +276,9 @@ func GetOutputSecretNames(workloads *Workload) (string, error) {
 	return fmt.Sprint(secretName), nil
 }
 
-func parseWorkloadInsertSecretTo(ctx context.Context, c client.Client, namespace string, wl *Workload) ([]process.RequiredSecrets, error) {
+func parseInsertSecretTo(ctx context.Context, c client.Client, namespace string, templateStr string, props map[string]interface{}) ([]process.RequiredSecrets, error) {
 	var requiredSecret []process.RequiredSecrets
-	cueStr := velacue.BaseTemplate + wl.FullTemplate.TemplateStr
+	cueStr := velacue.BaseTemplate + templateStr
 	r := cue.Runtime{}
 	ins, err := r.Compile("-", cueStr)
 	if err != nil {
@@ -304,7 +304,7 @@ func parseWorkloadInsertSecretTo(ctx context.Context, c client.Client, namespace
 				if strings.Contains(comment.Text, InsertSecretToTag) {
 					contextName := strings.Split(comment.Text, InsertSecretToTag)[1]
 					contextName = strings.TrimSpace(contextName)
-					secretNameInterface, err := getComponentSetting(fName, wl.Params)
+					secretNameInterface, err := getComponentSetting(fName, props)
 					if err != nil {
 						return nil, err
 					}

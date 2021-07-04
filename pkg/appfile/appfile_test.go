@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -883,4 +884,217 @@ func TestGetUserConfigName(t *testing.T) {
 	config := "abc"
 	wl3 := &Workload{Params: map[string]interface{}{AppfileBuiltinConfig: config}}
 	assert.Equal(t, wl3.GetUserConfigName(), config)
+}
+
+func TestGetSecretAndConfigs(t *testing.T) {
+	secretData := map[string][]byte{
+		"username": []byte("test-name"),
+		"password": []byte("test-pwd"),
+	}
+
+	secretConsumerTemplate := `{
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	spec: {
+		selector: matchLabels: {
+			"app.oam.dev/component": "test"
+		}
+		template: {
+			metadata: labels: {
+				"app.oam.dev/component": "test"
+			}
+			spec: {
+				containers: [{
+					name:  "test"
+					if parameter["dbSecret"] != _|_ {
+						env: [
+							{
+								name:  "username"
+								value: dbConn.username
+							},
+							{
+								name:  "DB_PASSWORD"
+								value: dbConn.password
+							},
+						]
+					}
+				}]
+			}
+		}
+	}
+}
+parameter: {
+	// +usage=Referred db secret
+	// +insertSecretTo=dbConn
+	dbSecret?: string
+}
+
+dbConn: {
+	username: string
+	password: string
+}
+`
+	userConfigTemplate := `
+output: {
+  apiVersion: "apps/v1"
+  kind:       "Deployment"
+  metadata: {
+	  annotations: {
+		  if context["config"] != _|_ {
+			  for _, v in context.config {
+				  "\(v.name)" : v.value
+			  }
+		  }
+	  }
+  }
+  spec: {
+	  selector: matchLabels: {
+		  "app.oam.dev/component": context.name
+	  }
+	  template: {
+		  metadata: labels: {
+			  "app.oam.dev/component": context.name
+		  }
+
+		  spec: {
+			  containers: [{
+				  name:  context.name
+				  image: parameter.image
+
+				  if parameter["cmd"] != _|_ {
+					  command: parameter.cmd
+				  }
+			  }]
+		  }
+	  }
+  }
+}
+
+parameter: {
+  // +usage=Which image would you like to use for your service
+  // +short=i
+  image: string
+
+  cmd?: [...string]
+}
+`
+
+	mockSecretClient := func(data map[string][]byte) *test.MockClient {
+		return &test.MockClient{
+			MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				switch secret := obj.(type) {
+				case *v1.Secret:
+					t := secret.DeepCopy()
+					t.Data = data
+					*secret = *t
+				}
+				return nil
+			}),
+		}
+	}
+
+	mockConfigMapClient := func(data map[string]string) *test.MockClient {
+		return &test.MockClient{
+			MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				switch configMap := obj.(type) {
+				case *v1.ConfigMap:
+					t := configMap.DeepCopy()
+					t.Data = data
+					*configMap = *t
+				}
+				return nil
+			}),
+		}
+	}
+
+	testcases := map[string]struct {
+		namespace                string
+		name                     string
+		workload                 *Workload
+		client                   *test.MockClient
+		hasError                 bool
+		expectWorkloadSecretData []process.RequiredSecrets
+		expectTraitSecretData    [][]process.RequiredSecrets
+		expectConfigMapData      []map[string]string
+	}{
+		"workload is a secret consumer": {
+			workload: &Workload{
+				FullTemplate: &Template{
+					TemplateStr: "output:" + secretConsumerTemplate,
+				},
+				Params: map[string]interface{}{
+					"dbSecret": "test-workload",
+				},
+			},
+			client: mockSecretClient(secretData),
+			expectWorkloadSecretData: []process.RequiredSecrets{{
+				Namespace:   "test-workload",
+				Name:        "test-workload",
+				ContextName: "dbConn",
+				Data: map[string]interface{}{
+					"username": "test-name",
+					"password": "test-pwd",
+				},
+			}},
+			namespace: "test-workload",
+			name:      "test-workload",
+		},
+		"trait is a secret consumer": {
+			workload: &Workload{
+				FullTemplate: &Template{
+					TemplateStr: `
+output: parameter
+parameter: {}
+`,
+				},
+				Params: nil,
+				Traits: []*Trait{{
+					FullTemplate: &Template{
+						TemplateStr: "outputs:" + secretConsumerTemplate,
+					},
+					Params: map[string]interface{}{
+						"dbSecret": "test-trait",
+					},
+				}},
+			},
+			client: mockSecretClient(secretData),
+			expectTraitSecretData: [][]process.RequiredSecrets{{{
+				Namespace:   "test-trait",
+				Name:        "test-trait",
+				ContextName: "dbConn",
+				Data: map[string]interface{}{
+					"username": "test-name",
+					"password": "test-pwd",
+				},
+			}}},
+			namespace: "test-trait",
+			name:      "test-trait",
+		},
+		"workload get config from configMap": {
+			workload: &Workload{
+				FullTemplate: &Template{
+					TemplateStr: userConfigTemplate,
+				},
+				Params: map[string]interface{}{
+					"image":  "busybox",
+					"config": "test-config",
+				},
+			},
+			client: mockConfigMapClient(map[string]string{"username": "test-configMap"}),
+			expectConfigMapData: []map[string]string{{
+				"name":  "username",
+				"value": "test-configMap",
+			}},
+		},
+	}
+
+	for _, tc := range testcases {
+		err := GetSecretAndConfigs(tc.client, tc.workload, tc.name, tc.namespace)
+		assert.Equal(t, err != nil, tc.hasError)
+		assert.DeepEqual(t, tc.expectWorkloadSecretData, tc.workload.RequiredSecrets)
+		for i, tr := range tc.workload.Traits {
+			assert.DeepEqual(t, tc.expectTraitSecretData[i], tr.RequiredSecrets)
+		}
+		assert.DeepEqual(t, tc.expectConfigMapData, tc.workload.UserConfigs)
+	}
 }
