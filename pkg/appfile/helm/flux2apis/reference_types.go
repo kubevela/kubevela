@@ -89,3 +89,11 @@ type ValuesReference struct {
 	// +optional
 	Optional bool `json:"optional,omitempty"`
 }
+
+// LocalObjectReference contains enough information to let you locate
+// the referenced object inside the same namespace
+type LocalObjectReference struct {
+	// Name of the referent
+	// +required
+	Name string `json:"name"`
+}
