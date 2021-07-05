@@ -76,8 +76,8 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision).
-		WithWorkloadOption(rolloutWorkloadName()).
-		WithWorkloadOption(assemble.PrepareWorkloadForRollout())
+		WithWorkloadOption(rolloutWorkloadName(h.needRollComponent)).
+		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent))
 
 	// in template phase, we should use targetManifests including target workloads/traits to
 	h.targetManifests, err = targetAssemble.AssembledManifests()
@@ -100,8 +100,8 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 		}
 		// construct a assemble manifest for sourceAppRevision
 		sourceAssemble := assemble.NewAppManifests(h.sourceAppRevision).
-			WithWorkloadOption(assemble.PrepareWorkloadForRollout()).
-			WithWorkloadOption(rolloutWorkloadName())
+			WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).
+			WithWorkloadOption(rolloutWorkloadName(h.needRollComponent))
 		h.sourceWorkloads, _, _, err = sourceAssemble.GroupAssembledManifests()
 		if err != nil {
 			klog.Error("appRollout sourceAppRevision failed to assemble workloads", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))

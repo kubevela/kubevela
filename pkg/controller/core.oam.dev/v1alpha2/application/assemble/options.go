@@ -22,6 +22,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	kruisev1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
@@ -116,8 +118,14 @@ func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledW
 // PrepareWorkloadForRollout prepare the workload before it is emit to the k8s. The current approach is to mark it
 // as disabled so that it's spec won't take effect immediately. The rollout controller can take over the resources
 // and enable it on its own since app controller here won't override their change
-func PrepareWorkloadForRollout() WorkloadOption {
+func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
+
+		compName := assembledWorkload.GetLabels()[oam.LabelAppComponent]
+		if compName != rolloutComp {
+			return nil
+		}
+
 		const (
 			// below are the resources that we know how to disable
 			cloneSetDisablePath            = "spec.updateStrategy.paused"

@@ -19,11 +19,10 @@ package applicationrollout
 import (
 	"reflect"
 
-	"k8s.io/utils/pointer"
-
 	"github.com/openkruise/kruise-api/apps/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -31,8 +30,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-func rolloutWorkloadName() assemble.WorkloadOption {
+func rolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 	return assemble.WorkloadOptionFn(func(w *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
+
+		compName := w.GetLabels()[oam.LabelAppComponent]
+		if compName != rolloutComp {
+			return nil
+		}
+
 		// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
 		// we support is cloneset/statefulset for now. We can easily add more later.
 		if w.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {

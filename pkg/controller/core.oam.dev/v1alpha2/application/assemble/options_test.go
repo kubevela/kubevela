@@ -65,7 +65,7 @@ var _ = Describe("Test WorkloadOption", func() {
 				StandardWorkload: cs,
 			}
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout())
+			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout(compName))
 			ao.componentManifests = []*types.ComponentManifest{&comp}
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
@@ -89,7 +89,7 @@ var _ = Describe("Test WorkloadOption", func() {
 				StandardWorkload: sts,
 			}
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout())
+			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout(compName))
 			ao.componentManifests = []*types.ComponentManifest{&comp}
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
@@ -106,7 +106,7 @@ var _ = Describe("Test WorkloadOption", func() {
 
 		It("test rollout Deployment", func() {
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout())
+			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout(compName))
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
 			Expect(len(workloads)).Should(Equal(1))

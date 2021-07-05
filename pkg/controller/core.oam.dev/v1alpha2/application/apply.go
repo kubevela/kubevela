@@ -242,6 +242,8 @@ func (h *appHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	var comps []string
 	for _, component := range h.app.Spec.Components {
 		comps = append(comps, component.Name)
+		// TODO rollout only support one component now, and we only rollout the first component in Application
+		break
 	}
 
 	// targetRevision should always points to LatestRevison
