@@ -59,12 +59,18 @@ func (h *appHandler) createResourcesConfigMap(ctx context.Context,
 
 	buf := &bytes.Buffer{}
 	for _, c := range comps {
+		if c.InsertConfigNotReady {
+			continue
+		}
 		r := c.StandardWorkload.DeepCopy()
 		r.SetName(c.Name)
 		r.SetNamespace(appRev.Namespace)
 		buf.Write(util.MustJSONMarshal(r))
 	}
 	for _, c := range comps {
+		if c.InsertConfigNotReady {
+			continue
+		}
 		for _, tr := range c.Traits {
 			r := tr.DeepCopy()
 			r.SetName(c.Name)
@@ -302,6 +308,9 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 
 func (h *appHandler) handleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
 	for _, cm := range compManifests {
+		if cm.InsertConfigNotReady {
+			continue
+		}
 		hash, err := computeComponentRevisionHash(cm)
 		if err != nil {
 			return err
@@ -471,6 +480,19 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 	for i, cm := range cms {
 		acc := v1alpha2.ApplicationConfigurationComponent{}
 		acc.ComponentName = cm.Name
+		comp := &v1alpha2.Component{}
+		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+		comp.SetName(cm.Name)
+
+		if cm.InsertConfigNotReady {
+			// -- represent the component is not ready at all
+			acc.RevisionName = "--"
+
+			comps[i] = common.RawComponent{Raw: util.Object2RawExtension(comp)}
+			ac.Spec.Components[i] = acc
+			continue
+		}
+
 		acc.RevisionName = cm.RevisionName
 		acc.Traits = make([]v1alpha2.ComponentTrait, len(cm.Traits))
 		for j, t := range cm.Traits {
@@ -488,9 +510,7 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 				},
 			}
 		}
-		comp := &v1alpha2.Component{}
-		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
-		comp.SetName(cm.Name)
+
 		// this label is very important for handling component revision
 		util.AddLabels(comp, map[string]string{
 			oam.LabelComponentRevisionHash: cm.RevisionHash,

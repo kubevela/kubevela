@@ -412,6 +412,64 @@ spec:
 		Expect(envs[0].Value).Should(Equal("ccc"))
 	})
 
+	It("app contains trait which will consumes cloud resources", func() {
+		var (
+			appName          = "app-share-fs"
+			ns               = "default"
+			targetSecretName = "nas-conn"
+			secretData       = map[string][]byte{
+				"MountTargetDomain": []byte("test.com"),
+			}
+			businessApplication = appwithNoTrait.DeepCopy()
+			appKey              = client.ObjectKey{
+				Name:      appName,
+				Namespace: ns,
+			}
+		)
+		businessApplication.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{{
+			Type:       "share-fs",
+			Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
+		}}
+		businessApplication.SetName(appName)
+		businessApplication.SetNamespace(ns)
+
+		By("apply traitDefinition")
+		td := &v1beta1.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(shareFsTraitDefinition))
+		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("create secret")
+		s := &corev1.Secret{
+			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      targetSecretName,
+				Namespace: ns,
+			},
+			Data: secretData,
+		}
+		err := k8sClient.Create(ctx, s)
+		Expect(err).Should(BeNil())
+
+		By("apply business application")
+		err = k8sClient.Create(ctx, businessApplication)
+		Expect(err).Should(BeNil())
+
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("checking application")
+		var app v1beta1.Application
+		err = k8sClient.Get(ctx, appKey, &app)
+		Expect(err).Should(BeNil())
+
+		By("check PV created by application")
+		var pv corev1.PersistentVolume
+		err = k8sClient.Get(ctx, client.ObjectKey{Name: app.Spec.Components[0].Name, Namespace: ns}, &pv)
+		Expect(err).Should(BeNil())
+
+		Expect(pv.Spec.CSI.VolumeAttributes["host"]).Should(Equal(string(secretData["MountTargetDomain"])))
+	})
+
 	It("app-without-trait will only create workload", func() {
 		expDeployment := getExpDeployment("myweb2", appwithNoTrait.Name)
 		ns := &corev1.Namespace{
@@ -1505,7 +1563,161 @@ spec:
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("app with two components and one component can apply first while another one has secret insert", func() {
+		appMix := appWithTwoComp.DeepCopy()
+		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+			Name:       "myconsumer",
+			Type:       "secretconsumer",
+			Properties: runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.14.0", "dbSecret":"mys"}`)},
+		}
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-two-components-insert-secrets",
+			},
+		}
+		appMix.SetName("vela-test-two-components-insert-secrets")
+		appMix.SetNamespace(ns.Name)
+
+		secretconsumer := &v1beta1.ComponentDefinition{}
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(compDefSecretYaml))
+		Expect(json.Unmarshal(wDDefJson, secretconsumer)).Should(BeNil())
+		secretconsumer.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, secretconsumer)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appMix.Name,
+			Namespace: appMix.Namespace,
+		}
+		res, _ := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(res.RequeueAfter).ShouldNot(BeEquivalentTo(0))
+
+		By("Check Application Created with the correct phase")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationHealthChecking))
+
+		By("Check One of the component created as expected")
+		comp1 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[0].Name,
+		}, comp1)).Should(BeNil())
+
+		By("Check another component not existed")
+		comp2 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).ShouldNot(BeNil())
+		sec := &corev1.Secret{Data: map[string][]byte{
+			"username": []byte("abc"),
+			"password": []byte("123"),
+		}}
+		sec.Name = "mys"
+		sec.Namespace = appMix.Namespace
+		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
+
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check another component is existed")
+		comp2 = &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).Should(BeNil())
+		Expect(comp2.Spec.Template.Spec.Containers[0].Env[0].Value).Should(BeEquivalentTo("abc"))
+		Expect(comp2.Spec.Template.Spec.Containers[0].Env[1].Value).Should(BeEquivalentTo("123"))
+	})
+
+	It("app with two components and one component can apply first while another one'trait has secret insert", func() {
+		appMix := appWithTwoComp.DeepCopy()
+		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+			Name:       "web-pv",
+			Type:       "worker",
+			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2"}`)},
+			Traits: []v1beta1.ApplicationTrait{{
+				Type:       "share-fs",
+				Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
+			}},
+		}
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-trait-insert-secrets",
+			},
+		}
+		td := &v1beta1.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(shareFsTraitDefinition))
+		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
+		td.SetNamespace(ns.Name)
+
+		appMix.SetName("vela-test-trait-insert-secrets")
+		appMix.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appMix.Name,
+			Namespace: appMix.Namespace,
+		}
+		res, _ := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(res.RequeueAfter).ShouldNot(BeEquivalentTo(0))
+
+		By("Check Application Created with the correct phase")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationHealthChecking))
+
+		By("Check One of the component created as expected")
+		comp1 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[0].Name,
+		}, comp1)).Should(BeNil())
+
+		By("Check another component not existed")
+		comp2 := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).ShouldNot(BeNil())
+
+		sec := &corev1.Secret{Data: map[string][]byte{
+			"MountTargetDomain": []byte("test.com"),
+		}}
+		sec.Name = "nas-conn"
+		sec.Namespace = appMix.Namespace
+		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
+
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check another component is existed")
+		comp2 = &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: curApp.Namespace,
+			Name:      appMix.Spec.Components[1].Name,
+		}, comp2)).Should(BeNil())
+
+		By("Check PV created by application")
+		var pv corev1.PersistentVolume
+		err := k8sClient.Get(ctx, client.ObjectKey{Name: appMix.Spec.Components[1].Name, Namespace: appMix.Namespace}, &pv)
+		Expect(err).Should(BeNil())
+
+		Expect(pv.Spec.CSI.VolumeAttributes["host"]).Should(Equal("test.com"))
+
+	})
 })
+
+func reconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) (reconcile.Result, error) {
+	// 1st and 2nd time reconcile to add finalizer
+	r.Reconcile(req)
+	r.Reconcile(req)
+
+	return r.Reconcile(req)
+}
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 	// 1st and 2nd time reconcile to add finalizer
@@ -2276,6 +2488,124 @@ spec:
       	endpoint: string
       	port:     string
       }
+`
+
+	compDefSecretYaml = `apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: secretconsumer
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        					if parameter["dbSecret"] != _|_ {
+        						env: [
+        							{
+        								name:  "username"
+        								value: dbConn.username
+        							},
+        							{
+        								name:  "DB_PASSWORD"
+        								value: dbConn.password
+        							},
+        						]
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+
+        	// +usage=Referred db secret
+        	// +insertSecretTo=dbConn
+        	dbSecret?: string
+        }
+
+        dbConn: {
+        	username: string
+        	password: string
+        }
+`
+
+	shareFsTraitDefinition = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: share-fs
+  namespace: default
+spec:
+  schematic:
+    cue:
+      template: |
+        outputs: pv: {
+        	apiVersion: "v1"
+        	kind:       "PersistentVolume"
+        	metadata: {
+        		name:      context.name
+        	}
+        	spec: {
+        		accessModes: ["ReadWriteMany"]
+        		capacity: storage: "999Gi"
+        		persistentVolumeReclaimPolicy: "Retain"
+        		csi: {
+        			driver: "nasplugin.csi.alibabacloud.com"
+        			volumeAttributes: {
+        				host: nasConn.MountTargetDomain
+        				path: "/"
+        				vers: "3.0"
+        			}
+        			volumeHandle: context.name
+        		}
+        	}
+        }
+        outputs: pvc: {
+        	apiVersion: "v1"
+        	kind:       "PersistentVolumeClaim"
+        	metadata: {
+        		name:      parameter.pvcName
+        	}
+        	spec: {
+        		accessModes: ["ReadWriteMany"]
+        		resources: {
+        			requests: {
+        				storage: "999Gi"
+        			}
+        		}
+        		volumeName: context.name
+        	}
+        }
+        parameter: {
+        	pvcName: string
+        	// +insertSecretTo=nasConn
+        	nasSecret: string
+        }
+        nasConn: {
+        	MountTargetDomain: string
+        }
 `
 )
 

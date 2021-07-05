@@ -164,6 +164,13 @@ func (am *AppManifests) GroupAssembledManifests() (
 	return workloads, traits, scopes, nil
 }
 
+// checkAutoDetectComponent will check if the standardWorkload is empty,
+// currently only Helm-based component is possible to be auto-detected
+// TODO implement auto-detect mechanism
+func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
+	return wl == nil || (len(wl.GetAPIVersion()) == 0 && len(wl.GetKind()) == 0)
+}
+
 func (am *AppManifests) assemble() {
 	am.complete()
 	klog.InfoS("Assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
@@ -172,6 +179,13 @@ func (am *AppManifests) assemble() {
 		return
 	}
 	for _, comp := range am.componentManifests {
+		if comp.InsertConfigNotReady {
+			continue
+		}
+		if checkAutoDetectComponent(comp.StandardWorkload) {
+			klog.Warningf("component without specify workloadDef can not attach traits currently")
+			continue
+		}
 		compRevisionName := comp.RevisionName
 		compName := comp.Name
 		commonLabels := am.generateAndFilterCommonLabels(compName, compRevisionName)

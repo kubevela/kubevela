@@ -17,10 +17,13 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
@@ -70,6 +73,8 @@ type Workload struct {
 	// RequiredSecrets stores secret names which the workload needs from cloud resource component and its context
 	RequiredSecrets []process.RequiredSecrets
 	UserConfigs     []map[string]string
+	// ConfigNotReady indicates there's RequiredSecrets and UserConfigs but they're not ready yet.
+	ConfigNotReady bool
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
@@ -103,15 +108,15 @@ func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namesp
 	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
 }
 
-// IsCloudResourceProducer checks whether a workload is cloud resource producer role
-func (wl *Workload) IsCloudResourceProducer() bool {
+// IsSecretProducer checks whether a workload is cloud resource producer role
+func (wl *Workload) IsSecretProducer() bool {
 	var existed bool
 	_, existed = wl.Params[process.OutputSecretName]
 	return existed
 }
 
-// IsCloudResourceConsumer checks whether a workload is cloud resource consumer role
-func (wl *Workload) IsCloudResourceConsumer() bool {
+// IsSecretConsumer checks whether a workload is cloud resource consumer role
+func (wl *Workload) IsSecretConsumer() bool {
 	requiredSecretTag := strings.TrimRight(InsertSecretToTag, "=")
 	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(wl.FullTemplate.TemplateStr))
 	if err != nil || !matched {
@@ -137,6 +142,9 @@ type Trait struct {
 	HealthCheckPolicy  string
 	CustomStatusFormat string
 
+	// RequiredSecrets stores secret names which the trait needs from cloud resource component and its context
+	RequiredSecrets []process.RequiredSecrets
+
 	FullTemplate *Template
 	engine       definition.AbstractEngine
 }
@@ -154,6 +162,16 @@ func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string
 // EvalHealth eval trait health check
 func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
 	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
+}
+
+// IsSecretConsumer checks whether a trait is cloud resource consumer role
+func (trait *Trait) IsSecretConsumer() bool {
+	requiredSecretTag := strings.TrimRight(InsertSecretToTag, "=")
+	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(trait.FullTemplate.TemplateStr))
+	if err != nil || !matched {
+		return false
+	}
+	return true
 }
 
 // Appfile describes application
@@ -204,34 +222,33 @@ func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns strin
 func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, error) {
 	compManifests := make([]*types.ComponentManifest, len(af.Workloads))
 	for i, wl := range af.Workloads {
-		switch wl.CapabilityCategory {
-		case types.HelmCategory:
-			cm, err := generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
-			}
-			compManifests[i] = cm
-		case types.KubeCategory:
-			cm, err := generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
-			}
-			compManifests[i] = cm
-		case types.TerraformCategory:
-			cm, err := generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
-			}
-			compManifests[i] = cm
-		default:
-			cm, err := generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
-			if err != nil {
-				return nil, err
-			}
-			compManifests[i] = cm
+		cm, err := af.GenerateComponentManifest(wl)
+		if err != nil {
+			return nil, err
 		}
+		compManifests[i] = cm
 	}
 	return compManifests, nil
+}
+
+// GenerateComponentManifest generate only one ComponentManifest
+func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentManifest, error) {
+	if wl.ConfigNotReady {
+		return &types.ComponentManifest{
+			Name:                 wl.Name,
+			InsertConfigNotReady: true,
+		}, nil
+	}
+	switch wl.CapabilityCategory {
+	case types.HelmCategory:
+		return generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
+	case types.KubeCategory:
+		return generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
+	case types.TerraformCategory:
+		return generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
+	default:
+		return generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+	}
 }
 
 // PrepareProcessContext prepares a DSL process Context
@@ -253,6 +270,40 @@ func NewBasicContext(wl *Workload, applicationName, revision, namespace string) 
 	return pCtx
 }
 
+// GetSecretAndConfigs will get secrets and configs the workload requires
+func GetSecretAndConfigs(cli client.Client, workload *Workload, appName, ns string) error {
+	if workload.IsSecretConsumer() {
+		requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, workload.FullTemplate.TemplateStr, workload.Params)
+		if err != nil {
+			return err
+		}
+		workload.RequiredSecrets = requiredSecrets
+	}
+
+	for _, tr := range workload.Traits {
+		if tr.IsSecretConsumer() {
+			requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, tr.FullTemplate.TemplateStr, tr.Params)
+			if err != nil {
+				return err
+			}
+			tr.RequiredSecrets = requiredSecrets
+		}
+	}
+
+	userConfig := workload.GetUserConfigName()
+	if userConfig != "" {
+		cg := config.Configmap{Client: cli}
+		// TODO(wonderflow): envName should not be namespace when we have serverside env
+		var envName = ns
+		data, err := cg.GetConfigData(config.GenConfigMapName(appName, workload.Name, userConfig), envName)
+		if err != nil {
+			return errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, appName, ns)
+		}
+		workload.UserConfigs = data
+	}
+	return nil
+}
+
 func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
 	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
 	if err != nil {
@@ -271,7 +322,7 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 		outputSecretName string
 		err              error
 	)
-	if wl.IsCloudResourceProducer() {
+	if wl.IsSecretProducer() {
 		outputSecretName, err = GetOutputSecretNames(wl)
 		if err != nil {
 			return nil, err
@@ -279,6 +330,7 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 		wl.OutputSecretName = outputSecretName
 	}
 	for _, tr := range wl.Traits {
+		pCtx.InsertSecrets("", tr.RequiredSecrets)
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
 		}
