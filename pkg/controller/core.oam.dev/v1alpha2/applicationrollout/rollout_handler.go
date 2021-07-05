@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -27,13 +29,10 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
-
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	appUtil "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
 )
@@ -215,7 +214,14 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 		klog.Errorf("dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
 		return err
 	}
-	workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
+
+	// The workload not in target workloads can be not ready for insertSecret case
+	targetWL := h.targetWorkloads[h.needRollComponent]
+	if targetWL == nil {
+		return errors.Errorf("target workload for component %s for app %s is not ready", h.needRollComponent, h.targetAppRevision.Spec.Application.Name)
+	}
+
+	workload, err := h.extractWorkload(ctx, *targetWL)
 	if err != nil {
 		return err
 	}
