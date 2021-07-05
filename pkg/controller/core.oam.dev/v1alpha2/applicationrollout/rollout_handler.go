@@ -118,6 +118,10 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 
 // we only support one workload now, so this func is to determine witch component is need to rollout
 func (h *rolloutHandler) determineRolloutComponent() error {
+	if h.needRollComponent != "" {
+		return nil
+	}
+
 	componentList := h.appRollout.Spec.ComponentList
 	// if user not set ComponentList in AppRollout we also find a common component between source and target
 	if len(componentList) == 0 {
