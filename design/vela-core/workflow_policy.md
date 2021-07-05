@@ -2,21 +2,27 @@
 
 ## Background
 
-The current model consists of mainly Components and Traits. While this enables the Application object to plug-in operational capabilities, it is still no flexible enough. Specifically, it has the following limitations:
+The current model consists of mainly Components and Traits.
+While this enables the Application object to plug-in operational capabilities, it is still not flexible enough.
+Specifically, it has the following limitations:
 
 - The current control logic could not be customized. Once the Vela controller renders final k8s resources, it simply applies them without any extension points. In some scenarios, users want to do more complex operations like:
-  - Blue-green upgrade old-new app revisions.
+  - Blue-green style upgrade of the app.
   - User interaction like manual approval/rollback.
   - Distributing workloads across multiple clusters.
-  - Enforcing policies and auditting.
-  - Pushing finalized k8s resources to Git for GitOps (via Flux/Argo) without applying the resources in Vela.
-- There is no application-level config, but only per-component config. In some scenarios, users want to have app-level policies like:
+  - Actions to enforce policies and audit.
+  - Pushing final k8s resources to other config store (e.g. Git repos).
+- There is only per-component config, but no application-level policies. In some scenarios, users want to define policies like:
   - Security: RBAC rules, audit settings, secret backend types.
   - Insights: app delivery lead time, frequence, MTTR.
 
+Here is an overview of the features we want to expose and the capabilities we want to plug in:
+
+![alt](../../docs/en/resources/workflow-feature.jpg)
+
 ## Proposal
 
-To resolve the aforementioned problems, we propose to add app-level policies and customizable workflow to Application API:
+To resolve the aforementioned problems, we propose to add app-level policies and customizable workflow to the Application CRD:
 
 ```yaml
 kind: Application
@@ -70,28 +76,28 @@ spec:
         rollbackIfNotApproved: true
 ```
 
-This also implicates we will add two Definition CRDs -- `PolicyDefinition` and `WorkflowStepDefinition`:
+This also implicates we will add two Definition CRDs -- `PolicyDefinition` and `WorkflowStepDefinition`.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
-  name: gitops
+  name: rollout
 spec:
   schematic:
     cue:
       template: |
-        output: {
-          kind: GitOps
-          spec:
-            source:
-              repoURL: parameter.source
-              branch: parameter.branch
-            ...
-        }
         parameters: {
-          source: string
-          branch: string
+          partition: string
+        }
+        output: {
+          apiVersion: app.oam.dev/v1
+          kind: Rollout
+          spec:
+            partition: parameters.partition
+        }
+        continue: vela.#Continue & {
+          return: output.status.observedGeneration == output.metadata.generation
         }
 
 ---
@@ -103,26 +109,64 @@ spec:
       template: ...
 ```
 
+### CUE-Based Workflow Task
+
+Outputing a CR object to complete a step in workflow requires users to implement an Operator.
+While this is flexible to handle complex operations, it incurs heavy overhead for simple operational tasks.
+To simplify it, especially for users with simple use cases, we also provide lightweight CUE based workflow task. 
+
+Here is an example:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: apply
+spec:
+  schematic:
+    cue:
+      template: |
+        parameters: {
+          image: string
+        }
+        apply: vela.#Apply & {
+          context.workload
+        }
+        continue: vela.#Continue & {
+          return: apply.status.ready == true
+        }
+        export: {
+          secret: apply.status.secret
+        }
+```
+
 ## Technical Details
 
-To support policies and workflow, the application controller will be modified as the following:
+In this section we will discuss the implementation details to support policies and workflow.
 
-- Before rendering the components, the controller will first execute the `stage: pre-render` steps.
-- App controller will put rendered resources (including Components, Traits, Policies) into a ConfigMap, and reference the ConfigMap name in AppRevision as below:
+Here's a diagram of how workflow internals work:
+
+![alt](../../docs/en/resources/workflow-internals.jpg)
+
+
+Here are the steps in Application Controller:
+
+- Each Application event will trigger Application Controller to reconcile.
+- In reconcile, Application Controller will render out all resources from components, traits, workflow tasks, etc. It will also put rendered resources into a ConfigMap, and reference the ConfigMap name in AppRevision as below:
 
   ```yaml
   kind: ApplicationRevision
   spec:
     ...
     resourcesConfigMap:
-      name: my-app-v1-resources
+      name: my-app-v1
   ---
 
   kind: ConfigMap
   metadata:
-    name: my-app-v1-resources
+    name: my-app-v1
   data: 
-    resources: |
+    mysvc: |
       {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -133,27 +177,55 @@ To support policies and workflow, the application controller will be modified as
             "replicas": 1
         }
       }
-      ...more json-marshalled resources...
+    ...more name:data pairs...
   ```
-- If workflow is specified, the controller will then apply the ApplicationRevision, but skip applying Resources.
-  In this way, the resources won't be created by Vela controller.
-- The controller will then reconcile the workflow step by step. Each workflow step will be recorded in the Application.status:
+
+- After render, Application Controller will execute `spec.workflow`.
+  This will basically call Workflow Manager to do it.
+
+Here are the steps in Workflow Manager:
+
+- The Workflow Manager will reconcile the workflow step by step.
+- For each step, it will create a task for Task manager to handle.
+- It will then check the `observedAppGeneration` for this step.
+  This is to solve the [issue of passing data from the old generation][1].
+  - If the generation matches the current one, it will continue next step.
+  - Otherwise, it will retry reconcile later.
+
+  An example of the status:
+
   ```yaml
   kind: Application
+  metadata:
+    generation: 2
   status:
     workflow:
       steps:
-      - type: rollout-promotion
-        phase: running # succeeded | failed | stopped
-        resourceRef:
-          kind: Rollout
-          name: ...
+      - name: ...
+        observedAppGeneration: 1
   ```
-- Note that each workflow step must be idempotent, which means it should be able to process an object that are already submitted and processed.
-  A non-idempotent example would be a controller that keeps appending item to an array field.
 
-Each workflow step has the following interactions with the app controller:
-- The controller will apply the workflow object with annotation `app.oam.dev/workflow-context`. This annotation will pass in the context marshalled in json defined as the following:
+Here are the steps in Task Manager:
+
+- Workflow Manager will call Task Manager to enqueue a task.
+  Note that if a task with the same name exists, it will append new one.
+- Task Manager will have another go routine to pop a task from the queue to execute.
+- Each task is a CUE graph that must have `continue` field:
+
+  ```yaml
+  continue: vela.#Continue & {
+    return: true # This will be used as the return of the CUE task
+  }
+  ```
+
+- If `continue.return == true`, Task Manager will update the `observedAppGeneration` for this step in status.
+
+
+### Operator Best Practice
+
+Each workflow task share the similar interactions with the Task Manager as follows:
+
+- The Task Manager will apply the workflow object with annotation `app.oam.dev/workflow-context`. This annotation will pass in the context marshalled in json defined as the following:
   ```go
   type WorkflowContext struct {
     AppName string
@@ -161,20 +233,20 @@ Each workflow step has the following interactions with the app controller:
     WorkflowIndex int
   }
   ```
-- The controller will wait for the workflow object's `status.conditions` to have this condition:
+- The Task Manager will wait for the workflow object's workflow condition to be `True` status and `Succeeded` reason, and `observedGeneration` to match the resource's own.
 
   ```yaml
-  conditions:
-    - type: workflow-progress
-      status: 'True'
-      reason: 'Succeeded'
-      message: '{"observedGeneration":1}'
+  kind: SomeTask
+  metadata:
+    generation: 2
+  status:
+    observedGeneration: 2
+    conditions:
+      - type: workflow-progress
+        status: 'True'
+        reason: 'Succeeded'
   ```
 
-  The reason could be one of the following:
-  - `Succeeded`: This will make the controller run the next step. The observed generation number should be written in `message` since Vela will check it to detect the newer decision on spec change.
-  - `Stopped`: This will make the controller stop the workflow.
-  - `Failed`: This will make the controller stop the workflow. The error should be reported in `message`.
 
 ## Use Cases
 
@@ -361,3 +433,5 @@ The process goes as:
 The workflow defined here are k8s resource based and very simple one direction workflow. It's mainly used to customize Vela control logic to do more complex deployment operations.
 
 While Argo Workflow/Tekton shares similar idea to provide workflow functionalities, they are container based and provide more complex features like parameters sharing (using volumes and sidecars). More importantly, these projects couldn't satisfy our needs. Otherwise we can just use them in our implementation.
+
+[1]: https://github.com/crossplane/oam-kubernetes-runtime/issues/222
