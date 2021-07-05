@@ -18,7 +18,7 @@ outputs: service: {
 }
 
 outputs: ingress: {
-	apiVersion: "networking.k8s.io/v1beta1"
+	apiVersion: "networking.k8s.io/v1"
 	kind:       "Ingress"
 	metadata:
 		name: context.name
@@ -28,10 +28,15 @@ outputs: ingress: {
 			http: {
 				paths: [
 					for k, v in parameter.http {
-						path: k
+						path:     k
+						pathType: "ImplementationSpecific"
 						backend: {
-							serviceName: context.name
-							servicePort: v
+							service: {
+								name: context.name
+								port: {
+									number: v
+								}
+							}
 						}
 					},
 				]
