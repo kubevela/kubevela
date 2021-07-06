@@ -20,6 +20,8 @@ import (
 	"context"
 	"reflect"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,9 +80,9 @@ func (a *AppManifestsDispatcher) EndAndGC(rt *v1beta1.ResourceTracker) *AppManif
 // For resources exists in two revision, dispatcher will update their owner to the new resource tracker.
 // It's helpful in a rollout scenario where new revision is going to create a new workload while the old one should not
 // be deleted before rollout is terminated.
-func (a *AppManifestsDispatcher) StartAndSkipGC(rt *v1beta1.ResourceTracker) *AppManifestsDispatcher {
-	if rt != nil {
-		a.previousRT = rt.DeepCopy()
+func (a *AppManifestsDispatcher) StartAndSkipGC(previousRT *v1beta1.ResourceTracker) *AppManifestsDispatcher {
+	if previousRT != nil {
+		a.previousRT = previousRT.DeepCopy()
 		a.skipGC = true
 	}
 	return a
@@ -133,7 +135,7 @@ func (a *AppManifestsDispatcher) validateAndComplete(ctx context.Context) error 
 	a.namespace = a.appRev.Namespace
 	a.currentRTName = ConstructResourceTrackerName(a.appRevName, a.namespace)
 
-	// if upgrade is enbabled (no matter GC or skip GC), it requires a valid existing resource tracker
+	// if upgrade is enabled (no matter GC or skip GC), it requires a valid existing resource tracker
 	if a.previousRT != nil && a.previousRT.Name != a.currentRTName {
 		klog.InfoS("Validate previous resource tracker exists", "previous", klog.KObj(a.previousRT))
 		gotPreviousRT := &v1beta1.ResourceTracker{}
@@ -194,6 +196,18 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}
 	for _, rsc := range manifests {
+
+		immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, ownerRef, applyOpts)
+		if immutable {
+			if err != nil {
+				klog.ErrorS(err, "Failed to apply immutable resource with new ownerReference", "object",
+					klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
+				return errors.Wrapf(err, "cannot apply immutable resource with new ownerReference, name: %q apiVersion: %q kind: %q",
+					rsc.GetName(), rsc.GetAPIVersion(), rsc.GetKind())
+			}
+			continue
+		}
+
 		// each resource applied by dispatcher MUST be controlled by resource tracker
 		setOrOverrideControllerOwner(rsc, ownerRef)
 		if err := a.applicator.Apply(ctx, rsc, applyOpts...); err != nil {
@@ -206,6 +220,29 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 			klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
 	}
 	return a.updateResourceTrackerStatus(ctx, manifests)
+}
+
+// ImmutableResourcesUpdate only updates the ownerReference
+// TODO(wonderflow): we should allow special fields to be updated. e.g. the resources.requests for bound claims for PV should be able to update
+func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, res *unstructured.Unstructured, ownerRef metav1.OwnerReference, applyOpts []apply.ApplyOption) (bool, error) {
+	if res == nil {
+		return false, nil
+	}
+	switch res.GroupVersionKind() {
+	case v1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1.PersistentVolume{}).Name()):
+		pv := new(v1.PersistentVolume)
+		err := a.c.Get(ctx, client.ObjectKey{Name: res.GetName(), Namespace: res.GetNamespace()}, pv)
+		if kerrors.IsNotFound(err) {
+			return false, nil
+		}
+		if err != nil {
+			return true, err
+		}
+		setOrOverrideControllerOwner(pv, ownerRef)
+		return true, a.applicator.Apply(ctx, pv, applyOpts...)
+	default:
+	}
+	return false, nil
 }
 
 func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context, appliedManifests []*unstructured.Unstructured) error {
@@ -251,7 +288,12 @@ func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context
 	return nil
 }
 
-func setOrOverrideControllerOwner(obj *unstructured.Unstructured, controllerOwner metav1.OwnerReference) {
+type ObjectOwner interface {
+	GetOwnerReferences() []metav1.OwnerReference
+	SetOwnerReferences([]metav1.OwnerReference)
+}
+
+func setOrOverrideControllerOwner(obj ObjectOwner, controllerOwner metav1.OwnerReference) {
 	ownerRefs := []metav1.OwnerReference{controllerOwner}
 	for _, owner := range obj.GetOwnerReferences() {
 		if owner.Controller != nil && *owner.Controller &&

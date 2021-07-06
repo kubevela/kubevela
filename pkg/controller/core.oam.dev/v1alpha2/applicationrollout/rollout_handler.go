@@ -237,37 +237,6 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	return nil
 }
 
-// templateTargetManifest call dispatch to template source app revision's manifests to cluster
-func (h *rolloutHandler) templateSourceManifest(ctx context.Context) error {
-
-	// only when sourceAppRevision is not nil, we need template sourceRevision revision
-	if h.sourceAppRevision == nil {
-		return nil
-	}
-
-	// use source resourceTracker to handle same resource owner transfer
-	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.sourceAppRevision)
-	_, err := dispatcher.Dispatch(ctx, h.sourceManifests)
-	if err != nil {
-		klog.Errorf("dispatch sourceRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
-		return err
-	}
-	workload, err := h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent])
-	if err != nil {
-		return err
-	}
-	ref := metav1.GetControllerOfNoCopy(workload)
-	if ref != nil && ref.Kind == v1beta1.ResourceTrackerKind {
-		wlPatch := client.MergeFrom(workload.DeepCopy())
-		// guarantee resourceTracker isn't controller owner of workload
-		disableControllerOwner(workload)
-		if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // handle rollout succeed work left
 func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 	// yield controller owner back to resourceTracker
