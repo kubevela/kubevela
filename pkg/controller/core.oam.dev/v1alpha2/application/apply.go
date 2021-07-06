@@ -44,12 +44,12 @@ import (
 )
 
 type appHandler struct {
-	r              *Reconciler
-	app            *v1beta1.Application
-	currentAppRev  *v1beta1.ApplicationRevision
-	latestAppRev   *v1beta1.ApplicationRevision
-	isNewRevision  bool
-	currentRevHash string
+	r                 *Reconciler
+	app               *v1beta1.Application
+	currentAppRev     *v1beta1.ApplicationRevision
+	revisionHistories []v1beta1.ApplicationRevision
+	isNewRevision     bool
+	currentRevHash    string
 }
 
 func (h *appHandler) applyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {

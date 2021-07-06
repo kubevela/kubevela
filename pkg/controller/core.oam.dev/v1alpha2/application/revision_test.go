@@ -403,7 +403,7 @@ var _ = Describe("test generate revision ", func() {
 			time.Second*10, time.Millisecond*500).Should(BeNil())
 		// new revision should be created
 		Expect(curApp.Status.LatestRevision.Name).ShouldNot(Equal(lastRevision))
-		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(3))
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		Expect(curApp.Status.LatestRevision.RevisionHash).ShouldNot(Equal(appHash2))
 		By("Verify the appRevision is changed")
 		// reset appRev

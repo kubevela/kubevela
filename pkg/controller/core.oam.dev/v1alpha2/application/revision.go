@@ -114,15 +114,22 @@ func (h *appHandler) prepareCurrentAppRevision(ctx context.Context, af *appfile.
 	}
 	h.currentAppRev = appRev
 	h.currentRevHash = appRevisionHash
-	if err := h.getLatestAppRevision(ctx); err != nil {
+	if err := h.collectAppRevisions(ctx); err != nil {
 		return err
 	}
 
-	h.isNewRevision = h.currentAppRevIsNew()
-	if h.isNewRevision {
+	equalRevisions := h.findEqualRevisions()
+	if len(equalRevisions) > 0 {
+		h.isNewRevision = true
 		h.currentAppRev.Name, _ = utils.GetAppNextRevision(h.app)
 	} else {
-		h.currentAppRev = h.latestAppRev.DeepCopy()
+		// by now we just choose the latest revision
+		equalCount := len(equalRevisions)
+		if equalCount > 1 {
+			h.currentAppRev = equalRevisions[equalCount-1].DeepCopy()
+		} else {
+			h.currentAppRev = equalRevisions[0].DeepCopy()
+		}
 	}
 	// MUST pass app revision name to appfile
 	// appfile depends it to render resources and do health checking
@@ -181,18 +188,28 @@ func (h *appHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	return appRev, appRevisionHash, nil
 }
 
-func (h *appHandler) getLatestAppRevision(ctx context.Context) error {
-	if h.app.Status.LatestRevision == nil || len(h.app.Status.LatestRevision.Name) == 0 {
-		return nil
+func (h *appHandler) collectAppRevisions(ctx context.Context) error {
+	revisionList := &v1beta1.ApplicationRevisionList{}
+	listOpts := []client.ListOption{client.MatchingLabels{
+		oam.LabelAppName: h.app.Name,
+	}, client.InNamespace(h.app.Namespace)}
+	if err := h.r.Client.List(ctx, revisionList, listOpts...); err != nil {
+		klog.ErrorS(err, "Failed to list app revision", "appName", h.app.Name)
+		return errors.Wrap(err, "failed to list app revision")
 	}
-	latestRevName := h.app.Status.LatestRevision.Name
-	latestAppRev := &v1beta1.ApplicationRevision{}
-	if err := h.r.Get(ctx, client.ObjectKey{Name: latestRevName, Namespace: h.app.Namespace}, latestAppRev); err != nil {
-		klog.ErrorS(err, "Failed to get latest app revision", "appRevisionName", latestRevName)
-		return errors.Wrapf(err, "fail to get latest app revision %s", latestRevName)
-	}
-	h.latestAppRev = latestAppRev
+
+	h.revisionHistories = revisionList.Items
 	return nil
+}
+
+func (h *appHandler) findEqualRevisions() []*v1beta1.ApplicationRevision {
+	var eq []*v1beta1.ApplicationRevision
+	for i := range h.revisionHistories {
+		if DeepEqualRevision(&h.revisionHistories[i], h.currentAppRev) {
+			eq = append(eq, &h.revisionHistories[i])
+		}
+	}
+	return eq
 }
 
 // ComputeAppRevisionHash computes a single hash value for an appRevision object
@@ -249,22 +266,6 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 	}
 	// compute the hash of the entire structure
 	return utils.ComputeSpecHash(&appRevisionHash)
-}
-
-func (h *appHandler) currentAppRevIsNew() bool {
-	// the last revision doesn't exist.
-	if h.app.Status.LatestRevision == nil {
-		return true
-	}
-	// the hash value doesn't align
-	if h.app.Status.LatestRevision.RevisionHash != h.currentRevHash {
-		return true
-	}
-	if DeepEqualRevision(h.latestAppRev, h.currentAppRev) {
-		return false
-	}
-	// if reach here, it's same hash but different spec
-	return true
 }
 
 // DeepEqualRevision will compare the spec of Application and Definition to see if the Application is the same revision
@@ -538,10 +539,6 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 // only call to update app's latest revision status after applying manifests successfully
 // otherwise it will override previous revision which is used during applying to do GC jobs
 func (h *appHandler) updateAppLatestRevisionStatus(ctx context.Context) error {
-	if !h.isNewRevision {
-		// skip update if app revision is not changed
-		return nil
-	}
 	revName := h.currentAppRev.Name
 	revNum, _ := util.ExtractRevisionNum(revName, "-")
 	h.app.Status.LatestRevision = &common.Revision{
