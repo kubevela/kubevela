@@ -19,6 +19,9 @@ package applicationrollout
 import (
 	"context"
 	"fmt"
+	"reflect"
+
+	"k8s.io/utils/pointer"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
@@ -269,6 +272,55 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 		if _, err := d.Dispatch(ctx, nil); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// this func handle two case
+// 1. handle 1.0.x lagacy workload, their owner is appcontext so let resourceTracker take over it
+// 2. disable resourceTracker controller owner
+func (h *rolloutHandler) handleSourceWorkload(ctx context.Context) error {
+	workload, err := h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent])
+	if err != nil {
+		return err
+	}
+	owners := workload.GetOwnerReferences()
+	var wantOwner []metav1.OwnerReference
+	wlPatch := client.MergeFrom(workload.DeepCopy())
+	for _, owner := range owners {
+		if owner.Kind == v1beta1.ResourceTrackerKind {
+			wantOwner = append(wantOwner, owner)
+		}
+	}
+	// logic here is  compatibility code for 1.0.X lagacy workload, their ownerReference is appcontext, so remove it
+	if len(wantOwner) == 0 {
+		klog.InfoS("meet a lagacy workload, should let resourceTracker take over it")
+		rtName := dispatch.ConstructResourceTrackerName(h.sourceRevName, h.appRollout.Namespace)
+		rt := v1beta1.ResourceTracker{}
+		if err := h.Get(ctx, types.NamespacedName{Name: rtName}, &rt); err != nil {
+			if apierrors.IsNotFound(err) {
+				if err = h.Create(ctx, &rt); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		ownerRef := metav1.OwnerReference{
+			APIVersion:         v1beta1.SchemeGroupVersion.String(),
+			Kind:               reflect.TypeOf(v1beta1.ResourceTracker{}).Name(),
+			Name:               rt.Name,
+			UID:                rt.UID,
+			Controller:         pointer.BoolPtr(true),
+			BlockOwnerDeletion: pointer.BoolPtr(true),
+		}
+		workload.SetOwnerReferences([]metav1.OwnerReference{ownerRef})
+	}
+	// after last succeed rollout finish, workload's ownerReference controller have been set true
+	// so we should disable the controller owner firstly
+	disableControllerOwner(workload)
+	if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
+		return err
 	}
 	return nil
 }

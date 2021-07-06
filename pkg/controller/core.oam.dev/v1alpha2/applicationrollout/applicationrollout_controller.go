@@ -165,6 +165,12 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 			return ctrl.Result{}, nil
 		}
 	case v1alpha1.LocatingTargetAppState:
+		if h.sourceAppRevision != nil {
+			err = h.handleSourceWorkload(ctx)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
 		// target manifest haven't template yet, call dispatch template target manifest firstly
 		err = h.templateTargetManifest(ctx)
 		if err != nil {

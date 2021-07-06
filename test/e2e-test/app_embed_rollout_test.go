@@ -91,6 +91,18 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	}
 
+	CreateIngressDef := func() {
+		By("Install Ingress trait definition")
+		var td v1beta1.TraitDefinition
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/ingressDefinition.yaml", &td)).Should(BeNil())
+		// create the traitDefinition if not exist
+		Eventually(
+			func() error {
+				return k8sClient.Create(ctx, &td)
+			},
+			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	}
+
 	generateNewApp := func(appName, namespace, compType string, plan *v1alpha1.RolloutPlan) *v1beta1.Application {
 		return &v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
@@ -121,6 +133,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		namespaceName = randomNamespaceName("app-rollout-e2e-test")
 		createNamespace()
 		CreateClonesetDef()
+		CreateIngressDef()
 	})
 
 	AfterEach(func() {
@@ -463,6 +476,76 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 2)))
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 2), "2")
+	})
+
+	It("Test rollout with trait", func() {
+		plan := &v1alpha1.RolloutPlan{
+			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
+			RolloutBatches: []v1alpha1.RolloutBatch{
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+			},
+			TargetSize: pointer.Int32Ptr(6),
+		}
+		appName = "app-rollout-5"
+		app := generateNewApp(appName, namespaceName, "clonesetservice", plan)
+		ingressProperties := `{"domain":"test-1.example.com","http":{"/":8080}}`
+		app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{{Type: "ingress", Properties: runtime.RawExtension{Raw: []byte(ingressProperties)}}}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 1), "1")
+		updateAppWithCpuAndPlan(app, "2", plan)
+		By("rollout to v2")
+		checkApp := new(v1beta1.Application)
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 2), "2")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 2)))
+		updateAppWithCpuAndPlan(app, "3", plan)
+		By("rollout to v3")
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 3)))
+	})
+
+	It("Test rollout with another component only rollout first component", func() {
+		plan := &v1alpha1.RolloutPlan{
+			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
+			RolloutBatches: []v1alpha1.RolloutBatch{
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+			},
+			TargetSize: pointer.Int32Ptr(6),
+		}
+		appName = "app-rollout-6"
+		app := generateNewApp(appName, namespaceName, "clonesetservice", plan)
+		annotherComp := v1beta1.ApplicationComponent{
+			Name: "another-comp",
+			Type: "clonesetservice",
+			Properties: runtime.RawExtension{
+				Raw: []byte(initialProperty),
+			},
+		}
+		app.Spec.Components = append(app.Spec.Components, annotherComp)
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 1), "1")
+		updateAppWithCpuAndPlan(app, "2", plan)
+
+		checkApp := new(v1beta1.Application)
+		By("verify update rolloutPlan shouldn't create new revision")
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 2), "2")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 2)))
+		updateAppWithCpuAndPlan(app, "3", plan)
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 3)))
 	})
 
 	//  TODO add more corner case tests
