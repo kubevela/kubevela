@@ -19,7 +19,12 @@ package applicationrollout
 import (
 	"context"
 	"fmt"
+	"reflect"
 
+	"k8s.io/utils/pointer"
+
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -27,13 +32,10 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
-
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	appUtil "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
 )
@@ -76,8 +78,8 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision).
-		WithWorkloadOption(rolloutWorkloadName()).
-		WithWorkloadOption(assemble.PrepareWorkloadForRollout())
+		WithWorkloadOption(rolloutWorkloadName(h.needRollComponent)).
+		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent))
 
 	// in template phase, we should use targetManifests including target workloads/traits to
 	h.targetManifests, err = targetAssemble.AssembledManifests()
@@ -100,8 +102,8 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 		}
 		// construct a assemble manifest for sourceAppRevision
 		sourceAssemble := assemble.NewAppManifests(h.sourceAppRevision).
-			WithWorkloadOption(assemble.PrepareWorkloadForRollout()).
-			WithWorkloadOption(rolloutWorkloadName())
+			WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).
+			WithWorkloadOption(rolloutWorkloadName(h.needRollComponent))
 		h.sourceWorkloads, _, _, err = sourceAssemble.GroupAssembledManifests()
 		if err != nil {
 			klog.Error("appRollout sourceAppRevision failed to assemble workloads", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
@@ -118,6 +120,10 @@ func (h *rolloutHandler) prepareRollout(ctx context.Context) error {
 
 // we only support one workload now, so this func is to determine witch component is need to rollout
 func (h *rolloutHandler) determineRolloutComponent() error {
+	if h.needRollComponent != "" {
+		return nil
+	}
+
 	componentList := h.appRollout.Spec.ComponentList
 	// if user not set ComponentList in AppRollout we also find a common component between source and target
 	if len(componentList) == 0 {
@@ -211,38 +217,14 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 		klog.Errorf("dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
 		return err
 	}
-	workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
-	if err != nil {
-		return err
-	}
-	ref := metav1.GetControllerOfNoCopy(workload)
-	if ref != nil && ref.Kind == v1beta1.ResourceTrackerKind {
-		wlPatch := client.MergeFrom(workload.DeepCopy())
-		// guarantee resourceTracker isn't controller owner of workload
-		disableControllerOwner(workload)
-		if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
-// templateTargetManifest call dispatch to template source app revision's manifests to cluster
-func (h *rolloutHandler) templateSourceManifest(ctx context.Context) error {
-
-	// only when sourceAppRevision is not nil, we need template sourceRevision revision
-	if h.sourceAppRevision == nil {
-		return nil
+	// The workload not in target workloads can be not ready for insertSecret case
+	targetWL := h.targetWorkloads[h.needRollComponent]
+	if targetWL == nil {
+		return errors.Errorf("target workload for component %s for app %s is not ready", h.needRollComponent, h.targetAppRevision.Spec.Application.Name)
 	}
 
-	// use source resourceTracker to handle same resource owner transfer
-	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.sourceAppRevision)
-	_, err := dispatcher.Dispatch(ctx, h.sourceManifests)
-	if err != nil {
-		klog.Errorf("dispatch sourceRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
-		return err
-	}
-	workload, err := h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent])
+	workload, err := h.extractWorkload(ctx, *targetWL)
 	if err != nil {
 		return err
 	}
@@ -290,6 +272,55 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 		if _, err := d.Dispatch(ctx, nil); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// this func handle two case
+// 1. handle 1.0.x lagacy workload, their owner is appcontext so let resourceTracker take over it
+// 2. disable resourceTracker controller owner
+func (h *rolloutHandler) handleSourceWorkload(ctx context.Context) error {
+	workload, err := h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent])
+	if err != nil {
+		return err
+	}
+	owners := workload.GetOwnerReferences()
+	var wantOwner []metav1.OwnerReference
+	wlPatch := client.MergeFrom(workload.DeepCopy())
+	for _, owner := range owners {
+		if owner.Kind == v1beta1.ResourceTrackerKind {
+			wantOwner = append(wantOwner, owner)
+		}
+	}
+	// logic here is  compatibility code for 1.0.X lagacy workload, their ownerReference is appcontext, so remove it
+	if len(wantOwner) == 0 {
+		klog.InfoS("meet a lagacy workload, should let resourceTracker take over it")
+		rtName := dispatch.ConstructResourceTrackerName(h.sourceRevName, h.appRollout.Namespace)
+		rt := v1beta1.ResourceTracker{}
+		if err := h.Get(ctx, types.NamespacedName{Name: rtName}, &rt); err != nil {
+			if apierrors.IsNotFound(err) {
+				if err = h.Create(ctx, &rt); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		ownerRef := metav1.OwnerReference{
+			APIVersion:         v1beta1.SchemeGroupVersion.String(),
+			Kind:               reflect.TypeOf(v1beta1.ResourceTracker{}).Name(),
+			Name:               rt.Name,
+			UID:                rt.UID,
+			Controller:         pointer.BoolPtr(true),
+			BlockOwnerDeletion: pointer.BoolPtr(true),
+		}
+		workload.SetOwnerReferences([]metav1.OwnerReference{ownerRef})
+	}
+	// after last succeed rollout finish, workload's ownerReference controller have been set true
+	// so we should disable the controller owner firstly
+	disableControllerOwner(workload)
+	if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
+		return err
 	}
 	return nil
 }

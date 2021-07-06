@@ -136,6 +136,11 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		h.targetRevName = appRollout.Spec.TargetAppRevisionName
 	}
 
+	// 	TODO we only support rollout for one component and it should be specified in componentList
+	if len(appRollout.Spec.ComponentList) == 1 {
+		h.needRollComponent = appRollout.Spec.ComponentList[0]
+	}
+
 	// call assemble func generate source and target manifest
 	if err = h.prepareRollout(ctx); err != nil {
 		return reconcile.Result{}, err
@@ -160,10 +165,11 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 			return ctrl.Result{}, nil
 		}
 	case v1alpha1.LocatingTargetAppState:
-		// dispatch sourceWorkload
-		err = h.templateSourceManifest(ctx)
-		if err != nil {
-			return reconcile.Result{}, err
+		if h.sourceAppRevision != nil {
+			err = h.handleSourceWorkload(ctx)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 		// target manifest haven't template yet, call dispatch template target manifest firstly
 		err = h.templateTargetManifest(ctx)
