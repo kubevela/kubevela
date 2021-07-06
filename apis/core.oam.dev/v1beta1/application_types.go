@@ -17,6 +17,7 @@
 package v1beta1
 
 import (
+	xpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -127,6 +128,16 @@ type ApplicationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Application `json:"items"`
+}
+
+// SetConditions set condition to application
+func (app *Application) SetConditions(c ...xpv1alpha1.Condition) {
+	app.Status.SetConditions(c...)
+}
+
+// GetCondition get condition by given condition type
+func (app *Application) GetCondition(t xpv1alpha1.ConditionType) xpv1alpha1.Condition {
+	return app.Status.GetCondition(t)
 }
 
 // GetComponent get the component from the application based on its workload type

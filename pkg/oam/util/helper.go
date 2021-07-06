@@ -26,7 +26,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/davecgh/go-spew/spew"
@@ -43,7 +42,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -58,8 +56,6 @@ var (
 	KindDeployment = reflect.TypeOf(appsv1.Deployment{}).Name()
 	// KindService is the k8s Service kind.
 	KindService = reflect.TypeOf(corev1.Service{}).Name()
-	// ReconcileWaitResult is the time to wait between reconciliation.
-	ReconcileWaitResult = reconcile.Result{RequeueAfter: 30 * time.Second}
 )
 
 const (
@@ -77,6 +73,8 @@ const (
 )
 
 const (
+	// ErrReconcileErrInCondition indicates one or more error occurs and are recorded in status conditions
+	ErrReconcileErrInCondition = "object level reconcile error, type: %q, msg: %q"
 	// ErrUpdateStatus is the error while applying status.
 	ErrUpdateStatus = "cannot apply status"
 	// ErrLocateAppConfig is the error while locating parent application.
@@ -449,8 +447,44 @@ func fetchChildResources(ctx context.Context, r client.Reader, workload *unstruc
 	return childResources, nil
 }
 
-// PatchCondition condition for a conditioned object
-func PatchCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
+// EndReconcileWithNegativeCondition is used to handle reconcile failure for a conditioned resource.
+// It will make ctrl-mgr to requeue the resource through patching changed conditions or returning
+// an error.
+// It should not handle reconcile success with positive conditions, otherwise it will trigger
+// infinite requeue.
+func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
+	condition ...cpv1alpha1.Condition) error {
+	if len(condition) == 0 {
+		return nil
+	}
+	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
+	var conditionIsChanged bool
+	for _, newCond := range condition {
+		// NOTE(roywang) an implicit rule here: condition type is unique in an object's conditions
+		// if this rule is changed in the future, we must revise below logic correspondingly
+		existingCond := workload.GetCondition(newCond.Type)
+		if !existingCond.Equal(newCond) {
+			conditionIsChanged = true
+			break
+		}
+	}
+	workload.SetConditions(condition...)
+	if err := r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID())); err != nil {
+		return errors.Wrap(err, ErrUpdateStatus)
+	}
+	if conditionIsChanged {
+		// if any condition is changed, patching status can trigger requeue the resource and we should return nil to
+		// avoid requeue it again
+		return nil
+	}
+	// if no condition is changed, patching status can not trigger requeue, so we must return an error to
+	// requeue the resource
+	return fmt.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
+}
+
+// EndReconcileWithPositiveCondition is used to handle reconcile success for a conditioned resource.
+// It should only accept positive condition which means no need to requeue the resource.
+func EndReconcileWithPositiveCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
 	condition ...cpv1alpha1.Condition) error {
 	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
 	workload.SetConditions(condition...)

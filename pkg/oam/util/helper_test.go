@@ -24,6 +24,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/fake"
@@ -982,7 +983,122 @@ func TestDeepHashObject(t *testing.T) {
 	}
 }
 
-func TestPatchCondition(t *testing.T) {
+func TestEndReconcileWithNegativeCondition(t *testing.T) {
+
+	var time1, time2 time.Time
+	time1 = time.Now()
+	time2 = time1.Add(time.Second)
+
+	type args struct {
+		ctx       context.Context
+		r         client.StatusClient
+		workload  util.ConditionedObject
+		condition []v1alpha1.Condition
+	}
+	patchErr := fmt.Errorf("eww")
+	tests := []struct {
+		name     string
+		args     args
+		expected error
+	}{
+		{
+			name: "no condition is added",
+			args: args{
+				ctx: context.Background(),
+				r: &test.MockClient{
+					MockStatusPatch: test.NewMockStatusPatchFn(nil),
+				},
+				workload:  &fake.Target{},
+				condition: []v1alpha1.Condition{},
+			},
+			expected: nil,
+		},
+		{
+			name: "condition is changed",
+			args: args{
+				ctx: context.Background(),
+				r: &test.MockClient{
+					MockStatusPatch: test.NewMockStatusPatchFn(nil),
+				},
+				workload: &fake.Target{
+					ConditionedStatus: v1alpha1.ConditionedStatus{
+						Conditions: []v1alpha1.Condition{
+							{
+								Type:               "test",
+								LastTransitionTime: metav1.NewTime(time1),
+								Reason:             "old reason",
+								Message:            "old error msg",
+							},
+						},
+					},
+				},
+				condition: []v1alpha1.Condition{
+					{
+						Type:               "test",
+						LastTransitionTime: metav1.NewTime(time2),
+						Reason:             "new reason",
+						Message:            "new error msg",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "condition is not changed",
+			args: args{
+				ctx: context.Background(),
+				r: &test.MockClient{
+					MockStatusPatch: test.NewMockStatusPatchFn(nil),
+				},
+				workload: &fake.Target{
+					ConditionedStatus: v1alpha1.ConditionedStatus{
+						Conditions: []v1alpha1.Condition{
+							{
+								Type:               "test",
+								LastTransitionTime: metav1.NewTime(time1),
+								Reason:             "old reason",
+								Message:            "old error msg",
+							},
+						},
+					},
+				},
+				condition: []v1alpha1.Condition{
+					{
+						Type:               "test",
+						LastTransitionTime: metav1.NewTime(time2),
+						Reason:             "old reason",
+						Message:            "old error msg",
+					},
+				},
+			},
+			expected: fmt.Errorf(util.ErrReconcileErrInCondition, "test", "old error msg"),
+		},
+		{
+			name: "fail for patching error",
+			args: args{
+				ctx: context.Background(),
+				r: &test.MockClient{
+					MockStatusPatch: test.NewMockStatusPatchFn(patchErr),
+				},
+				workload: &fake.Target{},
+				condition: []v1alpha1.Condition{
+					{},
+				},
+			},
+			expected: errors.Wrap(patchErr, util.ErrUpdateStatus),
+		},
+	}
+	for _, tt := range tests {
+		err := util.EndReconcileWithNegativeCondition(tt.args.ctx, tt.args.r, tt.args.workload, tt.args.condition...)
+		if tt.expected == nil {
+			assert.NoError(t, err)
+		} else {
+			assert.Equal(t, tt.expected.Error(), err.Error())
+		}
+	}
+}
+
+func TestEndReconcileWithPositiveCondition(t *testing.T) {
 	type args struct {
 		ctx       context.Context
 		r         client.StatusClient
@@ -1025,7 +1141,7 @@ func TestPatchCondition(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		err := util.PatchCondition(tt.args.ctx, tt.args.r, tt.args.workload, tt.args.condition...)
+		err := util.EndReconcileWithPositiveCondition(tt.args.ctx, tt.args.r, tt.args.workload, tt.args.condition...)
 		if tt.expected == nil {
 			assert.NoError(t, err)
 		} else {

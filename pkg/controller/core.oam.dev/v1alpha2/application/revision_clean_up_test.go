@@ -79,7 +79,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
+			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -164,7 +164,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
+			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -273,7 +273,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
+			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -366,7 +366,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileRetry(reconciler, ctrl.Request{NamespacedName: appKey})
+			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),

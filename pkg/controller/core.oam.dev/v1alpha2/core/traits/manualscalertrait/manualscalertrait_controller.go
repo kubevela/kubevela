@@ -102,7 +102,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	workload, err := util.FetchWorkload(ctx, r, &manualScalar)
 	if err != nil {
 		r.record.Event(eventObj, event.Warning(util.ErrLocateWorkload, err))
-		return util.ReconcileWaitResult, util.PatchCondition(
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(
 			ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, util.ErrLocateWorkload)))
 	}
 
@@ -111,7 +111,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
-		return util.ReconcileWaitResult, util.PatchCondition(ctx, r, &manualScalar,
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &manualScalar,
 			cpv1alpha1.ReconcileError(errors.New(util.ErrFetchChildResources)))
 	}
 	// include the workload itself if there is no child resources
@@ -121,7 +121,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Scale the child resources that we know how to scale
 	result, err := r.scaleResources(ctx, manualScalar, resources)
 	// the scaleResources function will patch error message and should return here to prevent the condition override by the following patch.
-	if result == util.ReconcileWaitResult {
+	if err != nil {
 		return result, err
 	}
 	if err != nil {
@@ -131,7 +131,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.record.Event(eventObj, event.Normal("Manual scalar applied",
 		fmt.Sprintf("Trait `%s` successfully scaled a resource to %d instances",
 			manualScalar.Name, manualScalar.Spec.ReplicaCount)))
-	return ctrl.Result{}, util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileSuccess())
+	return ctrl.Result{}, util.EndReconcileWithPositiveCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileSuccess())
 }
 
 // identify child resources and scale them
@@ -152,13 +152,13 @@ func (r *Reconciler) scaleResources(ctx context.Context, manualScalar oamv1alpha
 	// prepare for openApi schema check
 	schemaDoc, err := r.DiscoveryClient.OpenAPISchema()
 	if err != nil {
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
 	}
 	document, err := openapi.NewOpenAPIData(schemaDoc)
 	if err != nil {
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
 	}
 	for _, res := range resources {
 		if locateReplicaField(document, res) {
@@ -170,14 +170,14 @@ func (r *Reconciler) scaleResources(ctx context.Context, manualScalar oamv1alpha
 			err := unstructured.SetNestedField(res.Object, int64(manualScalar.Spec.ReplicaCount), "spec", "replicas")
 			if err != nil {
 				klog.ErrorS(err, "Failed to patch a resource for scaling")
-				return util.ReconcileWaitResult,
-					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errPatchTobeScaledResource)))
+				return ctrl.Result{},
+					util.EndReconcileWithNegativeCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errPatchTobeScaledResource)))
 			}
 			// merge patch to scale the resource
 			if err := r.Patch(ctx, res, resPatch, client.FieldOwner(manualScalar.GetUID())); err != nil {
 				klog.ErrorS(err, "Failed to scale a resource")
-				return util.ReconcileWaitResult,
-					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleResource)))
+				return ctrl.Result{},
+					util.EndReconcileWithNegativeCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleResource)))
 			}
 			klog.InfoS("Successfully scaled a resource", "resource GVK", res.GroupVersionKind().String(),
 				"res UID", res.GetUID(), "target replica", manualScalar.Spec.ReplicaCount)
@@ -185,8 +185,8 @@ func (r *Reconciler) scaleResources(ctx context.Context, manualScalar oamv1alpha
 	}
 	if !found {
 		klog.InfoS("Cannot locate any resource", "total resources", len(resources))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.New(errScaleResource)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.New(errScaleResource)))
 	}
 	return ctrl.Result{}, nil
 }

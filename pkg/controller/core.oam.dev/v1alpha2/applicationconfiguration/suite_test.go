@@ -254,3 +254,10 @@ func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 		return err
 	}, 3*time.Second, time.Second).Should(BeNil())
 }
+
+func reconcileRetryAndExpectErr(r reconcile.Reconciler, req reconcile.Request) {
+	Eventually(func() error {
+		_, err := r.Reconcile(req)
+		return err
+	}, 3*time.Second, time.Second).ShouldNot(BeNil())
+}

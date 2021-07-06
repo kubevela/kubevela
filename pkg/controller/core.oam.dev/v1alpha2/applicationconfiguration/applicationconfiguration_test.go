@@ -175,6 +175,9 @@ func TestReconciler(t *testing.T) {
 
 							return nil
 						}),
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj runtime.Object) error {
+							return nil
+						}),
 					},
 				},
 				o: []ReconcilerOption{
@@ -200,6 +203,9 @@ func TestReconciler(t *testing.T) {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
 								return errUnexpectedStatus
 							}
+							return nil
+						}),
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj runtime.Object) error {
 							return nil
 						}),
 					},
@@ -232,6 +238,9 @@ func TestReconciler(t *testing.T) {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
 								return errUnexpectedStatus
 							}
+							return nil
+						}),
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj runtime.Object) error {
 							return nil
 						}),
 					},
@@ -336,6 +345,9 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj runtime.Object) error {
+							return nil
+						}),
 					},
 				},
 				o: []ReconcilerOption{
@@ -362,7 +374,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: 15 * time.Second},
+				result: reconcile.Result{},
 			},
 		},
 		"FailedPostHook": {
@@ -393,22 +405,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o runtime.Object) error {
-							want := ac(
-								withWorkloadStatuses(v1alpha2.WorkloadStatus{
-									ComponentName: componentName,
-									Reference: runtimev1alpha1.TypedReference{
-										APIVersion: workload.GetAPIVersion(),
-										Kind:       workload.GetKind(),
-										Name:       workload.GetName(),
-									},
-								}),
-							)
-							want.SetConditions(runtimev1alpha1.ReconcileSuccess())
-							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration), cmpopts.EquateEmpty()); diff != "" {
-								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
-								return errUnexpectedStatus
-							}
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj runtime.Object) error {
 							return nil
 						}),
 					},
@@ -434,7 +431,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: 15 * time.Second},
+				result: reconcile.Result{},
 			},
 		},
 		"FailedPreAndPostHook": {
@@ -455,6 +452,9 @@ func TestReconciler(t *testing.T) {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s, \n%s", diff, diffPost)
 								return errUnexpectedStatus
 							}
+							return nil
+						}),
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(obj runtime.Object) error {
 							return nil
 						}),
 					},
@@ -486,7 +486,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: 15 * time.Second},
+				result: reconcile.Result{},
 			},
 		},
 		"SuccessWithHooks": {

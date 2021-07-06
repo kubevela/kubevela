@@ -96,16 +96,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Failed to render a deployment")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 	}
 	// server side apply, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
 	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
 		klog.ErrorS(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
 	}
 	r.record.Event(eventObj, event.Normal("Deployment created",
 		fmt.Sprintf("Workload `%s` successfully server side patched a deployment `%s`",
@@ -116,15 +116,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Failed to render configmaps")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 	}
 	for _, cm := range configmaps {
 		if err := r.Patch(ctx, cm, client.Apply, configMapApplyOpts...); err != nil {
 			klog.ErrorS(err, "Failed to apply a configmap")
 			r.record.Event(eventObj, event.Warning(errApplyConfigMap, err))
-			return util.ReconcileWaitResult,
-				util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyConfigMap)))
+			return ctrl.Result{},
+				util.EndReconcileWithNegativeCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyConfigMap)))
 		}
 		r.record.Event(eventObj, event.Normal("ConfigMap created",
 			fmt.Sprintf("Workload `%s` successfully server side patched a configmap `%s`",
@@ -136,15 +136,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Failed to render a service")
 		r.record.Event(eventObj, event.Warning(errRenderService, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
 	// server side apply the service
 	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		klog.ErrorS(err, "Failed to apply a service")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
+		return ctrl.Result{},
+			util.EndReconcileWithNegativeCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
 	}
 	r.record.Event(eventObj, event.Normal("Service created",
 		fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",
@@ -171,10 +171,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		},
 	)
 
+	workload.SetConditions(cpv1alpha1.ReconcileSuccess())
 	if err := r.UpdateStatus(ctx, &workload); err != nil {
-		return util.ReconcileWaitResult, err
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(err))
 	}
-	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileSuccess())
+	return ctrl.Result{}, nil
 }
 
 // UpdateStatus updates v1alpha2.ContainerizedWorkload's Status with retry.RetryOnConflict
