@@ -50,15 +50,15 @@ func TestRegistry(t *testing.T) {
 
 	for _, c := range cases {
 		registry, err := NewRegistry(context.Background(), "", regName, c.url)
-		assert.NoError(t, err, regName)
+		assert.NoError(t, err, c.url)
 		assert.IsType(t, c.expectReg, registry, regName)
 
 		caps, err := registry.ListCaps()
-		assert.NoError(t, err, regName)
-		assert.NotEmpty(t, caps, regName)
+		assert.NoError(t, err, c.url)
+		assert.NotEmpty(t, caps, c.url)
 
 		capability, data, err := registry.GetCap(testAddon)
-		assert.NoError(t, err, regName)
+		assert.NoError(t, err, c.url)
 		assert.NotNil(t, capability, testAddon)
 		assert.NotNil(t, data, testAddon)
 	}
