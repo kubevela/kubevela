@@ -288,6 +288,7 @@ func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context
 	return nil
 }
 
+// ObjectOwner is a interface for get and set ownerReference
 type ObjectOwner interface {
 	GetOwnerReferences() []metav1.OwnerReference
 	SetOwnerReferences([]metav1.OwnerReference)
