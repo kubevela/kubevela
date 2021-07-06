@@ -206,7 +206,7 @@ func (o OssRegistry) ListCaps() ([]types.Capability, error) {
 	for _, rf := range rfs {
 		capa, err := rf.toAddon()
 		if err != nil {
-			fmt.Printf("[WARN] Parse file %s fail\n", rf.name)
+			fmt.Printf("[WARN] Parse file %s fail: %s\n", rf.name, err.Error())
 		}
 		capas = append(capas, capa)
 	}
