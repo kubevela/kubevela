@@ -8,7 +8,7 @@
 [![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Ftwitter.com%2Foam_dev)](https://twitter.com/oam_dev)
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/kubevela)](https://artifacthub.io/packages/search?repo=kubevela)
 
-![alt](docs/en/resources/KubeVela-03.png)
+![logo](https://raw.githubusercontent.com/oam-dev/kubevela.io/main/docs/resources/KubeVela-03.png)
 
 *Make shipping applications more enjoyable.*
 
