@@ -315,9 +315,9 @@ please provide as much information as possible.
 ## Automation
 
 We have some automation that triggers on comments or labels being added to issues.
-Many of these automated behaviors are defined in [issue-commands.json](https://github.com/oam-dev/kubevela/blob/main/.github/issue-commands.json).
+Many of these automated behaviors are defined in [issue-commands.json](https://github.com/oam-dev/kubevela/blob/master/.github/issue-commands.json).
 
 * Add comment `/duplicate #<number>` to have `type/duplicate` label, the issue number is required for remind where is the other issue.
 * Add label `bot/no new info` for bot to close an issue where we asked for more info but has not received any updates in at least 14 days.
 
-[Read more on bot actions](https://github.com/oam-dev/kubevela/blob/main/.github/bot.md)
+Read more bot actions on [bot.md](https://github.com/oam-dev/kubevela/blob/master/.github/bot.md)

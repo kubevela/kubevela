@@ -15,6 +15,11 @@
   },
   {
     "type": "comment",
+    "name": "assign",
+    "allowUsers": ["*"]
+  },
+  {
+    "type": "comment",
     "name": "type/bug",
     "allowUsers": [],
     "action": "updateLabels",

@@ -1,9 +1,9 @@
 ### GitHub & kubevela automation
 
-The bot is configured via [issue-commands.json](https://github.com/oam-dev/kubevela/blob/main/.github/workflows/issue-commands.json) 
-and some other GitHub [workflows](https://github.com/oam-dev/kubevela/blob/main/.github/workflows).
+The bot is configured via [issue-commands.json](https://github.com/oam-dev/kubevela/blob/master/.github/workflows/issue-commands.json) 
+and some other GitHub [workflows](https://github.com/oam-dev/kubevela/blob/master/.github/workflows).
 By default, users with write access to the repo is allowed to use the comments, 
-the [userlist](https://github.com/oam-dev/kubevela/blob/main/.github/comment.userlist) 
+the [userlist](https://github.com/oam-dev/kubevela/blob/master/.github/comment.userlist) 
 file is for adding additional members who do not have access and want to contribute to the issue triage.
 
 Comment commands:
@@ -23,3 +23,9 @@ Label commands:
 * Add label `bot/no new info` for bot to close an issue where we asked for more info but has not received any updates in at least 14 days.
 * Add label `bot/duplicate` to have `type/duplicate` label & the bot will close issue with an appropriate message.
 * Add label `bot/close feature request` for bot to close a feature request with standard message.
+
+Assign:
+When you participating in an issue area, and you want to assign to others
+to distribute this task or self-assign to give a solution. You can use the comment bellow.
+* Write the word `/assign githubname` in a comment, the robot will automatically assign to the corresponding person.
+  
