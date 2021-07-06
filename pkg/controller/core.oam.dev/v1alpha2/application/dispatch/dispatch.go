@@ -239,6 +239,7 @@ func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, r
 			return true, err
 		}
 		setOrOverrideControllerOwner(pv, ownerRef)
+		pv.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1.PersistentVolume{}).Name()))
 		return true, a.applicator.Apply(ctx, pv, applyOpts...)
 	default:
 	}
