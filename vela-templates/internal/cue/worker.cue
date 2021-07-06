@@ -16,6 +16,10 @@ output: {
 					name:  context.name
 					image: parameter.image
 
+					if parameter["imagePullPolicy"] != _|_ {
+						imagePullPolicy: parameter.imagePullPolicy
+					}
+
 					if parameter["cmd"] != _|_ {
 						command: parameter.cmd
 					}
@@ -60,6 +64,13 @@ output: {
 
 				}]
 
+			if parameter["imagePullSecrets"] != _|_ {
+				imagePullSecrets: [ for v in parameter.imagePullSecrets {
+					name: v
+				},
+				]
+			}
+
 			if parameter["volumes"] != _|_ {
 				volumes: [ for v in parameter.volumes {
 					{
@@ -103,6 +114,12 @@ parameter: {
 	// +usage=Which image would you like to use for your service
 	// +short=i
 	image: string
+
+	// +usage=Specify image pull policy for your service
+	imagePullPolicy?: string
+
+	// +usage=Specify image pull secrets for your service
+	imagePullSecrets?: [...string]
 
 	// +usage=Commands to run in the container
 	cmd?: [...string]
