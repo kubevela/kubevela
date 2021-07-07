@@ -17,12 +17,20 @@ limitations under the License.
 package applicationrollout
 
 import (
+	"context"
+	"fmt"
 	"reflect"
 
+	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/openkruise/kruise-api/apps/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -56,6 +64,54 @@ func rolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 		w.SetName(compRevName)
 		klog.InfoS("we encountered an unknown resources, assume that it does not support in-place upgrade",
 			"GVK", w.GroupVersionKind(), "instance name", compRevName)
+		return nil
+	})
+}
+
+func handleReplicas(ctx context.Context, rolloutComp string, c client.Client) assemble.WorkloadOption {
+	return assemble.WorkloadOptionFn(func(u *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
+		compName := u.GetLabels()[oam.LabelAppComponent]
+		if compName != rolloutComp {
+			return nil
+		}
+
+		pv := fieldpath.Pave(u.UnstructuredContent())
+
+		// we hard code here, but we can easily support more types of workload by add more cases logic in switch
+		var replicasFieldPath string
+		switch u.GetKind() {
+		case reflect.TypeOf(v1alpha1.CloneSet{}).Name(), reflect.TypeOf(appsv1.Deployment{}).Name():
+			replicasFieldPath = "spec.replicas"
+		default:
+			klog.Errorf("rollout meet a workload we cannot support yet", "Kind", u.GetKind(), "name", u.GetName())
+			return fmt.Errorf("rollout meet a workload we cannot support yet Kind  %s name %s", u.GetKind(), u.GetName())
+		}
+
+		workload := u.DeepCopy()
+		if err := c.Get(ctx, types.NamespacedName{Namespace: u.GetNamespace(), Name: u.GetName()}, workload); err != nil {
+			if apierrors.IsNotFound(err) {
+				//  workload not exist(eg. first scale operation) we force set the replicas to zero
+				err = pv.SetNumber(replicasFieldPath, 0)
+				if err != nil {
+					return err
+				}
+				klog.InfoS("assemble force set workload replicas to 0", "Kind", u.GetKind(), "name", u.GetName())
+				return nil
+			}
+			return err
+		}
+		// the workload already exist, we cannot reset the replicas with manifest
+		// eg. if workload type is cloneset. the source worklaod and target worklaod is same one
+		// so dispatch shouldn't modify current replica number.
+		wlpv := fieldpath.Pave(workload.UnstructuredContent())
+		replicas, err := wlpv.GetInteger(replicasFieldPath)
+		if err != nil {
+			return err
+		}
+		if err = pv.SetNumber(replicasFieldPath, float64(replicas)); err != nil {
+			return err
+		}
+		klog.InfoS("assemble set existing workload replicas", "Kind", u.GetKind(), "name", u.GetName(), "replicas", replicas)
 		return nil
 	})
 }

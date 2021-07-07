@@ -20,6 +20,10 @@ import (
 	"context"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	crossplane "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -126,6 +130,8 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		return reconcile.Result{}, nil
 	}
 
+	klog.InfoS("handle AppRollout", "name", appRollout.Name, "namespace", appRollout.Namespace, "state", appRollout.Status.RollingState)
+
 	h := rolloutHandler{Reconciler: r, appRollout: appRollout}
 	// handle rollout target/source change (only if it's not deleting already)
 	if isRolloutModified(*appRollout) {
@@ -142,12 +148,16 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 	}
 
 	// call assemble func generate source and target manifest
-	if err = h.prepareRollout(ctx); err != nil {
+	if err = h.prepareWorkloads(ctx); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// we only support one workload rollout now, so here is determine witch component is need to rollout
 	if err = h.determineRolloutComponent(); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if err = h.assembleManifest(ctx); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -174,10 +184,14 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		// target manifest haven't template yet, call dispatch template target manifest firstly
 		err = h.templateTargetManifest(ctx)
 		if err != nil {
+			h.appRollout.Status.SetConditions(errorCondition("template", err))
 			return reconcile.Result{}, err
 		}
+		h.appRollout.Status.SetConditions(readyCondition("template"))
 		// this ensures that we template workload only once
 		h.appRollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
+		klog.InfoS("AppRollout have complete templateTarget", "name", h.appRollout.Name, "namespace",
+			h.appRollout.Namespace, "rollingState", h.appRollout.Status.RollingState)
 		return reconcile.Result{RequeueAfter: 3 * time.Second}, nil
 	default:
 		// in other cases there is no need do anything
@@ -295,4 +309,23 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return reconciler.SetupWithManager(mgr)
+}
+
+func errorCondition(tpy string, err error) crossplane.Condition {
+	return crossplane.Condition{
+		Type:               crossplane.ConditionType(tpy),
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             crossplane.ReasonReconcileError,
+		Message:            err.Error(),
+	}
+}
+
+func readyCondition(tpy string) crossplane.Condition {
+	return crossplane.Condition{
+		Type:               crossplane.ConditionType(tpy),
+		Status:             corev1.ConditionTrue,
+		Reason:             crossplane.ReasonAvailable,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+	}
 }

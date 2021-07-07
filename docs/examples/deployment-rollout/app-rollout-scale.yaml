@@ -10,5 +10,5 @@ spec:
   rolloutPlan:
     rolloutStrategy: "IncreaseFirst"
     rolloutBatches:
-      - replicas: 4
+      - replicas: 5
     targetSize: 5
