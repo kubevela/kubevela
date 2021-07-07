@@ -253,6 +253,7 @@ var _ = Describe("test generate revision ", func() {
 			},
 			time.Second*5, time.Millisecond*500).Should(BeNil())
 		appHash1, err := ComputeAppRevisionHash(curAppRevision)
+		appRevName1 := curApp.Status.LatestRevision.Name
 		Expect(err).Should(Succeed())
 		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
 		Expect(appHash1).Should(Equal(curApp.Status.LatestRevision.RevisionHash))
@@ -401,11 +402,11 @@ var _ = Describe("test generate revision ", func() {
 					curApp)
 			},
 			time.Second*10, time.Millisecond*500).Should(BeNil())
-		// new revision should be created
-		Expect(curApp.Status.LatestRevision.Name).ShouldNot(Equal(lastRevision))
+		// new revision should not be created
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(appRevName1))
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-		Expect(curApp.Status.LatestRevision.RevisionHash).ShouldNot(Equal(appHash2))
-		By("Verify the appRevision is changed")
+		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(appHash1))
+		By("Verify the appRevision is not changed")
 		// reset appRev
 		curAppRevision = &v1beta1.ApplicationRevision{}
 		Eventually(
@@ -417,7 +418,7 @@ var _ = Describe("test generate revision ", func() {
 			time.Second*5, time.Millisecond*500).Should(BeNil())
 		appHash3, err := ComputeAppRevisionHash(curAppRevision)
 		Expect(err).Should(Succeed())
-		Expect(appHash2).ShouldNot(Equal(appHash3))
+		Expect(appHash1).Should(Equal(appHash3))
 		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash3))
 		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(appHash3))
 

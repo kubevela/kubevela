@@ -119,13 +119,13 @@ func (h *appHandler) prepareCurrentAppRevision(ctx context.Context, af *appfile.
 	}
 
 	equalRevisions := h.findEqualRevisions()
-	if len(equalRevisions) > 0 {
+	if len(equalRevisions) < 1 {
 		h.isNewRevision = true
 		h.currentAppRev.Name, _ = utils.GetAppNextRevision(h.app)
 	} else {
-		// by now we just choose the latest revision
 		equalCount := len(equalRevisions)
 		if equalCount > 1 {
+			// by now we just choose the latest revision in equal histories
 			h.currentAppRev = equalRevisions[equalCount-1].DeepCopy()
 		} else {
 			h.currentAppRev = equalRevisions[0].DeepCopy()
