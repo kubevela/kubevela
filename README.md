@@ -18,17 +18,17 @@ KubeVela is a modern application platform that makes deploying and managing appl
 
 ## Features
 
-**Application Centric** - KubeVela introduces declarative yet higher level API (known as [OAM](https://oam.dev/)) to model a full deployment of microservices across hybrid environments in consistent approach. No infrastructure level concerns, simply deploy.
+**Application Centric** - KubeVela introduces [Open Application Model (OAM)](https://oam.dev/) as the consistent yet higher level API to capture a full deployment of microservices on top of hybrid environments. Placement strategy, traffic shifting and rolling update are declared at application level. No infrastructure level concern, simply deploy.
 
-**Natively Extensible** - KubeVela backend is implemented with [CUE](https://cuelang.org/). Whenever your needs grow, KubeVela's capabilities can naturally expand in a IaC-style approach. No restrictions, simply programming.
+**Deployment Workflow** - KubeVela backend is implemented with [CUE](https://cuelang.org/). It allows you to define an application deployment workflow as DAG with all application's needs glued together in programmable approach. No restrictions, natively extensible.
 
-**Runtime Agnostic** - KubeVela relies on Kubernetes as control plane but it's adaptable to any runtime infrastructures. It can deploy and manage diverse workload types including container, cloud functions, databases, or even EC2 instances across hybrid environments.
+**Runtime Agnostic** - KubeVela works as an application delivery control plane that is fully runtime agnostic. It can deploy and operate any application components including container, cloud functions, databases, or even EC2 instances across hybrid environments, following the workflow you defined.
 
 ## Getting Started
 
 - [Introduction](https://kubevela.io/docs)
 - [Installation](https://kubevela.io/docs/install)
-- [Deploy an Application](https://kubevela.io/docs/end-user/application)
+- [Design Your First Deployment Plan](https://kubevela.io/docs/end-user/application)
 
 ## Documentation
 
