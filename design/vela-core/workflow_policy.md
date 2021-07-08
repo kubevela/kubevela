@@ -18,7 +18,7 @@ Specifically, it has the following limitations:
 
 Here is an overview of the features we want to expose and the capabilities we want to plug in:
 
-![alt](../../docs/en/resources/workflow-feature.jpg)
+![alt](https://raw.githubusercontent.com/oam-dev/kubevela/071476a04fcf16f058ed27c95fab14f7f592462f/docs/en/resources/workflow-feature.jpg)
 
 ## Proposal
 
@@ -146,7 +146,7 @@ In this section we will discuss the implementation details to support policies a
 
 Here's a diagram of how workflow internals work:
 
-![alt](../../docs/en/resources/workflow-internals.jpg)
+![alt](https://raw.githubusercontent.com/oam-dev/kubevela/071476a04fcf16f058ed27c95fab14f7f592462f/docs/en/resources/workflow-internals.jpg)
 
 
 Here are the steps in Application Controller:

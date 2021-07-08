@@ -27,7 +27,7 @@ This design is based on and tries to resolve the following use cases:
 
 The overall architecture diagram:
 
-![alt](../../docs/en/resources/apiserver-arch.jpg)
+![alt](https://raw.githubusercontent.com/oam-dev/kubevela.io/main/docs/resources/apiserver-arch.jpg)
 
 Here's some explanation of the diagram:
 
@@ -39,13 +39,13 @@ Here's some explanation of the diagram:
 
 The above architecture implies that the Vela APIServer could be used to multiple k8s clusters and catalogs. Below is what a deployment of Vela platform would look like:
 
-![alt](../../docs/en/resources/api-workflow.png)
+![alt](https://raw.githubusercontent.com/oam-dev/kubevela.io/main/docs/resources/api-workflow.png)
 
 ### 2. API Design
 
 Below is the overall architecture of API grouping and storage:
 
-![alt](../../docs/en/resources/api-arch.jpg)
+![alt](https://raw.githubusercontent.com/oam-dev/kubevela.io/main/docs/resources/api-arch.jpg)
 
 There are two distinguished layers:
 - **API layer**: It defines the API discovery and serving endpoints that Vela APIServer implementation must follow. This is the integration point for external system components (e.g. UI) to contact.
@@ -313,7 +313,7 @@ Under the hood, APIServer will rescan the catalog.
 
 Vela APIServer aggregates package information from multiple catalog servers. To download a package, the user first requests the APIServer to find the location of the catalog and the package. Then the user visits the catalog repo directly to download the package data. The workflow is shown as below:
 
-![alt](../../docs/en/resources/catalog-workflow.jpg)
+![alt](https://raw.githubusercontent.com/oam-dev/kubevela.io/main/docs/resources/catalog-workflow.jpg)
 
 In our future roadmap, we will build a catalog controller for each k8s cluster. Then we will add API endpoint to install the package in APIServer which basically creates a CR to trigger the controller to reconcile package installation into the cluster. We choose this instead of APIServer installing the package because in this way we can bypass the APIServer in the package data transfer path and avoid APIServer becoming a single point of failure.
 
