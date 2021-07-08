@@ -240,6 +240,8 @@ type AppStatus struct {
 	// Workflow record the status of workflow steps
 	Workflow *WorkflowStatus `json:"workflow,omitempty"`
 
+	WorkflowStepIndex int
+
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
