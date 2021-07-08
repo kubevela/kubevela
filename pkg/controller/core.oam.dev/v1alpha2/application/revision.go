@@ -277,10 +277,10 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		return false, false, errors.Wrap(err, "failed to list app revision")
 	}
 
-	for _, existRevision := range revisionList.Items {
-		if existRevision.GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash && DeepEqualRevision(&existRevision, h.currentAppRev) {
+	for i := range revisionList.Items {
+		if revisionList.Items[i].GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash && DeepEqualRevision(&revisionList.Items[i], h.currentAppRev) {
 			// we set currentAppRev to existRevision
-			h.currentAppRev = existRevision.DeepCopy()
+			h.currentAppRev = revisionList.Items[i].DeepCopy()
 			return true, false, nil
 		}
 	}
