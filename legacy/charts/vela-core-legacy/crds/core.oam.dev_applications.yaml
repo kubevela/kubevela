@@ -383,6 +383,10 @@ spec:
                 - name
                 - revision
                 type: object
+              observedGeneration:
+                description: The generation observed by the application controller.
+                format: int64
+                type: integer
               resourceTracker:
                 description: ResourceTracker record the status of the ResourceTracker
                 properties:
@@ -968,6 +972,10 @@ spec:
                 - name
                 - revision
                 type: object
+              observedGeneration:
+                description: The generation observed by the application controller.
+                format: int64
+                type: integer
               resourceTracker:
                 description: ResourceTracker record the status of the ResourceTracker
                 properties:

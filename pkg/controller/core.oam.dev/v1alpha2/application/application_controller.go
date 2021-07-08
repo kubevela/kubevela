@@ -319,6 +319,7 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application) error {
+	updateObservedGeneration(app)
 	return r.Client.Status().Patch(ctx, app, client.Merge)
 }
 
@@ -353,4 +354,10 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return reconciler.SetupWithManager(mgr)
+}
+
+func updateObservedGeneration(app *v1beta1.Application) {
+	if app.Status.ObservedGeneration != app.Generation {
+		app.Status.ObservedGeneration = app.Generation
+	}
 }
