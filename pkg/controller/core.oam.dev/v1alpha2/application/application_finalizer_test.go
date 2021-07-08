@@ -125,7 +125,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		checkApp = new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v3"), rt)).Should(Succeed())
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(Succeed())
 		Expect(checkApp.Status.ResourceTracker).Should(BeNil())
 	})
 

@@ -118,12 +118,15 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 		return err
 	}
 
-	h.isNewRevision = h.currentAppRevIsNew()
-	if h.isNewRevision {
-		h.currentAppRev.Name, _ = utils.GetAppNextRevision(h.app)
-	} else {
-		h.currentAppRev = h.latestAppRev.DeepCopy()
+	var needGenerateRevision bool
+	h.isNewRevision, needGenerateRevision, err = h.currentAppRevIsNew(ctx)
+	if err != nil {
+		return err
 	}
+	if h.isNewRevision && needGenerateRevision {
+		h.currentAppRev.Name, _ = utils.GetAppNextRevision(h.app)
+	}
+
 	// MUST pass app revision name to appfile
 	// appfile depends it to render resources and do health checking
 	af.RevisionName = h.currentAppRev.Name
@@ -251,20 +254,39 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 	return utils.ComputeSpecHash(&appRevisionHash)
 }
 
-func (h *AppHandler) currentAppRevIsNew() bool {
+// currentAppRevIsNew check application revision already exist or not
+func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error) {
 	// the last revision doesn't exist.
 	if h.app.Status.LatestRevision == nil {
-		return true
+		return true, true, nil
 	}
-	// the hash value doesn't align
-	if h.app.Status.LatestRevision.RevisionHash != h.currentRevHash {
-		return true
+
+	// diff the latest revision first
+	if h.app.Status.LatestRevision.RevisionHash == h.currentRevHash && DeepEqualRevision(h.latestAppRev, h.currentAppRev) {
+		h.currentAppRev = h.latestAppRev.DeepCopy()
+		return false, false, nil
 	}
-	if DeepEqualRevision(h.latestAppRev, h.currentAppRev) {
-		return false
+
+	// list revision histories
+	revisionList := &v1beta1.ApplicationRevisionList{}
+	listOpts := []client.ListOption{client.MatchingLabels{
+		oam.LabelAppName: h.app.Name,
+	}, client.InNamespace(h.app.Namespace)}
+	if err := h.r.Client.List(ctx, revisionList, listOpts...); err != nil {
+		klog.ErrorS(err, "Failed to list app revision", "appName", h.app.Name)
+		return false, false, errors.Wrap(err, "failed to list app revision")
 	}
-	// if reach here, it's same hash but different spec
-	return true
+
+	for i := range revisionList.Items {
+		if revisionList.Items[i].GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash && DeepEqualRevision(&revisionList.Items[i], h.currentAppRev) {
+			// we set currentAppRev to existRevision
+			h.currentAppRev = revisionList.Items[i].DeepCopy()
+			return true, false, nil
+		}
+	}
+
+	// if reach here, it has different spec
+	return true, true, nil
 }
 
 // DeepEqualRevision will compare the spec of Application and Definition to see if the Application is the same revision
