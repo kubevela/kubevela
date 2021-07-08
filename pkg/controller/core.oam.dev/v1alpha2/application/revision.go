@@ -126,11 +126,7 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 	if h.isNewRevision && needGenerateRevision {
 		h.currentAppRev.Name, _ = utils.GetAppNextRevision(h.app)
 	}
-	// if h.isNewRevision {
-	// 	h.currentAppRev.Name, _ = utils.GetAppNextRevision(h.app)
-	// } else {
-	// 	h.currentAppRev = h.latestAppRev.DeepCopy()
-	// }
+
 	// MUST pass app revision name to appfile
 	// appfile depends it to render resources and do health checking
 	af.RevisionName = h.currentAppRev.Name
