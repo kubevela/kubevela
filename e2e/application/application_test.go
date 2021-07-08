@@ -160,6 +160,10 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 						a: "",
 					},
 					{
+						q: "Specify image pull policy for your service ",
+						a: "Always",
+					},
+					{
 						q: "Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core) (optional):",
 						a: "0.5",
 					},
