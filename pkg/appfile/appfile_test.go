@@ -886,6 +886,203 @@ func TestGetUserConfigName(t *testing.T) {
 	assert.Equal(t, wl3.GetUserConfigName(), config)
 }
 
+func TestGenerateCUETemplate(t *testing.T) {
+
+	var testCorrectTemplate = func() runtime.RawExtension {
+		yamlStr := `apiVersion: apps/v1
+kind: Deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+      ports:
+      - containerPort: 80 `
+		b, _ := yaml.YAMLToJSON([]byte(yamlStr))
+		return runtime.RawExtension{Raw: b}
+	}
+
+	var testErrorTemplate = func() runtime.RawExtension {
+		yamlStr := `apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+	selector:
+		matchLabels:
+		app: nginx
+`
+		b, _ := yaml.YAMLToJSON([]byte(yamlStr))
+		return runtime.RawExtension{Raw: b}
+	}
+
+	testcases := map[string]struct {
+		workload   *Workload
+		expectData string
+		hasError   bool
+		errInfo    string
+	}{"Kube workload with Correct template": {
+		workload: &Workload{
+			FullTemplate: &Template{
+				Kube: &common.Kube{
+					Template: testCorrectTemplate(),
+					Parameters: []common.KubeParameter{
+						{
+							Name:       "image",
+							ValueType:  common.StringType,
+							Required:   pointer.BoolPtr(true),
+							FieldPaths: []string{"spec.template.spec.containers[0].image"},
+						},
+					},
+				},
+				Reference: common.WorkloadTypeDescriptor{
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+			},
+			Params: map[string]interface{}{
+				"image": "nginx:1.14.0",
+			},
+			CapabilityCategory: oamtypes.KubeCategory,
+		},
+		expectData: `
+output: { 
+apiVersion: "apps/v1"
+kind:       "Deployment"
+spec: {
+	selector: {
+		matchLabels: {
+			app: "nginx"
+		}
+	}
+	template: {
+		spec: {
+			containers: [{
+				name:  "nginx"
+				image: "nginx:1.14.0"
+			}]
+			ports: [{
+				containerPort: 80
+			}]
+		}
+		metadata: {
+			labels: {
+				app: "nginx"
+			}
+		}
+	}
+}
+ 
+}`,
+		hasError: false,
+	}, "Kube workload with wrong template": {
+		workload: &Workload{
+			FullTemplate: &Template{
+				Kube: &common.Kube{
+					Template: testErrorTemplate(),
+					Parameters: []common.KubeParameter{
+						{
+							Name:       "image",
+							ValueType:  common.StringType,
+							Required:   pointer.BoolPtr(true),
+							FieldPaths: []string{"spec.template.spec.containers[0].image"},
+						},
+					},
+				},
+				Reference: common.WorkloadTypeDescriptor{
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+			},
+			Params: map[string]interface{}{
+				"image": "nginx:1.14.0",
+			},
+			CapabilityCategory: oamtypes.KubeCategory,
+		},
+		hasError: true,
+		errInfo:  "cannot decode Kube template into K8s object: unexpected end of JSON input",
+	}, "Kube workload with wrong parameter": {
+		workload: &Workload{
+			FullTemplate: &Template{
+				Kube: &common.Kube{
+					Template: testCorrectTemplate(),
+					Parameters: []common.KubeParameter{
+						{
+							Name:       "image",
+							ValueType:  common.StringType,
+							Required:   pointer.BoolPtr(true),
+							FieldPaths: []string{"spec.template.spec.containers[0].image"},
+						},
+					},
+				},
+				Reference: common.WorkloadTypeDescriptor{
+					Definition: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+			},
+			Params: map[string]interface{}{
+				"unsupported": "invalid parameter",
+			},
+			CapabilityCategory: oamtypes.KubeCategory,
+		},
+		hasError: true,
+		errInfo:  "cannot resolve parameter settings: unsupported parameter \"unsupported\"",
+	}, "Helm workload with correct reference": {
+		workload: &Workload{
+			FullTemplate: &Template{
+				Reference: common.WorkloadTypeDescriptor{
+					Definition: common.WorkloadGVK{
+						APIVersion: "app/v1",
+						Kind:       "deployment",
+					},
+				},
+			},
+			CapabilityCategory: oamtypes.HelmCategory,
+		},
+		hasError: false,
+		expectData: `
+output: {
+	apiVersion: "app/v1"
+	kind: "deployment"
+}`,
+	}, "Helm workload with wrong reference": {
+		workload: &Workload{
+			FullTemplate: &Template{
+				Reference: common.WorkloadTypeDescriptor{
+					Definition: common.WorkloadGVK{
+						APIVersion: "app@//v1",
+						Kind:       "deployment",
+					},
+				},
+			},
+			CapabilityCategory: oamtypes.HelmCategory,
+		},
+		hasError: true,
+		errInfo:  "unexpected GroupVersion string: app@//v1",
+	}}
+
+	for _, tc := range testcases {
+		template, err := GenerateCUETemplate(tc.workload)
+		assert.Equal(t, err != nil, tc.hasError)
+		if tc.hasError {
+			assert.Equal(t, tc.errInfo, err.Error())
+			continue
+		}
+		assert.Equal(t, tc.expectData, template)
+	}
+}
+
 func TestGetSecretAndConfigs(t *testing.T) {
 	secretData := map[string][]byte{
 		"username": []byte("test-name"),

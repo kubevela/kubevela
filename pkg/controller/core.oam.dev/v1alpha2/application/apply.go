@@ -142,6 +142,14 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			status.Message = configuration.Status.Message
 		default:
 			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
+			if !h.isNewRevision && wl.CapabilityCategory != types.CUECategory {
+				templateStr, err := appfile.GenerateCUETemplate(wl)
+				if err != nil {
+					return nil, false, err
+				}
+				wl.FullTemplate.TemplateStr = templateStr
+			}
+
 			if err := wl.EvalContext(pCtx); err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
 			}

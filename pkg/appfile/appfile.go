@@ -403,40 +403,69 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 	return compManifest, nil
 }
 
-func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
-	kubeObj := &unstructured.Unstructured{}
-	err := json.Unmarshal(wl.FullTemplate.Kube.Template.Raw, kubeObj)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot decode Kube template into K8s object")
-	}
+// GenerateCUETemplate generate CUE Template from Kube module and Helm module
+func GenerateCUETemplate(wl *Workload) (string, error) {
+	var templateStr string
+	switch wl.CapabilityCategory {
+	case types.KubeCategory:
+		kubeObj := &unstructured.Unstructured{}
 
-	paramValues, err := resolveKubeParameters(wl.FullTemplate.Kube.Parameters, wl.Params)
-	if err != nil {
-		return nil, errors.WithMessage(err, "cannot resolve parameter settings")
-	}
-	if err := setParameterValuesToKubeObj(kubeObj, paramValues); err != nil {
-		return nil, errors.WithMessage(err, "cannot set parameters value")
-	}
+		err := json.Unmarshal(wl.FullTemplate.Kube.Template.Raw, kubeObj)
+		if err != nil {
+			return templateStr, errors.Wrap(err, "cannot decode Kube template into K8s object")
+		}
 
-	// convert structured kube obj into CUE (go ==marshal==> json ==decoder==> cue)
-	objRaw, err := kubeObj.MarshalJSON()
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot marshal kube object")
-	}
-	ins, err := json2cue.Decode(&cue.Runtime{}, "", objRaw)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot decode object into CUE")
-	}
-	cueRaw, err := format.Node(ins.Value().Syntax())
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot format CUE")
-	}
+		paramValues, err := resolveKubeParameters(wl.FullTemplate.Kube.Parameters, wl.Params)
+		if err != nil {
+			return templateStr, errors.WithMessage(err, "cannot resolve parameter settings")
+		}
+		if err := setParameterValuesToKubeObj(kubeObj, paramValues); err != nil {
+			return templateStr, errors.WithMessage(err, "cannot set parameters value")
+		}
 
-	// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
-	wl.FullTemplate.TemplateStr = fmt.Sprintf(`
+		// convert structured kube obj into CUE (go ==marshal==> json ==decoder==> cue)
+		objRaw, err := kubeObj.MarshalJSON()
+		if err != nil {
+			return templateStr, errors.Wrap(err, "cannot marshal kube object")
+		}
+		ins, err := json2cue.Decode(&cue.Runtime{}, "", objRaw)
+		if err != nil {
+			return templateStr, errors.Wrap(err, "cannot decode object into CUE")
+		}
+		cueRaw, err := format.Node(ins.Value().Syntax())
+		if err != nil {
+			return templateStr, errors.Wrap(err, "cannot format CUE")
+		}
+
+		// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
+		templateStr = fmt.Sprintf(`
 output: { 
-	%s 
+%s 
 }`, string(cueRaw))
+	case types.HelmCategory:
+		gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
+		if err != nil {
+			return templateStr, err
+		}
+		targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Definition.Kind)
+		// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
+		// construct an empty base workload according to its GVK
+		templateStr = fmt.Sprintf(`
+output: {
+	apiVersion: "%s"
+	kind: "%s"
+}`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
+	default:
+	}
+	return templateStr, nil
+}
+
+func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
+	templateStr, err := GenerateCUETemplate(wl)
+	if err != nil {
+		return nil, err
+	}
+	wl.FullTemplate.TemplateStr = templateStr
 
 	// re-use the way CUE module generates comp & acComp
 	compManifest, err := generateComponentFromCUEModule(wl, appName, revision, ns)
@@ -579,19 +608,11 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 }
 
 func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
-	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
+	templateStr, err := GenerateCUETemplate(wl)
 	if err != nil {
 		return nil, err
 	}
-	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Definition.Kind)
-
-	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
-	// construct an empty base workload according to its GVK
-	wl.FullTemplate.TemplateStr = fmt.Sprintf(`
-output: {
-	apiVersion: "%s"
-	kind: "%s"
-}`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
+	wl.FullTemplate.TemplateStr = templateStr
 
 	// re-use the way CUE module generates comp & acComp
 	compManifest := &types.ComponentManifest{
