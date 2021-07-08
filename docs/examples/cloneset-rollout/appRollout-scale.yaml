@@ -11,4 +11,4 @@ spec:
     targetSize: 5
     rolloutBatches:
       - replicas: 1
-      - replicas: 3
+      - replicas: 4
