@@ -403,7 +403,7 @@ var _ = Describe("test generate revision ", func() {
 			},
 			time.Second*10, time.Millisecond*500).Should(BeNil())
 		// new revision should be different with lastRevision
-		Expect(curApp.Status.LatestRevision.Name).ShouldNot(Equal(lastRevision))
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(lastRevision))
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		Expect(curApp.Status.LatestRevision.RevisionHash).ShouldNot(Equal(appHash2))
 		// new revision should be equal to v1 revision
