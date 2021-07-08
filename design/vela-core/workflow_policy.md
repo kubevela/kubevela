@@ -18,15 +18,7 @@ Specifically, it has the following limitations:
 
 Here is an overview of the features we want to expose and the capabilities we want to plug in:
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-![alt](https://raw.githubusercontent.com/oam-dev/kubevela/071476a04fcf16f058ed27c95fab14f7f592462f/docs/en/resources/workflow-feature.jpg)
-=======
-![alt](./workflow-feature.jpg)
->>>>>>> 052d6c82 (add back diagram)
-=======
 ![alt](../../docs/resources/workflow-feature.jpg)
->>>>>>> caf74520 (separate folder)
 
 ## Proposal
 
@@ -166,15 +158,7 @@ In this section we will discuss the implementation details to support policies a
 
 Here's a diagram of how workflow internals work:
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-![alt](https://raw.githubusercontent.com/oam-dev/kubevela/071476a04fcf16f058ed27c95fab14f7f592462f/docs/en/resources/workflow-internals.jpg)
-=======
-![alt](./workflow-internals.jpg)
->>>>>>> 052d6c82 (add back diagram)
-=======
 ![alt](../../docs/resources/workflow-internals.jpg)
->>>>>>> caf74520 (separate folder)
 
 
 Here are the steps in Application Controller:
