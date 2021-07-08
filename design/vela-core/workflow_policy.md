@@ -34,7 +34,7 @@ spec:
     - type: security
       name: my-rule
       properties:
-        rbac: ...
+        rbac: enabled
         audit: enabled
         secretBackend: vault
 
@@ -96,8 +96,11 @@ spec:
           spec:
             partition: parameters.partition
         }
+        apply: vela.#Apply & {
+          resource: output
+        }
         continue: vela.#Continue & {
-          return: output.status.observedGeneration == output.metadata.generation
+          return: apply.status.observedGeneration == apply.metadata.generation
         }
 
 ---
@@ -106,14 +109,23 @@ kind: PolicyDefinition
 spec:
   schematic:
     cue:
-      template: ...
+      template: |
+        parameters: {
+          frequency: "enabled" | "disabled"
+        }
+        output: {
+          apiVersion: app.oam.dev/v1
+          kind: Insight
+          spec:
+            frequency: parameters.frequency
+        }
 ```
 
 ### CUE-Based Workflow Task
 
 Outputing a CR object to complete a step in workflow requires users to implement an Operator.
 While this is flexible to handle complex operations, it incurs heavy overhead for simple operational tasks.
-To simplify it, especially for users with simple use cases, we also provide lightweight CUE based workflow task. 
+To simplify it, especially for users with simple use cases, we provide lightweight CUE based workflow task. 
 
 Here is an example:
 
@@ -130,7 +142,7 @@ spec:
           image: string
         }
         apply: vela.#Apply & {
-          context.workload
+          resource: context.workload
         }
         continue: vela.#Continue & {
           return: apply.status.ready == true
