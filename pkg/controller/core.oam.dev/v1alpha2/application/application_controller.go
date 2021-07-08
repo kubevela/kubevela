@@ -98,7 +98,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			oam.AnnotationKubeVelaVersion: version.VelaVersion,
 		})
 	}
-	handler := &appHandler{
+	handler := &AppHandler{
 		r:   r,
 		app: app,
 	}
@@ -122,7 +122,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	app.Status.SetConditions(readyCondition("Parsed"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 
-	if err := handler.prepareCurrentAppRevision(ctx, appFile); err != nil {
+	if err := handler.PrepareCurrentAppRevision(ctx, appFile); err != nil {
 		klog.ErrorS(err, "Failed to prepare app revision", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, errorCondition("Revision", err))
@@ -137,13 +137,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return r.endWithNegativeCondition(ctx, app, errorCondition("Render", err))
 	}
-	if err := handler.handleComponentsRevision(ctx, comps); err != nil {
+	if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
 		klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, errorCondition("Render", err))
 	}
 
-	if err := handler.finalizeAndApplyAppRevision(ctx, comps); err != nil {
+	if err := handler.FinalizeAndApplyAppRevision(ctx, comps); err != nil {
 		klog.ErrorS(err, "Failed to apply app revision", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, errorCondition("Revision", err))
@@ -162,13 +162,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 	klog.Info("Successfully render application resources", "application", klog.KObj(app))
 
-	if err := handler.applyAppManifests(ctx, comps, policies); err != nil {
+	if err := handler.ApplyAppManifests(ctx, comps, policies); err != nil {
 		klog.ErrorS(err, "Failed to apply application manifests",
 			"application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return r.endWithNegativeCondition(ctx, app, errorCondition("Applied", err))
 	}
-	if err := handler.updateAppLatestRevisionStatus(ctx); err != nil {
+	if err := handler.UpdateAppLatestRevisionStatus(ctx); err != nil {
 		klog.ErrorS(err, "Failed to update application status", "application", klog.KObj(app))
 		return r.endWithNegativeCondition(ctx, app, v1alpha1.ReconcileError(err))
 	}

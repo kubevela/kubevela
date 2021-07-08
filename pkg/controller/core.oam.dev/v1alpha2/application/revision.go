@@ -52,7 +52,7 @@ const (
 	ConfigMapKeyResources = "resources"
 )
 
-func (h *appHandler) createResourcesConfigMap(ctx context.Context,
+func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 	appRev *v1beta1.ApplicationRevision,
 	comps []*types.ComponentManifest,
 	policies []*unstructured.Unstructured) error {
@@ -105,9 +105,9 @@ func (h *appHandler) createResourcesConfigMap(ctx context.Context,
 	return h.r.Client.Create(ctx, cm)
 }
 
-// prepareCurrentAppRevision will generate a pure revision without metadata and rendered result
+// PrepareCurrentAppRevision will generate a pure revision without metadata and rendered result
 // the generated revision will be compare with the last revision to see if there's any difference.
-func (h *appHandler) prepareCurrentAppRevision(ctx context.Context, af *appfile.Appfile) error {
+func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.Appfile) error {
 	appRev, appRevisionHash, err := h.gatherRevisionSpec(af)
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func (h *appHandler) prepareCurrentAppRevision(ctx context.Context, af *appfile.
 
 // gatherRevisionSpec will gather all revision spec withouth metadata and rendered result.
 // the gathered Revision spec will be enough to calculate the hash and compare with the old revision
-func (h *appHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
+func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
@@ -181,7 +181,7 @@ func (h *appHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	return appRev, appRevisionHash, nil
 }
 
-func (h *appHandler) getLatestAppRevision(ctx context.Context) error {
+func (h *AppHandler) getLatestAppRevision(ctx context.Context) error {
 	if h.app.Status.LatestRevision == nil || len(h.app.Status.LatestRevision.Name) == 0 {
 		return nil
 	}
@@ -251,7 +251,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 	return utils.ComputeSpecHash(&appRevisionHash)
 }
 
-func (h *appHandler) currentAppRevIsNew() bool {
+func (h *AppHandler) currentAppRevIsNew() bool {
 	// the last revision doesn't exist.
 	if h.app.Status.LatestRevision == nil {
 		return true
@@ -306,7 +306,8 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	return apiequality.Semantic.DeepEqual(&old.Spec.Application.Spec, &new.Spec.Application.Spec)
 }
 
-func (h *appHandler) handleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
+// HandleComponentsRevision manages Component revisions
+func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
 	for _, cm := range compManifests {
 		if cm.InsertConfigNotReady {
 			continue
@@ -387,7 +388,7 @@ func computeComponentRevisionHash(comp *types.ComponentManifest) (string, error)
 }
 
 // createControllerRevision records snapshot of a component
-func (h *appHandler) createControllerRevision(ctx context.Context, cm *types.ComponentManifest) error {
+func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.ComponentManifest) error {
 	comp := componentManifest2Component(cm)
 	revision, _ := utils.ExtractRevision(cm.RevisionName)
 	cr := &appsv1.ControllerRevision{
@@ -438,7 +439,8 @@ func componentManifest2Component(cm *types.ComponentManifest) *v1alpha2.Componen
 	return component
 }
 
-func (h *appHandler) finalizeAndApplyAppRevision(ctx context.Context, comps []*types.ComponentManifest) error {
+// FinalizeAndApplyAppRevision finalise AppRevision object and apply it
+func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context, comps []*types.ComponentManifest) error {
 	appRev := h.currentAppRev
 	appRev.Namespace = h.app.Namespace
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
@@ -535,9 +537,9 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 	return acRaw, comps
 }
 
-// only call to update app's latest revision status after applying manifests successfully
+// UpdateAppLatestRevisionStatus only call to update app's latest revision status after applying manifests successfully
 // otherwise it will override previous revision which is used during applying to do GC jobs
-func (h *appHandler) updateAppLatestRevisionStatus(ctx context.Context) error {
+func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 	if !h.isNewRevision {
 		// skip update if app revision is not changed
 		return nil
@@ -560,7 +562,7 @@ func (h *appHandler) updateAppLatestRevisionStatus(ctx context.Context) error {
 }
 
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
-func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
+func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	listOpts := []client.ListOption{
 		client.InNamespace(h.app.Namespace),
 		client.MatchingLabels{oam.LabelAppName: h.app.Name},
@@ -600,7 +602,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *appHandler) error {
 }
 
 // gatherUsingAppRevision get all using appRevisions include app's status pointing to and appContext point to
-func gatherUsingAppRevision(ctx context.Context, h *appHandler) (map[string]bool, error) {
+func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool, error) {
 	ns := h.app.Namespace
 	listOpts := []client.ListOption{
 		client.MatchingLabels{
@@ -640,7 +642,7 @@ func (h historiesByRevision) Less(i, j int) bool {
 	return ir < ij
 }
 
-func cleanUpComponentRevision(ctx context.Context, h *appHandler) error {
+func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 	appRevInUse, err := gatherUsingAppRevision(ctx, h)
 	if err != nil {
 		return err

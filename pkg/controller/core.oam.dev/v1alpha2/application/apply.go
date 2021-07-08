@@ -43,7 +43,8 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-type appHandler struct {
+// AppHandler handles application reconcile
+type AppHandler struct {
 	r              *Reconciler
 	app            *v1beta1.Application
 	currentAppRev  *v1beta1.ApplicationRevision
@@ -52,7 +53,8 @@ type appHandler struct {
 	currentRevHash string
 }
 
-func (h *appHandler) applyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
+// ApplyAppManifests will dispatch Application manifests
+func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	appRev := h.currentAppRev
 	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
 		return h.createResourcesConfigMap(ctx, appRev, comps, policies)
@@ -91,7 +93,7 @@ func (h *appHandler) applyAppManifests(ctx context.Context, comps []*types.Compo
 	return nil
 }
 
-func (h *appHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
+func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
 	var appStatus []common.ApplicationComponentStatus
 	var healthy = true
 	for _, wl := range appFile.Workloads {
@@ -204,12 +206,12 @@ func generateScopeReference(scopes []appfile.Scope) []runtimev1alpha1.TypedRefer
 	return references
 }
 
-type garbageCollectFunc func(ctx context.Context, h *appHandler) error
+type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
 
 // execute garbage collection functions, including:
 // - clean up legacy app revisions
 // - clean up legacy component revisions
-func garbageCollection(ctx context.Context, h *appHandler) error {
+func garbageCollection(ctx context.Context, h *AppHandler) error {
 	collectFuncs := []garbageCollectFunc{
 		garbageCollectFunc(cleanUpApplicationRevision),
 		garbageCollectFunc(cleanUpComponentRevision),
@@ -222,7 +224,7 @@ func garbageCollection(ctx context.Context, h *appHandler) error {
 	return nil
 }
 
-func (h *appHandler) handleRollout(ctx context.Context) (reconcile.Result, error) {
+func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error) {
 	var comps []string
 	for _, component := range h.app.Spec.Components {
 		comps = append(comps, component.Name)
