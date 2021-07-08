@@ -18,12 +18,9 @@ package applicationrollout
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	crossplane "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -41,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -105,7 +103,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 	reconRes, err := r.DoReconcile(ctx, &appRollout)
 	if err != nil {
-		return reconcile.Result{}, err
+		if updateErr := r.Status().Patch(ctx, &appRollout, client.Merge); updateErr != nil {
+			return ctrl.Result{}, errors.WithMessage(updateErr, "cannot update appRollout status")
+		}
+		return reconcile.Result{}, fmt.Errorf("approllout namespace: %s, name : %s reconcile error %w", appRollout.Namespace, appRollout.Name, err)
 	}
 	return reconRes, r.updateStatus(ctx, &appRollout)
 }
@@ -184,10 +185,10 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		// target manifest haven't template yet, call dispatch template target manifest firstly
 		err = h.templateTargetManifest(ctx)
 		if err != nil {
-			h.appRollout.Status.SetConditions(errorCondition("template", err))
+			h.appRollout.Status.SetConditions(utils.ErrorCondition("template", err))
 			return reconcile.Result{}, err
 		}
-		h.appRollout.Status.SetConditions(readyCondition("template"))
+		h.appRollout.Status.SetConditions(utils.ReadyCondition("template"))
 		// this ensures that we template workload only once
 		h.appRollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
 		klog.InfoS("AppRollout have complete templateTarget", "name", h.appRollout.Name, "namespace",
@@ -309,23 +310,4 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return reconciler.SetupWithManager(mgr)
-}
-
-func errorCondition(tpy string, err error) crossplane.Condition {
-	return crossplane.Condition{
-		Type:               crossplane.ConditionType(tpy),
-		Status:             corev1.ConditionFalse,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-		Reason:             crossplane.ReasonReconcileError,
-		Message:            err.Error(),
-	}
-}
-
-func readyCondition(tpy string) crossplane.Condition {
-	return crossplane.Condition{
-		Type:               crossplane.ConditionType(tpy),
-		Status:             corev1.ConditionTrue,
-		Reason:             crossplane.ReasonAvailable,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-	}
 }
