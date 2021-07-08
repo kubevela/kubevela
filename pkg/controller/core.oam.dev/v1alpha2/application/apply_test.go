@@ -162,7 +162,7 @@ var _ = Describe("Test statusAggregate", func() {
 			ctx           = context.TODO()
 			componentName = "sample-oss"
 			ns            = "default"
-			h             = &appHandler{r: reconciler, app: &v1beta1.Application{
+			h             = &AppHandler{r: reconciler, app: &v1beta1.Application{
 				TypeMeta:   metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{Namespace: ns},
 			}}

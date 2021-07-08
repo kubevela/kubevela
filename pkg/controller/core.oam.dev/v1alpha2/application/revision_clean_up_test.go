@@ -506,7 +506,7 @@ var _ = Describe("Test gatherUsingAppRevision func", func() {
 			oam.LabelAppNamespace: namespace,
 		})
 		Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
-		handler := appHandler{
+		handler := AppHandler{
 			r:   reconciler,
 			app: app,
 		}
