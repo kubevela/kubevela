@@ -5,7 +5,7 @@ This guide helps you get started developing KubeVela.
 ## Prerequisites
 
 1. Golang version 1.16+
-2. Kubernetes version v1.18+ with `~/.kube/config` configured.
+2. Kubernetes version v1.20+ with `~/.kube/config` configured.
 3. ginkgo 1.14.0+ (just for [E2E test](./developer-guide.md#e2e-test))
 4. golangci-lint 1.38.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 5. kubebuilder v2.3.0+

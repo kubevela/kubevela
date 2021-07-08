@@ -30,7 +30,7 @@ spec:
   serviceAccountName: kubevela-vela-core
   containers:
     - name: {{ .Release.Name }}-application-test
-      image: alpine/k8s:1.18.2
+      image: alpine/k8s:1.20.4
       imagePullPolicy: IfNotPresent
       command:
         - /bin/bash
