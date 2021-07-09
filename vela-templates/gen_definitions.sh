@@ -8,8 +8,8 @@ pushd $SCRIPT_DIR
 INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
 REGISTRY_TEMPLATE_DIR="registry/auto-gen"
 
-rm ${INTERNAL_TEMPLATE_DIR}/* 2>/dev/null | true
-rm ${REGISTRY_TEMPLATE_DIR}/* 2>/dev/null | true
+rm ${INTERNAL_TEMPLATE_DIR}/* 2>/dev/null || true
+rm ${REGISTRY_TEMPLATE_DIR}/* 2>/dev/null || true
 
 
 for filename in internal/cue/*; do
