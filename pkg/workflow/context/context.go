@@ -5,6 +5,7 @@ import (
 	"cuelang.org/go/cue"
 	"encoding/json"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,12 +15,12 @@ import (
 type workflowContext struct {
 	cli        client.Client
 	store      corev1.ConfigMap
-	components map[string][]*component
+	components map[string][]*componentManifest
 	vars       *model.Value
 	generate   string
 }
 
-func (wf *workflowContext) GetComponent(name string) (*component, error) {
+func (wf *workflowContext) GetComponent(name string) (*componentManifest, error) {
 	components, ok := wf.components[name]
 	if !ok || len(components) == 0 {
 		return nil, errors.Errorf("component %s not found in application", name)
@@ -63,12 +64,9 @@ func (wf *workflowContext) Commit() error {
 			cpsJsonObject[name] = append(cpsJsonObject[name], str)
 		}
 	}
-	cpsFmt, err := json.Marshal(cpsJsonObject)
-	if err != nil {
-		return err
-	}
+
 	wf.store.Data = map[string]string{
-		"components": string(cpsFmt),
+		"components": string(util.MustJSONMarshal(cpsJsonObject)),
 		"vars":       varFmt,
 	}
 	if err := wf.writeToStore(); err != nil {
@@ -88,12 +86,12 @@ func (wf *workflowContext) writeToStore() error {
 	return nil
 }
 
-type component struct {
+type componentManifest struct {
 	Workload    model.Instance
 	Auxiliaries []model.Instance
 }
 
-func (comp *component) Patch(pv string) error {
+func (comp *componentManifest) Patch(pv string) error {
 	var r cue.Runtime
 	cueInst, err := r.Compile("-", pv)
 	if err != nil {
@@ -106,7 +104,7 @@ func (comp *component) Patch(pv string) error {
 	return comp.Workload.Unify(pInst)
 }
 
-func (comp *component) string() (string, error) {
+func (comp *componentManifest) string() (string, error) {
 	comonentFmt := struct {
 		Workload    string   `json:"workload"`
 		Auxiliaries []string `json:"auxiliaries"`
