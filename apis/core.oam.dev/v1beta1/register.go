@@ -149,6 +149,14 @@ var (
 	InitializerKindVersionKind = SchemeGroupVersion.WithKind(InitializerKind)
 )
 
+// Rollout type metadata
+var (
+	RolloutKind            = reflect.TypeOf(Rollout{}).Name()
+	RolloutGroupKind       = schema.GroupKind{Group: Group, Kind: RolloutKind}.String()
+	RolloutKindAPIVersion  = RolloutKind + "." + SchemeGroupVersion.String()
+	RolloutKindVersionKind = SchemeGroupVersion.WithKind(RolloutKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
@@ -164,4 +172,5 @@ func init() {
 	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
 	SchemeBuilder.Register(&Initializer{}, &InitializerList{})
+	SchemeBuilder.Register(&Rollout{}, &RolloutList{})
 }
