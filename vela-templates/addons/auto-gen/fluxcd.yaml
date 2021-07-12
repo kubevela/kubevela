@@ -3,7 +3,6 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/description: kustomize can fetching, building, updating and applying Kustomize manifests from git repo.
-  creationTimestamp: null
   name: kustomize
   namespace: vela-system
 spec:
@@ -22,13 +21,10 @@ kind: Initializer
 metadata:
   annotations:
     addons.oam.dev/description: Flux is a set of continuous and progressive delivery solutions for Kubernetes
-  creationTimestamp: null
   name: fluxcd
   namespace: flux-system
 spec:
   appTemplate:
-    metadata:
-      creationTimestamp: null
     spec:
       components:
       - name: alerts.notification.toolkit.fluxcd.io
