@@ -311,6 +311,7 @@ func (a *Addon) enable() error {
 		return errors.Wrap(err, "Create namespace error")
 	}
 	err = applicator.Apply(ctx, obj)
+	// TODO Initializer should provide status so that enable addon is truly enabled.
 	if err != nil {
 		return errors.Wrapf(err, "Error occurs when enableing addon: %s\n", a.name)
 	}

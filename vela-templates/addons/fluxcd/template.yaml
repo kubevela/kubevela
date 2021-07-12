@@ -8,7 +8,7 @@ metadata:
 spec:
   appTemplate:
     spec:
-      components: {{  range .Files  }}
+      components: {{  range .ResourceFiles  }}
       - name: {{ .Name }}
         type: raw
         properties:
