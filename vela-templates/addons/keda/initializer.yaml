@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  annotations:
+    addons.oam.dev/description: "KEDA is a Kubernetes-based Event Driven Autoscaler."
+  name: keda
+  namespace: vela-system
+spec:
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: fluxcd
+  appTemplate:
+    spec:
+      components: {{  range .Files  }}
+      - name: {{ .Name }}
+        type: raw
+        properties:
+{{ .Content }}{{ end }}
