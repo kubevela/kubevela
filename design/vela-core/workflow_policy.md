@@ -138,18 +138,16 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/op"
-        
         parameters: {
           image: string
         }
-        apply: op.#Apply & {
+        apply: vela.#Apply & {
           resource: context.workload
         }
-        continue: op.#Continue & {
+        continue: vela.#Continue & {
           return: apply.status.ready == true
         }
-        export: op.#Export & {
+        export: {
           secret: apply.status.secret
         }
 ```
@@ -160,7 +158,7 @@ In this section we will discuss the implementation details to support policies a
 
 Here's a diagram of how workflow internals work:
 
-![alt](../../docs/resources/workflow-internals.png)
+![alt](../../docs/resources/workflow-internals.jpg)
 
 
 Here are the steps in Application Controller:
@@ -201,112 +199,38 @@ Here are the steps in Workflow Manager:
 
 - The Workflow Manager will reconcile the workflow step by step.
 - For each step, it will create a task for Task manager to handle.
-- The `workflow.stepIndex`  is used to record the step of the workflow execution，it will increase automatically after each task is executed.
+- It will then check the `observedAppGeneration` for this step.
+  This is to solve the [issue of passing data from the old generation][1].
+  - If the generation matches the current one, it will continue next step.
+  - Otherwise, it will retry reconcile later.
 
   An example of the status:
 
   ```yaml
   kind: Application
   metadata:
-    name: foo
+    generation: 2
   status:
-    phase: runningWorkflow
     workflow:
-      stepIndex: 1
       steps:
       - name: ...
+        observedAppGeneration: 1
   ```
 
 Here are the steps in Task Manager:
 
-- Workflow Manager will call Task Manager to run a task.
-- Task Manager execute all steps of the task in order.
-- When the `continue` step is encountered, and the `return` field is true, Task Manager will stop continuing to execute the task.
-
-  It will issue a delay reconcile event, in the next application reconcile，the task will be re-executed
+- Workflow Manager will call Task Manager to enqueue a task.
+  Note that if a task with the same name exists, it will append new one.
+- Task Manager will have another go routine to pop a task from the queue to execute.
+- Each task is a CUE graph that must have `continue` field:
 
   ```yaml
-  continue: op.#Continue & {
+  continue: vela.#Continue & {
     return: true # This will be used as the return of the CUE task
   }
   ```
 
-
-### Workflow Operation
-
-#### Terminate Workflow
-
-If the execution of the workflow does not meet expectations, it may be necessary to terminate the workflow
-
-There are two ways to achieve that
-
-1. Use `op.#Break` to terminate the workflow in workflowStep definition.
-
-```yaml
-  if job.status == "failed"{
-    break: op.#Break & {
-       message: "job failed: "+ job.status.message
-    }
-  }
- ```
-
-2. Modify the  `workflow.terminated` field in status
-
-```yaml
-  kind: Application
-  metadata:
-    name: foo
-  status:
-    phase: runningWorkflow
-    workflow:
-      stepIndex: 1
-      terminated: true
-      steps:
-      - name: ...
- ```
-#### Pause & Resume Workflow
-
-1. The built-in suspend task support pause workflow, the example as follow
-
-```yaml
-kind: Application
-spec:
-  componnets: ...
-workflow:
-  steps:
-  - name: manual-approve
-    type: suspend   
- ```
-  The workflow automatically pauses when the suspend-type task is started
-
-2. Modify the value of the `workflow.suspend` field to true to pause the workflow, and then resume the workflow by modifying it to false
-
-```yaml
-  kind: Application
-  metadata:
-    name: foo
-  status:
-    phase: runningWorkflow
-    workflow:
-      stepIndex: 1
-      suspend: true
-      steps:
-      - name: ... 
- ```
-#### Restart Workflow
-
-The workflow will be executed in the following two cases
-1. The application spec changes
-2. Modify the value of the `status.phase` field to "runningWorkflow" and clear the status of the workflow
-
-```yaml
-  kind: Application
-  metadata:
-    name: foo
-  status:
-    phase: runningWorkflow
-    workflow:
- ```
+- If `continue.return == true`, Task Manager will update the `observedAppGeneration` for this step in status.
 
 
 ### Operator Best Practice
