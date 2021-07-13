@@ -4,7 +4,7 @@ metadata:
   annotations:
     definition.oam.dev/description: "raw allow users to specify raw K8s object in properties"
   name: raw
-  namespace: vela-system
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   workload:
     type: autodetects.core.oam.dev
