@@ -128,7 +128,7 @@ func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
 		resourcesFiles = append(resourcesFiles, velaFile{
 			RelativePath: path,
 			Name:         obj.GetName(),
-			Content:      indentedContent(string(content), 10),
+			Content:      indentedContent(string(content), 12),
 		})
 		return nil
 	}); err != nil {

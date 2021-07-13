@@ -9,7 +9,7 @@ spec:
   appTemplate:
     spec:
       components: {{  range .ResourceFiles  }}
-      - name: {{ .Name }}
-        type: raw
-        properties:
+        - name: {{ .Name }}
+          type: raw
+          properties:
 {{ .Content }} {{ end }}
