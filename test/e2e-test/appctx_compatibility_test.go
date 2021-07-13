@@ -63,7 +63,6 @@ var _ = Describe("Test compatibility for deprecation of appContext", func() {
 
 	AfterEach(func() {
 		Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
-		Expect(k8sClient.DeleteAllOf(ctx, &v1beta1.ResourceTracker{})).Should(Succeed())
 		Expect(k8sClient.DeleteAllOf(ctx, &corev1.PersistentVolume{})).Should(Succeed())
 	})
 

@@ -4,12 +4,12 @@ metadata:
   annotations:
     addons.oam.dev/description: "Flux is a set of continuous and progressive delivery solutions for Kubernetes"
   name: fluxcd
-  namespace: vela-system
+  namespace: flux-system
 spec:
   appTemplate:
     spec:
-      components: {{  range .Files  }}
-      - name: {{ .Name }}
-        type: raw
-        properties:
+      components: {{  range .ResourceFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
 {{ .Content }} {{ end }}

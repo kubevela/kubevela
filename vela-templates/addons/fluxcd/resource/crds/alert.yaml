@@ -5,22 +5,17 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.5.0
   labels:
     app.kubernetes.io/instance: flux-system
-  name: helmrepositories.source.toolkit.fluxcd.io
+  name: alerts.notification.toolkit.fluxcd.io
 spec:
-  group: source.toolkit.fluxcd.io
+  group: notification.toolkit.fluxcd.io
   names:
-    kind: HelmRepository
-    listKind: HelmRepositoryList
-    plural: helmrepositories
-    shortNames:
-      - helmrepo
-    singular: helmrepository
+    kind: Alert
+    listKind: AlertList
+    plural: alerts
+    singular: alert
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .spec.url
-          name: URL
-          type: string
         - jsonPath: .status.conditions[?(@.type=="Ready")].status
           name: Ready
           type: string
@@ -33,7 +28,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: HelmRepository is the Schema for the helmrepositories API
+          description: Alert is the Schema for the alerts API
           properties:
             apiVersion:
               description: 'APIVersion defines the versioned schema of this representation
@@ -48,24 +43,61 @@ spec:
             metadata:
               type: object
             spec:
-              description: HelmRepositorySpec defines the reference to a Helm repository.
+              description: AlertSpec defines an alerting rule for events involving a
+                list of objects
               properties:
-                interval:
-                  description: The interval at which to check the upstream for updates.
+                eventSeverity:
+                  default: info
+                  description: Filter events based on severity, defaults to ('info').
+                    If set to 'info' no events will be filtered.
+                  enum:
+                    - info
+                    - error
                   type: string
-                passCredentials:
-                  description: PassCredentials allows the credentials from the SecretRef
-                    to be passed on to a host that does not match the host as defined
-                    in URL. This may be required if the host of the advertised chart
-                    URLs in the index differ from the defined URL. Enabling this should
-                    be done with caution, as it can potentially result in credentials
-                    getting stolen in a MITM-attack.
-                  type: boolean
-                secretRef:
-                  description: The name of the secret containing authentication credentials
-                    for the Helm repository. For HTTP/S basic auth the secret must contain
-                    username and password fields. For TLS the secret must contain a
-                    certFile and keyFile, and/or caCert fields.
+                eventSources:
+                  description: Filter events based on the involved objects.
+                  items:
+                    description: CrossNamespaceObjectReference contains enough information
+                      to let you locate the typed referenced object at cluster level
+                    properties:
+                      apiVersion:
+                        description: API version of the referent
+                        type: string
+                      kind:
+                        description: Kind of the referent
+                        enum:
+                          - Bucket
+                          - GitRepository
+                          - Kustomization
+                          - HelmRelease
+                          - HelmChart
+                          - HelmRepository
+                          - ImageRepository
+                          - ImagePolicy
+                          - ImageUpdateAutomation
+                        type: string
+                      name:
+                        description: Name of the referent
+                        maxLength: 53
+                        minLength: 1
+                        type: string
+                      namespace:
+                        description: Namespace of the referent
+                        maxLength: 53
+                        minLength: 1
+                        type: string
+                    required:
+                      - name
+                    type: object
+                  type: array
+                exclusionList:
+                  description: A list of Golang regular expressions to be used for excluding
+                    messages.
+                  items:
+                    type: string
+                  type: array
+                providerRef:
+                  description: Send events using this provider.
                   properties:
                     name:
                       description: Name of the referent
@@ -73,54 +105,21 @@ spec:
                   required:
                     - name
                   type: object
+                summary:
+                  description: Short description of the impact and affected cluster.
+                  type: string
                 suspend:
-                  description: This flag tells the controller to suspend the reconciliation
-                    of this source.
+                  description: This flag tells the controller to suspend subsequent
+                    events dispatching. Defaults to false.
                   type: boolean
-                timeout:
-                  default: 60s
-                  description: The timeout of index downloading, defaults to 60s.
-                  type: string
-                url:
-                  description: The Helm repository URL, a valid URL contains at least
-                    a protocol and host.
-                  type: string
               required:
-                - interval
-                - url
+                - eventSources
+                - providerRef
               type: object
             status:
-              description: HelmRepositoryStatus defines the observed state of the HelmRepository.
+              description: AlertStatus defines the observed state of Alert
               properties:
-                artifact:
-                  description: Artifact represents the output of the last successful
-                    repository sync.
-                  properties:
-                    checksum:
-                      description: Checksum is the SHA1 checksum of the artifact.
-                      type: string
-                    lastUpdateTime:
-                      description: LastUpdateTime is the timestamp corresponding to
-                        the last update of this artifact.
-                      format: date-time
-                      type: string
-                    path:
-                      description: Path is the relative file path of this artifact.
-                      type: string
-                    revision:
-                      description: Revision is a human readable identifier traceable
-                        in the origin source system. It can be a Git commit SHA, Git
-                        tag, a Helm index timestamp, a Helm chart version, etc.
-                      type: string
-                    url:
-                      description: URL is the HTTP address of this artifact.
-                      type: string
-                  required:
-                    - path
-                    - url
-                  type: object
                 conditions:
-                  description: Conditions holds the conditions for the HelmRepository.
                   items:
                     description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
@@ -189,17 +188,10 @@ spec:
                       - type
                     type: object
                   type: array
-                lastHandledReconcileAt:
-                  description: LastHandledReconcileAt holds the value of the most recent
-                    reconcile request value, so a change can be detected.
-                  type: string
                 observedGeneration:
                   description: ObservedGeneration is the last observed generation.
                   format: int64
                   type: integer
-                url:
-                  description: URL is the download link for the last index fetched.
-                  type: string
               type: object
           type: object
       served: true
