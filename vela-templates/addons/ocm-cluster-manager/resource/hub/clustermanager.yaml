@@ -1,0 +1,8 @@
+apiVersion: operator.open-cluster-management.io/v1
+kind: ClusterManager
+metadata:
+  name: cluster-manager-hub
+spec:
+  registrationImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/registration:latest
+  workImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/work
+  placementImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/placement

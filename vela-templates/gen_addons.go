@@ -30,6 +30,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/Masterminds/sprig"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -68,6 +69,7 @@ type velaFile struct {
 type AddonInfo struct {
 	ResourceFiles   []velaFile
 	DefinitionFiles []velaFile
+	HasDefs         bool
 	Name            string
 	Namespace       string
 	Description     string
@@ -89,75 +91,59 @@ func walkAllAddons(path string) ([]string, error) {
 	return addons, nil
 }
 
-func indentedContent(content string, indent int) string {
-	var res string
-	lines := strings.Split(content, "\n")
-	indentSpace := strings.Repeat(" ", indent)
-	for i, line := range lines {
-		res += indentSpace + line
-		if i != len(lines)-1 {
-			res += "\n"
-		}
+func pathExist(path string) bool {
+	_, err := os.Stat(path)
+	if err != nil && os.IsNotExist(err) {
+		return false
 	}
-	return res
+	return true
+}
+
+func newWalkFn(files *[]velaFile) filepath.WalkFunc {
+	return func(path string, info fs.FileInfo, _ error) error {
+		if info.IsDir() {
+			return nil
+		}
+		content, err := ioutil.ReadFile(filepath.Clean(path))
+		if err != nil {
+			return err
+		}
+
+		obj := new(unstructured.Unstructured)
+		if err = yaml.Unmarshal(content, obj); err != nil {
+			return err
+		}
+		*files = append(*files, velaFile{
+			RelativePath: path,
+			Name:         obj.GetName(),
+			Content:      string(content),
+		})
+		return nil
+	}
 }
 
 func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
 	addonRoot := filepath.Clean(addonsPath + "/" + addon)
 	resourceRoot := filepath.Clean(addonRoot + "/" + ResourceDir)
 	defRoot := filepath.Clean(addonRoot + "/" + ComponentDefDir)
-	resourcesFiles := make([]velaFile, 0, 2)
-	defFiles := make([]velaFile, 0, 2)
+	resourcesFiles := make([]velaFile, 0)
+	defFiles := make([]velaFile, 0)
 	addInfo := &AddonInfo{
 		Name:         addon,
 		TemplatePath: filepath.Join(addonRoot, InitializerTemplateName),
 	}
-	if err := filepath.Walk(resourceRoot, func(path string, info fs.FileInfo, _ error) error {
-		if info.IsDir() {
-			return nil
-		}
-		content, err := ioutil.ReadFile(filepath.Clean(path))
-		if err != nil {
-			return err
-		}
-
-		obj := new(unstructured.Unstructured)
-		if err = yaml.Unmarshal(content, obj); err != nil {
-			return err
-		}
-		resourcesFiles = append(resourcesFiles, velaFile{
-			RelativePath: path,
-			Name:         obj.GetName(),
-			Content:      indentedContent(string(content), 12),
-		})
-		return nil
-	}); err != nil {
+	if err := filepath.Walk(resourceRoot, newWalkFn(&resourcesFiles)); err != nil {
 		return nil, err
 	}
-
 	addInfo.ResourceFiles = resourcesFiles
-	if err := filepath.Walk(defRoot, func(path string, info fs.FileInfo, _ error) error {
-		if info.IsDir() {
-			return nil
-		}
-		content, err := ioutil.ReadFile(filepath.Clean(path))
-		if err != nil {
-			return err
-		}
 
-		obj := new(unstructured.Unstructured)
-		if err = yaml.Unmarshal(content, obj); err != nil {
-			return err
-		}
-		defFiles = append(defFiles, velaFile{
-			RelativePath: path,
-			Name:         obj.GetName(),
-			Content:      string(content),
-		})
-		return nil
-	}); err != nil {
+	if !pathExist(defRoot) {
+		return addInfo, nil
+	}
+	if err := filepath.Walk(defRoot, newWalkFn(&defFiles)); err != nil {
 		return nil, err
 	}
+	addInfo.HasDefs = true
 	addInfo.DefinitionFiles = defFiles
 	return addInfo, nil
 }
@@ -182,7 +168,9 @@ func WriteToFile(filename string, data string) error {
 }
 
 func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
-	t, err := template.ParseFiles(addon.TemplatePath)
+	templatePath := strings.Split(addon.TemplatePath, "/")
+	templateName := templatePath[len(templatePath)-1]
+	t, err := template.New(templateName).Funcs(sprig.TxtFuncMap()).ParseFiles(addon.TemplatePath)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +240,7 @@ func storeInitAndDef(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefiniti
 		return err
 	}
 	filename := path.Join(addonPath, InitializerFileDir, addonName+".yaml")
-	spliter := "---\n"
+	splitter := "---\n"
 	cdContents := make([]string, 0, len(cds))
 	for _, cd := range cds {
 		cdContent, err := yaml.Marshal(cd)
@@ -261,12 +249,16 @@ func storeInitAndDef(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefiniti
 		}
 		cdContents = append(cdContents, string(cdContent))
 	}
-	fileContent := strings.Join(append(cdContents, string(initContent)), spliter)
+	fileContent := strings.Join(append(cdContents, string(initContent)), splitter)
+	removeTimestampInplace(&fileContent)
 	return WriteToFile(filename, fileContent)
 }
 
 func getComponentDefs(info *AddonInfo) ([]*v1beta1.ComponentDefinition, error) {
 	cds := make([]*v1beta1.ComponentDefinition, 0)
+	if !info.HasDefs {
+		return cds, nil
+	}
 	for _, file := range info.DefinitionFiles {
 		cd := v1beta1.ComponentDefinition{}
 		err := yaml.Unmarshal([]byte(file.Content), &cd)
@@ -276,8 +268,8 @@ func getComponentDefs(info *AddonInfo) ([]*v1beta1.ComponentDefinition, error) {
 		cds = append(cds, &cd)
 	}
 	return cds, nil
-
 }
+
 func main() {
 	var addonsPath string
 	var storePath string

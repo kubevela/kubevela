@@ -2,9 +2,9 @@ apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
   annotations:
-    addons.oam.dev/description: "Flux is a set of continuous and progressive delivery solutions for Kubernetes"
-  name: fluxcd
-  namespace: flux-system
+    addons.oam.dev/description: "ocm-cluster-manager can deploy an OCM hub cluster environment."
+  name: ocm-cluster-manager
+  namespace: open-cluster-management
 spec:
   appTemplate:
     spec:
