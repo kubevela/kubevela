@@ -1,11 +1,13 @@
 package context
 
+import "github.com/oam-dev/kubevela/pkg/cue/model"
+
 type Context interface {
 	Clone() Context
-	GetComponent(name string,label map[string]string) (Component,error)
+	GetComponent(name string,label map[string]string) (componentManifest,error)
 	PatchComponent(name string, label map[string]string, patchContent string)error
-	GetVar(name string,scope string)(Var,error)
-	SetVar(name string,scope string,v Var) error
+	GetVar(paths ...string)(*model.Value,error)
+	SetVar(v *model.Value, paths ...string) error
 	Step()(string,int)
 	Commit()error
 }

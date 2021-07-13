@@ -41,7 +41,7 @@ func (wf *workflowContext) GetVar(paths ...string) (*model.Value, error) {
 }
 
 func (wf *workflowContext) SetVar(v *model.Value, paths ...string) error {
-	str, err := v.Fmt()
+	str, err := v.String()
 	if err != nil {
 		return errors.WithMessage(err, "compile var")
 	}
@@ -49,7 +49,7 @@ func (wf *workflowContext) SetVar(v *model.Value, paths ...string) error {
 }
 
 func (wf *workflowContext) Commit() error {
-	varFmt, err := wf.vars.Fmt()
+	varFmt, err := wf.vars.String()
 	if err != nil {
 		return err
 	}

@@ -22,7 +22,8 @@ import (
 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 "github.com/oam-dev/kubevela/pkg/appfile"
 "cuelang.org/go/cue/build"
-corev1 "k8s.io/api/core/v1"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+	corev1 "k8s.io/api/core/v1"
 "k8s.io/apimachinery/pkg/runtime"
 
 "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -97,7 +98,7 @@ func (v Value)Fill(x Value,paths ...string)error{
 	return nil
 }
 
-type TaskGenerator func(params Value,td TaskDiscovery,pds Providers)(TaskRunner,error)
+type TaskGenerator func(params *model.Value,td TaskDiscovery,pds Providers)(TaskRunner,error)
 
 type TaskDiscovery struct {
 	builtins map[string]TaskGenerator
@@ -109,9 +110,15 @@ type Providers struct {
 }
 type provider struct {
 	name string
-	handles map[string]func(in Value)(Value,error)
+	handles map[string]func(in *model.Value)(Value,error)
 	//Apply(obj *unstructured.Unstructured)(*unstructured.Unstructured,error)
 	//Read(obj *unstructured.Unstructured)(*unstructured.Unstructured,error)
+}
+
+type Action interface {
+	Suspend()
+	Terminated()
+	Wait()
 }
 
 

@@ -2,12 +2,13 @@ package tasks
 
 import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type TaskGenerator func(params workflow.Value, td TaskDiscovery, pds workflow.Providers) (workflow.TaskRunner, error)
+type TaskGenerator func(params *model.Value, td TaskDiscovery, pds workflow.Providers) (workflow.TaskRunner, error)
 
 type taskDiscovery struct {
 	builtins map[string]TaskGenerator
@@ -46,5 +47,4 @@ func NewTaskDiscovery(dm discoverymapper.DiscoveryMapper, cli client.Reader)(Tas
 			"suspend": suspend,
 		},
 	}
-
 }

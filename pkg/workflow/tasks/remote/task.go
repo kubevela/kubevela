@@ -4,18 +4,19 @@ import (
 	"context"
 	"cuelang.org/go/cue/build"
 	"fmt"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/workflow"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-func (params workflow.Value, td tasks.TaskDiscovery, pds workflow.Providers) (workflow.TaskRunner, error)
 
 type taskLoader struct {
 	dm  discoverymapper.DiscoveryMapper
@@ -27,7 +28,7 @@ func (t *taskLoader) GetTaskGenerator(name string) (tasks.TaskGenerator, error) 
 	if err != nil {
 		return nil, err
 	}
-	return func(params workflow.Value, td tasks.TaskDiscovery, pds workflow.Providers) (workflow.TaskRunner, error) {
+	return func(params workflow.Value, td tasks.TaskDiscovery, pds providers.Providers) (workflow.TaskRunner, error) {
 
 	}, nil
 }
@@ -45,7 +46,7 @@ func (t *taskLoader) loadTemplate(name string) (string, error) {
 }
 
 func (t *taskLoader) makeTaskGenerator(templ string) (tasks.TaskGenerator, error) {
-	return func(params *model.Value, td tasks.TaskDiscovery, pds workflow.Providers) (workflow.TaskRunner, error) {
+	return func(params *model.Value, td tasks.TaskDiscovery, pds providers.Providers) (workflow.TaskRunner, error) {
 		bi := build.NewContext().NewInstance("", nil)
 		var paramFile = velacue.ParameterTag + ": {}"
 		if params != nil {
@@ -61,6 +62,28 @@ func (t *taskLoader) makeTaskGenerator(templ string) (tasks.TaskGenerator, error
 		if err := bi.AddFile("-", templ); err != nil {
 			return nil, errors.WithMessage(err, "invalid schematic template")
 		}
+
+		exec := &executor{
+			td:  td,
+			pds: pds,
+		}
+		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *workflow.Operation, error) {
+			if err := exec.doSteps(ctx, nil); err != nil {
+				return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Message: exec.message, Reason: exec.reason}, nil, nil
+			}
+			status := common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded, Message: exec.message, Reason: exec.reason}
+			if exec.wait {
+				status.Phase = common.WorkflowStepPhaseRunning
+			}
+			operation := &workflow.Operation{}
+			if exec.terminated {
+				operation.Terminated = true
+			}
+			if exec.suspend {
+				operation.Suspend = true
+			}
+			return status, operation, nil
+		}, nil
 
 		return nil, nil
 
@@ -96,82 +119,86 @@ step: op.#Apply & {
 
 type executor struct {
 	td  tasks.TaskDiscovery
-	pds workflow.Providers
+	pds providers.Providers
+
+	suspend    bool
+	terminated bool
+	wait       bool
+	message    string
+	reason     string
 }
 
-func (exec *executor) apply(v *model.Value) error {
-
-	v.LookupDef("#provider")
+func (exec *executor) Suspend() {
+	exec.suspend = true
+}
+func (exec *executor) Terminated() {
+	exec.terminated = true
 }
 
-func (exec *executor) doSteps(v *model.Value) error {
-	fields, err := v.ObjectFileds()
-	if err != nil {
-		return err
+func (exec *executor) Wait() {
+	exec.wait = true
+}
+
+func (exec *executor) Message(msg string) {
+	exec.message = msg
+}
+
+func (exec *executor) Reason(reason string) {
+	exec.reason = reason
+}
+
+func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *model.Value) error {
+	h, exist := exec.pds.GetHandler(provider, do)
+	if !exist {
+		return errors.Errorf("handle(provider=%s,do=%s) not found", provider, do)
 	}
-	for _, field := range fields {
-		if do:=opTpy(field.Value);do!=""{
-			provider:=opProvider(field.Value)
-			if err:=exec.pds.Handle(provider,do,field.Value);err!=nil{
-				return err
-			}
-			v.FillObject(field.Value,field.Name)
+	return h(ctx, v, exec)
+}
+
+func (exec *executor) doSteps(ctx wfContext.Context, v *model.Value) error {
+	return v.StepFields(func(in *model.Value) (bool, error) {
+		do := opTpy(in)
+		if do == "" {
+			return false, nil
 		}
-	}
+		if do == "steps" {
+			if err := exec.doSteps(ctx, in); err != nil {
+				return false, err
+			}
+		} else {
+			provider := opProvider(in)
+			if err := exec.Handle(ctx, provider, do, in); err != nil {
+				return false, err
+			}
+		}
+
+		if exec.suspend || exec.terminated || exec.wait {
+			return true, nil
+		}
+		return false, nil
+	})
 }
-
-
-
 
 func opTpy(v *model.Value) string {
-	return getLabel(v,"#do")
+	return getLabel(v, "#do")
 }
 
 func opProvider(v *model.Value) string {
-	provider:=getLabel(v,"#provider")
-	if provider==""{
-		provider="_builtin_"
+	provider := getLabel(v, "#provider")
+	if provider == "" {
+		provider = "_builtin_"
 	}
 	return provider
 }
 
-func getLabel(v *model.Value,label string)string{
-	do, err := v.Filed(label)
+func getLabel(v *model.Value, label string) string {
+	do, err := v.Field(label)
 	if err == nil && do.Exists() {
 		if str, err := do.String(); err == nil {
 			return str
 		}
 	}
 	return ""
-}
-
-func (exec *executor) doStep(v *model.Value) error {
-	do, err := v.LookupDef("#do").String()
-	if err != nil {
-		return err
-	}
-	providerName, err := v.LookupDef("#provider").String()
-	if err != nil {
-		return err
-	}
-	provider, ok := exec.pds[providerName]
-	if !ok {
-		return errors.Errorf("provider %s not supported", providerName)
-	}
-	handle, ok := provider[do]
-	if !ok {
-		return errors.Errorf("handle %s not supported in porvider %s", do, providerName)
-	}
-	result, err := handle(v)
-	if !ok {
-		return errors.WithMessagef(err, "handle %s (porvider %s)", do, providerName)
-	}
-	v.FillObject(result)
-}
-
-func isTaskStep(v *model.Value) bool {
-	v.Filed()
-	return v.LookupDef("#step_type").Exists()
 }
 
 func NewTaskLoader(dm discoverymapper.DiscoveryMapper, cli client.Reader) (*taskLoader, error) {

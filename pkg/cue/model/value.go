@@ -111,37 +111,40 @@ func (val *Value) ObjectFileds() ([]*Filed, error) {
 	return fileds, nil
 }
 
-func (val *Value) WalkFields(handle func(in *Value) error) error {
-	st, err := val.v.Struct()
-	if err != nil {
-		return err
-	}
-	for i := 0; i < st.Len(); i++ {
-		field, err := val.fieldIndex(i)
+func (val *Value) StepFields(handle func(in *Value) (bool, error)) error {
+	i := 0
+	for {
+		field, end, err := val.fieldIndex(i)
 		if err != nil {
 			return err
 		}
-		if err:=handle(field.Value);err!=nil{
+		if stop, err := handle(field.Value); err != nil {
+			return err
+		} else if stop == true {
+			return nil
+		}
+		if err := val.FillObject(field.Value, field.Name); err != nil {
 			return err
 		}
-
-		if field.Value.v.Kind()==cue.StructKind{
-			if err:=val.FillObject(field.Value, field.Name);err!=nil{
-				return err
-			}
+		if end {
+			break
 		}
-
+		i++
 	}
 	return nil
 }
 
-func (val *Value) fieldIndex(index int) (*Filed, error) {
+func (val *Value) fieldIndex(index int) (*Filed, bool, error) {
 	st, err := val.v.Struct()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if index >= st.Len() {
-		return nil, errors.New("get value field by index overhead")
+		return nil, false, errors.New("get value field by index overhead")
+	}
+	end := false
+	if index == (st.Len() - 1) {
+		end = true
 	}
 	field := st.Field(index)
 	return &Filed{
@@ -149,10 +152,10 @@ func (val *Value) fieldIndex(index int) (*Filed, error) {
 		Value: &Value{
 			r: val.r,
 			v: field.Value,
-		}}, nil
+		}}, end, nil
 }
 
-func (val *Value) Filed(label string) (cue.Value, error) {
+func (val *Value) Field(label string) (cue.Value, error) {
 	var v cue.Value
 	if isDef(label) {
 		v = val.v.LookupDef(label)
