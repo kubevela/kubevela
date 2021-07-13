@@ -43,7 +43,7 @@ const (
 	InitializerTemplateName = "template.yaml"
 
 	// InitializerFileDir is where we store generated initializer & component definition
-	InitializerFileDir = "demo"
+	InitializerFileDir = "auto-gen"
 
 	// ComponentDefDir is where we store correspond componentDefinition for addon
 	ComponentDefDir = "definitions"
