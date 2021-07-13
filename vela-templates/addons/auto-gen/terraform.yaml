@@ -3,13 +3,10 @@ kind: Initializer
 metadata:
   annotations:
     addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
-  creationTimestamp: null
   name: terraform
   namespace: tc-system
 spec:
   appTemplate:
-    metadata:
-      creationTimestamp: null
     spec:
       components:
       - name: terraform-controller-release
