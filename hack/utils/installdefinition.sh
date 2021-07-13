@@ -1,20 +1,24 @@
 #! /bin/bash
-export PATH=/bin:/usr/bin:$PATH
-DEFPATH="../charts/vela-core/templates/defwithtemplate"
-function read_dir(){
+DEFPATH="../../charts/vela-core/templates/defwithtemplate"
+function scan_def(){
+res=`kubectl get namespace -A | grep vela-system`
+if [ -n "$res" ];then
+  echo 'vela-system namespace exist'
+else
+  echo 'vela-system namespace do not exist'
+  echo 'creating vela-system namespace ... '
+  kubectl create namespace vela-system
+fi
+echo "applying definitions ..."
+cd $DEFPATH
 # shellcheck disable=SC2045
-for file in `ls $DEFPATH `
+for file in `ls .`
   do
-    if [ -d $DEFPATH"/"$file ]
-    then
-    read_dir $DEFPATH"/"$file
-    else
-      echo $DEFPATH"/"$file
-      sed -i "s#{{.Values.systemDefinitionNamespace}}#vela-system#g" $DEFPATH"/"$file
-      kubectl apply -f  $DEFPATH"/"$file
-      sed -i "s#vela-system#{{.Values.systemDefinitionNamespace}}#g" $DEFPATH"/"$file
-    fi
+    echo "Info: changing "$DEFPATH"/"$file
+    sed -i '' "s#{{.Values.systemDefinitionNamespace}}#vela-system#g" $file
+    kubectl apply -f $file
+    sed -i '' "s#vela-system#{{.Values.systemDefinitionNamespace}}#g" $file
   done
 }
 
-read_dir
+scan_def
