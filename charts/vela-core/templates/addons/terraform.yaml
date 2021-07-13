@@ -6,7 +6,7 @@ data:
     metadata:
       annotations:
         addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
-      name: terraform-controller
+      name: terraform
       namespace: tc-system
     spec:
       appTemplate:
@@ -53,6 +53,11 @@ data:
             rollingState: ""
             upgradedReadyReplicas: 0
             upgradedReplicas: 0
+      dependsOn:
+      - ref:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Initializer
+          name: fluxcd
     status:
       observedGeneration: 0
 kind: ConfigMap
@@ -60,5 +65,5 @@ metadata:
   annotations:
     addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
   labels:
-    addons.oam.dev/type: terraform-controller
-  name: terraform-controller
+    addons.oam.dev/type: terraform
+  name: terraform
