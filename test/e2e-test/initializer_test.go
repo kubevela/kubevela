@@ -123,7 +123,7 @@ var _ = Describe("Initializer Normal tests", func() {
 		}, 30*time.Second, 5*time.Second).Should(Succeed())
 	})
 
-	FIt("Test apply initializer depends on other initializer", func() {
+	It("Test apply initializer depends on other initializer", func() {
 		compName := "env2-comp"
 
 		init := &v1beta1.Initializer{
