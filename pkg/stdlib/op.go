@@ -1,14 +1,15 @@
 package stdlib
 
-type pkg struct {
-	path string
+type file struct {
+	name string
+	path    string
 	content string
 }
 
-var opPkg=pkg{
+var opFile = file{
+	name: "op.cue",
 	path: "vela/op",
 	content: `
-
 #Load: {
   #do: "load"
   #component?: string
@@ -27,8 +28,13 @@ var opPkg=pkg{
 }
 
 #ConditionalWait: {
-  #do: wait
+  #do: "wait"
   continue: bool
+}
+
+#Break: {
+  #do: "break"
+  message: string
 }
 
 #Apply: {

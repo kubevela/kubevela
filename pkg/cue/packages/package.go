@@ -19,6 +19,7 @@ package packages
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -94,6 +95,15 @@ func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
 	if err = pd.RefreshKubePackagesFromCluster(); err != nil {
 		return pd, err
 	}
+
+	stdPkgs := stdlib.GetPackages()
+	for path, content := range stdPkgs {
+		p := newPackage(path)
+		if err := p.AddFile("-", content); err != nil {
+			return nil, err
+		}
+		pd.mount(p, nil)
+	}
 	return pd, nil
 }
 
@@ -157,6 +167,9 @@ func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
 func (pd *PackageDiscover) mount(pkg *pkgInstance, pkgKinds []VersionKind) {
 	pd.mutex.Lock()
 	defer pd.mutex.Unlock()
+	if pkgKinds == nil {
+		pkgKinds = []VersionKind{}
+	}
 	for i, p := range pd.velaBuiltinPackages {
 		if p.ImportPath == pkg.ImportPath {
 			pd.pkgKinds[pkg.ImportPath] = pkgKinds
