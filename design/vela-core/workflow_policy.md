@@ -138,16 +138,19 @@ spec:
   schematic:
     cue:
       template: |
+        import "vela/op"
+        
         parameters: {
           image: string
         }
-        apply: vela.#Apply & {
+        
+        apply: op.#Apply & {
           resource: context.workload
         }
-        continue: vela.#Continue & {
-          return: apply.status.ready == true
+        wait: op.#CondtionalWait & {
+          continue: apply.status.ready == true
         }
-        export: {
+        export: op.#Export & {
           secret: apply.status.secret
         }
 ```
@@ -158,7 +161,7 @@ In this section we will discuss the implementation details to support policies a
 
 Here's a diagram of how workflow internals work:
 
-![alt](../../docs/resources/workflow-internals.jpg)
+![alt](../../docs/resources/workflow-internals.png)
 
 
 Here are the steps in Application Controller:
@@ -232,6 +235,108 @@ Here are the steps in Task Manager:
 
 - If `continue.return == true`, Task Manager will update the `observedAppGeneration` for this step in status.
 
+
+### Workflow Operation
+
+#### Terminate Workflow
+
+If the execution of the workflow does not meet expectations, it may be necessary to terminate the workflow
+
+There are two ways to achieve that:
+
+1. Modify the  `workflow.terminated` field in status
+
+```yaml
+  kind: Application
+  metadata:
+    name: foo
+  status:
+    phase: runningWorkflow
+    workflow:
+      stepIndex: 1
+      terminated: true
+      steps:
+      - name: ...
+```
+
+
+2. Use `op.#Break` in workflowStep definition. When the task is executed, the op.#Break can be captured and then report terminated status
+
+```yaml
+  if job.status == "failed"{
+    break: op.#Break & {
+       message: "job failed: "+ job.status.message
+    }
+  }
+ ```
+
+#### Pause Workflow
+
+1. Modify the value of the `workflow.suspend` field to true to pause the workflow
+
+```yaml
+  kind: Application
+  metadata:
+    name: foo
+  status:
+    phase: runningWorkflow
+    workflow:
+      stepIndex: 1
+      suspend: true
+      steps:
+      - name: ... 
+ ```
+
+
+2. The built-in suspend task support pause workflow, the example as follow
+
+```yaml
+kind: Application
+spec:
+  componnets: ...
+workflow:
+  steps:
+  - name: manual-approve
+    type: suspend   
+ ```
+  The `workflow.suspend` field will be set to true after the suspend-type task is started
+
+#### Resume Workflow
+
+Modify the value of the `workflow.suspend` field to false to resume the workflow
+
+```yaml
+  kind: Application
+  metadata:
+    name: foo
+  status:
+    phase: runningWorkflow
+    workflow:
+      stepIndex: 1
+      suspend: false
+      steps:
+      - name: ... 
+ ```
+
+#### Restart Workflow
+
+The workflow will be restarted in the following two cases
+
+1. Modify the value of the `status.phase` field to "runningWorkflow" and clear the status of the workflow
+
+```yaml
+  kind: Application
+  metadata:
+    name: foo
+  status:
+    phase: runningWorkflow
+    workflow: {}
+ ```
+
+
+2. The application spec changes
+
+The spec change also means that the application needs to be re-executed, and the application controller will clear the staus of application includes workflow status
 
 ### Operator Best Practice
 
