@@ -240,7 +240,7 @@ func storeInitAndDef(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefiniti
 		return err
 	}
 	filename := path.Join(addonPath, InitializerFileDir, addonName+".yaml")
-	splitter := "---\n"
+	spliter := "---\n"
 	cdContents := make([]string, 0, len(cds))
 	for _, cd := range cds {
 		cdContent, err := yaml.Marshal(cd)
