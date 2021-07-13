@@ -12,4 +12,4 @@ spec:
         - name: {{ .Name }}
           type: raw
           properties:
-{{ .Content }} {{ end }}
+{{ .Content | indent 12 }} {{ end }}
