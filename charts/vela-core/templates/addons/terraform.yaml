@@ -27,7 +27,7 @@ data:
                     sourceRef:
                       kind: GitRepository
                       name: terraform-controller-repo
-                      namespace: flux-system
+                      namespace: tc-system
                 interval: 5m
                 values:
                   replicaCount: 1
@@ -58,6 +58,7 @@ data:
           apiVersion: core.oam.dev/v1beta1
           kind: Initializer
           name: fluxcd
+          namespace: flux-system
     status:
       observedGeneration: 0
 kind: ConfigMap

@@ -11,7 +11,7 @@ spec:
       sourceRef:
         kind: GitRepository
         name: terraform-controller-repo
-        namespace: flux-system
+        namespace: tc-system
       interval: 1m
   values:
     replicaCount: 1

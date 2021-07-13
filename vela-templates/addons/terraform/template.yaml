@@ -11,6 +11,7 @@ spec:
         apiVersion: core.oam.dev/v1beta1
         kind: Initializer
         name: fluxcd
+        namespace: flux-system
   appTemplate:
     spec:
       components: {{  range .ResourceFiles  }}
