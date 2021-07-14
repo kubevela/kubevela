@@ -17,15 +17,9 @@ package workflow
 
 import (
 "context"
-"cuelang.org/go/cue"
-"cuelang.org/go/cuego"
 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 "github.com/oam-dev/kubevela/pkg/appfile"
-"cuelang.org/go/cue/build"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	corev1 "k8s.io/api/core/v1"
-"k8s.io/apimachinery/pkg/runtime"
-
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -42,7 +36,7 @@ type SucceededMessage struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
-type TaskRunner func(ctx workflow.Context)(common.WorkflowStepStatus,*Operation,error)
+type TaskRunner func(ctx wfContext.Context)(common.WorkflowStepStatus,*Operation,error)
 
 type Operation struct {
 	Suspend bool
@@ -54,87 +48,15 @@ type StepWorkload struct {
 	spec *v1aplha2.WorkloadStep
 }
 
-func newTask(t *StepWorkload,td TaskDiscovery,pd provider)(TaskRunner,error){
-	exec:=new(TaskExecutor)
-	return func(ctx workflow.Context)(common.WorkflowStepStatus,error){
-		exec.do()
-	},nil
-	panic("")
-
-}
-
-type Context interface {
-	Clone() Context
-	GetComponent(name string,label map[string]string) (Component,error)
-	PatchComponent(name string, label map[string]string, patchContent string)error
-	GetVar(name string,scope string)(Var,error)
-	SetVar(name string,scope string,v Var) error
-	Step()(string,int)
-	Commit()error
-}
-
-type Var struct {
-	tpy string
-	value string
-}
-
-func NewContext(cm *corev1.ConfigMap)Context{}
-
-type Value string
-
-func (v Value)Raw()string{
-	return string(v)
-}
-
-func (v Value)UnmarshalTo(x interface{})error{
-	return nil
-}
-
-func (v Value)Compile(r cue.Runtime)error{
-	return nil
-}
-
-func (v Value)Fill(x Value,paths ...string)error{
-	return nil
-}
-
-type TaskGenerator func(params *model.Value,td TaskDiscovery,pds Providers)(TaskRunner,error)
-
-type TaskDiscovery struct {
-	builtins map[string]TaskGenerator
-	extended map[string]TaskGenerator
-}
-
-type Providers struct {
-	m map[string]provider
-}
-type provider struct {
-	name string
-	handles map[string]func(in *model.Value)(Value,error)
-	//Apply(obj *unstructured.Unstructured)(*unstructured.Unstructured,error)
-	//Read(obj *unstructured.Unstructured)(*unstructured.Unstructured,error)
-}
 
 type Action interface {
 	Suspend()
 	Terminated()
 	Wait()
+	Message(msg string)
+	Reason(reason string)
 }
 
-
-type TaskExecutor struct {
-	td TaskDiscovery
-	pds Providers
-}
-
-type cueValue struct {
-	v cue.Value
-	r cue.Runtime
-}
-
-func(t *TaskExecutor)do(steps cueValue,ctx workflow.Context)error{
-	steps.v.Lookup("path")
-}
 
 
 

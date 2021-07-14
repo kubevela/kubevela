@@ -105,15 +105,15 @@ func (comp *componentManifest) Patch(pv string) error {
 }
 
 func (comp *componentManifest) string() (string, error) {
-	comonentFmt := struct {
+	cm := struct {
 		Workload    string   `json:"workload"`
 		Auxiliaries []string `json:"auxiliaries"`
 	}{
 		Workload: comp.Workload.String(),
 	}
 	for _, aux := range comp.Auxiliaries {
-		comonentFmt.Auxiliaries = append(comonentFmt.Auxiliaries, aux.String())
+		cm.Auxiliaries = append(cm.Auxiliaries, aux.String())
 	}
-	js, err := json.Marshal(comonentFmt)
+	js, err := json.Marshal(cm)
 	return string(js), err
 }

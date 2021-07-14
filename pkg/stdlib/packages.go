@@ -4,6 +4,7 @@ type discover struct {
 	files []file
 }
 
+// Pkgs is map[${path}]${package-content}
 type Pkgs map[string]string
 
 func (p *discover) packages() Pkgs {
@@ -18,6 +19,7 @@ func (p *discover) addFile(f file) {
 	p.files = append(p.files, f)
 }
 
+// GetPackages Get Stdlib package
 func GetPackages() Pkgs {
 	d := &discover{}
 	d.addFile(opFile)

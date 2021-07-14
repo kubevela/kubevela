@@ -2,13 +2,13 @@ package remote
 
 import (
 	"context"
-	"cuelang.org/go/cue/build"
 	"fmt"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -21,6 +21,7 @@ import (
 type taskLoader struct {
 	dm  discoverymapper.DiscoveryMapper
 	cli client.Reader
+	pd  *packages.PackageDiscover
 }
 
 func (t *taskLoader) GetTaskGenerator(name string) (tasks.TaskGenerator, error) {
@@ -28,9 +29,7 @@ func (t *taskLoader) GetTaskGenerator(name string) (tasks.TaskGenerator, error) 
 	if err != nil {
 		return nil, err
 	}
-	return func(params workflow.Value, td tasks.TaskDiscovery, pds providers.Providers) (workflow.TaskRunner, error) {
-
-	}, nil
+	return t.makeTaskGenerator(templ)
 }
 
 func (t *taskLoader) loadTemplate(name string) (string, error) {
@@ -46,8 +45,8 @@ func (t *taskLoader) loadTemplate(name string) (string, error) {
 }
 
 func (t *taskLoader) makeTaskGenerator(templ string) (tasks.TaskGenerator, error) {
-	return func(params *model.Value, td tasks.TaskDiscovery, pds providers.Providers) (workflow.TaskRunner, error) {
-		bi := build.NewContext().NewInstance("", nil)
+	return func(params *model.Value, td tasks.TaskDiscover, pds providers.Providers) (workflow.TaskRunner, error) {
+
 		var paramFile = velacue.ParameterTag + ": {}"
 		if params != nil {
 			ps, err := params.String()
@@ -56,32 +55,29 @@ func (t *taskLoader) makeTaskGenerator(templ string) (tasks.TaskGenerator, error
 			}
 			paramFile = fmt.Sprintf("%s: %s", velacue.ParameterTag, ps)
 		}
-		if err := bi.AddFile("parameter", paramFile); err != nil {
-			return nil, errors.WithMessage(err, "invalid parameter")
-		}
-		if err := bi.AddFile("-", templ); err != nil {
-			return nil, errors.WithMessage(err, "invalid schematic template")
-		}
 
+		taskv, err := model.NewValue(paramFile+"\n"+templ, t.pd)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "convert cue template to task value")
+		}
 		exec := &executor{
 			td:  td,
 			pds: pds,
 		}
 		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *workflow.Operation, error) {
-			if err := exec.doSteps(ctx, nil); err != nil {
+			if err := exec.doSteps(ctx, taskv); err != nil {
 				return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Message: exec.message, Reason: exec.reason}, nil, nil
 			}
 			status := common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded, Message: exec.message, Reason: exec.reason}
 			if exec.wait {
 				status.Phase = common.WorkflowStepPhaseRunning
 			}
-			operation := &workflow.Operation{}
-			if exec.terminated {
-				operation.Terminated = true
+
+			operation := &workflow.Operation{
+				Terminated: exec.terminated,
+				Suspend:    exec.suspend,
 			}
-			if exec.suspend {
-				operation.Suspend = true
-			}
+
 			return status, operation, nil
 		}, nil
 
@@ -118,7 +114,7 @@ step: op.#Apply & {
 */
 
 type executor struct {
-	td  tasks.TaskDiscovery
+	td  tasks.TaskDiscover
 	pds providers.Providers
 
 	suspend    bool
@@ -150,7 +146,7 @@ func (exec *executor) Reason(reason string) {
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *model.Value) error {
 	h, exist := exec.pds.GetHandler(provider, do)
 	if !exist {
-		return errors.Errorf("handle(provider=%s,do=%s) not found", provider, do)
+		return errors.Errorf("handler(provider=%s,do=%s) not found", provider, do)
 	}
 	return h(ctx, v, exec)
 }
@@ -201,6 +197,10 @@ func getLabel(v *model.Value, label string) string {
 	return ""
 }
 
-func NewTaskLoader(dm discoverymapper.DiscoveryMapper, cli client.Reader) (*taskLoader, error) {
-
+func NewTaskLoader(dm discoverymapper.DiscoveryMapper, cli client.Reader, pd *packages.PackageDiscover) *taskLoader {
+	return &taskLoader{
+		dm:  dm,
+		cli: cli,
+		pd:  pd,
+	}
 }

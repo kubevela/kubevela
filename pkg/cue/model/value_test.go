@@ -25,6 +25,9 @@ iter:{
 
 step1: {}
 step2: {prefix: step1.value}
+if step2.value>3{
+step2_3: {}
+}
 step3: {prefix: step2.value}
 step4: {prefix: step3.value}
 if step4.value>100{
@@ -37,7 +40,7 @@ if step4.value>100{
   {"apply": 123}
 `
 
-	sv, _ := NewValue(src)
+	sv, _ := NewValue(src,nil)
 	up, _ := sv.MakeValue(js)
 	fmt.Println(up.String())
 	up.FillRaw(`x: 12345`, "to")

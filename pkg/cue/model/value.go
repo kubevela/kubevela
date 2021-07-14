@@ -2,15 +2,18 @@ package model
 
 import (
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/build"
 	"encoding/json"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/pkg/errors"
 	"strings"
 )
 
 type Value struct {
-	v cue.Value
-	r cue.Runtime
+	v  cue.Value
+	r  cue.Runtime
+	pd *packages.PackageDiscover
 }
 
 func (val *Value) String() (string, error) {
@@ -25,26 +28,48 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 	return json.Unmarshal(data, x)
 }
 
-func NewValue(s string) (*Value, error) {
+func NewValue(s string, pd *packages.PackageDiscover) (*Value, error) {
+	builder := &build.Instance{}
+	if err := builder.AddFile("-", s); err != nil {
+		return nil, err
+	}
+
+	if pd != nil {
+		if _, err := pd.ImportPackagesAndBuildInstance(builder); err != nil {
+			return nil, err
+		}
+	}
+
 	var r cue.Runtime
-	inst, err := r.Compile("-", s)
+	inst, err := r.Build(builder)
 	if err != nil {
 		return nil, err
 	}
 	val := new(Value)
 	val.r = r
 	val.v = inst.Value()
+	val.pd = pd
 	return val, nil
 }
 
 func (val *Value) MakeValue(s string) (*Value, error) {
-	inst, err := val.r.Compile("-", s)
+	builder := &build.Instance{}
+	if err := builder.AddFile("-", s); err != nil {
+		return nil, err
+	}
+	if val.pd != nil {
+		if _, err := val.pd.ImportPackagesAndBuildInstance(builder); err != nil {
+			return nil, err
+		}
+	}
+	inst, err := val.r.Build(builder)
 	if err != nil {
 		return nil, err
 	}
 	v := new(Value)
 	v.r = val.r
 	v.v = inst.Value()
+	v.pd = val.pd
 	return v, nil
 }
 
