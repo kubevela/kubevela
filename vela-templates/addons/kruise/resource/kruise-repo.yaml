@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta1
+kind: GitRepository
+metadata:
+  name: kruise-repo
+  namespace: flux-system
+spec:
+  url: https://github.com/openkruise/kruise
+  ref:
+    branch: master
+  interval: 5m

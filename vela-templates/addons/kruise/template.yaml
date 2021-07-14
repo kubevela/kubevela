@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  annotations:
+    addons.oam.dev/description: "Kruise is a Kubernetes extended suite for application automations"
+  name: kruise
+  namespace: kruise-system
+spec:
+  appTemplate:
+    spec:
+      components: {{  range .ResourceFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}
