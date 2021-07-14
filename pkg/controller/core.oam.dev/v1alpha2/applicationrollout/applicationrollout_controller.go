@@ -36,6 +36,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -55,7 +56,7 @@ const (
 type Reconciler struct {
 	client.Client
 	dm                   discoverymapper.DiscoveryMapper
-	record               event.Recorder
+	Recorder             event.Recorder
 	Scheme               *runtime.Scheme
 	concurrentReconciles int
 }
@@ -79,17 +80,23 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 			if res.Requeue || res.RequeueAfter > 0 {
 				klog.InfoS("Finished reconciling appRollout", "controller request", req, "time spent",
 					time.Since(startTime), "result", res)
+				r.Recorder.Event(&appRollout, event.Normal(velatypes.ReasonReconcileRollout, velatypes.MessasgeReconciledRollout))
+
 			} else {
 				klog.InfoS("Finished reconcile appRollout", "controller  request", req, "time spent",
 					time.Since(startTime))
+				r.Recorder.Event(&appRollout, event.Normal(velatypes.ReasonReconcileRollout, velatypes.MessasgeReconciledRollout))
+
 			}
 		} else {
 			klog.Errorf("Failed to reconcile appRollout %s: %v", req, retErr)
+			r.Recorder.Event(&appRollout, event.Warning(velatypes.ReasonFailedReconcileRollout, retErr))
 		}
 	}()
 	if err := r.Get(ctx, req.NamespacedName, &appRollout); err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.InfoS("appRollout does not exist", "appRollout", klog.KRef(req.Namespace, req.Name))
+			r.Recorder.Event(&appRollout, event.Warning(velatypes.ReasonNotFoundAppRollout, err))
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -150,18 +157,23 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 
 	// call assemble func generate source and target manifest
 	if err = h.prepareWorkloads(ctx); err != nil {
+		r.Recorder.Event(appRollout, event.Warning(velatypes.ReasonFailedGenerateManifest, err))
 		return reconcile.Result{}, err
 	}
+	r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonGenerateManifest, velatypes.MessageGeneratedManifest))
 
 	// we only support one workload rollout now, so here is determine witch component is need to rollout
 	if err = h.determineRolloutComponent(); err != nil {
+		r.Recorder.Event(appRollout, event.Warning(velatypes.ReasonFailedDetermineRolloutComponent, err))
 		return reconcile.Result{}, err
 	}
+	r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonDetermineRolloutComponent, velatypes.MessageDeterminedRolloutComponent))
 
 	if err = h.assembleManifest(ctx); err != nil {
+		r.Recorder.Event(appRollout, event.Warning(velatypes.ReasonFailedAssembleManifests, err))
 		return reconcile.Result{}, err
 	}
-
+	r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonAssembleManifests, velatypes.MessageAssembleManifests))
 	var sourceWorkload, targetWorkload *unstructured.Unstructured
 
 	// we should handle two special cases before call rolloutPlan Reconcile
@@ -179,15 +191,19 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		if h.sourceAppRevision != nil {
 			err = h.handleSourceWorkload(ctx)
 			if err != nil {
+				r.Recorder.Event(appRollout, event.Warning(velatypes.ReasonFailedTemplateSourceMenifest, err))
 				return reconcile.Result{}, err
 			}
+			r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonTemplateSourceMenifest, velatypes.MessageTemplatedSourceManifest))
 		}
 		// target manifest haven't template yet, call dispatch template target manifest firstly
 		err = h.templateTargetManifest(ctx)
 		if err != nil {
+			r.Recorder.Event(appRollout, event.Warning(velatypes.ReasonFailedTemplateTargetMenifest, err))
 			h.appRollout.Status.SetConditions(utils.ErrorCondition("template", err))
 			return reconcile.Result{}, err
 		}
+		r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonTemplateTargetMenifest, velatypes.MessageTemplatedTargetManifest))
 		h.appRollout.Status.SetConditions(utils.ReadyCondition("template"))
 		// this ensures that we template workload only once
 		h.appRollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
@@ -200,16 +216,17 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 
 	sourceWorkload, targetWorkload, err = h.fetchSourceAndTargetWorkload(ctx)
 	if err != nil {
+		r.Recorder.Event(appRollout, event.Warning(velatypes.ReasonFailedFetchSourceAndTargetWorkload, err))
 		return reconcile.Result{}, err
 	}
-
+	r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonFetchSourceAndTargetWorkload, velatypes.MessageFetchedSourceAndTargetWorkload))
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
 	if sourceWorkload != nil {
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
 	}
 
 	// reconcile the rollout part of the spec given the target and source workload
-	rolloutPlanController := rollout.NewRolloutPlanController(r, appRollout, r.record,
+	rolloutPlanController := rollout.NewRolloutPlanController(r, appRollout, r.Recorder,
 		&appRollout.Spec.RolloutPlan, &appRollout.Status.RolloutStatus, targetWorkload, sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back
@@ -227,10 +244,11 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		}
 		klog.InfoS("rollout succeeded, record the source and target app revision", "source", appRollout.Spec.SourceAppRevisionName,
 			"target", appRollout.Spec.TargetAppRevisionName)
+		r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonRollout, velatypes.MessageSucceededRollout))
 	} else if rolloutStatus.RollingState == v1alpha1.RolloutFailedState {
 		klog.InfoS("rollout failed, record the source and target app revision", "source", appRollout.Spec.SourceAppRevisionName,
 			"target", appRollout.Spec.TargetAppRevisionName, "revert on deletion", appRollout.Spec.RevertOnDelete)
-
+		r.Recorder.Event(appRollout, event.Normal(velatypes.ReasonFailedRollout, velatypes.MessageFailedRollout))
 	}
 	return result, nil
 }
@@ -260,7 +278,7 @@ func (r *Reconciler) handleFinalizer(ctx context.Context, appRollout *v1beta1.Ap
 		}
 		// still need to finalize
 		klog.Info("perform clean up", "app rollout", appRollout.Name)
-		r.record.Event(appRollout, event.Normal("Rollout ", "rollout target deleted, release the resources"))
+		r.Recorder.Event(appRollout, event.Normal("Rollout ", "rollout target deleted, release the resources"))
 		appRollout.Status.StateTransition(v1alpha1.RollingDeletedEvent)
 	}
 	return false, reconcile.Result{}, nil
@@ -281,16 +299,16 @@ func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRo
 // NewReconciler render a applicationRollout reconciler
 func NewReconciler(c client.Client, dm discoverymapper.DiscoveryMapper, record event.Recorder, scheme *runtime.Scheme) *Reconciler {
 	return &Reconciler{
-		Client: c,
-		dm:     dm,
-		record: record,
-		Scheme: scheme,
+		Client:   c,
+		dm:       dm,
+		Recorder: record,
+		Scheme:   scheme,
 	}
 }
 
 // SetupWithManager setup the controller with manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+	r.Recorder = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 		WithAnnotations("controller", "AppRollout")
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{
