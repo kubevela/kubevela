@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -229,13 +230,19 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 // handle rollout succeed work left
 func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 	// yield controller owner back to resourceTracker
-	workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
+		if err != nil {
+			return err
+		}
+		wlPatch := client.MergeFrom(workload.DeepCopy())
+		enableControllerOwner(workload)
+		return h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID))
+	})
+
 	if err != nil {
-		return err
-	}
-	wlPatch := client.MergeFrom(workload.DeepCopy())
-	enableControllerOwner(workload)
-	if err = h.Client.Patch(ctx, workload, wlPatch, client.FieldOwner(h.appRollout.UID)); err != nil {
+		klog.Errorf("cannot enable controller owner of workload ", "namespace", h.appRollout.GetNamespace(),
+			"appRollout", h.appRollout.GetName())
 		return err
 	}
 
