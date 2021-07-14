@@ -14,8 +14,8 @@ spec:
         namespace: flux-system
   appTemplate:
     spec:
-      components: {{  range .Files  }}
-      - name: {{ .Name }}
-        type: raw
-        properties:
-{{ .Content }}{{ end }}
+      components: {{  range .ResourceFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}
