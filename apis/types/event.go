@@ -26,14 +26,37 @@ const (
 	ReasonDeployed    = "Deployed"
 	ReasonRollout     = "Rollout"
 
-	ReasonFailedParse       = "FailedParse"
-	ReasonFailedRender      = "FailedRender"
-	ReasonFailedRevision    = "FailedRevision"
-	ReasonFailedWorkflow    = "FailedWorkflow"
-	ReasonFailedApply       = "FailedApply"
-	ReasonFailedHealthCheck = "FailedHealthCheck"
-	ReasonFailedGC          = "FailedGC"
-	ReasonFailedRollout     = "FailedRollout"
+	ReasonFailedParse           = "FailedParse"
+	ReasonFailedRender          = "FailedRender"
+	ReasonFailedRevision        = "FailedRevision"
+	ReasonFailedWorkflow        = "FailedWorkflow"
+	ReasonFailedApply           = "FailedApply"
+	ReasonFailedHealthCheck     = "FailedHealthCheck"
+	ReasonFailedGC              = "FailedGC"
+	ReasonFailedToHandleRollout = "FailedRollout"
+)
+
+// reason for ApplicationRollout
+const (
+	ReasonReconcileRollout             = "AppRolloutReconciled"
+	ReasonFindAppRollout               = "appRolloutFound"
+	ReasonGenerateManifest             = "ManifestGenerated"
+	ReasonDetermineRolloutComponent    = "RolloutComponentDetermined"
+	ReasonAssembleManifests            = "ManifestsAssembled"
+	ReasonTemplateSourceMenifest       = "SourceManifestTemplated"
+	ReasonTemplateTargetMenifest       = "TargetManifestTemplated"
+	ReasonFetchSourceAndTargetWorkload = "SourceAndTargetWorkloadFetched"
+	ReasonSuccessRollout               = "RolloutSucceeded"
+
+	ReasonFailedReconcileRollout             = "FailedAppRolloutReconcile"
+	ReasonNotFoundAppRollout                 = "AppRollOutNotExist"
+	ReasonFailedGenerateManifest             = "FailedManifestGenerate"
+	ReasonFailedDetermineRolloutComponent    = "FailedRolloutComponentDetermine"
+	ReasonFailedAssembleManifests            = "FailedManifestsAssemble"
+	ReasonFailedTemplateSourceMenifest       = "FailedSourceMenifestTemplate"
+	ReasonFailedTemplateTargetMenifest       = "FailedTargetMenifestTemplate"
+	ReasonFailedFetchSourceAndTargetWorkload = "FailedSourceAndTargetWorkloadFetch"
+	ReasonFailedRollout                      = "FailedRollout"
 )
 
 // event message for Application
@@ -52,4 +75,25 @@ const (
 	MessageFailedApply       = "fail to apply component, err: %v"
 	MessageFailedHealthCheck = "fail to health check, err: %v"
 	MessageFailedGC          = "fail to garbage collection, err: %v"
+)
+
+// event message for ApplicationRollout
+const (
+	MessasgeReconciledRollout             = "AppRollOut reconciled successfully"
+	MessageGeneratedManifest              = "Manifest generated successfully"
+	MessageDeterminedRolloutComponent     = "Rollout component determined successfully"
+	MessageAssembleManifests              = "Manifests assembled successfully"
+	MessageTemplatedSourceManifest        = "Source manifest templated successfully"
+	MessageTemplatedTargetManifest        = "Target manifest templated successfully"
+	MessageFetchedSourceAndTargetWorkload = "Source and target workload fetched successfully"
+	MessageSucceededRollout               = "Rollout succeeded"
+
+	MessageFailedReconcileRollout             = "fail to reconcile AppRollOut, err: %v"
+	MessageFailedGenerateManifest             = "fail to generate source or target manifest, err: %v"
+	MessageFailedDetermineRolloutComponent    = "fail to determine Rollout component, err: %v"
+	MessageFailedAssembleManifests            = "fail to assemble manifests"
+	MessageFailedTemplateSourceManifest       = "fail to template source manifest, err: %v"
+	MessageFailedTemplateTargetManifest       = "fail to template target manifest, err: %v"
+	MessageFailedFetchSourceAndTargetWorkload = "fail to fetch source and target workload, err: %v"
+	MessageFailedRollout                      = "fail to rollout, err: %v"
 )

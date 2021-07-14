@@ -158,7 +158,7 @@ func (h *rolloutHandler) extractWorkload(ctx context.Context, workload unstructu
 func (h *rolloutHandler) handleRolloutModified() {
 	klog.InfoS("rollout target changed, restart the rollout", "new source", h.appRollout.Spec.SourceAppRevisionName,
 		"new target", h.appRollout.Spec.TargetAppRevisionName)
-	h.record.Event(h.appRollout, event.Normal("Rollout Restarted",
+	h.Recorder.Event(h.appRollout, event.Normal("Rollout Restarted",
 		"rollout target changed, restart the rollout", "new source", h.appRollout.Spec.SourceAppRevisionName,
 		"new target", h.appRollout.Spec.TargetAppRevisionName))
 	// we are okay to move directly to restart the rollout since we are at the terminal state
