@@ -1,0 +1,18 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: terraform-controller-release
+  namespace: tc-system
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: ./chart
+      sourceRef:
+        kind: GitRepository
+        name: terraform-controller-repo
+        namespace: tc-system
+      interval: 1m
+  values:
+    replicaCount: 1
+

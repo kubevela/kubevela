@@ -66,7 +66,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	klog.Info("Check the status of the Initializers which you depend on")
-	unsatisfied, err := r.checkDependsOn(ctx, req.Namespace, init.Spec.DependsOn)
+	unsatisfied, err := r.checkDependsOn(ctx, init.Spec.DependsOn)
 	if err != nil {
 		klog.ErrorS(err, "Initializers which you depend on are not ready")
 		r.record.Event(init, event.Warning("Initializers which you depend on are not ready", err))
@@ -94,10 +94,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) checkDependsOn(ctx context.Context, ns string, depends []v1beta1.DependsOn) (bool, error) {
+func (r *Reconciler) checkDependsOn(ctx context.Context, depends []v1beta1.DependsOn) (bool, error) {
 	for _, depend := range depends {
 		dependInit := new(v1beta1.Initializer)
-		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: ns, Name: depend.Ref.Name}, dependInit); err != nil {
+		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: depend.Ref.Namespace, Name: depend.Ref.Name}, dependInit); err != nil {
 			return false, err
 		}
 		if dependInit.Status.ObservedGeneration < dependInit.Generation {
