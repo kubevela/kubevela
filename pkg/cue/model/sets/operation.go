@@ -49,7 +49,7 @@ func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.Lis
 		if _, ok := elt.(*ast.Ellipsis); ok {
 			continue
 		}
-		nodev, err := lookUp(elt, key)
+		nodev, err := lookUp(elt, strings.Split(key, ".")...)
 		if err != nil {
 			return
 		}
@@ -67,7 +67,7 @@ func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.Lis
 			continue
 		}
 
-		nodev, err := lookUp(elt, key)
+		nodev, err := lookUp(elt, strings.Split(key, ".")...)
 		if err != nil {
 			return
 		}
