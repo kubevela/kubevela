@@ -1,19 +1,8 @@
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
+apiVersion: v1
+kind: Namespace
 metadata:
-  annotations:
-    definition.oam.dev/description: kustomize can fetching, building, updating and applying Kustomize manifests from git repo.
-  name: kustomize
-  namespace: vela-system
-spec:
-  schematic:
-    cue:
-      template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"GitRepository\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\turl:      parameter.repo_url\n\t\tref: branch: parameter.branch\n\t}\n}\noutputs: kustomize: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\tsourceRef: {\n\t\t\tkind: \"GitRepository\"\n\t\t\tname: context.name\n\t\t}\n\t\tpath:       parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\nparameter: {\n\t//+usage=The repository URL, can be a HTTP/S or SSH address.\n\trepo_url: string\n\t//+usage=The interval at which to check for repository updates.\n\tpull_interval: *\"1m\" | string\n\t//+usage=The Git reference to checkout and monitor for changes, defaults to master branch.\n\tbranch: *\"master\" | string\n\t//+usage=Path to the directory containing the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml should be generated for.\n\tpath: string\n}\n"
-  workload:
-    definition:
-      apiVersion: ""
-      kind: ""
-    type: autodetects.core.oam.dev
+  name: flux-system
+spec: {}
 status: {}
 ---
 apiVersion: core.oam.dev/v1beta1
@@ -4494,3 +4483,21 @@ spec:
         upgradedReplicas: 0
 status:
   observedGeneration: 0
+---
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: kustomize can fetching, building, updating and applying Kustomize manifests from git repo.
+  name: kustomize
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"GitRepository\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\turl:      parameter.repo_url\n\t\tref: branch: parameter.branch\n\t}\n}\noutputs: kustomize: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\tsourceRef: {\n\t\t\tkind: \"GitRepository\"\n\t\t\tname: context.name\n\t\t}\n\t\tpath:       parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\nparameter: {\n\t//+usage=The repository URL, can be a HTTP/S or SSH address.\n\trepo_url: string\n\t//+usage=The interval at which to check for repository updates.\n\tpull_interval: *\"1m\" | string\n\t//+usage=The Git reference to checkout and monitor for changes, defaults to master branch.\n\tbranch: *\"master\" | string\n\t//+usage=Path to the directory containing the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml should be generated for.\n\tpath: string\n}\n"
+  workload:
+    definition:
+      apiVersion: ""
+      kind: ""
+    type: autodetects.core.oam.dev
+status: {}

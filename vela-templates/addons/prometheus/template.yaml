@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  annotations:
+    addons.oam.dev/description: "Prometheus is an open-source systems monitoring and alerting toolkit"
+  name: prometheus
+  namespace: prometheus
+spec:
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: fluxcd
+        namespace: flux-system
+  appTemplate:
+    spec:
+      components: {{  range .ResourceFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}

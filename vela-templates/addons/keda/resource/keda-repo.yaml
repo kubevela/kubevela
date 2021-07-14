@@ -1,0 +1,8 @@
+kind: HelmRepository
+apiVersion: source.toolkit.fluxcd.io/v1beta1
+metadata:
+  name: kedacore
+  namespace: keda
+spec:
+  interval: 1m
+  url: https://kedacore.github.io/charts

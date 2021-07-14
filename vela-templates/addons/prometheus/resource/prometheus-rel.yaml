@@ -1,0 +1,15 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: prometheus
+  namespace: prometheus
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: premetheus
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: premetheus
+      interval: 1pm

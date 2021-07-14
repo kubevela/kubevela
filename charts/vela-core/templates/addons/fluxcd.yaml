@@ -4486,3 +4486,4 @@ metadata:
   labels:
     addons.oam.dev/type: fluxcd
   name: fluxcd
+  namespace: {{.Values.systemDefinitionNamespace}}

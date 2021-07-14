@@ -434,3 +434,4 @@ metadata:
   labels:
     addons.oam.dev/type: ocm-cluster-manager
   name: ocm-cluster-manager
+  namespace: {{.Values.systemDefinitionNamespace}}
