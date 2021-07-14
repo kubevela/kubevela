@@ -2,7 +2,6 @@ package context
 
 import (
 	"context"
-	"cuelang.org/go/cue"
 	"encoding/json"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -28,12 +27,12 @@ func (wf *workflowContext) GetComponent(name string) (*componentManifest, error)
 	return components[0], nil
 }
 
-func (wf *workflowContext) PatchComponent(name string, patchContent string) error {
+func (wf *workflowContext) PatchComponent(name string, patchValue *model.Value) error {
 	component, err := wf.GetComponent(name)
 	if err != nil {
 		return err
 	}
-	return component.Patch(patchContent)
+	return component.Patch(patchValue)
 }
 
 func (wf *workflowContext) GetVar(paths ...string) (*model.Value, error) {
@@ -91,13 +90,8 @@ type componentManifest struct {
 	Auxiliaries []model.Instance
 }
 
-func (comp *componentManifest) Patch(pv string) error {
-	var r cue.Runtime
-	cueInst, err := r.Compile("-", pv)
-	if err != nil {
-		return err
-	}
-	pInst, err := model.NewOther(cueInst.Value())
+func (comp *componentManifest) Patch(patchValue *model.Value) error {
+	pInst, err := model.NewOther(patchValue.CueValue())
 	if err != nil {
 		return err
 	}

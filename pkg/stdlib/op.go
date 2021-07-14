@@ -1,7 +1,7 @@
 package stdlib
 
 type file struct {
-	name string
+	name    string
 	path    string
 	content string
 }
@@ -12,13 +12,15 @@ var opFile = file{
 	content: `
 #Load: {
   #do: "load"
-  #component?: string
+  component?: string
+  workload?: {...}
+  auxiliaries?: [...{...}]
 }  
 
 #Export: {
   #do: "export"
-  type: *"schema" | "var"
-  if type == "schema" {
+  type: *"patch" | "var"
+  if type == "patch" {
      component: string
   }
   if type == "var"{
@@ -40,11 +42,18 @@ var opFile = file{
 #Apply: {
   #do: "apply"
   #provider: "kube"
+  ...
 }
 
 #Read: {
   #do: "read"
   #provider: "kube"
+  result: {...}
+  ...
+}
+
+#Steps: {
+  #do: "steps"
 }
 
 `,

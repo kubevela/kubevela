@@ -37,10 +37,6 @@ func (td *taskDiscover) GetTaskGenerator(name string) (TaskGenerator, error) {
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-func (td *taskDiscover) builtin() TaskDiscover {
-	return &taskDiscover{builtins: td.builtins}
-}
-
 type TaskDiscover interface {
 	GetTaskGenerator(name string) (TaskGenerator, error)
 }

@@ -117,6 +117,7 @@ type executor struct {
 	td  tasks.TaskDiscover
 	pds providers.Providers
 
+	wfStatus common.WorkflowStepStatus
 	suspend    bool
 	terminated bool
 	wait       bool
@@ -182,7 +183,7 @@ func opTpy(v *model.Value) string {
 func opProvider(v *model.Value) string {
 	provider := getLabel(v, "#provider")
 	if provider == "" {
-		provider = "_builtin_"
+		provider = "builtin"
 	}
 	return provider
 }

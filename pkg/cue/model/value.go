@@ -86,6 +86,10 @@ func (val *Value) FillRaw(x string, paths ...string) error {
 	return nil
 }
 
+func (val *Value) CueValue() cue.Value {
+	return val.v
+}
+
 func (val *Value) FillObject(x interface{}, paths ...string) error {
 	if v, ok := x.(*Value); ok {
 		if v.r != val.r {

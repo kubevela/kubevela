@@ -17,7 +17,7 @@ type provider struct {
 }
 
 func (h *provider) Load(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
-	componentName, err := v.Field("#component")
+	componentName, err := v.Field("component")
 	if err != nil {
 		return err
 	}
@@ -28,11 +28,11 @@ func (h *provider) Load(ctx wfContext.Context, v *model.Value, act workflow.Acti
 	if err != nil {
 		return err
 	}
-	component, err := ctx.GetComponent(name, nil)
+	component, err := ctx.GetComponent(name)
 	if err != nil {
 		return err
 	}
-	if err := v.FillRaw(component.Workload.String()); err != nil {
+	if err := v.FillRaw(component.Workload.String(), "workload"); err != nil {
 		return err
 	}
 
@@ -41,7 +41,7 @@ func (h *provider) Load(ctx wfContext.Context, v *model.Value, act workflow.Acti
 		for _, aux := range component.Auxiliaries {
 			auxiliaries = append(auxiliaries, aux.String())
 		}
-		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), "_auxiliaries"); err != nil {
+		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), "auxiliaries"); err != nil {
 			return err
 		}
 	}
@@ -49,22 +49,61 @@ func (h *provider) Load(ctx wfContext.Context, v *model.Value, act workflow.Acti
 }
 
 func (h *provider) Export(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
+	tpyValue,err:=v.Field("type")
+	if err!=nil{
+		return err
+	}
+	tpy,err:=tpyValue.String()
+	if err!=nil{
+		return err
+	}
+
+	val,err:=v.LookupValue("value")
+	if err!=nil{
+		return err
+	}
+
+	switch tpy {
+	case "patch":
+		nameValue,err:=v.Field("component")
+		if err!=nil{
+			return err
+		}
+
+		name,err:=nameValue.String()
+		if err!=nil{
+			return err
+		}
+		return ctx.PatchComponent(name,val)
+	case "var":
+		pathValue,err:=v.Field("path")
+		if err!=nil{
+			return err
+		}
+
+		path,err:=pathValue.String()
+		if err!=nil{
+			return err
+		}
+
+		return ctx.SetVar(val,strings.Split(path,".")...)
+	}
 	return nil
 }
 
 func (h *provider) Wait(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
-	ret, err := v.Field("return")
+	ret, err := v.Field("continue")
 	if err != nil {
 		return err
 	}
 	if !ret.Exists() {
 		return nil
 	}
-	isReturn, err := ret.Bool()
+	isContinue, err := ret.Bool()
 	if err != nil {
 		return err
 	}
-	if isReturn {
+	if !isContinue {
 		act.Wait()
 	}
 	return nil
