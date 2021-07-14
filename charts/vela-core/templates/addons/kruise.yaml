@@ -67,3 +67,4 @@ metadata:
   labels:
     addons.oam.dev/type: kruise
   name: kruise
+  namespace: {{.Values.systemDefinitionNamespace}}
