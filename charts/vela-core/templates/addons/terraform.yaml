@@ -68,3 +68,4 @@ metadata:
   labels:
     addons.oam.dev/type: terraform
   name: terraform
+  namespace: {{.Values.systemDefinitionNamespace}}

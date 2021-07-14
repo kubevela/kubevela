@@ -64,3 +64,4 @@ metadata:
   labels:
     addons.oam.dev/type: prometheus
   name: prometheus
+  namespace: {{.Values.systemDefinitionNamespace}}

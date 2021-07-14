@@ -1,3 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keda
+spec: {}
+status: {}
+---
 apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:

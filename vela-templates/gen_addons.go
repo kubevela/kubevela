@@ -57,6 +57,9 @@ const (
 
 	// MarkLabel is annotation key marks configMap as an addon
 	MarkLabel = "addons.oam.dev/type"
+
+	// ChartTemplateNamespace is placeholder for helm chart
+	ChartTemplateNamespace = "{{.Values.systemDefinitionNamespace}}"
 )
 
 type velaFile struct {
@@ -199,11 +202,16 @@ func setConfigMapAnnotations(addonInfo *AddonInfo) map[string]string {
 	}
 }
 func removeTimestampInplace(s *string) {
-	clearStr := "(\n.*?metadata:.*?)?\n.*?creationTimestamp:.*?null"
-	var re = regexp.MustCompile(clearStr)
+	timeStampwithApptemplate := "appTemplate:\n(.*metadata:)?\n[ ]*creationTimestamp: null"
+	re := regexp.MustCompile(timeStampwithApptemplate)
+	*s = re.ReplaceAllString(*s, "appTemplate:")
+
+	pureTimeStamp := "\n[ ]*creationTimestamp: null"
+	re = regexp.MustCompile(pureTimeStamp)
 	*s = re.ReplaceAllString(*s, "")
 }
 
+// storeConfigMap store configMap in helm chart
 func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, storePath string) error {
 	configMap := &corev1.ConfigMap{
 		TypeMeta: v1.TypeMeta{
@@ -213,7 +221,7 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	}
 	addonInfo.Description = initializer.GetAnnotations()[DescAnnotation]
 	configMap.SetName(addonInfo.Name)
-	configMap.SetNamespace(addonInfo.Namespace)
+	configMap.SetNamespace(ChartTemplateNamespace)
 	configMap.SetAnnotations(setConfigMapAnnotations(addonInfo))
 	configMap.SetLabels(setConfigMapLabels(addonInfo))
 
@@ -230,15 +238,22 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	}
 	raw := string(content)
 	removeTimestampInplace(&raw)
+	raw = strings.ReplaceAll(raw, fmt.Sprintf("'%s'", ChartTemplateNamespace), ChartTemplateNamespace)
 	filename := storePath + "/" + addonInfo.Name + ".yaml"
 	return WriteToFile(filename, raw)
 }
 
-func storeInitAndDef(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefinition, addonPath string, addonName string) error {
+// storeAutoGenResources store init/componentdefs/namespace in one file
+func storeAutoGenResources(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefinition, ns *corev1.Namespace, addonPath string, addonName string) error {
 	initContent, err := yaml.Marshal(init)
 	if err != nil {
 		return err
 	}
+	nsContent, err := yaml.Marshal(ns)
+	if err != nil {
+		return err
+	}
+
 	filename := path.Join(addonPath, InitializerFileDir, addonName+".yaml")
 	splitter := "---\n"
 	cdContents := make([]string, 0, len(cds))
@@ -249,7 +264,10 @@ func storeInitAndDef(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefiniti
 		}
 		cdContents = append(cdContents, string(cdContent))
 	}
-	fileContent := strings.Join(append(cdContents, string(initContent)), splitter)
+	contents := []string{string(nsContent)}
+	contents = append(contents, string(initContent))
+	contents = append(contents, cdContents...)
+	fileContent := strings.Join(contents, splitter)
 	removeTimestampInplace(&fileContent)
 	return WriteToFile(filename, fileContent)
 }
@@ -268,6 +286,18 @@ func getComponentDefs(info *AddonInfo) ([]*v1beta1.ComponentDefinition, error) {
 		cds = append(cds, &cd)
 	}
 	return cds, nil
+}
+
+func getNamespace(info *AddonInfo) *corev1.Namespace {
+	ns := corev1.Namespace{
+		TypeMeta:   v1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+		ObjectMeta: v1.ObjectMeta{Name: info.Namespace},
+	}
+	return &ns
+}
+
+func setAddonNamespace(info *AddonInfo, init *v1beta1.Initializer) {
+	info.Namespace = init.Namespace
 }
 
 func main() {
@@ -296,7 +326,9 @@ func main() {
 		dealErr(err)
 		cds, err := getComponentDefs(addInfo)
 		dealErr(err)
-		err = storeInitAndDef(init, cds, addonsPath, addInfo.Name)
+		setAddonNamespace(addInfo, init)
+		ns := getNamespace(addInfo)
+		err = storeAutoGenResources(init, cds, ns, addonsPath, addInfo.Name)
 		dealErr(err)
 		err = storeConfigMap(addInfo, init, storePath)
 		dealErr(err)

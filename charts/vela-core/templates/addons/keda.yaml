@@ -67,3 +67,4 @@ metadata:
   labels:
     addons.oam.dev/type: keda
   name: keda
+  namespace: {{.Values.systemDefinitionNamespace}}
