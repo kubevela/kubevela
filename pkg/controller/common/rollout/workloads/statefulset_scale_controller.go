@@ -34,16 +34,16 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// DeploymentScaleController is responsible for handle scale Deployment type of workloads
-type DeploymentScaleController struct {
-	deploymentController
-	deploy *appsv1.Deployment
+// StatefulSetScaleController is responsible for handle scale StatefulSet type of workloads
+type StatefulSetScaleController struct {
+	statefulSetController
+	statefulSet *appsv1.StatefulSet
 }
 
-// NewDeploymentScaleController creates Deployment scale controller
-func NewDeploymentScaleController(client client.Client, recorder event.Recorder, parentController oam.Object, rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *DeploymentScaleController {
-	return &DeploymentScaleController{
-		deploymentController: deploymentController{
+// NewStatefulSetScaleController creates StatefulSet scale controller
+func NewStatefulSetScaleController(client client.Client, recorder event.Recorder, parentController oam.Object, rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *StatefulSetScaleController {
+	return &StatefulSetScaleController{
+		statefulSetController: statefulSetController{
 			workloadController: workloadController{
 				client:           client,
 				recorder:         recorder,
@@ -56,8 +56,8 @@ func NewDeploymentScaleController(client client.Client, recorder event.Recorder,
 	}
 }
 
-// VerifySpec verifies that the deployment is stable and can be scaled
-func (s *DeploymentScaleController) VerifySpec(ctx context.Context) (bool, error) {
+// VerifySpec verifies that the StatefulSet is stable and can be scaled
+func (s *StatefulSetScaleController) VerifySpec(ctx context.Context) (bool, error) {
 	var verifyErr error
 	defer func() {
 		if verifyErr != nil {
@@ -68,17 +68,15 @@ func (s *DeploymentScaleController) VerifySpec(ctx context.Context) (bool, error
 
 	// the rollout has to have a target size in the scale case
 	if s.rolloutSpec.TargetSize == nil {
-		return false, fmt.Errorf("the rollout plan is attempting to scale the deployment %s without a target",
+		return false, fmt.Errorf("the rollout plan is attempting to scale the StatefulSet %s without a target",
 			s.targetNamespacedName.Name)
 	}
-	// record the target size
 	s.rolloutStatus.RolloutTargetSize = *s.rolloutSpec.TargetSize
 	klog.InfoS("record the target size", "target size", *s.rolloutSpec.TargetSize)
 
-	// fetch the deployment and get its current size
+	// fetch the StatefulSet and get its current size
 	originalSize, verifyErr := s.size(ctx)
 	if verifyErr != nil {
-		// do not fail the rollout because we can't get the resource
 		s.rolloutStatus.RolloutRetry(verifyErr.Error())
 		// nolint: nilerr
 		return false, nil
@@ -92,59 +90,57 @@ func (s *DeploymentScaleController) VerifySpec(ctx context.Context) (bool, error
 		return false, verifyErr
 	}
 
-	// check if the deployment is scaling
-	if !s.deploy.Spec.Paused && originalSize != s.deploy.Status.Replicas {
-		verifyErr = fmt.Errorf("the deployment %s is in the middle of scaling, target size = %d, real size = %d",
-			s.deploy.GetName(), originalSize, s.deploy.Status.Replicas)
-		// do not fail the rollout, we can wait
+	// check if the StatefulSet is scaling
+	if s.statefulSet.Status.Replicas != originalSize {
+		verifyErr = fmt.Errorf("the StatefulSet %s is in the middle of scaling, target size = %d, real size = %d",
+			s.statefulSet.GetName(), originalSize, s.statefulSet.Status.Replicas)
 		s.rolloutStatus.RolloutRetry(verifyErr.Error())
 		return false, nil
 	}
 
-	// check if the deployment is upgrading
-	if !s.deploy.Spec.Paused && s.deploy.Status.UpdatedReplicas != originalSize {
-		verifyErr = fmt.Errorf("the deployment %s is in the middle of updating, target size = %d, updated pod = %d",
-			s.deploy.GetName(), originalSize, s.deploy.Status.UpdatedReplicas)
-		// do not fail the rollout, we can wait
+	// check if the StatefulSet is upgrading
+	if s.statefulSet.Status.UpdatedReplicas != originalSize {
+		verifyErr = fmt.Errorf("the StatefulSet %s is in the middle of updating, target size = %d, updated pod = %d",
+			s.statefulSet.GetName(), originalSize, s.statefulSet.Status.UpdatedReplicas)
 		s.rolloutStatus.RolloutRetry(verifyErr.Error())
 		return false, nil
 	}
 
-	// check if the deployment has any controller
-	if controller := metav1.GetControllerOf(s.deploy); controller != nil {
-		return false, fmt.Errorf("the deployment %s has a controller owner %s",
-			s.deploy.GetName(), controller.String())
+	// check if the StatefulSet has any controller
+	if controller := metav1.GetControllerOf(s.statefulSet); controller != nil {
+		return false, fmt.Errorf("the statefulSet %s has a controller owner %s",
+			s.statefulSet.GetName(), controller.String())
 	}
 
 	// mark the scale verified
 	s.recorder.Event(s.parentController, event.Normal("Scale Verified",
-		"Rollout spec and the deployment resource are verified"))
+		"Rollout spec and the StatefulSet resource are verified"))
 	return true, nil
 }
 
-// Initialize makes sure that the deployment is under our control
-func (s *DeploymentScaleController) Initialize(ctx context.Context) (bool, error) {
-	if err := s.fetchDeployment(ctx); err != nil {
+// Initialize makes sure that the StatefulSet is under our control
+func (s *StatefulSetScaleController) Initialize(ctx context.Context) (bool, error) {
+	if err := s.fetchStatefulSet(ctx); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		// nolint: nilerr
 		return false, nil
 	}
 
-	claimedBefore, err := s.claimDeployment(ctx, s.deploy, nil)
+	claimedBefore, err := s.claimStatefulSet(ctx, s.statefulSet, nil)
 	if err != nil {
 		// nolint:nilerr
 		return false, nil
 	}
 	if !claimedBefore {
 		// mark the rollout initialized
-		s.recorder.Event(s.parentController, event.Normal("Scale Initialized", "deployment is initialized"))
+		s.recorder.Event(s.parentController, event.Normal("Scale Initialized", "StatefulSet is initialized"))
 	}
 	return true, nil
 }
 
 // RolloutOneBatchPods calculates the number of pods we can scale to according to the rollout spec
-func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bool, error) {
-	if err := s.fetchDeployment(ctx); err != nil {
+func (s *StatefulSetScaleController) RolloutOneBatchPods(ctx context.Context) (bool, error) {
+	if err := s.fetchStatefulSet(ctx); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		// nolint: nilerr
 		return false, nil
@@ -154,7 +150,7 @@ func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bo
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
 
-	if err := s.scaleDeployment(ctx, s.deploy, int32(newPodTarget)); err != nil {
+	if err := s.scaleStatefulSet(ctx, s.statefulSet, int32(newPodTarget)); err != nil {
 		// nolint:nilerr
 		return false, nil
 	}
@@ -168,8 +164,8 @@ func (s *DeploymentScaleController) RolloutOneBatchPods(ctx context.Context) (bo
 }
 
 // CheckOneBatchPods checks to see if the pods are scaled according to the rollout plan
-func (s *DeploymentScaleController) CheckOneBatchPods(ctx context.Context) (bool, error) {
-	if err := s.fetchDeployment(ctx); err != nil {
+func (s *StatefulSetScaleController) CheckOneBatchPods(ctx context.Context) (bool, error) {
+	if err := s.fetchStatefulSet(ctx); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		// nolint:nilerr
 		return false, nil
@@ -177,9 +173,7 @@ func (s *DeploymentScaleController) CheckOneBatchPods(ctx context.Context) (bool
 
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
-	// get the number of ready pod from deployment
-	// TODO: should we use the replica number when we shrink?
-	readyPodCount := int(s.deploy.Status.ReadyReplicas)
+	readyPodCount := int(s.statefulSet.Status.ReadyReplicas)
 	currentBatch := s.rolloutSpec.RolloutBatches[s.rolloutStatus.CurrentBatch]
 	unavail := 0
 	if currentBatch.MaxUnavailable != nil {
@@ -190,13 +184,9 @@ func (s *DeploymentScaleController) CheckOneBatchPods(ctx context.Context) (bool
 		"new pod count target", newPodTarget, "new ready pod count", readyPodCount,
 		"max unavailable pod allowed", unavail)
 	s.rolloutStatus.UpgradedReadyReplicas = int32(readyPodCount)
-	targetReached := false
-	// nolint
-	if s.rolloutStatus.RolloutOriginalSize <= s.rolloutStatus.RolloutTargetSize && unavail+readyPodCount >= newPodTarget {
-		targetReached = true
-	} else if s.rolloutStatus.RolloutOriginalSize > s.rolloutStatus.RolloutTargetSize && readyPodCount <= newPodTarget {
-		targetReached = true
-	}
+	isScaleDown := s.rolloutStatus.RolloutTargetSize < s.rolloutStatus.RolloutOriginalSize
+	targetReached := (isScaleDown && readyPodCount <= newPodTarget) || (!isScaleDown && unavail+readyPodCount >= newPodTarget)
+
 	if targetReached {
 		// record the successful upgrade
 		klog.InfoS("the current batch is ready", "current batch", s.rolloutStatus.CurrentBatch,
@@ -214,53 +204,53 @@ func (s *DeploymentScaleController) CheckOneBatchPods(ctx context.Context) (bool
 }
 
 // FinalizeOneBatch makes sure that the current batch and replica count in the status are validate
-func (s *DeploymentScaleController) FinalizeOneBatch(ctx context.Context) (bool, error) {
-	status := s.rolloutStatus
-	spec := s.rolloutSpec
-	if spec.BatchPartition != nil && *spec.BatchPartition < status.CurrentBatch {
+func (s *StatefulSetScaleController) FinalizeOneBatch(ctx context.Context) (bool, error) {
+	if s.rolloutSpec.BatchPartition != nil && s.rolloutStatus.CurrentBatch > *s.rolloutSpec.BatchPartition {
 		err := fmt.Errorf("the current batch value in the status is greater than the batch partition")
 		klog.ErrorS(err, "we have moved past the user defined partition", "user specified batch partition",
-			*spec.BatchPartition, "current batch we are working on", status.CurrentBatch)
+			*s.rolloutSpec.BatchPartition, "current batch we are working on", s.rolloutStatus.CurrentBatch)
 		return false, err
 	}
-	// special case the equal case
+
 	if s.rolloutStatus.RolloutOriginalSize == s.rolloutStatus.RolloutTargetSize {
 		return true, nil
 	}
-	// we just make sure the target is right
-	finishedPodCount := int(status.UpgradedReplicas)
-	currentBatch := int(status.CurrentBatch)
+
+	finishedPodCount := int(s.rolloutStatus.UpgradedReplicas)
+	currentBatch := int(s.rolloutStatus.CurrentBatch)
+
 	// calculate the pod target just before the current batch
 	preBatchTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), currentBatch-1)
 	// calculate the pod target with the current batch
 	curBatchTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), currentBatch)
-	// the recorded number should be at least as much as the all the pods before the current batch
+
 	if finishedPodCount < util.Min(preBatchTarget, curBatchTarget) {
 		err := fmt.Errorf("the upgraded replica in the status is less than the lower bound")
 		klog.ErrorS(err, "rollout status inconsistent", "existing pod target", finishedPodCount,
 			"the lower bound", util.Min(preBatchTarget, curBatchTarget))
 		return false, err
 	}
-	// the recorded number should be not as much as the all the pods including the active batch
+
 	if finishedPodCount > util.Max(preBatchTarget, curBatchTarget) {
 		err := fmt.Errorf("the upgraded replica in the status is greater than the upper bound")
 		klog.ErrorS(err, "rollout status inconsistent", "existing pod target", finishedPodCount,
 			"the upper bound", util.Max(preBatchTarget, curBatchTarget))
 		return false, err
 	}
+
 	return true, nil
 }
 
-// Finalize makes sure the deployment is scaled and ready to use
-func (s *DeploymentScaleController) Finalize(ctx context.Context, succeed bool) bool {
-	if err := s.fetchDeployment(ctx); err != nil {
+// Finalize makes sure the StatefulSet is scaled and ready to use
+func (s *StatefulSetScaleController) Finalize(ctx context.Context, succeed bool) bool {
+	if err := s.fetchStatefulSet(ctx); err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
 		return false
 	}
 
-	releasedBefore, err := s.releaseDeployment(ctx, s.deploy)
+	releasedBefore, err := s.releaseStatefulSet(ctx, s.statefulSet)
 	if err != nil {
 		return false
 	}
@@ -272,25 +262,23 @@ func (s *DeploymentScaleController) Finalize(ctx context.Context, succeed bool) 
 	return true
 }
 
-// size fetches the Deloyment and returns the replicas (not the actual number of pods)
-func (s *DeploymentScaleController) size(ctx context.Context) (int32, error) {
-	if s.deploy == nil {
-		if err := s.fetchDeployment(ctx); err != nil {
+func (s *StatefulSetScaleController) size(ctx context.Context) (int32, error) {
+	if s.statefulSet == nil {
+		if err := s.fetchStatefulSet(ctx); err != nil {
 			return 0, err
 		}
 	}
-	return getDeploymentReplicas(s.deploy), nil
+	return getStatefulSetReplicas(s.statefulSet), nil
 }
 
-func (s *DeploymentScaleController) fetchDeployment(ctx context.Context) error {
-	// get the deployment
-	workload := appsv1.Deployment{}
+func (s *StatefulSetScaleController) fetchStatefulSet(ctx context.Context) error {
+	workload := appsv1.StatefulSet{}
 	if err := s.client.Get(ctx, s.targetNamespacedName, &workload); err != nil {
 		if !apierrors.IsNotFound(err) {
-			s.recorder.Event(s.parentController, event.Warning("Failed to get the Deployment", err))
+			s.recorder.Event(s.parentController, event.Warning("Failed to get the StatefulSet", err))
 		}
 		return err
 	}
-	s.deploy = &workload
+	s.statefulSet = &workload
 	return nil
 }
