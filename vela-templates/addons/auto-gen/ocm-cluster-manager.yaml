@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: open-cluster-management
+  name: vela-system
 spec: {}
 status: {}
 ---
@@ -11,7 +11,7 @@ metadata:
   annotations:
     addons.oam.dev/description: ocm-cluster-manager can deploy an OCM hub cluster environment.
   name: ocm-cluster-manager
-  namespace: open-cluster-management
+  namespace: vela-system
 spec:
   appTemplate:
     spec:
@@ -180,6 +180,17 @@ spec:
             name: cluster-manager-service-account
             namespace: open-cluster-management
         type: raw
+      - name: cluster-manager-hub
+        properties:
+          apiVersion: operator.open-cluster-management.io/v1
+          kind: ClusterManager
+          metadata:
+            name: cluster-manager-hub
+          spec:
+            placementImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/placement
+            registrationImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/registration:latest
+            workImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/work
+        type: raw
       - name: clustermanagers.operator.open-cluster-management.io
         properties:
           apiVersion: apiextensions.k8s.io/v1
@@ -337,16 +348,12 @@ spec:
             conditions: []
             storedVersions: []
         type: raw
-      - name: cluster-manager-hub
+      - name: open-cluster-management
         properties:
-          apiVersion: operator.open-cluster-management.io/v1
-          kind: ClusterManager
+          apiVersion: v1
+          kind: Namespace
           metadata:
-            name: cluster-manager-hub
-          spec:
-            placementImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/placement
-            registrationImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/registration:latest
-            workImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/work
+            name: open-cluster-management
         type: raw
       - name: cluster-manager-controller
         properties:

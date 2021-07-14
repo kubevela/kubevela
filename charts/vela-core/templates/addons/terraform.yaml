@@ -7,11 +7,18 @@ data:
       annotations:
         addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
       name: terraform
-      namespace: tc-system
+      namespace: vela-system
     spec:
       appTemplate:
         spec:
           components:
+          - name: tc-system
+            properties:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: tc-system
+            type: raw
           - name: terraform-controller-release
             properties:
               apiVersion: helm.toolkit.fluxcd.io/v2beta1
@@ -58,7 +65,7 @@ data:
           apiVersion: core.oam.dev/v1beta1
           kind: Initializer
           name: fluxcd
-          namespace: flux-system
+          namespace: vela-system
     status:
       observedGeneration: 0
 kind: ConfigMap

@@ -4,14 +4,14 @@ metadata:
   annotations:
     addons.oam.dev/description: "Terraform Controller is a Kubernetes Controller for Terraform."
   name: terraform
-  namespace: tc-system
+  namespace: vela-system
 spec:
   dependsOn:
     - ref:
         apiVersion: core.oam.dev/v1beta1
         kind: Initializer
         name: fluxcd
-        namespace: flux-system
+        namespace: vela-system
   appTemplate:
     spec:
       components: {{  range .ResourceFiles  }}

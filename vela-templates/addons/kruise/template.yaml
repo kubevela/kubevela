@@ -4,8 +4,14 @@ metadata:
   annotations:
     addons.oam.dev/description: "Kruise is a Kubernetes extended suite for application automations"
   name: kruise
-  namespace: kruise-system
+  namespace: vela-system
 spec:
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: fluxcd
+        namespace: vela-system
   appTemplate:
     spec:
       components: {{  range .ResourceFiles  }}
