@@ -42,16 +42,16 @@ spec:
           echo "Waiting application is ready..."
 
           echo "waiting for application being Applied"
-          kubectl -n vela-system wait --for=condition=Applied application helm-test-vela-app --timeout=3m
+          kubectl -n {{ .Values.systemDefinitionNamespace }} wait --for=condition=Applied application helm-test-vela-app --timeout=3m
           echo "application being Applied"
 
           # wait for deploy being created
           echo "waiting for deployment being available"
-          kubectl -n vela-system wait --for=condition=available deploy helm-test-express-server --timeout 3m
+          kubectl -n {{ .Values.systemDefinitionNamespace }} wait --for=condition=available deploy helm-test-express-server --timeout 3m
           echo "deployment being available"
 
           # wait for ingress being created
-          while ! [ `kubectl -n vela-system get ing helm-test-express-server | grep -v NAME | wc -l` = 1 ]; do
+          while ! [ `kubectl -n {{ .Values.systemDefinitionNamespace }} get ing helm-test-express-server | grep -v NAME | wc -l` = 1 ]; do
             echo "waiting for ingress being created"
             sleep 1
           done
