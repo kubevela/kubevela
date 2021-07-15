@@ -246,12 +246,12 @@ type AppStatus struct {
 
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
-	AppSpecHash    string                         `json:"appSpecHash,omitempty"`
-	StepIndex      int                            `json:"stepIndex,omitempty"`
-	Suspend        bool                           `json:"suspend"`
-	Terminated     bool                           `json:"terminated"`
-	ContextBackend runtimev1alpha1.TypedReference `json:"contextBackend"`
-	Steps          []WorkflowStepStatus           `json:"steps,omitempty"`
+	AppSpecHash    string                          `json:"appSpecHash,omitempty"`
+	StepIndex      int                             `json:"stepIndex,omitempty"`
+	Suspend        bool                            `json:"suspend"`
+	Terminated     bool                            `json:"terminated"`
+	ContextBackend *runtimev1alpha1.TypedReference `json:"contextBackend"`
+	Steps          []WorkflowStepStatus            `json:"steps,omitempty"`
 }
 
 // WorkflowStepPhase describes the phase of a workflow step.

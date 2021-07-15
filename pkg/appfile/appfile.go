@@ -20,6 +20,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/workflow"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	"regexp"
 	"strings"
 
@@ -182,19 +187,17 @@ type Appfile struct {
 	Workloads    []*Workload
 
 	Policies      []*Workload
-	WorkflowSteps []*Workload
+	WorkflowSteps []v1beta1.WorkflowStep
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy() (policies, steps []*unstructured.Unstructured, err error) {
+func (af *Appfile) GenerateWorkflowAndPolicy(m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) (policies []*unstructured.Unstructured, steps []workflow.TaskRunner, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
-	steps, err = af.generateUnstructureds(af.WorkflowSteps)
-	if err != nil {
-		return
-	}
+
+	steps, err = af.generateSteps(m, cli, pd)
 	return
 }
 
@@ -208,6 +211,20 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 		uns = append(uns, un)
 	}
 	return uns, nil
+}
+
+func (af *Appfile) generateSteps(m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) ([]workflow.TaskRunner, error) {
+	taskDiscover := tasks.NewTaskDiscover(m, cli, pd)
+	var tasks []workflow.TaskRunner
+	for _, step := range af.WorkflowSteps {
+		genTask, err := taskDiscover.GetTaskGenerator(step.Type)
+		task, err := genTask(step)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, nil
 }
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string) (*unstructured.Unstructured, error) {

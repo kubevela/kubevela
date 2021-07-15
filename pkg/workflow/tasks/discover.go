@@ -1,7 +1,9 @@
 package tasks
 
 import (
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/workflow"
@@ -14,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type TaskGenerator func(params map[string]interface{},inputs workflow.StepInput,output workflow.StepOutput) (workflow.TaskRunner, error)
+type TaskGenerator func(wfStep v1beta1.WorkflowStep) (workflow.TaskRunner, error)
 
 type taskDiscover struct {
 	builtins           map[string]TaskGenerator
@@ -42,7 +44,7 @@ type TaskDiscover interface {
 	GetTaskGenerator(name string) (TaskGenerator, error)
 }
 
-func suspend(_ map[string]interface{},_ workflow.StepInput,_ workflow.StepOutput) (workflow.TaskRunner, error) {
+func suspend(_ v1beta1.WorkflowStep) (workflow.TaskRunner, error) {
 	return func(ctx wfContext.Context) (common.WorkflowStepStatus, *workflow.Operation, error) {
 		return common.WorkflowStepStatus{
 			Phase: common.WorkflowStepPhaseSucceeded,

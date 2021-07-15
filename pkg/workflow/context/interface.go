@@ -1,14 +1,16 @@
 package context
 
-import "github.com/oam-dev/kubevela/pkg/cue/model"
+import (
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+)
 
 type Context interface {
-	Clone() Context
-	GetComponent(name string) (componentManifest,error)
+	GetComponent(name string) (*componentManifest,error)
 	PatchComponent(name string, patchValue *model.Value)error
 	GetVar(paths ...string)(*model.Value,error)
 	SetVar(v *model.Value, paths ...string) error
-	Step()(string,int)
 	Commit()error
 	MakeParameter(parameter map[string]interface{}) (*model.Value, error)
+	StoreRef() runtimev1alpha1.TypedReference
 }

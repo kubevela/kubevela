@@ -2,8 +2,10 @@ package remote
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -46,14 +48,25 @@ func (t *taskLoader) loadTemplate(name string) (string, error) {
 }
 
 func (t *taskLoader) makeTaskGenerator(templ string) (tasks.TaskGenerator, error) {
-	return func(params map[string]interface{}, inputs workflow.StepInput, outputs workflow.StepOutput) (workflow.TaskRunner, error) {
+	return func(wfStep v1beta1.WorkflowStep) (workflow.TaskRunner, error) {
 
 		exec := &executor{
 			handlers: t.handlers,
 		}
+		outputs := wfStep.Outputs
+		inputs := wfStep.Inputs
+		params := map[string]interface{}{}
+
+		bt, err := wfStep.Properties.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(bt, &params); err != nil {
+			return nil, err
+		}
 		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *workflow.Operation, error) {
 
-			if outputs != nil {
+			if wfStep.Outputs != nil {
 				for _, output := range outputs {
 					params[output.ExportKey] = output.Name
 				}
@@ -82,17 +95,30 @@ func (t *taskLoader) makeTaskGenerator(templ string) (tasks.TaskGenerator, error
 				}
 				paramFile = fmt.Sprintf(velacue.ParameterTag + ": {%s}\n" + ps)
 			}
-
+			status := common.WorkflowStepStatus{
+				Name: wfStep.Name,
+				Type: wfStep.Type,
+			}
 			taskv, err := model.NewValue(paramFile+templ, t.pd)
 			if err != nil {
-				return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "convert cue template to task value")
+				status.Phase = common.WorkflowStepPhaseFailed
+				status.Message = err.Error()
+				status.Reason = "Rendering"
+				return status, nil, nil
 			}
 
 			if err := exec.doSteps(ctx, taskv); err != nil {
-				return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Message: exec.message, Reason: exec.reason}, nil, nil
+				status.Phase = common.WorkflowStepPhaseFailed
+				status.Message = err.Error()
+				status.Reason = "Execute"
+				return status, nil, nil
 			}
-			status := common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded, Message: exec.message, Reason: exec.reason}
+
+			status.Phase = common.WorkflowStepPhaseSucceeded
+			status.Message = exec.message
+			status.Reason = exec.reason
 			if exec.wait {
+				status.Reason = "Wait"
 				status.Phase = common.WorkflowStepPhaseRunning
 			}
 
