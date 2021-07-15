@@ -2,7 +2,7 @@ apiVersion: source.toolkit.fluxcd.io/v1beta1
 kind: GitRepository
 metadata:
   name: terraform-controller-repo
-  namespace: tc-system
+  namespace: terraform-system
 spec:
   url: https://github.com/oam-dev/terraform-controller
   ref:

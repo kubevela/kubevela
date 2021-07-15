@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: flux-system
+  name: vela-system
 spec: {}
 status: {}
 ---
@@ -11,7 +11,7 @@ metadata:
   annotations:
     addons.oam.dev/description: Flux is a set of continuous and progressive delivery solutions for Kubernetes
   name: fluxcd
-  namespace: flux-system
+  namespace: vela-system
 spec:
   appTemplate:
     spec:
@@ -4161,6 +4161,13 @@ spec:
                   name: data
                 - emptyDir: {}
                   name: tmp
+        type: raw
+      - name: flux-system
+        properties:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: flux-system
         type: raw
       - name: allow-egress
         properties:

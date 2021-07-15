@@ -7,7 +7,7 @@ data:
       annotations:
         addons.oam.dev/description: Kruise is a Kubernetes extended suite for application automations
       name: kruise
-      namespace: kruise-system
+      namespace: vela-system
     spec:
       appTemplate:
         spec:
@@ -58,6 +58,12 @@ data:
             rollingState: ""
             upgradedReadyReplicas: 0
             upgradedReplicas: 0
+      dependsOn:
+      - ref:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Initializer
+          name: fluxcd
+          namespace: vela-system
     status:
       observedGeneration: 0
 kind: ConfigMap
