@@ -277,7 +277,8 @@ func (s *CloneSetScaleController) Finalize(ctx context.Context, succeed bool) bo
 	var newOwnerList []metav1.OwnerReference
 	isOwner := false
 	for _, owner := range s.cloneSet.GetOwnerReferences() {
-		if (owner.Kind == v1beta1.AppRolloutKind || owner.Kind == v1beta1.RolloutKind) && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		if owner.Kind == s.parentController.GetObjectKind().GroupVersionKind().Kind &&
+			owner.APIVersion == s.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() {
 			isOwner = true
 			continue
 		}
