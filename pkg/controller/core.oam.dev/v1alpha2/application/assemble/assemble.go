@@ -301,6 +301,8 @@ func (am *AppManifests) filterAndSetAnnotations(obj *unstructured.Unstructured) 
 }
 
 func (am *AppManifests) setNamespace(obj *unstructured.Unstructured) {
+
+	// we should not set namespace for namespace resources
 	gvk := obj.GetObjectKind().GroupVersionKind()
 	if gvk == corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Namespace{}).Name()) {
 		return

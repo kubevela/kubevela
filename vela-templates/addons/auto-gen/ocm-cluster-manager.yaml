@@ -187,9 +187,9 @@ spec:
           metadata:
             name: cluster-manager-hub
           spec:
-            placementImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/placement
-            registrationImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/registration:latest
-            workImagePullSpec: registry.cn-beijing.aliyuncs.com/ocm/work
+            placementImagePullSpec: quay.io/open-cluster-management/placement
+            registrationImagePullSpec: quay.io/open-cluster-management/registration
+            workImagePullSpec: quay.io/open-cluster-management/work
         type: raw
       - name: clustermanagers.operator.open-cluster-management.io
         properties:
@@ -399,7 +399,7 @@ spec:
                 - args:
                   - /registration-operator
                   - hub
-                  image: registry.cn-beijing.aliyuncs.com/ocm/registration-operator:latest
+                  image: quay.io/open-cluster-management/registration-operator:latest
                   imagePullPolicy: IfNotPresent
                   livenessProbe:
                     httpGet:

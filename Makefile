@@ -153,9 +153,11 @@ e2e-setup:
 	bin/vela addon enable fluxcd
 	ginkgo version
 	ginkgo -v -r e2e/setup
+
+	timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $$? -eq 0 ] ; then break; else sleep 5; fi;done'
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
-	kubectl wait --for=condition=Ready pod -l app=source-controller -A --timeout=600s
-	kubectl wait --for=condition=Ready pod -l app=helm-controller -A --timeout=600s
+	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
+	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 	bin/vela dashboard &
 
 e2e-api-test:
