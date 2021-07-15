@@ -16,12 +16,12 @@ spec:
   appTemplate:
     spec:
       components:
-      - name: tc-system
+      - name: terraform-system
         properties:
           apiVersion: v1
           kind: Namespace
           metadata:
-            name: tc-system
+            name: terraform-system
         type: raw
       - name: terraform-controller-release
         properties:
@@ -29,7 +29,7 @@ spec:
           kind: HelmRelease
           metadata:
             name: terraform-controller-release
-            namespace: tc-system
+            namespace: terraform-system
           spec:
             chart:
               spec:
@@ -38,7 +38,7 @@ spec:
                 sourceRef:
                   kind: GitRepository
                   name: terraform-controller-repo
-                  namespace: tc-system
+                  namespace: terraform-system
             interval: 5m
             values:
               replicaCount: 1
@@ -49,7 +49,7 @@ spec:
           kind: GitRepository
           metadata:
             name: terraform-controller-repo
-            namespace: tc-system
+            namespace: terraform-system
           spec:
             interval: 5m
             ref:
