@@ -27,7 +27,7 @@ spec:
             labels:
               app.kubernetes.io/managed-by: Helm
             name: kruise-release
-            namespace: kruise-system
+            namespace: flux-system
           spec:
             chart:
               spec:
@@ -47,19 +47,12 @@ spec:
           kind: GitRepository
           metadata:
             name: kruise-repo
-            namespace: kruise-system
+            namespace: flux-system
           spec:
             interval: 5m
             ref:
               branch: master
             url: https://github.com/openkruise/kruise
-        type: raw
-      - name: kruise-system
-        properties:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: kruise-system
         type: raw
     status:
       rollout:

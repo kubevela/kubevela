@@ -2,7 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
 metadata:
   name: kruise-release
-  namespace: kruise-system
+  namespace: flux-system
   annotations:
     meta.helm.sh/release-name: kruise-release
     meta.helm.sh/release-namespace: kruise-system
