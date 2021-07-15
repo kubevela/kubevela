@@ -38,6 +38,20 @@ type SucceededMessage struct {
 
 type TaskRunner func(ctx wfContext.Context)(common.WorkflowStepStatus,*Operation,error)
 
+type inputItem struct {
+	ParameterKey string
+	From string
+}
+
+type StepInput []inputItem
+
+type outputItem struct {
+	ExportKey string
+	Name string
+}
+
+type StepOutput []outputItem
+
 type Operation struct {
 	Suspend bool
 	Terminated bool

@@ -10,4 +10,5 @@ type Context interface {
 	SetVar(v *model.Value, paths ...string) error
 	Step()(string,int)
 	Commit()error
+	MakeParameter(parameter map[string]interface{}) (*model.Value, error)
 }

@@ -47,6 +47,15 @@ func (wf *workflowContext) SetVar(v *model.Value, paths ...string) error {
 	return wf.vars.FillRaw(str, paths...)
 }
 
+func (wf *workflowContext) MakeParameter(parameter map[string]interface{}) (*model.Value, error) {
+	var s = "{}"
+	if parameter != nil {
+		s = string(util.MustJSONMarshal(parameter))
+	}
+
+	return wf.vars.MakeValue(s)
+}
+
 func (wf *workflowContext) Commit() error {
 	varFmt, err := wf.vars.String()
 	if err != nil {

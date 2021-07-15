@@ -19,9 +19,10 @@ import (
 )
 
 type taskLoader struct {
-	dm  discoverymapper.DiscoveryMapper
-	cli client.Reader
-	pd  *packages.PackageDiscover
+	dm       discoverymapper.DiscoveryMapper
+	cli      client.Reader
+	pd       *packages.PackageDiscover
+	handlers providers.Providers
 }
 
 func (t *taskLoader) GetTaskGenerator(name string) (tasks.TaskGenerator, error) {
@@ -45,26 +46,48 @@ func (t *taskLoader) loadTemplate(name string) (string, error) {
 }
 
 func (t *taskLoader) makeTaskGenerator(templ string) (tasks.TaskGenerator, error) {
-	return func(params *model.Value, td tasks.TaskDiscover, pds providers.Providers) (workflow.TaskRunner, error) {
+	return func(params map[string]interface{}, inputs workflow.StepInput, outputs workflow.StepOutput) (workflow.TaskRunner, error) {
 
-		var paramFile = velacue.ParameterTag + ": {}"
-		if params != nil {
-			ps, err := params.String()
-			if err != nil {
-				return nil, errors.WithMessage(err, "params encode")
-			}
-			paramFile = fmt.Sprintf("%s: %s", velacue.ParameterTag, ps)
-		}
-
-		taskv, err := model.NewValue(paramFile+"\n"+templ, t.pd)
-		if err != nil {
-			return nil, errors.WithMessagef(err, "convert cue template to task value")
-		}
 		exec := &executor{
-			td:  td,
-			pds: pds,
+			handlers: t.handlers,
 		}
 		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *workflow.Operation, error) {
+
+			if outputs != nil {
+				for _, output := range outputs {
+					params[output.ExportKey] = output.Name
+				}
+			}
+
+			paramsValue, err := ctx.MakeParameter(params)
+			if err != nil {
+				return common.WorkflowStepStatus{}, nil, err
+			}
+
+			if inputs != nil {
+				for _, input := range inputs {
+					inputValue, err := ctx.GetVar(input.From)
+					if err != nil {
+						return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
+					}
+					paramsValue.FillObject(inputValue, input.ParameterKey)
+				}
+			}
+
+			var paramFile = velacue.ParameterTag + ": {}\n"
+			if params != nil {
+				ps, err := paramsValue.String()
+				if err != nil {
+					return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "params encode")
+				}
+				paramFile = fmt.Sprintf(velacue.ParameterTag + ": {%s}\n" + ps)
+			}
+
+			taskv, err := model.NewValue(paramFile+templ, t.pd)
+			if err != nil {
+				return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "convert cue template to task value")
+			}
+
 			if err := exec.doSteps(ctx, taskv); err != nil {
 				return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Message: exec.message, Reason: exec.reason}, nil, nil
 			}
@@ -114,10 +137,9 @@ step: op.#Apply & {
 */
 
 type executor struct {
-	td  tasks.TaskDiscover
-	pds providers.Providers
+	handlers providers.Providers
 
-	wfStatus common.WorkflowStepStatus
+	wfStatus   common.WorkflowStepStatus
 	suspend    bool
 	terminated bool
 	wait       bool
@@ -145,7 +167,7 @@ func (exec *executor) Reason(reason string) {
 }
 
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *model.Value) error {
-	h, exist := exec.pds.GetHandler(provider, do)
+	h, exist := exec.handlers.GetHandler(provider, do)
 	if !exist {
 		return errors.Errorf("handler(provider=%s,do=%s) not found", provider, do)
 	}
@@ -198,10 +220,11 @@ func getLabel(v *model.Value, label string) string {
 	return ""
 }
 
-func NewTaskLoader(dm discoverymapper.DiscoveryMapper, cli client.Reader, pd *packages.PackageDiscover) *taskLoader {
+func NewTaskLoader(dm discoverymapper.DiscoveryMapper, cli client.Reader, pkgDiscover *packages.PackageDiscover, handlers providers.Providers) *taskLoader {
 	return &taskLoader{
-		dm:  dm,
-		cli: cli,
-		pd:  pd,
+		dm:       dm,
+		cli:      cli,
+		pd:       pkgDiscover,
+		handlers: handlers,
 	}
 }

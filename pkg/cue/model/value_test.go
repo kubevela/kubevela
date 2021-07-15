@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"testing"
@@ -58,4 +59,17 @@ if step4.value>100{
 	})
 
 	fmt.Println(sets.ToString(child.v))
+}
+
+func TestB(t *testing.T){
+	sv,_:=NewValue(`parameter: {}
+  output: parameter.input
+`,nil)
+m:=map[string]interface{}{
+	"parameter": struct{}{},
+}
+	bt,_:=json.Marshal(m)
+	fmt.Println(string(bt))
+fmt.Println(sv.FillRaw(`{"parameter": {"input": 100}}`))
+	fmt.Println(sv.String())
 }
