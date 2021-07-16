@@ -211,9 +211,9 @@ type WorkflowStepStatus struct {
 	Type  string            `json:"type,omitempty"`
 	Phase WorkflowStepPhase `json:"phase,omitempty"`
 	// A human readable message indicating details about why the workflowStep is in this state.
-	Message string
+	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason      string
+	Reason      string                         `json:"reason,omitempty"`
 	ResourceRef runtimev1alpha1.TypedReference `json:"resourceRef,omitempty"`
 }
 
