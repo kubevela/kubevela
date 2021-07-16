@@ -22,6 +22,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// InitializerPhase is a label for the condition of a initializer at the current time
+type InitializerPhase string
+
+const (
+	// InitializerInstallingDependsOn means the initializer is installing dependent Initializer
+	InitializerInstallingDependsOn InitializerPhase = "installingDependsOn"
+	// InitializerInitializing means the initializer is initializing
+	InitializerInitializing InitializerPhase = "initializing"
+	// InitializerSuccess means the initializer successfully initialized the environment
+	InitializerSuccess InitializerPhase = "success"
+)
+
 // DependsOn refer to an object which Initializer depends on
 type DependsOn struct {
 	Ref corev1.ObjectReference `json:"ref"`
@@ -42,6 +54,8 @@ type InitializerStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 
+	Phase InitializerPhase `json:"status,omitempty"`
+
 	// The generation observed by the Initializer controller.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
@@ -52,6 +66,8 @@ type InitializerStatus struct {
 // Initializer is the Schema for the Initializer API
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=init
+// +kubebuilder:printcolumn:name="PHASE",type=string,JSONPath=`.status.status`
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type Initializer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

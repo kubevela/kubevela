@@ -116,7 +116,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			if err != nil {
 				return err
 			}
-			if init.Status.ObservedGeneration < init.Generation {
+			if init.Status.Phase != v1beta1.InitializerSuccess {
 				return fmt.Errorf("environment was not successfully initialized")
 			}
 			return nil
@@ -213,7 +213,62 @@ var _ = Describe("Initializer Normal tests", func() {
 			if err != nil {
 				return err
 			}
-			if init2.Status.ObservedGeneration < init2.Generation {
+			if init2.Status.Phase != v1beta1.InitializerSuccess {
+				return fmt.Errorf("environment was not successfully initialized")
+			}
+			return nil
+		}, 30*time.Second, 5*time.Second).Should(Succeed())
+	})
+
+	It("Test apply initializer which will create namespace", func() {
+		randomNs := randomNamespaceName("initializer-createns")
+		init := &v1beta1.Initializer{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Initializer",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "env4",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.InitializerSpec{
+				AppTemplate: v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Components: []v1beta1.ApplicationComponent{
+							{
+								Name: randomNs,
+								Type: "raw",
+								Properties: util.Object2RawExtension(map[string]interface{}{
+									"apiVersion": "v1",
+									"kind":       "Namespace",
+									"metadata": map[string]interface{}{
+										"name": randomNs,
+									},
+								}),
+							},
+						},
+					},
+				},
+			},
+		}
+		By("Create Initializer createNamespaceInit")
+		Eventually(func() error {
+			return k8sClient.Create(ctx, init)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Verify the application is created successfully")
+		app := new(v1beta1.Application)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: init.Name, Namespace: namespace}, app)
+		}, 60*time.Second, 2*time.Millisecond).Should(Succeed())
+
+		By("Verify the initializer env3 successfully initialized the environment")
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: init.Name, Namespace: namespace}, init)
+			if err != nil {
+				return err
+			}
+			if init.Status.Phase != v1beta1.InitializerSuccess {
 				return fmt.Errorf("environment was not successfully initialized")
 			}
 			return nil

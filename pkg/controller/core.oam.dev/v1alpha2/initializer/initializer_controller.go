@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // InitializerReconcileWaitTime is the time to wait before reconcile again
@@ -65,31 +67,35 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
+	init.Status.Phase = v1beta1.InitializerInitializing
 	klog.Info("Check the status of the Initializers which you depend on")
-	unsatisfied, err := r.checkDependsOn(ctx, init.Spec.DependsOn)
+	dependsOnInitReady, err := r.checkDependsOn(ctx, init.Spec.DependsOn)
 	if err != nil {
 		klog.ErrorS(err, "Initializers which you depend on are not ready")
 		r.record.Event(init, event.Warning("Initializers which you depend on are not ready", err))
-		return ctrl.Result{}, err
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
-	if !unsatisfied {
+	if !dependsOnInitReady {
+		klog.Info("Wait for dependent Initializer to be ready")
 		return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, nil
 	}
 
-	ready, err := r.applyResources(ctx, init)
+	appReady, err := r.applyResources(ctx, init)
 	if err != nil {
 		klog.ErrorS(err, "Could not create resources via application to initialize the env")
 		r.record.Event(init, event.Warning("Could not create resources via application", err))
-		return ctrl.Result{}, err
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
-	if !ready {
+	if !appReady {
+		klog.Info("Wait for the Application created by Initializer to be ready")
 		return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, nil
 	}
 
+	init.Status.Phase = v1beta1.InitializerSuccess
 	if err = r.updateObservedGeneration(ctx, init); err != nil {
 		klog.ErrorS(err, "Could not update ObservedGeneration")
 		r.record.Event(init, event.Warning("Could not update ObservedGeneration", err))
-		return ctrl.Result{}, err
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
 	return ctrl.Result{}, nil
 }
@@ -100,7 +106,9 @@ func (r *Reconciler) checkDependsOn(ctx context.Context, depends []v1beta1.Depen
 		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: depend.Ref.Namespace, Name: depend.Ref.Name}, dependInit); err != nil {
 			return false, err
 		}
-		if dependInit.Status.ObservedGeneration < dependInit.Generation {
+		if dependInit.Status.Phase != v1beta1.InitializerSuccess {
+			klog.InfoS("Initializer you depend on is not ready",
+				"initializer", klog.KObj(dependInit), "phase", dependInit.Status.Phase)
 			return false, nil
 		}
 	}
@@ -137,11 +145,12 @@ func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializ
 		return false, err
 	}
 
-	klog.InfoS("Check the status of Application", "app", klog.KObj(app))
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app)
 	if err != nil {
 		return false, err
 	}
+
+	klog.InfoS("Check the status of Application", "app", klog.KObj(app), "phase", app.Status.Phase)
 	if app.Status.Phase != common.ApplicationRunning {
 		return false, nil
 	}
