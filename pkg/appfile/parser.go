@@ -116,13 +116,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	}
 
 	if wfSpec := app.Spec.Workflow; wfSpec != nil {
-		if wfStatus := app.Status.Workflow; wfStatus != nil {
-			if wfStatus.StepIndex < len(wfSpec.Steps) {
-				appfile.WorkflowSteps = wfSpec.Steps[wfStatus.StepIndex:]
-			}
-		} else {
-			appfile.WorkflowSteps = wfSpec.Steps
-		}
+		appfile.WorkflowSteps = wfSpec.Steps
 	}
 
 	return appfile, nil

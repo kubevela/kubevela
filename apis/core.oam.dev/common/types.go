@@ -246,7 +246,7 @@ type AppStatus struct {
 
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
-	AppSpecHash    string                          `json:"appSpecHash,omitempty"`
+	AppRevision    string                          `json:"appRevision,omitempty"`
 	StepIndex      int                             `json:"stepIndex,omitempty"`
 	Suspend        bool                            `json:"suspend"`
 	Terminated     bool                            `json:"terminated"`

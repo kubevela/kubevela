@@ -59,51 +59,57 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []T
 		return true, nil
 	}
 
-	w.app.Status.Phase = common.ApplicationRunningWorkflow
-
-	var (
-		wfCtx wfContext.Context
-		err   error
-	)
-
-	if w.app.Status.Workflow == nil {
+	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != rev {
 		w.app.Status.Workflow = &common.WorkflowStatus{
-			Steps: []common.WorkflowStepStatus{},
+			AppRevision: rev,
+			Steps:       []common.WorkflowStepStatus{},
 		}
 	}
 
 	wfStatus := w.app.Status.Workflow
 
+	if len(taskRunners) >= wfStatus.StepIndex || wfStatus.Terminated {
+		return true, nil
+	}
+
+	//
+	if wfStatus.Suspend {
+		return true, nil
+	}
+
+	w.app.Status.Phase = common.ApplicationRunningWorkflow
+	var (
+		wfCtx wfContext.Context
+		err   error
+	)
+
 	if wfStatus.ContextBackend != nil {
 		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
 	} else {
 		wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
+		wfStatus.ContextBackend = wfCtx.StoreRef()
 	}
 
 	if err != nil {
 		return false, err
 	}
 
-	w.app.Status.Workflow = &common.WorkflowStatus{
-		Steps: []common.WorkflowStepStatus{},
-	}
-
-	for _, run := range taskRunners {
+	for _, run := range taskRunners[wfStatus.StepIndex:] {
 		status, action, err := run(wfCtx)
 		if err != nil {
 			return false, err
 		}
 
-		var statusUpdated bool
+		var conditionUpdated bool
 		for i := range wfStatus.Steps {
 			if wfStatus.Steps[i].Name == status.Name {
 				wfStatus.Steps[i] = status
-				statusUpdated = true
+				conditionUpdated = true
 				break
 			}
 		}
 
-		if !statusUpdated {
+		if !conditionUpdated {
 			wfStatus.Steps = append(wfStatus.Steps, status)
 		}
 
@@ -111,7 +117,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []T
 		wfStatus.Suspend = action.Suspend
 
 		if wfStatus.Terminated || wfStatus.Suspend {
-			return false, nil
+			return true, nil
 		}
 
 		if err := wfCtx.Commit(); err != nil {

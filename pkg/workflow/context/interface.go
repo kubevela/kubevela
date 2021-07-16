@@ -12,5 +12,5 @@ type Context interface {
 	SetVar(v *model.Value, paths ...string) error
 	Commit()error
 	MakeParameter(parameter map[string]interface{}) (*model.Value, error)
-	StoreRef() runtimev1alpha1.TypedReference
+	StoreRef() *runtimev1alpha1.TypedReference
 }

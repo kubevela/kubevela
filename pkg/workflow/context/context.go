@@ -127,8 +127,8 @@ func (wf *workflowContext) loadFromConfigMap(cm corev1.ConfigMap) error {
 	return nil
 }
 
-func (wf *workflowContext) StoreRef() runtimev1alpha1.TypedReference {
-	return runtimev1alpha1.TypedReference{
+func (wf *workflowContext) StoreRef() *runtimev1alpha1.TypedReference {
+	return &runtimev1alpha1.TypedReference{
 		APIVersion: wf.store.APIVersion,
 		Kind:       wf.store.Kind,
 		Name:       wf.store.Name,
