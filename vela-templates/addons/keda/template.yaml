@@ -15,11 +15,12 @@ spec:
   appTemplate:
     spec:
       components:
-{{  range .ResourceFiles  }}
-        - name: {{ .Name }}
-          type: raw
+        - name: keda
+          type: helm-release
           properties:
-{{ .Content | indent 12 }} {{ end }}
+            source_type: HelmRepo
+            repo_url: https://kedacore.github.io/charts
+            chart: keda
 {{  range .DefinitionFiles  }}
         - name: {{ .Name }}
           type: raw

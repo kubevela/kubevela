@@ -1,8 +1,0 @@
-kind: HelmRepository
-apiVersion: source.toolkit.fluxcd.io/v1beta1
-metadata:
-  name: prometheus-community
-  namespace: prometheus
-spec:
-  interval: 1m
-  url: https://prometheus-community.github.io/helm-charts

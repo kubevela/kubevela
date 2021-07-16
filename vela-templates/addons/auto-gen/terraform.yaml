@@ -9,45 +9,18 @@ spec:
   appTemplate:
     spec:
       components:
+      - name: terraform-controller
+        properties:
+          chart: ./chart
+          repo_url: https://github.com/oam-dev/terraform-controller
+          source_type: GitRepo
+        type: helm-release
       - name: terraform-system
         properties:
           apiVersion: v1
           kind: Namespace
           metadata:
             name: terraform-system
-        type: raw
-      - name: terraform-controller-release
-        properties:
-          apiVersion: helm.toolkit.fluxcd.io/v2beta1
-          kind: HelmRelease
-          metadata:
-            name: terraform-controller-release
-            namespace: terraform-system
-          spec:
-            chart:
-              spec:
-                chart: ./chart
-                interval: 1m
-                sourceRef:
-                  kind: GitRepository
-                  name: terraform-controller-repo
-                  namespace: terraform-system
-            interval: 5m
-            values:
-              replicaCount: 1
-        type: raw
-      - name: terraform-controller-repo
-        properties:
-          apiVersion: source.toolkit.fluxcd.io/v1beta1
-          kind: GitRepository
-          metadata:
-            name: terraform-controller-repo
-            namespace: terraform-system
-          spec:
-            interval: 5m
-            ref:
-              branch: master
-            url: https://github.com/oam-dev/terraform-controller
         type: raw
     status:
       rollout:

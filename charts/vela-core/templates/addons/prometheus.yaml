@@ -14,33 +14,10 @@ data:
           components:
           - name: prometheus
             properties:
-              apiVersion: helm.toolkit.fluxcd.io/v2beta1
-              kind: HelmRelease
-              metadata:
-                name: prometheus
-                namespace: prometheus
-              spec:
-                chart:
-                  spec:
-                    chart: premetheus
-                    interval: 1pm
-                    sourceRef:
-                      kind: HelmRepository
-                      name: prometheus-community
-                      namespace: premetheus
-                interval: 5m
-            type: raw
-          - name: prometheus-community
-            properties:
-              apiVersion: source.toolkit.fluxcd.io/v1beta1
-              kind: HelmRepository
-              metadata:
-                name: prometheus-community
-                namespace: prometheus
-              spec:
-                interval: 1m
-                url: https://prometheus-community.github.io/helm-charts
-            type: raw
+              chart: premetheus
+              repo_url: https://prometheus-community.github.io/helm-charts
+              source_type: HelmRepo
+            type: helm-release
         status:
           rollout:
             batchRollingState: ""

@@ -15,6 +15,12 @@ spec:
   appTemplate:
     spec:
       components:
+        - name: terraform-controller
+          type: helm-release
+          properties:
+            source_type: GitRepo
+            repo_url: https://github.com/oam-dev/terraform-controller
+            chart: ./chart
 {{  range .ResourceFiles  }}
         - name: {{ .Name }}
           type: raw
