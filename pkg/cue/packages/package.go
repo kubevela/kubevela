@@ -19,11 +19,12 @@ package packages
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/oam-dev/kubevela/pkg/stdlib"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"

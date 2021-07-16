@@ -2,13 +2,16 @@ package kube
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/workflow"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 const (
@@ -20,7 +23,7 @@ type provider struct {
 	cli    client.Client
 }
 
-func (h *provider) Apply(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
+func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	var workload = new(unstructured.Unstructured)
 	if err := v.UnmarshalTo(workload); err != nil {
 		return err
@@ -60,7 +63,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *model.Value, act workflow.Act
 	return v.FillObject(workload.Object)
 }
 
-func (h *provider) Read(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
+func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	obj := new(unstructured.Unstructured)
 	if err := v.UnmarshalTo(obj); err != nil {
 		return err
@@ -72,7 +75,7 @@ func (h *provider) Read(ctx wfContext.Context, v *model.Value, act workflow.Acti
 	if err := h.cli.Get(context.Background(), key, obj); err != nil {
 		return err
 	}
-	return v.FillObject(obj.Object,"result")
+	return v.FillObject(obj.Object, "result")
 }
 
 func Install(p providers.Providers, cli client.Client) {

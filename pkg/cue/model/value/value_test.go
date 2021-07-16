@@ -1,10 +1,11 @@
-package model
+package value
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"testing"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 )
 
 func TestFillObject(t *testing.T) {
@@ -41,7 +42,7 @@ if step4.value>100{
   {"apply": 123}
 `
 
-	sv, _ := NewValue(src,nil)
+	sv, _ := NewValue(src, nil)
 	up, _ := sv.MakeValue(js)
 	fmt.Println(up.String())
 	up.FillRaw(`x: 12345`, "to")
@@ -61,15 +62,15 @@ if step4.value>100{
 	fmt.Println(sets.ToString(child.v))
 }
 
-func TestB(t *testing.T){
-	sv,_:=NewValue(`parameter: {}
+func TestB(t *testing.T) {
+	sv, _ := NewValue(`parameter: {}
   output: parameter.input
-`,nil)
-m:=map[string]interface{}{
-	"parameter": struct{}{},
-}
-	bt,_:=json.Marshal(m)
+`, nil)
+	m := map[string]interface{}{
+		"parameter": struct{}{},
+	}
+	bt, _ := json.Marshal(m)
 	fmt.Println(string(bt))
-fmt.Println(sv.FillRaw(`{"parameter": {"input": 100}}`))
+	fmt.Println(sv.FillRaw(`{"parameter": {"input": 100}}`))
 	fmt.Println(sv.String())
 }

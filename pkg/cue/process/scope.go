@@ -1,18 +1,19 @@
 package process
 
 import (
-	"github.com/oam-dev/kubevela/pkg/cue/model"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 )
 
 // workspace==(app,env)
 type Workspace struct {
-	app string
-	env string
+	app           string
+	env           string
 	triggerSource string
-	schemas map[string]model.Instance
-	preStore *v1.ConfigMap
-	store *v1.ConfigMap
+	schemas       map[string]model.Instance
+	preStore      *v1.ConfigMap
+	store         *v1.ConfigMap
 }
 
 type PipelineContext struct {
@@ -65,12 +66,12 @@ scopes:
 */
 
 type TaskSpec struct {
-    Env string
+	Env       string
 	InputPath string
-	Template string
+	Template  string
 }
 
 type Trigger struct {
 	template string
-	src string
+	src      string
 }

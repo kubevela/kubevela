@@ -19,10 +19,12 @@ package workflow
 import (
 	"context"
 	"encoding/json"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -33,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 type workflow struct {
@@ -49,7 +52,7 @@ func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
 	}
 }
 
-func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []TaskRunner) (bool, error) {
+func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (bool, error) {
 	if w.app.Spec.Workflow == nil {
 		return true, nil
 	}

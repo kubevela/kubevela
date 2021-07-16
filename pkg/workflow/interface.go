@@ -17,15 +17,15 @@ package workflow
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+
+	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // Workflow is used to execute the workflow steps of Application.
 type Workflow interface {
 	// ExecuteSteps executes the steps of an Application with given steps of rendered resources.
 	// It returns done=true only if all steps are executed and succeeded.
-	ExecuteSteps(ctx context.Context, appRevName string, steps []TaskRunner) (done bool, err error)
+	ExecuteSteps(ctx context.Context, appRevName string, taskRunners []types.TaskRunner) (done bool, err error)
 }
 
 // SucceededMessage is the data json-marshalled into the message of `workflow-progress` condition
@@ -33,23 +33,3 @@ type Workflow interface {
 type SucceededMessage struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
-
-type TaskRunner func(ctx wfContext.Context)(common.WorkflowStepStatus,*Operation,error)
-
-type Operation struct {
-	Suspend bool
-	Terminated bool
-}
-
-
-type Action interface {
-	Suspend()
-	Terminated()
-	Wait()
-	Message(msg string)
-	Reason(reason string)
-}
-
-
-
-

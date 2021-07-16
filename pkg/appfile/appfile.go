@@ -20,13 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
-	"regexp"
-	"strings"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 
@@ -191,7 +192,7 @@ type Appfile struct {
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy(m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) (policies []*unstructured.Unstructured, steps []workflow.TaskRunner, err error) {
+func (af *Appfile) GenerateWorkflowAndPolicy(m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
@@ -213,9 +214,21 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 	return uns, nil
 }
 
-func (af *Appfile) generateSteps(m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) ([]workflow.TaskRunner, error) {
-	taskDiscover := tasks.NewTaskDiscover(m, cli, pd)
-	var tasks []workflow.TaskRunner
+func (af *Appfile) generateSteps(dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
+	loadTaskTemplate := func(ctx context.Context, name string) (string, error) {
+		templ, err := LoadTemplate(context.Background(), dm, cli, name, types.TypeWorkflowStep)
+		if err != nil {
+			return "", err
+		}
+		schematic := templ.WorkflowStepDefinition.Spec.Schematic
+		if schematic != nil && schematic.CUE != nil {
+			return schematic.CUE.Template, nil
+		}
+		return "", errors.New("custom workflowStep only support cue")
+	}
+
+	taskDiscover := tasks.NewTaskDiscover(cli, pd, loadTaskTemplate)
+	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
 		genTask, err := taskDiscover.GetTaskGenerator(step.Type)
 		task, err := genTask(step)

@@ -1,13 +1,15 @@
 package providers
 
 import (
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/workflow"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"sync"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
-type Handler func(ctx wfContext.Context, v *model.Value, act workflow.Action) error
+type Handler func(ctx wfContext.Context, v *value.Value, act types.Action) error
 
 type Providers interface {
 	GetHandler(provider, name string) (Handler, bool)

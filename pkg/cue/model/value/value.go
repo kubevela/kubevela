@@ -1,13 +1,15 @@
-package model
+package value
 
 import (
+	"encoding/json"
+	"strings"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
-	"encoding/json"
+	"github.com/pkg/errors"
+
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/pkg/errors"
-	"strings"
 )
 
 type Value struct {

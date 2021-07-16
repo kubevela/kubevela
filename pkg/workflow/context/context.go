@@ -2,16 +2,20 @@ package context
 
 import (
 	"context"
-	"cuelang.org/go/cue"
 	"encoding/json"
+	"time"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+
+	"cuelang.org/go/cue"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -27,7 +31,7 @@ type workflowContext struct {
 	cli        client.Client
 	store      corev1.ConfigMap
 	components map[string]*componentManifest
-	vars       *model.Value
+	vars       *value.Value
 	generate   string
 }
 
@@ -39,7 +43,7 @@ func (wf *workflowContext) GetComponent(name string) (*componentManifest, error)
 	return component, nil
 }
 
-func (wf *workflowContext) PatchComponent(name string, patchValue *model.Value) error {
+func (wf *workflowContext) PatchComponent(name string, patchValue *value.Value) error {
 	component, err := wf.GetComponent(name)
 	if err != nil {
 		return err
@@ -47,11 +51,11 @@ func (wf *workflowContext) PatchComponent(name string, patchValue *model.Value) 
 	return component.Patch(patchValue)
 }
 
-func (wf *workflowContext) GetVar(paths ...string) (*model.Value, error) {
+func (wf *workflowContext) GetVar(paths ...string) (*value.Value, error) {
 	return wf.vars.LookupValue(paths...)
 }
 
-func (wf *workflowContext) SetVar(v *model.Value, paths ...string) error {
+func (wf *workflowContext) SetVar(v *value.Value, paths ...string) error {
 	str, err := v.String()
 	if err != nil {
 		return errors.WithMessage(err, "compile var")
@@ -59,7 +63,7 @@ func (wf *workflowContext) SetVar(v *model.Value, paths ...string) error {
 	return wf.vars.FillRaw(str, paths...)
 }
 
-func (wf *workflowContext) MakeParameter(parameter map[string]interface{}) (*model.Value, error) {
+func (wf *workflowContext) MakeParameter(parameter map[string]interface{}) (*value.Value, error) {
 	var s = "{}"
 	if parameter != nil {
 		s = string(util.MustJSONMarshal(parameter))
@@ -120,7 +124,7 @@ func (wf *workflowContext) loadFromConfigMap(cm corev1.ConfigMap) error {
 		wf.components[name] = cm
 	}
 	var err error
-	wf.vars, err = model.NewValue(data[ConfigMapKeyVars], nil)
+	wf.vars, err = value.NewValue(data[ConfigMapKeyVars], nil)
 	if err != nil {
 		return errors.WithMessage(err, "decode vars")
 	}
@@ -141,7 +145,7 @@ type componentManifest struct {
 	Auxiliaries []model.Instance
 }
 
-func (comp *componentManifest) Patch(patchValue *model.Value) error {
+func (comp *componentManifest) Patch(patchValue *value.Value) error {
 	pInst, err := model.NewOther(patchValue.CueValue())
 	if err != nil {
 		return err
@@ -245,7 +249,7 @@ func newContext(cli client.Client, ns, rev string) (*workflowContext, error) {
 		components: map[string]*componentManifest{},
 	}
 	var err error
-	wfCtx.vars, err = model.NewValue("", nil)
+	wfCtx.vars, err = value.NewValue("", nil)
 
 	return wfCtx, err
 }

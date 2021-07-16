@@ -18,16 +18,17 @@ package process
 
 import (
 	"bytes"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"testing"
+
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
-	"fmt"
 	"github.com/pkg/errors"
-	"path/filepath"
-	"strings"
-	"testing"
 
 	"cuelang.org/go/cue"
 	"github.com/bmizerany/assert"
@@ -122,9 +123,9 @@ image: "myserver"
 	assert.Equal(t, "{\"password\":\"123\"}", string(requiredSecrets))
 }
 
-func TestX (t *testing.T){
+func TestX(t *testing.T) {
 
-	src:=`
+	src := `
 schema:{
   spec: replicas: *2|int
   continue: *false|bool
@@ -138,55 +139,54 @@ schema:{
  
 `
 	var r cue.Runtime
-	instBase,_:=r.Compile("-",src)
-	f,_:=parser.ParseFile("-",src)
-	ast.Walk(f,nil, func(node ast.Node) {
-		field,ok:=node.(*ast.Field)
-		if ok{
-			basic,ok:=field.Value.(*ast.BasicLit)
-			if ok&&basic.Kind==token.STRING{
+	instBase, _ := r.Compile("-", src)
+	f, _ := parser.ParseFile("-", src)
+	ast.Walk(f, nil, func(node ast.Node) {
+		field, ok := node.(*ast.Field)
+		if ok {
+			basic, ok := field.Value.(*ast.BasicLit)
+			if ok && basic.Kind == token.STRING {
 				str, _ := literal.Unquote(basic.Value)
-				str=strings.TrimSpace(str)
-				if strings.HasPrefix(str,"#code:"){
-					str=str[6:]
+				str = strings.TrimSpace(str)
+				if strings.HasPrefix(str, "#code:") {
+					str = str[6:]
 					fmt.Println(str)
-					expr,err:=parser.ParseExpr("-",str)
-					if err!=nil{
+					expr, err := parser.ParseExpr("-", str)
+					if err != nil {
 						fmt.Println(err)
 					}
-					field.Value=expr
+					field.Value = expr
 				}
 			}
 		}
 	})
 
-	testv,err:=r.CompileFile(f)
-	if err!=nil{
+	testv, err := r.CompileFile(f)
+	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	fmt.Println(toString(testv.Value()))
 
-	base,_:=model.NewBase(testv.Value())
-	patchv,_:=r.Compile("-",`
+	base, _ := model.NewBase(testv.Value())
+	patchv, _ := r.Compile("-", `
     schema: {_replicas: 2}
 `)
-	patchm,_:=model.NewOther(patchv.Value())
+	patchm, _ := model.NewOther(patchv.Value())
 	base.Unify(patchm)
 	fmt.Println(base.String())
 	return
 
-fmt.Println(toString(instBase.Value().Lookup("schema")))
-	instP,_:=r.Compile("-",`
+	fmt.Println(toString(instBase.Value().Lookup("schema")))
+	instP, _ := r.Compile("-", `
 spec: replicas: int
 _replicas:   spec.replicas
 `)
 
-result:=instBase.Value().Fill(instP.Value(),"schema")
-	bt,err:=result.MarshalJSON()
-fmt.Println(string(bt),err)
+	result := instBase.Value().Fill(instP.Value(), "schema")
+	bt, err := result.MarshalJSON()
+	fmt.Println(string(bt), err)
 }
-
 
 func toString(v cue.Value) (string, error) {
 	v = v.Eval()
@@ -235,6 +235,7 @@ func toFile(n ast.Node) (*ast.File, error) {
 		return nil, errors.Errorf("Unsupported node type %T", x)
 	}
 }
+
 /*
 
 #cr: {

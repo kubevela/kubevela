@@ -1,29 +1,26 @@
 package tasks
 
 import (
+	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/workflow"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/remote"
-	"github.com/pkg/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
-type TaskGenerator func(wfStep v1beta1.WorkflowStep) (workflow.TaskRunner, error)
-
 type taskDiscover struct {
-	builtins           map[string]TaskGenerator
-	remoteTaskDiscover TaskDiscover
+	builtins           map[string]types.TaskGenerator
+	remoteTaskDiscover types.TaskDiscover
 }
 
-func (td *taskDiscover) GetTaskGenerator(name string) (TaskGenerator, error) {
+func (td *taskDiscover) GetTaskGenerator(name string) (types.TaskGenerator, error) {
 	tg, ok := td.builtins[name]
 	if ok {
 		return tg, nil
@@ -40,28 +37,24 @@ func (td *taskDiscover) GetTaskGenerator(name string) (TaskGenerator, error) {
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-type TaskDiscover interface {
-	GetTaskGenerator(name string) (TaskGenerator, error)
-}
-
-func suspend(_ v1beta1.WorkflowStep) (workflow.TaskRunner, error) {
-	return func(ctx wfContext.Context) (common.WorkflowStepStatus, *workflow.Operation, error) {
+func suspend(_ v1beta1.WorkflowStep) (types.TaskRunner, error) {
+	return func(ctx wfContext.Context) (common.WorkflowStepStatus, *types.Operation, error) {
 		return common.WorkflowStepStatus{
 			Phase: common.WorkflowStepPhaseSucceeded,
-		}, &workflow.Operation{Suspend: true}, nil
+		}, &types.Operation{Suspend: true}, nil
 	}, nil
 }
 
-func NewTaskDiscover(dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) TaskDiscover {
+func NewTaskDiscover(cli client.Client, pd *packages.PackageDiscover, loadTemplate remote.LoadTaskTemplate) types.TaskDiscover {
 
 	providerHandlers := providers.NewProviders()
 	kube.Install(providerHandlers, cli)
 	workspace.Install(providerHandlers)
 
 	return &taskDiscover{
-		builtins: map[string]TaskGenerator{
+		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: remote.NewTaskLoader(dm, cli, pd, providerHandlers),
+		remoteTaskDiscover: remote.NewTaskLoader(loadTemplate, pd, providerHandlers),
 	}
 }

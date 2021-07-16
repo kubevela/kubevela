@@ -2,11 +2,13 @@ package workspace
 
 import (
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/workflow"
+	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"strings"
+	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 const (
@@ -16,7 +18,7 @@ const (
 type provider struct {
 }
 
-func (h *provider) Load(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
+func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	componentName, err := v.Field("component")
 	if err != nil {
 		return err
@@ -48,50 +50,50 @@ func (h *provider) Load(ctx wfContext.Context, v *model.Value, act workflow.Acti
 	return nil
 }
 
-func (h *provider) Export(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
-	tpyValue,err:=v.Field("type")
-	if err!=nil{
+func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	tpyValue, err := v.Field("type")
+	if err != nil {
 		return err
 	}
-	tpy,err:=tpyValue.String()
-	if err!=nil{
+	tpy, err := tpyValue.String()
+	if err != nil {
 		return err
 	}
 
-	val,err:=v.LookupValue("value")
-	if err!=nil{
+	val, err := v.LookupValue("value")
+	if err != nil {
 		return err
 	}
 
 	switch tpy {
 	case "patch":
-		nameValue,err:=v.Field("component")
-		if err!=nil{
+		nameValue, err := v.Field("component")
+		if err != nil {
 			return err
 		}
 
-		name,err:=nameValue.String()
-		if err!=nil{
+		name, err := nameValue.String()
+		if err != nil {
 			return err
 		}
-		return ctx.PatchComponent(name,val)
+		return ctx.PatchComponent(name, val)
 	case "var":
-		pathValue,err:=v.Field("path")
-		if err!=nil{
+		pathValue, err := v.Field("path")
+		if err != nil {
 			return err
 		}
 
-		path,err:=pathValue.String()
-		if err!=nil{
+		path, err := pathValue.String()
+		if err != nil {
 			return err
 		}
 
-		return ctx.SetVar(val,strings.Split(path,".")...)
+		return ctx.SetVar(val, strings.Split(path, ".")...)
 	}
 	return nil
 }
 
-func (h *provider) Wait(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
+func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	ret, err := v.Field("continue")
 	if err != nil {
 		return err
@@ -109,7 +111,7 @@ func (h *provider) Wait(ctx wfContext.Context, v *model.Value, act workflow.Acti
 	return nil
 }
 
-func (h *provider) Break(ctx wfContext.Context, v *model.Value, act workflow.Action) error {
+func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	act.Terminated()
 	return nil
 }
