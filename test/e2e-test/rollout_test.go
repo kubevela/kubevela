@@ -133,11 +133,11 @@ var _ = Describe("Cloneset component rollout tests", func() {
 					return fmt.Errorf("component revision name error %s", compRevName)
 				}
 				if rollout.Status.RollingState != v1alpha1.RolloutSucceedState {
-					return fmt.Errorf("rollout isn't succeed ")
+					return fmt.Errorf("rollout isn't succeed acctauly %s", rollout.Status.RollingState)
 				}
 				return nil
 			},
-			time.Second*120, 300*time.Millisecond).Should(BeNil())
+			time.Second*300, 300*time.Millisecond).Should(BeNil())
 		Expect(rollout.Status.UpgradedReadyReplicas).Should(BeEquivalentTo(rollout.Status.RolloutTargetSize))
 		Expect(rollout.Status.UpgradedReplicas).Should(BeEquivalentTo(rollout.Status.RolloutTargetSize))
 		clonesetName := rollout.Spec.ComponentName
