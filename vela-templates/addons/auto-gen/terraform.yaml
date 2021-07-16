@@ -14,7 +14,7 @@ spec:
           chart: ./chart
           repo_url: https://github.com/oam-dev/terraform-controller
           source_type: GitRepo
-        type: helm-release
+        type: helm
       - name: terraform-system
         properties:
           apiVersion: v1

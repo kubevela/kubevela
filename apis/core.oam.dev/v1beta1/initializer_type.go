@@ -69,12 +69,12 @@ type InitializerList struct {
 	Items           []Initializer `json:"items"`
 }
 
-// SetConditions set condition for ComponentDefinition
+// SetConditions set condition for Initializer
 func (i *Initializer) SetConditions(c ...runtimev1alpha1.Condition) {
 	i.Status.SetConditions(c...)
 }
 
-// GetCondition gets condition from ComponentDefinition
+// GetCondition gets condition from Initializer
 func (i *Initializer) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
 	return i.Status.GetCondition(conditionType)
 }

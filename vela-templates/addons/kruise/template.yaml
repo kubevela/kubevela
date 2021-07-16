@@ -16,7 +16,7 @@ spec:
     spec:
       components:
         - name: kruise
-          type: helm-release
+          type: helm
           properties:
             source_type: GitRepo
             repo_url: https://github.com/openkruise/kruise

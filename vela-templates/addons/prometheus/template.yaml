@@ -16,7 +16,7 @@ spec:
     spec:
       components:
         - name: prometheus
-          type: helm-release
+          type: helm
           properties:
             source_type: HelmRepo
             repo_url: https://prometheus-community.github.io/helm-charts

@@ -257,22 +257,6 @@ func storeInitializer(init *v1beta1.Initializer, addonPath string, addonName str
 	return WriteToFile(filename, contents)
 }
 
-func getComponentDefs(info *AddonInfo) ([]*v1beta1.ComponentDefinition, error) {
-	cds := make([]*v1beta1.ComponentDefinition, 0)
-	if !info.HasDefs {
-		return cds, nil
-	}
-	for _, file := range info.DefinitionFiles {
-		cd := v1beta1.ComponentDefinition{}
-		err := yaml.Unmarshal([]byte(file.Content), &cd)
-		if err != nil {
-			return nil, err
-		}
-		cds = append(cds, &cd)
-	}
-	return cds, nil
-}
-
 func main() {
 	var addonsPath string
 	var storePath string

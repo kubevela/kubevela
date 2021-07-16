@@ -15,7 +15,7 @@ spec:
           chart: ./charts/kruise/v0.9.0
           repo_url: https://github.com/openkruise/kruise
           source_type: GitRepo
-        type: helm-release
+        type: helm
     status:
       rollout:
         batchRollingState: ""

@@ -16,7 +16,7 @@ spec:
     spec:
       components:
         - name: keda
-          type: helm-release
+          type: helm
           properties:
             source_type: HelmRepo
             repo_url: https://kedacore.github.io/charts

@@ -17,7 +17,7 @@ data:
               chart: keda
               repo_url: https://kedacore.github.io/charts
               source_type: HelmRepo
-            type: helm-release
+            type: helm
         status:
           rollout:
             batchRollingState: ""
