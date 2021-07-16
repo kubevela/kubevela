@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1beta1
+apiVersion: standard.oam.dev/v1alpha1
 kind: Rollout
 metadata:
   name: rolling-test
