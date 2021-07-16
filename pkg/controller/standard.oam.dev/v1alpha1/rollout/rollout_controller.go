@@ -46,7 +46,7 @@ import (
 const (
 	reconcileTimeOut = 60 * time.Second
 
-	rolloutFinalizer = "finalizers.rollout.oam.dev"
+	rolloutFinalizer = "finalizers.rollout.standard.oam.dev"
 
 	errUpdateRollout = "failed to update the rollout"
 )
