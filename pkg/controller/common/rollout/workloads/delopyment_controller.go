@@ -91,7 +91,7 @@ func (c *deploymentController) releaseDeployment(ctx context.Context, deploy *ap
 	var newOwnerList []metav1.OwnerReference
 	found := false
 	for _, owner := range deploy.GetOwnerReferences() {
-		if (owner.Kind == c.parentController.GetObjectKind().GroupVersionKind().String()) &&
+		if (owner.Kind == c.parentController.GetObjectKind().GroupVersionKind().Kind) &&
 			owner.APIVersion == c.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() {
 			found = true
 			continue
