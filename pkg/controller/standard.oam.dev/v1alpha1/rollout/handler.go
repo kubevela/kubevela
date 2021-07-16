@@ -35,14 +35,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 type handler struct {
 	*reconciler
-	rollout       *v1beta1.Rollout
+	rollout       *v1alpha1.Rollout
 	sourceRevName string
 	targetRevName string
 	compName      string
@@ -187,7 +186,7 @@ func (h *handler) checkWorkloadNotExist(ctx context.Context) (bool, error) {
 }
 
 // checkRollingTerminated check the rollout if have finished
-func checkRollingTerminated(appRollout v1beta1.Rollout) bool {
+func checkRollingTerminated(appRollout v1alpha1.Rollout) bool {
 	// handle rollout completed
 	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
 		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
@@ -215,7 +214,7 @@ func checkRollingTerminated(appRollout v1beta1.Rollout) bool {
 // when reset the state machine, the controller will set the status.RolloutTargetSize as -1 in AppLocating phase
 // so we should ignore this case.
 // if status.RolloutTargetSize isn't equal to Spec.RolloutPlan.TargetSize, it's means user want trigger another scale operation.
-func (h *handler) isRolloutModified(rollout v1beta1.Rollout) bool {
+func (h *handler) isRolloutModified(rollout v1alpha1.Rollout) bool {
 	return rollout.Status.RollingState != v1alpha1.RolloutDeletingState &&
 		((rollout.Status.LastUpgradedTargetRevision != "" &&
 			rollout.Status.LastUpgradedTargetRevision != rollout.Spec.TargetRevisionName) ||

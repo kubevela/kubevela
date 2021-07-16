@@ -14,12 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 // Rollout is the Schema for the Rollout API
@@ -37,8 +35,8 @@ type Rollout struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   RolloutSpec   `json:"spec,omitempty"`
-	Status RolloutStatus `json:"status,omitempty"`
+	Spec   RolloutSpec       `json:"spec,omitempty"`
+	Status CompRolloutStatus `json:"status,omitempty"`
 }
 
 // RolloutSpec defines how to describe an update between different compRevision
@@ -54,12 +52,12 @@ type RolloutSpec struct {
 	ComponentName string `json:"componentName"`
 
 	// RolloutPlan is the details on how to rollout the resources
-	RolloutPlan v1alpha1.RolloutPlan `json:"rolloutPlan"`
+	RolloutPlan RolloutPlan `json:"rolloutPlan"`
 }
 
-// RolloutStatus defines the observed state of rollout
-type RolloutStatus struct {
-	v1alpha1.RolloutStatus `json:",inline"`
+// CompRolloutStatus defines the observed state of rollout
+type CompRolloutStatus struct {
+	RolloutStatus `json:",inline"`
 
 	// LastUpgradedTargetRevision contains the name of the componentRevisionName that we upgraded to
 	// We will restart the rollout if this is not the same as the spec

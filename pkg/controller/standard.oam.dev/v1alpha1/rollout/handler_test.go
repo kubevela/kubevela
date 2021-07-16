@@ -21,22 +21,21 @@ import (
 
 	"k8s.io/utils/pointer"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 func TestHandleTerminated(t *testing.T) {
 	testcases := map[string]struct {
-		rollout v1beta1.Rollout
+		rollout oamstandard.Rollout
 		want    bool
 	}{
 		"succeed": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					SourceRevisionName: "v1",
 					TargetRevisionName: "v2",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					LastSourceRevision:         "v1",
 					LastUpgradedTargetRevision: "v2",
 					RolloutStatus: oamstandard.RolloutStatus{
@@ -47,12 +46,12 @@ func TestHandleTerminated(t *testing.T) {
 			want: true,
 		},
 		"failed": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					SourceRevisionName: "v1",
 					TargetRevisionName: "v2",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					LastSourceRevision:         "v1",
 					LastUpgradedTargetRevision: "v2",
 					RolloutStatus: oamstandard.RolloutStatus{
@@ -63,12 +62,12 @@ func TestHandleTerminated(t *testing.T) {
 			want: true,
 		},
 		"restart after succeed": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					SourceRevisionName: "v2",
 					TargetRevisionName: "v3",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					LastSourceRevision:         "v2",
 					LastUpgradedTargetRevision: "v1",
 					RolloutStatus: oamstandard.RolloutStatus{
@@ -79,12 +78,12 @@ func TestHandleTerminated(t *testing.T) {
 			want: false,
 		},
 		"restart after failed": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					SourceRevisionName: "v2",
 					TargetRevisionName: "v3",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					LastSourceRevision:         "v2",
 					LastUpgradedTargetRevision: "v1",
 					RolloutStatus: oamstandard.RolloutStatus{
@@ -95,12 +94,12 @@ func TestHandleTerminated(t *testing.T) {
 			want: false,
 		},
 		"still in middle of rollout": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					SourceRevisionName: "v1",
 					TargetRevisionName: "v2",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					LastSourceRevision:         "v1",
 					LastUpgradedTargetRevision: "v2",
 					RolloutStatus: oamstandard.RolloutStatus{
@@ -111,14 +110,14 @@ func TestHandleTerminated(t *testing.T) {
 			want: false,
 		},
 		"last scale have finished": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "v1",
 					RolloutPlan: oamstandard.RolloutPlan{
 						TargetSize: pointer.Int32Ptr(2),
 					},
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					LastUpgradedTargetRevision: "v1",
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState:      oamstandard.RolloutSucceedState,
@@ -129,14 +128,14 @@ func TestHandleTerminated(t *testing.T) {
 			want: true,
 		},
 		"modify targetSize trigger scale operation again": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "v1",
 					RolloutPlan: oamstandard.RolloutPlan{
 						TargetSize: pointer.Int32Ptr(4),
 					},
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					LastUpgradedTargetRevision: "v1",
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState:      oamstandard.RollingInBatchesState,
@@ -157,16 +156,16 @@ func TestHandleTerminated(t *testing.T) {
 
 func Test_isRolloutModified(t *testing.T) {
 	tests := map[string]struct {
-		rollout v1beta1.Rollout
+		rollout oamstandard.Rollout
 		want    bool
 	}{
 		"initial case when no source or target set": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
 					SourceRevisionName: "source1",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
@@ -175,11 +174,11 @@ func Test_isRolloutModified(t *testing.T) {
 			want: false,
 		},
 		"scale no change case": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
@@ -189,12 +188,12 @@ func Test_isRolloutModified(t *testing.T) {
 			want: false,
 		},
 		"rollout no change case": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
 					SourceRevisionName: "source1",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
@@ -205,11 +204,11 @@ func Test_isRolloutModified(t *testing.T) {
 			want: false,
 		},
 		"scale change case": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target2",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
@@ -219,12 +218,12 @@ func Test_isRolloutModified(t *testing.T) {
 			want: true,
 		},
 		"rollout one change case": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target2",
 					SourceRevisionName: "source1",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
@@ -235,12 +234,12 @@ func Test_isRolloutModified(t *testing.T) {
 			want: true,
 		},
 		"rollout both change case": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target2",
 					SourceRevisionName: "source2",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
@@ -251,12 +250,12 @@ func Test_isRolloutModified(t *testing.T) {
 			want: true,
 		},
 		"deleting both change case": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target2",
 					SourceRevisionName: "source2",
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RolloutDeletingState,
 					},
@@ -267,14 +266,14 @@ func Test_isRolloutModified(t *testing.T) {
 			want: false,
 		},
 		"restart a scale operation": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
 					RolloutPlan: oamstandard.RolloutPlan{
 						TargetSize: pointer.Int32Ptr(1),
 					},
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState:      oamstandard.RolloutSucceedState,
 						RolloutTargetSize: 2,
@@ -285,14 +284,14 @@ func Test_isRolloutModified(t *testing.T) {
 			want: true,
 		},
 		"scale have finished": {
-			rollout: v1beta1.Rollout{
-				Spec: v1beta1.RolloutSpec{
+			rollout: oamstandard.Rollout{
+				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
 					RolloutPlan: oamstandard.RolloutPlan{
 						TargetSize: pointer.Int32Ptr(2),
 					},
 				},
-				Status: v1beta1.RolloutStatus{
+				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState:      oamstandard.RolloutSucceedState,
 						RolloutTargetSize: 2,

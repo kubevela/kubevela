@@ -19,7 +19,7 @@ package v1alpha2
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/rollout"
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/rollout"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/appdeployment"

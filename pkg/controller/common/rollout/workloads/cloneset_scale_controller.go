@@ -131,7 +131,9 @@ func (s *CloneSetScaleController) Initialize(ctx context.Context) (bool, error) 
 	}
 
 	if controller := metav1.GetControllerOf(s.cloneSet); controller != nil {
-		if (controller.Kind == v1beta1.AppRolloutKind || controller.Kind == v1beta1.RolloutKind) && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		if (controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String()) ||
+			(controller.Kind == v1alpha1.RolloutKind && controller.APIVersion == v1alpha1.SchemeGroupVersion.String()) {
+
 			// it's already there
 			return true, nil
 		}

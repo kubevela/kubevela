@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -63,7 +62,7 @@ type reconciler struct {
 }
 
 func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	rollout := new(v1beta1.Rollout)
+	rollout := new(v1alpha1.Rollout)
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()
 
@@ -166,7 +165,7 @@ func (r *reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
-		For(&v1beta1.Rollout{}).
+		For(&v1alpha1.Rollout{}).
 		Complete(r)
 }
 
@@ -183,7 +182,7 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	return r.SetupWithManager(mgr)
 }
 
-func (r *reconciler) updateStatus(ctx context.Context, rollout *v1beta1.Rollout) error {
+func (r *reconciler) updateStatus(ctx context.Context, rollout *v1alpha1.Rollout) error {
 	status := rollout.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.Get(ctx, client.ObjectKey{Namespace: rollout.Namespace, Name: rollout.Name}, rollout); err != nil {
@@ -195,7 +194,7 @@ func (r *reconciler) updateStatus(ctx context.Context, rollout *v1beta1.Rollout)
 }
 
 // handle adding and handle finalizer logic, it turns if we should continue to reconcile
-func (r *reconciler) handleFinalizer(ctx context.Context, rollout *v1beta1.Rollout) (bool, reconcile.Result, error) {
+func (r *reconciler) handleFinalizer(ctx context.Context, rollout *v1alpha1.Rollout) (bool, reconcile.Result, error) {
 	if rollout.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(&rollout.ObjectMeta, rolloutFinalizer) {
 			meta.AddFinalizer(&rollout.ObjectMeta, rolloutFinalizer)

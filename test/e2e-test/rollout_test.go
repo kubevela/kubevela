@@ -55,7 +55,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 	var ns corev1.Namespace
 	var app v1beta1.Application
 	//var kc kruise.CloneSet
-	var rollout v1beta1.Rollout
+	var rollout v1alpha1.Rollout
 	var kc kruise.CloneSet
 
 	createNamespace := func() {
@@ -124,7 +124,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 		By("Wait for the rollout  to succeed")
 		Eventually(
 			func() error {
-				rollout = v1beta1.Rollout{}
+				rollout = v1alpha1.Rollout{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: rolloutName}, &rollout)
 				if err != nil {
 					return err
@@ -183,7 +183,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 
 	initialScale := func() {
 		By("Apply the component scale to deploy")
-		var newRollout v1beta1.Rollout
+		var newRollout v1alpha1.Rollout
 		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/comp-rollout.yaml", &newRollout)).Should(BeNil())
 		newRollout.Namespace = namespaceName
 		compRevName := utils.ConstructRevisionName(compnentName, 1)
@@ -287,7 +287,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 		clonesetName := rollout.Spec.ComponentName
 		By("rollout to compRev 2")
 		Eventually(func() error {
-			checkRollout := new(v1beta1.Rollout)
+			checkRollout := new(v1alpha1.Rollout)
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
@@ -300,9 +300,9 @@ var _ = Describe("Cloneset component rollout tests", func() {
 			return nil
 		}, 30*time.Second, 15*time.Millisecond).Should(BeNil())
 		By("verify rollout pause in first batch")
-		checkRollout := new(v1beta1.Rollout)
+		checkRollout := new(v1alpha1.Rollout)
 		Eventually(func() error {
-			checkRollout = new(v1beta1.Rollout)
+			checkRollout = new(v1alpha1.Rollout)
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
@@ -326,7 +326,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 				if len(kc.OwnerReferences) != 1 {
 					return fmt.Errorf("cloneset owner missmatch")
 				}
-				if kc.OwnerReferences[0].UID != checkRollout.UID || kc.OwnerReferences[0].Kind != v1beta1.RolloutKind {
+				if kc.OwnerReferences[0].UID != checkRollout.UID || kc.OwnerReferences[0].Kind != v1alpha1.RolloutKind {
 					return fmt.Errorf("cloneset owner missmatch not rollout Uid %s", checkRollout.UID)
 				}
 				if kc.Status.UpdatedReplicas != 3 {
@@ -337,7 +337,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 			},
 			time.Second*60, time.Millisecond*500).Should(BeNil())
 		Eventually(func() error {
-			checkRollout := new(v1beta1.Rollout)
+			checkRollout := new(v1alpha1.Rollout)
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
@@ -350,7 +350,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 		verifyRolloutSucceeded(utils.ConstructRevisionName(compnentName, 2))
 		By("continue rollout forward")
 		Eventually(func() error {
-			checkRollout := new(v1beta1.Rollout)
+			checkRollout := new(v1alpha1.Rollout)
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}

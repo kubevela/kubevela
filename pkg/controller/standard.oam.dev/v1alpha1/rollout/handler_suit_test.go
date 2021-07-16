@@ -36,7 +36,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	. "github.com/onsi/ginkgo"
@@ -64,7 +63,7 @@ var _ = Describe("Test rollout related handler func", func() {
 			reconciler: &reconciler{
 				Client: k8sClient,
 			},
-			rollout: &v1beta1.Rollout{
+			rollout: &v1alpha1.Rollout{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: namespace,
 				}},
@@ -116,7 +115,7 @@ var _ = Describe("Test rollout related handler func", func() {
 			reconciler: &reconciler{
 				Client: k8sClient,
 			},
-			rollout: &v1beta1.Rollout{
+			rollout: &v1alpha1.Rollout{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: namespace,
 				}},
@@ -140,15 +139,15 @@ var _ = Describe("Test rollout related handler func", func() {
 					Client: k8sClient,
 					record: event.NewNopRecorder(),
 				},
-				rollout: &v1beta1.Rollout{
+				rollout: &v1alpha1.Rollout{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: namespace,
 					},
-					Spec: v1beta1.RolloutSpec{
+					Spec: v1alpha1.RolloutSpec{
 						TargetRevisionName: "metrics-provider-v2",
 						SourceRevisionName: "metrics-provider-v1",
 					},
-					Status: v1beta1.RolloutStatus{
+					Status: v1alpha1.CompRolloutStatus{
 						RolloutStatus: v1alpha1.RolloutStatus{
 							RollingState: v1alpha1.RolloutSucceedState,
 						},
@@ -166,15 +165,15 @@ var _ = Describe("Test rollout related handler func", func() {
 					Client: k8sClient,
 					record: event.NewNopRecorder(),
 				},
-				rollout: &v1beta1.Rollout{
+				rollout: &v1alpha1.Rollout{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: namespace,
 					},
-					Spec: v1beta1.RolloutSpec{
+					Spec: v1alpha1.RolloutSpec{
 						TargetRevisionName: "metrics-provider-v3",
 						SourceRevisionName: "metrics-provider-v2",
 					},
-					Status: v1beta1.RolloutStatus{
+					Status: v1alpha1.CompRolloutStatus{
 						RolloutStatus: v1alpha1.RolloutStatus{
 							RollingState: v1alpha1.RollingInBatchesState,
 						},

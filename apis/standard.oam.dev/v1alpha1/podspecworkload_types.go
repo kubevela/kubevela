@@ -68,10 +68,6 @@ type PodSpecWorkloadList struct {
 	Items           []PodSpecWorkload `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&PodSpecWorkload{}, &PodSpecWorkloadList{})
-}
-
 var _ oam.Workload = &PodSpecWorkload{}
 
 // SetConditions set condition for this CR
