@@ -14,7 +14,13 @@ spec:
         namespace: vela-system
   appTemplate:
     spec:
-      components: {{  range .ResourceFiles  }}
+      components:
+{{  range .ResourceFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}
+{{  range .DefinitionFiles  }}
         - name: {{ .Name }}
           type: raw
           properties:

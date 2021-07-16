@@ -14,8 +14,11 @@ spec:
         namespace: vela-system
   appTemplate:
     spec:
-      components: {{  range .ResourceFiles  }}
-        - name: {{ .Name }}
-          type: raw
+      components:
+        - name: kruise
+          type: helm-release
           properties:
-{{ .Content | indent 12 }} {{ end }}
+            source_type: GitRepo
+            repo_url: https://github.com/openkruise/kruise
+            chart: ./charts/kruise/v0.9.0
+            branch: master

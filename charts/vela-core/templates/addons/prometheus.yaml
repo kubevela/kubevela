@@ -7,7 +7,7 @@ data:
       annotations:
         addons.oam.dev/description: Prometheus is an open-source systems monitoring and alerting toolkit
       name: prometheus
-      namespace: prometheus
+      namespace: vela-system
     spec:
       appTemplate:
         spec:
@@ -54,7 +54,7 @@ data:
           apiVersion: core.oam.dev/v1beta1
           kind: Initializer
           name: fluxcd
-          namespace: flux-system
+          namespace: vela-system
     status:
       observedGeneration: 0
 kind: ConfigMap

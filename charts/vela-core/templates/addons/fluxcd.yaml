@@ -4476,6 +4476,38 @@ data:
                   app: notification-controller
                 type: ClusterIP
             type: raw
+          - name: helm-release
+            properties:
+              apiVersion: core.oam.dev/v1beta1
+              kind: ComponentDefinition
+              metadata:
+                annotations:
+                  definition.oam.dev/description: helm release is a group of K8s resources from either git repository or helm repo
+                name: helm-release
+                namespace: vela-system
+              spec:
+                schematic:
+                  cue:
+                    template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tif parameter.source_type == \"GitRepo\" {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.repo_url\n\t\t\tref:\n\t\t\t\tbranch: parameter.branch\n\t\t\tinterval: parameter.pull_interval\n\t\t}\n\t}\n\tif parameter.source_type == \"HelmRepo\" {\n\t\tkind: \"HelmRepository\"\n\t\tspec: {\n\t\t\tinterval: parameter.pull_interval\n\t\t\turl:      parameter.repo_url\n\t\t}\n\t}\n}\n\noutputs: release: {\n\tapiVersion: \"helm.toolkit.fluxcd.io/v2beta1\"\n\tkind:       \"HelmRelease\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\tchart: {\n\t\t\tspec: {\n\t\t\t\tchart: parameter.chart\n\t\t\t\tsourceRef: {\n\t\t\t\t\tif parameter.source_type == \"GitRepo\" {\n\t\t\t\t\t\tkind: \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.source_type == \"HelmRepo\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tname:      context.name\n\t\t\t\t\tnamespace: context.namespace\n\t\t\t\t}\n\t\t\t\tinterval: parameter.pull_interval\n\t\t\t}\n\t\t}\n\t}\n}\n\nparameter: {\n\tsource_type: \"GitRepo\" | \"HelmRepo\"\n\t//+usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url.\n\trepo_url: string\n\t//+usage=The interval at which to check for repository and relese updates.\n\tpull_interval: *\"5m\" | string\n\t//+usage=1.The relative path to helm chart for git source. 2. chart name for helm resource\n\tchart: string\n\tif source_type == \"GitRepo\" {\n\t\t//+usage=The Git reference to checkout and monitor for changes, defaults to master branch.\n\t\tbranch: *\"master\" | string\n\t}\n}\n"
+                workload:
+                  type: autodetects.core.oam.dev
+            type: raw
+          - name: kustomize
+            properties:
+              apiVersion: core.oam.dev/v1beta1
+              kind: ComponentDefinition
+              metadata:
+                annotations:
+                  definition.oam.dev/description: kustomize can fetching, building, updating and applying Kustomize manifests from git repo.
+                name: kustomize
+                namespace: vela-system
+              spec:
+                schematic:
+                  cue:
+                    template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"GitRepository\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\turl:      parameter.repo_url\n\t\tref: branch: parameter.branch\n\t}\n}\noutputs: kustomize: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\tsourceRef: {\n\t\t\tkind: \"GitRepository\"\n\t\t\tname: context.name\n\t\t}\n\t\tpath:       parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\nparameter: {\n\t//+usage=The repository URL, can be a HTTP/S or SSH address.\n\trepo_url: string\n\t//+usage=The interval at which to check for repository updates.\n\tpull_interval: *\"1m\" | string\n\t//+usage=The Git reference to checkout and monitor for changes, defaults to master branch.\n\tbranch: *\"master\" | string\n\t//+usage=Path to the directory containing the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml should be generated for.\n\tpath: string\n}\n"
+                workload:
+                  type: autodetects.core.oam.dev
+            type: raw
         status:
           rollout:
             batchRollingState: ""

@@ -1,10 +1,3 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: vela-system
-spec: {}
-status: {}
----
 apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
@@ -16,44 +9,13 @@ spec:
   appTemplate:
     spec:
       components:
-      - name: kruise-release
+      - name: kruise
         properties:
-          apiVersion: helm.toolkit.fluxcd.io/v2beta1
-          kind: HelmRelease
-          metadata:
-            annotations:
-              meta.helm.sh/release-name: kruise-release
-              meta.helm.sh/release-namespace: kruise-system
-            labels:
-              app.kubernetes.io/managed-by: Helm
-            name: kruise-release
-            namespace: flux-system
-          spec:
-            chart:
-              spec:
-                chart: ./charts/kruise/v0.9.0
-                interval: 1m
-                sourceRef:
-                  kind: GitRepository
-                  name: kruise-repo
-                  namespace: flux-system
-            interval: 5m
-            values:
-              replicaCount: 1
-        type: raw
-      - name: kruise-repo
-        properties:
-          apiVersion: source.toolkit.fluxcd.io/v1beta1
-          kind: GitRepository
-          metadata:
-            name: kruise-repo
-            namespace: flux-system
-          spec:
-            interval: 5m
-            ref:
-              branch: master
-            url: https://github.com/openkruise/kruise
-        type: raw
+          branch: master
+          chart: ./charts/kruise/v0.9.0
+          repo_url: https://github.com/openkruise/kruise
+          source_type: GitRepo
+        type: helm-release
     status:
       rollout:
         batchRollingState: ""
