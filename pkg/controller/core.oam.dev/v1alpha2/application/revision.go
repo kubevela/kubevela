@@ -58,14 +58,22 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 	comps []*types.ComponentManifest,
 	policies []*unstructured.Unstructured) error {
 
-	components := map[string]*types.ComponentManifest{}
+	components := map[string]interface{}{}
 	for _, c := range comps {
 		if c.InsertConfigNotReady {
 			continue
 		}
-		components[c.Name] = c
-	}
+		cl := map[string]interface{}{
+			"StandardWorkload": string(util.MustJSONMarshal(c.StandardWorkload)),
+		}
 
+		trs := []string{}
+		for _, tr := range c.Traits {
+			trs = append(trs, string(util.MustJSONMarshal(tr)))
+		}
+		cl["Traits"] = trs
+		components[c.Name] = string(util.MustJSONMarshal(cl))
+	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      appRev.Name,
@@ -79,7 +87,6 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 			ConfigMapKeyPolicy:     string(util.MustJSONMarshal(policies)),
 		},
 	}
-
 	err := h.r.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
 	if err == nil {
 		return nil

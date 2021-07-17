@@ -2,7 +2,6 @@ package kube
 
 import (
 	"context"
-
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -52,6 +51,9 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	//}
 
 	deployCtx := context.Background()
+	if workload.GetNamespace() == "" {
+		workload.SetNamespace("default")
+	}
 	if err := h.deploy.Apply(deployCtx, workload); err != nil {
 		return err
 	}

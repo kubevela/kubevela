@@ -150,7 +150,7 @@ func (val *Value) StepFields(handle func(in *Value) (bool, error)) error {
 			return err
 		}
 		if stop, err := handle(field.Value); err != nil {
-			return err
+			return errors.WithMessagef(err,"process task step %s",field.Name)
 		} else if stop == true {
 			return nil
 		}
@@ -193,8 +193,13 @@ func (val *Value) Field(label string) (cue.Value, error) {
 	} else {
 		v = val.v.Lookup(label)
 	}
-	if !v.Exists() || v.Kind() == cue.BottomKind {
-		return v, errors.Errorf("label %s not exist", label)
+
+	if !v.Exists() {
+		return v, errors.Errorf("label %s not found", label)
+	}
+
+	if v.Kind() == cue.BottomKind {
+		return v, errors.Errorf("label %s not computed", label)
 	}
 	return v, nil
 }

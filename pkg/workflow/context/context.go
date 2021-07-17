@@ -114,7 +114,6 @@ func (wf *workflowContext) loadFromConfigMap(cm corev1.ConfigMap) error {
 	if err := json.Unmarshal([]byte(data[ConfigMapKeyComponents]), &componentsJs); err != nil {
 		return errors.WithMessage(err, "decode components")
 	}
-
 	wf.components = map[string]*componentManifest{}
 	for name, compJs := range componentsJs {
 		cm := new(componentManifest)
@@ -175,7 +174,6 @@ func (comp *componentManifest) unmarshal(v string) error {
 	if err := json.Unmarshal([]byte(v), &cm); err != nil {
 		return err
 	}
-
 	var r cue.Runtime
 	wlInst, err := r.Compile("workload", cm.StandardWorkload)
 	if err != nil {
@@ -242,7 +240,9 @@ func newContext(cli client.Client, ns, rev string) (*workflowContext, error) {
 		}
 		return nil, err
 	}
-	store.Annotations[AnnotationStartTimestamp] = time.Now().String()
+	store.Annotations=map[string]string{
+		AnnotationStartTimestamp: time.Now().String(),
+	}
 	wfCtx := &workflowContext{
 		cli:        cli,
 		store:      store,

@@ -23,7 +23,7 @@ type providers struct {
 
 func (p *providers) GetHandler(providerName, handleName string) (Handler, bool) {
 	p.l.RLock()
-	defer p.l.Unlock()
+	defer p.l.RUnlock()
 	provider, ok := p.m[providerName]
 	if !ok {
 		return nil, false

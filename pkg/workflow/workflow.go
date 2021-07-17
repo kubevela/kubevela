@@ -19,7 +19,6 @@ package workflow
 import (
 	"context"
 	"encoding/json"
-
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -71,7 +70,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	wfStatus := w.app.Status.Workflow
 
-	if len(taskRunners) >= wfStatus.StepIndex || wfStatus.Terminated {
+	if len(taskRunners) <= wfStatus.StepIndex || wfStatus.Terminated {
 		return true, nil
 	}
 
@@ -88,13 +87,15 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	if wfStatus.ContextBackend != nil {
 		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
+		if err != nil {
+			return false, err
+		}
 	} else {
 		wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
+		if err != nil {
+			return false, err
+		}
 		wfStatus.ContextBackend = wfCtx.StoreRef()
-	}
-
-	if err != nil {
-		return false, err
 	}
 
 	for _, run := range taskRunners[wfStatus.StepIndex:] {
@@ -116,17 +117,23 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 			wfStatus.Steps = append(wfStatus.Steps, status)
 		}
 
-		wfStatus.Terminated = action.Terminated
-		wfStatus.Suspend = action.Suspend
+		if action != nil {
+			wfStatus.Terminated = action.Terminated
+			wfStatus.Suspend = action.Suspend
+		}
 
-		if wfStatus.Terminated || wfStatus.Suspend {
-			return true, nil
+		if status.Phase != common.WorkflowStepPhaseSucceeded {
+			return false, nil
 		}
 
 		if err := wfCtx.Commit(); err != nil {
 			return false, errors.WithMessage(err, "commit context")
 		}
 		wfStatus.StepIndex += 1
+
+		if wfStatus.Terminated || wfStatus.Suspend {
+			return true, nil
+		}
 	}
 
 	return true, nil // all steps done

@@ -20,12 +20,8 @@ var opFile = file{
 #Export: {
   #do: "export"
   type: *"patch" | "var"
-  if type == "patch" {
-     component: string
-  }
-  if type == "var"{
-     path: string
-  }
+  component?: string
+  path?: string
   value: _
 }
 
@@ -55,6 +51,8 @@ var opFile = file{
 #Steps: {
   #do: "steps"
 }
+
+NoExist: _|_
 
 `,
 }

@@ -1,7 +1,8 @@
-package remote
+package custom
 
 import (
 	"context"
+	"cuelang.org/go/cue"
 	"encoding/json"
 	"fmt"
 
@@ -61,7 +62,7 @@ func (t *taskLoader) makeTaskGenerator(templ string) (types2.TaskGenerator, erro
 
 			paramsValue, err := ctx.MakeParameter(params)
 			if err != nil {
-				return common.WorkflowStepStatus{}, nil, err
+				return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
 			}
 
 			if inputs != nil {
@@ -80,13 +81,14 @@ func (t *taskLoader) makeTaskGenerator(templ string) (types2.TaskGenerator, erro
 				if err != nil {
 					return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "params encode")
 				}
-				paramFile = fmt.Sprintf(velacue.ParameterTag + ": {%s}\n" + ps)
+				paramFile = fmt.Sprintf(velacue.ParameterTag+": {%s}\n", ps)
 			}
 			status := common.WorkflowStepStatus{
 				Name: wfStep.Name,
 				Type: wfStep.Type,
 			}
-			taskv, err := value.NewValue(paramFile+templ, t.pd)
+
+			taskv, err := value.NewValue(templ+"\n"+paramFile, t.pd)
 			if err != nil {
 				status.Phase = common.WorkflowStepPhaseFailed
 				status.Message = err.Error()
@@ -160,6 +162,12 @@ func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, 
 
 func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 	return v.StepFields(func(in *value.Value) (bool, error) {
+		if in.CueValue().Kind() == cue.BottomKind {
+			return true, errors.New("value is _|_")
+		}
+		if in.CueValue().Err() != nil {
+			return true, in.CueValue().Err()
+		}
 		do := opTpy(in)
 		if do == "" {
 			return false, nil
@@ -171,7 +179,7 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 		} else {
 			provider := opProvider(in)
 			if err := exec.Handle(ctx, provider, do, in); err != nil {
-				return false, err
+				return false, errors.WithMessagef(err, "handle (provider=%s,do=%s)", provider, do)
 			}
 		}
 

@@ -11,7 +11,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/remote"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -37,15 +37,17 @@ func (td *taskDiscover) GetTaskGenerator(name string) (types.TaskGenerator, erro
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-func suspend(_ v1beta1.WorkflowStep) (types.TaskRunner, error) {
+func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
 	return func(ctx wfContext.Context) (common.WorkflowStepStatus, *types.Operation, error) {
 		return common.WorkflowStepStatus{
+			Name: step.Name,
+			Type: step.Type,
 			Phase: common.WorkflowStepPhaseSucceeded,
 		}, &types.Operation{Suspend: true}, nil
 	}, nil
 }
 
-func NewTaskDiscover(cli client.Client, pd *packages.PackageDiscover, loadTemplate remote.LoadTaskTemplate) types.TaskDiscover {
+func NewTaskDiscover(cli client.Client, pd *packages.PackageDiscover, loadTemplate custom.LoadTaskTemplate) types.TaskDiscover {
 
 	providerHandlers := providers.NewProviders()
 	kube.Install(providerHandlers, cli)
@@ -55,6 +57,6 @@ func NewTaskDiscover(cli client.Client, pd *packages.PackageDiscover, loadTempla
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: remote.NewTaskLoader(loadTemplate, pd, providerHandlers),
+		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, pd, providerHandlers),
 	}
 }

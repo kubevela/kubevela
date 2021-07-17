@@ -231,6 +231,9 @@ func (af *Appfile) generateSteps(dm discoverymapper.DiscoveryMapper, cli client.
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
 		genTask, err := taskDiscover.GetTaskGenerator(step.Type)
+		if err!=nil{
+			return nil, err
+		}
 		task, err := genTask(step)
 		if err != nil {
 			return nil, err
