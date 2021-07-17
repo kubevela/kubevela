@@ -20,9 +20,7 @@ type Operation struct {
 type TaskGenerator func(wfStep v1beta1.WorkflowStep) (TaskRunner, error)
 
 type Action interface {
-	Suspend()
-	Terminated()
-	Wait()
-	Message(msg string)
-	Reason(reason string)
+	Suspend(message string)
+	Terminate(message string)
+	Wait(message string)
 }

@@ -106,13 +106,13 @@ func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action)
 		return err
 	}
 	if !isContinue {
-		act.Wait()
+		act.Wait("")
 	}
 	return nil
 }
 
 func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	act.Terminated()
+	act.Terminate("")
 	return nil
 }
 

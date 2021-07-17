@@ -16,7 +16,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	types2 "github.com/oam-dev/kubevela/pkg/workflow/types"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+)
+
+const (
+	StatusReasonWait      = "Wait"
+	StatusReasonRendering = "Render"
+	StatusReasonExecute   = "Execute"
+	StatusReasonSuspend   = "Suspend"
+	StatusReasonTerminate = "Terminate"
 )
 
 type LoadTaskTemplate func(ctx context.Context, name string) (string, error)
@@ -27,7 +35,7 @@ type taskLoader struct {
 	handlers     providers.Providers
 }
 
-func (t *taskLoader) GetTaskGenerator(name string) (types2.TaskGenerator, error) {
+func (t *taskLoader) GetTaskGenerator(name string) (wfTypes.TaskGenerator, error) {
 	templ, err := t.loadTemplate(context.Background(), name)
 	if err != nil {
 		return nil, err
@@ -35,11 +43,16 @@ func (t *taskLoader) GetTaskGenerator(name string) (types2.TaskGenerator, error)
 	return t.makeTaskGenerator(templ)
 }
 
-func (t *taskLoader) makeTaskGenerator(templ string) (types2.TaskGenerator, error) {
-	return func(wfStep v1beta1.WorkflowStep) (types2.TaskRunner, error) {
+func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
+	return func(wfStep v1beta1.WorkflowStep) (wfTypes.TaskRunner, error) {
 
 		exec := &executor{
 			handlers: t.handlers,
+			wfStatus: common.WorkflowStepStatus{
+				Name:  wfStep.Name,
+				Type:  wfStep.Type,
+				Phase: common.WorkflowStepPhaseSucceeded,
+			},
 		}
 		outputs := wfStep.Outputs
 		inputs := wfStep.Inputs
@@ -52,7 +65,7 @@ func (t *taskLoader) makeTaskGenerator(templ string) (types2.TaskGenerator, erro
 		if err := json.Unmarshal(bt, &params); err != nil {
 			return nil, err
 		}
-		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *types2.Operation, error) {
+		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 
 			if wfStep.Outputs != nil {
 				for _, output := range outputs {
@@ -83,40 +96,19 @@ func (t *taskLoader) makeTaskGenerator(templ string) (types2.TaskGenerator, erro
 				}
 				paramFile = fmt.Sprintf(velacue.ParameterTag+": {%s}\n", ps)
 			}
-			status := common.WorkflowStepStatus{
-				Name: wfStep.Name,
-				Type: wfStep.Type,
-			}
 
 			taskv, err := value.NewValue(templ+"\n"+paramFile, t.pd)
 			if err != nil {
-				status.Phase = common.WorkflowStepPhaseFailed
-				status.Message = err.Error()
-				status.Reason = "Rendering"
-				return status, nil, nil
+				exec.err(err, StatusReasonRendering)
+				return exec.status(), exec.operation(), nil
 			}
 
 			if err := exec.doSteps(ctx, taskv); err != nil {
-				status.Phase = common.WorkflowStepPhaseFailed
-				status.Message = err.Error()
-				status.Reason = "Execute"
-				return status, nil, nil
+				exec.err(err, StatusReasonExecute)
+				return exec.status(), exec.operation(), nil
 			}
 
-			status.Phase = common.WorkflowStepPhaseSucceeded
-			status.Message = exec.message
-			status.Reason = exec.reason
-			if exec.wait {
-				status.Reason = "Wait"
-				status.Phase = common.WorkflowStepPhaseRunning
-			}
-
-			operation := &types2.Operation{
-				Terminated: exec.terminated,
-				Suspend:    exec.suspend,
-			}
-
-			return status, operation, nil
+			return exec.status(), exec.operation(), nil
 		}, nil
 
 	}, nil
@@ -129,27 +121,43 @@ type executor struct {
 	suspend    bool
 	terminated bool
 	wait       bool
-	message    string
-	reason     string
 }
 
-func (exec *executor) Suspend() {
+func (exec *executor) Suspend(message string) {
 	exec.suspend = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseSucceeded
+	exec.wfStatus.Message = message
+	exec.wfStatus.Reason = StatusReasonSuspend
 }
-func (exec *executor) Terminated() {
+func (exec *executor) Terminate(message string) {
 	exec.terminated = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseSucceeded
+	exec.wfStatus.Message = message
+	exec.wfStatus.Reason = StatusReasonTerminate
 }
 
-func (exec *executor) Wait() {
+func (exec *executor) Wait(message string) {
 	exec.wait = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseRunning
+	exec.wfStatus.Reason = StatusReasonWait
+	exec.wfStatus.Message = message
 }
 
-func (exec *executor) Message(msg string) {
-	exec.message = msg
+func (exec *executor) err(err error, reason string) {
+	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
+	exec.wfStatus.Message = err.Error()
+	exec.wfStatus.Reason = reason
 }
 
-func (exec *executor) Reason(reason string) {
-	exec.reason = reason
+func (exec *executor) operation() *wfTypes.Operation {
+	return &wfTypes.Operation{
+		Suspend:    exec.suspend,
+		Terminated: exec.terminated,
+	}
+}
+
+func (exec *executor) status() common.WorkflowStepStatus {
+	return exec.wfStatus
 }
 
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {

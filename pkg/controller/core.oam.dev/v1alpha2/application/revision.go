@@ -63,16 +63,8 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 		if c.InsertConfigNotReady {
 			continue
 		}
-		cl := map[string]interface{}{
-			"StandardWorkload": string(util.MustJSONMarshal(c.StandardWorkload)),
-		}
+		components[c.Name] = encodeComponentManifest(c)
 
-		trs := []string{}
-		for _, tr := range c.Traits {
-			trs = append(trs, string(util.MustJSONMarshal(tr)))
-		}
-		cl["Traits"] = trs
-		components[c.Name] = string(util.MustJSONMarshal(cl))
 	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -95,6 +87,20 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 		return err
 	}
 	return h.r.Client.Create(ctx, cm)
+}
+
+func encodeComponentManifest(cm *types.ComponentManifest) string {
+	cl := map[string]interface{}{
+		"StandardWorkload": string(util.MustJSONMarshal(cm.StandardWorkload)),
+	}
+
+	trs := []string{}
+	for _, tr := range cm.Traits {
+		trs = append(trs, string(util.MustJSONMarshal(tr)))
+	}
+	cl["Traits"] = trs
+	cl["Scopes"] = cm.Scopes
+	return string(util.MustJSONMarshal(cl))
 }
 
 // PrepareCurrentAppRevision will generate a pure revision without metadata and rendered result
