@@ -345,6 +345,14 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 		if cm.InsertConfigNotReady {
 			continue
 		}
+
+		// revision name specified
+		if len(cm.RevisionName) != 0 {
+			if err := h.handleComponentRevisionNameSpecified(ctx, cm); err != nil {
+				return err
+			}
+			continue
+		}
 		hash, err := computeComponentRevisionHash(cm)
 		if err != nil {
 			return err
@@ -393,6 +401,33 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 			}
 		}
 	}
+	return nil
+}
+
+// handleComponentRevisionNameSpecified create controllerRevision which use specified revisionName.
+// If the controllerRevision already exist, we just return
+func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, comp *types.ComponentManifest) error {
+	revisionName := comp.RevisionName
+	cr := &appsv1.ControllerRevision{}
+
+	if err := h.r.Client.Get(ctx, client.ObjectKey{Namespace: h.app.Namespace, Name: revisionName}, cr); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to get controllerRevision:%s", revisionName)
+		}
+
+		// we should create one
+		hash, err := computeComponentRevisionHash(comp)
+		if err != nil {
+			return err
+		}
+		comp.RevisionHash = hash
+		if err := h.createControllerRevision(ctx, comp); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	comp.RevisionHash = cr.GetLabels()[oam.LabelComponentRevisionHash]
 	return nil
 }
 
