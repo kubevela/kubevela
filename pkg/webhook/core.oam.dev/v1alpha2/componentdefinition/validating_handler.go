@@ -73,7 +73,7 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 	return nil
 }
 
-// RegisterValidatingHandler will register TraitDefinition validation to webhook
+// RegisterValidatingHandler will register ComponentDefinition validation to webhook
 func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{Handler: &ValidatingHandler{

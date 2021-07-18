@@ -18,10 +18,12 @@ package initializer
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,9 +37,11 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // InitializerReconcileWaitTime is the time to wait before reconcile again
@@ -67,24 +71,25 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	init.Status.Phase = v1beta1.InitializerInitializing
 	klog.Info("Check the status of the Initializers which you depend on")
-	dependsOnInitReady, err := r.checkDependsOn(ctx, init.Spec.DependsOn)
+	init.Status.Phase = v1beta1.InitializerCheckingDependsOn
+	dependsOnInitReady, err := r.checkOrInstallDependsOn(ctx, init.Spec.DependsOn)
 	if err != nil {
 		klog.ErrorS(err, "Initializers which you depend on are not ready")
 		r.record.Event(init, event.Warning("Initializers which you depend on are not ready", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, init, cpv1alpha1.ReconcileError(err))
 	}
 	if !dependsOnInitReady {
 		klog.Info("Wait for dependent Initializer to be ready")
 		return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, nil
 	}
 
+	init.Status.Phase = v1beta1.InitializerInitializing
 	appReady, err := r.applyResources(ctx, init)
 	if err != nil {
 		klog.ErrorS(err, "Could not create resources via application to initialize the env")
 		r.record.Event(init, event.Warning("Could not create resources via application", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, init, cpv1alpha1.ReconcileError(err))
 	}
 	if !appReady {
 		klog.Info("Wait for the Application created by Initializer to be ready")
@@ -92,20 +97,33 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	init.Status.Phase = v1beta1.InitializerSuccess
-	if err = r.updateObservedGeneration(ctx, init); err != nil {
-		klog.ErrorS(err, "Could not update ObservedGeneration")
-		r.record.Event(init, event.Warning("Could not update ObservedGeneration", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
+	if err = r.patchStatus(ctx, init); err != nil {
+		klog.ErrorS(err, "Could not update status")
+		r.record.Event(init, event.Warning("Could not update status", err))
+		return ctrl.Result{}, oamutil.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) checkDependsOn(ctx context.Context, depends []v1beta1.DependsOn) (bool, error) {
+// checkOrInstallDependsOn check the status of dependOn Initializer or help install the build-in Initializer.
+// If the dependOn Initializer is not found and the namespace is default or vela-system, we will try to find
+// and install the build-in Initializer from ConfigMap.
+func (r *Reconciler) checkOrInstallDependsOn(ctx context.Context, depends []v1beta1.DependsOn) (bool, error) {
 	for _, depend := range depends {
-		dependInit := new(v1beta1.Initializer)
-		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: depend.Ref.Namespace, Name: depend.Ref.Name}, dependInit); err != nil {
+		dependInit, err := utils.GetInitializer(ctx, r.Client, depend.Ref.Namespace, depend.Ref.Name)
+		if err != nil {
+			// if Initializer is not found and the namespace is default or vela-system,
+			// try to install build-in initializer from ConfigMap
+			if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "default" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
+				init, err := utils.GetBuildInInitializer(ctx, r.Client, depend.Ref.Name)
+				if err != nil {
+					return false, err
+				}
+				return false, r.Client.Create(ctx, init)
+			}
 			return false, err
 		}
+
 		if dependInit.Status.Phase != v1beta1.InitializerSuccess {
 			klog.InfoS("Initializer you depend on is not ready",
 				"initializer", klog.KObj(dependInit), "phase", dependInit.Status.Phase)
@@ -115,11 +133,23 @@ func (r *Reconciler) checkDependsOn(ctx context.Context, depends []v1beta1.Depen
 	return true, nil
 }
 
-func (r *Reconciler) updateObservedGeneration(ctx context.Context, init *v1beta1.Initializer) error {
+func (r *Reconciler) endWithNegativeCondition(ctx context.Context, init *v1beta1.Initializer, condition cpv1alpha1.Condition) (ctrl.Result, error) {
+	init.SetConditions(condition)
+	if err := r.patchStatus(ctx, init); err != nil {
+		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
+	}
+	return ctrl.Result{}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
+}
+
+func (r *Reconciler) patchStatus(ctx context.Context, init *v1beta1.Initializer) error {
+	updateObservedGeneration(init)
+	return r.Client.Status().Patch(ctx, init, client.Merge)
+}
+
+func updateObservedGeneration(init *v1beta1.Initializer) {
 	if init.Status.ObservedGeneration != init.Generation {
 		init.Status.ObservedGeneration = init.Generation
 	}
-	return r.UpdateStatus(ctx, init)
 }
 
 func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializer) (bool, error) {

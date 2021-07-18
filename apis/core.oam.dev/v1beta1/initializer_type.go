@@ -26,8 +26,8 @@ import (
 type InitializerPhase string
 
 const (
-	// InitializerInstallingDependsOn means the initializer is installing dependent Initializer
-	InitializerInstallingDependsOn InitializerPhase = "installingDependsOn"
+	// InitializerCheckingDependsOn means the initializer is checking the status of dependent Initializer
+	InitializerCheckingDependsOn InitializerPhase = "checkingDependsOn"
 	// InitializerInitializing means the initializer is initializing
 	InitializerInitializing InitializerPhase = "initializing"
 	// InitializerSuccess means the initializer successfully initialized the environment
