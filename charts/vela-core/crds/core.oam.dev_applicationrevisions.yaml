@@ -1930,6 +1930,9 @@ spec:
                           description: ApplicationComponent describe the component
                             of application
                           properties:
+                            externalRevision:
+                              description: ExternalRevision specified the component revisionName
+                              type: string
                             name:
                               type: string
                             properties:

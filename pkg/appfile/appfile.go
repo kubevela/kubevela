@@ -71,6 +71,7 @@ const WriteConnectionSecretToRefKey = "writeConnectionSecretToRef"
 type Workload struct {
 	Name               string
 	Type               string
+	ExternalRevision   string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 	Traits             []*Trait
@@ -386,6 +387,8 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 		return nil, err
 	}
 	compManifest.Name = wl.Name
+	// we record the external revision name in RevisionName field
+	compManifest.RevisionName = wl.ExternalRevision
 
 	compManifest.Scopes = make([]*corev1.ObjectReference, len(wl.Scopes))
 	for i, s := range wl.Scopes {
@@ -662,7 +665,8 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 
 	// re-use the way CUE module generates comp & acComp
 	compManifest := &types.ComponentManifest{
-		Name: wl.Name,
+		Name:         wl.Name,
+		RevisionName: wl.ExternalRevision,
 	}
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
 		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)

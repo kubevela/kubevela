@@ -316,6 +316,8 @@ type ApplicationTrait struct {
 type ApplicationComponent struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
+	// ExternalRevision specified the component revisionName
+	ExternalRevision string `json:"externalRevision,omitempty"`
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
