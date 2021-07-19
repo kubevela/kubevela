@@ -74,7 +74,6 @@ type AddonInfo struct {
 	DefinitionFiles []velaFile
 	HasDefs         bool
 	Name            string
-	Namespace       string
 	Description     string
 	TemplatePath    string
 }
@@ -135,19 +134,21 @@ func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
 		Name:         addon,
 		TemplatePath: filepath.Join(addonRoot, InitializerTemplateName),
 	}
-	if err := filepath.Walk(resourceRoot, newWalkFn(&resourcesFiles)); err != nil {
-		return nil, err
+	// raw resources directory
+	if pathExist(resourceRoot) {
+		if err := filepath.Walk(resourceRoot, newWalkFn(&resourcesFiles)); err != nil {
+			return nil, err
+		}
+		addInfo.ResourceFiles = resourcesFiles
 	}
-	addInfo.ResourceFiles = resourcesFiles
 
-	if !pathExist(defRoot) {
-		return addInfo, nil
+	if pathExist(defRoot) {
+		if err := filepath.Walk(defRoot, newWalkFn(&defFiles)); err != nil {
+			return nil, err
+		}
+		addInfo.HasDefs = true
+		addInfo.DefinitionFiles = defFiles
 	}
-	if err := filepath.Walk(defRoot, newWalkFn(&defFiles)); err != nil {
-		return nil, err
-	}
-	addInfo.HasDefs = true
-	addInfo.DefinitionFiles = defFiles
 	return addInfo, nil
 }
 
@@ -243,61 +244,17 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	return WriteToFile(filename, raw)
 }
 
-// storeAutoGenResources store init/componentdefs/namespace in one file
-func storeAutoGenResources(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefinition, ns *corev1.Namespace, addonPath string, addonName string) error {
+// storeInitializer store init in one file for apply directly
+func storeInitializer(init *v1beta1.Initializer, addonPath string, addonName string) error {
 	initContent, err := yaml.Marshal(init)
-	if err != nil {
-		return err
-	}
-	nsContent, err := yaml.Marshal(ns)
 	if err != nil {
 		return err
 	}
 
 	filename := path.Join(addonPath, InitializerFileDir, addonName+".yaml")
-	splitter := "---\n"
-	cdContents := make([]string, 0, len(cds))
-	for _, cd := range cds {
-		cdContent, err := yaml.Marshal(cd)
-		if err != nil {
-			return err
-		}
-		cdContents = append(cdContents, string(cdContent))
-	}
-	contents := []string{string(nsContent)}
-	contents = append(contents, string(initContent))
-	contents = append(contents, cdContents...)
-	fileContent := strings.Join(contents, splitter)
-	removeTimestampInplace(&fileContent)
-	return WriteToFile(filename, fileContent)
-}
-
-func getComponentDefs(info *AddonInfo) ([]*v1beta1.ComponentDefinition, error) {
-	cds := make([]*v1beta1.ComponentDefinition, 0)
-	if !info.HasDefs {
-		return cds, nil
-	}
-	for _, file := range info.DefinitionFiles {
-		cd := v1beta1.ComponentDefinition{}
-		err := yaml.Unmarshal([]byte(file.Content), &cd)
-		if err != nil {
-			return nil, err
-		}
-		cds = append(cds, &cd)
-	}
-	return cds, nil
-}
-
-func getNamespace(info *AddonInfo) *corev1.Namespace {
-	ns := corev1.Namespace{
-		TypeMeta:   v1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
-		ObjectMeta: v1.ObjectMeta{Name: info.Namespace},
-	}
-	return &ns
-}
-
-func setAddonNamespace(info *AddonInfo, init *v1beta1.Initializer) {
-	info.Namespace = init.Namespace
+	contents := string(initContent)
+	removeTimestampInplace(&contents)
+	return WriteToFile(filename, contents)
 }
 
 func main() {
@@ -324,11 +281,7 @@ func main() {
 		dealErr(err)
 		init, err := generateInitializer(addInfo)
 		dealErr(err)
-		cds, err := getComponentDefs(addInfo)
-		dealErr(err)
-		setAddonNamespace(addInfo, init)
-		ns := getNamespace(addInfo)
-		err = storeAutoGenResources(init, cds, ns, addonsPath, addInfo.Name)
+		err = storeInitializer(init, addonsPath, addInfo.Name)
 		dealErr(err)
 		err = storeConfigMap(addInfo, init, storePath)
 		dealErr(err)

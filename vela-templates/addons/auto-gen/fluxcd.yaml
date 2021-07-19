@@ -1,10 +1,3 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: vela-system
-spec: {}
-status: {}
----
 apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
@@ -4480,6 +4473,38 @@ spec:
               app: notification-controller
             type: ClusterIP
         type: raw
+      - name: helm
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: helm release is a group of K8s resources from either git repository or helm repo
+            name: helm
+            namespace: vela-system
+          spec:
+            schematic:
+              cue:
+                template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tif parameter.repoType == \"git\" {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.repoUrl\n\t\t\tref:\n\t\t\t\tbranch: parameter.branch\n\t\t\tinterval: parameter.pullInterval\n\t\t}\n\t}\n\tif parameter.repoType == \"helm\" {\n\t\tkind: \"HelmRepository\"\n\t\tspec: {\n\t\t\tinterval: parameter.pullInterval\n\t\t\turl:      parameter.repoUrl\n\t\t}\n\t}\n}\n\noutputs: release: {\n\tapiVersion: \"helm.toolkit.fluxcd.io/v2beta1\"\n\tkind:       \"HelmRelease\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pullInterval\n\t\tchart: {\n\t\t\tspec: {\n\t\t\t\tchart: parameter.chart\n\t\t\t\tsourceRef: {\n\t\t\t\t\tif parameter.repoType == \"git\" {\n\t\t\t\t\t\tkind: \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.repoType == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tname:      context.name\n\t\t\t\t\tnamespace: context.namespace\n\t\t\t\t}\n\t\t\t\tinterval: parameter.pullInterval\n\t\t\t}\n\t\t}\n\t}\n}\n\nparameter: {\n\trepoType: \"git\" | \"helm\"\n\t//+usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url.\n\trepoUrl: string\n\t//+usage=The interval at which to check for repository and relese updates.\n\tpullInterval: *\"5m\" | string\n\t//+usage=1.The relative path to helm chart for git source. 2. chart name for helm resource\n\tchart: string\n    //+usage=The Git reference to checkout and monitor for changes, defaults to master branch.\n    branch: *\"master\" | string\n}\n"
+            workload:
+              type: autodetects.core.oam.dev
+        type: raw
+      - name: kustomize
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: kustomize can fetching, building, updating and applying Kustomize manifests from git repo.
+            name: kustomize
+            namespace: vela-system
+          spec:
+            schematic:
+              cue:
+                template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"GitRepository\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pullInterval\n\t\turl:      parameter.repoUrl\n\t\tref: branch: parameter.branch\n\t}\n}\noutputs: kustomize: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pullInterval\n\t\tsourceRef: {\n\t\t\tkind: \"GitRepository\"\n\t\t\tname: context.name\n\t\t}\n\t\tpath:       parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\nparameter: {\n\t//+usage=The repository URL, can be a HTTP/S or SSH address.\n\trepoUrl: string\n\t//+usage=The interval at which to check for repository updates.\n\tpullInterval: *\"1m\" | string\n\t//+usage=The Git reference to checkout and monitor for changes, defaults to master branch.\n\tbranch: *\"master\" | string\n\t//+usage=Path to the directory containing the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml should be generated for.\n\tpath: string\n}\n"
+            workload:
+              type: autodetects.core.oam.dev
+        type: raw
     status:
       rollout:
         batchRollingState: ""
@@ -4490,21 +4515,3 @@ spec:
         upgradedReplicas: 0
 status:
   observedGeneration: 0
----
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: kustomize can fetching, building, updating and applying Kustomize manifests from git repo.
-  name: kustomize
-  namespace: vela-system
-spec:
-  schematic:
-    cue:
-      template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"GitRepository\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\turl:      parameter.repo_url\n\t\tref: branch: parameter.branch\n\t}\n}\noutputs: kustomize: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pull_interval\n\t\tsourceRef: {\n\t\t\tkind: \"GitRepository\"\n\t\t\tname: context.name\n\t\t}\n\t\tpath:       parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\nparameter: {\n\t//+usage=The repository URL, can be a HTTP/S or SSH address.\n\trepo_url: string\n\t//+usage=The interval at which to check for repository updates.\n\tpull_interval: *\"1m\" | string\n\t//+usage=The Git reference to checkout and monitor for changes, defaults to master branch.\n\tbranch: *\"master\" | string\n\t//+usage=Path to the directory containing the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml should be generated for.\n\tpath: string\n}\n"
-  workload:
-    definition:
-      apiVersion: ""
-      kind: ""
-    type: autodetects.core.oam.dev
-status: {}

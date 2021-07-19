@@ -1,53 +1,20 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: keda
-spec: {}
-status: {}
----
 apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
   annotations:
     addons.oam.dev/description: KEDA is a Kubernetes-based Event Driven Autoscaler.
   name: keda
-  namespace: keda
+  namespace: vela-system
 spec:
   appTemplate:
     spec:
       components:
       - name: keda
         properties:
-          apiVersion: helm.toolkit.fluxcd.io/v2beta1
-          kind: HelmRelease
-          metadata:
-            name: keda
-            namespace: keda
-          spec:
-            chart:
-              spec:
-                chart: keda
-                interval: 1m
-                sourceRef:
-                  kind: HelmRepository
-                  name: kedacore
-                  namespace: keda
-                version: 2.3.2
-            interval: 5m
-            values:
-              replicaCount: 1
-        type: raw
-      - name: kedacore
-        properties:
-          apiVersion: source.toolkit.fluxcd.io/v1beta1
-          kind: HelmRepository
-          metadata:
-            name: kedacore
-            namespace: keda
-          spec:
-            interval: 1m
-            url: https://kedacore.github.io/charts
-        type: raw
+          chart: keda
+          repoType: helm
+          repoUrl: https://kedacore.github.io/charts
+        type: helm
     status:
       rollout:
         batchRollingState: ""
@@ -61,6 +28,6 @@ spec:
       apiVersion: core.oam.dev/v1beta1
       kind: Initializer
       name: fluxcd
-      namespace: flux-system
+      namespace: vela-system
 status:
   observedGeneration: 0
