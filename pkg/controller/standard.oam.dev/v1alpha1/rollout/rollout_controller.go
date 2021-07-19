@@ -30,7 +30,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,6 +74,9 @@ func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if doneReconcile {
 		return res, retErr
 	}
+
+	klog.InfoS("start rollout reconcile", "rollout",
+		klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
 
 	if len(rollout.Status.RollingState) == 0 {
 		rollout.Status.ResetStatus()
@@ -128,7 +130,9 @@ func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, err
 		}
 		rollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
-		return ctrl.Result{RequeueAfter: 3 * time.Second}, r.updateStatus(ctx, rollout)
+		klog.InfoS("finished  rollout apply targetWorkload, passed LocatingTargetApp phase", "rollout",
+			klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
+		return ctrl.Result{}, r.updateStatus(ctx, rollout)
 	default:
 		// we should do nothing
 	}
@@ -183,14 +187,7 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 }
 
 func (r *reconciler) updateStatus(ctx context.Context, rollout *v1alpha1.Rollout) error {
-	status := rollout.DeepCopy().Status
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
-		if err = r.Get(ctx, client.ObjectKey{Namespace: rollout.Namespace, Name: rollout.Name}, rollout); err != nil {
-			return
-		}
-		rollout.Status = status
-		return r.Status().Update(ctx, rollout)
-	})
+	return r.Status().Update(ctx, rollout)
 }
 
 // handle adding and handle finalizer logic, it turns if we should continue to reconcile
