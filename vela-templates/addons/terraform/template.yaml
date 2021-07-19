@@ -18,8 +18,8 @@ spec:
         - name: terraform-controller
           type: helm
           properties:
-            source_type: GitRepo
-            repo_url: https://github.com/oam-dev/terraform-controller
+            repoType: git
+            repoUrl: https://github.com/oam-dev/terraform-controller
             chart: ./chart
 {{  range .ResourceFiles  }}
         - name: {{ .Name }}

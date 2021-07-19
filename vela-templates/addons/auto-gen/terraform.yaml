@@ -12,8 +12,8 @@ spec:
       - name: terraform-controller
         properties:
           chart: ./chart
-          repo_url: https://github.com/oam-dev/terraform-controller
-          source_type: GitRepo
+          repoUrl: https://github.com/oam-dev/terraform-controller
+          repoType: git
         type: helm
       - name: terraform-system
         properties:

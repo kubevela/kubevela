@@ -18,7 +18,7 @@ spec:
         - name: kruise
           type: helm
           properties:
-            source_type: GitRepo
-            repo_url: https://github.com/openkruise/kruise
+            repoType: git
+            repoUrl: https://github.com/openkruise/kruise
             chart: ./charts/kruise/v0.9.0
             branch: master

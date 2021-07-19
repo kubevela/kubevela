@@ -12,8 +12,8 @@ spec:
       - name: keda
         properties:
           chart: keda
-          repo_url: https://kedacore.github.io/charts
-          source_type: HelmRepo
+          repoUrl: https://kedacore.github.io/charts
+          repoType: helm
         type: helm
     status:
       rollout:

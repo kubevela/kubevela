@@ -12,8 +12,8 @@ spec:
       - name: prometheus
         properties:
           chart: premetheus
-          repo_url: https://prometheus-community.github.io/helm-charts
-          source_type: HelmRepo
+          repoUrl: https://prometheus-community.github.io/helm-charts
+          repoType: helm
         type: helm
     status:
       rollout:
