@@ -31,7 +31,7 @@ import (
 
 // GarbageCollector do GC according two resource trackers
 type GarbageCollector interface {
-	GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker) error
+	GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error
 }
 
 // NewGCHandler create a GCHandler
@@ -49,7 +49,7 @@ type GCHandler struct {
 }
 
 // GarbageCollect delete the old resources that are no longer in the new resource tracker
-func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker) error {
+func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error {
 	h.oldRT = oldRT
 	h.newRT = newRT
 	if err := h.validate(); err != nil {
@@ -85,6 +85,13 @@ func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.Re
 	}
 	klog.InfoS("Successfully GC a resource tracker and its resources", "name", h.oldRT.Name)
 
+	for _, rt := range legacyRTs {
+		if err := h.c.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
+			klog.ErrorS(err, "Failed to delete a legacy resource tracker", "legacy", rt.Name)
+			return errors.Wrap(err, "cannot delete legacy resource tracker")
+		}
+		klog.InfoS("Successfully delete a legacy resource tracker", "legacy", rt.Name, "latest", h.newRT.Name)
+	}
 	return nil
 }
 
