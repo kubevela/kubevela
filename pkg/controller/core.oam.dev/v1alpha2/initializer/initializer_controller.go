@@ -18,7 +18,6 @@ package initializer
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -114,7 +113,7 @@ func (r *Reconciler) checkOrInstallDependsOn(ctx context.Context, depends []v1be
 		if err != nil {
 			// if Initializer is not found and the namespace is default or vela-system,
 			// try to install build-in initializer from ConfigMap
-			if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "default" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
+			if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
 				init, err := utils.GetBuildInInitializer(ctx, r.Client, depend.Ref.Name)
 				if err != nil {
 					return false, err
@@ -138,7 +137,7 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, init *v1beta1
 	if err := r.patchStatus(ctx, init); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
 	}
-	return ctrl.Result{}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
+	return ctrl.Result{}, errors.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, init *v1beta1.Initializer) error {

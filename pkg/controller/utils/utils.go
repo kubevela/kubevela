@@ -30,6 +30,7 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ghodss/yaml"
 	"github.com/mitchellh/hashstructure/v2"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -392,7 +393,7 @@ func GetInitializer(ctx context.Context, cli client.Client, namespace, name stri
 	init := new(v1beta1.Initializer)
 	req := client.ObjectKey{Namespace: namespace, Name: name}
 	err := cli.Get(ctx, req, init)
-	if kerrors.IsNotFound(err) && req.Namespace == "default" {
+	if kerrors.IsNotFound(err) && req.Namespace == "" {
 		req.Namespace = velatypes.DefaultKubeVelaNS
 		err = cli.Get(ctx, req, init)
 		return init, err
@@ -414,14 +415,14 @@ func GetBuildInInitializer(ctx context.Context, cli client.Client, name string) 
 		return nil, err
 	}
 	if len(configMapList.Items) != 1 {
-		return nil, fmt.Errorf("fail to get build-in initializer %s, there are %d matched initializers", name, len(configMapList.Items))
+		return nil, errors.Errorf("fail to get build-in initializer %s, there are %d matched initializers", name, len(configMapList.Items))
 	}
 
 	init := new(v1beta1.Initializer)
 	initYaml := configMapList.Items[0].Data["initializer"]
 	err = yaml.Unmarshal([]byte(initYaml), init)
 	if err != nil {
-		return nil, fmt.Errorf("fail to unmarshal build-in initializer %s from configmap %w", name, err)
+		return nil, errors.WithMessagef(err, "fail to unmarshal build-in initializer %s from configmap", name)
 	}
 
 	return init, nil

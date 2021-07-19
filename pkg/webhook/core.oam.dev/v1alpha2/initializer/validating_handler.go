@@ -82,7 +82,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		for _, depend := range obj.Spec.DependsOn {
 			_, err = utils.GetInitializer(ctx, h.Client, depend.Ref.Namespace, depend.Ref.Name)
 			if err != nil {
-				if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "default" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
+				if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
 					_, err = utils.GetBuildInInitializer(ctx, h.Client, depend.Ref.Name)
 					if err != nil {
 						return admission.Denied(fmt.Sprintf("fail to get dependOn Initializer %s from err: %s", depend.Ref.Name, err.Error()))
