@@ -18,22 +18,15 @@ package workflow
 
 import (
 	"context"
-	"encoding/json"
+
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -51,6 +44,7 @@ func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
 	}
 }
 
+// ExecuteSteps process workflow step in order.
 func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (bool, error) {
 	if w.app.Spec.Workflow == nil {
 		return true, nil
@@ -70,12 +64,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	wfStatus := w.app.Status.Workflow
 
-	if len(taskRunners) <= wfStatus.StepIndex || wfStatus.Terminated {
-		return true, nil
-	}
-
-	//
-	if wfStatus.Suspend {
+	if len(taskRunners) <= wfStatus.StepIndex || wfStatus.Terminated || wfStatus.Suspend {
 		return true, nil
 	}
 
@@ -137,88 +126,4 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 	}
 
 	return true, nil // all steps done
-}
-
-func (w *workflow) applyWorkflowStep(ctx context.Context, obj *unstructured.Unstructured, wctx *types.WorkflowContext) error {
-	if err := addWorkflowContextToAnnotation(obj, wctx); err != nil {
-		return err
-	}
-
-	return w.applicator.Apply(ctx, obj)
-}
-
-func addWorkflowContextToAnnotation(obj *unstructured.Unstructured, wc *types.WorkflowContext) error {
-	b, err := json.Marshal(wc)
-	if err != nil {
-		return err
-	}
-	m := map[string]string{
-		oam.AnnotationWorkflowContext: string(b),
-	}
-	obj.SetAnnotations(oamutil.MergeMapOverrideWithDst(m, obj.GetAnnotations()))
-	return nil
-}
-
-const (
-	// CondTypeWorkflowFinish is the type of the Condition indicating workflow progress
-	CondTypeWorkflowFinish = "workflow-progress"
-
-	// CondReasonSucceeded is the reason of the workflow progress condition which is succeeded
-	CondReasonSucceeded = "Succeeded"
-	// CondReasonStopped is the reason of the workflow progress condition which is stopped
-	CondReasonStopped = "Stopped"
-	// CondReasonFailed is the reason of the workflow progress condition which is failed
-	CondReasonFailed = "Failed"
-
-	// CondStatusTrue is the status of the workflow progress condition which is True
-	CondStatusTrue = "True"
-)
-
-func (w *workflow) syncWorkflowStatus(step oamcore.WorkflowStep, obj *unstructured.Unstructured) (*common.WorkflowStepStatus, error) {
-	status := &common.WorkflowStepStatus{
-		Name: step.Name,
-		Type: step.Type,
-		ResourceRef: runtimev1alpha1.TypedReference{
-			APIVersion: obj.GetAPIVersion(),
-			Kind:       obj.GetKind(),
-			Name:       obj.GetName(),
-			UID:        obj.GetUID(),
-		},
-	}
-
-	cond, found, err := utils.GetUnstructuredObjectStatusCondition(obj, CondTypeWorkflowFinish)
-	if err != nil {
-		return nil, err
-	}
-
-	if !found || cond.Status != CondStatusTrue {
-		status.Phase = common.WorkflowStepPhaseRunning
-		return status, nil
-	}
-
-	switch cond.Reason {
-	case CondReasonSucceeded:
-		observedG, err := parseGeneration(cond.Message)
-		if err != nil {
-			return nil, err
-		}
-		if observedG != obj.GetGeneration() {
-			status.Phase = common.WorkflowStepPhaseRunning
-		} else {
-			status.Phase = common.WorkflowStepPhaseSucceeded
-		}
-	case CondReasonFailed:
-		status.Phase = common.WorkflowStepPhaseFailed
-	case CondReasonStopped:
-		status.Phase = common.WorkflowStepPhaseStopped
-	default:
-		status.Phase = common.WorkflowStepPhaseRunning
-	}
-	return status, nil
-}
-
-func parseGeneration(message string) (int64, error) {
-	m := &SucceededMessage{}
-	err := json.Unmarshal([]byte(message), m)
-	return m.ObservedGeneration, err
 }

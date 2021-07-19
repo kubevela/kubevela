@@ -40,8 +40,8 @@ func (td *taskDiscover) GetTaskGenerator(name string) (types.TaskGenerator, erro
 func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
 	return func(ctx wfContext.Context) (common.WorkflowStepStatus, *types.Operation, error) {
 		return common.WorkflowStepStatus{
-			Name: step.Name,
-			Type: step.Type,
+			Name:  step.Name,
+			Type:  step.Type,
 			Phase: common.WorkflowStepPhaseSucceeded,
 		}, &types.Operation{Suspend: true}, nil
 	}, nil

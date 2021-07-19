@@ -16,14 +16,6 @@ limitations under the License.
 
 package workflow
 
-import (
-	"context"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-)
-
 //func TestExecuteSteps(t *testing.T) {
 //
 //	zerostepApp := &oamcore.Application{
@@ -171,13 +163,13 @@ import (
 //	}
 //}
 
-type testmockApplicator struct {
-}
-
-func (t *testmockApplicator) Apply(ctx context.Context, object runtime.Object, option ...apply.ApplyOption) error {
-	return nil
-}
-
-func mockApplicator() apply.Applicator {
-	return &testmockApplicator{}
-}
+//type testmockApplicator struct {
+//}
+//
+//func (t *testmockApplicator) Apply(ctx context.Context, object runtime.Object, option ...apply.ApplyOption) error {
+//	return nil
+//}
+//
+//func mockApplicator() apply.Applicator {
+//	return &testmockApplicator{}
+//}

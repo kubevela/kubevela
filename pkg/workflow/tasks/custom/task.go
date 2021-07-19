@@ -2,9 +2,10 @@ package custom
 
 import (
 	"context"
-	"cuelang.org/go/cue"
 	"encoding/json"
 	"fmt"
+
+	"cuelang.org/go/cue"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 

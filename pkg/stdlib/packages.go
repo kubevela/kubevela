@@ -19,7 +19,7 @@ func (p *discover) addFile(f file) {
 	p.files = append(p.files, f)
 }
 
-// GetPackages Get Stdlib package
+// GetPackages Get Stdlib packages
 func GetPackages() Pkgs {
 	d := &discover{}
 	d.addFile(opFile)

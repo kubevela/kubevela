@@ -240,7 +240,7 @@ func newContext(cli client.Client, ns, rev string) (*workflowContext, error) {
 		}
 		return nil, err
 	}
-	store.Annotations=map[string]string{
+	store.Annotations = map[string]string{
 		AnnotationStartTimestamp: time.Now().String(),
 	}
 	wfCtx := &workflowContext{

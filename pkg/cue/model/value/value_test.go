@@ -2,8 +2,9 @@ package value
 
 import (
 	"encoding/json"
-	"gotest.tools/assert"
 	"testing"
+
+	"gotest.tools/assert"
 )
 
 func TestValueFill(t *testing.T) {
@@ -88,7 +89,6 @@ step4: {
 step5: "end"
 `},
 
-
 		{base: `
 step1: {}
 step2: {prefix: step1.value}
@@ -149,9 +149,9 @@ do: "apply"
 	assert.Equal(t, out.Provider, "kube")
 	assert.Equal(t, out.Do, "apply")
 
-	bt,err:=val.CueValue().MarshalJSON()
+	bt, err := val.CueValue().MarshalJSON()
 	assert.NilError(t, err)
-	expectedJson,err:=json.Marshal(out)
+	expectedJson, err := json.Marshal(out)
 	assert.NilError(t, err)
-	assert.Equal(t,string(bt),string(expectedJson))
+	assert.Equal(t, string(bt), string(expectedJson))
 }

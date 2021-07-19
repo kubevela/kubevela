@@ -138,7 +138,7 @@ func (val *Value) StepByFields(handle func(in *Value) (bool, error)) error {
 			return err
 		}
 		if stop, err := handle(field.Value); err != nil {
-			return errors.WithMessagef(err,"process task step %s",field.Name)
+			return errors.WithMessagef(err, "process task step %s", field.Name)
 		} else if stop == true {
 			return nil
 		}
@@ -165,7 +165,7 @@ func (val *Value) fieldIndex(index int) (*field, bool, error) {
 	if index == (st.Len() - 1) {
 		end = true
 	}
-	v:= st.Field(index)
+	v := st.Field(index)
 	return &field{
 		Name: v.Name,
 		Value: &Value{

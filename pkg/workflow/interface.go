@@ -27,9 +27,3 @@ type Workflow interface {
 	// It returns done=true only if all steps are executed and succeeded.
 	ExecuteSteps(ctx context.Context, appRevName string, taskRunners []types.TaskRunner) (done bool, err error)
 }
-
-// SucceededMessage is the data json-marshalled into the message of `workflow-progress` condition
-// when its reason is `succeeded`.
-type SucceededMessage struct {
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-}
