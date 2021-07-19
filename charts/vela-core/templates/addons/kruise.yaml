@@ -16,8 +16,8 @@ data:
             properties:
               branch: master
               chart: ./charts/kruise/v0.9.0
-              repoUrl: https://github.com/openkruise/kruise
               repoType: git
+              repoUrl: https://github.com/openkruise/kruise
             type: helm
         status:
           rollout:
