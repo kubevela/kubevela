@@ -169,7 +169,7 @@ func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, 
 }
 
 func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
-	return v.StepFields(func(in *value.Value) (bool, error) {
+	return v.StepByFields(func(in *value.Value) (bool, error) {
 		if in.CueValue().Kind() == cue.BottomKind {
 			return true, errors.New("value is _|_")
 		}
