@@ -23,7 +23,7 @@ const (
 	ConfigMapKeyComponents = "components"
 	// ConfigMapKeyVars is the key in ConfigMap Data field for containing data of variable
 	ConfigMapKeyVars = "vars"
-	// AnnotationStartTimestamp is the workflow start  timestamp
+	// AnnotationStartTimestamp is the annotation key of the workflow start  timestamp
 	AnnotationStartTimestamp = "vela.io/startTime"
 )
 
@@ -32,9 +32,9 @@ type workflowContext struct {
 	store      corev1.ConfigMap
 	components map[string]*componentManifest
 	vars       *value.Value
-	generate   string
 }
 
+// GetComponent Get ComponentManifest from workflow context.
 func (wf *workflowContext) GetComponent(name string) (*componentManifest, error) {
 	component, ok := wf.components[name]
 	if !ok {
@@ -43,6 +43,7 @@ func (wf *workflowContext) GetComponent(name string) (*componentManifest, error)
 	return component, nil
 }
 
+// PatchComponent patch component with value.
 func (wf *workflowContext) PatchComponent(name string, patchValue *value.Value) error {
 	component, err := wf.GetComponent(name)
 	if err != nil {
@@ -51,10 +52,12 @@ func (wf *workflowContext) PatchComponent(name string, patchValue *value.Value) 
 	return component.Patch(patchValue)
 }
 
+// GetVar get variable from workflow context.
 func (wf *workflowContext) GetVar(paths ...string) (*value.Value, error) {
 	return wf.vars.LookupValue(paths...)
 }
 
+// SetVar set variable to workflow context.
 func (wf *workflowContext) SetVar(v *value.Value, paths ...string) error {
 	str, err := v.String()
 	if err != nil {
@@ -63,6 +66,7 @@ func (wf *workflowContext) SetVar(v *value.Value, paths ...string) error {
 	return wf.vars.FillRaw(str, paths...)
 }
 
+// MakeParameter make 'value' with map[string]interface{}
 func (wf *workflowContext) MakeParameter(parameter map[string]interface{}) (*value.Value, error) {
 	var s = "{}"
 	if parameter != nil {
@@ -72,7 +76,16 @@ func (wf *workflowContext) MakeParameter(parameter map[string]interface{}) (*val
 	return wf.vars.MakeValue(s)
 }
 
+// Commit the workflow context and persist it's content.
 func (wf *workflowContext) Commit() error {
+	wf.writeToStore()
+	if err := wf.sync(); err != nil {
+		return errors.WithMessagef(err, "save context to configMap(%s/%s)", wf.store.Namespace, wf.store.Name)
+	}
+	return nil
+}
+
+func (wf *workflowContext) writeToStore() error {
 	varStr, err := wf.vars.String()
 	if err != nil {
 		return err
@@ -90,13 +103,10 @@ func (wf *workflowContext) Commit() error {
 		ConfigMapKeyComponents: string(util.MustJSONMarshal(jsonObject)),
 		ConfigMapKeyVars:       varStr,
 	}
-	if err := wf.writeToStore(); err != nil {
-		return errors.WithMessagef(err, "save context to configMap(%s/%s)", wf.store.Namespace, wf.store.Name)
-	}
 	return nil
 }
 
-func (wf *workflowContext) writeToStore() error {
+func (wf *workflowContext) sync() error {
 	ctx := context.Background()
 	if err := wf.cli.Update(ctx, &wf.store); err != nil {
 		if kerrors.IsNotFound(err) {
@@ -130,6 +140,7 @@ func (wf *workflowContext) loadFromConfigMap(cm corev1.ConfigMap) error {
 	return nil
 }
 
+// StoreRef return the store reference of workflow context.
 func (wf *workflowContext) StoreRef() *runtimev1alpha1.TypedReference {
 	return &runtimev1alpha1.TypedReference{
 		APIVersion: wf.store.APIVersion,
@@ -144,6 +155,7 @@ type componentManifest struct {
 	Auxiliaries []model.Instance
 }
 
+// Patch the componentManifest with value
 func (comp *componentManifest) Patch(patchValue *value.Value) error {
 	pInst, err := model.NewOther(patchValue.CueValue())
 	if err != nil {
@@ -200,6 +212,7 @@ func (comp *componentManifest) unmarshal(v string) error {
 	return nil
 }
 
+// NewContext new workflow context.
 func NewContext(cli client.Client, ns, rev string) (Context, error) {
 
 	var (
@@ -254,6 +267,7 @@ func newContext(cli client.Client, ns, rev string) (*workflowContext, error) {
 	return wfCtx, err
 }
 
+// LoadContext load workflow context from store.
 func LoadContext(cli client.Client, ns, rev string) (Context, error) {
 	var store corev1.ConfigMap
 	if err := cli.Get(context.Background(), client.ObjectKey{

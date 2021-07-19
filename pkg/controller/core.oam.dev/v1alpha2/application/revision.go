@@ -63,7 +63,7 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 		if c.InsertConfigNotReady {
 			continue
 		}
-		components[c.Name] = encodeComponentManifest(c)
+		components[c.Name] = SprintComponentManifest(c)
 
 	}
 	cm := &corev1.ConfigMap{
@@ -89,7 +89,8 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 	return h.r.Client.Create(ctx, cm)
 }
 
-func encodeComponentManifest(cm *types.ComponentManifest) string {
+// SprintComponentManifest formats and returns the resulting string.
+func SprintComponentManifest(cm *types.ComponentManifest) string {
 	cl := map[string]interface{}{
 		"StandardWorkload": string(util.MustJSONMarshal(cm.StandardWorkload)),
 	}

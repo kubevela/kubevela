@@ -6,6 +6,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
+// Context is workflow context interface
 type Context interface {
 	GetComponent(name string) (*componentManifest, error)
 	PatchComponent(name string, patchValue *value.Value) error
