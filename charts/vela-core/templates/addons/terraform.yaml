@@ -1,0 +1,51 @@
+apiVersion: v1
+data:
+  initializer: |
+    apiVersion: core.oam.dev/v1beta1
+    kind: Initializer
+    metadata:
+      annotations:
+        addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
+      name: terraform
+      namespace: vela-system
+    spec:
+      appTemplate:
+        spec:
+          components:
+          - name: terraform-controller
+            properties:
+              chart: ./chart
+              repoType: git
+              repoUrl: https://github.com/oam-dev/terraform-controller
+            type: helm
+          - name: terraform-system
+            properties:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: terraform-system
+            type: raw
+        status:
+          rollout:
+            batchRollingState: ""
+            currentBatch: 0
+            lastTargetAppRevision: ""
+            rollingState: ""
+            upgradedReadyReplicas: 0
+            upgradedReplicas: 0
+      dependsOn:
+      - ref:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Initializer
+          name: fluxcd
+          namespace: vela-system
+    status:
+      observedGeneration: 0
+kind: ConfigMap
+metadata:
+  annotations:
+    addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
+  labels:
+    addons.oam.dev/type: terraform
+  name: terraform
+  namespace: {{.Values.systemDefinitionNamespace}}

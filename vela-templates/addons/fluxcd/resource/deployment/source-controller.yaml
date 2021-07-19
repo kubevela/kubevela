@@ -2,9 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
+    app.kubernetes.io/instance: flux-system
     control-plane: controller
   name: flux-source-controller
-  namespace: vela-system
+  namespace: flux-system
 spec:
   replicas: 1
   selector:
@@ -69,10 +70,10 @@ spec:
               name: tmp
       securityContext:
         fsGroup: 1337
-      serviceAccountName: source-controller-serviceaccount
+      serviceAccountName: sa-source-controller
       terminationGracePeriodSeconds: 10
       volumes:
-        - emptyDir: {}
+        - emptyDir: { }
           name: data
-        - emptyDir: {}
+        - emptyDir: { }
           name: tmp
