@@ -124,7 +124,7 @@ func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, h.updateStatus(ctx, rollout)
 		}
 	case v1alpha1.LocatingTargetAppState:
-		if err := h.templateTargetWorkload(ctx); err != nil {
+		if err := h.applyTargetWorkload(ctx); err != nil {
 			return ctrl.Result{}, err
 		}
 		rollout.Status.StateTransition(v1alpha1.AppLocatedEvent)

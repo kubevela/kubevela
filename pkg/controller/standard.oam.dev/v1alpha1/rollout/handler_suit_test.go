@@ -19,6 +19,7 @@ package rollout
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -123,13 +124,27 @@ var _ = Describe("Test rollout related handler func", func() {
 			sourceRevName: "metrics-provider-v1",
 			compName:      compName,
 		}
+
 		Eventually(func() error {
-			return h.extractWorkloadFromCompRevision(ctx)
+			wd, err := h.extractWorkload(ctx, namespace, h.targetRevName)
+			if err != nil {
+				return err
+			}
+			if wd == nil || wd.GetKind() != "Deployment" {
+				return fmt.Errorf("extract error")
+			}
+			return nil
 		}, 15*time.Second, 300*time.Millisecond).Should(BeNil())
-		Expect(h.targetWorkload).ShouldNot(BeNil())
-		Expect(h.sourceWorkload).ShouldNot(BeNil())
-		Expect(h.sourceWorkload.GetKind()).Should(BeEquivalentTo("Deployment"))
-		Expect(h.targetWorkload.GetKind()).Should(BeEquivalentTo("Deployment"))
+		Eventually(func() error {
+			wd, err := h.extractWorkload(ctx, namespace, h.sourceRevName)
+			if err != nil {
+				return err
+			}
+			if wd == nil || wd.GetKind() != "Deployment" {
+				return fmt.Errorf("extract error")
+			}
+			return nil
+		}, 15*time.Second, 300*time.Millisecond).Should(BeNil())
 	})
 
 	Describe("Test Handle rollout modified", func() {

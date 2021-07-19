@@ -20,22 +20,18 @@ import (
 	"context"
 	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
-
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"k8s.io/klog/v2"
-
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-
 	v1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -73,39 +69,44 @@ func (h *handler) assembleWorkload(ctx context.Context) error {
 
 // extractWorkloadFromCompRevision extract workload info from component revision
 func (h *handler) extractWorkloadFromCompRevision(ctx context.Context) error {
-	var err error
-	var targetRevsion v1.ControllerRevision
-	if err = h.Get(ctx, types.NamespacedName{Namespace: h.rollout.Namespace, Name: h.targetRevName}, &targetRevsion); err != nil {
-		return err
-	}
-	// extract component data from controllerRevision
-	targetComp, err := util.RawExtension2Component(targetRevsion.Data)
+	targetWorkload, err := h.extractWorkload(ctx, h.rollout.Namespace, h.targetRevName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extarct target revision workload of rollout %s %w", h.rollout.Name, err)
 	}
-	h.targetWorkload, err = util.RawExtension2Unstructured(&targetComp.Spec.Workload)
-	if err != nil {
-		return err
-	}
+	h.targetWorkload = targetWorkload
 	if len(h.sourceRevName) != 0 {
-		var sourceRevision v1.ControllerRevision
-		if err = h.Get(ctx, types.NamespacedName{Namespace: h.rollout.Namespace, Name: h.sourceRevName}, &sourceRevision); err != nil {
-			return err
-		}
-		sourceComp, err := util.RawExtension2Component(sourceRevision.Data)
+		sourceWorkload, err := h.extractWorkload(ctx, h.rollout.Namespace, h.sourceRevName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to extarct source revision workload of rollout %s %w", h.rollout.Name, err)
 		}
-		h.sourceWorkload, err = util.RawExtension2Unstructured(&sourceComp.Spec.Workload)
-		if err != nil {
-			return err
-		}
+		h.sourceWorkload = sourceWorkload
 	}
 	return nil
 }
 
-// templateTargetWorkload check the target workload whether exist. if not create it.
-func (h *handler) templateTargetWorkload(ctx context.Context) error {
+// extractWorkload extract workload info from componentRevision by revisionName
+func (h *handler) extractWorkload(ctx context.Context, namespace, revisionName string) (*unstructured.Unstructured, error) {
+	var revision v1.ControllerRevision
+	if err := h.Get(ctx, types.NamespacedName{Namespace: namespace, Name: revisionName}, &revision); err != nil {
+		klog.Errorf("cannot get rollout related controllerRevision %v", err, "namespace", namespace, "name", revisionName)
+		return nil, err
+	}
+	// extract component data from controllerRevision
+	component, err := util.RawExtension2Component(revision.Data)
+	if err != nil {
+		klog.Errorf("failed to extract component info err: %v", err, "namespace", namespace, "name", revisionName)
+		return nil, err
+	}
+	workload, err := util.RawExtension2Unstructured(&component.Spec.Workload)
+	if err != nil {
+		klog.Errorf("failed to get workload from component  %v", err, "namespace", namespace, "name", revisionName)
+		return nil, err
+	}
+	return workload, nil
+}
+
+// applyTargetWorkload check the target workload whether exist. if not create it.
+func (h *handler) applyTargetWorkload(ctx context.Context) error {
 	if h.targetWorkload == nil {
 		return fmt.Errorf("cannot find target workload to template")
 	}
@@ -186,24 +187,24 @@ func (h *handler) checkWorkloadNotExist(ctx context.Context) (bool, error) {
 }
 
 // checkRollingTerminated check the rollout if have finished
-func checkRollingTerminated(appRollout v1alpha1.Rollout) bool {
+func checkRollingTerminated(rollout v1alpha1.Rollout) bool {
 	// handle rollout completed
-	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
-		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
-		if appRollout.Status.LastUpgradedTargetRevision == appRollout.Spec.TargetRevisionName &&
-			appRollout.Status.LastSourceRevision == appRollout.Spec.SourceRevisionName {
+	if rollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
+		rollout.Status.RollingState == v1alpha1.RolloutFailedState {
+		if rollout.Status.LastUpgradedTargetRevision == rollout.Spec.TargetRevisionName &&
+			rollout.Status.LastSourceRevision == rollout.Spec.SourceRevisionName {
 			// spec.targetSize could be nil, If targetSize isn't nil and not equal to status.RolloutTargetSize it's
 			// means user have modified targetSize to restart an scale operation
-			if appRollout.Spec.RolloutPlan.TargetSize != nil {
-				if appRollout.Status.RolloutTargetSize == *appRollout.Spec.RolloutPlan.TargetSize {
-					klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceRevisionName,
-						"target", appRollout.Spec.TargetRevisionName)
+			if rollout.Spec.RolloutPlan.TargetSize != nil {
+				if rollout.Status.RolloutTargetSize == *rollout.Spec.RolloutPlan.TargetSize {
+					klog.InfoS("rollout completed, no need to reconcile", "source", rollout.Spec.SourceRevisionName,
+						"target", rollout.Spec.TargetRevisionName)
 					return true
 				}
 				return false
 			}
-			klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceRevisionName,
-				"target", appRollout.Spec.TargetRevisionName)
+			klog.InfoS("rollout completed, no need to reconcile", "source", rollout.Spec.SourceRevisionName,
+				"target", rollout.Spec.TargetRevisionName)
 			return true
 		}
 	}
