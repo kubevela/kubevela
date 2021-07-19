@@ -321,4 +321,4 @@ check-license-header:
 	./hack/licence/header-check.sh
 
 check-install-def:
-	./hack/utils/installdefinition.sh
+	bash ./hack/utils/installdefinition.sh
