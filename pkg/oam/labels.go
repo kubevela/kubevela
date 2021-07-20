@@ -56,6 +56,9 @@ const (
 	LabelControllerRevisionComponent = "controller.oam.dev/component"
 	// LabelComponentRevisionHash records the hash value of a component
 	LabelComponentRevisionHash = "app.oam.dev/component-revision-hash"
+
+	// LabelAddonsName records the name of initializer stored in configMap
+	LabelAddonsName = "addons.oam.dev/type"
 )
 
 const (

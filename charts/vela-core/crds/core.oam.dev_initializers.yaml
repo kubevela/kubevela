@@ -19,7 +19,14 @@ spec:
     singular: initializer
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - jsonPath: .status.status
+      name: PHASE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: Initializer is the Schema for the Initializer API
@@ -692,6 +699,9 @@ spec:
                 description: The generation observed by the Initializer controller.
                 format: int64
                 type: integer
+              status:
+                description: InitializerPhase is a label for the condition of a initializer at the current time
+                type: string
             type: object
         type: object
     served: true

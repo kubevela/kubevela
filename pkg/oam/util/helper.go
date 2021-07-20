@@ -479,7 +479,7 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	}
 	// if no condition is changed, patching status can not trigger requeue, so we must return an error to
 	// requeue the resource
-	return fmt.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
+	return errors.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
 }
 
 // EndReconcileWithPositiveCondition is used to handle reconcile success for a conditioned resource.

@@ -7,6 +7,13 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.2.4
   name: initializers.core.oam.dev
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.status
+    name: PHASE
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: AGE
+    type: date
   group: core.oam.dev
   names:
     categories:
@@ -692,6 +699,9 @@ spec:
               description: The generation observed by the Initializer controller.
               format: int64
               type: integer
+            status:
+              description: InitializerPhase is a label for the condition of a initializer at the current time
+              type: string
           type: object
       type: object
   version: v1beta1
