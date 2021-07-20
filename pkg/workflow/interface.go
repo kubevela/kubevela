@@ -1,5 +1,4 @@
-/*
-Copyright 2021 The KubeVela Authors.
+/*Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,18 +18,12 @@ package workflow
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // Workflow is used to execute the workflow steps of Application.
 type Workflow interface {
 	// ExecuteSteps executes the steps of an Application with given steps of rendered resources.
 	// It returns done=true only if all steps are executed and succeeded.
-	ExecuteSteps(ctx context.Context, appRevName string, steps []*unstructured.Unstructured) (done bool, err error)
-}
-
-// SucceededMessage is the data json-marshalled into the message of `workflow-progress` condition
-// when its reason is `succeeded`.
-type SucceededMessage struct {
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	ExecuteSteps(ctx context.Context, appRevName string, taskRunners []types.TaskRunner) (done bool, err error)
 }
