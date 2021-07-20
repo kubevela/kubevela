@@ -131,14 +131,16 @@ func (s *CloneSetScaleController) Initialize(ctx context.Context) (bool, error) 
 	}
 
 	if controller := metav1.GetControllerOf(s.cloneSet); controller != nil {
-		if controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		if (controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String()) ||
+			(controller.Kind == v1alpha1.RolloutKind && controller.APIVersion == v1alpha1.SchemeGroupVersion.String()) {
+
 			// it's already there
 			return true, nil
 		}
 	}
 	// add the parent controller to the owner of the cloneset
 	clonePatch := client.MergeFrom(s.cloneSet.DeepCopyObject())
-	ref := metav1.NewControllerRef(s.parentController, v1beta1.AppRolloutKindVersionKind)
+	ref := metav1.NewControllerRef(s.parentController, s.parentController.GetObjectKind().GroupVersionKind())
 	s.cloneSet.SetOwnerReferences(append(s.cloneSet.GetOwnerReferences(), *ref))
 	s.cloneSet.Spec.UpdateStrategy.Paused = false
 
@@ -277,7 +279,8 @@ func (s *CloneSetScaleController) Finalize(ctx context.Context, succeed bool) bo
 	var newOwnerList []metav1.OwnerReference
 	isOwner := false
 	for _, owner := range s.cloneSet.GetOwnerReferences() {
-		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		if owner.Kind == s.parentController.GetObjectKind().GroupVersionKind().Kind &&
+			owner.APIVersion == s.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() {
 			isOwner = true
 			continue
 		}

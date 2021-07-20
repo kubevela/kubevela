@@ -77,7 +77,7 @@ func (h *rolloutHandler) prepareWorkloads(ctx context.Context) error {
 
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision).
-		WithWorkloadOption(rolloutWorkloadName(h.needRollComponent)).
+		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
 		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent))
 
 	h.targetWorkloads, _, _, err = targetAssemble.GroupAssembledManifests()
@@ -94,7 +94,7 @@ func (h *rolloutHandler) prepareWorkloads(ctx context.Context) error {
 		// construct a assemble manifest for sourceAppRevision
 		sourceAssemble := assemble.NewAppManifests(h.sourceAppRevision).
 			WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).
-			WithWorkloadOption(rolloutWorkloadName(h.needRollComponent))
+			WithWorkloadOption(RolloutWorkloadName(h.needRollComponent))
 		h.sourceWorkloads, _, _, err = sourceAssemble.GroupAssembledManifests()
 		if err != nil {
 			klog.Error("appRollout sourceAppRevision failed to assemble workloads", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
@@ -313,7 +313,7 @@ func (h *rolloutHandler) handleSourceWorkload(ctx context.Context) error {
 
 // assembleManifest generate target manifest(workloads/traits)
 // please notice that we shouldn't modify the replicas of workload if the workload already exist in k8s.
-// so we use handleReplicas as assemble option
+// so we use HandleReplicas as assemble option
 // And this phase must call after determine component phase.
 func (h *rolloutHandler) assembleManifest(ctx context.Context) error {
 	if h.appRollout.Status.RollingState != v1alpha1.LocatingTargetAppState {
@@ -322,8 +322,8 @@ func (h *rolloutHandler) assembleManifest(ctx context.Context) error {
 	var err error
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision).
-		WithWorkloadOption(rolloutWorkloadName(h.needRollComponent)).
-		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).WithWorkloadOption(handleReplicas(ctx, h.needRollComponent, h))
+		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
+		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).WithWorkloadOption(HandleReplicas(ctx, h.needRollComponent, h))
 
 	// in template phase, we should use targetManifests including target workloads/traits to
 	h.targetManifests, err = targetAssemble.AssembledManifests()

@@ -49,7 +49,7 @@ func (c *deploymentController) claimDeployment(ctx context.Context, deploy *apps
 	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
 
 	// add the parent controller to the owner of the deployment
-	ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
+	ref := metav1.NewControllerRef(c.parentController, c.parentController.GetObjectKind().GroupVersionKind())
 	deploy.SetOwnerReferences(append(deploy.GetOwnerReferences(), *ref))
 
 	deploy.Spec.Paused = false
@@ -91,7 +91,8 @@ func (c *deploymentController) releaseDeployment(ctx context.Context, deploy *ap
 	var newOwnerList []metav1.OwnerReference
 	found := false
 	for _, owner := range deploy.GetOwnerReferences() {
-		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		if owner.Kind == c.parentController.GetObjectKind().GroupVersionKind().Kind &&
+			owner.APIVersion == c.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() {
 			found = true
 			continue
 		}

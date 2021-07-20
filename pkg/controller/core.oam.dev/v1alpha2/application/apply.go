@@ -251,6 +251,10 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	}
 
 	appRollout := v1beta1.AppRollout{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: v1beta1.SchemeGroupVersion.String(),
+			Kind:       v1beta1.ApplicationKind,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      h.app.Name,
 			Namespace: h.app.Namespace,

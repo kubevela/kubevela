@@ -50,7 +50,7 @@ var _ = Describe("cloneset controller", func() {
 	BeforeEach(func() {
 		namespace = "rollout-ns"
 		name = "rollout1"
-		appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
+		appRollout := v1beta1.AppRollout{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.AppRolloutKind}, ObjectMeta: metav1.ObjectMeta{Name: name}}
 		namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
 		c = CloneSetRolloutController{
 			cloneSetController: cloneSetController{
