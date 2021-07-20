@@ -12,7 +12,7 @@ import (
 )
 
 func TestProvider_Load(t *testing.T) {
-	wfCtx := newWorkflowContexForTest(t)
+	wfCtx := newWorkflowContextForTest(t)
 	p := &provider{}
 	v, err := value.NewValue(`
 component: "server"
@@ -26,7 +26,7 @@ component: "server"
 }
 
 func TestProvider_Export(t *testing.T) {
-	wfCtx := newWorkflowContexForTest(t)
+	wfCtx := newWorkflowContextForTest(t)
 	p := &provider{}
 	v, err := value.NewValue(`
 type: "patch"
@@ -88,7 +88,7 @@ value: "1.1.1.1"
 }
 
 func TestProvider_Wait(t *testing.T) {
-	wfCtx := newWorkflowContexForTest(t)
+	wfCtx := newWorkflowContextForTest(t)
 	p := &provider{}
 	act := &mockAction{}
 	v, err := value.NewValue(`
@@ -126,7 +126,7 @@ continue: bool
 }
 
 func TestProvider_Break(t *testing.T) {
-	wfCtx := newWorkflowContexForTest(t)
+	wfCtx := newWorkflowContextForTest(t)
 	p := &provider{}
 	act := &mockAction{}
 	err := p.Break(wfCtx, nil, act)
@@ -155,7 +155,7 @@ func (act *mockAction) Wait(msg string) {
 	act.msg = msg
 }
 
-func newWorkflowContexForTest(t *testing.T) wfContext.Context {
+func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	cm := corev1.ConfigMap{}
 	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
 	assert.NilError(t, err)

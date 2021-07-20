@@ -17,6 +17,7 @@ const (
 type provider struct {
 }
 
+// Load get component from context.
 func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	componentName, err := v.Field("component")
 	if err != nil {
@@ -49,6 +50,7 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	return nil
 }
 
+// Export put data into context.
 func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	tpyValue, err := v.Field("type")
 	if err != nil {
@@ -92,6 +94,7 @@ func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Actio
 	return nil
 }
 
+// Wait let workflow wait.
 func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action) error {
 
 	cv := v.CueValue()
@@ -109,11 +112,13 @@ func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action)
 	return nil
 }
 
+// Break let workflow terminate.
 func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	act.Terminate("")
 	return nil
 }
 
+// Install register handler to provider discover.
 func Install(p providers.Providers) {
 	prd := &provider{}
 	p.Register(ProviderName, map[string]providers.Handler{
