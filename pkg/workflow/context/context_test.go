@@ -16,8 +16,8 @@ func TestComponent(t *testing.T) {
 	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
 	assert.NilError(t, err)
 
-	wfCtx := new(workflowContext)
-	err = wfCtx.loadFromConfigMap(cm)
+	wfCtx := new(WorkflowContext)
+	err = wfCtx.LoadFromConfigMap(cm)
 	assert.NilError(t, err)
 	cmf, err := wfCtx.GetComponent("server")
 	assert.NilError(t, err)
@@ -107,7 +107,7 @@ spec: {
 	expected, err := yaml.Marshal(wfCtx.components)
 	assert.NilError(t, err)
 
-	err = wfCtx.loadFromConfigMap(wfCtx.store)
+	err = wfCtx.LoadFromConfigMap(wfCtx.store)
 	assert.NilError(t, err)
 	componentsYaml, err := yaml.Marshal(wfCtx.components)
 	assert.NilError(t, err)
@@ -119,8 +119,8 @@ func TestVars(t *testing.T) {
 	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
 	assert.NilError(t, err)
 
-	wfCtx := new(workflowContext)
-	err = wfCtx.loadFromConfigMap(cm)
+	wfCtx := new(WorkflowContext)
+	err = wfCtx.LoadFromConfigMap(cm)
 	assert.NilError(t, err)
 
 	testCases := []struct {
@@ -183,7 +183,7 @@ result: 101
 
 func TestRefObj(t *testing.T) {
 
-	wfCtx := new(workflowContext)
+	wfCtx := new(WorkflowContext)
 	wfCtx.store = corev1.ConfigMap{}
 	wfCtx.store.APIVersion = "v1"
 	wfCtx.store.Kind = "ConfigMap"

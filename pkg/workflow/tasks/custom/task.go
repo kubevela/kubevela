@@ -6,14 +6,12 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -21,13 +19,19 @@ import (
 )
 
 const (
-	StatusReasonWait      = "Wait"
-	StatusReasonRendering = "Render"
-	StatusReasonExecute   = "Execute"
-	StatusReasonSuspend   = "Suspend"
+	// StatusReasonWait is the reason of the workflow progress condition which is Wait.
+	StatusReasonWait = "Wait"
+	// StatusReasonRendering is the reason of the workflow progress condition which is Rendering.
+	StatusReasonRendering = "Rendering"
+	// StatusReasonExecute is the reason of the workflow progress condition which is Execute.
+	StatusReasonExecute = "Execute"
+	// StatusReasonSuspend is the reason of the workflow progress condition which is Suspend.
+	StatusReasonSuspend = "Suspend"
+	// StatusReasonTerminate is the reason of the workflow progress condition which is Terminate.
 	StatusReasonTerminate = "Terminate"
 )
 
+// LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
 type LoadTaskTemplate func(ctx context.Context, name string) (string, error)
 
 type taskLoader struct {
@@ -36,6 +40,7 @@ type taskLoader struct {
 	handlers     providers.Providers
 }
 
+// GetTaskGenerator get TaskGenerator by name.
 func (t *taskLoader) GetTaskGenerator(name string) (wfTypes.TaskGenerator, error) {
 	templ, err := t.loadTemplate(context.Background(), name)
 	if err != nil {
@@ -59,16 +64,19 @@ func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		inputs := wfStep.Inputs
 		params := map[string]interface{}{}
 
-		bt, err := wfStep.Properties.MarshalJSON()
-		if err != nil {
-			return nil, err
+		if len(wfStep.Properties.Raw) > 0 {
+			bt, err := wfStep.Properties.MarshalJSON()
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(bt, &params); err != nil {
+				return nil, err
+			}
 		}
-		if err := json.Unmarshal(bt, &params); err != nil {
-			return nil, err
-		}
+
 		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 
-			if wfStep.Outputs != nil {
+			if outputs != nil {
 				for _, output := range outputs {
 					params[output.ExportKey] = output.Name
 				}
@@ -124,12 +132,15 @@ type executor struct {
 	wait       bool
 }
 
+// Suspend let workflow pause.
 func (exec *executor) Suspend(message string) {
 	exec.suspend = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseSucceeded
 	exec.wfStatus.Message = message
 	exec.wfStatus.Reason = StatusReasonSuspend
 }
+
+// Terminate let workflow terminate.
 func (exec *executor) Terminate(message string) {
 	exec.terminated = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseSucceeded
@@ -137,6 +148,7 @@ func (exec *executor) Terminate(message string) {
 	exec.wfStatus.Reason = StatusReasonTerminate
 }
 
+// Wait let workflow wait.
 func (exec *executor) Wait(message string) {
 	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseRunning
@@ -161,6 +173,7 @@ func (exec *executor) status() common.WorkflowStepStatus {
 	return exec.wfStatus
 }
 
+// Handle process task-step value by provider and do.
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
 	h, exist := exec.handlers.GetHandler(provider, do)
 	if !exist {
@@ -221,6 +234,7 @@ func getLabel(v *value.Value, label string) string {
 	return ""
 }
 
+// NewTaskLoader create a tasks loader.
 func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers) *taskLoader {
 	return &taskLoader{
 		loadTemplate: lt,

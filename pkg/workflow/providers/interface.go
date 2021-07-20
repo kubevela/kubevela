@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
