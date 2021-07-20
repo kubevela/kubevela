@@ -115,10 +115,10 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
 
-	appfile.WorkflowSteps, err = p.parseWorkflow(ctx, app.Spec.Workflow)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parseWorkflow: %w", err)
+	if wfSpec := app.Spec.Workflow; wfSpec != nil {
+		appfile.WorkflowSteps = wfSpec.Steps
 	}
+
 	return appfile, nil
 }
 

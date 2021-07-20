@@ -17,7 +17,6 @@ limitations under the License.
 package application
 
 import (
-	"bytes"
 	"context"
 	"reflect"
 	"sort"
@@ -48,8 +47,10 @@ import (
 )
 
 const (
-	// ConfigMapKeyResources is the key in ConfigMap Data field for containing data of resources
-	ConfigMapKeyResources = "resources"
+	// ConfigMapKeyComponents is the key in ConfigMap Data field for containing data of components
+	ConfigMapKeyComponents = "components"
+	// ConfigMapKeyPolicy is the key in ConfigMap Data field for containing data of policies
+	ConfigMapKeyPolicy = "policies"
 )
 
 func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
@@ -57,31 +58,14 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 	comps []*types.ComponentManifest,
 	policies []*unstructured.Unstructured) error {
 
-	buf := &bytes.Buffer{}
+	components := map[string]interface{}{}
 	for _, c := range comps {
 		if c.InsertConfigNotReady {
 			continue
 		}
-		r := c.StandardWorkload.DeepCopy()
-		r.SetName(c.Name)
-		r.SetNamespace(appRev.Namespace)
-		buf.Write(util.MustJSONMarshal(r))
-	}
-	for _, c := range comps {
-		if c.InsertConfigNotReady {
-			continue
-		}
-		for _, tr := range c.Traits {
-			r := tr.DeepCopy()
-			r.SetName(c.Name)
-			r.SetNamespace(appRev.Namespace)
-			buf.Write(util.MustJSONMarshal(r))
-		}
-	}
-	for _, policy := range policies {
-		buf.Write(util.MustJSONMarshal(policy))
-	}
+		components[c.Name] = SprintComponentManifest(c)
 
+	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      appRev.Name,
@@ -91,10 +75,10 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 			},
 		},
 		Data: map[string]string{
-			ConfigMapKeyResources: buf.String(),
+			ConfigMapKeyComponents: string(util.MustJSONMarshal(components)),
+			ConfigMapKeyPolicy:     string(util.MustJSONMarshal(policies)),
 		},
 	}
-
 	err := h.r.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
 	if err == nil {
 		return nil
@@ -103,6 +87,21 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 		return err
 	}
 	return h.r.Client.Create(ctx, cm)
+}
+
+// SprintComponentManifest formats and returns the resulting string.
+func SprintComponentManifest(cm *types.ComponentManifest) string {
+	cl := map[string]interface{}{
+		"StandardWorkload": string(util.MustJSONMarshal(cm.StandardWorkload)),
+	}
+
+	trs := []string{}
+	for _, tr := range cm.Traits {
+		trs = append(trs, string(util.MustJSONMarshal(tr)))
+	}
+	cl["Traits"] = trs
+	cl["Scopes"] = cm.Scopes
+	return string(util.MustJSONMarshal(cl))
 }
 
 // PrepareCurrentAppRevision will generate a pure revision without metadata and rendered result

@@ -559,16 +559,46 @@ spec:
                 description: ApplicationPhase is a label for the condition of a application at the current time
                 type: string
               workflow:
-                description: Workflow record the status of workflow steps
+                description: Workflow record the status of workflow
                 properties:
+                  appRevision:
+                    type: string
+                  contextBackend:
+                    description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                    properties:
+                      apiVersion:
+                        description: APIVersion of the referenced object.
+                        type: string
+                      kind:
+                        description: Kind of the referenced object.
+                        type: string
+                      name:
+                        description: Name of the referenced object.
+                        type: string
+                      uid:
+                        description: UID of the referenced object.
+                        type: string
+                    required:
+                    - apiVersion
+                    - kind
+                    - name
+                    type: object
+                  stepIndex:
+                    type: integer
                   steps:
                     items:
                       description: WorkflowStepStatus record the status of a workflow step
                       properties:
+                        message:
+                          description: A human readable message indicating details about why the workflowStep is in this state.
+                          type: string
                         name:
                           type: string
                         phase:
                           description: WorkflowStepPhase describes the phase of a workflow step.
+                          type: string
+                        reason:
+                          description: A brief CamelCase message indicating details about why the workflowStep is in this state.
                           type: string
                         resourceRef:
                           description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
@@ -594,6 +624,14 @@ spec:
                           type: string
                       type: object
                     type: array
+                  suspend:
+                    type: boolean
+                  terminated:
+                    type: boolean
+                required:
+                - contextBackend
+                - suspend
+                - terminated
                 type: object
             type: object
         type: object
@@ -915,9 +953,35 @@ spec:
                     items:
                       description: WorkflowStep defines how to execute a workflow step.
                       properties:
+                        inputs:
+                          description: StepInputs defines variable input of WorkflowStep
+                          items:
+                            properties:
+                              from:
+                                type: string
+                              parameterKey:
+                                type: string
+                            required:
+                            - from
+                            - parameterKey
+                            type: object
+                          type: array
                         name:
                           description: Name is the unique name of the workflow step.
                           type: string
+                        outputs:
+                          description: StepOutputs defines output variable of WorkflowStep
+                          items:
+                            properties:
+                              exportKey:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - exportKey
+                            - name
+                            type: object
+                          type: array
                         properties:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
@@ -1169,16 +1233,46 @@ spec:
                 description: ApplicationPhase is a label for the condition of a application at the current time
                 type: string
               workflow:
-                description: Workflow record the status of workflow steps
+                description: Workflow record the status of workflow
                 properties:
+                  appRevision:
+                    type: string
+                  contextBackend:
+                    description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                    properties:
+                      apiVersion:
+                        description: APIVersion of the referenced object.
+                        type: string
+                      kind:
+                        description: Kind of the referenced object.
+                        type: string
+                      name:
+                        description: Name of the referenced object.
+                        type: string
+                      uid:
+                        description: UID of the referenced object.
+                        type: string
+                    required:
+                    - apiVersion
+                    - kind
+                    - name
+                    type: object
+                  stepIndex:
+                    type: integer
                   steps:
                     items:
                       description: WorkflowStepStatus record the status of a workflow step
                       properties:
+                        message:
+                          description: A human readable message indicating details about why the workflowStep is in this state.
+                          type: string
                         name:
                           type: string
                         phase:
                           description: WorkflowStepPhase describes the phase of a workflow step.
+                          type: string
+                        reason:
+                          description: A brief CamelCase message indicating details about why the workflowStep is in this state.
                           type: string
                         resourceRef:
                           description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
@@ -1204,6 +1298,14 @@ spec:
                           type: string
                       type: object
                     type: array
+                  suspend:
+                    type: boolean
+                  terminated:
+                    type: boolean
+                required:
+                - contextBackend
+                - suspend
+                - terminated
                 type: object
             type: object
         type: object
