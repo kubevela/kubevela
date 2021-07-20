@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -39,9 +38,9 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	}
 
 	if len(component.Auxiliaries) > 0 {
-		auxiliaries := []string{}
+		var auxiliaries []string
 		for _, aux := range component.Auxiliaries {
-			auxiliaries = append(auxiliaries, aux.String())
+			auxiliaries = append(auxiliaries, "{"+aux.String()+"}")
 		}
 		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), "auxiliaries"); err != nil {
 			return err
@@ -94,20 +93,19 @@ func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Actio
 }
 
 func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	ret, err := v.Field("continue")
-	if err != nil {
-		return err
+
+	cv := v.CueValue()
+	if cv.Exists() {
+		ret := cv.Lookup("continue")
+		if ret.Exists() {
+			isContinue, err := ret.Bool()
+			if err == nil && isContinue {
+				return nil
+			}
+		}
 	}
-	if !ret.Exists() {
-		return nil
-	}
-	isContinue, err := ret.Bool()
-	if err != nil {
-		return err
-	}
-	if !isContinue {
-		act.Wait("")
-	}
+
+	act.Wait("")
 	return nil
 }
 
