@@ -1,11 +1,12 @@
 package context
 
 import (
+	"testing"
+
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"gopkg.in/yaml.v3"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
-	"testing"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
