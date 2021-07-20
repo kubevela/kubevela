@@ -78,8 +78,13 @@ Firstly make sure your cluster has CRDs, below is the command that can help inst
 make core-install
 ```
 
-Run locally:
+To ensure you have created vela-system namespace and install definitions of necessary module.
+you can run the command:
+```shell script
+make check-install-def
+```
 
+And then run locally:
 ```shell script
 make core-run
 ```

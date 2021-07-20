@@ -321,3 +321,6 @@ swagger-gen:
 
 check-license-header:
 	./hack/licence/header-check.sh
+
+check-install-def:
+	./hack/utils/installdefinition.sh
