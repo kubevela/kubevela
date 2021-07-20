@@ -63,6 +63,7 @@ type AppManifestsDispatcher struct {
 	namespace     string
 	currentRTName string
 	currentRT     *v1beta1.ResourceTracker
+	legacyRTs     []*v1beta1.ResourceTracker
 }
 
 // EndAndGC return an AppManifestsDispatcher that do GC after dispatching resources.
@@ -101,11 +102,14 @@ func (a *AppManifestsDispatcher) Dispatch(ctx context.Context, manifests []*unst
 	if err := a.createOrGetResourceTracker(ctx); err != nil {
 		return nil, err
 	}
+	if err := a.retrieveLegacyResourceTrackers(ctx); err != nil {
+		return nil, err
+	}
 	if err := a.applyAndRecordManifests(ctx, manifests); err != nil {
 		return nil, err
 	}
 	if !a.skipGC && a.previousRT != nil && a.previousRT.Name != a.currentRTName {
-		if err := a.gcHandler.GarbageCollect(ctx, a.previousRT, a.currentRT); err != nil {
+		if err := a.gcHandler.GarbageCollect(ctx, a.previousRT, a.currentRT, a.legacyRTs); err != nil {
 			return nil, errors.WithMessagef(err, "cannot do GC based on resource trackers %q and %q", a.previousRT.Name, a.currentRTName)
 		}
 	}
@@ -176,6 +180,28 @@ func (a *AppManifestsDispatcher) createOrGetResourceTracker(ctx context.Context)
 	return nil
 }
 
+// Besides current and previous resource trackers, other resource trackers are regarded as legacy ones.
+// Legacy resource trackers come from unsuccessful dispatch, for example, error occrus in the middle of applying
+// resources. They may cause resources leak or race.
+// GarbageCollector should delete legacy resource trackers after dispatcher applies manifests successfully.
+func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Context) error {
+	a.legacyRTs = []*v1beta1.ResourceTracker{}
+	rtList := &v1beta1.ResourceTrackerList{}
+	if err := a.c.List(ctx, rtList, client.MatchingLabels{
+		oam.LabelAppName:      ExtractAppName(a.currentRTName, a.namespace),
+		oam.LabelAppNamespace: a.namespace,
+	}); err != nil {
+		return errors.Wrap(err, "cannot retrieve legacy resource trackers")
+	}
+	for _, rt := range rtList.Items {
+		if rt.Name != a.currentRTName &&
+			(a.previousRT != nil && rt.Name != a.previousRT.Name) {
+			a.legacyRTs = append(a.legacyRTs, rt.DeepCopy())
+		}
+	}
+	return nil
+}
+
 func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, manifests []*unstructured.Unstructured) error {
 	ctrlUIDs := []types.UID{a.currentRT.UID}
 	if a.previousRT != nil && a.previousRT.Name != a.currentRTName {
@@ -186,6 +212,12 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		// - set new resource tracker as their controller owner
 		ctrlUIDs = append(ctrlUIDs, a.previousRT.UID)
 	}
+
+	// allow to apply changes to resources owned by legacy RTs
+	for _, rt := range a.legacyRTs {
+		ctrlUIDs = append(ctrlUIDs, rt.UID)
+	}
+
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableByAny(ctrlUIDs)}
 	ownerRef := metav1.OwnerReference{
 		APIVersion:         v1beta1.SchemeGroupVersion.String(),
