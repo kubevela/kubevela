@@ -28,28 +28,6 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if err := v.UnmarshalTo(workload); err != nil {
 		return err
 	}
-	//auxiliaries, err := v.Field("_auxiliaries")
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//iter, err := auxiliaries.List()
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//auxObjs := []*unstructured.Unstructured{}
-	//for iter.Next() {
-	//	obj := new(unstructured.Unstructured)
-	//	bt, err := iter.Value().MarshalJSON()
-	//	if err != nil {
-	//		return err
-	//	}
-	//	if err := json.Unmarshal(bt, obj); err != nil {
-	//		return err
-	//	}
-	//	auxObjs = append(auxObjs, obj)
-	//}
 
 	deployCtx := context.Background()
 	if workload.GetNamespace() == "" {
@@ -58,11 +36,6 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if err := h.deploy.Apply(deployCtx, workload); err != nil {
 		return err
 	}
-	//for _, obj := range auxObjs {
-	//	if err := h.deploy.Apply(deployCtx, obj); err != nil {
-	//		return err
-	//	}
-	//}
 	return v.FillObject(workload.Object)
 }
 
