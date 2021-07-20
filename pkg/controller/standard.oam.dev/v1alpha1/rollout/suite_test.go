@@ -18,6 +18,8 @@ package rollout
 
 import (
 	"os"
+	"path/filepath"
+	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -26,9 +28,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	core_oam_dev "github.com/oam-dev/kubevela/apis/core.oam.dev"
-
-	"path/filepath"
-	"testing"
+	standard_oam_dev "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -60,7 +60,7 @@ var _ = BeforeSuite(func(done Done) {
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
 		yamlPath = "../../../../../../test/compatibility-test/testdata"
 	} else {
-		yamlPath = filepath.Join("../../../../../..", "charts", "vela-core", "crds")
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
 	}
 	logf.Log.Info("start application deployment suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
@@ -75,6 +75,9 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(cfg).ToNot(BeNil())
 
 	err = core_oam_dev.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = standard_oam_dev.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme

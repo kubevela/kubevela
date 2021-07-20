@@ -22,25 +22,22 @@ import (
 	"fmt"
 	"time"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/ghodss/yaml"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-
-	"github.com/ghodss/yaml"
-	appsv1 "k8s.io/api/apps/v1"
-
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test rollout related handler func", func() {
@@ -200,6 +197,61 @@ var _ = Describe("Test rollout related handler func", func() {
 			h.handleRolloutModified()
 			Expect(h.targetRevName).Should(BeEquivalentTo("metrics-provider-v2"))
 			Expect(h.sourceRevName).Should(BeEquivalentTo("metrics-provider-v1"))
+		})
+
+		It("handle finalizer test", func() {
+			deletTime := metav1.NewTime(time.Now())
+			rollout := &v1alpha1.Rollout{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         namespace,
+					Name:              "rollout-test",
+					DeletionTimestamp: &deletTime,
+				},
+				Status: v1alpha1.CompRolloutStatus{
+					RolloutStatus: v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutFailedState,
+					},
+				},
+			}
+			meta.AddFinalizer(rollout, rolloutFinalizer)
+			h := handler{
+				reconciler: &reconciler{
+					Client: k8sClient,
+					record: event.NewNopRecorder(),
+				},
+				rollout: rollout,
+			}
+			done, _, _ := h.handleFinalizer(ctx, rollout)
+			Expect(done).Should(BeTrue())
+			Expect(len(rollout.Finalizers)).Should(BeEquivalentTo(0))
+		})
+
+		It("handle finalizer in progress rollout test", func() {
+			deletTime := metav1.NewTime(time.Now())
+			rollout := &v1alpha1.Rollout{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         namespace,
+					Name:              "rollout-test",
+					DeletionTimestamp: &deletTime,
+				},
+				Status: v1alpha1.CompRolloutStatus{
+					RolloutStatus: v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RollingInBatchesState,
+					},
+				},
+			}
+			meta.AddFinalizer(rollout, rolloutFinalizer)
+			h := handler{
+				reconciler: &reconciler{
+					Client: k8sClient,
+					record: event.NewNopRecorder(),
+				},
+				rollout: rollout,
+			}
+			done, _, _ := h.handleFinalizer(ctx, rollout)
+			Expect(done).Should(BeFalse())
+			Expect(len(rollout.Finalizers)).Should(BeEquivalentTo(1))
+			Expect(rollout.Status.RollingState).Should(BeEquivalentTo(v1alpha1.RolloutDeletingState))
 		})
 	})
 })
