@@ -317,6 +317,7 @@ func (r *Reconciler) getWorkloadsFromRevision(ctx context.Context, revName, ns s
 			return nil, err
 		}
 		comp.Name = makeRevisionName(comp.Name, revName)
+		comp.Namespace = appRev.Namespace
 		comps = append(comps, comp)
 	}
 
