@@ -20,6 +20,7 @@ type taskDiscover struct {
 	remoteTaskDiscover types.TaskDiscover
 }
 
+// GetTaskGenerator get task generator by name.
 func (td *taskDiscover) GetTaskGenerator(name string) (types.TaskGenerator, error) {
 	tg, ok := td.builtins[name]
 	if ok {
@@ -47,6 +48,7 @@ func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
 	}, nil
 }
 
+// NewTaskDiscover will create a client for load task generator.
 func NewTaskDiscover(cli client.Client, pd *packages.PackageDiscover, loadTemplate custom.LoadTaskTemplate) types.TaskDiscover {
 
 	providerHandlers := providers.NewProviders()
