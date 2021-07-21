@@ -180,6 +180,87 @@ var _ = Describe("Initializer Normal tests", func() {
 		}, 30*time.Second, 5*time.Second).Should(Succeed())
 	})
 
+	It("Test change the appTemplate of initializer", func() {
+		init := &v1beta1.Initializer{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Initializer",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "init-test-1",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.InitializerSpec{
+				AppTemplate: v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Components: []v1beta1.ApplicationComponent{
+							{
+								Name: "init-test-1",
+								Type: "worker",
+								Properties: util.Object2RawExtension(map[string]interface{}{
+									"image": "busybox",
+									"cmd":   []string{"sleep", "10000"},
+								}),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		By("Create Initializer")
+		Eventually(func() error {
+			return k8sClient.Create(ctx, init)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Verify the application is created successfully")
+		app := new(v1beta1.Application)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: init.Name, Namespace: namespace}, app)
+		}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		Expect(len(app.Spec.Components)).Should(Equal(len(init.Spec.AppTemplate.Spec.Components)))
+
+		By("Verify the initializer successfully initialized the environment")
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: init.Name, Namespace: namespace}, init)
+			if err != nil {
+				return err
+			}
+			if init.Status.Phase != v1beta1.InitializerSuccess {
+				return fmt.Errorf("environment was not successfully initialized")
+			}
+			return nil
+		}, 30*time.Second, 5*time.Second).Should(Succeed())
+
+		init.Spec.AppTemplate.Spec.Components = append(init.Spec.AppTemplate.Spec.Components, v1beta1.ApplicationComponent{
+			Name: "init-test-2",
+			Type: "worker",
+			Properties: util.Object2RawExtension(map[string]interface{}{
+				"image": "busybox",
+				"cmd":   []string{"sleep", "10000"},
+			}),
+		})
+
+		By("Update Initializer")
+		Eventually(func() error {
+			return k8sClient.Update(ctx, init)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Verify the application is updated successfully")
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: init.Name, Namespace: namespace}, app)
+			if err != nil {
+				return err
+			}
+			if len(app.Spec.Components) != len(init.Spec.AppTemplate.Spec.Components) {
+				return errors.Errorf("expect the componet number of application is %d, actual get %d", len(init.Spec.AppTemplate.Spec.Components), len(app.Spec.Components))
+			}
+			return nil
+		}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
+
+	})
+
 	Context("Test apply initializer depends on other initializer", func() {
 
 		It("initializer depends on existing initializer", func() {

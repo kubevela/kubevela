@@ -188,7 +188,8 @@ func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializ
 
 func (r *Reconciler) createOrUpdateResource(ctx context.Context, app *v1beta1.Application) error {
 	klog.InfoS("Create or update resources", "app", klog.KObj(app))
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app)
+	copyApp := app.DeepCopy()
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, copyApp)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return r.Create(ctx, app)
