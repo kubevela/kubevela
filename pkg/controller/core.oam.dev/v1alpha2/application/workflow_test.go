@@ -17,7 +17,6 @@ limitations under the License.
 package application
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -36,14 +35,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/workflow"
 )
 
 var _ = Describe("Test Workflow", func() {
 	ctx := context.Background()
-	namespace := "test-workflow"
+	namespace := "test-ns"
 
 	appWithWorkflow := &oamcore.Application{
 		ObjectMeta: metav1.ObjectMeta{
@@ -60,11 +59,7 @@ var _ = Describe("Test Workflow", func() {
 				Steps: []oamcore.WorkflowStep{{
 					Name:       "test-wf1",
 					Type:       "foowf",
-					Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
-				}, {
-					Name:       "test-wf2",
-					Type:       "foowf",
-					Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+					Properties: runtime.RawExtension{Raw: []byte(`{"namespace":"test-ns"}`)},
 				}},
 			},
 		},
@@ -111,86 +106,60 @@ var _ = Describe("Test Workflow", func() {
 			Namespace: namespace,
 		}, cm)).Should(BeNil())
 
-		Expect(cm.Data["resources"]).Should(Equal(compressJSON(appWithWorkflowAndPolicyResources)))
+		Expect(cm.Data[ConfigMapKeyComponents]).Should(Equal(testConfigMapComponentValue))
+		Expect(cm.Data[ConfigMapKeyPolicy]).Should(Equal(testConfigMapPolicyValue))
 	})
 
-	It("should execute workflow steps one by one", func() {
+	It("should execute workflow step to apply and wait", func() {
 		Expect(k8sClient.Create(ctx, appWithWorkflow)).Should(BeNil())
 
 		// first try to add finalizer
-		tryReconcile(reconciler, appWithWorkflowAndPolicy.Name, appWithWorkflowAndPolicy.Namespace)
+		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 
-		// check step 1 created, step 2 not
-		step1obj := &unstructured.Unstructured{}
-		step1obj.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   "example.com",
-			Kind:    "Foo",
-			Version: "v1",
-		})
-
-		step2obj := &unstructured.Unstructured{}
-		step2obj.SetGroupVersionKind(schema.GroupVersionKind{
+		// check resource created
+		stepObj := &unstructured.Unstructured{}
+		stepObj.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   "example.com",
 			Kind:    "Foo",
 			Version: "v1",
 		})
 
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Name:      "test-wf1",
+			Name:      "test-foo",
 			Namespace: appWithWorkflow.Namespace,
-		}, step1obj)).Should(BeNil())
+		}, stepObj)).Should(BeNil())
 
+		// check workflow status is waiting
+		appObj := &oamcore.Application{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Name:      "test-wf2",
+			Name:      appWithWorkflow.Name,
 			Namespace: appWithWorkflow.Namespace,
-		}, step2obj)).Should(&util.NotFoundMatcher{})
+		}, appObj)).Should(BeNil())
 
-		// mark step 1 succeeded, reconcile
-		markWorkflowSucceeded(step1obj)
-		Expect(k8sClient.Update(ctx, step1obj)).Should(BeNil())
+		Expect(appObj.Status.Workflow.Steps[0].Name).Should(Equal("test-wf1"))
+		Expect(appObj.Status.Workflow.Steps[0].Type).Should(Equal("foowf"))
+		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(Equal(common.WorkflowStepPhaseRunning))
+		Expect(appObj.Status.Workflow.Steps[0].Reason).Should(Equal("Wait"))
+
+		// update spec to trigger spec
+		triggerWorkflowStepToSucceed(stepObj)
+		Expect(k8sClient.Update(ctx, stepObj)).Should(BeNil())
 
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
-		// check step 2 created
+
+		// check workflow status is succeeded
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Name:      "test-wf2",
+			Name:      appWithWorkflow.Name,
 			Namespace: appWithWorkflow.Namespace,
-		}, step2obj)).Should(BeNil())
+		}, appObj)).Should(BeNil())
+
+		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
 	})
 })
 
-func markWorkflowSucceeded(obj *unstructured.Unstructured) {
-	succeededMessage, _ := json.Marshal(&workflow.SucceededMessage{ObservedGeneration: 2})
-
-	m := map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{
-				"type":    workflow.CondTypeWorkflowFinish,
-				"reason":  workflow.CondReasonSucceeded,
-				"message": string(succeededMessage),
-				"status":  workflow.CondStatusTrue,
-			},
-		},
-	}
-
-	unstructured.SetNestedMap(obj.Object, m, "status")
-}
-
-func compressJSON(d string) string {
-	m := &json.RawMessage{}
-	r := bytes.NewBuffer([]byte(d))
-	dec := json.NewDecoder(r)
-	w := &bytes.Buffer{}
-
-	for {
-		err := dec.Decode(m)
-		if err != nil {
-			break
-		}
-		b, _ := json.Marshal(m)
-		w.Write(b)
-	}
-	return w.String()
+func triggerWorkflowStepToSucceed(obj *unstructured.Unstructured) {
+	unstructured.SetNestedField(obj.Object, "ready", "spec", "key")
 }
 
 func tryReconcile(r *Reconciler, name, ns string) {
@@ -294,72 +263,28 @@ spec:
   schematic:
     cue:
       template: |
-        output: {
+        import ("vela/op")
+        
+        parameter: {
+          namespace: string
+        }
+        
+        // apply workload to kubernetes cluster
+        apply: op.#Apply & {
           apiVersion: "example.com/v1"
-          kind:       "Foo"
-          spec: {
-            key: parameter.key
+          kind: "Foo"
+          metadata: {
+            name: "test-foo"
+            namespace: parameter.namespace
           }
         }
-        parameter: {
-          key: string
+        
+        // wait until workload.status equal "Running"
+        wait: op.#ConditionalWait & {
+          continue: apply.spec.key != ""
         }
 `
 
-	appWithWorkflowAndPolicyResources = `{
-  "apiVersion": "apps/v1",
-  "kind": "Deployment",
-  "metadata": {
-    "annotations": {},
-    "labels": {
-      "app.oam.dev/appRevision": "test-wf-policy-v1",
-      "app.oam.dev/component": "test-component",
-      "app.oam.dev/name": "test-wf-policy",
-      "workload.oam.dev/type": "worker"
-    },
-    "name": "test-component",
-    "namespace": "test-workflow"
-  },
-  "spec": {
-    "selector": {
-      "matchLabels": {
-        "app.oam.dev/component": "test-component"
-      }
-    },
-    "template": {
-      "metadata": {
-        "labels": {
-          "app.oam.dev/component": "test-component"
-        }
-      },
-      "spec": {
-        "containers": [
-          {
-            "command": [
-              "sleep",
-              "1000"
-            ],
-            "image": "busybox",
-            "name": "test-component"
-          }
-        ]
-      }
-    }
-  }
-}
-{
-  "apiVersion": "example.com/v1",
-  "kind": "Foo",
-  "metadata": {
-    "labels": {
-      "app.oam.dev/appRevision": "test-wf-policy-v1",
-      "app.oam.dev/component": "test-policy",
-      "app.oam.dev/name": "test-wf-policy",
-      "workload.oam.dev/type": "foopolicy"
-    }
-  },
-  "spec": {
-    "key": "test"
-  }
-}`
+	testConfigMapComponentValue = `{"test-component":"{\"Scopes\":[],\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"apps/v1\\\",\\\"kind\\\":\\\"Deployment\\\",\\\"metadata\\\":{\\\"annotations\\\":{},\\\"labels\\\":{\\\"app.oam.dev/appRevision\\\":\\\"test-wf-policy-v1\\\",\\\"app.oam.dev/component\\\":\\\"test-component\\\",\\\"app.oam.dev/name\\\":\\\"test-wf-policy\\\",\\\"workload.oam.dev/type\\\":\\\"worker\\\"}},\\\"spec\\\":{\\\"selector\\\":{\\\"matchLabels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"template\\\":{\\\"metadata\\\":{\\\"labels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"command\\\":[\\\"sleep\\\",\\\"1000\\\"],\\\"image\\\":\\\"busybox\\\",\\\"name\\\":\\\"test-component\\\"}]}}}}\",\"Traits\":[]}"}`
+	testConfigMapPolicyValue    = `[{"apiVersion":"example.com/v1","kind":"Foo","metadata":{"labels":{"app.oam.dev/appRevision":"test-wf-policy-v1","app.oam.dev/component":"test-policy","app.oam.dev/name":"test-wf-policy","workload.oam.dev/type":"foopolicy"}},"spec":{"key":"test"}}]`
 )

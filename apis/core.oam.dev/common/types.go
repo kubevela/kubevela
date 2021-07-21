@@ -223,6 +223,10 @@ type AppStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 
+	// The generation observed by the application controller.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	Rollout AppRolloutStatus `json:"rollout,omitempty"`
 
 	Phase ApplicationPhase `json:"status,omitempty"`

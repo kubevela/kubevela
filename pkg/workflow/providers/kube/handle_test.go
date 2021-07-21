@@ -18,14 +18,15 @@ package kube
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,6 +80,7 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
 
 		v, err = value.NewValue(component.Workload.String()+"\nmetadata: name: \"app\"", nil)
+		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("result")
@@ -102,7 +104,12 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 
 func newWorkflowContextForTest() (wfContext.Context, error) {
 	cm := corev1.ConfigMap{}
-	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
+
+	testCaseJson, err := yaml.YAMLToJSON([]byte(testCaseYaml))
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(testCaseJson, &cm)
 	if err != nil {
 		return nil, err
 	}

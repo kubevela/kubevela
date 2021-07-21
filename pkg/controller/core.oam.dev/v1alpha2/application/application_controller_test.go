@@ -812,11 +812,15 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.ObservedGeneration).Should(BeZero())
+
 		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
-		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.ObservedGeneration).Should(Equal(curApp.Generation))
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		appRevision := &v1beta1.ApplicationRevision{}
@@ -887,6 +891,7 @@ spec:
 
 		By("Check App updated successfully")
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.ObservedGeneration).Should(Equal(curApp.Generation))
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		Expect(k8sClient.Get(ctx, client.ObjectKey{

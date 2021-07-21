@@ -8,7 +8,7 @@ import (
 
 // Context is workflow context interface
 type Context interface {
-	GetComponent(name string) (*componentManifest, error)
+	GetComponent(name string) (*ComponentManifest, error)
 	PatchComponent(name string, patchValue *value.Value) error
 	GetVar(paths ...string) (*value.Value, error)
 	SetVar(v *value.Value, paths ...string) error

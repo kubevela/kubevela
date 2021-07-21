@@ -34,22 +34,23 @@ const (
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
 type LoadTaskTemplate func(ctx context.Context, name string) (string, error)
 
-type taskLoader struct {
+// TaskLoader is a client that get taskGenerator.
+type TaskLoader struct {
 	loadTemplate func(ctx context.Context, name string) (string, error)
 	pd           *packages.PackageDiscover
 	handlers     providers.Providers
 }
 
 // GetTaskGenerator get TaskGenerator by name.
-func (t *taskLoader) GetTaskGenerator(name string) (wfTypes.TaskGenerator, error) {
-	templ, err := t.loadTemplate(context.Background(), name)
+func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes.TaskGenerator, error) {
+	templ, err := t.loadTemplate(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 	return t.makeTaskGenerator(templ)
 }
 
-func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
+func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep) (wfTypes.TaskRunner, error) {
 
 		exec := &executor{
@@ -76,10 +77,8 @@ func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 
-			if outputs != nil {
-				for _, output := range outputs {
-					params[output.ExportKey] = output.Name
-				}
+			for _, output := range outputs {
+				params[output.ExportKey] = output.Name
 			}
 
 			paramsValue, err := ctx.MakeParameter(params)
@@ -87,13 +86,13 @@ func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
 			}
 
-			if inputs != nil {
-				for _, input := range inputs {
-					inputValue, err := ctx.GetVar(input.From)
-					if err != nil {
-						return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
-					}
-					paramsValue.FillObject(inputValue, input.ParameterKey)
+			for _, input := range inputs {
+				inputValue, err := ctx.GetVar(input.From)
+				if err != nil {
+					return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
+				}
+				if err := paramsValue.FillObject(inputValue, input.ParameterKey); err != nil {
+					return common.WorkflowStepStatus{}, nil, err
 				}
 			}
 
@@ -235,8 +234,8 @@ func getLabel(v *value.Value, label string) string {
 }
 
 // NewTaskLoader create a tasks loader.
-func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers) *taskLoader {
-	return &taskLoader{
+func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers) *TaskLoader {
+	return &TaskLoader{
 		loadTemplate: lt,
 		pd:           pkgDiscover,
 		handlers:     handlers,

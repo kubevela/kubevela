@@ -24,11 +24,13 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
 
+	"github.com/Masterminds/sprig"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -38,11 +40,26 @@ import (
 )
 
 const (
-	// InitializerFileName represents the Initializer file of addons
-	InitializerFileName = "initializer.yaml"
+	// InitializerTemplateName represents the Initializer template file of addons
+	InitializerTemplateName = "template.yaml"
+
+	// InitializerFileDir is where we store generated initializer & component definition
+	InitializerFileDir = "auto-gen"
+
+	// ComponentDefDir is where we store correspond componentDefinition for addon
+	ComponentDefDir = "definitions"
+
+	// ResourceDir is where we store correspond componentDefinition for addon
+	ResourceDir = "resource"
 
 	// DescAnnotation records the description of addon
 	DescAnnotation = "addons.oam.dev/description"
+
+	// MarkLabel is annotation key marks configMap as an addon
+	MarkLabel = "addons.oam.dev/type"
+
+	// ChartTemplateNamespace is placeholder for helm chart
+	ChartTemplateNamespace = "{{.Values.systemDefinitionNamespace}}"
 )
 
 type velaFile struct {
@@ -53,11 +70,12 @@ type velaFile struct {
 
 // AddonInfo records addon's metadata
 type AddonInfo struct {
-	Files        []velaFile
-	Name         string
-	Namespace    string
-	Description  string
-	TemplatePath string
+	ResourceFiles   []velaFile
+	DefinitionFiles []velaFile
+	HasDefs         bool
+	Name            string
+	Description     string
+	TemplatePath    string
 }
 
 func walkAllAddons(path string) ([]string, error) {
@@ -68,34 +86,23 @@ func walkAllAddons(path string) ([]string, error) {
 
 	addons := make([]string, 0, len(files))
 	for _, file := range files {
-		if file.IsDir() {
+		if file.IsDir() && file.Name() != InitializerFileDir {
 			addons = append(addons, file.Name())
 		}
 	}
 	return addons, nil
 }
 
-func indentedContent(content string, indent int) string {
-	var res string
-	lines := strings.Split(content, "\n")
-	indentSpace := strings.Repeat(" ", indent)
-	for i, line := range lines {
-		res += indentSpace + line
-		if i != len(lines)-1 {
-			res += "\n"
-		}
+func pathExist(path string) bool {
+	_, err := os.Stat(path)
+	if err != nil && os.IsNotExist(err) {
+		return false
 	}
-	return res
+	return true
 }
 
-func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
-	addonRoot := filepath.Clean(addonsPath + "/" + addon)
-	velaFiles := make([]velaFile, 0, 2)
-	addInfo := &AddonInfo{
-		Name: addon,
-	}
-
-	if err := filepath.Walk(addonRoot, func(path string, info fs.FileInfo, _ error) error {
+func newWalkFn(files *[]velaFile) filepath.WalkFunc {
+	return func(path string, info fs.FileInfo, _ error) error {
 		if info.IsDir() {
 			return nil
 		}
@@ -104,27 +111,44 @@ func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
 			return err
 		}
 
-		if info.Name() == InitializerFileName {
-			addInfo.TemplatePath = path
-			return nil
-		}
-
 		obj := new(unstructured.Unstructured)
 		if err = yaml.Unmarshal(content, obj); err != nil {
 			return err
 		}
-		velaFiles = append(velaFiles, velaFile{
+		*files = append(*files, velaFile{
 			RelativePath: path,
 			Name:         obj.GetName(),
-			Content:      indentedContent(string(content), 10),
+			Content:      string(content),
 		})
-
 		return nil
-	}); err != nil {
-		return nil, err
+	}
+}
+
+func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
+	addonRoot := filepath.Clean(addonsPath + "/" + addon)
+	resourceRoot := filepath.Clean(addonRoot + "/" + ResourceDir)
+	defRoot := filepath.Clean(addonRoot + "/" + ComponentDefDir)
+	resourcesFiles := make([]velaFile, 0)
+	defFiles := make([]velaFile, 0)
+	addInfo := &AddonInfo{
+		Name:         addon,
+		TemplatePath: filepath.Join(addonRoot, InitializerTemplateName),
+	}
+	// raw resources directory
+	if pathExist(resourceRoot) {
+		if err := filepath.Walk(resourceRoot, newWalkFn(&resourcesFiles)); err != nil {
+			return nil, err
+		}
+		addInfo.ResourceFiles = resourcesFiles
 	}
 
-	addInfo.Files = velaFiles
+	if pathExist(defRoot) {
+		if err := filepath.Walk(defRoot, newWalkFn(&defFiles)); err != nil {
+			return nil, err
+		}
+		addInfo.HasDefs = true
+		addInfo.DefinitionFiles = defFiles
+	}
 	return addInfo, nil
 }
 
@@ -148,7 +172,9 @@ func WriteToFile(filename string, data string) error {
 }
 
 func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
-	t, err := template.ParseFiles(addon.TemplatePath)
+	templatePath := strings.Split(addon.TemplatePath, "/")
+	templateName := templatePath[len(templatePath)-1]
+	t, err := template.New(templateName).Funcs(sprig.TxtFuncMap()).ParseFiles(addon.TemplatePath)
 	if err != nil {
 		return nil, err
 	}
@@ -166,12 +192,27 @@ func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
 	return init, err
 }
 
+func setConfigMapLabels(addonInfo *AddonInfo) map[string]string {
+	return map[string]string{
+		MarkLabel: addonInfo.Name,
+	}
+}
 func setConfigMapAnnotations(addonInfo *AddonInfo) map[string]string {
 	return map[string]string{
 		DescAnnotation: addonInfo.Description,
 	}
 }
+func removeTimestampInplace(s *string) {
+	timeStampwithApptemplate := "appTemplate:\n(.*metadata:)?\n[ ]*creationTimestamp: null"
+	re := regexp.MustCompile(timeStampwithApptemplate)
+	*s = re.ReplaceAllString(*s, "appTemplate:")
 
+	pureTimeStamp := "\n[ ]*creationTimestamp: null"
+	re = regexp.MustCompile(pureTimeStamp)
+	*s = re.ReplaceAllString(*s, "")
+}
+
+// storeConfigMap store configMap in helm chart
 func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, storePath string) error {
 	configMap := &corev1.ConfigMap{
 		TypeMeta: v1.TypeMeta{
@@ -181,8 +222,9 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	}
 	addonInfo.Description = initializer.GetAnnotations()[DescAnnotation]
 	configMap.SetName(addonInfo.Name)
-	configMap.SetNamespace(addonInfo.Namespace)
+	configMap.SetNamespace(ChartTemplateNamespace)
 	configMap.SetAnnotations(setConfigMapAnnotations(addonInfo))
+	configMap.SetLabels(setConfigMapLabels(addonInfo))
 
 	data := make(map[string]string, 1)
 	initContent, err := yaml.Marshal(initializer)
@@ -195,12 +237,24 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	if err != nil {
 		return err
 	}
-	clearStr := "\n.*?creationTimestamp:.*?null"
-	var re = regexp.MustCompile(clearStr)
-	raw := re.ReplaceAllString(string(content), "")
-
+	raw := string(content)
+	removeTimestampInplace(&raw)
+	raw = strings.ReplaceAll(raw, fmt.Sprintf("'%s'", ChartTemplateNamespace), ChartTemplateNamespace)
 	filename := storePath + "/" + addonInfo.Name + ".yaml"
 	return WriteToFile(filename, raw)
+}
+
+// storeInitializer store init in one file for apply directly
+func storeInitializer(init *v1beta1.Initializer, addonPath string, addonName string) error {
+	initContent, err := yaml.Marshal(init)
+	if err != nil {
+		return err
+	}
+
+	filename := path.Join(addonPath, InitializerFileDir, addonName+".yaml")
+	contents := string(initContent)
+	removeTimestampInplace(&contents)
+	return WriteToFile(filename, contents)
 }
 
 func main() {
@@ -212,24 +266,24 @@ func main() {
 	flag.Parse()
 
 	addons, err := walkAllAddons(addonsPath)
+	dealErr := func(err error) {
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	for _, addon := range addons {
-		var addInfo *AddonInfo
-		if addInfo, err = getAddonInfo(addon, addonsPath); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		addInfo, err := getAddonInfo(addon, addonsPath)
+		dealErr(err)
 		init, err := generateInitializer(addInfo)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		if err = storeConfigMap(addInfo, init, storePath); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		dealErr(err)
+		err = storeInitializer(init, addonsPath, addInfo.Name)
+		dealErr(err)
+		err = storeConfigMap(addInfo, init, storePath)
+		dealErr(err)
 	}
 }

@@ -1,9 +1,11 @@
 package workspace
 
 import (
+	"encoding/json"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	"github.com/ghodss/yaml"
+
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 
@@ -157,11 +159,14 @@ func (act *mockAction) Wait(msg string) {
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	cm := corev1.ConfigMap{}
-	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
+	testCaseJson, err := yaml.YAMLToJSON([]byte(testCaseYaml))
+	assert.NilError(t, err)
+	err = json.Unmarshal(testCaseJson, &cm)
 	assert.NilError(t, err)
 
 	wfCtx := new(wfContext.WorkflowContext)
 	err = wfCtx.LoadFromConfigMap(cm)
+	assert.NilError(t, err)
 	return wfCtx
 }
 

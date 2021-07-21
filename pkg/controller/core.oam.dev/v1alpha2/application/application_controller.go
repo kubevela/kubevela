@@ -25,9 +25,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -117,15 +116,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Failed to parse application", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Parsed", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Parsed", err))
 	}
-	app.Status.SetConditions(readyCondition("Parsed"))
+	app.Status.SetConditions(utils.ReadyCondition("Parsed"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 
 	if err := handler.PrepareCurrentAppRevision(ctx, appFile); err != nil {
 		klog.ErrorS(err, "Failed to prepare app revision", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Revision", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Revision", err))
 	}
 	klog.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
@@ -135,30 +134,30 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Render", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Render", err))
 	}
 	if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
 		klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Render", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Render", err))
 	}
 
 	if err := handler.FinalizeAndApplyAppRevision(ctx, comps); err != nil {
 		klog.ErrorS(err, "Failed to apply app revision", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Revision", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Revision", err))
 	}
-	app.Status.SetConditions(readyCondition("Revision"))
+	app.Status.SetConditions(utils.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 
-	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(r.dm, r.Client, r.pd)
+	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, r.dm, r.Client, r.pd)
 	if err != nil {
 		klog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Render", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Render", err))
 	}
-	app.Status.SetConditions(readyCondition("Render"))
+	app.Status.SetConditions(utils.ReadyCondition("Render"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 	klog.Info("Successfully render application resources", "application", klog.KObj(app))
 
@@ -166,13 +165,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "Failed to apply application manifests",
 			"application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Applied", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Applied", err))
 	}
 	if err := handler.UpdateAppLatestRevisionStatus(ctx); err != nil {
 		klog.ErrorS(err, "Failed to update application status", "application", klog.KObj(app))
 		return r.endWithNegativeCondition(ctx, app, v1alpha1.ReconcileError(err))
 	}
-	app.Status.SetConditions(readyCondition("Applied"))
+	app.Status.SetConditions(utils.ReadyCondition("Applied"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
 	klog.Info("Successfully apply application manifests", "application", klog.KObj(app))
 
@@ -180,7 +179,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("Workflow", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Workflow", err))
 	}
 	if !done {
 		return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.patchStatus(ctx, app)
@@ -192,7 +191,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if err != nil {
 			klog.ErrorS(err, "Failed to handle rollout", "application", klog.KObj(app))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
-			return r.endWithNegativeCondition(ctx, app, errorCondition("Rollout", err))
+			return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Rollout", err))
 		}
 		// skip health check and garbage collection if rollout have not finished
 		// start next reconcile immediately
@@ -206,7 +205,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 		// there is no need reconcile immediately, that means the rollout operation have finished
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
-		app.Status.SetConditions(readyCondition("Rollout"))
+		app.Status.SetConditions(utils.ReadyCondition("Rollout"))
 		klog.Info("Finished rollout ")
 	}
 
@@ -217,16 +216,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Failed to aggregate status", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
-		return r.endWithNegativeCondition(ctx, app, errorCondition("HealthCheck", err))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("HealthCheck", err))
 	}
 	app.Status.Services = appCompStatus
 	if !healthy {
 		if err := r.patchStatus(ctx, app); err != nil {
 			return r.endWithNegativeCondition(ctx, app, v1alpha1.ReconcileError(err))
 		}
-		return r.endWithNegativeCondition(ctx, app, errorCondition("HealthCheck", errors.New("not healthy")))
+		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("HealthCheck", errors.New("not healthy")))
 	}
-	app.Status.SetConditions(readyCondition("HealthCheck"))
+	app.Status.SetConditions(utils.ReadyCondition("HealthCheck"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	app.Status.Phase = common.ApplicationRunning
 
@@ -320,6 +319,7 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application) error {
+	updateObservedGeneration(app)
 	return r.Client.Status().Patch(ctx, app, client.Merge)
 }
 
@@ -328,25 +328,6 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application) 
 // resources into the cluster. Rollout controller will do real release works.
 func appWillRollout(app *v1beta1.Application) bool {
 	return len(app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil
-}
-
-func errorCondition(tpy string, err error) v1alpha1.Condition {
-	return v1alpha1.Condition{
-		Type:               v1alpha1.ConditionType(tpy),
-		Status:             corev1.ConditionFalse,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-		Reason:             v1alpha1.ReasonReconcileError,
-		Message:            err.Error(),
-	}
-}
-
-func readyCondition(tpy string) v1alpha1.Condition {
-	return v1alpha1.Condition{
-		Type:               v1alpha1.ConditionType(tpy),
-		Status:             corev1.ConditionTrue,
-		Reason:             v1alpha1.ReasonAvailable,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-	}
 }
 
 // SetupWithManager install to manager
@@ -373,4 +354,10 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	return reconciler.SetupWithManager(mgr)
+}
+
+func updateObservedGeneration(app *v1beta1.Application) {
+	if app.Status.ObservedGeneration != app.Generation {
+		app.Status.ObservedGeneration = app.Generation
+	}
 }

@@ -30,12 +30,12 @@ const (
 type WorkflowContext struct {
 	cli        client.Client
 	store      corev1.ConfigMap
-	components map[string]*componentManifest
+	components map[string]*ComponentManifest
 	vars       *value.Value
 }
 
 // GetComponent Get ComponentManifest from workflow context.
-func (wf *WorkflowContext) GetComponent(name string) (*componentManifest, error) {
+func (wf *WorkflowContext) GetComponent(name string) (*ComponentManifest, error) {
 	component, ok := wf.components[name]
 	if !ok {
 		return nil, errors.Errorf("component %s not found in application", name)
@@ -127,9 +127,9 @@ func (wf *WorkflowContext) LoadFromConfigMap(cm corev1.ConfigMap) error {
 	if err := json.Unmarshal([]byte(data[ConfigMapKeyComponents]), &componentsJs); err != nil {
 		return errors.WithMessage(err, "decode components")
 	}
-	wf.components = map[string]*componentManifest{}
+	wf.components = map[string]*ComponentManifest{}
 	for name, compJs := range componentsJs {
-		cm := new(componentManifest)
+		cm := new(ComponentManifest)
 		if err := cm.unmarshal(compJs); err != nil {
 			return errors.WithMessagef(err, "unmarshal component(%s) manifest", name)
 		}
@@ -153,13 +153,14 @@ func (wf *WorkflowContext) StoreRef() *runtimev1alpha1.TypedReference {
 	}
 }
 
-type componentManifest struct {
+// ComponentManifest contains resources rendered from an application component.
+type ComponentManifest struct {
 	Workload    model.Instance
 	Auxiliaries []model.Instance
 }
 
-// Patch the componentManifest with value
-func (comp *componentManifest) Patch(patchValue *value.Value) error {
+// Patch the ComponentManifest with value
+func (comp *ComponentManifest) Patch(patchValue *value.Value) error {
 	pInst, err := model.NewOther(patchValue.CueValue())
 	if err != nil {
 		return err
@@ -172,7 +173,7 @@ type componentMould struct {
 	Traits           []string
 }
 
-func (comp *componentManifest) string() (string, error) {
+func (comp *ComponentManifest) string() (string, error) {
 	cm := componentMould{
 		StandardWorkload: comp.Workload.String(),
 	}
@@ -183,7 +184,7 @@ func (comp *componentManifest) string() (string, error) {
 	return string(js), err
 }
 
-func (comp *componentManifest) unmarshal(v string) error {
+func (comp *ComponentManifest) unmarshal(v string) error {
 
 	cm := componentMould{}
 	if err := json.Unmarshal([]byte(v), &cm); err != nil {
@@ -263,7 +264,7 @@ func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 	wfCtx := &WorkflowContext{
 		cli:        cli,
 		store:      store,
-		components: map[string]*componentManifest{},
+		components: map[string]*ComponentManifest{},
 	}
 	var err error
 	wfCtx.vars, err = value.NewValue("", nil)

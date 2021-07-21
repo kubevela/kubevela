@@ -28,4 +28,4 @@ Assign:
 When you participating in an issue area, and you want to assign to others
 to distribute this task or self-assign to give a solution. You can use the comment bellow.
 * Write the word `/assign githubname` in a comment, the robot will automatically assign to the corresponding person.
-  
+* Specially, write the word `/assign` in a comment, you can assgin this task to yourself.  

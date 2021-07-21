@@ -17,6 +17,7 @@ limitations under the License.
 package assemble
 
 import (
+	"reflect"
 	"strings"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -300,6 +301,13 @@ func (am *AppManifests) filterAndSetAnnotations(obj *unstructured.Unstructured) 
 }
 
 func (am *AppManifests) setNamespace(obj *unstructured.Unstructured) {
+
+	// we should not set namespace for namespace resources
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	if gvk == corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Namespace{}).Name()) {
+		return
+	}
+
 	// only set app's namespace when namespace is unspecified
 	// it's by design to set arbitrary namespace in render phase
 	if len(obj.GetNamespace()) == 0 {

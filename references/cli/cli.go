@@ -92,6 +92,9 @@ func NewCommand() *cobra.Command {
 		NewComponentsCommand(commandArgs, ioStream),
 		NewWorkloadsCommand(commandArgs, ioStream),
 
+		// Addons
+		NewAddonCommand(commandArgs, ioStream),
+
 		// Helper
 		SystemCommandGroup(commandArgs, ioStream),
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),

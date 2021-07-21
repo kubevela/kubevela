@@ -101,7 +101,7 @@ ip: "1.1.1.1"
 	}
 
 	for _, step := range steps {
-		gen, err := tasksLoader.GetTaskGenerator(step.Type)
+		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 		assert.NilError(t, err)
 		run, err := gen(step)
 		assert.NilError(t, err)

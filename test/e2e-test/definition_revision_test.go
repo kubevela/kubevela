@@ -435,7 +435,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 			}
 			By("Verify patch trait is applied")
 			templateLabels := deploy.GetLabels()
-			return templateLabels["hello"] != "world"
+			return templateLabels["hello"] == "world"
 		}, 120*time.Second, 10*time.Second).Should(BeTrue())
 
 		app = v1beta1.Application{

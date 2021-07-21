@@ -131,15 +131,16 @@ type field struct {
 
 // StepByFields process the fields in order
 func (val *Value) StepByFields(handle func(in *Value) (bool, error)) error {
-	i := 0
-	for {
+	for i := 0; ; i++ {
 		field, end, err := val.fieldIndex(i)
 		if err != nil {
 			return err
 		}
-		if stop, err := handle(field.Value); err != nil {
+		stop, err := handle(field.Value)
+		if err != nil {
 			return errors.WithMessagef(err, "process task step %s", field.Name)
-		} else if stop == true {
+		}
+		if stop {
 			return nil
 		}
 		if err := val.FillObject(field.Value, field.Name); err != nil {
@@ -148,7 +149,6 @@ func (val *Value) StepByFields(handle func(in *Value) (bool, error)) error {
 		if end {
 			break
 		}
-		i++
 	}
 	return nil
 }

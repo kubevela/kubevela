@@ -276,6 +276,38 @@ spec:
 				return def.Status.ConfigMapRef
 			}, 10*time.Second, time.Second).Should(Equal(name))
 		})
+
+		It("Applying ComponentDefinition with autodetect workload type", func() {
+			componentDefYaml := `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "raw allow users to specify raw K8s object in properties"
+  name: test-autodetects
+  namespace: ns-def
+spec:
+  workload:
+    type: autodetects.core.oam.dev
+  schematic:
+    cue:
+      template: |
+        output: parameter
+        parameter: {}
+`
+			var cd v1beta1.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(componentDefYaml), &cd)).Should(BeNil())
+			cd.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: cd.Name, Namespace: cd.Namespace}}
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, cd.Name)
+			Eventually(func() bool {
+				reconcileRetry(&r, req)
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: cd.Namespace, Name: name}, &cm)
+				return err == nil
+			}, 30*time.Second, time.Second).Should(BeTrue())
+		})
 	})
 
 	Context("When the ComponentDefinition contains Helm Module, should create a ConfigMap", func() {
@@ -696,7 +728,6 @@ spec:
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
 		})
-
 	})
 })
 

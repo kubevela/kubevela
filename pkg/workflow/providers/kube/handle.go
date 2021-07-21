@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	// ProviderName is provider name for install.
 	ProviderName = "kube"
 )
 

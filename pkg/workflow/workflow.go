@@ -115,7 +115,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		if err := wfCtx.Commit(); err != nil {
 			return false, errors.WithMessage(err, "commit workflow context")
 		}
-		wfStatus.StepIndex += 1
+		wfStatus.StepIndex++
 
 		if wfStatus.Terminated || wfStatus.Suspend {
 			return true, nil

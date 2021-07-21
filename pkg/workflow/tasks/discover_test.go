@@ -26,7 +26,6 @@ func TestDiscover(t *testing.T) {
 		default:
 			return "", makeErr(name)
 		}
-		return "", nil
 	}
 	discover := &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
@@ -35,13 +34,13 @@ func TestDiscover(t *testing.T) {
 		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, nil, nil),
 	}
 
-	_, err := discover.GetTaskGenerator("suspend")
+	_, err := discover.GetTaskGenerator(context.Background(), "suspend")
 	assert.NilError(t, err)
-	_, err = discover.GetTaskGenerator("foo")
+	_, err = discover.GetTaskGenerator(context.Background(), "foo")
 	assert.NilError(t, err)
-	_, err = discover.GetTaskGenerator("crazy")
+	_, err = discover.GetTaskGenerator(context.Background(), "crazy")
 	assert.NilError(t, err)
-	_, err = discover.GetTaskGenerator("fly")
+	_, err = discover.GetTaskGenerator(context.Background(), "fly")
 	assert.Equal(t, err.Error(), makeErr("fly").Error())
 
 }

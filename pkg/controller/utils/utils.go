@@ -384,3 +384,24 @@ func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condTy
 
 	return nil, false, nil
 }
+
+// ReadyCondition generate ready condition for conditionType
+func ReadyCondition(tpy string) runtimev1alpha1.Condition {
+	return runtimev1alpha1.Condition{
+		Type:               runtimev1alpha1.ConditionType(tpy),
+		Status:             corev1.ConditionTrue,
+		Reason:             runtimev1alpha1.ReasonAvailable,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+	}
+}
+
+// ErrorCondition generate error condition for conditionType and error
+func ErrorCondition(tpy string, err error) runtimev1alpha1.Condition {
+	return runtimev1alpha1.Condition{
+		Type:               runtimev1alpha1.ConditionType(tpy),
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             runtimev1alpha1.ReasonReconcileError,
+		Message:            err.Error(),
+	}
+}

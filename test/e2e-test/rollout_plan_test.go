@@ -312,7 +312,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRollout.Name}, &appRollout)
 				appRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
-				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 3)
+				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
 			},
@@ -723,18 +723,18 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		appRollout.Namespace = namespaceName
 		appRollout.Spec.SourceAppRevisionName = ""
 		appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
-		appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(3)
+		appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(2)
 		appRollout.Spec.RolloutPlan.BatchPartition = nil
 		By("create appRollout initial targetSize is 3")
 		createAppRolling(&appRollout)
 		appRolloutName = appRollout.Name
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		By("modify appRollout targetSize to 5")
+		By("modify appRollout targetSize to 4")
 		Eventually(func() error {
 			if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRolloutName}, &appRollout); err != nil {
 				return err
 			}
-			appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(5)
+			appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(4)
 			if err = k8sClient.Update(ctx, &appRollout); err != nil {
 				return err
 			}
@@ -748,18 +748,18 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			if err != nil {
 				return err
 			}
-			if *kc.Spec.Replicas != 5 {
+			if *kc.Spec.Replicas != 4 {
 				return fmt.Errorf("pod replicas mismatch")
 			}
 			return nil
 		}, 30*time.Second, 300*time.Microsecond).Should(BeNil())
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-		By("modify appRollout targetSize to 7")
+		By("modify appRollout targetSize to 6")
 		Eventually(func() error {
 			if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRolloutName}, &appRollout); err != nil {
 				return err
 			}
-			appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(7)
+			appRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(6)
 			if err = k8sClient.Update(ctx, &appRollout); err != nil {
 				return err
 			}
@@ -773,7 +773,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			if err != nil {
 				return err
 			}
-			if *kc.Spec.Replicas != 7 {
+			if *kc.Spec.Replicas != 6 {
 				return fmt.Errorf("pod replicas mismatch")
 			}
 			return nil
