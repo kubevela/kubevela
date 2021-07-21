@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"time"
 
 	"github.com/gosuri/uitable"
@@ -311,13 +312,31 @@ func (a *Addon) enable() error {
 		return errors.Wrap(err, "Create namespace error")
 	}
 	err = applicator.Apply(ctx, obj)
-	// TODO Initializer should provide status so that enable addon is truly enabled.
 	if err != nil {
 		return errors.Wrapf(err, "Error occurs when enableing addon: %s\n", a.name)
 	}
+	waitForInitializerSuccess(obj)
 	return nil
 }
 
+func waitForInitializerSuccess(obj *unstructured.Unstructured) {
+	ctx := context.Background()
+	var init v1beta1.Initializer
+	stopCh := make(chan struct{})
+	period := 20 * time.Second
+	wait.Until(func() {
+		err := clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &init)
+		if err != nil {
+			return
+		}
+		phase := init.Status.Phase
+		if phase == v1beta1.InitializerSuccess {
+			close(stopCh)
+		}
+		fmt.Println("Initializer is in phase: " + phase + " ...")
+	}, period, stopCh)
+	return
+}
 func (a *Addon) disable() error {
 	dynamicClient, err := dynamic.NewForConfig(clientArgs.Config)
 	namespaceToDelete := make(map[string]bool)
