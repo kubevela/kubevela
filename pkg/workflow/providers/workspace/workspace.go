@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package workspace
 
 import (
@@ -5,19 +21,20 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 const (
+	// ProviderName is provider name.
 	ProviderName = "builtin"
 )
 
 type provider struct {
 }
 
+// Load get component from context.
 func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	componentName, err := v.Field("component")
 	if err != nil {
@@ -39,9 +56,10 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	}
 
 	if len(component.Auxiliaries) > 0 {
-		auxiliaries := []string{}
+		var auxiliaries []string
 		for _, aux := range component.Auxiliaries {
-			auxiliaries = append(auxiliaries, aux.String())
+			auxiliaries = append(auxiliaries, "{"+aux.String()+"}")
+
 		}
 		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), "auxiliaries"); err != nil {
 			return err
@@ -50,6 +68,7 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	return nil
 }
 
+// Export put data into context.
 func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	tpyValue, err := v.Field("type")
 	if err != nil {
@@ -93,29 +112,31 @@ func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Actio
 	return nil
 }
 
+// Wait let workflow wait.
 func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	ret, err := v.Field("continue")
-	if err != nil {
-		return err
+
+	cv := v.CueValue()
+	if cv.Exists() {
+		ret := cv.Lookup("continue")
+		if ret.Exists() {
+			isContinue, err := ret.Bool()
+			if err == nil && isContinue {
+				return nil
+			}
+		}
 	}
-	if !ret.Exists() {
-		return nil
-	}
-	isContinue, err := ret.Bool()
-	if err != nil {
-		return err
-	}
-	if !isContinue {
-		act.Wait("")
-	}
+
+	act.Wait("")
 	return nil
 }
 
+// Break let workflow terminate.
 func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	act.Terminate("")
 	return nil
 }
 
+// Install register handler to provider discover.
 func Install(p providers.Providers) {
 	prd := &provider{}
 	p.Register(ProviderName, map[string]providers.Handler{

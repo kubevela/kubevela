@@ -1,11 +1,25 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package context
 
 import (
 	"context"
 	"encoding/json"
 	"time"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 
 	"cuelang.org/go/cue"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -15,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -27,15 +42,16 @@ const (
 	AnnotationStartTimestamp = "vela.io/startTime"
 )
 
-type workflowContext struct {
+// WorkflowContext is workflow context.
+type WorkflowContext struct {
 	cli        client.Client
 	store      corev1.ConfigMap
-	components map[string]*componentManifest
+	components map[string]*ComponentManifest
 	vars       *value.Value
 }
 
 // GetComponent Get ComponentManifest from workflow context.
-func (wf *workflowContext) GetComponent(name string) (*componentManifest, error) {
+func (wf *WorkflowContext) GetComponent(name string) (*ComponentManifest, error) {
 	component, ok := wf.components[name]
 	if !ok {
 		return nil, errors.Errorf("component %s not found in application", name)
@@ -44,7 +60,7 @@ func (wf *workflowContext) GetComponent(name string) (*componentManifest, error)
 }
 
 // PatchComponent patch component with value.
-func (wf *workflowContext) PatchComponent(name string, patchValue *value.Value) error {
+func (wf *WorkflowContext) PatchComponent(name string, patchValue *value.Value) error {
 	component, err := wf.GetComponent(name)
 	if err != nil {
 		return err
@@ -53,12 +69,12 @@ func (wf *workflowContext) PatchComponent(name string, patchValue *value.Value) 
 }
 
 // GetVar get variable from workflow context.
-func (wf *workflowContext) GetVar(paths ...string) (*value.Value, error) {
+func (wf *WorkflowContext) GetVar(paths ...string) (*value.Value, error) {
 	return wf.vars.LookupValue(paths...)
 }
 
 // SetVar set variable to workflow context.
-func (wf *workflowContext) SetVar(v *value.Value, paths ...string) error {
+func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	str, err := v.String()
 	if err != nil {
 		return errors.WithMessage(err, "compile var")
@@ -67,7 +83,7 @@ func (wf *workflowContext) SetVar(v *value.Value, paths ...string) error {
 }
 
 // MakeParameter make 'value' with map[string]interface{}
-func (wf *workflowContext) MakeParameter(parameter map[string]interface{}) (*value.Value, error) {
+func (wf *WorkflowContext) MakeParameter(parameter map[string]interface{}) (*value.Value, error) {
 	var s = "{}"
 	if parameter != nil {
 		s = string(util.MustJSONMarshal(parameter))
@@ -77,15 +93,17 @@ func (wf *workflowContext) MakeParameter(parameter map[string]interface{}) (*val
 }
 
 // Commit the workflow context and persist it's content.
-func (wf *workflowContext) Commit() error {
-	wf.writeToStore()
+func (wf *WorkflowContext) Commit() error {
+	if err := wf.writeToStore(); err != nil {
+		return err
+	}
 	if err := wf.sync(); err != nil {
 		return errors.WithMessagef(err, "save context to configMap(%s/%s)", wf.store.Namespace, wf.store.Name)
 	}
 	return nil
 }
 
-func (wf *workflowContext) writeToStore() error {
+func (wf *WorkflowContext) writeToStore() error {
 	varStr, err := wf.vars.String()
 	if err != nil {
 		return err
@@ -106,7 +124,7 @@ func (wf *workflowContext) writeToStore() error {
 	return nil
 }
 
-func (wf *workflowContext) sync() error {
+func (wf *WorkflowContext) sync() error {
 	ctx := context.Background()
 	if err := wf.cli.Update(ctx, &wf.store); err != nil {
 		if kerrors.IsNotFound(err) {
@@ -117,16 +135,17 @@ func (wf *workflowContext) sync() error {
 	return nil
 }
 
-func (wf *workflowContext) loadFromConfigMap(cm corev1.ConfigMap) error {
+// LoadFromConfigMap recover workflow context from configMap.
+func (wf *WorkflowContext) LoadFromConfigMap(cm corev1.ConfigMap) error {
 	data := cm.Data
 	componentsJs := map[string]string{}
 
 	if err := json.Unmarshal([]byte(data[ConfigMapKeyComponents]), &componentsJs); err != nil {
 		return errors.WithMessage(err, "decode components")
 	}
-	wf.components = map[string]*componentManifest{}
+	wf.components = map[string]*ComponentManifest{}
 	for name, compJs := range componentsJs {
-		cm := new(componentManifest)
+		cm := new(ComponentManifest)
 		if err := cm.unmarshal(compJs); err != nil {
 			return errors.WithMessagef(err, "unmarshal component(%s) manifest", name)
 		}
@@ -141,7 +160,7 @@ func (wf *workflowContext) loadFromConfigMap(cm corev1.ConfigMap) error {
 }
 
 // StoreRef return the store reference of workflow context.
-func (wf *workflowContext) StoreRef() *runtimev1alpha1.TypedReference {
+func (wf *WorkflowContext) StoreRef() *runtimev1alpha1.TypedReference {
 	return &runtimev1alpha1.TypedReference{
 		APIVersion: wf.store.APIVersion,
 		Kind:       wf.store.Kind,
@@ -150,13 +169,14 @@ func (wf *workflowContext) StoreRef() *runtimev1alpha1.TypedReference {
 	}
 }
 
-type componentManifest struct {
+// ComponentManifest contains resources rendered from an application component.
+type ComponentManifest struct {
 	Workload    model.Instance
 	Auxiliaries []model.Instance
 }
 
-// Patch the componentManifest with value
-func (comp *componentManifest) Patch(patchValue *value.Value) error {
+// Patch the ComponentManifest with value
+func (comp *ComponentManifest) Patch(patchValue *value.Value) error {
 	pInst, err := model.NewOther(patchValue.CueValue())
 	if err != nil {
 		return err
@@ -169,7 +189,7 @@ type componentMould struct {
 	Traits           []string
 }
 
-func (comp *componentManifest) string() (string, error) {
+func (comp *ComponentManifest) string() (string, error) {
 	cm := componentMould{
 		StandardWorkload: comp.Workload.String(),
 	}
@@ -180,7 +200,7 @@ func (comp *componentManifest) string() (string, error) {
 	return string(js), err
 }
 
-func (comp *componentManifest) unmarshal(v string) error {
+func (comp *ComponentManifest) unmarshal(v string) error {
 
 	cm := componentMould{}
 	if err := json.Unmarshal([]byte(v), &cm); err != nil {
@@ -231,14 +251,14 @@ func NewContext(cli client.Client, ns, rev string) (Context, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := wfCtx.loadFromConfigMap(manifestCm); err != nil {
+	if err := wfCtx.LoadFromConfigMap(manifestCm); err != nil {
 		return nil, errors.WithMessagef(err, "load from ConfigMap  %s/%s", ns, rev)
 	}
 
 	return wfCtx, wfCtx.Commit()
 }
 
-func newContext(cli client.Client, ns, rev string) (*workflowContext, error) {
+func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 	var (
 		ctx   = context.Background()
 		store corev1.ConfigMap
@@ -250,16 +270,17 @@ func newContext(cli client.Client, ns, rev string) (*workflowContext, error) {
 			if err := cli.Create(ctx, &store); err != nil {
 				return nil, err
 			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 	store.Annotations = map[string]string{
 		AnnotationStartTimestamp: time.Now().String(),
 	}
-	wfCtx := &workflowContext{
+	wfCtx := &WorkflowContext{
 		cli:        cli,
 		store:      store,
-		components: map[string]*componentManifest{},
+		components: map[string]*ComponentManifest{},
 	}
 	var err error
 	wfCtx.vars, err = value.NewValue("", nil)
@@ -276,11 +297,11 @@ func LoadContext(cli client.Client, ns, rev string) (Context, error) {
 	}, &store); err != nil {
 		return nil, err
 	}
-	ctx := &workflowContext{
+	ctx := &WorkflowContext{
 		cli:   cli,
 		store: store,
 	}
-	if err := ctx.loadFromConfigMap(store); err != nil {
+	if err := ctx.LoadFromConfigMap(store); err != nil {
 		return nil, err
 	}
 	return ctx, nil
