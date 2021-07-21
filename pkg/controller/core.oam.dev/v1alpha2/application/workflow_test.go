@@ -38,7 +38,6 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/workflow"
 )
 
 var _ = Describe("Test Workflow", func() {
@@ -111,10 +110,11 @@ var _ = Describe("Test Workflow", func() {
 			Namespace: namespace,
 		}, cm)).Should(BeNil())
 
-		Expect(cm.Data["resources"]).Should(Equal(compressJSON(appWithWorkflowAndPolicyResources)))
+		Expect(cm.Data[ConfigMapKeyComponents]).Should(Equal(testConfigMapComponentValue))
+		Expect(cm.Data[ConfigMapKeyPolicy]).Should(Equal(testConfigMapPolicyValue))
 	})
 
-	It("should execute workflow steps one by one", func() {
+	It("should execute workflow step and wait", func() {
 		Expect(k8sClient.Create(ctx, appWithWorkflow)).Should(BeNil())
 
 		// first try to add finalizer
@@ -160,20 +160,20 @@ var _ = Describe("Test Workflow", func() {
 })
 
 func markWorkflowSucceeded(obj *unstructured.Unstructured) {
-	succeededMessage, _ := json.Marshal(&workflow.SucceededMessage{ObservedGeneration: 2})
-
-	m := map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{
-				"type":    workflow.CondTypeWorkflowFinish,
-				"reason":  workflow.CondReasonSucceeded,
-				"message": string(succeededMessage),
-				"status":  workflow.CondStatusTrue,
-			},
-		},
-	}
-
-	unstructured.SetNestedMap(obj.Object, m, "status")
+	// succeededMessage, _ := json.Marshal(&workflow.SucceededMessage{ObservedGeneration: 2})
+	//
+	// m := map[string]interface{}{
+	// 	"conditions": []interface{}{
+	// 		map[string]interface{}{
+	// 			"type":    workflow.CondTypeWorkflowFinish,
+	// 			"reason":  workflow.CondReasonSucceeded,
+	// 			"message": string(succeededMessage),
+	// 			"status":  workflow.CondStatusTrue,
+	// 		},
+	// 	},
+	// }
+	//
+	// unstructured.SetNestedMap(obj.Object, m, "status")
 }
 
 func compressJSON(d string) string {
@@ -294,72 +294,11 @@ spec:
   schematic:
     cue:
       template: |
-        output: {
-          apiVersion: "example.com/v1"
-          kind:       "Foo"
-          spec: {
-            key: parameter.key
-          }
-        }
         parameter: {
           key: string
         }
 `
 
-	appWithWorkflowAndPolicyResources = `{
-  "apiVersion": "apps/v1",
-  "kind": "Deployment",
-  "metadata": {
-    "annotations": {},
-    "labels": {
-      "app.oam.dev/appRevision": "test-wf-policy-v1",
-      "app.oam.dev/component": "test-component",
-      "app.oam.dev/name": "test-wf-policy",
-      "workload.oam.dev/type": "worker"
-    },
-    "name": "test-component",
-    "namespace": "test-workflow"
-  },
-  "spec": {
-    "selector": {
-      "matchLabels": {
-        "app.oam.dev/component": "test-component"
-      }
-    },
-    "template": {
-      "metadata": {
-        "labels": {
-          "app.oam.dev/component": "test-component"
-        }
-      },
-      "spec": {
-        "containers": [
-          {
-            "command": [
-              "sleep",
-              "1000"
-            ],
-            "image": "busybox",
-            "name": "test-component"
-          }
-        ]
-      }
-    }
-  }
-}
-{
-  "apiVersion": "example.com/v1",
-  "kind": "Foo",
-  "metadata": {
-    "labels": {
-      "app.oam.dev/appRevision": "test-wf-policy-v1",
-      "app.oam.dev/component": "test-policy",
-      "app.oam.dev/name": "test-wf-policy",
-      "workload.oam.dev/type": "foopolicy"
-    }
-  },
-  "spec": {
-    "key": "test"
-  }
-}`
+	testConfigMapComponentValue = `{"test-component":"{\"Scopes\":[],\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"apps/v1\\\",\\\"kind\\\":\\\"Deployment\\\",\\\"metadata\\\":{\\\"annotations\\\":{},\\\"labels\\\":{\\\"app.oam.dev/appRevision\\\":\\\"test-wf-policy-v1\\\",\\\"app.oam.dev/component\\\":\\\"test-component\\\",\\\"app.oam.dev/name\\\":\\\"test-wf-policy\\\",\\\"workload.oam.dev/type\\\":\\\"worker\\\"}},\\\"spec\\\":{\\\"selector\\\":{\\\"matchLabels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"template\\\":{\\\"metadata\\\":{\\\"labels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"command\\\":[\\\"sleep\\\",\\\"1000\\\"],\\\"image\\\":\\\"busybox\\\",\\\"name\\\":\\\"test-component\\\"}]}}}}\",\"Traits\":[]}"}`
+	testConfigMapPolicyValue    = `[{"apiVersion":"example.com/v1","kind":"Foo","metadata":{"labels":{"app.oam.dev/appRevision":"test-wf-policy-v1","app.oam.dev/component":"test-policy","app.oam.dev/name":"test-wf-policy","workload.oam.dev/type":"foopolicy"}},"spec":{"key":"test"}}]`
 )
