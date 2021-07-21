@@ -333,13 +333,12 @@ func waitForInitializerSuccess(obj *unstructured.Unstructured) {
 		if phase == v1beta1.InitializerSuccess {
 			close(stopCh)
 		}
-		fmt.Println("Initializer is in phase: " + phase + " ...")
+		fmt.Printf("Initializer %s is in phase:%s...\n", obj.GetName(), phase)
 	}, period, stopCh)
 	return
 }
 func (a *Addon) disable() error {
 	dynamicClient, err := dynamic.NewForConfig(clientArgs.Config)
-	namespaceToDelete := make(map[string]bool)
 	if err != nil {
 		return err
 	}
@@ -376,23 +375,6 @@ func (a *Addon) disable() error {
 	if err != nil {
 		return err
 	}
-	namespaceToDelete[obj.GetNamespace()] = true
-
-	for ns := range namespaceToDelete {
-		fmt.Printf("Deleting namespace: %s...\n", ns)
-		err = clt.Delete(context.Background(), &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: ns,
-			},
-		})
-		if err != nil {
-			return errors.Wrap(err, "Delete namespace error")
-		}
-		err = waitDisableByNs(ns, 600)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -406,31 +388,4 @@ func (a *Addon) getStatus() string {
 		return statusUninstalled
 	}
 	return statusInstalled
-}
-
-// waitDisableByNs will wait until namespace is deleted or timeout
-func waitDisableByNs(namespace string, timeout int) error {
-	ctx := context.Background()
-	done := make(chan struct{}, 1)
-
-	go func(ctx context.Context) {
-		var ns v1.Namespace
-		for {
-			err := clt.Get(ctx, types2.NamespacedName{Name: namespace}, &ns)
-			if err != nil && errors2.IsNotFound(err) {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		done <- struct{}{}
-	}(ctx)
-
-	select {
-	case <-done:
-		fmt.Printf("Namespace %s successfully deleted\n", namespace)
-		return nil
-	case <-time.After(time.Duration(timeout) * time.Second):
-		return fmt.Errorf("namespace %s is still terminating", namespace)
-	}
-
 }
