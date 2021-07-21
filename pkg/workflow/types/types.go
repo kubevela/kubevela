@@ -1,6 +1,8 @@
 package types
 
 import (
+	"context"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -9,7 +11,7 @@ import (
 type TaskRunner func(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
 
 type TaskDiscover interface {
-	GetTaskGenerator(name string) (TaskGenerator, error)
+	GetTaskGenerator(ctx context.Context, name string) (TaskGenerator, error)
 }
 
 type Operation struct {
