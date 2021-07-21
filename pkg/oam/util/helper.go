@@ -458,16 +458,7 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 		return nil
 	}
 	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
-	var conditionIsChanged bool
-	for _, newCond := range condition {
-		// NOTE(roywang) an implicit rule here: condition type is unique in an object's conditions
-		// if this rule is changed in the future, we must revise below logic correspondingly
-		existingCond := workload.GetCondition(newCond.Type)
-		if !existingCond.Equal(newCond) {
-			conditionIsChanged = true
-			break
-		}
-	}
+	conditionIsChanged := IsConditionChanged(condition, workload)
 	workload.SetConditions(condition...)
 	if err := r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID())); err != nil {
 		return errors.Wrap(err, ErrUpdateStatus)
@@ -480,6 +471,21 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	// if no condition is changed, patching status can not trigger requeue, so we must return an error to
 	// requeue the resource
 	return errors.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
+}
+
+func IsConditionChanged(newCondition []cpv1alpha1.Condition, workload ConditionedObject) bool {
+	var conditionIsChanged bool
+	for _, newCond := range newCondition {
+		// NOTE(roywang) an implicit rule here: condition type is unique in an object's conditions
+		// if this rule is changed in the future, we must revise below logic correspondingly
+		existingCond := workload.GetCondition(newCond.Type)
+
+		if !existingCond.Equal(newCond) {
+			conditionIsChanged = true
+			break
+		}
+	}
+	return conditionIsChanged
 }
 
 // EndReconcileWithPositiveCondition is used to handle reconcile success for a conditioned resource.
