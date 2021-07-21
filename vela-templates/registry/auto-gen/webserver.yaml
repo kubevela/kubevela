@@ -13,23 +13,6 @@ spec:
   schematic:
     cue:
       template: |
-        parameter: {
-          version: *"1.14.2" | string
-        }
-        output: {
-          apiVersion: "v1"
-          kind: "Pod"
-          metadata: {
-            labels: app: "nginx"
-          }
-          spec:{
-            containers:[{
-                             name: "nginx"
-                             image: "nginx:"+parameter.version
-                             ports: [{containerPort: 80}]
-            }]
-          }
-        }
         output: {
         	apiVersion: "apps/v1"
         	kind:       "Deployment"
