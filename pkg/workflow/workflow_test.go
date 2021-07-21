@@ -16,160 +16,312 @@ limitations under the License.
 
 package workflow
 
-//func TestExecuteSteps(t *testing.T) {
-//
-//	zerostepApp := &oamcore.Application{
-//		ObjectMeta: metav1.ObjectMeta{
-//			Name:      "test",
-//			Namespace: "test",
-//		},
-//		Spec: oamcore.ApplicationSpec{
-//			Workflow: &oamcore.Workflow{
-//				Steps: []oamcore.WorkflowStep{},
-//			},
-//		},
-//	}
-//
-//	onestepApp := zerostepApp.DeepCopy()
-//	onestepApp.Spec.Workflow.Steps = []oamcore.WorkflowStep{{
-//		Name: "test",
-//		Type: "test",
-//	}}
-//
-//	twostepsApp := onestepApp.DeepCopy()
-//	twostepsApp.Spec.Workflow.Steps = append(twostepsApp.Spec.Workflow.Steps, oamcore.WorkflowStep{
-//		Name: "test2",
-//		Type: "test2",
-//	})
-//
-//	succeededMessage, err := json.Marshal(&SucceededMessage{ObservedGeneration: 1})
-//	if err != nil {
-//		panic(err)
-//	}
-//
-//	succeededStep := &unstructured.Unstructured{
-//		Object: map[string]interface{}{
-//			"metadata": map[string]interface{}{
-//				"generation": int64(1),
-//			},
-//			"status": map[string]interface{}{
-//				"conditions": []interface{}{map[string]interface{}{
-//					"type":    CondTypeWorkflowFinish,
-//					"reason":  CondReasonSucceeded,
-//					"message": string(succeededMessage),
-//					"status":  CondStatusTrue,
-//				}},
-//			},
-//		},
-//	}
-//	succeededStepUnmatchedGen := &unstructured.Unstructured{
-//		Object: map[string]interface{}{
-//			"metadata": map[string]interface{}{
-//				"generation": int64(2),
-//			},
-//			"status": map[string]interface{}{
-//				"conditions": []interface{}{map[string]interface{}{
-//					"type":    CondTypeWorkflowFinish,
-//					"reason":  CondReasonSucceeded,
-//					"message": string(succeededMessage),
-//					"status":  CondStatusTrue,
-//				}},
-//			},
-//		},
-//	}
-//
-//	runningStep := &unstructured.Unstructured{
-//		Object: map[string]interface{}{
-//			"status": map[string]interface{}{
-//				"conditions": []interface{}{map[string]interface{}{
-//					"type":   CondTypeWorkflowFinish,
-//					"status": CondStatusTrue,
-//				}},
-//			},
-//		},
-//	}
-//	stoppedStep := &unstructured.Unstructured{
-//		Object: map[string]interface{}{
-//			"status": map[string]interface{}{
-//				"conditions": []interface{}{map[string]interface{}{
-//					"type":   CondTypeWorkflowFinish,
-//					"reason": CondReasonStopped,
-//					"status": CondStatusTrue,
-//				}},
-//			},
-//		},
-//	}
-//
-//	type want struct {
-//		done bool
-//		err  error
-//	}
-//
-//	testcases := []struct {
-//		desc  string
-//		app   *oamcore.Application
-//		steps []*unstructured.Unstructured
-//		want  want
-//	}{{
-//		desc: "zero steps should return true",
-//		app:  zerostepApp.DeepCopy(),
-//		want: want{
-//			done: true,
-//		},
-//	}, {
-//		desc:  "one succeeded step should return true",
-//		app:   onestepApp.DeepCopy(),
-//		steps: []*unstructured.Unstructured{succeededStep.DeepCopy()},
-//		want: want{
-//			done: true,
-//		},
-//	}, {
-//		desc:  "one succeeded step with unmatched generation should return false",
-//		app:   onestepApp.DeepCopy(),
-//		steps: []*unstructured.Unstructured{succeededStepUnmatchedGen.DeepCopy()},
-//		want: want{
-//			done: false,
-//		},
-//	}, {
-//		desc:  "one running step should return false",
-//		app:   onestepApp.DeepCopy(),
-//		steps: []*unstructured.Unstructured{runningStep.DeepCopy()},
-//		want: want{
-//			done: false,
-//		},
-//	}, {
-//		desc:  "one stopped step should return true",
-//		app:   onestepApp.DeepCopy(),
-//		steps: []*unstructured.Unstructured{stoppedStep.DeepCopy()},
-//		want: want{
-//			done: true,
-//		},
-//	}, {
-//		desc:  "one succeeded step and one running step should return false",
-//		app:   twostepsApp.DeepCopy(),
-//		steps: []*unstructured.Unstructured{succeededStep.DeepCopy(), runningStep.DeepCopy()},
-//		want: want{
-//			done: false,
-//		},
-//	}}
-//	for _, tc := range testcases {
-//		t.Logf("%s", tc.desc)
-//		done, err := NewWorkflow(tc.app, mockApplicator()).ExecuteSteps(context.Background(), "app-v1", tc.steps)
-//		if err != nil {
-//			assert.Equal(t, tc.want.err, err)
-//			continue
-//		}
-//		assert.Equal(t, tc.want.done, done)
-//	}
-//}
+import (
+	"context"
+	"encoding/json"
 
-//type testmockApplicator struct {
-//}
-//
-//func (t *testmockApplicator) Apply(ctx context.Context, object runtime.Object, option ...apply.ApplyOption) error {
-//	return nil
-//}
-//
-//func mockApplicator() apply.Applicator {
-//	return &testmockApplicator{}
-//}
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
+	"github.com/ghodss/yaml"
+	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+)
+
+var _ = Describe("Test Workflow", func() {
+
+	BeforeEach(func() {
+		cm := &corev1.ConfigMap{}
+		revJson, err := yaml.YAMLToJSON([]byte(revYaml))
+		Expect(err).ToNot(HaveOccurred())
+		err = json.Unmarshal(revJson, cm)
+		Expect(err).ToNot(HaveOccurred())
+		err = k8sClient.Create(context.Background(), cm)
+		if err != nil && !kerrors.IsAlreadyExists(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+	})
+	It("Workflow test for failed", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "failed",
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient)
+		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(done).Should(BeFalse())
+		workflowStatus := app.Status.Workflow
+		Expect(workflowStatus.ContextBackend.Name).Should(BeEquivalentTo("workflow-" + revision))
+		workflowStatus.ContextBackend = nil
+		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   1,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s2",
+				Type:  "failed",
+				Phase: common.WorkflowStepPhaseFailed,
+			}},
+		})).Should(BeEquivalentTo(""))
+
+		app, runners = makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "success",
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+
+		app.Status.Workflow = workflowStatus
+		wf = NewWorkflow(app, k8sClient)
+		done, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(done).Should(BeTrue())
+		app.Status.Workflow.ContextBackend = nil
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   3,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s2",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s3",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}},
+		})).Should(BeEquivalentTo(""))
+
+	})
+
+	It("test for suspend", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "suspend",
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient)
+		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(done).Should(BeTrue())
+		app.Status.Workflow.ContextBackend = nil
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   2,
+			Suspend:     true,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s2",
+				Type:  "suspend",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}},
+		})).Should(BeEquivalentTo(""))
+
+		app.Status.Workflow.Suspend = false
+		done, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(done).Should(BeTrue())
+		app.Status.Workflow.ContextBackend = nil
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   3,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s2",
+				Type:  "suspend",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s3",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}},
+		})).Should(BeEquivalentTo(""))
+	})
+
+	It("test for terminate", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "terminate",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient)
+		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(done).Should(BeTrue())
+		app.Status.Workflow.ContextBackend = nil
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   2,
+			Terminated:  true,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s2",
+				Type:  "terminate",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}},
+		})).Should(BeEquivalentTo(""))
+	})
+
+	It("test for error", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "error",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient)
+		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).To(HaveOccurred())
+		Expect(done).Should(BeFalse())
+		app.Status.Workflow.ContextBackend = nil
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   1,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}},
+		})).Should(BeEquivalentTo(""))
+	})
+})
+
+func makeTestCase(steps []oamcore.WorkflowStep) (*oamcore.Application, []wfTypes.TaskRunner) {
+	app := &oamcore.Application{
+		Spec: oamcore.ApplicationSpec{
+			Workflow: &oamcore.Workflow{
+				Steps: steps,
+			},
+		},
+		Status: common.AppStatus{},
+	}
+	app.Namespace = "default"
+	app.Name = "app"
+	runners := []wfTypes.TaskRunner{}
+	for _, step := range steps {
+		runners = append(runners, makeRunner(step.Name, step.Type))
+	}
+	return app, runners
+}
+
+func makeRunner(name, tpy string) wfTypes.TaskRunner {
+	switch tpy {
+	case "suspend":
+		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			return common.WorkflowStepStatus{
+					Name:  name,
+					Type:  "suspend",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				}, &wfTypes.Operation{
+					Suspend: true,
+				}, nil
+		}
+	case "terminate":
+		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			return common.WorkflowStepStatus{
+					Name:  name,
+					Type:  "terminate",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				}, &wfTypes.Operation{
+					Terminated: true,
+				}, nil
+		}
+	case "success":
+		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			return common.WorkflowStepStatus{
+				Name:  name,
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, &wfTypes.Operation{}, nil
+		}
+	case "failed":
+		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			return common.WorkflowStepStatus{
+				Name:  name,
+				Type:  "failed",
+				Phase: common.WorkflowStepPhaseFailed,
+			}, &wfTypes.Operation{}, nil
+		}
+	case "error":
+		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			return common.WorkflowStepStatus{
+				Name:  name,
+				Type:  "error",
+				Phase: common.WorkflowStepPhaseRunning,
+			}, &wfTypes.Operation{}, errors.New("error for test")
+		}
+	}
+	return nil
+}
+
+var (
+	revYaml = `apiVersion: v1
+data:
+  components: '{"server":"{\"Scopes\":null,\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"Pod\\\",\\\"metadata\\\":{\\\"labels\\\":{\\\"app\\\":\\\"nginx\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"env\\\":[{\\\"name\\\":\\\"APP\\\",\\\"value\\\":\\\"nginx\\\"}],\\\"image\\\":\\\"nginx:1.14.2\\\",\\\"imagePullPolicy\\\":\\\"IfNotPresent\\\",\\\"name\\\":\\\"main\\\",\\\"ports\\\":[{\\\"containerPort\\\":8080,\\\"protocol\\\":\\\"TCP\\\"}]}]}}\",\"Traits\":[\"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"Service\\\",\\\"metadata\\\":{\\\"name\\\":\\\"my-service\\\"},\\\"spec\\\":{\\\"ports\\\":[{\\\"port\\\":80,\\\"protocol\\\":\\\"TCP\\\",\\\"targetPort\\\":8080}],\\\"selector\\\":{\\\"app\\\":\\\"nginx\\\"}}}\"]}"}'
+kind: ConfigMap
+metadata:
+  name: app-v1
+  namespace: default
+`
+	revision = "app-v1"
+)

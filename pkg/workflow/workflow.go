@@ -22,8 +22,6 @@ import (
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -31,9 +29,8 @@ import (
 )
 
 type workflow struct {
-	app        *oamcore.Application
-	cli        client.Client
-	applicator *apply.APIApplicator
+	app *oamcore.Application
+	cli client.Client
 }
 
 // NewWorkflow returns a Workflow implementation.
@@ -77,18 +74,18 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 	if wfStatus.ContextBackend != nil {
 		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
 		if err != nil {
-			return false, err
+			return false, errors.WithMessage(err, "load context")
 		}
 	} else {
 		wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
 		if err != nil {
-			return false, err
+			return false, errors.WithMessage(err, "new context")
 		}
 		wfStatus.ContextBackend = wfCtx.StoreRef()
 	}
 
 	for _, run := range taskRunners[wfStatus.StepIndex:] {
-		status, action, err := run(wfCtx)
+		status, operation, err := run(wfCtx)
 		if err != nil {
 			return false, err
 		}
@@ -106,9 +103,9 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 			wfStatus.Steps = append(wfStatus.Steps, status)
 		}
 
-		if action != nil {
-			wfStatus.Terminated = action.Terminated
-			wfStatus.Suspend = action.Suspend
+		if operation != nil {
+			wfStatus.Terminated = operation.Terminated
+			wfStatus.Suspend = operation.Suspend
 		}
 
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
@@ -116,7 +113,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		}
 
 		if err := wfCtx.Commit(); err != nil {
-			return false, errors.WithMessage(err, "commit context")
+			return false, errors.WithMessage(err, "commit workflow context")
 		}
 		wfStatus.StepIndex += 1
 

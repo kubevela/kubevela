@@ -78,7 +78,9 @@ func (wf *WorkflowContext) MakeParameter(parameter map[string]interface{}) (*val
 
 // Commit the workflow context and persist it's content.
 func (wf *WorkflowContext) Commit() error {
-	wf.writeToStore()
+	if err := wf.writeToStore(); err != nil {
+		return err
+	}
 	if err := wf.sync(); err != nil {
 		return errors.WithMessagef(err, "save context to configMap(%s/%s)", wf.store.Namespace, wf.store.Name)
 	}
@@ -251,8 +253,9 @@ func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 			if err := cli.Create(ctx, &store); err != nil {
 				return nil, err
 			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 	store.Annotations = map[string]string{
 		AnnotationStartTimestamp: time.Now().String(),

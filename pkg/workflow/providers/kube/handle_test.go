@@ -55,13 +55,9 @@ var pd *packages.PackageDiscover
 
 var _ = Describe("Test Workflow Provider Kube", func() {
 	It("apply and read", func() {
-		cli, err := client.New(cfg, client.Options{
-			Scheme: scheme,
-		})
-		Expect(err).ToNot(HaveOccurred())
 		p := &provider{
-			deploy: apply.NewAPIApplicator(cli),
-			cli:    cli,
+			deploy: apply.NewAPIApplicator(k8sClient),
+			cli:    k8sClient,
 		}
 		ctx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
@@ -76,7 +72,7 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 		workload, err := component.Workload.Unstructured()
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() error {
-			return cli.Get(context.Background(), client.ObjectKey{
+			return k8sClient.Get(context.Background(), client.ObjectKey{
 				Namespace: "default",
 				Name:      "app",
 			}, workload)
