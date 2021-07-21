@@ -59,7 +59,6 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 		var auxiliaries []string
 		for _, aux := range component.Auxiliaries {
 			auxiliaries = append(auxiliaries, "{"+aux.String()+"}")
-
 		}
 		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), "auxiliaries"); err != nil {
 			return err
