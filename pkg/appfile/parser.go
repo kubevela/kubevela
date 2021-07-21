@@ -134,22 +134,6 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 	return ws, nil
 }
 
-func (p *Parser) parseWorkflow(ctx context.Context, workflow *v1beta1.Workflow) ([]*Workload, error) {
-	if workflow == nil {
-		return []*Workload{}, nil
-	}
-	steps := workflow.Steps
-	ws := []*Workload{}
-	for _, step := range steps {
-		w, err := p.makeWorkload(ctx, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)
-		if err != nil {
-			return nil, err
-		}
-		ws = append(ws, w)
-	}
-	return ws, nil
-}
-
 func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
 	if err != nil && !kerrors.IsNotFound(err) {

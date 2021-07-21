@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package custom
 
 import (
@@ -6,14 +22,12 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -21,22 +35,30 @@ import (
 )
 
 const (
-	StatusReasonWait      = "Wait"
-	StatusReasonRendering = "Render"
-	StatusReasonExecute   = "Execute"
-	StatusReasonSuspend   = "Suspend"
+	// StatusReasonWait is the reason of the workflow progress condition which is Wait.
+	StatusReasonWait = "Wait"
+	// StatusReasonRendering is the reason of the workflow progress condition which is Rendering.
+	StatusReasonRendering = "Rendering"
+	// StatusReasonExecute is the reason of the workflow progress condition which is Execute.
+	StatusReasonExecute = "Execute"
+	// StatusReasonSuspend is the reason of the workflow progress condition which is Suspend.
+	StatusReasonSuspend = "Suspend"
+	// StatusReasonTerminate is the reason of the workflow progress condition which is Terminate.
 	StatusReasonTerminate = "Terminate"
 )
 
+// LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
 type LoadTaskTemplate func(ctx context.Context, name string) (string, error)
 
-type taskLoader struct {
+// TaskLoader is a client that get taskGenerator.
+type TaskLoader struct {
 	loadTemplate func(ctx context.Context, name string) (string, error)
 	pd           *packages.PackageDiscover
 	handlers     providers.Providers
 }
 
-func (t *taskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes.TaskGenerator, error) {
+// GetTaskGenerator get TaskGenerator by name.
+func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes.TaskGenerator, error) {
 	templ, err := t.loadTemplate(ctx, name)
 	if err != nil {
 		return nil, err
@@ -44,7 +66,7 @@ func (t *taskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes
 	return t.makeTaskGenerator(templ)
 }
 
-func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
+func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep) (wfTypes.TaskRunner, error) {
 
 		exec := &executor{
@@ -59,19 +81,20 @@ func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		inputs := wfStep.Inputs
 		params := map[string]interface{}{}
 
-		bt, err := wfStep.Properties.MarshalJSON()
-		if err != nil {
-			return nil, err
+		if len(wfStep.Properties.Raw) > 0 {
+			bt, err := wfStep.Properties.MarshalJSON()
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(bt, &params); err != nil {
+				return nil, err
+			}
 		}
-		if err := json.Unmarshal(bt, &params); err != nil {
-			return nil, err
-		}
+
 		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 
-			if wfStep.Outputs != nil {
-				for _, output := range outputs {
-					params[output.ExportKey] = output.Name
-				}
+			for _, output := range outputs {
+				params[output.ExportKey] = output.Name
 			}
 
 			paramsValue, err := ctx.MakeParameter(params)
@@ -79,13 +102,13 @@ func (t *taskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
 			}
 
-			if inputs != nil {
-				for _, input := range inputs {
-					inputValue, err := ctx.GetVar(input.From)
-					if err != nil {
-						return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
-					}
-					paramsValue.FillObject(inputValue, input.ParameterKey)
+			for _, input := range inputs {
+				inputValue, err := ctx.GetVar(input.From)
+				if err != nil {
+					return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
+				}
+				if err := paramsValue.FillObject(inputValue, input.ParameterKey); err != nil {
+					return common.WorkflowStepStatus{}, nil, err
 				}
 			}
 
@@ -124,12 +147,15 @@ type executor struct {
 	wait       bool
 }
 
+// Suspend let workflow pause.
 func (exec *executor) Suspend(message string) {
 	exec.suspend = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseSucceeded
 	exec.wfStatus.Message = message
 	exec.wfStatus.Reason = StatusReasonSuspend
 }
+
+// Terminate let workflow terminate.
 func (exec *executor) Terminate(message string) {
 	exec.terminated = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseSucceeded
@@ -137,6 +163,7 @@ func (exec *executor) Terminate(message string) {
 	exec.wfStatus.Reason = StatusReasonTerminate
 }
 
+// Wait let workflow wait.
 func (exec *executor) Wait(message string) {
 	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseRunning
@@ -161,6 +188,7 @@ func (exec *executor) status() common.WorkflowStepStatus {
 	return exec.wfStatus
 }
 
+// Handle process task-step value by provider and do.
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
 	h, exist := exec.handlers.GetHandler(provider, do)
 	if !exist {
@@ -221,8 +249,9 @@ func getLabel(v *value.Value, label string) string {
 	return ""
 }
 
-func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers) *taskLoader {
-	return &taskLoader{
+// NewTaskLoader create a tasks loader.
+func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers) *TaskLoader {
+	return &TaskLoader{
 		loadTemplate: lt,
 		pd:           pkgDiscover,
 		handlers:     handlers,

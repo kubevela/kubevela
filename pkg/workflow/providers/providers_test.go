@@ -14,30 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package stdlib
+package providers
 
-type discover struct {
-	files []file
-}
+import (
+	"testing"
 
-// Pkgs is map[${path}]${package-content}
-type Pkgs map[string]string
+	"github.com/bmizerany/assert"
+)
 
-func (p *discover) packages() Pkgs {
-	pkgs := map[string]string{}
-	for _, f := range p.files {
-		pkgs[f.path] += f.content + "\n"
-	}
-	return pkgs
-}
+func TestProvers(t *testing.T) {
+	p := NewProviders()
+	p.Register("test", map[string]Handler{
+		"foo":   nil,
+		"crazy": nil,
+	})
 
-func (p *discover) addFile(f file) {
-	p.files = append(p.files, f)
-}
-
-// GetPackages Get Stdlib packages
-func GetPackages() Pkgs {
-	d := &discover{}
-	d.addFile(opFile)
-	return d.packages()
+	_, found := p.GetHandler("test", "foo")
+	assert.Equal(t, found, true)
+	_, found = p.GetHandler("test", "crazy")
+	assert.Equal(t, found, true)
+	_, found = p.GetHandler("staging", "crazy")
+	assert.Equal(t, found, false)
+	_, found = p.GetHandler("test", "fly")
+	assert.Equal(t, found, false)
 }

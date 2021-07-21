@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package tasks
 
 import (
@@ -22,7 +38,9 @@ type taskDiscover struct {
 	remoteTaskDiscover types.TaskDiscover
 }
 
+// GetTaskGenerator get task generator by name.
 func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (types.TaskGenerator, error) {
+
 	tg, ok := td.builtins[name]
 	if ok {
 		return tg, nil
@@ -49,6 +67,7 @@ func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
 	}, nil
 }
 
+// NewTaskDiscover will create a client for load task generator.
 func NewTaskDiscover(cli client.Client, pd *packages.PackageDiscover, loadTemplate custom.LoadTaskTemplate) types.TaskDiscover {
 
 	providerHandlers := providers.NewProviders()
