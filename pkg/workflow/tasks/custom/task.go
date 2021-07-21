@@ -36,8 +36,8 @@ type taskLoader struct {
 	handlers     providers.Providers
 }
 
-func (t *taskLoader) GetTaskGenerator(name string) (wfTypes.TaskGenerator, error) {
-	templ, err := t.loadTemplate(context.Background(), name)
+func (t *taskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes.TaskGenerator, error) {
+	templ, err := t.loadTemplate(ctx, name)
 	if err != nil {
 		return nil, err
 	}

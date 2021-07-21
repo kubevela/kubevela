@@ -192,13 +192,13 @@ type Appfile struct {
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy(m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
+func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
 
-	steps, err = af.generateSteps(m, cli, pd)
+	steps, err = af.generateSteps(ctx, m, cli, pd)
 	return
 }
 
@@ -214,9 +214,9 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 	return uns, nil
 }
 
-func (af *Appfile) generateSteps(dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
+func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
 	loadTaskTemplate := func(ctx context.Context, name string) (string, error) {
-		templ, err := LoadTemplate(context.Background(), dm, cli, name, types.TypeWorkflowStep)
+		templ, err := LoadTemplate(ctx, dm, cli, name, types.TypeWorkflowStep)
 		if err != nil {
 			return "", err
 		}
@@ -230,7 +230,7 @@ func (af *Appfile) generateSteps(dm discoverymapper.DiscoveryMapper, cli client.
 	taskDiscover := tasks.NewTaskDiscover(cli, pd, loadTaskTemplate)
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
-		genTask, err := taskDiscover.GetTaskGenerator(step.Type)
+		genTask, err := taskDiscover.GetTaskGenerator(ctx, step.Type)
 		if err != nil {
 			return nil, err
 		}

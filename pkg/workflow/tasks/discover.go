@@ -1,6 +1,8 @@
 package tasks
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -20,14 +22,14 @@ type taskDiscover struct {
 	remoteTaskDiscover types.TaskDiscover
 }
 
-func (td *taskDiscover) GetTaskGenerator(name string) (types.TaskGenerator, error) {
+func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (types.TaskGenerator, error) {
 	tg, ok := td.builtins[name]
 	if ok {
 		return tg, nil
 	}
 	if td.remoteTaskDiscover != nil {
 		var err error
-		tg, err = td.remoteTaskDiscover.GetTaskGenerator(name)
+		tg, err = td.remoteTaskDiscover.GetTaskGenerator(ctx, name)
 		if err != nil {
 			return nil, err
 		}
