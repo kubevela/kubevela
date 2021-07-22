@@ -35,8 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
-var initializerGVR = v1beta1.SchemeGroupVersion.WithResource("initializers")
-
 // ValidatingHandler handles validation of initializer
 type ValidatingHandler struct {
 	Client client.Client
