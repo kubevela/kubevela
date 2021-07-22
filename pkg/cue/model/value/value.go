@@ -117,14 +117,18 @@ func (val *Value) CueValue() cue.Value {
 
 // FillObject unify the value with object x at the given path.
 func (val *Value) FillObject(x interface{}, paths ...string) error {
+	insert := x
 	if v, ok := x.(*Value); ok {
 		if v.r != val.r {
 			return errors.New("filled value not created with same Runtime")
 		}
-		val.v = val.v.Fill(v.v, paths...)
-		return nil
+		insert = v.v
 	}
-	val.v = val.v.Fill(x, paths...)
+	newV := val.v.Fill(insert, paths...)
+	if newV.Err() != nil {
+		return newV.Err()
+	}
+	val.v = newV
 	return nil
 }
 

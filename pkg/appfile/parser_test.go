@@ -113,6 +113,12 @@ var expectedExceptApp = &Appfile{
 			},
 		},
 	},
+	WorkflowSteps: []v1beta1.WorkflowStep{
+		{
+			Name: "suspend",
+			Type: "suspend",
+		},
+	},
 }
 
 const traitDefinition = `
@@ -214,6 +220,10 @@ spec:
         - type: scaler
           properties:
             replicas: 10
+  workflow:
+    steps:
+    - name: "suspend"
+      type: "suspend" 
 `
 
 var _ = Describe("Test application parser", func() {
