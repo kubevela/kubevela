@@ -19,7 +19,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"time"
 
 	"github.com/gosuri/uitable"
@@ -33,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -335,7 +335,6 @@ func waitForInitializerSuccess(obj *unstructured.Unstructured) {
 		}
 		fmt.Printf("Initializer %s is in phase:%s...\n", obj.GetName(), phase)
 	}, period, stopCh)
-	return
 }
 func (a *Addon) disable() error {
 	dynamicClient, err := dynamic.NewForConfig(clientArgs.Config)

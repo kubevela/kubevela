@@ -279,7 +279,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			}, 30*time.Second, 5*time.Second).Should(Succeed())
 		})
 
-		It("initializer depends on non build-in initializer, should be rejected by webhook", func() {
+		It("initializer depends on not non-build-in initializer not found, should be rejected by webhook", func() {
 			init := &v1beta1.Initializer{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Initializer",
@@ -405,6 +405,78 @@ var _ = Describe("Initializer Normal tests", func() {
 				}
 				return errors.New("initializer env-depends-buildin is not ready")
 			}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
+		})
+
+		It("Deleting initializer depended by other initializer should be rejected by webhook", func() {
+			initA := &v1beta1.Initializer{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Initializer",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "init-depended",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.InitializerSpec{
+					AppTemplate: v1beta1.Application{
+						Spec: v1beta1.ApplicationSpec{
+							Components: []v1beta1.ApplicationComponent{
+								{
+									Name: "",
+									Type: "worker",
+									Properties: util.Object2RawExtension(map[string]interface{}{
+										"image": "busybox",
+										"cmd":   []string{"sleep", "10000"},
+									}),
+								},
+							},
+						},
+					},
+				},
+			}
+			initDependingA := &v1beta1.Initializer{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Initializer",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "init-depending",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.InitializerSpec{
+					AppTemplate: v1beta1.Application{
+						Spec: v1beta1.ApplicationSpec{
+							Components: []v1beta1.ApplicationComponent{
+								{
+									Name: "",
+									Type: "worker",
+									Properties: util.Object2RawExtension(map[string]interface{}{
+										"image": "busybox",
+										"cmd":   []string{"sleep", "10000"},
+									}),
+								},
+							},
+						},
+					},
+					DependsOn: []v1beta1.DependsOn{
+						{
+							Ref: corev1.ObjectReference{
+								APIVersion: "core.oam.dev/v1beta1",
+								Kind:       "Initializer",
+								Name:       "init-depended",
+							},
+						},
+					},
+				},
+			}
+			By("Create Initializer depended")
+			Expect(k8sClient.Create(ctx, initA)).NotTo(HaveOccurred())
+
+			By("Create Initializer depending")
+			Expect(k8sClient.Create(ctx, initDependingA)).NotTo(HaveOccurred())
+
+			By("Deleting Initializer depended")
+			Expect(k8sClient.Delete(ctx, initA)).Should(HaveOccurred())
 		})
 	})
 })

@@ -213,6 +213,7 @@ webhooks:
         operations:
           - CREATE
           - UPDATE
+          - DELETE
         resources:
           - initializers
 {{- end -}}

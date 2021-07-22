@@ -473,6 +473,7 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	return errors.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
 }
 
+// IsConditionChanged will check if conditions in workload is changed compare to newCondition
 func IsConditionChanged(newCondition []cpv1alpha1.Condition, workload ConditionedObject) bool {
 	var conditionIsChanged bool
 	for _, newCond := range newCondition {
