@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/ghodss/yaml"
-
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 
@@ -41,6 +40,20 @@ component: "server"
 	str, err := v.String()
 	assert.NilError(t, err)
 	assert.Equal(t, str, expectedManifest)
+
+	errTestCases := []string{
+		`component: "not-found"`,
+		`component: 124`,
+		`not: "server"`,
+		`component: _|_`,
+	}
+
+	for _, tCase := range errTestCases {
+		errv, err := value.NewValue(tCase, nil)
+		assert.NilError(t, err)
+		err = p.Load(wfCtx, errv, &mockAction{})
+		assert.Equal(t, err != nil, true)
+	}
 }
 
 func TestProvider_Export(t *testing.T) {
@@ -103,6 +116,33 @@ value: "1.1.1.1"
 	s, err = varV.CueValue().String()
 	assert.NilError(t, err)
 	assert.Equal(t, s, "1.1.1.1")
+
+	errCases := []string{`
+type: "vars"
+path: "clusterIP"
+value: "1.1.1.1"
+`, `
+type: "patch"
+path: "clusterIP"
+value: "1.1.1.1"
+`, `
+type: "patch"
+component: "not-found"
+value: {}
+`, `
+type: "patch"
+component: "server"
+`, `
+component: "server"
+value: {}
+`}
+
+	for _, tCase := range errCases {
+		v, err = value.NewValue(tCase, nil)
+		assert.NilError(t, err)
+		err = p.Export(wfCtx, v, &mockAction{})
+		assert.Equal(t, err != nil, true)
+	}
 }
 
 func TestProvider_Wait(t *testing.T) {

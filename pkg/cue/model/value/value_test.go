@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/pkg/errors"
 	"gotest.tools/assert"
 )
 
@@ -167,6 +168,34 @@ step3: "3"
 	assert.NilError(t, err)
 	assert.Equal(t, inc, 2)
 
+	inc = 0
+	err = val.StepByFields(func(in *Value) (bool, error) {
+		inc++
+		s, err := in.CueValue().String()
+		assert.NilError(t, err)
+		if s == "2" {
+			return false, errors.New("mock error")
+		}
+		return false, nil
+	})
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, inc, 2)
+
+	inc = 0
+	err = val.StepByFields(func(in *Value) (bool, error) {
+		inc++
+		s, err := in.CueValue().String()
+		assert.NilError(t, err)
+		if s == "2" {
+			v, err := NewValue("v: 33", nil)
+			assert.NilError(t, err)
+			*in = *v
+		}
+		return false, nil
+	})
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, inc, 2)
+
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -203,13 +232,20 @@ do: string
 }
 
 func TestValue(t *testing.T) {
+
+	// Test NewValue with wrong cue format.
 	caseError := `
-provider: kube
+provider: xxx
 `
 	val, err := NewValue(caseError, nil)
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, val == nil, true)
 
+	val, err = NewValue(":", nil)
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, val == nil, true)
+
+	// Test make error by Fill with wrong cue format.
 	caseOk := `
 provider: "kube"
 do: "apply"
@@ -217,7 +253,10 @@ do: "apply"
 	val, err = NewValue(caseOk, nil)
 	assert.NilError(t, err)
 	originCue := val.CueValue()
+
 	_, err = val.MakeValue(caseError)
+	assert.Equal(t, err != nil, true)
+	_, err = val.MakeValue(":")
 	assert.Equal(t, err != nil, true)
 	err = val.FillRaw(caseError)
 	assert.Equal(t, err != nil, true)
@@ -228,13 +267,14 @@ do: "apply"
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, originCue, val.CueValue())
 
-	caseConflict := `
+	// Test make error by Fill with cue eval error.
+	caseClose := `
 close({provider: int})
 `
-	err = val.FillRaw(caseConflict)
+	err = val.FillRaw(caseClose)
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, originCue, val.CueValue())
-	cv, err = val.MakeValue(caseConflict)
+	cv, err = val.MakeValue(caseClose)
 	assert.NilError(t, err)
 	err = val.FillObject(cv)
 	assert.Equal(t, err != nil, true)
@@ -251,11 +291,33 @@ close({provider: int})
 	assert.Equal(t, err != nil, true)
 }
 
+func TestValueError(t *testing.T) {
+	caseOk := `
+provider: "kube"
+do: "apply"
+`
+	val, err := NewValue(caseOk, nil)
+	assert.NilError(t, err)
+	err = val.FillRaw(`
+provider: "conflict"`)
+	assert.NilError(t, err)
+	assert.Equal(t, val.Error() != nil, true)
+
+	val, err = NewValue(caseOk, nil)
+	assert.NilError(t, err)
+	err = val.FillObject(map[string]string{
+		"provider": "abc",
+	})
+	assert.NilError(t, err)
+	assert.Equal(t, val.Error() != nil, true)
+}
+
 func TestField(t *testing.T) {
 	caseSrc := `
 name: "foo"
 #name: "fly"
 #age: 100
+bottom: _|_
 `
 	val, err := NewValue(caseSrc, nil)
 	assert.NilError(t, err)
@@ -273,5 +335,8 @@ name: "foo"
 	assert.Equal(t, nameValue, "fly")
 
 	_, err = val.Field("age")
+	assert.Equal(t, err != nil, true)
+
+	_, err = val.Field("bottom")
 	assert.Equal(t, err != nil, true)
 }

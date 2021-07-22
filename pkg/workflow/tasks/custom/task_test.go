@@ -18,13 +18,15 @@ package custom
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -35,14 +37,8 @@ import (
 )
 
 func TestTaskLoader(t *testing.T) {
-	cm := corev1.ConfigMap{}
-	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
-	assert.NilError(t, err)
 
-	wfCtx := new(wfContext.WorkflowContext)
-	err = wfCtx.LoadFromConfigMap(cm)
-	assert.NilError(t, err)
-
+	wfCtx := newWorkflowContextForTest(t)
 	discover := providers.NewProviders()
 	discover.Register("test", map[string]providers.Handler{
 		"output": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -76,6 +72,9 @@ ip: "1.1.1.1"
 		},
 		"executeFailed": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
 			return errors.New("execute error")
+		},
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
 		},
 	})
 
@@ -114,6 +113,10 @@ ip: "1.1.1.1"
 			Name: "execute",
 			Type: "executeFailed",
 		},
+		{
+			Name: "steps",
+			Type: "steps",
+		},
 	}
 
 	for _, step := range steps {
@@ -149,6 +152,91 @@ ip: "1.1.1.1"
 
 }
 
+func TestErrCases(t *testing.T) {
+	wfCtx := newWorkflowContextForTest(t)
+	closeVar, err := value.NewValue(`
+close({
+   x: 100
+})
+`, nil)
+	assert.NilError(t, err)
+	err = wfCtx.SetVar(closeVar, "score")
+	assert.NilError(t, err)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"input": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			val, err := v.LookupValue("prefixIP")
+			assert.NilError(t, err)
+			str, err := val.CueValue().String()
+			assert.NilError(t, err)
+			assert.Equal(t, str, "1.1.1.1")
+			return nil
+		},
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
+		},
+		"error": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return errors.New("mock error")
+		},
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+
+	steps := []v1beta1.WorkflowStep{
+		{
+			Name: "input-err",
+			Type: "ok",
+			Properties: runtime.RawExtension{Raw: []byte(`
+{"score": {"y": 101}}
+`)},
+			Inputs: v1beta1.StepInputs{{
+				From:         "score",
+				ParameterKey: "score",
+			}},
+		},
+		{
+			Name: "input",
+			Type: "input",
+			Inputs: v1beta1.StepInputs{{
+				From:         "podIP",
+				ParameterKey: "prefixIP",
+			}},
+		},
+		{
+			Name: "wait",
+			Type: "wait",
+		},
+		{
+			Name: "err",
+			Type: "error",
+		},
+	}
+	for _, step := range steps {
+		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
+		assert.NilError(t, err)
+		run, err := gen(step)
+		assert.NilError(t, err)
+		status, _, err := run(wfCtx)
+		switch step.Name {
+		case "input":
+			assert.Equal(t, err != nil, true)
+		default:
+			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
+		}
+	}
+}
+
+func newWorkflowContextForTest(t *testing.T) wfContext.Context {
+	cm := corev1.ConfigMap{}
+	testCaseJson, err := yaml.YAMLToJSON([]byte(testCaseYaml))
+	assert.NilError(t, err)
+	err = json.Unmarshal(testCaseJson, &cm)
+	assert.NilError(t, err)
+
+	wfCtx := new(wfContext.WorkflowContext)
+	err = wfCtx.LoadFromConfigMap(cm)
+	assert.NilError(t, err)
+	return wfCtx
+}
 func mockLoadTemplate(_ context.Context, name string) (string, error) {
 	templ := `
 parameter: {}
@@ -173,7 +261,20 @@ output: xx
 `, nil
 	case "executeFailed":
 		return fmt.Sprintf(templ, "executeFailed"), nil
+	case "ok":
+		return fmt.Sprintf(templ, "ok"), nil
+	case "error":
+		return fmt.Sprintf(templ, "error"), nil
+	case "steps":
+		return `
+#do: "steps"
+ok: {
+	#provider: "test"
+	#do: "ok"
+}
+`, nil
 	}
+
 	return "", nil
 }
 

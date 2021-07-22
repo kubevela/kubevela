@@ -37,6 +37,8 @@ import (
 func TestComponent(t *testing.T) {
 	wfCtx := newContextForTest(t)
 
+	_, err := wfCtx.GetComponent("expected-not-found")
+	assert.Equal(t, err != nil, true)
 	cmf, err := wfCtx.GetComponent("server")
 	assert.NilError(t, err)
 
@@ -223,16 +225,15 @@ func TestContext(t *testing.T) {
 					err = json.Unmarshal(testCaseJson, &cm)
 					assert.NilError(t, err)
 					*o = cm
-				case "workflow-app-v1":
+					return nil
+				case generateStoreName("app-v1"):
 					if wfCm != nil {
 						*o = *wfCm
+						return nil
 					}
-
-				default:
-					return kerrors.NewNotFound(corev1.Resource("configMap"), key.Name)
 				}
 			}
-			return nil
+			return kerrors.NewNotFound(corev1.Resource("configMap"), key.Name)
 		},
 		MockCreate: func(ctx context.Context, obj runtime.Object, opts ...client.CreateOption) error {
 			o, ok := obj.(*corev1.ConfigMap)
@@ -257,6 +258,9 @@ func TestContext(t *testing.T) {
 	assert.NilError(t, err)
 	err = wfCtx.Commit()
 	assert.NilError(t, err)
+
+	_, err = NewContext(cli, "default", "app-not-found")
+	assert.Equal(t, err != nil, true)
 
 	wfCtx, err = LoadContext(cli, "default", "app-v1")
 	assert.NilError(t, err)

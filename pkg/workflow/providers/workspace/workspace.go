@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -107,8 +109,9 @@ func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Actio
 		}
 
 		return ctx.SetVar(val, strings.Split(path, ".")...)
+	default:
+		return errors.Errorf("export type=%s not supported", tpy)
 	}
-	return nil
 }
 
 // Wait let workflow wait.

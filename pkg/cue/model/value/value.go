@@ -40,6 +40,23 @@ func (val *Value) String() (string, error) {
 	return sets.ToString(val.v)
 }
 
+// Error return value's error information.
+func (val *Value) Error() error {
+	v := val.CueValue()
+	if !v.Exists() {
+		return errors.New("empty value")
+	}
+	var gerr error
+	v.Walk(func(value cue.Value) bool {
+		if err := value.Eval().Err(); err != nil {
+			gerr = err
+			return false
+		}
+		return true
+	}, nil)
+	return gerr
+}
+
 // UnmarshalTo unmarshal value into golang object
 func (val *Value) UnmarshalTo(x interface{}) error {
 	data, err := val.v.MarshalJSON()
@@ -158,7 +175,7 @@ func (val *Value) StepByFields(handle func(in *Value) (bool, error)) error {
 		}
 		stop, err := handle(field.Value)
 		if err != nil {
-			return errors.WithMessagef(err, "process task step %s", field.Name)
+			return errors.WithMessagef(err, "step %s", field.Name)
 		}
 		if stop {
 			return nil
