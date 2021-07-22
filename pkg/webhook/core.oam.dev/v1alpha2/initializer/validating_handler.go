@@ -68,17 +68,14 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate initializer
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1beta1.Initializer{}
-	if req.Resource.String() != initializerGVR.String() {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", initializerGVR))
-	}
+	init := &v1beta1.Initializer{}
 
-	err := h.Decoder.Decode(req, obj)
-	if err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
-	}
 	if req.Operation == admissionv1beta1.Create || req.Operation == admissionv1beta1.Update {
-		for _, depend := range obj.Spec.DependsOn {
+		err := h.Decoder.Decode(req, init)
+		if err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+		for _, depend := range init.Spec.DependsOn {
 			_, err = utils.GetInitializer(ctx, h.Client, depend.Ref.Namespace, depend.Ref.Name)
 			if err != nil {
 				if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
@@ -94,10 +91,17 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	if req.Operation == admissionv1beta1.Delete {
-		// check if there are other initializers depends on this
-		isDepended, dependingInitName, err := h.CheckInitDependedOn(ctx, obj)
+		var obj client.ObjectKey
+		obj.Name = req.Name
+		obj.Namespace = req.Namespace
+		err := h.Client.Get(ctx, obj, init)
 		if err != nil {
-			return admission.Errored(500, err)
+			return admission.Errored(http.StatusNotFound, err)
+		}
+		// check if there are other initializers depends on this
+		isDepended, dependingInitName, err := h.CheckInitDependedOn(ctx, init)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
 		}
 		if isDepended {
 			return admission.Denied(fmt.Sprintf("initializer %s still depends on this initializer", dependingInitName))
