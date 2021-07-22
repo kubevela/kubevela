@@ -1,6 +1,0 @@
-status:
-  conditions:
-  - type: 'workflow-finish'
-    status: 'True'
-    reason: 'Succeeded'
-    message: '{"observedGeneration":3}'

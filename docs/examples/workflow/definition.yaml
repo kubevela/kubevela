@@ -1,52 +1,75 @@
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  name: foo.example.com
-spec:
-  group: example.com
-  names:
-    kind: Foo
-    listKind: FooList
-    plural: foo
-    singular: foo
-  scope: Namespaced
-  version: v1
-  preserveUnknownFields: true
----
-apiVersion: core.oam.dev/v1beta1
-kind: PolicyDefinition
-metadata:
-  name: foopolicy
-spec:
-  schematic:
-    cue:
-      template: |
-        output: {
-          apiVersion: "example.com/v1"
-          kind:       "Foo"
-          spec: {
-            key: parameter.key
-          }
-        }
-        parameter: {
-          key: string
-        }
----
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
-  name: foowf
+  name: apply
 spec:
   schematic:
     cue:
       template: |
-        output: {
-          apiVersion: "example.com/v1"
-          kind:       "Foo"
-          spec: {
-            key: parameter.key
-          }
-        }
+        import ("vela/op")
         parameter: {
-          key: string
+           component: string
+           name: string
+           prefixIP?: string
+           myIp?: string
+        }
+
+        // load component from application
+        component: op.#Load & {
+           component: parameter.component
+        }
+
+        // apply workload to kubernetes cluster
+        apply: op.#Apply & {
+           component.workload
+           metadata: name: parameter.name
+           if parameter.prefixIP!=_|_{
+                spec: containers: [{env: [{name: "PrefixIP",value: parameter.prefixIP}]}]
+           }
+        }
+
+        // wait until workload.status equal "Running"
+        wait: op.#ConditionalWait & {
+           continue: apply.status.phase =="Running"
+        }
+
+        // export podIP
+        if parameter.myIp!=_|_{
+            export: op.#Export & {
+                type: "var"
+                path: parameter.myIp
+                value: apply.status.podIP
+            }
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: singletonServer
+  annotations:
+    definition.oam.dev/description: "singletonServer is Pod"
+spec:
+  workload:
+    definition:
+      apiVersion: v1
+      kind: Pod
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          version: *"1.14.2" | string
+        }
+        output: {
+          apiVersion: "v1"
+          kind: "Pod"
+          metadata: {
+            labels: app: "nginx"
+          }
+          spec:{
+            containers:[{
+                name: "nginx"
+                image: "nginx:"+parameter.version
+                ports: [{containerPort: 80}]
+            }]
+          }
         }

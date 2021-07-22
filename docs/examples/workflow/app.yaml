@@ -1,28 +1,29 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: first-vela-app
+  name: application-sample
+  namespace: default
 spec:
   components:
-    - name: express-server
-      type: webservice
-      properties:
-        image: crccheck/hello-world
-        port: 8000
-      traits:
-        - type: ingress
-          properties:
-            domain: testsvc.example.com
-            http:
-              "/": 8000
-  policies:
-    - name: my-policy
-      type: foopolicy
-      properties:
-        key: test
-
+    - name: "server1"
+      type: "singletonServer"
+    - name: "server2"
+      type: "singletonServer"
   workflow:
-    - name: my-wf
-      type: foowf
-      properties:
-        key: test
+    steps:
+      - name: deploy-server1
+        type: apply
+        properties:
+          component: "server1"
+          name: "firstApp"
+        outputs:
+          - name: server1Ip
+            exportKey: "myIp"
+      - name: deploy-server2
+        type: apply
+        inputs:
+          - from: server1Ip
+            parameterKey: prefixIP
+        properties:
+          name: "secondApp"
+          component: "server2"

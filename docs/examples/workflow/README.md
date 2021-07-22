@@ -1,38 +1,29 @@
-1. Apply CRD and Definitions:
+## Install Definitions
 
-    ```
-    kubectl apply -f definition.yaml
-    ```
+   ```
+   kubectl apply -f definition.yaml
+   ```
+ Check Component and Workflow definitions:
 
-    Check Policy and Workflow definitions:
-
-    ```
-    kubectl get policy
+   ```
+    kubectl get componentDefinition
     kubectl get workflowstep
-    ```
+   ```
 
-    Output:
-    ```
-    NAME        AGE
-    foopolicy   41s
+ Output:
+   ```
+    NAME              AGE
+    singletonServer   41s
 
     NAME    AGE
-    foowf   49s
-    ```
+    apply   49s
+   ```
 
-    Check DefinitionRevision:
 
-    ```
-    kubectl get definitionrevision
-    ```
+## Begin The Workflow Demo
 
-    Output:
+This Demo is to apply component in the cluster in order by workflow, and inject the IP of the previous pod into the environment variables of the next Pod.
 
-    ```
-    NAMESPACE     NAME             REVISION   HASH               TYPE
-    default       foopolicy-v1     1          8c340e1beaf9a3fa   Policy
-    default       foowf-v1         1          83cf4e8246a89afa   WorkflowStep
-    ```
 
 1. Apply Application:
 
@@ -40,91 +31,81 @@
     kubectl apply -f app.yaml
     ```
 
-1. Check workflow status in Application:
+
+
+2. Check workflow status in Application:
 
     ```
-    kubectl get application first-vela-app -o=jsonpath='{.status.workflow[?(@.name=="my-wf")]}.phase'
-    ```
-
-    Output:
-    ```
-    running
-    ```
-
-1. Check Workflow objects:
-
-    ```
-    kubectl get foo my-wf -o=jsonpath='{.spec.key}'
+    kubectl get -f app.yaml
     ```
 
     Output:
+    ```yaml
+    ...
+    status:  
+      workflow:
+        appRevision: application-sample-v1
+        contextBackend:
+          apiVersion: v1
+          kind: ConfigMap
+          name: workflow-application-sample-v1
+          uid: 783769c9-0fe1-4686-8528-94ce2887a5f8
+        stepIndex: 2
+        steps:
+        - name: deploy-server1
+          phase: succeeded
+          resourceRef:
+            apiVersion: ""
+            kind: ""
+            name: ""
+          type: apply
+        - name: deploy-server2
+          phase: succeeded
+          resourceRef:
+            apiVersion: ""
+            kind: ""
+            name: ""
+          type: apply
+
+      ```
+
+2. Check Resource in cluster.
 
     ```
-    test
+    kubectl get pods
+    ```
+
+    Output:
+
+    ```
+    NAME       READY   STATUS    RESTARTS   AGE
+    firstApp   1/1     Running   0          15s
+    secondApp  1/1     Running   0          18s
     ```
 
     This means the resource has been rendered correctly.
 
-1. Check workflow context:
+
+3. Check `secondApp` Environment variable
 
     ```
-    kubectl get foo my-wf -o=jsonpath='{.metadata.annotations.app\.oam\.dev/workflow-context}' | jq
-    ```
-
-    Output:
-
-    ```json
-    {
-      "appName": "first-vela-app",
-      "appRevision": "first-vela-app-v1",
-      "workflowIndex": 0,
-      "resourceConfigMap": {
-        "name": "first-vela-app-v1"
-      }
-    }
-    ```
-
-1. Patch condition status on workflow object:
-
-    ```
-    kubectl patch foo my-wf --type merge --patch "$(cat wf-patch.yaml)"
-    ```
-
-    Check workflow object status:
-
-    ```
-    kubectl get foo my-wf -o=jsonpath='{.status.conditions[?(@.type=="workflow-finish")]}' | jq
+    kubectl exec secondApp -- env|grep PrefixIP
     ```
 
     Output:
 
-    ```json
-    {
-      "message": "{\"observedGeneration\":2}",
-      "reason": "Succeeded",
-      "status": "True",
-      "type": "workflow-finish"
-    }
     ```
-
-    > Note: The observedGeneration is 2 because the json patch will trigger generation increment.
-
-1.  Check workflow status in Application:
-
+    PrefixIP=10.244.0.22
     ```
-    kubectl get application first-vela-app -o=jsonpath='{.status.workflow[?(@.name=="my-wf")]}.phase'
-    ```
+## WorkflowStep Definition Introduction.
 
-    Output:
-    ```
-    succeeded
-    ```
+WorkflowStep consists of a series of actions, you can describe the actions to be done  step by step in WorkflowStep Definition.
 
-    The workflow phase has changed from running to succeeded due to the underlying object changing status condition.
-
-1. cleanup:
-
-    ```
-    kubectl delete -f app.yaml
-    kubectl delete -f definition.yaml
-    ```
+1. `op.#Load`
+   Get component schema from workflow context
+2. `op.#Apply`
+   Apply schema to cluster.
+3. `op.#ConditionalWait`
+   Condition waits until continue is true.
+4. `op.#Export`
+   Export data to workflow context.
