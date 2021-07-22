@@ -315,26 +315,29 @@ func (a *Addon) enable() error {
 	if err != nil {
 		return errors.Wrapf(err, "Error occurs when enableing addon: %s\n", a.name)
 	}
-	waitForInitializerSuccess(obj)
+	err = waitForInitializerSuccess(obj)
+	if err != nil {
+		return errors.Wrapf(err, "Error occurs when waiting for addon enabled: %s\n", a.name)
+	}
 	return nil
 }
 
-func waitForInitializerSuccess(obj *unstructured.Unstructured) {
+func waitForInitializerSuccess(obj *unstructured.Unstructured) error {
 	ctx := context.Background()
-	var init v1beta1.Initializer
-	stopCh := make(chan struct{})
 	period := 20 * time.Second
-	wait.Until(func() {
-		err := clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &init)
+	var init v1beta1.Initializer
+	return wait.PollImmediateInfinite(period, func() (done bool, err error) {
+		err = clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &init)
 		if err != nil {
-			return
+			return false, nil
 		}
 		phase := init.Status.Phase
 		if phase == v1beta1.InitializerSuccess {
-			close(stopCh)
+			return true, nil
 		}
 		fmt.Printf("Initializer %s is in phase:%s...\n", obj.GetName(), phase)
-	}, period, stopCh)
+		return false, nil
+	})
 }
 func (a *Addon) disable() error {
 	dynamicClient, err := dynamic.NewForConfig(clientArgs.Config)
