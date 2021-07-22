@@ -147,6 +147,10 @@ type TraitDefinitionSpec struct {
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
+
+	// ManageWorkload defines the trait would be responsible for creating the workload
+	// +optional
+	ManageWorkload bool `json:"manageWorkload,omitempty"`
 }
 
 // TraitDefinitionStatus is the status of TraitDefinition

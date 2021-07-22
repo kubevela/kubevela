@@ -39,4 +39,7 @@ type ComponentManifest struct {
 	// it's possible for some of the component not ready while others are ready, we should not block all of them if only
 	// part is not ready
 	InsertConfigNotReady bool
+	// WorkloadManagedByTrait is true indicates the workload of component manage by a trait, and application controller
+	// should not apply it.
+	WorkloadManagedByTrait bool
 }

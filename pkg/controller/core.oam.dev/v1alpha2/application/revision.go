@@ -534,7 +534,7 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 				},
 			}
 		}
-
+		acc.WorkloadManagedByTrait = cm.WorkloadManagedByTrait
 		// this label is very important for handling component revision
 		util.AddLabels(comp, map[string]string{
 			oam.LabelComponentRevisionHash: cm.RevisionHash,

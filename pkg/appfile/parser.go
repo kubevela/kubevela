@@ -231,6 +231,7 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
 		engine:             definition.NewTraitAbstractEngine(traitName, p.pd),
+		ManageWorkload:     templ.TraitDefinition.Spec.ManageWorkload,
 	}, nil
 }
 

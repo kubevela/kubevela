@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"time"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -45,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	stdv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -1714,6 +1717,55 @@ spec:
 		Expect(pv.Spec.CSI.VolumeAttributes["host"]).Should(Equal("test.com"))
 
 	})
+
+	It("Test skip apply workload", func() {
+		rolloutTdDef, _ := yaml.YAMLToJSON([]byte(manageWorkloadTrait))
+		rolloutTrait := &v1beta1.TraitDefinition{}
+		Expect(json.Unmarshal([]byte(rolloutTdDef), rolloutTrait)).Should(BeNil())
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-rollout-trait",
+			},
+		}
+		rolloutTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, rolloutTrait)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-rollout",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Traits: []v1beta1.ApplicationTrait{
+							{
+								Type:       "rollout",
+								Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+							},
+						},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		checkRollout := &stdv1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		deploy := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
+	})
 })
 
 func reconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) (reconcile.Result, error) {
@@ -2574,6 +2626,40 @@ spec:
         }
         nasConn: {
         	MountTargetDomain: string
+        }
+`
+	manageWorkloadTrait = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: rollout
+  namespace: default
+spec:
+  manageWorkload: true
+  schematic:
+    cue:
+      template: |
+        outputs: rollout: {
+        	apiVersion: "standard.oam.dev/v1alpha1"
+        	kind:       "Rollout"
+        	metadata: {
+        		name:  context.name
+                namespace: context.namespace
+        	}
+        	spec: {
+                   targetRevisionName: parameter.targetRevision
+                   componentName: "myweb1"
+                   rolloutPlan: {
+                   	rolloutStrategy: "IncreaseFirst"
+                    rolloutBatches:[
+                    	{ replicas: 3}]    
+                    targetSize: 5
+                   }
+        		 }
+        	}
+
+        parameter: {
+        	targetRevision: "test-revision"
         }
 `
 )

@@ -145,8 +145,9 @@ type Trait struct {
 	// RequiredSecrets stores secret names which the trait needs from cloud resource component and its context
 	RequiredSecrets []process.RequiredSecrets
 
-	FullTemplate *Template
-	engine       definition.AbstractEngine
+	FullTemplate   *Template
+	engine         definition.AbstractEngine
+	ManageWorkload bool
 }
 
 // EvalContext eval trait template and set result to context
@@ -239,16 +240,27 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 			InsertConfigNotReady: true,
 		}, nil
 	}
+	var compManifest *types.ComponentManifest
+	var err error
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
-		return generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
+		compManifest, err = generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
 	case types.KubeCategory:
-		return generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
+		compManifest, err = generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
 	case types.TerraformCategory:
-		return generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
+		compManifest, err = generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
 	default:
-		return generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		compManifest, err = generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
 	}
+	if err != nil {
+		return nil, err
+	}
+	// safe code for don't panic
+	if compManifest == nil {
+		return nil, nil
+	}
+	compManifest.WorkloadManagedByTrait = checkTraitManageWorkload(*wl)
+	return compManifest, nil
 }
 
 // PrepareProcessContext prepares a DSL process Context
@@ -631,4 +643,13 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 	}
 	compManifest.PackagedWorkloadResources = []*unstructured.Unstructured{rls, repo}
 	return compManifest, nil
+}
+
+func checkTraitManageWorkload(wl Workload) bool {
+	for _, trait := range wl.Traits {
+		if trait.ManageWorkload {
+			return true
+		}
+	}
+	return false
 }

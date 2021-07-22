@@ -292,6 +292,9 @@ spec:
                           type: object
                       type: object
                     type: array
+                  manageByTrait:
+                    description: WorkloadManagedByTrait defines the workload managed by a trait
+                    type: boolean
                   parameterValues:
                     description: ParameterValues specify values for the the specified component's parameters. Any parameter required by the component must be specified.
                     items:

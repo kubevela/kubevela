@@ -110,7 +110,10 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 	}
 	r := make([]*unstructured.Unstructured, 0)
 	for compName, wl := range am.assembledWorkloads {
-		r = append(r, wl.DeepCopy())
+		// if workload manage by a trait, the workload needn't create by application, the wl will be nil
+		if wl != nil {
+			r = append(r, wl.DeepCopy())
+		}
 		ts := am.assembledTraits[compName]
 		for _, t := range ts {
 			r = append(r, t.DeepCopy())
@@ -196,7 +199,12 @@ func (am *AppManifests) assemble() {
 			am.finalizeAssemble(err)
 			return
 		}
-		am.assembledWorkloads[compName] = wl
+		if !comp.WorkloadManagedByTrait {
+			am.assembledWorkloads[compName] = wl
+		} else {
+			am.assembledWorkloads[compName] = nil
+			klog.InfoS("Assemble meet a workload managed by trait , skip apply it", "name", compName)
+		}
 		workloadRef := corev1.ObjectReference{
 			APIVersion: wl.GetAPIVersion(),
 			Kind:       wl.GetKind(),

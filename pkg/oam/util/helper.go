@@ -742,6 +742,7 @@ func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.Raw
 				APIVersion: s.ScopeReference.APIVersion,
 			}
 		}
+		cm.WorkloadManagedByTrait = acc.WorkloadManagedByTrait
 		cms[i] = cm
 	}
 	return cms, nil

@@ -388,6 +388,10 @@ type ApplicationConfigurationComponent struct {
 	// Scopes in which the specified component should exist.
 	// +optional
 	Scopes []ComponentScope `json:"scopes,omitempty"`
+
+	// WorkloadManagedByTrait defines the workload managed by a trait
+	// +optional
+	WorkloadManagedByTrait bool `json:"manageByTrait,omitempty"`
 }
 
 // An ApplicationConfigurationSpec defines the desired state of a

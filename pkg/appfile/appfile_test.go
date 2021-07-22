@@ -1295,3 +1295,64 @@ parameter: {}
 		assert.DeepEqual(t, tc.expectConfigMapData, tc.workload.UserConfigs)
 	}
 }
+
+func TestCheckTraitManageWorkload(t *testing.T) {
+	testCase := map[string]struct {
+		wl  Workload
+		res bool
+	}{
+		"have manage trat": {
+			wl: Workload{
+				Traits: []*Trait{
+					{
+						ManageWorkload: true,
+					},
+				},
+			},
+			res: true,
+		},
+		"no manage trat": {
+			wl: Workload{
+				Traits: []*Trait{
+					{
+						ManageWorkload: false,
+					},
+				},
+			},
+			res: false,
+		},
+		"no trait": {
+			wl:  Workload{},
+			res: false,
+		},
+		"multitrait": {
+			wl: Workload{
+				Traits: []*Trait{
+					{
+						ManageWorkload: true,
+					},
+					{
+						ManageWorkload: false,
+					},
+				},
+			},
+			res: true,
+		},
+		"multinormal trait": {
+			wl: Workload{
+				Traits: []*Trait{
+					{
+						ManageWorkload: false,
+					},
+					{
+						ManageWorkload: false,
+					},
+				},
+			},
+			res: false,
+		},
+	}
+	for _, s := range testCase {
+		assert.Equal(t, s.res, checkTraitManageWorkload(s.wl))
+	}
+}
