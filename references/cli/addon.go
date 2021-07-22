@@ -329,7 +329,7 @@ func waitForInitializerSuccess(obj *unstructured.Unstructured) error {
 	return wait.PollImmediateInfinite(period, func() (done bool, err error) {
 		err = clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &init)
 		if err != nil {
-			return false, nil
+			return false, client.IgnoreNotFound(err)
 		}
 		phase := init.Status.Phase
 		if phase == v1beta1.InitializerSuccess {

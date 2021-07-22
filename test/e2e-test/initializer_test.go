@@ -464,6 +464,7 @@ var _ = Describe("Initializer Normal tests", func() {
 								APIVersion: "core.oam.dev/v1beta1",
 								Kind:       "Initializer",
 								Name:       "init-depended",
+								Namespace:  namespace,
 							},
 						},
 					},
