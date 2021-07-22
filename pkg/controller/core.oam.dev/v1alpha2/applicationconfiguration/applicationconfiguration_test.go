@@ -675,6 +675,27 @@ func TestReconciler(t *testing.T) {
 				result: reconcile.Result{},
 			},
 		},
+		"Without components": {
+			reason: "should not crash when components is empty",
+			args: args{
+				m: &mock.Manager{
+					Client: &test.MockClient{
+						MockGet:          mockGetAppConfigFn,
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil),
+					},
+				},
+				o: []ReconcilerOption{
+					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
+						// without components
+						return []Workload{}, &v1alpha2.DependencyStatus{}, nil
+					})),
+				},
+			},
+			want: want{
+				result: reconcile.Result{},
+				err:    nil,
+			},
+		},
 	}
 
 	for name, tc := range cases {
