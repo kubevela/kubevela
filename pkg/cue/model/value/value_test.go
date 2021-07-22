@@ -146,6 +146,27 @@ step3: {
 		assert.NilError(t, err)
 		assert.Equal(t, str, tCase.expected)
 	}
+
+	caseSkip := `
+step1: "1"
+step2: "2"
+step3: "3"
+`
+	val, err := NewValue(caseSkip, nil)
+	assert.NilError(t, err)
+	inc := 0
+	err = val.StepByFields(func(in *Value) (bool, error) {
+		inc++
+		s, err := in.CueValue().String()
+		assert.NilError(t, err)
+		if s == "2" {
+			return true, nil
+		}
+		return false, nil
+	})
+	assert.NilError(t, err)
+	assert.Equal(t, inc, 2)
+
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -170,4 +191,87 @@ do: "apply"
 	expectedJson, err := json.Marshal(out)
 	assert.NilError(t, err)
 	assert.Equal(t, string(bt), string(expectedJson))
+
+	caseIncomplete := `
+provider: string
+do: string
+`
+	val, err = NewValue(caseIncomplete, nil)
+	assert.NilError(t, err)
+	err = val.UnmarshalTo(&out)
+	assert.Equal(t, err != nil, true)
+}
+
+func TestValue(t *testing.T) {
+	caseError := `
+provider: kube
+`
+	val, err := NewValue(caseError, nil)
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, val == nil, true)
+
+	caseOk := `
+provider: "kube"
+do: "apply"
+`
+	val, err = NewValue(caseOk, nil)
+	assert.NilError(t, err)
+	originCue := val.CueValue()
+	_, err = val.MakeValue(caseError)
+	assert.Equal(t, err != nil, true)
+	err = val.FillRaw(caseError)
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, originCue, val.CueValue())
+	cv, err := NewValue(caseOk, nil)
+	assert.NilError(t, err)
+	err = val.FillObject(cv)
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, originCue, val.CueValue())
+
+	caseConflict := `
+close({provider: int})
+`
+	err = val.FillRaw(caseConflict)
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, originCue, val.CueValue())
+	cv, err = val.MakeValue(caseConflict)
+	assert.NilError(t, err)
+	err = val.FillObject(cv)
+	assert.Equal(t, err != nil, true)
+	assert.Equal(t, originCue, val.CueValue())
+
+	_, err = val.LookupValue("abc")
+	assert.Equal(t, err != nil, true)
+
+	providerValue, err := val.LookupValue("provider")
+	assert.NilError(t, err)
+	err = providerValue.StepByFields(func(in *Value) (bool, error) {
+		return false, nil
+	})
+	assert.Equal(t, err != nil, true)
+}
+
+func TestField(t *testing.T) {
+	caseSrc := `
+name: "foo"
+#name: "fly"
+#age: 100
+`
+	val, err := NewValue(caseSrc, nil)
+	assert.NilError(t, err)
+
+	name, err := val.Field("name")
+	assert.NilError(t, err)
+	nameValue, err := name.String()
+	assert.NilError(t, err)
+	assert.Equal(t, nameValue, "foo")
+
+	dname, err := val.Field("#name")
+	assert.NilError(t, err)
+	nameValue, err = dname.String()
+	assert.NilError(t, err)
+	assert.Equal(t, nameValue, "fly")
+
+	_, err = val.Field("age")
+	assert.Equal(t, err != nil, true)
 }

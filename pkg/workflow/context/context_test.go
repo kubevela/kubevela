@@ -17,24 +17,26 @@ limitations under the License.
 package context
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/test"
+	yamlUtil "github.com/ghodss/yaml"
 	"gopkg.in/yaml.v3"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 func TestComponent(t *testing.T) {
-	var cm corev1.ConfigMap
-	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
-	assert.NilError(t, err)
+	wfCtx := newContextForTest(t)
 
-	wfCtx := new(WorkflowContext)
-	err = wfCtx.LoadFromConfigMap(cm)
-	assert.NilError(t, err)
 	cmf, err := wfCtx.GetComponent("server")
 	assert.NilError(t, err)
 
@@ -131,13 +133,7 @@ spec: {
 }
 
 func TestVars(t *testing.T) {
-	var cm corev1.ConfigMap
-	err := yaml.Unmarshal([]byte(testCaseYaml), &cm)
-	assert.NilError(t, err)
-
-	wfCtx := new(WorkflowContext)
-	err = wfCtx.LoadFromConfigMap(cm)
-	assert.NilError(t, err)
+	wfCtx := newContextForTest(t)
 
 	testCases := []struct {
 		variable string
@@ -211,6 +207,78 @@ func TestRefObj(t *testing.T) {
 		Kind:       "ConfigMap",
 		Name:       "app-v1",
 	})
+}
+
+func TestContext(t *testing.T) {
+	var wfCm *corev1.ConfigMap
+	cli := &test.MockClient{
+		MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+			o, ok := obj.(*corev1.ConfigMap)
+			if ok {
+				switch key.Name {
+				case "app-v1":
+					var cm corev1.ConfigMap
+					testCaseJson, err := yamlUtil.YAMLToJSON([]byte(testCaseYaml))
+					assert.NilError(t, err)
+					err = json.Unmarshal(testCaseJson, &cm)
+					assert.NilError(t, err)
+					*o = cm
+				case "workflow-app-v1":
+					if wfCm != nil {
+						*o = *wfCm
+					}
+
+				default:
+					return kerrors.NewNotFound(corev1.Resource("configMap"), key.Name)
+				}
+			}
+			return nil
+		},
+		MockCreate: func(ctx context.Context, obj runtime.Object, opts ...client.CreateOption) error {
+			o, ok := obj.(*corev1.ConfigMap)
+			if ok {
+				wfCm = o
+			}
+			return nil
+		},
+		MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+			o, ok := obj.(*corev1.ConfigMap)
+			if ok {
+				if wfCm == nil {
+					return kerrors.NewNotFound(corev1.Resource("configMap"), o.Name)
+				}
+				*wfCm = *o
+			}
+			return nil
+		},
+	}
+
+	wfCtx, err := NewContext(cli, "default", "app-v1")
+	assert.NilError(t, err)
+	err = wfCtx.Commit()
+	assert.NilError(t, err)
+
+	wfCtx, err = LoadContext(cli, "default", "app-v1")
+	assert.NilError(t, err)
+	err = wfCtx.Commit()
+	assert.NilError(t, err)
+
+	wfCm = nil
+	_, err = LoadContext(cli, "default", "app-v1")
+	assert.Equal(t, err != nil, true)
+}
+
+func newContextForTest(t *testing.T) *WorkflowContext {
+	var cm corev1.ConfigMap
+	testCaseJson, err := yamlUtil.YAMLToJSON([]byte(testCaseYaml))
+	assert.NilError(t, err)
+	err = json.Unmarshal(testCaseJson, &cm)
+	assert.NilError(t, err)
+
+	wfCtx := new(WorkflowContext)
+	err = wfCtx.LoadFromConfigMap(cm)
+	assert.NilError(t, err)
+	return wfCtx
 }
 
 var (

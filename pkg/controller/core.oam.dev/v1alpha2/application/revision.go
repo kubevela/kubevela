@@ -51,6 +51,12 @@ const (
 	ConfigMapKeyComponents = "components"
 	// ConfigMapKeyPolicy is the key in ConfigMap Data field for containing data of policies
 	ConfigMapKeyPolicy = "policies"
+	// ManifestKeyWorkload is the key in Component Manifest for containing workload cr.
+	ManifestKeyWorkload = "StandardWorkload"
+	// ManifestKeyTraits is the key in Component Manifest for containing Trait cr.
+	ManifestKeyTraits = "Traits"
+	// ManifestKeyScopes is the key in Component Manifest for containing scope cr reference.
+	ManifestKeyScopes = "Scopes"
 )
 
 func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
@@ -92,15 +98,15 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 // SprintComponentManifest formats and returns the resulting string.
 func SprintComponentManifest(cm *types.ComponentManifest) string {
 	cl := map[string]interface{}{
-		"StandardWorkload": string(util.MustJSONMarshal(cm.StandardWorkload)),
+		ManifestKeyWorkload: string(util.MustJSONMarshal(cm.StandardWorkload)),
 	}
 
 	trs := []string{}
 	for _, tr := range cm.Traits {
 		trs = append(trs, string(util.MustJSONMarshal(tr)))
 	}
-	cl["Traits"] = trs
-	cl["Scopes"] = cm.Scopes
+	cl[ManifestKeyTraits] = trs
+	cl[ManifestKeyScopes] = cm.Scopes
 	return string(util.MustJSONMarshal(cl))
 }
 
