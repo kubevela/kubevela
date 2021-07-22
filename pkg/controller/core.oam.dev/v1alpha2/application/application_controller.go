@@ -151,7 +151,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 
-	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy()
+	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, r.dm, r.Client, r.pd)
 	if err != nil {
 		klog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
@@ -175,7 +175,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
 	klog.Info("Successfully apply application manifests", "application", klog.KObj(app))
 
-	done, err := workflow.NewWorkflow(app, handler.r.applicator).ExecuteSteps(ctx, handler.currentAppRev.Name, wfSteps)
+	done, err := workflow.NewWorkflow(app, r.Client).ExecuteSteps(ctx, handler.currentAppRev.Name, wfSteps)
 	if err != nil {
 		klog.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))

@@ -207,15 +207,14 @@ type RawComponent struct {
 
 // WorkflowStepStatus record the status of a workflow step
 type WorkflowStepStatus struct {
-	Name        string                         `json:"name,omitempty"`
-	Type        string                         `json:"type,omitempty"`
-	Phase       WorkflowStepPhase              `json:"phase,omitempty"`
+	Name  string            `json:"name,omitempty"`
+	Type  string            `json:"type,omitempty"`
+	Phase WorkflowStepPhase `json:"phase,omitempty"`
+	// A human readable message indicating details about why the workflowStep is in this state.
+	Message string `json:"message,omitempty"`
+	// A brief CamelCase message indicating details about why the workflowStep is in this state.
+	Reason      string                         `json:"reason,omitempty"`
 	ResourceRef runtimev1alpha1.TypedReference `json:"resourceRef,omitempty"`
-}
-
-// WorkflowStatus record the status of workflow
-type WorkflowStatus struct {
-	Steps []WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // AppStatus defines the observed state of Application
@@ -241,12 +240,22 @@ type AppStatus struct {
 	// ResourceTracker record the status of the ResourceTracker
 	ResourceTracker *runtimev1alpha1.TypedReference `json:"resourceTracker,omitempty"`
 
-	// Workflow record the status of workflow steps
+	// Workflow record the status of workflow
 	Workflow *WorkflowStatus `json:"workflow,omitempty"`
 
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
+}
+
+// WorkflowStatus record the status of workflow
+type WorkflowStatus struct {
+	AppRevision    string                          `json:"appRevision,omitempty"`
+	StepIndex      int                             `json:"stepIndex,omitempty"`
+	Suspend        bool                            `json:"suspend"`
+	Terminated     bool                            `json:"terminated"`
+	ContextBackend *runtimev1alpha1.TypedReference `json:"contextBackend"`
+	Steps          []WorkflowStepStatus            `json:"steps,omitempty"`
 }
 
 // WorkflowStepPhase describes the phase of a workflow step.

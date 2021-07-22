@@ -115,10 +115,10 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
 
-	appfile.WorkflowSteps, err = p.parseWorkflow(ctx, app.Spec.Workflow)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parseWorkflow: %w", err)
+	if wfSpec := app.Spec.Workflow; wfSpec != nil {
+		appfile.WorkflowSteps = wfSpec.Steps
 	}
+
 	return appfile, nil
 }
 
@@ -126,22 +126,6 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 	ws := []*Workload{}
 	for _, policy := range policies {
 		w, err := p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
-		if err != nil {
-			return nil, err
-		}
-		ws = append(ws, w)
-	}
-	return ws, nil
-}
-
-func (p *Parser) parseWorkflow(ctx context.Context, workflow *v1beta1.Workflow) ([]*Workload, error) {
-	if workflow == nil {
-		return []*Workload{}, nil
-	}
-	steps := workflow.Steps
-	ws := []*Workload{}
-	for _, step := range steps {
-		w, err := p.makeWorkload(ctx, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)
 		if err != nil {
 			return nil, err
 		}

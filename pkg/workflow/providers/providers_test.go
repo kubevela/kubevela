@@ -1,4 +1,5 @@
-/*Copyright 2021 The KubeVela Authors.
+/*
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,17 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package workflow
+package providers
 
 import (
-	"context"
+	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/workflow/types"
+	"github.com/bmizerany/assert"
 )
 
-// Workflow is used to execute the workflow steps of Application.
-type Workflow interface {
-	// ExecuteSteps executes the steps of an Application with given steps of rendered resources.
-	// It returns done=true only if all steps are executed and succeeded.
-	ExecuteSteps(ctx context.Context, appRevName string, taskRunners []types.TaskRunner) (done bool, err error)
+func TestProvers(t *testing.T) {
+	p := NewProviders()
+	p.Register("test", map[string]Handler{
+		"foo":   nil,
+		"crazy": nil,
+	})
+
+	_, found := p.GetHandler("test", "foo")
+	assert.Equal(t, found, true)
+	_, found = p.GetHandler("test", "crazy")
+	assert.Equal(t, found, true)
+	_, found = p.GetHandler("staging", "crazy")
+	assert.Equal(t, found, false)
+	_, found = p.GetHandler("test", "fly")
+	assert.Equal(t, found, false)
 }

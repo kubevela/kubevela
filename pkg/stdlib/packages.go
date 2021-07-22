@@ -1,4 +1,5 @@
-/*Copyright 2021 The KubeVela Authors.
+/*
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,17 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package workflow
+package stdlib
 
-import (
-	"context"
+type discover struct {
+	files []file
+}
 
-	"github.com/oam-dev/kubevela/pkg/workflow/types"
-)
+// Pkgs is map[${path}]${package-content}
+type Pkgs map[string]string
 
-// Workflow is used to execute the workflow steps of Application.
-type Workflow interface {
-	// ExecuteSteps executes the steps of an Application with given steps of rendered resources.
-	// It returns done=true only if all steps are executed and succeeded.
-	ExecuteSteps(ctx context.Context, appRevName string, taskRunners []types.TaskRunner) (done bool, err error)
+func (p *discover) packages() Pkgs {
+	pkgs := map[string]string{}
+	for _, f := range p.files {
+		pkgs[f.path] += f.content + "\n"
+	}
+	return pkgs
+}
+
+func (p *discover) addFile(f file) {
+	p.files = append(p.files, f)
+}
+
+// GetPackages Get Stdlib packages
+func GetPackages() Pkgs {
+	d := &discover{}
+	d.addFile(opFile)
+	return d.packages()
 }

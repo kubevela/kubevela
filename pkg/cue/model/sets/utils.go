@@ -131,6 +131,11 @@ func toString(v cue.Value) (string, error) {
 	return instStr, nil
 }
 
+// ToString convert cue.Value to string
+func ToString(v cue.Value) (string, error) {
+	return toString(v)
+}
+
 // ToFile convert ast.Node to ast.File
 func ToFile(n ast.Node) (*ast.File, error) {
 	return toFile(n)
