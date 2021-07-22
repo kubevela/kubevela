@@ -45,6 +45,8 @@ const (
 	StatusReasonSuspend = "Suspend"
 	// StatusReasonTerminate is the reason of the workflow progress condition which is Terminate.
 	StatusReasonTerminate = "Terminate"
+	// StatusReasonParameter is the reason of the workflow progress condition which is ProcessParameter.
+	StatusReasonParameter = "ProcessParameter"
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -110,6 +112,11 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				if err := paramsValue.FillObject(inputValue, input.ParameterKey); err != nil {
 					return common.WorkflowStepStatus{}, nil, err
 				}
+			}
+
+			if err := paramsValue.Error(); err != nil {
+				exec.err(err, StatusReasonParameter)
+				return exec.status(), exec.operation(), nil
 			}
 
 			var paramFile = velacue.ParameterTag + ": {}\n"
@@ -192,7 +199,7 @@ func (exec *executor) status() common.WorkflowStepStatus {
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
 	h, exist := exec.handlers.GetHandler(provider, do)
 	if !exist {
-		return errors.Errorf("handler(provider=%s,do=%s) not found", provider, do)
+		return errors.Errorf("handler not found")
 	}
 	return h(ctx, v, exec)
 }
@@ -216,7 +223,7 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 		} else {
 			provider := opProvider(in)
 			if err := exec.Handle(ctx, provider, do, in); err != nil {
-				return false, errors.WithMessagef(err, "handle (provider=%s,do=%s)", provider, do)
+				return false, errors.WithMessagef(err, "run step(provider=%s,do=%s)", provider, do)
 			}
 		}
 
