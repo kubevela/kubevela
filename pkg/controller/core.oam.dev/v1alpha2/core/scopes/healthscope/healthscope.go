@@ -34,7 +34,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	oamtypes "github.com/oam-dev/kubevela/apis/types"
+	af "github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -68,8 +74,14 @@ var (
 	kindDaemonSet             = reflect.TypeOf(apps.DaemonSet{}).Name()
 )
 
-// WorkloadHealthCondition holds health status of any resource
+// AppHealthCondition holds health status of an application
+type AppHealthCondition = v1alpha2.AppHealthCondition
+
+// WorkloadHealthCondition holds health status of a workload
 type WorkloadHealthCondition = v1alpha2.WorkloadHealthCondition
+
+// TraitHealthCondition holds health status of a trait
+type TraitHealthCondition = v1alpha2.TraitHealthCondition
 
 // ScopeHealthCondition holds health condition of a scope
 type ScopeHealthCondition = v1alpha2.ScopeHealthCondition
@@ -428,4 +440,165 @@ func (p PeerHealthConditions) MergePeerWorkloadsConditions(basic *WorkloadHealth
 				peerHC.Diagnosis)
 		}
 	}
+}
+
+// CUEBasedHealthCheck check workload and traits health through CUE-based health checking approach.
+func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.ObjectReference, ns string, appfile *af.Appfile) (*WorkloadHealthCondition, []*TraitHealthCondition) {
+	wlHealth := &WorkloadHealthCondition{
+		TargetWorkload: wlRef,
+	}
+
+	o := &unstructured.Unstructured{}
+	o.SetGroupVersionKind(wlRef.GroupVersionKind())
+	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: wlRef.Name}, o); err != nil {
+		wlHealth.HealthStatus = StatusUnhealthy
+		wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+		return wlHealth, nil
+	}
+	compName := getComponentNameFromLabel(o)
+	wlHealth.ComponentName = compName
+
+	var wl *af.Workload
+	for _, v := range appfile.Workloads {
+		if v.Name == compName {
+			wl = v
+			break
+		}
+	}
+	if wl == nil {
+		// almost impossible
+		return nil, nil
+	}
+
+	var pCtx process.Context
+
+	// if error occurs when check workload health, it's not allowed to check traits
+	// because CUE-based health checking replies on valid process context
+	okToCheckTrait := false
+
+	func() {
+		if wl.ConfigNotReady {
+			wlHealth.HealthStatus = StatusUnhealthy
+			wlHealth.Diagnosis = "secrets or configs not ready"
+			return
+		}
+
+		var (
+			outputSecretName string
+			err              error
+		)
+		if wl.IsSecretProducer() {
+			outputSecretName, err = af.GetOutputSecretNames(wl)
+			if err != nil {
+				wlHealth.HealthStatus = StatusUnhealthy
+				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+				return
+			}
+		}
+		switch wl.CapabilityCategory {
+		case oamtypes.TerraformCategory:
+			pCtx = af.NewBasicContext(wl, appfile.Name, appfile.RevisionName, appfile.Namespace)
+			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
+			ctx := context.Background()
+			var configuration terraformapi.Configuration
+			if err := c.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: ns}, &configuration); err != nil {
+				wlHealth.HealthStatus = StatusUnhealthy
+				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+			}
+			if configuration.Status.State != terraformtypes.Available {
+				wlHealth.HealthStatus = StatusUnhealthy
+			} else {
+				wlHealth.HealthStatus = StatusHealthy
+			}
+			wlHealth.Diagnosis = configuration.Status.Message
+			okToCheckTrait = true
+		default:
+			pCtx = process.NewContext(ns, wl.Name, appfile.Name, appfile.RevisionName)
+			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
+			if wl.CapabilityCategory != oamtypes.CUECategory {
+				templateStr, err := af.GenerateCUETemplate(wl)
+				if err != nil {
+					wlHealth.HealthStatus = StatusUnhealthy
+					wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+					return
+				}
+				wl.FullTemplate.TemplateStr = templateStr
+			}
+
+			if err := wl.EvalContext(pCtx); err != nil {
+				wlHealth.HealthStatus = StatusUnhealthy
+				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+				return
+			}
+			// if workload has no CUE-based health template, skip check workload,
+			// but still okay to check traits because process context is ready
+			if len(wl.FullTemplate.Health) == 0 {
+				wlHealth = nil
+				okToCheckTrait = true
+				return
+			}
+			isHealthy, err := wl.EvalHealth(pCtx, c, ns)
+			if err != nil {
+				wlHealth.HealthStatus = StatusUnhealthy
+				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+				return
+			}
+			if isHealthy {
+				wlHealth.HealthStatus = StatusHealthy
+			} else {
+				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
+				wlHealth.HealthStatus = StatusUnhealthy
+			}
+			wlHealth.CustomStatusMsg, err = wl.EvalStatus(pCtx, c, ns)
+			if err != nil {
+				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+			}
+			okToCheckTrait = true
+		}
+	}()
+
+	traits := make([]*v1alpha2.TraitHealthCondition, len(wl.Traits))
+	for i, tr := range wl.Traits {
+		tHealth := &v1alpha2.TraitHealthCondition{
+			Type: tr.Name,
+		}
+		if !okToCheckTrait {
+			tHealth.HealthStatus = StatusUnknown
+			tHealth.Diagnosis = "error occurs in checking workload health"
+			traits[i] = tHealth
+			continue
+		}
+
+		if len(tr.FullTemplate.Health) == 0 {
+			tHealth.HealthStatus = StatusUnknown
+			tHealth.Diagnosis = "no CUE-based health check template"
+			traits[i] = tHealth
+			continue
+		}
+		if err := tr.EvalContext(pCtx); err != nil {
+			tHealth.HealthStatus = StatusUnhealthy
+			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+			traits[i] = tHealth
+			continue
+		}
+		isHealthy, err := tr.EvalHealth(pCtx, c, ns)
+		if err != nil {
+			tHealth.HealthStatus = StatusUnhealthy
+			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+			traits[i] = tHealth
+			continue
+		}
+		if isHealthy {
+			tHealth.HealthStatus = StatusHealthy
+		} else {
+			// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
+			tHealth.HealthStatus = StatusUnhealthy
+		}
+		tHealth.CustomStatusMsg, err = tr.EvalStatus(pCtx, c, ns)
+		if err != nil {
+			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+		}
+		traits[i] = tHealth
+	}
+	return wlHealth, traits
 }

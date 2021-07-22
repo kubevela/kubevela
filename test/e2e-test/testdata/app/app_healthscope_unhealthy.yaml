@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-healthscope-unhealthy
+spec:
+  components:
+    - name: my-server-unhealthy
+      type: webservice
+      properties:
+        cmd:
+          - node
+          - server.js
+        image: oamdev/testapp:boom # make it unhealthy
+        port: 8080

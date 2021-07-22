@@ -182,7 +182,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationCompo
 		workload.Traits = append(workload.Traits, trait)
 	}
 	for scopeType, instanceName := range comp.Scopes {
-		gvk, err := getScopeGVK(ctx, p.client, p.dm, scopeType)
+		gvk, err := GetScopeGVK(ctx, p.client, p.dm, scopeType)
 		if err != nil {
 			return nil, err
 		}
@@ -338,7 +338,8 @@ func getComponentSetting(settingParamName string, params map[string]interface{})
 	return nil, fmt.Errorf("failed to get the value of component setting %s", settingParamName)
 }
 
-func getScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.DiscoveryMapper,
+// GetScopeGVK get grouped API version of the given scope
+func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.DiscoveryMapper,
 	name string) (schema.GroupVersionKind, error) {
 	var gvk schema.GroupVersionKind
 	sd := new(v1alpha2.ScopeDefinition)
