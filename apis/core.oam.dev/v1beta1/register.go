@@ -149,6 +149,14 @@ var (
 	InitializerKindVersionKind = SchemeGroupVersion.WithKind(InitializerKind)
 )
 
+// EnvBinding type metadata.
+var (
+	EnvBindingKind            = reflect.TypeOf(EnvBinding{}).Name()
+	EnvBindingGroupKind       = schema.GroupKind{Group: Group, Kind: EnvBindingKind}.String()
+	EnvBindingKindAPIVersion  = EnvBindingKind + "." + SchemeGroupVersion.String()
+	EnvBindingKindVersionKind = SchemeGroupVersion.WithKind(EnvBindingKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
@@ -164,4 +172,5 @@ func init() {
 	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
 	SchemeBuilder.Register(&Initializer{}, &InitializerList{})
+	SchemeBuilder.Register(&EnvBinding{}, &EnvBindingList{})
 }

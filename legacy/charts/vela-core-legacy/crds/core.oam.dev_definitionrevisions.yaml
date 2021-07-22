@@ -25,7 +25,7 @@ spec:
     listKind: DefinitionRevisionList
     plural: definitionrevisions
     shortNames:
-    - comprev
+    - defrev
     singular: definitionrevision
   scope: Namespaced
   subresources: {}
