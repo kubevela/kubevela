@@ -279,7 +279,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			}, 30*time.Second, 5*time.Second).Should(Succeed())
 		})
 
-		It("initializer depends on not non-build-in initializer not found, should be rejected by webhook", func() {
+		It("initializer depends on not non-built-in initializer not found, should be rejected by webhook", func() {
 			init := &v1beta1.Initializer{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Initializer",
@@ -309,7 +309,7 @@ var _ = Describe("Initializer Normal tests", func() {
 							Ref: corev1.ObjectReference{
 								APIVersion: "core.oam.dev/v1beta1",
 								Kind:       "Initializer",
-								Name:       "non-build-in",
+								Name:       "non-built-in",
 							},
 						},
 					},
@@ -320,17 +320,17 @@ var _ = Describe("Initializer Normal tests", func() {
 			Expect(k8sClient.Create(ctx, init)).Should(HaveOccurred())
 		})
 
-		It("initializer depends on build-in initializer", func() {
+		FIt("initializer depends on built-in initializer", func() {
 			initCm := &corev1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "ConfigMap",
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "build-in",
+					Name:      "built-in",
 					Namespace: velatypes.DefaultKubeVelaNS,
 					Labels: map[string]string{
-						"addons.oam.dev/type": "build-in",
+						"addons.oam.dev/type": "built-in",
 					},
 				},
 				Data: map[string]string{
@@ -338,7 +338,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				},
 			}
 
-			By("create build-in addon")
+			By("create built-in addon")
 			Expect(k8sClient.Create(ctx, initCm)).Should(Succeed())
 
 			init := &v1beta1.Initializer{
@@ -347,7 +347,7 @@ var _ = Describe("Initializer Normal tests", func() {
 					APIVersion: "core.oam.dev/v1beta1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "env-depends-buildin",
+					Name:      "env-depends-builtin",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.InitializerSpec{
@@ -355,7 +355,7 @@ var _ = Describe("Initializer Normal tests", func() {
 						Spec: v1beta1.ApplicationSpec{
 							Components: []v1beta1.ApplicationComponent{
 								{
-									Name: "",
+									Name: "comp1",
 									Type: "worker",
 									Properties: util.Object2RawExtension(map[string]interface{}{
 										"image": "busybox",
@@ -370,7 +370,7 @@ var _ = Describe("Initializer Normal tests", func() {
 							Ref: corev1.ObjectReference{
 								APIVersion: "core.oam.dev/v1beta1",
 								Kind:       "Initializer",
-								Name:       "build-in",
+								Name:       "built-in",
 								Namespace:  velatypes.DefaultKubeVelaNS,
 							},
 						},
@@ -381,10 +381,10 @@ var _ = Describe("Initializer Normal tests", func() {
 			By("Create Initializer env-depends")
 			Expect(k8sClient.Create(ctx, init)).Should(Succeed())
 
-			By("Check build-in Initializer is ready")
+			By("Check built-in Initializer is ready")
 			buildInInit := new(v1beta1.Initializer)
 			Eventually(func() error {
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: "build-in", Namespace: "vela-system"}, buildInInit)
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: "built-in", Namespace: "vela-system"}, buildInInit)
 				if err != nil {
 					return err
 				}
@@ -394,17 +394,17 @@ var _ = Describe("Initializer Normal tests", func() {
 				return fmt.Errorf("initializer %s is not ready", buildInInit.Name)
 			}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
 
-			By("Check Initializer env-depends-buildin is ready")
+			By("Check Initializer env-depends-builtin is ready")
 			Eventually(func() error {
-				err := k8sClient.Get(ctx, client.ObjectKey{Name: "env-depends-buildin", Namespace: namespace}, buildInInit)
+				err := k8sClient.Get(ctx, client.ObjectKey{Name: "env-depends-builtin", Namespace: namespace}, buildInInit)
 				if err != nil {
 					return err
 				}
 				if buildInInit.Status.Phase == v1beta1.InitializerSuccess {
 					return nil
 				}
-				return errors.New("initializer env-depends-buildin is not ready")
-			}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
+				return errors.New("initializer env-depends-builtin is not ready")
+			}, 120*time.Second, 500*time.Millisecond).Should(Succeed())
 		})
 
 		It("Deleting initializer depended by other initializer should be rejected by webhook", func() {
@@ -422,7 +422,7 @@ var _ = Describe("Initializer Normal tests", func() {
 						Spec: v1beta1.ApplicationSpec{
 							Components: []v1beta1.ApplicationComponent{
 								{
-									Name: "",
+									Name: "comp1",
 									Type: "worker",
 									Properties: util.Object2RawExtension(map[string]interface{}{
 										"image": "busybox",
@@ -488,7 +488,7 @@ kind: Initializer
 metadata:
   annotations:
     addons.oam.dev/description: Kruise is a Kubernetes extended suite for application automations
-  name: build-in
+  name: built-in
   namespace: vela-system
 spec:
   appTemplate:
@@ -497,6 +497,6 @@ spec:
       - name: kruise-repo
         type: worker
         properties:
-          image: busybox,
+          image: busybox
           cmd:   ["sleep", "10000"]
 `

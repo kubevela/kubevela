@@ -104,16 +104,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-// checkOrInstallDependsOn check the status of dependOn Initializer or help install the build-in Initializer.
+// checkOrInstallDependsOn check the status of dependOn Initializer or help install the built-in Initializer.
 // If the dependOn Initializer is not found and the namespace is default or vela-system, we will try to find
-// and install the build-in Initializer from ConfigMap.
+// and install the built-in Initializer from ConfigMap.
 // If all dependency are found(ready or not), err will be nil.
 func (r *Reconciler) checkOrInstallDependsOn(ctx context.Context, depends []v1beta1.DependsOn) (bool, error) {
 	for _, depend := range depends {
 		dependInit, err := utils.GetInitializer(ctx, r.Client, depend.Ref.Namespace, depend.Ref.Name)
 		if err != nil {
 			// if Initializer is not found and the namespace is default or vela-system,
-			// try to install build-in initializer from ConfigMap. Otherwise, err will be return
+			// try to install built-in initializer from ConfigMap. Otherwise, err will be return
 			if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
 				init, err := utils.GetBuildInInitializer(ctx, r.Client, depend.Ref.Name)
 				if err != nil {
