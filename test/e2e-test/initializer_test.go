@@ -294,7 +294,7 @@ var _ = Describe("Initializer Normal tests", func() {
 						Spec: v1beta1.ApplicationSpec{
 							Components: []v1beta1.ApplicationComponent{
 								{
-								Name: "",
+									Name: "comp1",
 									Type: "worker",
 									Properties: util.Object2RawExtension(map[string]interface{}{
 										"image": "busybox",
