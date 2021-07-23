@@ -147,9 +147,6 @@ type Trait struct {
 
 	FullTemplate *Template
 	engine       definition.AbstractEngine
-	// ManageWorkload indicate the trait will create and gc the workload
-	// the workload needn't apply it
-	ManageWorkload bool
 }
 
 // EvalContext eval trait template and set result to context
@@ -242,27 +239,16 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 			InsertConfigNotReady: true,
 		}, nil
 	}
-	var compManifest *types.ComponentManifest
-	var err error
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
-		compManifest, err = generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
 	case types.KubeCategory:
-		compManifest, err = generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
 	case types.TerraformCategory:
-		compManifest, err = generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
 	default:
-		compManifest, err = generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
 	}
-	if err != nil {
-		return nil, err
-	}
-	// safe code for don't panic
-	if compManifest == nil {
-		return nil, nil
-	}
-	compManifest.WorkloadManagedByTrait = checkTraitManageWorkload(*wl)
-	return compManifest, nil
 }
 
 // PrepareProcessContext prepares a DSL process Context
@@ -645,13 +631,4 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 	}
 	compManifest.PackagedWorkloadResources = []*unstructured.Unstructured{rls, repo}
 	return compManifest, nil
-}
-
-func checkTraitManageWorkload(wl Workload) bool {
-	for _, trait := range wl.Traits {
-		if trait.ManageWorkload {
-			return true
-		}
-	}
-	return false
 }

@@ -441,11 +441,6 @@ func (in *ApplicationRevisionSpec) DeepCopyInto(out *ApplicationRevisionSpec) {
 		}
 	}
 	in.ApplicationConfiguration.DeepCopyInto(&out.ApplicationConfiguration)
-	if in.CompWorkloadManageByTrait != nil {
-		in, out := &in.CompWorkloadManageByTrait, &out.CompWorkloadManageByTrait
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
 	out.ResourcesConfigMap = in.ResourcesConfigMap
 }
 

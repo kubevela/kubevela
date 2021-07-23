@@ -398,7 +398,7 @@ spec:
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: a.Name + "-v1", Namespace: a.GetNamespace()}, appRev)
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components, appRev.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -504,7 +504,7 @@ spec:
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: checkApp.Name + "-v1", Namespace: checkApp.GetNamespace()}, appRev)
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components, appRev.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -554,7 +554,7 @@ spec:
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: checkApp.Name + "-v1", Namespace: checkApp.GetNamespace()}, appRev)
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components, appRev.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -609,7 +609,7 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components, appRev.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -676,7 +676,7 @@ spec:
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Check AppRevision Created with the expected workload spec")
-		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components, appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -769,7 +769,7 @@ spec:
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		By("Check AppRevision Created with the expected workload spec")
-		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components, appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -837,7 +837,7 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components, appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp1 := comps[0]
@@ -907,7 +907,7 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		comps, err = util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components, appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err = util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp1 = comps[0]
@@ -973,7 +973,7 @@ spec:
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 
-		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components, appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -1132,8 +1132,7 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
 		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
 
-		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components,
-			appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -1461,8 +1460,7 @@ spec:
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 
-		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components,
-			appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
@@ -1559,8 +1557,7 @@ spec:
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 
-		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components,
-			appRevision.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 		Expect(err).Should(BeNil())
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]

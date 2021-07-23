@@ -52,10 +52,6 @@ type ApplicationRevisionSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	ApplicationConfiguration runtime.RawExtension `json:"applicationConfiguration"`
 
-	// CompWorkloadManageByTrait indicate witch component's workload managed by trait
-	// +option
-	CompWorkloadManageByTrait []string `json:"compWorkloadManageByTrait,omitempty"`
-
 	// ResourcesConfigMap references the ConfigMap that's generated to contain all final rendered resources.
 	ResourcesConfigMap corev1.LocalObjectReference `json:"resourcesConfigMap,omitempty"`
 }

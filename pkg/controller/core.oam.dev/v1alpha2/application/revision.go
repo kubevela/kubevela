@@ -483,11 +483,7 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context, comps []*t
 	}})
 	appRev.Spec.ResourcesConfigMap.Name = appRev.Name
 	appRev.Spec.ApplicationConfiguration, appRev.Spec.Components = componentManifests2AppConfig(comps)
-	for _, comp := range comps {
-		if comp.WorkloadManagedByTrait {
-			appRev.Spec.CompWorkloadManageByTrait = append(appRev.Spec.CompWorkloadManageByTrait, comp.Name)
-		}
-	}
+
 	gotAppRev := &v1beta1.ApplicationRevision{}
 	if err := h.r.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -538,6 +534,7 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 				},
 			}
 		}
+
 		// this label is very important for handling component revision
 		util.AddLabels(comp, map[string]string{
 			oam.LabelComponentRevisionHash: cm.RevisionHash,
@@ -679,7 +676,7 @@ func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 		if err := h.r.Get(ctx, client.ObjectKey{Name: appRevName, Namespace: h.app.Namespace}, appRev); err != nil {
 			return err
 		}
-		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components, appRev.Spec.CompWorkloadManageByTrait)
+		comps, err := util.AppConfig2ComponentManifests(appRev.Spec.ApplicationConfiguration, appRev.Spec.Components)
 		if err != nil {
 			return err
 		}
@@ -691,8 +688,7 @@ func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 		}
 	}
 
-	comps, err := util.AppConfig2ComponentManifests(h.currentAppRev.Spec.ApplicationConfiguration,
-		h.currentAppRev.Spec.Components, h.currentAppRev.Spec.CompWorkloadManageByTrait)
+	comps, err := util.AppConfig2ComponentManifests(h.currentAppRev.Spec.ApplicationConfiguration, h.currentAppRev.Spec.Components)
 	if err != nil {
 		return err
 	}

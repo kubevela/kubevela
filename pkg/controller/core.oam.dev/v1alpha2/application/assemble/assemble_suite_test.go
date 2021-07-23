@@ -207,3 +207,58 @@ var _ = Describe("Test Assemble Options", func() {
 		Expect(annotationKeys).Should(ContainElements("canPassAnno"))
 	})
 })
+
+var _ = Describe("Test CheckSkipApplyWorkloadComp func", func() {
+	It("Test every situation", func() {
+		a := AppManifests{
+			AppRevision: &v1beta1.ApplicationRevision{
+				Spec: v1beta1.ApplicationRevisionSpec{
+					Application: v1beta1.Application{
+						Spec: v1beta1.ApplicationSpec{
+							Components: []v1beta1.ApplicationComponent{
+								{
+									Name: "comp1",
+									Traits: []v1beta1.ApplicationTrait{
+										{
+											Type: "rollout",
+										},
+										{
+											Type: "normal",
+										},
+									},
+								},
+								{
+									Name: "comp2",
+									Traits: []v1beta1.ApplicationTrait{
+										{
+											Type: "normal",
+										},
+									},
+								},
+								{
+									Name: "comp3",
+								},
+							},
+						},
+					},
+					TraitDefinitions: map[string]v1beta1.TraitDefinition{
+						"rollout": v1beta1.TraitDefinition{
+							Spec: v1beta1.TraitDefinitionSpec{
+								ManageWorkload: true,
+							},
+						},
+						"normal": v1beta1.TraitDefinition{
+							Spec: v1beta1.TraitDefinitionSpec{},
+						},
+					},
+				},
+			},
+			skipWorkloadApplyComp: make(map[string]bool),
+		}
+		a.CheckSkipApplyWorkloadComp()
+		Expect(len(a.skipWorkloadApplyComp)).Should(BeEquivalentTo(1))
+		Expect(a.skipWorkloadApplyComp["comp1"]).Should(BeTrue())
+		Expect(a.skipWorkloadApplyComp["comp2"]).Should(BeFalse())
+		Expect(a.skipWorkloadApplyComp["comp3"]).Should(BeFalse())
+	})
+})

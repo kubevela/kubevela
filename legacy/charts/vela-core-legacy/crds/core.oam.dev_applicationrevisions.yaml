@@ -1872,11 +1872,6 @@ spec:
                 type: object
                 
                 
-              compWorkloadManageByTrait:
-                description: CompWorkloadManageByTrait indicate witch component's workload managed by trait
-                items:
-                  type: string
-                type: array
               componentDefinitions:
                 additionalProperties:
                   description: ComponentDefinition is the Schema for the componentdefinitions API

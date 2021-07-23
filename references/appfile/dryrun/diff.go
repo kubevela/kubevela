@@ -317,7 +317,7 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 // generateManifestFromAppRevision generates manifest from an AppRevision
 func generateManifestFromAppRevision(appRevision *v1beta1.ApplicationRevision) (*manifest, error) {
 	// comps, err := util.ConvertRawComponentManifests(appRevision.Spec.ComponentManifests)
-	comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components, appRevision.Spec.CompWorkloadManageByTrait)
+	comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
 	if err != nil {
 		return nil, err
 	}

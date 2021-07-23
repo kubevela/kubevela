@@ -682,7 +682,7 @@ func RawExtension2Component(raw runtime.RawExtension) (*v1alpha2.Component, erro
 }
 
 // AppConfig2ComponentManifests convert AppConfig and Components to a slice of ComponentManifest.
-func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.RawComponent, compWorkloadManagedByTrait []string) ([]*oamtypes.ComponentManifest, error) {
+func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.RawComponent) ([]*oamtypes.ComponentManifest, error) {
 	var err error
 	ac, err := RawExtension2AppConfig(acRaw)
 	if err != nil {
@@ -740,13 +740,6 @@ func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.Raw
 				Kind:       s.ScopeReference.Kind,
 				Name:       s.ScopeReference.Name,
 				APIVersion: s.ScopeReference.APIVersion,
-			}
-		}
-		if len(compWorkloadManagedByTrait) != 0 {
-			for _, compName := range compWorkloadManagedByTrait {
-				if compName == acc.ComponentName {
-					cm.WorkloadManagedByTrait = true
-				}
 			}
 		}
 		cms[i] = cm
