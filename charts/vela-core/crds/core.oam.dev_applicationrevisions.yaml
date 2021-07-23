@@ -1875,6 +1875,11 @@ spec:
                 type: object
                 x-kubernetes-embedded-resource: true
                 x-kubernetes-preserve-unknown-fields: true
+              compWorkloadManageByTrait:
+                description: CompWorkloadManageByTrait indicate witch component's workload managed by trait
+                items:
+                  type: string
+                type: array
               componentDefinitions:
                 additionalProperties:
                   description: ComponentDefinition is the Schema for the componentdefinitions API

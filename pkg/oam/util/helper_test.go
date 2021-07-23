@@ -2474,7 +2474,7 @@ spec:
 		compRaw := runtime.RawExtension{Raw: compJSON}
 		_, err := util.AppConfig2ComponentManifests(acRaw, []common.RawComponent{
 			{Raw: compRaw},
-		})
+		}, nil)
 		hasError := err != nil
 		assert.Equal(t, tc.expectErr, hasError, "err", err)
 	}

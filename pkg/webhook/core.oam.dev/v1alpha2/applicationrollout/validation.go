@@ -74,14 +74,14 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1beta1.AppRollout) field
 		}
 		var sourceComps []*types.ComponentManifest
 		targetComps, err := oamutil.AppConfig2ComponentManifests(targetAppRevision.Spec.ApplicationConfiguration,
-			targetAppRevision.Spec.Components)
+			targetAppRevision.Spec.Components, targetAppRevision.Spec.CompWorkloadManageByTrait)
 		if err != nil {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("TargetAppRevisionName"), targetAppName,
 				fmt.Sprintf("the targeted app revision is corrupted,  err = `%s`", err)))
 		}
 		if sourceAppRevision != nil {
 			sourceComps, err = oamutil.AppConfig2ComponentManifests(sourceAppRevision.Spec.ApplicationConfiguration,
-				sourceAppRevision.Spec.Components)
+				sourceAppRevision.Spec.Components, sourceAppRevision.Spec.CompWorkloadManageByTrait)
 			if err != nil {
 				allErrs = append(allErrs, field.Invalid(fldPath.Child("SourceAppRevisionName"), sourceAppName,
 					fmt.Sprintf("the source app revision is corrupted,  err = `%s`", err)))

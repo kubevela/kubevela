@@ -233,7 +233,7 @@ func (am *AppManifests) assemble() {
 func (am *AppManifests) complete() {
 	if len(am.componentManifests) == 0 {
 		am.componentManifests, _ = util.AppConfig2ComponentManifests(am.AppRevision.Spec.ApplicationConfiguration,
-			am.AppRevision.Spec.Components)
+			am.AppRevision.Spec.Components, am.AppRevision.Spec.CompWorkloadManageByTrait)
 	}
 	am.appNamespace = am.AppRevision.GetNamespace()
 	am.appLabels = am.AppRevision.GetLabels()
