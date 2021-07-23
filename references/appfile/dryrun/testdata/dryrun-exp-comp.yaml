@@ -65,3 +65,4 @@ Traits:
             serviceName: myweb
             servicePort: 80
           path: /
+WorkloadManagedByTrait: false
