@@ -202,6 +202,8 @@ func (am *AppManifests) assemble() {
 		if !comp.WorkloadManagedByTrait {
 			am.assembledWorkloads[compName] = wl
 		} else {
+			// the workload is managed by a trait, so skip create it
+			// the nil workload just is a placeHolder
 			am.assembledWorkloads[compName] = nil
 			klog.InfoS("Assemble meet a workload managed by trait , skip apply it", "name", compName)
 		}

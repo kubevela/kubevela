@@ -145,8 +145,10 @@ type Trait struct {
 	// RequiredSecrets stores secret names which the trait needs from cloud resource component and its context
 	RequiredSecrets []process.RequiredSecrets
 
-	FullTemplate   *Template
-	engine         definition.AbstractEngine
+	FullTemplate *Template
+	engine       definition.AbstractEngine
+	// ManageWorkload indicate the trait will create and gc the workload
+	// the workload needn't apply it
 	ManageWorkload bool
 }
 
