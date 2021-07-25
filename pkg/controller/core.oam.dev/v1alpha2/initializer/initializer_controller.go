@@ -74,13 +74,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	init.Status.Phase = v1beta1.InitializerCheckingDependsOn
 	dependsOnInitReady, err := r.checkOrInstallDependsOn(ctx, init.Spec.DependsOn)
 	if err != nil {
-		klog.ErrorS(err, "Initializers which you depend on are not ready")
-		r.record.Event(init, event.Warning("Initializers which you depend on are not ready", err))
+		klog.ErrorS(err, "Check initializer dependsOn error")
+		r.record.Event(init, event.Warning("Checking Initializer dependsOn error", err))
 		return r.endWithNegativeCondition(ctx, init, cpv1alpha1.ReconcileError(err))
 	}
 	if !dependsOnInitReady {
 		klog.Info("Wait for dependent Initializer to be ready")
-		return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, nil
+		return r.endWithTryLater(ctx, init)
 	}
 
 	init.Status.Phase = v1beta1.InitializerInitializing
@@ -92,7 +92,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	if !appReady {
 		klog.Info("Wait for the Application created by Initializer to be ready")
-		return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, nil
+		return r.endWithTryLater(ctx, init)
 	}
 
 	init.Status.Phase = v1beta1.InitializerSuccess
@@ -104,23 +104,28 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-// checkOrInstallDependsOn check the status of dependOn Initializer or help install the build-in Initializer.
+// checkOrInstallDependsOn check the status of dependOn Initializer or help install the built-in Initializer.
 // If the dependOn Initializer is not found and the namespace is default or vela-system, we will try to find
-// and install the build-in Initializer from ConfigMap.
+// and install the built-in Initializer from ConfigMap.
+// If all dependency are found(ready or not), err will be nil.
 func (r *Reconciler) checkOrInstallDependsOn(ctx context.Context, depends []v1beta1.DependsOn) (bool, error) {
 	for _, depend := range depends {
 		dependInit, err := utils.GetInitializer(ctx, r.Client, depend.Ref.Namespace, depend.Ref.Name)
 		if err != nil {
 			// if Initializer is not found and the namespace is default or vela-system,
-			// try to install build-in initializer from ConfigMap
+			// try to install built-in initializer from ConfigMap. Otherwise, err will be return
 			if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
 				init, err := utils.GetBuildInInitializer(ctx, r.Client, depend.Ref.Name)
 				if err != nil {
 					return false, err
 				}
-				return false, r.Client.Create(ctx, init)
+				err = r.Client.Create(ctx, init)
+				if err != nil {
+					return false, err
+				}
+			} else {
+				return false, errors.Errorf("Initializer dependency %s is not found", depend.Ref.Name)
 			}
-			return false, err
 		}
 
 		if dependInit.Status.Phase != v1beta1.InitializerSuccess {
@@ -137,7 +142,25 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, init *v1beta1
 	if err := r.patchStatus(ctx, init); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
 	}
+	// if any condition is changed, patching status can trigger requeue the resource and we should return nil to
+	// avoid requeue it again
+	if oamutil.IsConditionChanged([]cpv1alpha1.Condition{condition}, init) {
+		return ctrl.Result{}, nil
+	}
+	// if no condition is changed, patching status can not trigger requeue, so we must return an error to
+	// requeue the resource
 	return ctrl.Result{}, errors.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
+}
+
+// endWithTryLater means reconcile successfully but have to wait until initializer phase is success. initializer may be
+// 1. waiting dependent initializer to be ready
+// 2. initializing
+func (r *Reconciler) endWithTryLater(ctx context.Context, init *v1beta1.Initializer) (ctrl.Result, error) {
+	init.SetConditions(cpv1alpha1.ReconcileSuccess())
+	if err := r.patchStatus(ctx, init); err != nil {
+		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
+	}
+	return reconcile.Result{RequeueAfter: InitializerReconcileWaitTime}, nil
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, init *v1beta1.Initializer) error {

@@ -401,7 +401,7 @@ func GetInitializer(ctx context.Context, cli client.Client, namespace, name stri
 	return init, err
 }
 
-// GetBuildInInitializer get build-in initializer from configMap in vela-system namespace
+// GetBuildInInitializer get built-in initializer from configMap in vela-system namespace
 func GetBuildInInitializer(ctx context.Context, cli client.Client, name string) (*v1beta1.Initializer, error) {
 	listOpts := []client.ListOption{
 		client.InNamespace(velatypes.DefaultKubeVelaNS),
@@ -415,14 +415,14 @@ func GetBuildInInitializer(ctx context.Context, cli client.Client, name string) 
 		return nil, err
 	}
 	if len(configMapList.Items) != 1 {
-		return nil, errors.Errorf("fail to get build-in initializer %s, there are %d matched initializers", name, len(configMapList.Items))
+		return nil, errors.Errorf("fail to get built-in initializer %s, there are %d matched initializers", name, len(configMapList.Items))
 	}
 
 	init := new(v1beta1.Initializer)
 	initYaml := configMapList.Items[0].Data["initializer"]
 	err = yaml.Unmarshal([]byte(initYaml), init)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "fail to unmarshal build-in initializer %s from configmap", name)
+		return nil, errors.WithMessagef(err, "fail to unmarshal built-in initializer %s from configmap", name)
 	}
 
 	return init, nil

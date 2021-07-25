@@ -35,8 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
-var initializerGVR = v1beta1.SchemeGroupVersion.WithResource("initializers")
-
 // ValidatingHandler handles validation of initializer
 type ValidatingHandler struct {
 	Client client.Client
@@ -68,33 +66,73 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate initializer
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1beta1.Initializer{}
-	if req.Resource.String() != initializerGVR.String() {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", initializerGVR))
-	}
+	init := &v1beta1.Initializer{}
 
 	if req.Operation == admissionv1beta1.Create || req.Operation == admissionv1beta1.Update {
-		err := h.Decoder.Decode(req, obj)
+		err := h.Decoder.Decode(req, init)
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-
-		for _, depend := range obj.Spec.DependsOn {
+		for _, depend := range init.Spec.DependsOn {
 			_, err = utils.GetInitializer(ctx, h.Client, depend.Ref.Namespace, depend.Ref.Name)
 			if err != nil {
 				if apierrors.IsNotFound(err) && (depend.Ref.Namespace == "" || depend.Ref.Namespace == velatypes.DefaultKubeVelaNS) {
 					_, err = utils.GetBuildInInitializer(ctx, h.Client, depend.Ref.Name)
 					if err != nil {
-						return admission.Denied(fmt.Sprintf("fail to get dependOn Initializer %s from err: %s", depend.Ref.Name, err.Error()))
+						return admission.Denied(fmt.Sprintf("fail to get built-in dependOn Initializer %s from err: %s", depend.Ref.Name, err.Error()))
 					}
 					continue
 				}
-				return admission.Denied(fmt.Sprintf("fail to get dependOn Initializer %s err: %s", depend.Ref.Name, err.Error()))
+				return admission.Denied(fmt.Sprintf("DependOn Initializer %s not Found, err: %s", depend.Ref.Name, err.Error()))
 			}
 		}
+	}
 
+	if req.Operation == admissionv1beta1.Delete {
+		var obj client.ObjectKey
+		obj.Name = req.Name
+		obj.Namespace = req.Namespace
+		err := h.Client.Get(ctx, obj, init)
+		if err != nil {
+			return admission.Errored(http.StatusNotFound, err)
+		}
+		// check if there are other initializers depends on this
+		isDepended, dependingInitName, err := h.CheckInitDependedOn(ctx, init)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+		if isDepended {
+			return admission.Denied(fmt.Sprintf("initializer %s still depends on this initializer", dependingInitName))
+		}
 	}
 	return admission.ValidationResponse(true, "")
+}
+
+// CheckInitDependedOn check if there are other initializers depending on this init
+func (h *ValidatingHandler) CheckInitDependedOn(ctx context.Context, obj *v1beta1.Initializer) (bool, string, error) {
+	var (
+		inits          v1beta1.InitializerList
+		isDepended     bool
+		dependInitName string
+	)
+	err := h.Client.List(ctx, &inits)
+	if err != nil {
+		return false, "", err
+	}
+	for _, i := range inits.Items {
+		depends := i.Spec.DependsOn
+		for _, d := range depends {
+			if d.Ref.Name == obj.Name {
+				dependInitName = i.Name
+				isDepended = true
+				break
+			}
+		}
+		if isDepended {
+			break
+		}
+	}
+	return isDepended, dependInitName, nil
 }
 
 // RegisterValidatingHandler will register initializer validation to webhook

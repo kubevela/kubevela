@@ -159,7 +159,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	app.Status.SetConditions(utils.ReadyCondition("Render"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-	klog.Info("Successfully render application resources", "application", klog.KObj(app))
+	klog.InfoS("Successfully render application resources", "application", klog.KObj(app))
 
 	if err := handler.ApplyAppManifests(ctx, comps, policies); err != nil {
 		klog.ErrorS(err, "Failed to apply application manifests",

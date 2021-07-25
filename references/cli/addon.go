@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -311,16 +312,35 @@ func (a *Addon) enable() error {
 		return errors.Wrap(err, "Create namespace error")
 	}
 	err = applicator.Apply(ctx, obj)
-	// TODO Initializer should provide status so that enable addon is truly enabled.
 	if err != nil {
 		return errors.Wrapf(err, "Error occurs when enableing addon: %s\n", a.name)
+	}
+	err = waitForInitializerSuccess(obj)
+	if err != nil {
+		return errors.Wrapf(err, "Error occurs when waiting for addon enabled: %s\n", a.name)
 	}
 	return nil
 }
 
+func waitForInitializerSuccess(obj *unstructured.Unstructured) error {
+	ctx := context.Background()
+	period := 20 * time.Second
+	var init v1beta1.Initializer
+	return wait.PollImmediateInfinite(period, func() (done bool, err error) {
+		err = clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &init)
+		if err != nil {
+			return false, client.IgnoreNotFound(err)
+		}
+		phase := init.Status.Phase
+		if phase == v1beta1.InitializerSuccess {
+			return true, nil
+		}
+		fmt.Printf("Initializer %s is in phase:%s...\n", obj.GetName(), phase)
+		return false, nil
+	})
+}
 func (a *Addon) disable() error {
 	dynamicClient, err := dynamic.NewForConfig(clientArgs.Config)
-	namespaceToDelete := make(map[string]bool)
 	if err != nil {
 		return err
 	}
@@ -357,23 +377,6 @@ func (a *Addon) disable() error {
 	if err != nil {
 		return err
 	}
-	namespaceToDelete[obj.GetNamespace()] = true
-
-	for ns := range namespaceToDelete {
-		fmt.Printf("Deleting namespace: %s...\n", ns)
-		err = clt.Delete(context.Background(), &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: ns,
-			},
-		})
-		if err != nil {
-			return errors.Wrap(err, "Delete namespace error")
-		}
-		err = waitDisableByNs(ns, 600)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -387,31 +390,4 @@ func (a *Addon) getStatus() string {
 		return statusUninstalled
 	}
 	return statusInstalled
-}
-
-// waitDisableByNs will wait until namespace is deleted or timeout
-func waitDisableByNs(namespace string, timeout int) error {
-	ctx := context.Background()
-	done := make(chan struct{}, 1)
-
-	go func(ctx context.Context) {
-		var ns v1.Namespace
-		for {
-			err := clt.Get(ctx, types2.NamespacedName{Name: namespace}, &ns)
-			if err != nil && errors2.IsNotFound(err) {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		done <- struct{}{}
-	}(ctx)
-
-	select {
-	case <-done:
-		fmt.Printf("Namespace %s successfully deleted\n", namespace)
-		return nil
-	case <-time.After(time.Duration(timeout) * time.Second):
-		return fmt.Errorf("namespace %s is still terminating", namespace)
-	}
-
 }
