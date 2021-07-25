@@ -353,7 +353,7 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 			}
 			continue
 		}
-		hash, err := computeComponentRevisionHash(cm)
+		hash, err := ComputeComponentRevisionHash(cm)
 		if err != nil {
 			return err
 		}
@@ -416,7 +416,7 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 		}
 
 		// we should create one
-		hash, err := computeComponentRevisionHash(comp)
+		hash, err := ComputeComponentRevisionHash(comp)
 		if err != nil {
 			return err
 		}
@@ -431,7 +431,8 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 	return nil
 }
 
-func computeComponentRevisionHash(comp *types.ComponentManifest) (string, error) {
+// ComputeComponentRevisionHash to compute component hash
+func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error) {
 	compRevisionHash := struct {
 		WorkloadHash          string
 		PackagedResourcesHash []string
