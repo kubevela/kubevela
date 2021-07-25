@@ -22,11 +22,14 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -78,6 +81,11 @@ func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, ap
 		}
 
 		revisionName := comp.ExternalRevision
+		_, err := utils.ExtractRevision(revisionName)
+		if err != nil {
+			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, err.Error()))
+			continue
+		}
 		cr := &appsv1.ControllerRevision{}
 		if err := h.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revisionName}, cr); err != nil {
 			if !apierrors.IsNotFound(err) {
@@ -96,13 +104,40 @@ func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, ap
 			continue
 		}
 
-		existingComp, err := util.RawExtension2Component(cr.Data)
+		comp, err := util.RawExtension2Component(cr.Data)
 		if err != nil {
 			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't covert revision to component"))
 			continue
 		}
+		workload, err := util.RawExtension2Unstructured(&comp.Spec.Workload)
+		if err != nil {
+			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't extract workload"))
+			continue
+		}
+		packagedWorkloadResources := make([]*unstructured.Unstructured, 0)
+		if comp.Spec.Helm != nil {
+			helmRelease, err := util.RawExtension2Unstructured(&comp.Spec.Helm.Release)
+			if err != nil {
+				componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't extract helmRelease"))
+				continue
+			}
+			helmRepository, err := util.RawExtension2Unstructured(&comp.Spec.Helm.Repository)
+			if err != nil {
+				componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't extract helmRepository"))
+				continue
+			}
+			if helmRelease != nil {
+				packagedWorkloadResources = append(packagedWorkloadResources, helmRelease)
+			}
+			if helmRepository != nil {
+				packagedWorkloadResources = append(packagedWorkloadResources, helmRepository)
+			}
+		}
 		// recalculate hash
-		hash, err := utils.ComputeSpecHash(existingComp)
+		hash, err := application.ComputeComponentRevisionHash(&types.ComponentManifest{
+			StandardWorkload:          workload,
+			PackagedWorkloadResources: packagedWorkloadResources,
+		})
 		if err != nil {
 			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't recalculate hash"))
 			continue
