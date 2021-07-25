@@ -2296,6 +2296,9 @@ spec:
                           description: Extension is used for extension needs by OAM platform builders
                           type: object
                           
+                        manageWorkload:
+                          description: ManageWorkload defines the trait would be responsible for creating the workload
+                          type: boolean
                         podDisruptive:
                           description: PodDisruptive specifies whether using the trait will cause the pod to restart or not.
                           type: boolean

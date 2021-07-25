@@ -65,7 +65,8 @@ type AppManifests struct {
 	assembledWorkloads map[string]*unstructured.Unstructured
 	assembledTraits    map[string][]*unstructured.Unstructured
 	// key is workload reference, values are the references of scopes the workload belongs to
-	referencedScopes map[corev1.ObjectReference][]corev1.ObjectReference
+	referencedScopes      map[corev1.ObjectReference][]corev1.ObjectReference
+	skipWorkloadApplyComp map[string]bool
 
 	finalized bool
 	err       error
@@ -108,9 +109,15 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 	if am.err != nil {
 		return nil, am.err
 	}
+	am.CheckSkipApplyWorkloadComp()
 	r := make([]*unstructured.Unstructured, 0)
 	for compName, wl := range am.assembledWorkloads {
-		r = append(r, wl.DeepCopy())
+		if !am.skipWorkloadApplyComp[compName] {
+			r = append(r, wl.DeepCopy())
+		} else {
+			klog.InfoS("assemble meet a managedByTrait workload, so skip apply it",
+				"namespace", am.AppRevision.Namespace, "appRev", am.AppRevision.Name)
+		}
 		ts := am.assembledTraits[compName]
 		for _, t := range ts {
 			r = append(r, t.DeepCopy())
@@ -234,6 +241,7 @@ func (am *AppManifests) complete() {
 	am.assembledWorkloads = make(map[string]*unstructured.Unstructured)
 	am.assembledTraits = make(map[string][]*unstructured.Unstructured)
 	am.referencedScopes = make(map[corev1.ObjectReference][]corev1.ObjectReference)
+	am.skipWorkloadApplyComp = make(map[string]bool)
 }
 
 func (am *AppManifests) finalizeAssemble(err error) {
@@ -406,4 +414,26 @@ func (am *AppManifests) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trai
 		}
 	}
 	return nil
+}
+
+// CheckSkipApplyWorkloadComp check  component's workload is manage by trait, if yes skip apply it
+func (am *AppManifests) CheckSkipApplyWorkloadComp() {
+	app := am.AppRevision.Spec.Application
+	traitDefs := am.AppRevision.Spec.TraitDefinitions
+	manageWorkloadTrait := map[string]bool{}
+	for traitName, definition := range traitDefs {
+		if definition.Spec.ManageWorkload {
+			manageWorkloadTrait[traitName] = true
+		}
+	}
+	if len(manageWorkloadTrait) == 0 {
+		return
+	}
+	for _, component := range app.Spec.Components {
+		for _, trait := range component.Traits {
+			if manageWorkloadTrait[trait.Type] {
+				am.skipWorkloadApplyComp[component.Name] = true
+			}
+		}
+	}
 }

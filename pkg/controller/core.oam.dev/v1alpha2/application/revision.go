@@ -693,8 +693,7 @@ func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 		}
 	}
 
-	comps, err := util.AppConfig2ComponentManifests(h.currentAppRev.Spec.ApplicationConfiguration,
-		h.currentAppRev.Spec.Components)
+	comps, err := util.AppConfig2ComponentManifests(h.currentAppRev.Spec.ApplicationConfiguration, h.currentAppRev.Spec.Components)
 	if err != nil {
 		return err
 	}
