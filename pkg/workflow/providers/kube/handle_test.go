@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -41,7 +43,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
@@ -57,8 +58,18 @@ var pd *packages.PackageDiscover
 var _ = Describe("Test Workflow Provider Kube", func() {
 	It("apply and read", func() {
 		p := &provider{
-			deploy: apply.NewAPIApplicator(k8sClient),
-			cli:    k8sClient,
+			apply: func(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+				for _, obj := range manifests {
+					if err := k8sClient.Create(ctx, obj); err != nil {
+						if errors.IsAlreadyExists(err) {
+							return k8sClient.Update(ctx, obj)
+						}
+						return err
+					}
+				}
+				return nil
+			},
+			cli: k8sClient,
 		}
 		ctx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
@@ -137,9 +148,6 @@ metadata: {
 	name: "app"
 	labels: {
 		app: "nginx"
-	}
-	annotations: {
-		"app.oam.dev/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"labels\":{\"app\":\"nginx\"},\"name\":\"app\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"env\":[{\"name\":\"APP\",\"value\":\"nginx\"}],\"image\":\"nginx:1.14.2\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"main\",\"ports\":[{\"containerPort\":8080,\"protocol\":\"TCP\"}]}]}}"
 	}
 	namespace:         "default"
 	resourceVersion:   "44"

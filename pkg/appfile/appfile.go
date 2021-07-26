@@ -23,6 +23,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -192,13 +195,13 @@ type Appfile struct {
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
+func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
 
-	steps, err = af.generateSteps(ctx, m, cli, pd)
+	steps, err = af.generateSteps(ctx, m, cli, pd, dispatcher)
 	return
 }
 
@@ -214,7 +217,7 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 	return uns, nil
 }
 
-func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
+func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) ([]wfTypes.TaskRunner, error) {
 	loadTaskTemplate := func(ctx context.Context, name string) (string, error) {
 		templ, err := LoadTemplate(ctx, dm, cli, name, types.TypeWorkflowStep)
 		if err != nil {
@@ -227,7 +230,9 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 		return "", errors.New("custom workflowStep only support cue")
 	}
 
-	taskDiscover := tasks.NewTaskDiscover(cli, pd, loadTaskTemplate)
+	handlerProviders := providers.NewProviders()
+	kube.Install(handlerProviders, cli, dispatcher)
+	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, loadTaskTemplate)
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
 		genTask, err := taskDiscover.GetTaskGenerator(ctx, step.Type)

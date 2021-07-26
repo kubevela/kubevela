@@ -150,7 +150,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 
-	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, r.dm, r.Client, r.pd)
+	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, r.dm, r.Client, r.pd, handler.Dispatch)
 	if err != nil {
 		klog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
@@ -174,14 +174,34 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
 	klog.Info("Successfully apply application manifests", "application", klog.KObj(app))
 
-	done, err := workflow.NewWorkflow(app, r.Client).ExecuteSteps(ctx, handler.currentAppRev.Name, wfSteps)
+	done, pause, err := workflow.NewWorkflow(app, r.Client).ExecuteSteps(ctx, handler.currentAppRev.Name, wfSteps)
 	if err != nil {
 		klog.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
 		return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("Workflow", err))
 	}
+
+	if pause {
+		if err := r.patchStatus(ctx, app); err != nil {
+			return r.endWithNegativeCondition(ctx, app, v1alpha1.ReconcileError(err))
+		}
+	}
+
 	if !done {
 		return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.patchStatus(ctx, app)
+	}
+
+	if wfStatus := app.Status.Workflow; wfStatus != nil && !wfStatus.Terminated {
+		ref, err := handler.DispatchAndGC(ctx)
+		if err != nil {
+			klog.ErrorS(err, "Failed to gc after workflow",
+				"application", klog.KObj(app))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+			return r.endWithNegativeCondition(ctx, app, utils.ErrorCondition("GCAfterWorkflow", err))
+		}
+		wfStatus.Terminated = true
+		app.Status.ResourceTracker = ref
+		return r.endWithNegativeCondition(ctx, app, utils.ReadyCondition("GCAfterWorkflow"))
 	}
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application

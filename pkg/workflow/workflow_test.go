@@ -65,9 +65,9 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		wf := NewWorkflow(app, k8sClient)
-		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-
+		Expect(pause).Should(BeFalse())
 		Expect(done).Should(BeFalse())
 		workflowStatus := app.Status.Workflow
 		Expect(workflowStatus.ContextBackend.Name).Should(BeEquivalentTo("workflow-" + revision))
@@ -103,8 +103,9 @@ var _ = Describe("Test Workflow", func() {
 
 		app.Status.Workflow = workflowStatus
 		wf = NewWorkflow(app, k8sClient)
-		done, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		done, pause, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(pause).Should(BeFalse())
 		Expect(done).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
@@ -143,9 +144,10 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		wf := NewWorkflow(app, k8sClient)
-		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(done).Should(BeTrue())
+		Expect(done).Should(BeFalse())
+		Expect(pause).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: revision,
@@ -163,8 +165,9 @@ var _ = Describe("Test Workflow", func() {
 		})).Should(BeEquivalentTo(""))
 
 		app.Status.Workflow.Suspend = false
-		done, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		done, pause, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(pause).Should(BeFalse())
 		Expect(done).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
@@ -198,8 +201,9 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		wf := NewWorkflow(app, k8sClient)
-		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(pause).Should(BeFalse())
 		Expect(done).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
@@ -230,9 +234,10 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		wf := NewWorkflow(app, k8sClient)
-		done, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).To(HaveOccurred())
 		Expect(done).Should(BeFalse())
+		Expect(pause).Should(BeFalse())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: revision,

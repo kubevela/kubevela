@@ -40,7 +40,7 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var scheme = runtime.NewScheme()
 
-func TestDefinition(t *testing.T) {
+func TestWorkflow(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,

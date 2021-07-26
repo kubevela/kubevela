@@ -42,14 +42,14 @@ func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
 }
 
 // ExecuteSteps process workflow step in order.
-func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (bool, error) {
+func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
 	if w.app.Spec.Workflow == nil {
-		return true, nil
+		return true, false, nil
 	}
 
 	steps := w.app.Spec.Workflow.Steps
 	if len(steps) == 0 {
-		return true, nil
+		return true, false, nil
 	}
 
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != rev {
@@ -61,25 +61,38 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	wfStatus := w.app.Status.Workflow
 
-	if len(taskRunners) <= wfStatus.StepIndex || wfStatus.Terminated || wfStatus.Suspend {
-		return true, nil
+	if wfStatus.Terminated {
+		done = true
+		return
 	}
 
 	w.app.Status.Phase = common.ApplicationRunningWorkflow
+
+	if len(taskRunners) <= wfStatus.StepIndex {
+		done = true
+		return
+	}
+
+	if wfStatus.Suspend {
+		pause = true
+		return
+	}
+
 	var (
 		wfCtx wfContext.Context
-		err   error
 	)
 
 	if wfStatus.ContextBackend != nil {
-		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
-		if err != nil {
-			return false, errors.WithMessage(err, "load context")
+		wfCtx, gerr = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
+		if gerr != nil {
+			gerr = errors.WithMessage(gerr, "load context")
+			return
 		}
 	} else {
-		wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
-		if err != nil {
-			return false, errors.WithMessage(err, "new context")
+		wfCtx, gerr = wfContext.NewContext(w.cli, w.app.Namespace, rev)
+		if gerr != nil {
+			gerr = errors.WithMessage(gerr, "new context")
+			return
 		}
 		wfStatus.ContextBackend = wfCtx.StoreRef()
 	}
@@ -87,7 +100,8 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 	for _, run := range taskRunners[wfStatus.StepIndex:] {
 		status, operation, err := run(wfCtx)
 		if err != nil {
-			return false, err
+			gerr = err
+			return
 		}
 
 		var conditionUpdated bool
@@ -109,18 +123,23 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		}
 
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
-			return false, nil
+			return
 		}
 
 		if err := wfCtx.Commit(); err != nil {
-			return false, errors.WithMessage(err, "commit workflow context")
+			gerr = errors.WithMessage(err, "commit workflow context")
+			return
 		}
 		wfStatus.StepIndex++
 
-		if wfStatus.Terminated || wfStatus.Suspend {
-			return true, nil
+		if wfStatus.Terminated {
+			done = true
+			return
+		}
+		if wfStatus.Suspend {
+			pause = true
+			return
 		}
 	}
-
-	return true, nil // all steps done
+	return true, false, nil // all steps done
 }
