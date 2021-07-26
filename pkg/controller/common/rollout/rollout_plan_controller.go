@@ -369,6 +369,17 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 			return workloads.NewDeploymentScaleController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil
 		}
+
+		// check if the target workload is StatefulSet
+		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.StatefulSet{}).Name() {
+			// check whether current rollout plan is for workload rolling or scaling
+			if r.sourceWorkload != nil {
+				return workloads.NewStatefulSetRolloutController(r.client, r.recorder, r.parentController,
+					r.rolloutSpec, r.rolloutStatus, source, target), nil
+			}
+			return workloads.NewStatefulSetScaleController(r.client, r.recorder, r.parentController,
+				r.rolloutSpec, r.rolloutStatus, target), nil
+		}
 	}
 
 	return nil, fmt.Errorf("the workload kind `%s` is not supported", kind)
