@@ -38,7 +38,6 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -59,9 +58,9 @@ const (
 	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
 	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
-	// onlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
+	// legacyOnlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
 	// out of the domain of app controller, e.g., AppRollout controller.
-	onlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
+	legacyOnlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
 )
 
 // Reconciler reconciles a Application object
@@ -253,14 +252,6 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 			klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", resourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
-		if appWillRollout(app) {
-			klog.InfoS("Found an application which will be released by rollout", "application", klog.KObj(app))
-			if !meta.FinalizerExists(app, onlyRevisionFinalizer) {
-				meta.AddFinalizer(app, onlyRevisionFinalizer)
-				klog.InfoS("Register new finalizer for application", "application", klog.KObj(app), "finalizer", onlyRevisionFinalizer)
-				return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
-			}
-		}
 	} else {
 		if meta.FinalizerExists(app, legacyResourceTrackerFinalizer) {
 			// TODO(roywang) legacyResourceTrackerFinalizer will be deprecated in the future
@@ -274,19 +265,7 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 			meta.RemoveFinalizer(app, legacyResourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
-		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
-			if app.Status.LatestRevision != nil && len(app.Status.LatestRevision.Name) != 0 {
-				latestTracker := &v1beta1.ResourceTracker{}
-				latestTracker.SetName(dispatch.ConstructResourceTrackerName(app.Status.LatestRevision.Name, app.Namespace))
-				if err := r.Client.Delete(ctx, latestTracker); err != nil && !kerrors.IsNotFound(err) {
-					klog.ErrorS(err, "Failed to delete latest resource tracker", "name", latestTracker.Name)
-					return true, errors.WithMessage(err, "cannot remove finalizer")
-				}
-			}
-			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
-			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
-		}
-		if meta.FinalizerExists(app, onlyRevisionFinalizer) {
+		if meta.FinalizerExists(app, resourceTrackerFinalizer) || meta.FinalizerExists(app, legacyOnlyRevisionFinalizer) {
 			listOpts := []client.ListOption{
 				client.MatchingLabels{
 					oam.LabelAppName:      app.Name,
@@ -303,7 +282,10 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 					return true, errors.WithMessage(err, "cannot remove finalizer")
 				}
 			}
-			meta.RemoveFinalizer(app, onlyRevisionFinalizer)
+			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+			// legacyOnlyRevisionFinalizer will be deprecated in the future
+			// this is for backward compatibility
+			meta.RemoveFinalizer(app, legacyOnlyRevisionFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 	}
