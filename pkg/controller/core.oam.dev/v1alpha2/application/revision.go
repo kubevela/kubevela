@@ -338,6 +338,8 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 }
 
 // HandleComponentsRevision manages Component revisions
+// 1. if update component create a new component Revision
+// 2. check all componentTrait  rely on componentRevName, if yes fill it
 func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
 	for _, cm := range compManifests {
 		if cm.InsertConfigNotReady {
