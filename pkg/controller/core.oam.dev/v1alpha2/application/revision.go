@@ -18,8 +18,12 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"sort"
+	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
@@ -381,6 +385,11 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 				return err
 			}
 		}
+		for _, trait := range cm.Traits {
+			if err := replaceComponentRevisionContext(trait, cm.RevisionName); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -656,6 +665,17 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 		usingRevision[revName] = true
 	}
 	return usingRevision, nil
+}
+
+func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName string) error {
+	str := string(util.JSONMarshal(u))
+	if strings.Contains(str, process.ComponentRevisionPlaceHolder) {
+		newStr := strings.ReplaceAll(str, process.ComponentRevisionPlaceHolder, compRevName)
+		if err := json.Unmarshal([]byte(newStr), u); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type historiesByRevision []v1beta1.ApplicationRevision

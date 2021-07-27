@@ -1762,6 +1762,8 @@ spec:
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 		checkRollout := &stdv1alpha1.Rollout{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		By("verify targetRevision will be filled with real compRev by context.ComponentRevName")
+		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v1"))
 		deploy := &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
 	})
@@ -2646,7 +2648,7 @@ spec:
                 namespace: context.namespace
         	}
         	spec: {
-                   targetRevisionName: parameter.targetRevision
+                   targetRevisionName: context.componentRevName
                    componentName: "myweb1"
                    rolloutPlan: {
                    	rolloutStrategy: "IncreaseFirst"
@@ -2656,10 +2658,6 @@ spec:
                    }
         		 }
         	}
-
-        parameter: {
-        	targetRevision: "test-revision"
-        }
 `
 )
 
