@@ -22,10 +22,10 @@ import (
 	"sync"
 	"time"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -188,7 +188,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 	wg.Add(len(scopeWLRefs))
 
 	for _, workloadRef := range scopeWLRefs {
-		go func(resRef runtimev1alpha1.TypedReference) {
+		go func(resRef corev1.ObjectReference) {
 			defer wg.Done()
 			var wlHealthCondition *WorkloadHealthCondition
 

@@ -20,7 +20,6 @@ import (
 	"context"
 	"time"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -76,7 +76,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Check initializer dependsOn error")
 		r.record.Event(init, event.Warning("Checking Initializer dependsOn error", err))
-		return r.endWithNegativeCondition(ctx, init, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, init, condition.ReconcileError(err))
 	}
 	if !dependsOnInitReady {
 		klog.Info("Wait for dependent Initializer to be ready")
@@ -88,7 +88,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Could not create resources via application to initialize the env")
 		r.record.Event(init, event.Warning("Could not create resources via application", err))
-		return r.endWithNegativeCondition(ctx, init, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, init, condition.ReconcileError(err))
 	}
 	if !appReady {
 		klog.Info("Wait for the Application created by Initializer to be ready")
@@ -99,7 +99,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err = r.patchStatus(ctx, init); err != nil {
 		klog.ErrorS(err, "Could not update status")
 		r.record.Event(init, event.Warning("Could not update status", err))
-		return ctrl.Result{}, oamutil.EndReconcileWithNegativeCondition(ctx, r, init, cpv1alpha1.ReconcileError(err))
+		return ctrl.Result{}, oamutil.EndReconcileWithNegativeCondition(ctx, r, init, condition.ReconcileError(err))
 	}
 	return ctrl.Result{}, nil
 }
@@ -137,26 +137,26 @@ func (r *Reconciler) checkOrInstallDependsOn(ctx context.Context, depends []v1be
 	return true, nil
 }
 
-func (r *Reconciler) endWithNegativeCondition(ctx context.Context, init *v1beta1.Initializer, condition cpv1alpha1.Condition) (ctrl.Result, error) {
-	init.SetConditions(condition)
+func (r *Reconciler) endWithNegativeCondition(ctx context.Context, init *v1beta1.Initializer, cond condition.Condition) (ctrl.Result, error) {
+	init.SetConditions(cond)
 	if err := r.patchStatus(ctx, init); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
 	}
 	// if any condition is changed, patching status can trigger requeue the resource and we should return nil to
 	// avoid requeue it again
-	if oamutil.IsConditionChanged([]cpv1alpha1.Condition{condition}, init) {
+	if oamutil.IsConditionChanged([]condition.Condition{cond}, init) {
 		return ctrl.Result{}, nil
 	}
 	// if no condition is changed, patching status can not trigger requeue, so we must return an error to
 	// requeue the resource
-	return ctrl.Result{}, errors.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
+	return ctrl.Result{}, errors.Errorf("object level reconcile error, type: %q, msg: %q", string(cond.Type), cond.Message)
 }
 
 // endWithTryLater means reconcile successfully but have to wait until initializer phase is success. initializer may be
 // 1. waiting dependent initializer to be ready
 // 2. initializing
 func (r *Reconciler) endWithTryLater(ctx context.Context, init *v1beta1.Initializer) (ctrl.Result, error) {
-	init.SetConditions(cpv1alpha1.ReconcileSuccess())
+	init.SetConditions(condition.ReconcileSuccess())
 	if err := r.patchStatus(ctx, init); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
 	}

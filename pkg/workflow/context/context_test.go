@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	yamlUtil "github.com/ghodss/yaml"
 	"gopkg.in/yaml.v3"
@@ -204,7 +203,7 @@ func TestRefObj(t *testing.T) {
 	wfCtx.store.Name = "app-v1"
 
 	ref := wfCtx.StoreRef()
-	assert.Equal(t, *ref, runtimev1alpha1.TypedReference{
+	assert.Equal(t, *ref, corev1.ObjectReference{
 		APIVersion: "v1",
 		Kind:       "ConfigMap",
 		Name:       "app-v1",

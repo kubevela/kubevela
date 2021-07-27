@@ -17,8 +17,10 @@ limitations under the License.
 package common
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
@@ -175,11 +177,11 @@ const (
 type ApplicationComponentStatus struct {
 	Name string `json:"name"`
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
-	WorkloadDefinition WorkloadGVK                      `json:"workloadDefinition,omitempty"`
-	Healthy            bool                             `json:"healthy"`
-	Message            string                           `json:"message,omitempty"`
-	Traits             []ApplicationTraitStatus         `json:"traits,omitempty"`
-	Scopes             []runtimev1alpha1.TypedReference `json:"scopes,omitempty"`
+	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
+	Healthy            bool                     `json:"healthy"`
+	Message            string                   `json:"message,omitempty"`
+	Traits             []ApplicationTraitStatus `json:"traits,omitempty"`
+	Scopes             []corev1.ObjectReference `json:"scopes,omitempty"`
 }
 
 // ApplicationTraitStatus records the trait health status
@@ -213,15 +215,15 @@ type WorkflowStepStatus struct {
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason      string                         `json:"reason,omitempty"`
-	ResourceRef runtimev1alpha1.TypedReference `json:"resourceRef,omitempty"`
+	Reason      string                 `json:"reason,omitempty"`
+	ResourceRef corev1.ObjectReference `json:"resourceRef,omitempty"`
 }
 
 // AppStatus defines the observed state of Application
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// The generation observed by the application controller.
 	// +optional
@@ -232,13 +234,13 @@ type AppStatus struct {
 	Phase ApplicationPhase `json:"status,omitempty"`
 
 	// Components record the related Components created by Application Controller
-	Components []runtimev1alpha1.TypedReference `json:"components,omitempty"`
+	Components []corev1.ObjectReference `json:"components,omitempty"`
 
 	// Services record the status of the application services
 	Services []ApplicationComponentStatus `json:"services,omitempty"`
 
 	// ResourceTracker record the status of the ResourceTracker
-	ResourceTracker *runtimev1alpha1.TypedReference `json:"resourceTracker,omitempty"`
+	ResourceTracker *corev1.ObjectReference `json:"resourceTracker,omitempty"`
 
 	// Workflow record the status of workflow
 	Workflow *WorkflowStatus `json:"workflow,omitempty"`
@@ -250,12 +252,12 @@ type AppStatus struct {
 
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
-	AppRevision    string                          `json:"appRevision,omitempty"`
-	StepIndex      int                             `json:"stepIndex,omitempty"`
-	Suspend        bool                            `json:"suspend"`
-	Terminated     bool                            `json:"terminated"`
-	ContextBackend *runtimev1alpha1.TypedReference `json:"contextBackend"`
-	Steps          []WorkflowStepStatus            `json:"steps,omitempty"`
+	AppRevision    string                  `json:"appRevision,omitempty"`
+	StepIndex      int                     `json:"stepIndex,omitempty"`
+	Suspend        bool                    `json:"suspend"`
+	Terminated     bool                    `json:"terminated"`
+	ContextBackend *corev1.ObjectReference `json:"contextBackend"`
+	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
 }
 
 // WorkflowStepPhase describes the phase of a workflow step.

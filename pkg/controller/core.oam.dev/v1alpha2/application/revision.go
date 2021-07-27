@@ -21,7 +21,6 @@ import (
 	"reflect"
 	"sort"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -532,7 +531,7 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 		acc.Scopes = make([]v1alpha2.ComponentScope, len(cm.Scopes))
 		for x, s := range cm.Scopes {
 			acc.Scopes[x] = v1alpha2.ComponentScope{
-				ScopeReference: runtimev1alpha1.TypedReference{
+				ScopeReference: corev1.ObjectReference{
 					APIVersion: s.APIVersion,
 					Kind:       s.Kind,
 					Name:       s.Name,

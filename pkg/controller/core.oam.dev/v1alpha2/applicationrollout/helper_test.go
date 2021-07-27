@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"

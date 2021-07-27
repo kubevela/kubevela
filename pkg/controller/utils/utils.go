@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ghodss/yaml"
@@ -45,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
@@ -360,7 +360,7 @@ func CheckAppDeploymentUsingAppRevision(ctx context.Context, c client.Reader, ap
 }
 
 // GetUnstructuredObjectStatusCondition returns the status.condition with matching condType from an unstructured object.
-func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condType string) (*runtimev1alpha1.Condition, bool, error) {
+func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condType string) (*condition.Condition, bool, error) {
 	cs, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
 	if err != nil {
 		return nil, false, err
@@ -373,7 +373,7 @@ func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condTy
 		if err != nil {
 			return nil, false, err
 		}
-		condObj := &runtimev1alpha1.Condition{}
+		condObj := &condition.Condition{}
 		err = json.Unmarshal(b, condObj)
 		if err != nil {
 			return nil, false, err
@@ -426,25 +426,4 @@ func GetBuildInInitializer(ctx context.Context, cli client.Client, name string) 
 	}
 
 	return init, nil
-}
-
-// ReadyCondition generate ready condition for conditionType
-func ReadyCondition(tpy string) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
-		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             corev1.ConditionTrue,
-		Reason:             runtimev1alpha1.ReasonAvailable,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-	}
-}
-
-// ErrorCondition generate error condition for conditionType and error
-func ErrorCondition(tpy string, err error) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
-		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             corev1.ConditionFalse,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-		Reason:             runtimev1alpha1.ReasonReconcileError,
-		Message:            err.Error(),
-	}
 }

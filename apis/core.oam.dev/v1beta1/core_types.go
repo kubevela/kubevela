@@ -17,10 +17,11 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
@@ -59,7 +60,7 @@ type WorkloadDefinitionSpec struct {
 
 // WorkloadDefinitionStatus is the status of WorkloadDefinition
 type WorkloadDefinitionStatus struct {
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -81,12 +82,12 @@ type WorkloadDefinition struct {
 }
 
 // SetConditions set condition for WorkloadDefinition
-func (wd *WorkloadDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (wd *WorkloadDefinition) SetConditions(c ...condition.Condition) {
 	wd.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from WorkloadDefinition
-func (wd *WorkloadDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (wd *WorkloadDefinition) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return wd.Status.GetCondition(conditionType)
 }
 
@@ -156,7 +157,7 @@ type TraitDefinitionSpec struct {
 // TraitDefinitionStatus is the status of TraitDefinition
 type TraitDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 	// ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
 	ConfigMapRef string `json:"configMapRef,omitempty"`
 	// LatestRevision of the component definition
@@ -184,12 +185,12 @@ type TraitDefinition struct {
 }
 
 // SetConditions set condition for TraitDefinition
-func (td *TraitDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (td *TraitDefinition) SetConditions(c ...condition.Condition) {
 	td.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from TraitDefinition
-func (td *TraitDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (td *TraitDefinition) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return td.Status.GetCondition(conditionType)
 }
 
@@ -259,28 +260,7 @@ type ResourceTracker struct {
 
 // ResourceTrackerStatus define the status of resourceTracker
 type ResourceTrackerStatus struct {
-	TrackedResources []TypedReference `json:"trackedResources,omitempty"`
-}
-
-// A TypedReference refers to an object by Name, Kind, and APIVersion. It is
-// commonly used to reference across-namespace objects
-type TypedReference struct {
-	// APIVersion of the referenced object.
-	APIVersion string `json:"apiVersion"`
-
-	// Kind of the referenced object.
-	Kind string `json:"kind"`
-
-	// Name of the referenced object.
-	Name string `json:"name"`
-
-	// Namespace of the objects outside the application namespace.
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
-
-	// UID of the referenced object.
-	// +optional
-	UID types.UID `json:"uid,omitempty"`
+	TrackedResources []corev1.ObjectReference `json:"trackedResources,omitempty"`
 }
 
 // +kubebuilder:object:root=true

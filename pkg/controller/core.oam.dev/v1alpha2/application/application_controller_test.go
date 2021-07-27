@@ -29,7 +29,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/apps/v1"
@@ -44,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	stdv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -1043,8 +1043,8 @@ spec:
 			Namespace: app.Namespace,
 			Name:      app.Name,
 		}, got)).Should(BeNil())
-		expTrait.Object["status"] = v1alpha1.ConditionedStatus{
-			Conditions: []v1alpha1.Condition{{
+		expTrait.Object["status"] = condition.ConditionedStatus{
+			Conditions: []condition.Condition{{
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 			}},

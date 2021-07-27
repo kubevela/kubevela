@@ -17,9 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -38,10 +39,10 @@ type PodSpecWorkloadSpec struct {
 
 // PodSpecWorkloadStatus defines the observed state of PodSpecWorkload
 type PodSpecWorkloadStatus struct {
-	cpv1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// Resources managed by this workload.
-	Resources []cpv1alpha1.TypedReference `json:"resources,omitempty"`
+	Resources []v1.ObjectReference `json:"resources,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -71,11 +72,11 @@ type PodSpecWorkloadList struct {
 var _ oam.Workload = &PodSpecWorkload{}
 
 // SetConditions set condition for this CR
-func (in *PodSpecWorkload) SetConditions(c ...cpv1alpha1.Condition) {
+func (in *PodSpecWorkload) SetConditions(c ...condition.Condition) {
 	in.Status.SetConditions(c...)
 }
 
 // GetCondition set condition for this CR
-func (in *PodSpecWorkload) GetCondition(c cpv1alpha1.ConditionType) cpv1alpha1.Condition {
+func (in *PodSpecWorkload) GetCondition(c condition.ConditionType) condition.Condition {
 	return in.Status.GetCondition(c)
 }

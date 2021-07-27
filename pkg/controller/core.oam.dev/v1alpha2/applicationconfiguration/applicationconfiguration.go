@@ -25,12 +25,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamtype "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
@@ -242,7 +243,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.R
 			klog.InfoS("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
 				"err", err)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
-			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
+			ac.SetConditions(condition.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
@@ -250,11 +251,11 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.R
 
 	reconResult, err := r.ACReconcile(ctx, ac)
 	if err != nil {
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r.client, ac, v1alpha1.ReconcileError(err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r.client, ac, condition.ReconcileError(err))
 	}
 	// always update ac status and set the error
 	if err := r.UpdateStatus(ctx, ac); err != nil {
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r.client, ac, v1alpha1.ReconcileError(err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r.client, ac, condition.ReconcileError(err))
 	}
 	return reconResult, nil
 }
@@ -300,7 +301,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			msg := "Encounter an application revision, no need to reconcile"
 			klog.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
-			ac.SetConditions(v1alpha1.Unavailable())
+			ac.SetConditions(condition.Unavailable())
 			ac.Status.RollingStatus = oamtype.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
 			return reconcile.Result{}, nil
@@ -443,7 +444,7 @@ func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch
 			// Trait will not work for these remaining workload
 			historyWorkloads = append(historyWorkloads, v1alpha2.HistoryWorkload{
 				Revision: v.GetName(),
-				Reference: v1alpha1.TypedReference{
+				Reference: corev1.ObjectReference{
 					APIVersion: v.GetAPIVersion(),
 					Kind:       v.GetKind(),
 					Name:       v.GetName(),
@@ -455,7 +456,7 @@ func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch
 	ac.Status.HistoryWorkloads = historyWorkloads
 	// patch the extra fields in the status that is wiped by the Status() function
 	patchExtraStatusField(&ac.Status, acPatch.Status)
-	ac.SetConditions(v1alpha1.ReconcileSuccess())
+	ac.SetConditions(condition.ReconcileSuccess())
 }
 
 func updateObservedGeneration(ac *v1alpha2.ApplicationConfiguration) {
@@ -576,7 +577,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 		ComponentName:         w.ComponentName,
 		ComponentRevisionName: w.ComponentRevisionName,
 		DependencyUnsatisfied: w.HasDep,
-		Reference: v1alpha1.TypedReference{
+		Reference: corev1.ObjectReference{
 			APIVersion: w.Workload.GetAPIVersion(),
 			Kind:       w.Workload.GetKind(),
 			Name:       w.Workload.GetName(),
@@ -588,7 +589,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 		if tr.Definition.Name == util.Dummy && tr.Definition.Spec.Reference.Name == util.Dummy {
 			acw.Traits[i].Message = util.DummyTraitMessage
 		}
-		acw.Traits[i].Reference = v1alpha1.TypedReference{
+		acw.Traits[i].Reference = corev1.ObjectReference{
 			APIVersion: w.Traits[i].Object.GetAPIVersion(),
 			Kind:       w.Traits[i].Object.GetKind(),
 			Name:       w.Traits[i].Object.GetName(),
@@ -596,7 +597,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 		acw.Traits[i].DependencyUnsatisfied = tr.HasDep
 	}
 	for i, s := range w.Scopes {
-		acw.Scopes[i].Reference = v1alpha1.TypedReference{
+		acw.Scopes[i].Reference = corev1.ObjectReference{
 			APIVersion: s.GetAPIVersion(),
 			Kind:       s.GetKind(),
 			Name:       s.GetName(),
@@ -638,16 +639,16 @@ func IsRevisionWorkload(status v1alpha2.WorkloadStatus, w []Workload) bool {
 }
 
 func eligible(namespace string, ws []v1alpha2.WorkloadStatus, w []Workload) []unstructured.Unstructured {
-	applied := make(map[v1alpha1.TypedReference]bool)
+	applied := make(map[corev1.ObjectReference]bool)
 	for _, wl := range w {
-		r := v1alpha1.TypedReference{
+		r := corev1.ObjectReference{
 			APIVersion: wl.Workload.GetAPIVersion(),
 			Kind:       wl.Workload.GetKind(),
 			Name:       wl.Workload.GetName(),
 		}
 		applied[r] = true
 		for _, t := range wl.Traits {
-			r := v1alpha1.TypedReference{
+			r := corev1.ObjectReference{
 				APIVersion: t.Object.GetAPIVersion(),
 				Kind:       t.Object.GetKind(),
 				Name:       t.Object.GetName(),

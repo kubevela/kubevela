@@ -23,7 +23,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,7 +107,7 @@ var _ = Describe("HealthScope", func() {
 			},
 			Spec: v1alpha2.HealthScopeSpec{
 				ProbeTimeout:       &varInt32_60,
-				WorkloadReferences: []v1alpha1.TypedReference{},
+				WorkloadReferences: []corev1.ObjectReference{},
 			},
 		}
 		logf.Log.Info("Creating health scope")
@@ -233,7 +232,7 @@ var _ = Describe("HealthScope", func() {
 						},
 						Scopes: []v1alpha2.ComponentScope{
 							{
-								ScopeReference: v1alpha1.TypedReference{
+								ScopeReference: corev1.ObjectReference{
 									APIVersion: gvks[0].GroupVersion().String(),
 									Kind:       v1alpha2.HealthScopeGroupVersionKind.Kind,
 									Name:       healthScopeName,
@@ -255,7 +254,7 @@ var _ = Describe("HealthScope", func() {
 						},
 						Scopes: []v1alpha2.ComponentScope{
 							{
-								ScopeReference: v1alpha1.TypedReference{
+								ScopeReference: corev1.ObjectReference{
 									APIVersion: gvks[0].GroupVersion().String(),
 									Kind:       v1alpha2.HealthScopeGroupVersionKind.Kind,
 									Name:       healthScopeName,

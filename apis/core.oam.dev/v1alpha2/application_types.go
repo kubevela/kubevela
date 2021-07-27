@@ -17,10 +17,9 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"k8s.io/apimachinery/pkg/runtime"
-
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -38,13 +37,13 @@ type AppStatus struct {
 	Phase common.ApplicationPhase `json:"status,omitempty"`
 
 	// Components record the related Components created by Application Controller
-	Components []runtimev1alpha1.TypedReference `json:"components,omitempty"`
+	Components []corev1.ObjectReference `json:"components,omitempty"`
 
 	// Services record the status of the application services
 	Services []common.ApplicationComponentStatus `json:"services,omitempty"`
 
 	// ResourceTracker record the status of the ResourceTracker
-	ResourceTracker *runtimev1alpha1.TypedReference `json:"resourceTracker,omitempty"`
+	ResourceTracker *corev1.ObjectReference `json:"resourceTracker,omitempty"`
 
 	// LatestRevision of the application configuration it generates
 	// +optional

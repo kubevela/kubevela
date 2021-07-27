@@ -26,12 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/resource/fake"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,6 +41,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -186,7 +186,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 		},
 		Spec: v1alpha2.ManualScalerTraitSpec{
 			ReplicaCount: 3,
-			WorkloadReference: v1alpha1.TypedReference{
+			WorkloadReference: corev1.ObjectReference{
 				APIVersion: "apiversion",
 				Kind:       "Kind",
 			},
@@ -993,7 +993,7 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 		ctx       context.Context
 		r         client.StatusClient
 		workload  util.ConditionedObject
-		condition []v1alpha1.Condition
+		condition []condition.Condition
 	}
 	patchErr := fmt.Errorf("eww")
 	tests := []struct {
@@ -1008,8 +1008,8 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(nil),
 				},
-				workload:  &fake.Target{},
-				condition: []v1alpha1.Condition{},
+				workload:  &mock.Target{},
+				condition: []condition.Condition{},
 			},
 			expected: nil,
 		},
@@ -1020,9 +1020,9 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(nil),
 				},
-				workload: &fake.Target{
-					ConditionedStatus: v1alpha1.ConditionedStatus{
-						Conditions: []v1alpha1.Condition{
+				workload: &mock.Target{
+					ConditionedStatus: condition.ConditionedStatus{
+						Conditions: []condition.Condition{
 							{
 								Type:               "test",
 								LastTransitionTime: metav1.NewTime(time1),
@@ -1032,7 +1032,7 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 						},
 					},
 				},
-				condition: []v1alpha1.Condition{
+				condition: []condition.Condition{
 					{
 						Type:               "test",
 						LastTransitionTime: metav1.NewTime(time2),
@@ -1050,9 +1050,9 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(nil),
 				},
-				workload: &fake.Target{
-					ConditionedStatus: v1alpha1.ConditionedStatus{
-						Conditions: []v1alpha1.Condition{
+				workload: &mock.Target{
+					ConditionedStatus: condition.ConditionedStatus{
+						Conditions: []condition.Condition{
 							{
 								Type:               "test",
 								LastTransitionTime: metav1.NewTime(time1),
@@ -1062,7 +1062,7 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 						},
 					},
 				},
-				condition: []v1alpha1.Condition{
+				condition: []condition.Condition{
 					{
 						Type:               "test",
 						LastTransitionTime: metav1.NewTime(time2),
@@ -1080,8 +1080,8 @@ func TestEndReconcileWithNegativeCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(patchErr),
 				},
-				workload: &fake.Target{},
-				condition: []v1alpha1.Condition{
+				workload: &mock.Target{},
+				condition: []condition.Condition{
 					{},
 				},
 			},
@@ -1103,7 +1103,7 @@ func TestEndReconcileWithPositiveCondition(t *testing.T) {
 		ctx       context.Context
 		r         client.StatusClient
 		workload  util.ConditionedObject
-		condition []v1alpha1.Condition
+		condition []condition.Condition
 	}
 	patchErr := fmt.Errorf("eww")
 	tests := []struct {
@@ -1118,8 +1118,8 @@ func TestEndReconcileWithPositiveCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(nil),
 				},
-				workload: &fake.Target{},
-				condition: []v1alpha1.Condition{
+				workload: &mock.Target{},
+				condition: []condition.Condition{
 					{},
 				},
 			},
@@ -1132,8 +1132,8 @@ func TestEndReconcileWithPositiveCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(patchErr),
 				},
-				workload: &fake.Target{},
-				condition: []v1alpha1.Condition{
+				workload: &mock.Target{},
+				condition: []condition.Condition{
 					{},
 				},
 			},

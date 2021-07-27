@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -160,8 +159,8 @@ func (wf *WorkflowContext) LoadFromConfigMap(cm corev1.ConfigMap) error {
 }
 
 // StoreRef return the store reference of workflow context.
-func (wf *WorkflowContext) StoreRef() *runtimev1alpha1.TypedReference {
-	return &runtimev1alpha1.TypedReference{
+func (wf *WorkflowContext) StoreRef() *corev1.ObjectReference {
+	return &corev1.ObjectReference{
 		APIVersion: wf.store.APIVersion,
 		Kind:       wf.store.Kind,
 		Name:       wf.store.Name,

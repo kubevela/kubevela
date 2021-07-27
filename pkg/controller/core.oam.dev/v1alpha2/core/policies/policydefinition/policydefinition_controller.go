@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
@@ -82,7 +82,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.ErrorS(err, "cannot refresh packageDiscover")
 			r.record.Event(&policydefinition, event.Warning("cannot refresh packageDiscover", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
 
@@ -92,14 +92,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot generate DefinitionRevision", "PolicyDefinitionName", policydefinition.Name)
 		r.record.Event(&policydefinition, event.Warning("cannot generate DefinitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, policydefinition.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, policydefinition.Name, err)))
 	}
 	if !isNewRevision {
 		if err = r.createOrUpdatePolicyDefRevision(ctx, req.Namespace, &policydefinition, defRev); err != nil {
 			klog.ErrorS(err, "cannot update DefinitionRevision")
 			r.record.Event(&(policydefinition), event.Warning("cannot update DefinitionRevision", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+				condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
 		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
 
@@ -114,7 +114,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot create DefinitionRevision")
 		r.record.Event(&(policydefinition), event.Warning("cannot create DefinitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
 	klog.InfoS("Successfully createOrUpdatePolicyDefRevision", "name", defRev.Name)
 
@@ -128,7 +128,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot update PolicyDefinition Status")
 		r.record.Event(&(policydefinition), event.Warning("cannot update PolicyDefinition Status", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policydefinition.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policydefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &policydefinition, r.defRevLimit); err != nil {

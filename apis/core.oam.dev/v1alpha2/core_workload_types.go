@@ -19,10 +19,12 @@ limitations under the License.
 package v1alpha2
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -378,10 +380,10 @@ type ContainerizedWorkloadSpec struct {
 // A ContainerizedWorkloadStatus represents the observed state of a
 // ContainerizedWorkload.
 type ContainerizedWorkloadStatus struct {
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// Resources managed by this containerised workload.
-	Resources []runtimev1alpha1.TypedReference `json:"resources,omitempty"`
+	Resources []corev1.ObjectReference `json:"resources,omitempty"`
 }
 
 var _ oam.Workload = &ContainerizedWorkload{}

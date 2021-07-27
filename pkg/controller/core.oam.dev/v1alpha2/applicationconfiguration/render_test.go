@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
@@ -31,6 +30,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -535,7 +535,7 @@ func TestRender(t *testing.T) {
 									oam.LabelAppComponentRevision: revisionName,
 									oam.LabelOAMResourceType:      oam.ResourceTypeTrait,
 								})
-								workloadRef := v1alpha1.TypedReference{
+								workloadRef := corev1.ObjectReference{
 									APIVersion: "traitApiVersion",
 									Kind:       "traitKind",
 									Name:       componentName,
@@ -1829,7 +1829,7 @@ func TestRenderTraitName(t *testing.T) {
 					ComponentName: componentName,
 					Traits: []v1alpha2.WorkloadTrait{
 						{
-							Reference: v1alpha1.TypedReference{
+							Reference: corev1.ObjectReference{
 								APIVersion: gvk.GroupVersion().String(),
 								Kind:       gvk.Kind,
 								Name:       "component3-trait-11111111",
@@ -1900,7 +1900,7 @@ func TestRenderTraitNameWithoutReferenceName(t *testing.T) {
 					ComponentName: componentName,
 					Traits: []v1alpha2.WorkloadTrait{
 						{
-							Reference: v1alpha1.TypedReference{
+							Reference: corev1.ObjectReference{
 								APIVersion: gvk.GroupVersion().String(),
 								Kind:       gvk.Kind,
 							},
@@ -1983,7 +1983,7 @@ func TestRenderTraitNameWithShortNameTraitDefinition(t *testing.T) {
 					ComponentName: componentName,
 					Traits: []v1alpha2.WorkloadTrait{
 						{
-							Reference: v1alpha1.TypedReference{
+							Reference: corev1.ObjectReference{
 								APIVersion: gvk.GroupVersion().String(),
 								Kind:       gvk.Kind,
 							},

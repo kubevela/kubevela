@@ -21,7 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	corev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -36,7 +36,7 @@ func (in *CanaryMetric) DeepCopyInto(out *CanaryMetric) {
 	}
 	if in.TemplateRef != nil {
 		in, out := &in.TemplateRef, &out.TemplateRef
-		*out = new(corev1alpha1.TypedReference)
+		*out = new(v1.ObjectReference)
 		**out = **in
 	}
 }
@@ -178,7 +178,7 @@ func (in *PodSpecWorkloadStatus) DeepCopyInto(out *PodSpecWorkloadStatus) {
 	in.ConditionedStatus.DeepCopyInto(&out.ConditionedStatus)
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
-		*out = make([]corev1alpha1.TypedReference, len(*in))
+		*out = make([]v1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 }
@@ -445,7 +445,7 @@ func (in *RolloutTraitSpec) DeepCopyInto(out *RolloutTraitSpec) {
 	out.TargetRef = in.TargetRef
 	if in.SourceRef != nil {
 		in, out := &in.SourceRef, &out.SourceRef
-		*out = make([]corev1alpha1.TypedReference, len(*in))
+		*out = make([]v1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 	in.RolloutPlan.DeepCopyInto(&out.RolloutPlan)
