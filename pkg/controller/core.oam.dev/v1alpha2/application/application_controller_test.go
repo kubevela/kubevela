@@ -2662,7 +2662,7 @@ spec:
                 namespace: context.namespace
         	}
         	spec: {
-                   targetRevisionName: context.componentRevName
+                   targetRevisionName: context.revision
                    componentName: "myweb1"
                    rolloutPlan: {
                    	rolloutStrategy: "IncreaseFirst"
