@@ -387,8 +387,8 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 		return nil, err
 	}
 	compManifest.Name = wl.Name
-	// we record the external revision name in RevisionName field
-	compManifest.RevisionName = wl.ExternalRevision
+	// we record the external revision name in ExternalRevision field
+	compManifest.ExternalRevision = wl.ExternalRevision
 
 	compManifest.Scopes = make([]*corev1.ObjectReference, len(wl.Scopes))
 	for i, s := range wl.Scopes {
@@ -665,8 +665,8 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 
 	// re-use the way CUE module generates comp & acComp
 	compManifest := &types.ComponentManifest{
-		Name:         wl.Name,
-		RevisionName: wl.ExternalRevision,
+		Name:             wl.Name,
+		ExternalRevision: wl.ExternalRevision,
 	}
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
 		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)
