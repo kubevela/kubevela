@@ -117,11 +117,6 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 			wfStatus.Steps = append(wfStatus.Steps, status)
 		}
 
-		if operation != nil {
-			wfStatus.Terminated = operation.Terminated
-			wfStatus.Suspend = operation.Suspend
-		}
-
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
 			return
 		}
@@ -131,6 +126,11 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 			return
 		}
 		wfStatus.StepIndex++
+
+		if operation != nil {
+			wfStatus.Terminated = operation.Terminated
+			wfStatus.Suspend = operation.Suspend
+		}
 
 		if wfStatus.Terminated {
 			done = true

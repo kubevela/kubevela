@@ -185,6 +185,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if err := r.patchStatus(ctx, app); err != nil {
 			return r.endWithNegativeCondition(ctx, app, v1alpha1.ReconcileError(err))
 		}
+		return ctrl.Result{}, nil
 	}
 
 	if !done {
