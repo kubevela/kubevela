@@ -346,8 +346,8 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 			continue
 		}
 
-		// revision name specified
-		if len(cm.RevisionName) != 0 {
+		// external revision specified
+		if len(cm.ExternalRevision) != 0 {
 			if err := h.handleComponentRevisionNameSpecified(ctx, cm); err != nil {
 				return err
 			}
@@ -407,7 +407,7 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 // handleComponentRevisionNameSpecified create controllerRevision which use specified revisionName.
 // If the controllerRevision already exist, we just return
 func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, comp *types.ComponentManifest) error {
-	revisionName := comp.RevisionName
+	revisionName := comp.ExternalRevision
 	cr := &appsv1.ControllerRevision{}
 
 	if err := h.r.Client.Get(ctx, client.ObjectKey{Namespace: h.app.Namespace, Name: revisionName}, cr); err != nil {
@@ -421,6 +421,7 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 			return err
 		}
 		comp.RevisionHash = hash
+		comp.RevisionName = revisionName
 		if err := h.createControllerRevision(ctx, comp); err != nil {
 			return err
 		}
@@ -428,6 +429,7 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 	}
 
 	comp.RevisionHash = cr.GetLabels()[oam.LabelComponentRevisionHash]
+	comp.RevisionName = revisionName
 	return nil
 }
 
