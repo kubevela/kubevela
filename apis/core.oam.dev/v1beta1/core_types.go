@@ -151,6 +151,9 @@ type TraitDefinitionSpec struct {
 	// ManageWorkload defines the trait would be responsible for creating the workload
 	// +optional
 	ManageWorkload bool `json:"manageWorkload,omitempty"`
+	// SkipRevisionAffect defines the update this trait will not generate a new application Revision
+	// +optional
+	SkipRevisionAffect bool `json:"skipRevisionAffect,omitempty"`
 }
 
 // TraitDefinitionStatus is the status of TraitDefinition

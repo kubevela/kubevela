@@ -227,7 +227,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash:     make(map[string]string),
 	}
 	var err error
-	appRevisionHash.ApplicationSpecHash, err = utils.ComputeSpecHash(&appRevision.Spec.Application.Spec)
+	appRevisionHash.ApplicationSpecHash, err = utils.ComputeSpecHash(filterSkipAffectAppRevTrait(appRevision.Spec.Application.Spec, appRevision.Spec.TraitDefinitions))
 	if err != nil {
 		return "", err
 	}
@@ -334,7 +334,8 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 			return false
 		}
 	}
-	return apiequality.Semantic.DeepEqual(&old.Spec.Application.Spec, &new.Spec.Application.Spec)
+	return apiequality.Semantic.DeepEqual(filterSkipAffectAppRevTrait(old.Spec.Application.Spec, old.Spec.TraitDefinitions),
+		filterSkipAffectAppRevTrait(new.Spec.Application.Spec, new.Spec.TraitDefinitions))
 }
 
 // HandleComponentsRevision manages Component revisions
@@ -678,6 +679,23 @@ func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName s
 		}
 	}
 	return nil
+}
+
+// before computing hash or deepEqual, filterSkipAffectAppRevTrait filter can remove `SkipAffectAppRevTrait` trait from appSpec
+func filterSkipAffectAppRevTrait(appSpec v1beta1.ApplicationSpec, tds map[string]v1beta1.TraitDefinition) v1beta1.ApplicationSpec {
+	// deepCopy avoid modify origin appSpec
+	res := appSpec.DeepCopy()
+	for index, comp := range res.Components {
+		i := 0
+		for _, trait := range comp.Traits {
+			if !tds[trait.Type].Spec.SkipRevisionAffect {
+				comp.Traits[i] = trait
+				i++
+			}
+		}
+		res.Components[index].Traits = res.Components[index].Traits[:i]
+	}
+	return *res
 }
 
 type historiesByRevision []v1beta1.ApplicationRevision
