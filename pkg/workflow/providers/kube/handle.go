@@ -19,12 +19,10 @@ package kube
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -35,9 +33,12 @@ const (
 	ProviderName = "kube"
 )
 
+// Dispatcher is a client for apply resources.
+type Dispatcher func(ctx context.Context, manifests ...*unstructured.Unstructured) error
+
 type provider struct {
-	deploy *apply.APIApplicator
-	cli    client.Client
+	apply func(ctx context.Context, manifests ...*unstructured.Unstructured) error
+	cli   client.Client
 }
 
 // Apply create or update CR in cluster.
@@ -51,7 +52,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if workload.GetNamespace() == "" {
 		workload.SetNamespace("default")
 	}
-	if err := h.deploy.Apply(deployCtx, workload); err != nil {
+	if err := h.apply(deployCtx, workload); err != nil {
 		return err
 	}
 	return v.FillObject(workload.Object)
@@ -77,10 +78,10 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client) {
+func Install(p providers.Providers, cli client.Client, apply Dispatcher) {
 	prd := &provider{
-		deploy: apply.NewAPIApplicator(cli),
-		cli:    cli,
+		apply: apply,
+		cli:   cli,
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"apply": prd.Apply,

@@ -390,7 +390,7 @@ wait: op.#ConditionalWait & {
 			},
 		}
 		ctx := context.WithValue(context.Background(), util.AppDefinitionNamespace, "default")
-		runners, err := appfile.generateSteps(ctx, dm, k8sClient, pd)
+		runners, err := appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
 		Expect(err).To(BeNil())
 		Expect(len(runners)).Should(BeEquivalentTo(1))
 
@@ -404,7 +404,7 @@ wait: op.#ConditionalWait & {
 				Type: "empty",
 			},
 		}
-		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd)
+		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
 		Expect(err).NotTo(BeNil())
 
 		appfile.WorkflowSteps = []v1beta1.WorkflowStep{
@@ -413,7 +413,7 @@ wait: op.#ConditionalWait & {
 				Type: "not-cue",
 			},
 		}
-		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd)
+		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
 		Expect(err).NotTo(BeNil())
 	})
 })

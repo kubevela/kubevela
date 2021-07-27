@@ -20,7 +20,6 @@ import (
 	"context"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -49,8 +48,49 @@ type AppHandler struct {
 	app            *v1beta1.Application
 	currentAppRev  *v1beta1.ApplicationRevision
 	latestAppRev   *v1beta1.ApplicationRevision
+	latestTracker  *v1beta1.ResourceTracker
+	dispatcher     *dispatch.AppManifestsDispatcher
 	isNewRevision  bool
 	currentRevHash string
+}
+
+// Dispatch apply manifests into k8s.
+func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+	h.initDispatcher()
+	_, err := h.dispatcher.Dispatch(ctx, manifests)
+	return err
+}
+
+// DispatchAndGC apply manifests and do GC.
+func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*runtimev1alpha1.TypedReference, error) {
+	h.initDispatcher()
+	tracker, err := h.dispatcher.EndAndGC(h.latestTracker).Dispatch(ctx, manifests)
+	if err != nil {
+		return nil, errors.WithMessage(err, "cannot dispatch application manifests")
+	}
+	return &runtimev1alpha1.TypedReference{
+		APIVersion: tracker.APIVersion,
+		Kind:       tracker.Kind,
+		Name:       tracker.Name,
+		UID:        tracker.UID,
+	}, nil
+}
+
+func (h *AppHandler) initDispatcher() {
+	if h.latestTracker == nil {
+		if h.app.Status.ResourceTracker != nil {
+			h.latestTracker = &v1beta1.ResourceTracker{}
+			h.latestTracker.Name = h.app.Status.ResourceTracker.Name
+		} else if h.app.Status.LatestRevision != nil {
+			h.latestTracker = &v1beta1.ResourceTracker{}
+			h.latestTracker.SetName(dispatch.ConstructResourceTrackerName(h.app.Status.LatestRevision.Name, h.app.Namespace))
+		}
+	}
+	if h.dispatcher == nil {
+		// only do GC when ALL resources are dispatched successfully
+		// so skip GC while dispatching addon resources
+		h.dispatcher = dispatch.NewAppManifestsDispatcher(h.r.Client, h.currentAppRev).StartAndSkipGC(h.latestTracker)
+	}
 }
 
 // ApplyAppManifests will dispatch Application manifests
@@ -68,13 +108,10 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 		latestTracker = &v1beta1.ResourceTracker{}
 		latestTracker.SetName(dispatch.ConstructResourceTrackerName(h.app.Status.LatestRevision.Name, h.app.Namespace))
 	}
-	// only do GC when ALL resources are dispatched successfully
-	// so skip GC while dispatching addon resources
-	d := dispatch.NewAppManifestsDispatcher(h.r.Client, appRev).StartAndSkipGC(latestTracker)
 	// dispatch packaged workload resources before dispatching assembled manifests
 	for _, comp := range comps {
 		if len(comp.PackagedWorkloadResources) != 0 {
-			if _, err := d.Dispatch(ctx, comp.PackagedWorkloadResources); err != nil {
+			if err := h.Dispatch(ctx, comp.PackagedWorkloadResources...); err != nil {
 				return errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
@@ -82,15 +119,13 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 			continue
 		}
 	}
-	a := assemble.NewAppManifests(appRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
+	a := assemble.NewAppManifests(h.currentAppRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
 	manifests, err := a.AssembledManifests()
 	if err != nil {
 		return errors.WithMessage(err, "cannot assemble application manifests")
 	}
-	if _, err := d.EndAndGC(latestTracker).Dispatch(ctx, manifests); err != nil {
-		return errors.WithMessage(err, "cannot dispatch application manifests")
-	}
-	return nil
+	_, err = h.DispatchAndGC(ctx, manifests...)
+	return err
 }
 
 func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {

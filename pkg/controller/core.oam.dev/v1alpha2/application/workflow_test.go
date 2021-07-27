@@ -111,7 +111,7 @@ var _ = Describe("Test Workflow", func() {
 	})
 
 	It("should execute workflow step to apply and wait", func() {
-		Expect(k8sClient.Create(ctx, appWithWorkflow)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appWithWorkflow.DeepCopy())).Should(BeNil())
 
 		// first try to add finalizer
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
@@ -147,6 +147,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(k8sClient.Update(ctx, stepObj)).Should(BeNil())
 
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
+		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 
 		// check workflow status is succeeded
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -155,7 +156,50 @@ var _ = Describe("Test Workflow", func() {
 		}, appObj)).Should(BeNil())
 
 		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
+		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
 	})
+
+	It("test workflow suspend", func() {
+		suspendApp := appWithWorkflow.DeepCopy()
+		suspendApp.Name = "test-app-suspend"
+		suspendApp.Spec.Workflow.Steps = []oamcore.WorkflowStep{{
+			Name:       "suspend",
+			Type:       "suspend",
+			Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+		}}
+		Expect(k8sClient.Create(ctx, suspendApp)).Should(BeNil())
+
+		// first try to add finalizer
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+
+		appObj := &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      suspendApp.Name,
+			Namespace: suspendApp.Namespace,
+		}, appObj)).Should(BeNil())
+
+		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
+		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+
+		// resume
+		appObj.Status.Workflow.Suspend = false
+		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
+
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+
+		appObj = &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      suspendApp.Name,
+			Namespace: suspendApp.Namespace,
+		}, appObj)).Should(BeNil())
+
+		Expect(appObj.Status.Workflow.Suspend).Should(BeFalse())
+		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
+		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
+	})
+
 })
 
 func triggerWorkflowStepToSucceed(obj *unstructured.Unstructured) {
