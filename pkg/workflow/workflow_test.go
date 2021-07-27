@@ -194,6 +194,11 @@ var _ = Describe("Test Workflow", func() {
 				Phase: common.WorkflowStepPhaseSucceeded,
 			}},
 		})).Should(BeEquivalentTo(""))
+
+		done, pause, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pause).Should(BeFalse())
+		Expect(done).Should(BeTrue())
 	})
 
 	It("test for terminate", func() {
