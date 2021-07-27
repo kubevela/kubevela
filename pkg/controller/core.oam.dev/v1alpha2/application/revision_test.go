@@ -656,4 +656,21 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 		Expect(err).Should(BeNil())
 		Expect(rollout.Spec.TargetRevisionName).Should(BeEquivalentTo("comp-rev1"))
 	})
+
+	It("Test replace return error", func() {
+		rollout := v1alpha1.Rollout{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1alpha1",
+				Kind:       "Rollout",
+			},
+			Spec: v1alpha1.RolloutSpec{
+				TargetRevisionName: process.ComponentRevisionPlaceHolder,
+			},
+		}
+		u, err := util.Object2Unstructured(rollout)
+		Expect(err).Should(BeNil())
+		By("test replace with a bad revision")
+		err = replaceComponentRevisionContext(u, "comp-rev1-\\}")
+		Expect(err).ShouldNot(BeNil())
+	})
 })
