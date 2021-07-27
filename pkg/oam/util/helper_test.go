@@ -910,7 +910,7 @@ func TestGenTraitName(t *testing.T) {
 				},
 			},
 			definitionName: "",
-			exp:            "simple-trait-5ddc8b7556",
+			exp:            "simple-trait-69dbc6b96",
 		},
 		{
 			name:           "simple-definition",
@@ -954,7 +954,7 @@ func TestComputeHash(t *testing.T) {
 					Object: &mts,
 				},
 			},
-			exp: "5ddc8b7556",
+			exp: "69dbc6b96",
 		},
 	}
 	for _, test := range test {

@@ -64,8 +64,7 @@ var RevisionHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 		req.Comp.Annotations["app-namespace"] = req.RelatedApps[0].Namespace
 	}
 	a := &unstructured.Unstructured{}
-	err = json.Unmarshal(req.Comp.Spec.Workload.Raw, a)
-	fmt.Println("XX:", err)
+	_ = json.Unmarshal(req.Comp.Spec.Workload.Raw, a)
 	a.SetAnnotations(map[string]string{"time": time.Now().Format(time.RFC3339Nano)})
 	data, _ = json.Marshal(a)
 	req.Comp.Spec.Workload.Raw = data
