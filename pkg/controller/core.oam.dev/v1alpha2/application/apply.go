@@ -188,7 +188,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			if err := wl.EvalContext(pCtx); err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
 			}
-			workloadHealth, err := wl.EvalHealth(pCtx, h.r, h.app.Namespace)
+			workloadHealth, err := wl.EvalHealth(pCtx, h.r.Client, h.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
 			}
@@ -198,7 +198,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 				healthy = false
 			}
 
-			status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
+			status.Message, err = wl.EvalStatus(pCtx, h.r.Client, h.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
 			}
@@ -214,7 +214,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 				Type:    tr.Name,
 				Healthy: true,
 			}
-			traitHealth, err := tr.EvalHealth(pCtx, h.r, h.app.Namespace)
+			traitHealth, err := tr.EvalHealth(pCtx, h.r.Client, h.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, tr.Name)
 			}
@@ -223,7 +223,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 				traitStatus.Healthy = false
 				healthy = false
 			}
-			traitStatus.Message, err = tr.EvalStatus(pCtx, h.r, h.app.Namespace)
+			traitStatus.Message, err = tr.EvalStatus(pCtx, h.r.Client, h.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, tr.Name)
 			}

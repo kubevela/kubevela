@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -76,8 +76,8 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			Version:  v1beta1.Version,
 			Resource: "foos"}
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  wrongReqResource,
 				Object:    runtime.RawExtension{Raw: []byte("")},
 			},
@@ -88,8 +88,8 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 
 	It("Test bad admission request", func() {
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  reqResource,
 				Object:    runtime.RawExtension{Raw: []byte("bad request")},
 			},
@@ -109,8 +109,8 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 				TraitDefValidatorFn(mockValidator),
 			}
 			req = admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: tdRaw},
 				},
@@ -127,8 +127,8 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 				TraitDefValidatorFn(mockValidator),
 			}
 			req = admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: tdRaw},
 				},

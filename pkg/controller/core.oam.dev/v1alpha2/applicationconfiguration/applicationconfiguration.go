@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -41,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -219,9 +218,11 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...Reco
 
 // Reconcile an OAM ApplicationConfigurations by rendering and instantiating its
 // Components and Traits.
-func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	ctx, cancel := common.NewReconcileContext()
+
+func (r *OAMApplicationReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	ctx, cancel := common.NewReconcileContext(ctx)
 	defer cancel()
+
 	klog.InfoS("Reconcile applicationConfiguration", "applicationConfiguration", klog.KRef(req.Namespace, req.Name))
 
 	ac := &v1alpha2.ApplicationConfiguration{}

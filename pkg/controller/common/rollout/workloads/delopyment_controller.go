@@ -46,7 +46,7 @@ func (c *deploymentController) claimDeployment(ctx context.Context, deploy *apps
 		return true, nil
 	}
 
-	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
+	deployPatch := client.MergeFrom(deploy.DeepCopy())
 
 	// add the parent controller to the owner of the deployment
 	ref := metav1.NewControllerRef(c.parentController, c.parentController.GetObjectKind().GroupVersionKind())
@@ -68,7 +68,7 @@ func (c *deploymentController) claimDeployment(ctx context.Context, deploy *apps
 
 // scale the deployment
 func (c *deploymentController) scaleDeployment(ctx context.Context, deploy *apps.Deployment, size int32) error {
-	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
+	deployPatch := client.MergeFrom(deploy.DeepCopy())
 	deploy.Spec.Replicas = pointer.Int32Ptr(size)
 
 	// patch the Deployment
@@ -86,7 +86,7 @@ func (c *deploymentController) scaleDeployment(ctx context.Context, deploy *apps
 
 // remove the parent controller from the deployment's owner list
 func (c *deploymentController) releaseDeployment(ctx context.Context, deploy *apps.Deployment) (bool, error) {
-	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
+	deployPatch := client.MergeFrom(deploy.DeepCopy())
 
 	var newOwnerList []metav1.OwnerReference
 	found := false

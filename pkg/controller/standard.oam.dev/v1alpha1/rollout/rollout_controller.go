@@ -56,8 +56,14 @@ type reconciler struct {
 	concurrentReconciles int
 }
 
+<<<<<<< HEAD
 func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx, cancel := common2.NewReconcileContext()
+=======
+func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	rollout := new(v1alpha1.Rollout)
+	ctx, cancel := context.WithTimeout(ctx, reconcileTimeOut)
+>>>>>>> bde2baea... upgrade K8s dependency to v0.21
 	defer cancel()
 	rollout := new(v1alpha1.Rollout)
 
@@ -132,7 +138,7 @@ func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	default:
 		// we should do nothing
 	}
-	rolloutPlanController := rolloutplan.NewRolloutPlanController(r, rollout, r.record, &rollout.Spec.RolloutPlan,
+	rolloutPlanController := rolloutplan.NewRolloutPlanController(r.Client, rollout, r.record, &rollout.Spec.RolloutPlan,
 		&rollout.Status.RolloutStatus, h.targetWorkload, h.sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	rollout.Status.RolloutStatus = *rolloutStatus

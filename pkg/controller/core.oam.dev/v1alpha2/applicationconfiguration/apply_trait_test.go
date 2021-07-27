@@ -35,6 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -203,12 +204,12 @@ spec:
 		By("Creat appConfig & check trait is created")
 		Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
 		Eventually(func() int64 {
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
 				return 0
 			}
 			if appConfig.Status.Workloads == nil {
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				return 0
 			}
 			var traitObj unstructured.Unstructured
@@ -272,12 +273,12 @@ spec:
 			By("Reconcile & check updated trait")
 			var traitObj unstructured.Unstructured
 			Eventually(func() int64 {
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
 					return 0
 				}
 				if appConfig.Status.Workloads == nil {
-					reconcileRetry(reconciler, req)
+					testutil.ReconcileRetry(reconciler, req)
 					return 0
 				}
 				traitName := appConfig.Status.Workloads[0].Traits[0].Reference.Name
@@ -325,7 +326,7 @@ spec:
 					return ""
 				}
 				if appConfig.Status.Workloads == nil {
-					reconcileRetry(reconciler, req)
+					testutil.ReconcileRetry(reconciler, req)
 					return ""
 				}
 				return appConfig.Status.Workloads[0].Traits[0].Reference.Name
@@ -350,7 +351,7 @@ spec:
 			Expect(v).Should(Equal("bar"))
 
 			By("Reconcile")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 
 			By("Check others' change is retained")
 			changedTrait = unstructured.Unstructured{}
@@ -391,7 +392,7 @@ spec:
 
 			Eventually(func() int64 {
 				By("Reconcile")
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				changedTrait = unstructured.Unstructured{}
 				changedTrait.SetAPIVersion("example.com/v1")
 				changedTrait.SetKind("Bar")
@@ -421,7 +422,7 @@ spec:
 					return ""
 				}
 				if appConfig.Status.Workloads == nil {
-					reconcileRetry(reconciler, req)
+					testutil.ReconcileRetry(reconciler, req)
 					return ""
 				}
 				return appConfig.Status.Workloads[0].Traits[0].Reference.Name
@@ -446,7 +447,7 @@ spec:
 			Expect(v).Should(Equal("foo"))
 
 			By("Reconcile")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 
 			By("Check others' change is overrided(reset)")
 			changedTrait = unstructured.Unstructured{}

@@ -30,7 +30,6 @@ import (
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -250,7 +249,7 @@ var _ = Describe("Test application parser", func() {
 
 		// Create mock client
 		tclient := test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if strings.Contains(key.Name, "notexist") {
 					return &errors2.StatusError{ErrStatus: metav1.Status{Reason: "NotFound", Message: "not found"}}
 				}

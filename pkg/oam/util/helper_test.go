@@ -118,7 +118,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 	}{
 		"LocateParentAppConfig fail when getAppConfig fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 				oamObj: &mockComp,
@@ -131,7 +131,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 
 		"LocateParentAppConfig fail when no ApplicationConfiguration in OwnerReferences": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 				oamObj: &mockCompWithEmptyOwnerRef,
@@ -143,7 +143,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 		},
 		"LocateParentAppConfig success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.ApplicationConfiguration)
 					ac := mockAC
 					*o = ac
@@ -230,7 +230,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 		"FetchWorkload fails when getWorkload fails": {
 			fields: fields{
 				trait: &manualScalar,
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return workloadErr
 				},
 			},
@@ -242,7 +242,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 		"FetchWorkload succeeds when getWorkload succeeds": {
 			fields: fields{
 				trait: &manualScalar,
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*unstructured.Unstructured)
 					*o = *uwl
 					return nil
@@ -333,7 +333,7 @@ func TestScopeRelatedUtils(t *testing.T) {
 	}{
 		"FetchScopeDefinition fail when getScopeDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 			},
@@ -345,7 +345,7 @@ func TestScopeRelatedUtils(t *testing.T) {
 
 		"FetchScopeDefinition Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.ScopeDefinition)
 					sd := mockScopeDefinition
 					*o = sd
@@ -426,7 +426,7 @@ func TestTraitHelper(t *testing.T) {
 	}{
 		"FetchTraitDefinition fail when getTraitDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 			},
@@ -438,7 +438,7 @@ func TestTraitHelper(t *testing.T) {
 
 		"FetchTraitDefinition Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.TraitDefinition)
 					td := mockTraitDefinition
 					*o = td
@@ -513,7 +513,7 @@ func TestUtils(t *testing.T) {
 	}{
 		"FetchWorkloadDefinition fail when getWorkloadDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 			},
@@ -525,7 +525,7 @@ func TestUtils(t *testing.T) {
 
 		"FetchWorkloadDefinition Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					w := workloadDefinition
 					*o = w
@@ -617,7 +617,7 @@ func TestChildResources(t *testing.T) {
 			UID: "NotWorkloadUID",
 		},
 	})
-	var nilListFunc test.ObjectFn = func(o runtime.Object) error {
+	var nilListFunc test.ObjectListFn = func(o client.ObjectList) error {
 		u := &unstructured.Unstructured{}
 		l := o.(*unstructured.UnstructuredList)
 		l.Items = []unstructured.Unstructured{*u}
@@ -625,7 +625,7 @@ func TestChildResources(t *testing.T) {
 	}
 	type fields struct {
 		getFunc  test.ObjectFn
-		listFunc test.ObjectFn
+		listFunc test.ObjectListFn
 	}
 	type want struct {
 		crks []*unstructured.Unstructured
@@ -638,7 +638,7 @@ func TestChildResources(t *testing.T) {
 	}{
 		"FetchWorkloadChildResources fail when getWorkloadDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 				listFunc: nilListFunc,
@@ -650,7 +650,7 @@ func TestChildResources(t *testing.T) {
 		},
 		"FetchWorkloadChildResources return nothing when the workloadDefinition doesn't have child list": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					*o = workloadDefinition
 					return nil
@@ -664,14 +664,14 @@ func TestChildResources(t *testing.T) {
 		},
 		"FetchWorkloadChildResources Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					w := workloadDefinition
 					w.Spec.ChildResourceKinds = crkl
 					*o = w
 					return nil
 				},
-				listFunc: func(o runtime.Object) error {
+				listFunc: func(o client.ObjectList) error {
 					l := o.(*unstructured.UnstructuredList)
 					switch l.GetKind() {
 					case util.KindDeployment:
@@ -693,14 +693,14 @@ func TestChildResources(t *testing.T) {
 		},
 		"FetchWorkloadChildResources with many resources only pick the child one": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					w := workloadDefinition
 					w.Spec.ChildResourceKinds = crkl
 					*o = w
 					return nil
 				},
-				listFunc: func(o runtime.Object) error {
+				listFunc: func(o client.ObjectList) error {
 					l := o.(*unstructured.UnstructuredList)
 					l.Items = []unstructured.Unstructured{oResource, oResource, oResource, oResource,
 						oResource, oResource, oResource}
@@ -1192,7 +1192,7 @@ func TestComponentHelper(t *testing.T) {
 		},
 	}
 
-	client := &test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	client := &test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		if o, ok := obj.(*v1alpha2.Component); ok {
 			switch key.Name {
 			case componentName:
@@ -1551,7 +1551,7 @@ func TestGetDefinitionError(t *testing.T) {
 	errNotFound := apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "traitDefinition"}, "mock")
 	errNeedNamespace := fmt.Errorf("an empty namespace may not be set when a resource name is provided")
 
-	getFunc := func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	getFunc := func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		ns := key.Namespace
 		if ns != "" {
 			return errNotFound
@@ -1619,7 +1619,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 		mockIndexer[key] = tdList[i]
 	}
 
-	getFunc := func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	getFunc := func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		var namespacedName string
 		if key.Namespace != "" {
 			namespacedName = key.Namespace + "/" + key.Name
@@ -1732,7 +1732,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 
 		"app defintion will overlay system definition": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					o := obj.(*v1alpha2.WorkloadDefinition)
 					if key.Namespace == "vela-system" {
 						*o = sysWorkloadDefinition
@@ -1750,7 +1750,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 
 		"return system definiton when cannot find in app ns": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
 						o := obj.(*v1alpha2.WorkloadDefinition)
 						*o = sysWorkloadDefinition
@@ -1823,7 +1823,7 @@ func TestGetTraitDefinition(t *testing.T) {
 	}{
 		"app defintion will overlay system definition": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					o := obj.(*v1alpha2.TraitDefinition)
 					if key.Namespace == "vela-system" {
 						*o = sysTraitDefinition
@@ -1841,7 +1841,7 @@ func TestGetTraitDefinition(t *testing.T) {
 
 		"return system definiton when cannot find in app ns": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
 						o := obj.(*v1alpha2.TraitDefinition)
 						*o = sysTraitDefinition
@@ -1897,7 +1897,7 @@ func TestGetDefinition(t *testing.T) {
 		},
 	}
 
-	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		o := obj.(*v1alpha2.TraitDefinition)
 		switch key.Namespace {
 		case "vela-system":
@@ -1985,7 +1985,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 	}{
 		"app defintion will overlay system definition": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					o := obj.(*v1alpha2.ScopeDefinition)
 					if key.Namespace == "vela-system" {
 						*o = sysScopeDefinition
@@ -2003,7 +2003,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 
 		"return system definiton when cannot find in app ns": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
 						o := obj.(*v1alpha2.ScopeDefinition)
 						*o = sysScopeDefinition

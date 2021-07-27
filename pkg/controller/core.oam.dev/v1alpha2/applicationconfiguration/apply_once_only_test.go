@@ -35,6 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -159,7 +160,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
 
 		By("Reconcile")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 	})
 
 	AfterEach(func() {
@@ -184,7 +185,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			cwObj := v1alpha2.ContainerizedWorkload{}
 			Eventually(func() error {
 				By("Reconcile")
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				return k8sClient.Get(ctx, cwObjKey, &cwObj)
 			}, 5*time.Second, time.Second).Should(BeNil())
 			Expect(cwObj.Spec.Containers[0].Image).Should(Equal(image1))
@@ -229,7 +230,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			}, 3*time.Second, time.Second).Should(Equal(traitSpecValue2))
 
 			By("Reconcile")
-			Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is not changed by reconciliation")
@@ -255,7 +256,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 			By("Disable ApplyOnceOnly & Reconcile again")
 			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyOff
-			Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 
 			By("Check workload is changed by reconciliation")
 			updateCwObj = v1alpha2.ContainerizedWorkload{}
@@ -287,7 +288,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			cwObj := v1alpha2.ContainerizedWorkload{}
 			Eventually(func() error {
 				By("Reconcile")
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				return k8sClient.Get(ctx, cwObjKey, &cwObj)
 			}, 5*time.Second, time.Second).Should(BeNil())
 
@@ -296,7 +297,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(k8sClient.Get(ctx, cwObjKey, &v1alpha2.ContainerizedWorkload{})).Should(util.NotFoundMatcher{})
 
 			By("Reconcile")
-			Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is created by reconciliation")
@@ -397,7 +398,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 					NamespacedName: client.ObjectKey{Namespace: namespace, Name: acWithDepName},
 				}
 				Eventually(func() bool {
-					reconcileRetry(reconciler, reqDep)
+					testutil.ReconcileRetry(reconciler, reqDep)
 					acWithDep = v1alpha2.ApplicationConfiguration{}
 					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep); err != nil {
 						return false
@@ -424,7 +425,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 				By("Reconcile & check ac is satisfied")
 				Eventually(func() []v1alpha2.UnstaifiedDependency {
-					reconcileRetry(reconciler, reqDep)
+					testutil.ReconcileRetry(reconciler, reqDep)
 					acWithDep = v1alpha2.ApplicationConfiguration{}
 					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep); err != nil {
 						return []v1alpha2.UnstaifiedDependency{{Reason: err.Error()}}
@@ -434,7 +435,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 				By("Reconcile & check workload is created")
 				Eventually(func() error {
-					reconcileRetry(reconciler, reqDep)
+					testutil.ReconcileRetry(reconciler, reqDep)
 					// the workload is created now because its dependency is satisfied
 					workloadIn := tempFoo.DeepCopy()
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: inName}, workloadIn)
@@ -448,7 +449,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: inName}, outputTrait)).Should(util.NotFoundMatcher{})
 
 				By("Reconcile")
-				Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+				Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 				time.Sleep(3 * time.Second)
 
 				By("Check workload is not re-created by reconciliation")
@@ -545,7 +546,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 					NamespacedName: client.ObjectKey{Namespace: namespace, Name: acWithDepName},
 				}
 				Eventually(func() bool {
-					reconcileRetry(reconciler, reqDep)
+					testutil.ReconcileRetry(reconciler, reqDep)
 					acWithDep = v1alpha2.ApplicationConfiguration{}
 					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep); err != nil {
 						return false
@@ -572,7 +573,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 				By("Reconcile & check ac is satisfied")
 				Eventually(func() []v1alpha2.UnstaifiedDependency {
-					reconcileRetry(reconciler, reqDep)
+					testutil.ReconcileRetry(reconciler, reqDep)
 					acWithDep = v1alpha2.ApplicationConfiguration{}
 					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep); err != nil {
 						return []v1alpha2.UnstaifiedDependency{{Reason: err.Error()}}
@@ -582,7 +583,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 				By("Reconcile & check workload is created")
 				Eventually(func() error {
-					reconcileRetry(reconciler, reqDep)
+					testutil.ReconcileRetry(reconciler, reqDep)
 					// the workload should be created now because its dependency is satisfied
 					workloadIn := tempFoo.DeepCopy()
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName}, workloadIn)
@@ -596,7 +597,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName}, inputWorkload2)).Should(util.NotFoundMatcher{})
 
 				By("Reconcile")
-				Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+				Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 				time.Sleep(3 * time.Second)
 
 				By("Check workload is not re-created by reconciliation")
@@ -651,7 +652,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 			By("Reconcile")
 			Expect(func() error {
-				_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "myac2", Namespace: namespace}})
+				_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "myac2", Namespace: namespace}})
 				return err
 			}()).Should(BeNil())
 			time.Sleep(2 * time.Second)
@@ -683,7 +684,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			cwObj := v1alpha2.ContainerizedWorkload{}
 			Eventually(func() error {
 				By("Reconcile")
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				return k8sClient.Get(ctx, cwObjKey, &cwObj)
 			}, 5*time.Second, time.Second).Should(BeNil())
 			Expect(cwObj.Spec.Containers[0].Image).Should(Equal(image1))
@@ -728,7 +729,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			}, 3*time.Second, time.Second).Should(Equal(traitSpecValue2))
 
 			By("Reconcile")
-			Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is not changed by reconciliation")
@@ -754,7 +755,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 			By("Disable ApplyOnceOnly & Reconcile again")
 			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyOff
-			Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 
 			By("Check workload is changed by reconciliation")
 			updateCwObj = v1alpha2.ContainerizedWorkload{}
@@ -786,7 +787,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			cwObj := v1alpha2.ContainerizedWorkload{}
 			Eventually(func() error {
 				By("Reconcile")
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				return k8sClient.Get(ctx, cwObjKey, &cwObj)
 			}, 5*time.Second, time.Second).Should(BeNil())
 
@@ -807,7 +808,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(k8sClient.Get(ctx, traitObjKey, &fooObj)).Should(util.NotFoundMatcher{})
 
 			By("Reconcile")
-			Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is not re-created by reconciliation")
@@ -850,13 +851,13 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 				return updateAC.GetGeneration()
 			}, 3*time.Second, time.Second).Should(Equal(int64(2)))
 			By("Reconcile")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			time.Sleep(2 * time.Second)
 
 			By("Check workload was not created by reconciliation")
 			Eventually(func() error {
 				By("Reconcile")
-				reconcileRetry(reconciler, req)
+				testutil.ReconcileRetry(reconciler, req)
 				recreatedCwObj = v1alpha2.ContainerizedWorkload{}
 				return k8sClient.Get(ctx, cwObjKey, &recreatedCwObj)
 			}, 5*time.Second, time.Second).Should(SatisfyAll(util.NotFoundMatcher{}))

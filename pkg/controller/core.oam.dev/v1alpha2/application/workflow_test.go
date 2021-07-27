@@ -213,7 +213,7 @@ func tryReconcile(r *Reconciler, name, ns string) {
 	}
 
 	Eventually(func() error {
-		_, err := r.Reconcile(reconcile.Request{NamespacedName: appKey})
+		_, err := r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: appKey})
 		if err != nil {
 			By(fmt.Sprintf("reconcile err: %+v ", err))
 		}

@@ -52,7 +52,7 @@ type ComponentHandler struct {
 
 // Create implements EventHandler
 func (c *ComponentHandler) Create(evt event.CreateEvent, q workqueue.RateLimitingInterface) {
-	reqs, succeed := c.createControllerRevision(evt.Meta, evt.Object)
+	reqs, succeed := c.createControllerRevision(evt.Object, evt.Object)
 	if !succeed {
 		// No revision created, return
 		return
@@ -64,7 +64,7 @@ func (c *ComponentHandler) Create(evt event.CreateEvent, q workqueue.RateLimitin
 
 // Update implements EventHandler
 func (c *ComponentHandler) Update(evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	reqs, succeed := c.createControllerRevision(evt.MetaNew, evt.ObjectNew)
+	reqs, succeed := c.createControllerRevision(evt.ObjectNew, evt.ObjectNew)
 	if !succeed {
 		// No revision created, return
 		return
@@ -80,7 +80,7 @@ func (c *ComponentHandler) Delete(evt event.DeleteEvent, q workqueue.RateLimitin
 	// controllerRevision will be deleted by ownerReference mechanism
 	// so we don't need to delete controllerRevision here.
 	// but trigger an event to AppConfig controller, let it know.
-	for _, req := range c.getRelatedAppConfig(evt.Meta) {
+	for _, req := range c.getRelatedAppConfig(evt.Object) {
 		q.Add(req)
 	}
 }

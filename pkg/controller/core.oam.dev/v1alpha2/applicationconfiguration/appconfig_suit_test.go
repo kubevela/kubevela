@@ -133,7 +133,7 @@ var _ = Describe("CRD without definition can run in an ApplicationConfiguration"
 			Namespace: namespace,
 		}
 		req := reconcile.Request{NamespacedName: appconfigKey}
-		Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+		Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 
 		By("Checking that workload should be created")
 		workloadKey := client.ObjectKey{
@@ -145,7 +145,7 @@ var _ = Describe("CRD without definition can run in an ApplicationConfiguration"
 			err := k8sClient.Get(ctx, workloadKey, workloadFoo)
 			if err != nil {
 				// Try 3 (= 1s/300ms) times
-				reconciler.Reconcile(req)
+				reconciler.Reconcile(context.TODO(), req)
 			}
 			return err
 		}, 3*time.Second, time.Second).Should(BeNil())
@@ -160,7 +160,7 @@ var _ = Describe("CRD without definition can run in an ApplicationConfiguration"
 			err := k8sClient.Get(ctx, traitKey, traitFoo)
 			if err != nil {
 				// Try 3 (= 1s/300ms) times
-				reconciler.Reconcile(req)
+				reconciler.Reconcile(context.TODO(), req)
 			}
 			return err
 		}, time.Second, 300*time.Millisecond).Should(BeNil())

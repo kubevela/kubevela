@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"net/http"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -68,7 +68,7 @@ var _ admission.Handler = &ValidatingHandler{}
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	init := &v1beta1.Initializer{}
 
-	if req.Operation == admissionv1beta1.Create || req.Operation == admissionv1beta1.Update {
+	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
 		err := h.Decoder.Decode(req, init)
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
@@ -88,7 +88,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 	}
 
-	if req.Operation == admissionv1beta1.Delete {
+	if req.Operation == admissionv1.Delete {
 		var obj client.ObjectKey
 		obj.Name = req.Name
 		obj.Namespace = req.Namespace

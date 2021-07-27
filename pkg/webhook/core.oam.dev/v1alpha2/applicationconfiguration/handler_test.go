@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -98,8 +98,8 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 
 		It("Test bad admission request format", func() {
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: []byte("bad request")},
 				},
@@ -112,8 +112,8 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 			appConfig.Spec.Components[0].Traits[0].Trait = runtime.RawExtension{Raw: util.JSONMarshal(baseTrait)}
 
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
 				},
@@ -160,7 +160,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 				},
 				"update gvk get failed case": {
 					client: &test.MockClient{
-						MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+						MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 							switch obj.(type) {
 							case *v1alpha2.TraitDefinition:
 								return fmt.Errorf("does not exist")
@@ -173,7 +173,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 				},
 				"update gvk and label case": {
 					client: &test.MockClient{
-						MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+						MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 							switch o := obj.(type) {
 							case *v1alpha2.TraitDefinition:
 								Expect(key.Name).Should(BeEquivalentTo(typeContent[TraitTypeField]))
@@ -258,7 +258,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 		}
 
 		clientInstance := &test.MockClient{
-			MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				switch o := obj.(type) {
 				case *v1alpha2.Component:
 					*o = testComponent
@@ -272,8 +272,8 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 		}
 
 		req := admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  reqResource,
 				Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
 			},
@@ -286,8 +286,8 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 
 		By("Test delete operation request")
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Delete,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Delete,
 				Resource:  reqResource,
 				Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
 			},
@@ -297,8 +297,8 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 
 		By("Test bad admission request format")
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  reqResource,
 				Object:    runtime.RawExtension{Raw: []byte("bad request")},
 			},
@@ -309,8 +309,8 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 		By("Prepare for a bad admission resource")
 		badReqResource := metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "foo"}
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  badReqResource,
 				Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
 			},
@@ -320,13 +320,13 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 
 		By("reject the request for error occurs when prepare data for validation")
 		errClientInstance := &test.MockClient{
-			MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return fmt.Errorf("cannot prepare data for validation")
 			},
 		}
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  reqResource,
 				Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
 			},

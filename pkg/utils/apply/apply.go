@@ -37,7 +37,7 @@ import (
 // and last-applied-state which is tracked through an specific annotation.
 // If the resource doesn't exist before, Apply will create it.
 type Applicator interface {
-	Apply(context.Context, runtime.Object, ...ApplyOption) error
+	Apply(context.Context, client.Object, ...ApplyOption) error
 }
 
 // ApplyOption is called before applying state to the object.
@@ -57,22 +57,22 @@ func NewAPIApplicator(c client.Client) *APIApplicator {
 }
 
 type creator interface {
-	createOrGetExisting(context.Context, client.Client, runtime.Object, ...ApplyOption) (runtime.Object, error)
+	createOrGetExisting(context.Context, client.Client, client.Object, ...ApplyOption) (client.Object, error)
 }
 
-type creatorFn func(context.Context, client.Client, runtime.Object, ...ApplyOption) (runtime.Object, error)
+type creatorFn func(context.Context, client.Client, client.Object, ...ApplyOption) (client.Object, error)
 
-func (fn creatorFn) createOrGetExisting(ctx context.Context, c client.Client, o runtime.Object, ao ...ApplyOption) (runtime.Object, error) {
+func (fn creatorFn) createOrGetExisting(ctx context.Context, c client.Client, o client.Object, ao ...ApplyOption) (client.Object, error) {
 	return fn(ctx, c, o, ao...)
 }
 
 type patcher interface {
-	patch(c, m runtime.Object) (client.Patch, error)
+	patch(c, m client.Object) (client.Patch, error)
 }
 
-type patcherFn func(c, m runtime.Object) (client.Patch, error)
+type patcherFn func(c, m client.Object) (client.Patch, error)
 
-func (fn patcherFn) patch(c, m runtime.Object) (client.Patch, error) {
+func (fn patcherFn) patch(c, m client.Object) (client.Patch, error) {
 	return fn(c, m)
 }
 
@@ -84,7 +84,7 @@ type APIApplicator struct {
 }
 
 // loggingApply will record a log with desired object applied
-func loggingApply(msg string, desired runtime.Object) {
+func loggingApply(msg string, desired client.Object) {
 	d, ok := desired.(metav1.Object)
 	if !ok {
 		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
@@ -94,7 +94,7 @@ func loggingApply(msg string, desired runtime.Object) {
 }
 
 // Apply applies new state to an object or create it if not exist
-func (a *APIApplicator) Apply(ctx context.Context, desired runtime.Object, ao ...ApplyOption) error {
+func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...ApplyOption) error {
 	existing, err := a.createOrGetExisting(ctx, a.c, desired, ao...)
 	if err != nil {
 		return err
@@ -117,13 +117,13 @@ func (a *APIApplicator) Apply(ctx context.Context, desired runtime.Object, ao ..
 
 // createOrGetExisting will create the object if it does not exist
 // or get and return the existing object
-func createOrGetExisting(ctx context.Context, c client.Client, desired runtime.Object, ao ...ApplyOption) (runtime.Object, error) {
+func createOrGetExisting(ctx context.Context, c client.Client, desired client.Object, ao ...ApplyOption) (client.Object, error) {
 	m, ok := desired.(oam.Object)
 	if !ok {
 		return nil, errors.New("cannot access object metadata")
 	}
 
-	var create = func() (runtime.Object, error) {
+	var create = func() (client.Object, error) {
 		// execute ApplyOptions even the object doesn't exist
 		if err := executeApplyOptions(ctx, nil, desired, ao); err != nil {
 			return nil, err

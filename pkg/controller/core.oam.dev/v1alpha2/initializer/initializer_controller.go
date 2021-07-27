@@ -57,11 +57,11 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for Initializer controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
-	klog.InfoS("Reconcile initializer", "initializer", klog.KRef(req.Namespace, req.Name))
 
+	klog.InfoS("Reconcile initializer", "initializer", klog.KRef(req.Namespace, req.Name))
 	init := new(v1beta1.Initializer)
 	if err := r.Client.Get(ctx, req.NamespacedName, init); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)

@@ -25,7 +25,6 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -93,11 +92,11 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 	It("Test HealthScope Not Found", func() {
 		reconciler.client = &test.MockClient{
 			MockGet: func(ctx context.Context,
-				key client.ObjectKey, obj runtime.Object) error {
+				key client.ObjectKey, obj client.Object) error {
 				return errNotFound
 			},
 		}
-		result, err := reconciler.Reconcile(reconcile.Request{})
+		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(result).Should(Equal(reconcile.Result{}))
 		Expect(err).Should(util.BeEquivalentToError(errors.Wrap(errNotFound, errGetHealthScope)))
 	})
@@ -105,51 +104,51 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 	It("Test Reconcile UpdateHealthStatus Error", func() {
 		reconciler.checkers = append(reconciler.checkers, MockHealthyChecker)
 		reconciler.client = &test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*v1alpha2.HealthScope); ok {
 					*o = hs
 				}
 				return nil
 			},
-			MockStatusUpdate: func(_ context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
 				return errMockErr
 			},
 		}
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).Should(util.BeEquivalentToError(errors.Wrap(errMockErr, errUpdateHealthScopeStatus)))
 	})
 
 	It("Test Reconcile Success with healthy scope", func() {
 		reconciler.checkers = append(reconciler.checkers, MockHealthyChecker)
 		reconciler.client = &test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*v1alpha2.HealthScope); ok {
 					*o = hs
 				}
 				return nil
 			},
-			MockStatusUpdate: func(_ context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
 				return nil
 			},
 		}
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).Should(BeNil())
 	})
 
 	It("Test Reconcile Success with unhealthy scope", func() {
 		reconciler.checkers = append(reconciler.checkers, MockUnhealthyChecker)
 		reconciler.client = &test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*v1alpha2.HealthScope); ok {
 					*o = hs
 				}
 				return nil
 			},
-			MockStatusUpdate: func(_ context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
 				return nil
 			},
 		}
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).Should(BeNil())
 	})
 })
@@ -221,7 +220,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			{
 				caseName:       "2 supportted workloads(cw,deploy)",
 				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
-				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					if o, ok := obj.(*v1alpha2.ContainerizedWorkload); ok {
 						*o = cw
 					}
@@ -263,7 +262,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			{
 				caseName:       "2 supportted workloads but one is unhealthy",
 				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
-				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha2.ContainerizedWorkload:
 						*o = cw
@@ -289,7 +288,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			{
 				caseName:       "1 healthy supportted workload and 1 unsupportted workloads",
 				hsWorkloadRefs: []corev1.ObjectReference{cwRef, uhGeneralRef},
-				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha2.ContainerizedWorkload:
 						*o = cw

@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -204,7 +205,7 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		By("Check workload created successfully")
 		Eventually(func() error {
 			By("Reconcile")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: compName + "-v1"}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, 3*time.Second, 300*time.Millisecond).Should(BeNil())
@@ -212,11 +213,11 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 
 		By("Check reconcile again and no error will happen")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 		By("Check appconfig condition should not have error")
 		Eventually(func() string {
 			By("Reconcile again and should not have error")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -299,7 +300,7 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		By("Check new revision workload created successfully")
 		Eventually(func() error {
 			By("Reconcile for new revision")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: compName + "-v2"}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
@@ -316,11 +317,11 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 
 		By("Check reconcile again and no error will happen")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 		By("Check appconfig condition should not have error")
 		Eventually(func() string {
 			By("Once more Reconcile and should not have error")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -667,12 +668,12 @@ var _ = Describe("Component Revision Enabled with apply once only force", func()
 
 		By("Reconcile")
 		reconciler.applyOnceOnlyMode = "force"
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 
 		By("Check workload created successfully")
 		var workloadKey1 = client.ObjectKey{Namespace: namespace, Name: compName + "-v1"}
 		Eventually(func() error {
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			return k8sClient.Get(ctx, workloadKey1, &wr)
 		}, 3*time.Second, 300*time.Millisecond).Should(BeNil())
 		By("Check workload should only have 1 generation")
@@ -682,7 +683,7 @@ var _ = Describe("Component Revision Enabled with apply once only force", func()
 		Expect(k8sClient.Delete(ctx, &wr)).Should(BeNil())
 
 		By("Check reconcile again and no error will happen")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 
 		By("Check workload will not created after reconcile because apply once force enabled")
 		Expect(k8sClient.Get(ctx, workloadKey1, &wr)).Should(SatisfyAll(util.NotFoundMatcher{}))
@@ -703,10 +704,10 @@ var _ = Describe("Component Revision Enabled with apply once only force", func()
 		Expect(k8sClient.Update(ctx, &appConfig)).Should(Succeed())
 
 		By("Reconcile and Check appconfig condition should not have error")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 		Eventually(func() string {
 			By("Reconcile again and should not have error")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -781,11 +782,11 @@ var _ = Describe("Component Revision Enabled with apply once only force", func()
 			return k8sClient.Get(ctx, appConfigKey, &appConfig)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
 		By("Reconcile for new revision")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 
 		By("Check new revision workload created successfully")
 		Eventually(func() error {
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: compName + "-v2"}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
@@ -797,11 +798,11 @@ var _ = Describe("Component Revision Enabled with apply once only force", func()
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 
 		By("Check reconcile again and no error will happen")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 		By("Check appconfig condition should not have error")
 		Eventually(func() string {
 			By("Once more Reconcile and should not have error")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -975,19 +976,19 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 
 		By("Reconcile")
 		reconciler.applyOnceOnlyMode = "force"
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 
 		By("Check workload created successfully")
 		var workloadKey1 = client.ObjectKey{Namespace: namespace, Name: specifiedNameBase}
 		Eventually(func() error {
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			return k8sClient.Get(ctx, workloadKey1, &wr)
 		}, 3*time.Second, 300*time.Millisecond).Should(BeNil())
 		By("Check workload should only have 1 generation")
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 
 		By("Check reconcile again and no error will happen")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 
 		Expect(k8sClient.Get(ctx, appConfigKey, &appConfig)).Should(BeNil())
 
@@ -1032,11 +1033,11 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 			return k8sClient.Get(ctx, appConfigKey, &appConfig)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
 		By("Reconcile for new revision")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 
 		By("Check new revision workload created successfully")
 		Eventually(func() error {
-			reconcileRetryAndExpectErr(reconciler, req)
+			testutil.ReconcileRetryAndExpectErr(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: specifiedNameV1}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
@@ -1046,7 +1047,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 
 		By("Check appconfig condition should have error")
 		Eventually(func() string {
-			reconcileRetryAndExpectErr(reconciler, req)
+			testutil.ReconcileRetryAndExpectErr(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -1060,7 +1061,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 
 		By("Check the old workload still there")
 		Eventually(func() error {
-			reconcileRetryAndExpectErr(reconciler, req)
+			testutil.ReconcileRetryAndExpectErr(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: specifiedNameBase}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
@@ -1074,7 +1075,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 		By("Reconcile Again and appconfig condition should not have error")
 		Eventually(func() string {
 			By("Once more Reconcile and should not have error")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -1119,11 +1120,11 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 		Expect(len(appConfig.Spec.Components[0].Traits)).Should(BeEquivalentTo(1))
 
 		By("Check reconcile again and no error will happen, revisionEnabled will skip delete")
-		reconcileRetry(reconciler, req)
+		testutil.ReconcileRetry(reconciler, req)
 		By("Check appconfig condition should not have error")
 		Eventually(func() string {
 			By("Once more Reconcile and should not have error")
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
 			if err != nil {
 				return err.Error()
@@ -1136,7 +1137,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 
 		By("Check new revision workload created successfully")
 		Eventually(func() error {
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: specifiedNameV2}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
@@ -1147,7 +1148,7 @@ var _ = Describe("Component Revision Enabled with workloadName set and apply onc
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 		By("Check the old workload still there")
 		Eventually(func() error {
-			reconcileRetry(reconciler, req)
+			testutil.ReconcileRetry(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: specifiedNameV1}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())

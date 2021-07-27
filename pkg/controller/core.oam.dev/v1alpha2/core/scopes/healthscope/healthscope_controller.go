@@ -128,8 +128,8 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 }
 
 // Reconcile an OAM HealthScope by keeping track of its health status.
-func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	ctx, cancel := common.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	ctx, cancel := common.NewReconcileContext(ctx)
 	defer cancel()
 	klog.InfoS("Reconcile healthScope", "healthScope", klog.KRef(req.Namespace, req.Name))
 

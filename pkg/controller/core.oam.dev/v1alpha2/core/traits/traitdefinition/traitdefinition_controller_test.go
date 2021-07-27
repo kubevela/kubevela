@@ -36,6 +36,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -134,7 +135,7 @@ spec:
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			def.Namespace = namespace
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
@@ -205,7 +206,7 @@ spec:
 			var def v1beta1.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 			By("Check whether ConfigMap is created")
 
 			var cm corev1.ConfigMap
@@ -358,7 +359,7 @@ spec:
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
 			Eventually(func() bool {
-				reconcileRetry(&r, req)
+				testutil.ReconcileRetry(&r, req)
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
 			}, 30*time.Second, time.Second).Should(BeTrue())

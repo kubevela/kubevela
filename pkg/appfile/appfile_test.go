@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -1248,7 +1249,7 @@ parameter: {
 
 	mockSecretClient := func(data map[string][]byte) *test.MockClient {
 		return &test.MockClient{
-			MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+			MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 				switch secret := obj.(type) {
 				case *v1.Secret:
 					t := secret.DeepCopy()
@@ -1262,7 +1263,7 @@ parameter: {
 
 	mockConfigMapClient := func(data map[string]string) *test.MockClient {
 		return &test.MockClient{
-			MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+			MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 				switch configMap := obj.(type) {
 				case *v1.ConfigMap:
 					t := configMap.DeepCopy()

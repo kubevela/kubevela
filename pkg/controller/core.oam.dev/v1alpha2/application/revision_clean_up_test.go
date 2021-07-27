@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -79,7 +81,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -104,12 +106,12 @@ var _ = Describe("Test application controller clean up ", func() {
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
@@ -131,10 +133,10 @@ var _ = Describe("Test application controller clean up ", func() {
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
@@ -164,7 +166,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -189,12 +191,12 @@ var _ = Describe("Test application controller clean up ", func() {
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: "comp1-v1"}
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, crList, listOpts...)
@@ -216,11 +218,11 @@ var _ = Describe("Test application controller clean up ", func() {
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		revKey = types.NamespacedName{Namespace: namespace, Name: "comp1-v2"}
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, crList, listOpts...)
@@ -242,11 +244,11 @@ var _ = Describe("Test application controller clean up ", func() {
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		revKey = types.NamespacedName{Namespace: namespace, Name: "comp1-v3"}
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, crList, listOpts...)
@@ -273,7 +275,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -298,12 +300,12 @@ var _ = Describe("Test application controller clean up ", func() {
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
@@ -328,10 +330,10 @@ var _ = Describe("Test application controller clean up ", func() {
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
@@ -366,7 +368,7 @@ var _ = Describe("Test application controller clean up ", func() {
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -391,12 +393,12 @@ var _ = Describe("Test application controller clean up ", func() {
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)
@@ -442,11 +444,11 @@ var _ = Describe("Test application controller clean up ", func() {
 			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+			_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 			Expect(err).Should(BeNil())
 		}
 		Eventually(func() error {
-			if _, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey}); err != nil {
+			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
 				return err
 			}
 			err := k8sClient.List(ctx, appRevisionList, listOpts...)

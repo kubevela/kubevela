@@ -52,7 +52,7 @@ func (h *handler) assembleWorkload(ctx context.Context) error {
 	workloadOptions := []assemble.WorkloadOption{
 		applicationrollout.RolloutWorkloadName(h.compName),
 		assemble.PrepareWorkloadForRollout(h.compName),
-		applicationrollout.HandleReplicas(ctx, h.compName, h)}
+		applicationrollout.HandleReplicas(ctx, h.compName, h.Client)}
 
 	for _, workloadOption := range workloadOptions {
 		if err := workloadOption.ApplyToWorkload(h.targetWorkload, nil, nil); err != nil {

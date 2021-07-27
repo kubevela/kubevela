@@ -36,6 +36,7 @@ webhooks:
         scope: Namespaced
     admissionReviewVersions:
       - v1beta1
+      - v1
     timeoutSeconds: 5
   - clientConfig:
       caBundle: Cg==
@@ -63,6 +64,7 @@ webhooks:
         scope: Namespaced
     admissionReviewVersions:
       - v1beta1
+      - v1
     timeoutSeconds: 5
   {{- end }}
   - clientConfig:
@@ -91,6 +93,7 @@ webhooks:
         scope: Namespaced
     admissionReviewVersions:
       - v1beta1
+      - v1
     timeoutSeconds: 5
   - clientConfig:
       caBundle: Cg==
@@ -107,6 +110,7 @@ webhooks:
     sideEffects: None
     admissionReviewVersions:
       - v1beta1
+      - v1
     rules:
       - apiGroups:
           - core.oam.dev
@@ -129,6 +133,7 @@ webhooks:
     name: vcontainerized.kb.io
     admissionReviewVersions:
       - v1beta1
+      - v1
     sideEffects: None
     rules:
       - apiGroups:
@@ -154,6 +159,7 @@ webhooks:
     name: validating.core.oam.dev.v1beta1.applications
     admissionReviewVersions:
       - v1beta1
+      - v1
     sideEffects: None
     rules:
       - apiGroups:
@@ -180,6 +186,7 @@ webhooks:
     sideEffects: None
     admissionReviewVersions:
       - v1beta1
+      - v1
     rules:
       - apiGroups:
           - core.oam.dev
@@ -205,6 +212,7 @@ webhooks:
     sideEffects: None
     admissionReviewVersions:
       - v1beta1
+      - v1
     rules:
       - apiGroups:
           - core.oam.dev

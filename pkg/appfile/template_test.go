@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -100,7 +101,7 @@ spec:
 
 	// Create mock client
 	tclient := test.MockClient{
-		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
+		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj client.Object) error {
 			switch o := obj.(type) {
 			case *v1beta1.ComponentDefinition:
 				cd, err := oamutil.UnMarshalStringToComponentDefinition(componentDefintion)
@@ -202,7 +203,7 @@ spec:
 
 	// Create mock client
 	tclient := test.MockClient{
-		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
+		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj client.Object) error {
 			switch o := obj.(type) {
 			case *v1alpha2.WorkloadDefinition:
 				cd, err := oamutil.UnMarshalStringToWorkloadDefinition(workloadDefintion)
@@ -323,7 +324,7 @@ spec:
 
 	// Create mock client
 	tclient := test.MockClient{
-		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
+		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj client.Object) error {
 			switch o := obj.(type) {
 			case *v1beta1.TraitDefinition:
 				wd, err := oamutil.UnMarshalStringToTraitDefinition(traitDefintion)

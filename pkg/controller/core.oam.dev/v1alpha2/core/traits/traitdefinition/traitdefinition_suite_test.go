@@ -18,9 +18,9 @@
 package traitdefinition
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -31,7 +31,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
@@ -41,7 +40,7 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var controllerDone chan struct{}
+var controllerDone context.CancelFunc
 var r Reconciler
 var defRevisionLimit = 5
 
@@ -95,10 +94,11 @@ var _ = BeforeSuite(func(done Done) {
 		defRevLimit: defRevisionLimit,
 	}
 	Expect(r.SetupWithManager(mgr)).ToNot(HaveOccurred())
-	controllerDone = make(chan struct{}, 1)
+	var ctx context.Context
+	ctx, controllerDone = context.WithCancel(context.Background())
 	go func() {
 		defer GinkgoRecover()
-		Expect(mgr.Start(controllerDone)).ToNot(HaveOccurred())
+		Expect(mgr.Start(ctx)).ToNot(HaveOccurred())
 	}()
 
 	close(done)
@@ -106,16 +106,9 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = AfterSuite(func() {
 	By("Stop the controller")
-	close(controllerDone)
+	controllerDone()
 
 	By("Tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
-
-func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
-	Eventually(func() error {
-		_, err := r.Reconcile(req)
-		return err
-	}, 15*time.Second, time.Second).Should(BeNil())
-}

@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/stretchr/testify/assert"
@@ -164,7 +165,7 @@ func TestCompareWithRevision(t *testing.T) {
 		expectedErr    error
 	}{
 		"compare object": {
-			getFunc: func(obj runtime.Object) error {
+			getFunc: func(obj client.Object) error {
 				o, ok := obj.(*v12.ControllerRevision)
 				if !ok {
 					t.Errorf("the object %+v is not of type controller revision", o)

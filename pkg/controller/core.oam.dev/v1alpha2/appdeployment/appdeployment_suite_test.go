@@ -454,7 +454,7 @@ func reconcileAppDeployment(ctx context.Context, appd *oamcore.AppDeployment) {
 		Name:      appd.Name,
 		Namespace: appd.Namespace,
 	}
-	_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: rKey})
+	_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: rKey})
 	Expect(err).Should(BeNil())
 
 	appdKey := client.ObjectKey{

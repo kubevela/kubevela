@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -268,14 +270,14 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		appwithNoTrait.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, appwithNoTrait.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appwithNoTrait.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      appwithNoTrait.Name,
 			Namespace: appwithNoTrait.Namespace,
 		}
 
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		events, err := recorder.GetEventsWithName(appwithNoTrait.Name)
 		Expect(err).Should(BeNil())
@@ -292,9 +294,9 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: appFailParse.Namespace,
 		}
 
-		Expect(k8sClient.Create(ctx, appFailParse.DeepCopyObject())).Should(BeNil())
-		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailParseKey})
-		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailParseKey})
+		Expect(k8sClient.Create(ctx, appFailParse.DeepCopy())).Should(BeNil())
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailParseKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailParseKey})
 
 		parseEvents, err := recorder.GetEventsWithName(appFailParse.Name)
 		Expect(err).Should(BeNil())
@@ -310,9 +312,9 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      appFailRender.Name,
 			Namespace: appFailRender.Namespace,
 		}
-		Expect(k8sClient.Create(ctx, appFailRender.DeepCopyObject())).Should(BeNil())
-		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailRenderKey})
-		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailRenderKey})
+		Expect(k8sClient.Create(ctx, appFailRender.DeepCopy())).Should(BeNil())
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailRenderKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appFailRenderKey})
 
 		renderEvents, err := recorder.GetEventsWithName(appFailRender.Name)
 		Expect(err).Should(BeNil())
@@ -386,7 +388,7 @@ spec:
 		err = k8sClient.Create(ctx, &app)
 		Expect(err).Should(BeNil())
 
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("checking application")
 		var a v1beta1.Application
@@ -457,7 +459,7 @@ spec:
 		err = k8sClient.Create(ctx, businessApplication)
 		Expect(err).Should(BeNil())
 
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("checking application")
 		var app v1beta1.Application
@@ -481,13 +483,13 @@ spec:
 		}
 		appwithNoTrait.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, appwithNoTrait.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appwithNoTrait.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      appwithNoTrait.Name,
 			Namespace: appwithNoTrait.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created")
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -531,13 +533,13 @@ spec:
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		Expect(k8sClient.Create(ctx, appwithConfig.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appwithConfig.DeepCopy())).Should(BeNil())
 		app := appwithConfig
 		appKey := client.ObjectKey{
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created")
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -584,7 +586,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -656,7 +658,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -742,7 +744,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -818,7 +820,7 @@ spec:
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
 		Expect(curApp.Status.ObservedGeneration).Should(BeZero())
 
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -889,7 +891,7 @@ spec:
 			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 		}
 		Expect(k8sClient.Update(ctx, curApp)).Should(BeNil())
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App updated successfully")
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -960,7 +962,7 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		curApp := &v1beta1.Application{}
@@ -1064,13 +1066,13 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 
 		checkApp := &v1beta1.Application{}
 		Eventually(func() string {
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: appKey})
 			if err != nil {
 				return err.Error()
 			}
@@ -1115,7 +1117,7 @@ spec:
 			Name:      rolloutApp.Name,
 			Namespace: rolloutApp.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check AppRevision created as expected")
 		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
@@ -1140,7 +1142,7 @@ spec:
 		Expect(comp.RevisionName).Should(Equal(compName + "-v1"))
 
 		By("Reconcile again to make sure we are not creating more resource trackers")
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Verify that no new AppRevision created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
@@ -1159,7 +1161,7 @@ spec:
 			"keep": "true",
 		})
 		Expect(k8sClient.Update(ctx, rolloutApp)).Should(BeNil())
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Verify that no new AppRevision created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -1301,12 +1303,12 @@ spec:
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		checkApp := &v1beta1.Application{}
 		Eventually(func() string {
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: appKey})
 			if err != nil {
 				return err.Error()
 			}
@@ -1358,13 +1360,13 @@ spec:
 		taskWd.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, taskWd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, appRefertoWd.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appRefertoWd.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      appRefertoWd.Name,
 			Namespace: appRefertoWd.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1407,13 +1409,13 @@ spec:
 		taskWd.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, taskWd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appMix.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1439,13 +1441,13 @@ spec:
 		}
 		appImportPkg.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, appImportPkg.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appImportPkg.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      appImportPkg.Name,
 			Namespace: appImportPkg.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1532,18 +1534,18 @@ spec:
 		cd := &v1beta1.ComponentDefinition{}
 		Expect(common2.ReadYamlToObject("testdata/revision/cd1.yaml", cd)).Should(BeNil())
 		cd.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, cd.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(BeNil())
 
 		app := &v1beta1.Application{}
 		Expect(common2.ReadYamlToObject("testdata/revision/app1.yaml", app)).Should(BeNil())
 		app.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, app.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, app.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      app.Name,
 			Namespace: app.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1592,13 +1594,13 @@ spec:
 		secretconsumer.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, secretconsumer)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appMix.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check Application Created with the correct phase")
 		curApp := &v1beta1.Application{}
@@ -1627,7 +1629,7 @@ spec:
 		sec.Namespace = appMix.Namespace
 		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
 
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check another component is existed")
 		comp2 = &v1.Deployment{}
@@ -1664,13 +1666,13 @@ spec:
 		appMix.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appMix.DeepCopy())).Should(BeNil())
 
 		appKey := client.ObjectKey{
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
-		_, err := reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		_, err := testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(err).ShouldNot(BeNil())
 
 		By("Check Application Created with the correct phase")
@@ -1699,7 +1701,7 @@ spec:
 		sec.Namespace = appMix.Namespace
 		Expect(k8sClient.Create(ctx, sec)).Should(BeNil())
 
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check another component is existed")
 		comp2 = &v1.Deployment{}
@@ -1757,7 +1759,7 @@ spec:
 		}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1771,7 +1773,7 @@ spec:
 		By("update component targetComponentRev will change")
 		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","2000"],"image":"nginx"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1786,7 +1788,7 @@ spec:
 		appRevName := checkApp.Status.LatestRevision.Name
 		checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"myweb1-v3"}`)
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(appRevName))
@@ -1795,18 +1797,6 @@ spec:
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v3"))
 	})
 })
-
-func reconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) (reconcile.Result, error) {
-	// 1st and 2nd time reconcile to add finalizer
-	r.Reconcile(req)
-	r.Reconcile(req)
-
-	return r.Reconcile(req)
-}
-
-func reconcileOnce(r reconcile.Reconciler, req reconcile.Request) {
-	r.Reconcile(req)
-}
 
 const (
 	scopeDefYaml = `apiVersion: core.oam.dev/v1beta1

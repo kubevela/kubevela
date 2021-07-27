@@ -77,9 +77,13 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=podspecworkloads/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
+<<<<<<< HEAD
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx, cancel := common2.NewReconcileContext()
 	defer cancel()
+=======
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+>>>>>>> bde2baea... upgrade K8s dependency to v0.21
 	log := r.log.WithValues("podspecworkload", req.NamespacedName)
 	log.Info("Reconcile podspecworkload workload")
 

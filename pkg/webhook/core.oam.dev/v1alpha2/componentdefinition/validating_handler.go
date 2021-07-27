@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"net/http"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -52,7 +52,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", componentDefGVR))
 	}
 
-	if req.Operation == admissionv1beta1.Create || req.Operation == admissionv1beta1.Update {
+	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
 		err := h.Decoder.Decode(req, obj)
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)

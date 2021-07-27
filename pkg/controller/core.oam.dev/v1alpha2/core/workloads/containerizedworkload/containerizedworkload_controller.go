@@ -74,11 +74,12 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
-	defer cancel()
-	klog.InfoS("Reconcile containerizedworkload", klog.KRef(req.Namespace, req.Name))
 
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
+	defer cancel()
+
+	klog.InfoS("Reconcile containerizedworkload", klog.KRef(req.Namespace, req.Name))
 	var workload v1alpha2.ContainerizedWorkload
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
 		if apierrors.IsNotFound(err) {

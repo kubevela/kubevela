@@ -45,7 +45,7 @@ func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSe
 		return true, nil
 	}
 
-	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopyObject())
+	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopy())
 
 	// add the parent controller to the owner of the StatefulSet
 	ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
@@ -66,7 +66,7 @@ func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSe
 
 // scale the StatefulSet
 func (c *statefulSetController) scaleStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet, size int32) error {
-	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopyObject())
+	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopy())
 	statefulSet.Spec.Replicas = pointer.Int32Ptr(size)
 
 	// patch the StatefulSet
@@ -84,7 +84,7 @@ func (c *statefulSetController) scaleStatefulSet(ctx context.Context, statefulSe
 
 // remove the parent controller from the StatefulSet's owner list
 func (c *statefulSetController) releaseStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet) (bool, error) {
-	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopyObject())
+	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopy())
 
 	var newOwnerList []metav1.OwnerReference
 	found := false

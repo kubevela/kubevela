@@ -79,9 +79,10 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads/status,verbs=get;
 // +kubebuilder:rbac:groups=core.oam.dev,resources=workloaddefinition,verbs=get;list;
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch;delete
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common.NewReconcileContext(ctx)
 	defer cancel()
+
 	klog.InfoS("Reconcile manualscalar trait", "trait", klog.KRef(req.Namespace, req.Name))
 
 	var manualScalar oamv1alpha2.ManualScalerTrait
@@ -101,7 +102,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		eventObj = &manualScalar
 	}
 	// Fetch the workload instance this trait is referring to
-	workload, err := util.FetchWorkload(ctx, r, &manualScalar)
+	workload, err := util.FetchWorkload(ctx, r.Client, &manualScalar)
 	if err != nil {
 		r.record.Event(eventObj, event.Warning(util.ErrLocateWorkload, err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(
@@ -109,7 +110,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch the child resources list from the corresponding workload
-	resources, err := util.FetchWorkloadChildResources(ctx, r, r.dm, workload)
+	resources, err := util.FetchWorkloadChildResources(ctx, r.Client, r.dm, workload)
 	if err != nil {
 		klog.ErrorS(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
@@ -165,7 +166,7 @@ func (r *Reconciler) scaleResources(ctx context.Context, manualScalar oamv1alpha
 	for _, res := range resources {
 		if locateReplicaField(document, res) {
 			found = true
-			resPatch := client.MergeFrom(res.DeepCopyObject())
+			resPatch := client.MergeFrom(res.DeepCopy())
 			klog.InfoS("Get the resource the trait is going to modify",
 				"resource name", res.GetName(), "UID", res.GetUID())
 			cpmeta.AddOwnerReference(res, ownerRef)

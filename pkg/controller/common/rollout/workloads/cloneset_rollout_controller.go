@@ -136,7 +136,7 @@ func (c *CloneSetRolloutController) Initialize(ctx context.Context) (bool, error
 	}
 	// add the parent controller to the owner of the cloneset
 	// before kicking start the update and start from every pod in the old version
-	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	clonePatch := client.MergeFrom(c.cloneSet.DeepCopy())
 	ref := metav1.NewControllerRef(c.parentController, c.parentController.GetObjectKind().GroupVersionKind())
 	c.cloneSet.SetOwnerReferences(append(c.cloneSet.GetOwnerReferences(), *ref))
 	c.cloneSet.Spec.UpdateStrategy.Paused = false
@@ -165,7 +165,7 @@ func (c *CloneSetRolloutController) RolloutOneBatchPods(ctx context.Context) (bo
 
 	newPodTarget := calculateNewBatchTarget(c.rolloutSpec, 0, int(cloneSetSize), int(c.rolloutStatus.CurrentBatch))
 	// set the Partition as the desired number of pods in old revisions.
-	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	clonePatch := client.MergeFrom(c.cloneSet.DeepCopy())
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int,
 		IntVal: cloneSetSize - int32(newPodTarget)}
 	// patch the Cloneset
@@ -260,7 +260,7 @@ func (c *CloneSetRolloutController) Finalize(ctx context.Context, succeed bool) 
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false
 	}
-	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	clonePatch := client.MergeFrom(c.cloneSet.DeepCopy())
 	// remove the parent controller from the resources' owner list
 	var newOwnerList []metav1.OwnerReference
 	isOwner := false

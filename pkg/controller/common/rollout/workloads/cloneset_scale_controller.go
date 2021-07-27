@@ -139,7 +139,7 @@ func (s *CloneSetScaleController) Initialize(ctx context.Context) (bool, error) 
 		}
 	}
 	// add the parent controller to the owner of the cloneset
-	clonePatch := client.MergeFrom(s.cloneSet.DeepCopyObject())
+	clonePatch := client.MergeFrom(s.cloneSet.DeepCopy())
 	ref := metav1.NewControllerRef(s.parentController, s.parentController.GetObjectKind().GroupVersionKind())
 	s.cloneSet.SetOwnerReferences(append(s.cloneSet.GetOwnerReferences(), *ref))
 	s.cloneSet.Spec.UpdateStrategy.Paused = false
@@ -164,7 +164,7 @@ func (s *CloneSetScaleController) RolloutOneBatchPods(ctx context.Context) (bool
 		return false, nil
 	}
 
-	clonePatch := client.MergeFrom(s.cloneSet.DeepCopyObject())
+	clonePatch := client.MergeFrom(s.cloneSet.DeepCopy())
 	// set the replica according to the batch
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
@@ -274,7 +274,7 @@ func (s *CloneSetScaleController) Finalize(ctx context.Context, succeed bool) bo
 		s.rolloutStatus.RolloutRetry(err.Error())
 		return false
 	}
-	clonePatch := client.MergeFrom(s.cloneSet.DeepCopyObject())
+	clonePatch := client.MergeFrom(s.cloneSet.DeepCopy())
 	// remove the parent controller from the resources' owner list
 	var newOwnerList []metav1.OwnerReference
 	isOwner := false

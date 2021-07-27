@@ -28,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -80,7 +79,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "healthy workload",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
 					*o = cw
 					return nil
@@ -104,7 +103,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
 					*o = cw
 					return nil
@@ -128,7 +127,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for ContainerizedWorkload not found",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -138,7 +137,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not found",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
 					*o = cw
 					return nil
@@ -155,7 +154,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for service not found",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				switch o := obj.(type) {
 				case *corev1alpha2.ContainerizedWorkload:
 					*o = cw
@@ -209,7 +208,7 @@ func TestCheckDeploymentHealth(t *testing.T) {
 		{
 			caseName: "healthy workload",
 			wlRef:    deployRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					*o = apps.Deployment{
 						Spec: apps.DeploymentSpec{
@@ -229,7 +228,7 @@ func TestCheckDeploymentHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    deployRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					*o = apps.Deployment{
 						Spec: apps.DeploymentSpec{
@@ -249,7 +248,7 @@ func TestCheckDeploymentHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not found",
 			wlRef:    deployRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -290,7 +289,7 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 		{
 			caseName: "healthy workload",
 			wlRef:    stsRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.StatefulSet); ok {
 					*o = apps.StatefulSet{
 						Spec: apps.StatefulSetSpec{
@@ -310,7 +309,7 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for statefulset not ready",
 			wlRef:    stsRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.StatefulSet); ok {
 					*o = apps.StatefulSet{
 						Spec: apps.StatefulSetSpec{
@@ -330,7 +329,7 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for statefulset not found",
 			wlRef:    stsRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -371,7 +370,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 		{
 			caseName: "healthy workload",
 			wlRef:    dstRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.DaemonSet); ok {
 					*o = apps.DaemonSet{
 						Status: apps.DaemonSetStatus{
@@ -388,7 +387,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for daemonset not ready",
 			wlRef:    dstRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.DaemonSet); ok {
 					*o = apps.DaemonSet{
 						Status: apps.DaemonSetStatus{
@@ -405,7 +404,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for daemonset not found",
 			wlRef:    dstRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -438,7 +437,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 	}{
 		{
 			caseName: "cannot get workload",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return mockError
 			},
 			expect: &WorkloadHealthCondition{
@@ -448,7 +447,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 		},
 		{
 			caseName: "unknown workload with status",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				o, _ := obj.(*unstructured.Unstructured)
 				*o = unstructured.Unstructured{}
 				o.Object = make(map[string]interface{})
@@ -463,7 +462,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 		},
 		{
 			caseName: "unknown workload without status",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				o, _ := obj.(*unstructured.Unstructured)
 				*o = unstructured.Unstructured{}
 				return nil
@@ -523,7 +522,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 	}{
 		{
 			caseName: "peer workload is healthy",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					if key.Name == "main-workload" {
 						deployObj.DeepCopyInto(o)
@@ -541,7 +540,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 				}
 				return nil
 			},
-			mockListFn: func(ctx context.Context, list runtime.Object, opts ...client.ListOption) error {
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				l, _ := list.(*unstructured.UnstructuredList)
 				u := unstructured.Unstructured{}
 				u.SetAPIVersion("apps/v1")
@@ -556,7 +555,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 		},
 		{
 			caseName: "peer workload is unhealthy",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					if key.Name == "main-workload" {
 						deployObj.DeepCopyInto(o)
@@ -575,7 +574,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 				}
 				return nil
 			},
-			mockListFn: func(ctx context.Context, list runtime.Object, opts ...client.ListOption) error {
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				l, _ := list.(*unstructured.UnstructuredList)
 				u := unstructured.Unstructured{}
 				u.SetAPIVersion("apps/v1")
@@ -590,7 +589,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 		},
 		{
 			caseName: "error occurs when get peer workload",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					deployObj.DeepCopyInto(o)
 				}
@@ -604,7 +603,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 				}
 				return nil
 			},
-			mockListFn: func(ctx context.Context, list runtime.Object, opts ...client.ListOption) error {
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{

@@ -36,6 +36,7 @@ webhooks:
         scope: Namespaced
     admissionReviewVersions:
       - v1beta1
+      - v1
     timeoutSeconds: 5
   - clientConfig:
       caBundle: Cg==
@@ -63,6 +64,7 @@ webhooks:
         scope: Namespaced
     admissionReviewVersions:
       - v1beta1
+      - v1
     timeoutSeconds: 5
   {{- end }}
   - clientConfig:
@@ -91,6 +93,7 @@ webhooks:
         scope: Namespaced
     admissionReviewVersions:
       - v1beta1
+      - v1
     timeoutSeconds: 5
   - clientConfig:
       caBundle: Cg==
@@ -132,6 +135,7 @@ webhooks:
     sideEffects: None
     admissionReviewVersions:
       - v1beta1
+      - v1
     rules:
       - apiGroups:
           - core.oam.dev

@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -59,12 +59,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	switch req.AdmissionRequest.Operation { //nolint:exhaustive
-	case admissionv1beta1.Create:
+	case admissionv1.Create:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
 			klog.InfoS("Failed to create component", "component", klog.KObj(obj), "err", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
-	case admissionv1beta1.Update:
+	case admissionv1.Update:
 		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
 			klog.InfoS("Failed to update component", "component", klog.KObj(obj), "err", allErrs.ToAggregate().Error())
 			return admission.Denied(allErrs.ToAggregate().Error())
