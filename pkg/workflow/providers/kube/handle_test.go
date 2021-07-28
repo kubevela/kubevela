@@ -153,8 +153,22 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
 			}, workload)
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
 	})
-	It("test patch error", func() {
-		p := &provider{}
+
+	It("test error case", func() {
+		p := &provider{
+			apply: func(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+				for _, obj := range manifests {
+					if err := k8sClient.Create(ctx, obj); err != nil {
+						if errors.IsAlreadyExists(err) {
+							return k8sClient.Update(ctx, obj)
+						}
+						return err
+					}
+				}
+				return nil
+			},
+			cli: k8sClient,
+		}
 		ctx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
 
@@ -171,6 +185,21 @@ apiVersion: "v1"
 patch: _|_`, nil)
 		err = p.Apply(ctx, v, nil)
 		Expect(err).To(HaveOccurred())
+
+		v, err = value.NewValue(`
+metadata: {
+  name: "app-xx"
+  namespace: "default"
+}
+kind: "Pod"
+apiVersion: "v1"
+`, nil)
+		Expect(err).ToNot(HaveOccurred())
+		err = p.Read(ctx, v, nil)
+		Expect(err).ToNot(HaveOccurred())
+		errV, err := v.Field("err")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(errV.Exists()).Should(BeTrue())
 	})
 
 })

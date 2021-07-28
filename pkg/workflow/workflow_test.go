@@ -148,8 +148,9 @@ var _ = Describe("Test Workflow", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(done).Should(BeFalse())
 		Expect(pause).Should(BeTrue())
-		app.Status.Workflow.ContextBackend = nil
-		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+		wfStatus := *app.Status.Workflow
+		wfStatus.ContextBackend = nil
+		Expect(cmp.Diff(wfStatus, common.WorkflowStatus{
 			AppRevision: revision,
 			StepIndex:   2,
 			Suspend:     true,

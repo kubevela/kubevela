@@ -96,7 +96,7 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	retObj.SetKind(obj.GetKind())
 	retObj.SetAPIVersion(obj.GetAPIVersion())
 	if err := h.cli.Get(context.Background(), key, retObj); err != nil {
-		return v.FillRaw(err.Error(), "err")
+		return v.FillObject(err.Error(), "err")
 	}
 	return v.FillObject(retObj.Object, "result")
 }
