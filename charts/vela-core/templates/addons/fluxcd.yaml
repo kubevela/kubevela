@@ -4158,13 +4158,6 @@ data:
                     - emptyDir: {}
                       name: tmp
             type: raw
-          - name: flux-system
-            properties:
-              apiVersion: v1
-              kind: Namespace
-              metadata:
-                name: flux-system
-            type: raw
           - name: allow-egress
             properties:
               apiVersion: networking.k8s.io/v1
@@ -4516,6 +4509,12 @@ data:
             rollingState: ""
             upgradedReadyReplicas: 0
             upgradedReplicas: 0
+      dependsOn:
+      - ref:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Initializer
+          name: ns-flux-system
+          namespace: vela-system
     status:
       observedGeneration: 0
 kind: ConfigMap

@@ -2,16 +2,10 @@ apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
   annotations:
-    addons.oam.dev/description: "Flux is a set of continuous and progressive delivery solutions for Kubernetes"
-  name: fluxcd
+    addons.oam.dev/description: "Create namespace for flux-system"
+  name: ns-flux-system
   namespace: vela-system
 spec:
-  dependsOn:
-    - ref:
-        apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: ns-flux-system
-        namespace: vela-system
   appTemplate:
     spec:
       components:
