@@ -18,6 +18,7 @@ package kube
 
 import (
 	"context"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,7 +45,25 @@ type provider struct {
 // Apply create or update CR in cluster.
 func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	var workload = new(unstructured.Unstructured)
-	if err := v.UnmarshalTo(workload); err != nil {
+	pv, _ := v.Field("patch")
+	if pv.Exists() {
+		base, err := model.NewBase(v.CueValue())
+		if err != nil {
+			return err
+		}
+
+		patcher, err := model.NewOther(pv)
+		if err != nil {
+			return err
+		}
+		if err := base.Unify(patcher); err != nil {
+			return err
+		}
+		workload, err = base.Unstructured()
+		if err != nil {
+			return err
+		}
+	} else if err := v.UnmarshalTo(workload); err != nil {
 		return err
 	}
 
@@ -52,6 +71,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if workload.GetNamespace() == "" {
 		workload.SetNamespace("default")
 	}
+	delete(workload.Object,"patch")
 	if err := h.apply(deployCtx, workload); err != nil {
 		return err
 	}
@@ -71,10 +91,14 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	if key.Namespace == "" {
 		key.Namespace = "default"
 	}
-	if err := h.cli.Get(context.Background(), key, obj); err != nil {
-		return err
+
+	retObj := new(unstructured.Unstructured)
+	retObj.SetKind(obj.GetKind())
+	retObj.SetAPIVersion(obj.GetAPIVersion())
+	if err := h.cli.Get(context.Background(), key, retObj); err != nil {
+		return v.FillRaw(err.Error(), "err")
 	}
-	return v.FillObject(obj.Object, "result")
+	return v.FillObject(retObj.Object, "result")
 }
 
 // Install register handlers to provider discover.

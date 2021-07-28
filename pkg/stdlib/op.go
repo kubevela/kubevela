@@ -54,6 +54,7 @@ var opFile = file{
 #Apply: {
   #do: "apply"
   #provider: "kube"
+  patch: _
   ...
 }
 

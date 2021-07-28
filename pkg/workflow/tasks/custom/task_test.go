@@ -42,17 +42,10 @@ func TestTaskLoader(t *testing.T) {
 	discover := providers.NewProviders()
 	discover.Register("test", map[string]providers.Handler{
 		"output": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
-			ipPathVal, err := v.LookupValue("myIP")
-			assert.NilError(t, err)
-			ipPath, err := ipPathVal.CueValue().String()
-			assert.NilError(t, err)
-			val, err := value.NewValue(`
-ip: "1.1.1.1"            
-`, nil)
-			assert.NilError(t, err)
-			ip, err := val.LookupValue("ip")
-			assert.NilError(t, err)
-			return ctx.SetVar(ip, ipPath)
+			ip, _ := v.MakeValue(`
+myIP: "1.1.1.1"            
+`)
+			return v.FillObject(ip)
 		},
 		"input": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
 			val, err := v.LookupValue("prefixIP")
@@ -148,6 +141,7 @@ ip: "1.1.1.1"
 			assert.Equal(t, status.Reason, StatusReasonExecute)
 			continue
 		}
+		assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
 	}
 
 }
@@ -248,7 +242,7 @@ process: {
 `
 	switch name {
 	case "output":
-		return fmt.Sprintf(templ, "output"), nil
+		return fmt.Sprintf(templ+`myIP: process.myIP`, "output"), nil
 	case "input":
 		return fmt.Sprintf(templ, "input"), nil
 	case "wait":
