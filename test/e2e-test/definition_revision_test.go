@@ -166,14 +166,14 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: comp1Name,
 						Type: "webservice",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": "nginx",
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "label",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -225,14 +225,14 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: comp1Name,
 						Type: "webservice@v1",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": "nginx",
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "label@v1",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -298,7 +298,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: comp1Name,
 						Type: "webservice@v10",
@@ -386,7 +386,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: "helm-worker",
@@ -395,7 +395,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 								"tag": "5.1.2",
 							},
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "label",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -444,7 +444,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: "helm-worker@v1",
@@ -545,14 +545,14 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: "kube-worker",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": "busybox",
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "label",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -590,14 +590,14 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: "kube-worker@v1",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": "nginx",
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "label",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -631,7 +631,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: "kube-worker@a1",
@@ -683,7 +683,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: "webservice@v1",
@@ -691,7 +691,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 							"image": "crccheck/hello-world",
 							"port":  8000,
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "expose@v1",
 								Properties: util.Object2RawExtension(map[string]interface{}{

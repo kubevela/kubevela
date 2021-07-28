@@ -30,6 +30,8 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -41,7 +43,7 @@ import (
 type EnvBindApp struct {
 	baseApp    *v1beta1.Application
 	patchedApp *v1beta1.Application
-	envConfig  *v1beta1.EnvConfig
+	envConfig  *v1alpha1.EnvConfig
 
 	componentManifests []*types.ComponentManifest
 	assembledManifests []*unstructured.Unstructured
@@ -50,7 +52,7 @@ type EnvBindApp struct {
 }
 
 // NewEnvBindApp create EnvBindApp
-func NewEnvBindApp(base *v1beta1.Application, envConfig *v1beta1.EnvConfig) *EnvBindApp {
+func NewEnvBindApp(base *v1beta1.Application, envConfig *v1alpha1.EnvConfig) *EnvBindApp {
 	return &EnvBindApp{
 		baseApp:   base,
 		envConfig: envConfig,
@@ -60,7 +62,7 @@ func NewEnvBindApp(base *v1beta1.Application, envConfig *v1beta1.EnvConfig) *Env
 // generateConfiguredApplication patch component parameters to base Application
 func (e *EnvBindApp) generateConfiguredApplication() error {
 	newApp := e.baseApp.DeepCopy()
-	var baseComponent *v1beta1.ApplicationComponent
+	var baseComponent *common.ApplicationComponent
 	var matchIdx int
 	for patchIdx := range e.envConfig.Patch.Components {
 		patchComponent := e.envConfig.Patch.Components[patchIdx]
@@ -153,7 +155,7 @@ func (e *EnvBindApp) SetNamespace(resource *unstructured.Unstructured) {
 }
 
 // CreateEnvBindApps create EnvBindApps from different envs
-func CreateEnvBindApps(envBinding *v1beta1.EnvBinding, baseApp *v1beta1.Application) ([]*EnvBindApp, error) {
+func CreateEnvBindApps(envBinding *v1alpha1.EnvBinding, baseApp *v1beta1.Application) ([]*EnvBindApp, error) {
 	envBindApps := make([]*EnvBindApp, len(envBinding.Spec.Envs))
 	for i := range envBinding.Spec.Envs {
 		env := envBinding.Spec.Envs[i]
@@ -190,7 +192,7 @@ func AssembleEnvBindApps(envBindApps []*EnvBindApp) error {
 }
 
 // PatchComponent patch component parameter to target component parameter
-func PatchComponent(baseComponent *v1beta1.ApplicationComponent, patchComponent *v1beta1.ApplicationComponent) (*v1beta1.ApplicationComponent, error) {
+func PatchComponent(baseComponent *common.ApplicationComponent, patchComponent *common.ApplicationComponent) (*common.ApplicationComponent, error) {
 	targetComponent := baseComponent.DeepCopy()
 
 	mergedProperties, err := PatchProperties(baseComponent.Properties, patchComponent.Properties)
@@ -199,7 +201,7 @@ func PatchComponent(baseComponent *v1beta1.ApplicationComponent, patchComponent 
 	}
 	targetComponent.Properties = util.Object2RawExtension(mergedProperties)
 
-	var baseTrait *v1beta1.ApplicationTrait
+	var baseTrait *common.ApplicationTrait
 	var matchIdx int
 	for _, patchTrait := range patchComponent.Traits {
 		var isMatched bool
@@ -248,7 +250,7 @@ func PatchProperties(dst runtime.RawExtension, patch runtime.RawExtension) (map[
 }
 
 // StoreManifest2ConfigMap store manifest to configmap
-func StoreManifest2ConfigMap(ctx context.Context, cli client.Client, envBinding *v1beta1.EnvBinding, apps []*EnvBindApp) error {
+func StoreManifest2ConfigMap(ctx context.Context, cli client.Client, envBinding *v1alpha1.EnvBinding, apps []*EnvBindApp) error {
 	cm := new(corev1.ConfigMap)
 	data := make(map[string]string)
 	for _, app := range apps {

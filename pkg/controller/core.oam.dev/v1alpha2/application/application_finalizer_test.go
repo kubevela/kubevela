@@ -102,7 +102,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 
 		By("add a cross namespace trait for application")
 		updateApp := checkApp.DeepCopy()
-		updateApp.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+		updateApp.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "cross-scaler",
 				Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
@@ -230,7 +230,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		appName := "app-4"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "cross-worker")
-		app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+		app.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "cross-scaler",
 				Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
@@ -277,7 +277,7 @@ func getApp(appName, namespace, comptype string) *v1beta1.Application {
 			Namespace: namespace,
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "comp1",
 					Type:       comptype,

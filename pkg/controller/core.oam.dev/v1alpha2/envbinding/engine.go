@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	ocmapi "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/envbinding/api"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -35,9 +35,9 @@ import (
 
 // ClusterManagerEngine defines Cluster Manage interface
 type ClusterManagerEngine interface {
-	Prepare(ctx context.Context, configs []v1beta1.EnvConfig) error
+	Prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error
 	Schedule(ctx context.Context, apps []*EnvBindApp) error
-	GetClusterDecisions() []v1beta1.ClusterDecision
+	GetClusterDecisions() []v1alpha1.ClusterDecision
 }
 
 // OCMEngine represents Open-Cluster-Management multi-cluster management solution
@@ -62,7 +62,7 @@ func NewOCMEngine(cli client.Client, appName, appNs string) ClusterManagerEngine
 // Prepare complete the pre-work of cluster scheduling and select the target cluster
 // 1) if user directly specify the cluster name, Prepare will do nothing
 // 2) if user use Labels to select the target cluster, Prepare will create the Placement to select cluster
-func (o *OCMEngine) Prepare(ctx context.Context, configs []v1beta1.EnvConfig) error {
+func (o *OCMEngine) Prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error {
 	var err error
 	for _, config := range configs {
 		if len(config.Placement.ClusterSelector.Name) != 0 {
@@ -117,10 +117,10 @@ func (o *OCMEngine) Schedule(ctx context.Context, apps []*EnvBindApp) error {
 }
 
 // GetClusterDecisions return ClusterDecisions
-func (o *OCMEngine) GetClusterDecisions() []v1beta1.ClusterDecision {
-	var clusterDecisions []v1beta1.ClusterDecision
+func (o *OCMEngine) GetClusterDecisions() []v1alpha1.ClusterDecision {
+	var clusterDecisions []v1alpha1.ClusterDecision
 	for env, cluster := range o.clusterDecisions {
-		clusterDecisions = append(clusterDecisions, v1beta1.ClusterDecision{
+		clusterDecisions = append(clusterDecisions, v1alpha1.ClusterDecision{
 			EnvName:     env,
 			ClusterName: cluster,
 		})
@@ -129,7 +129,7 @@ func (o *OCMEngine) GetClusterDecisions() []v1beta1.ClusterDecision {
 }
 
 // DispatchPlacement dispatch Placement Object of OCM for cluster selected
-func (o *OCMEngine) DispatchPlacement(ctx context.Context, config v1beta1.EnvConfig) error {
+func (o *OCMEngine) DispatchPlacement(ctx context.Context, config v1alpha1.EnvConfig) error {
 	placement := new(ocmapi.Placement)
 	placementName := generatePlacementName(o.appName, config.Name)
 

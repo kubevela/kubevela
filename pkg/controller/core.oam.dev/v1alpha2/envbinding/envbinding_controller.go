@@ -19,7 +19,6 @@ package envbinding
 import (
 	"context"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,7 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
@@ -51,7 +51,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	klog.InfoS("Reconcile EnvBinding", "envbinding", klog.KRef(req.Namespace, req.Name))
 
 	ctx := context.Background()
-	envBinding := new(v1beta1.EnvBinding)
+	envBinding := new(v1alpha1.EnvBinding)
 	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, envBinding); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -65,32 +65,32 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "Failed to parse AppTemplate of EnvBinding")
 		r.record.Event(envBinding, event.Warning("Failed to parse AppTemplate of EnvBinding", err))
-		return r.endWithNegativeCondition(ctx, envBinding, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	var engine ClusterManagerEngine
 	switch envBinding.Spec.Engine {
-	case v1beta1.OCMEngine:
+	case v1alpha1.OCMEngine:
 		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace)
 	default:
 		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace)
 	}
 
 	// 1. prepare the pre-work for cluster scheduling
-	envBinding.Status.Phase = v1beta1.EnvBindingPrepare
+	envBinding.Status.Phase = v1alpha1.EnvBindingPrepare
 	if err = engine.Prepare(ctx, envBinding.Spec.Envs); err != nil {
 		klog.ErrorS(err, "Failed to prepare the pre-work for cluster scheduling")
 		r.record.Event(envBinding, event.Warning("Failed to prepare the pre-work for cluster scheduling", err))
-		return r.endWithNegativeCondition(ctx, envBinding, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	// 2. patch the component parameters for application in different envs
-	envBinding.Status.Phase = v1beta1.EnvBindingRendering
+	envBinding.Status.Phase = v1alpha1.EnvBindingRendering
 	envBindApps, err := CreateEnvBindApps(envBinding, baseApp)
 	if err != nil {
 		klog.ErrorS(err, "Failed to patch the parameters for application in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to patch the parameters for application in different envs", err))
-		return r.endWithNegativeCondition(ctx, envBinding, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	// 3. render applications for different envs
@@ -98,54 +98,54 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err = RenderEnvBindApps(ctx, envBindApps, appParser); err != nil {
 		klog.ErrorS(err, "Failed to render the application for different envs")
 		r.record.Event(envBinding, event.Warning("Failed to render the application for different envs", err))
-		return r.endWithNegativeCondition(ctx, envBinding, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	// 4. assemble resources for applications in different envs
 	if err = AssembleEnvBindApps(envBindApps); err != nil {
 		klog.ErrorS(err, "Failed to assemble resources for application in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to assemble resources for application in different envs", err))
-		return r.endWithNegativeCondition(ctx, envBinding, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	// 5. schedule resource of applications in different envs
-	envBinding.Status.Phase = v1beta1.EnvBindingScheduling
+	envBinding.Status.Phase = v1alpha1.EnvBindingScheduling
 	if err = engine.Schedule(ctx, envBindApps); err != nil {
 		klog.ErrorS(err, "Failed to schedule resource of applications in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to schedule resource of applications in different envs", err))
-		return r.endWithNegativeCondition(ctx, envBinding, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	// 6. store manifest of different envs to configmap
 	if err = StoreManifest2ConfigMap(ctx, r, envBinding, envBindApps); err != nil {
 		klog.ErrorS(err, "Failed to store manifest of different envs to configmap")
 		r.record.Event(envBinding, event.Warning("Failed to store manifest of different envs to configmap", err))
-		return r.endWithNegativeCondition(ctx, envBinding, cpv1alpha1.ReconcileError(err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
-	envBinding.Status.Phase = v1beta1.EnvBindingFinished
+	envBinding.Status.Phase = v1alpha1.EnvBindingFinished
 	envBinding.Status.ClusterDecisions = engine.GetClusterDecisions()
 	if err = r.Client.Status().Patch(ctx, envBinding, client.Merge); err != nil {
 		klog.ErrorS(err, "Failed to update status")
 		r.record.Event(envBinding, event.Warning("Failed to update status", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, envBinding, cpv1alpha1.ReconcileError(err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, envBinding, condition.ReconcileError(err))
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) endWithNegativeCondition(ctx context.Context, envBinding *v1beta1.EnvBinding, condition cpv1alpha1.Condition) (ctrl.Result, error) {
-	envBinding.SetConditions(condition)
+func (r *Reconciler) endWithNegativeCondition(ctx context.Context, envBinding *v1alpha1.EnvBinding, cond condition.Condition) (ctrl.Result, error) {
+	envBinding.SetConditions(cond)
 	if err := r.Client.Status().Patch(ctx, envBinding, client.Merge); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
 	}
 	// if any condition is changed, patching status can trigger requeue the resource and we should return nil to
 	// avoid requeue it again
-	if util.IsConditionChanged([]cpv1alpha1.Condition{condition}, envBinding) {
+	if util.IsConditionChanged([]condition.Condition{cond}, envBinding) {
 		return ctrl.Result{}, nil
 	}
 	// if no condition is changed, patching status can not trigger requeue, so we must return an error to
 	// requeue the resource
-	return ctrl.Result{}, errors.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
+	return ctrl.Result{}, errors.Errorf("object level reconcile error, type: %q, msg: %q", string(cond.Type), cond.Message)
 }
 
 // SetupWithManager will setup with event recorder
@@ -156,7 +156,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
-		For(&v1beta1.EnvBinding{}).
+		For(&v1alpha1.EnvBinding{}).
 		Complete(r)
 }
 

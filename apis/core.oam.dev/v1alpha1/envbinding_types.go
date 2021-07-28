@@ -14,12 +14,14 @@
  limitations under the License.
 */
 
-package v1beta1
+package v1alpha1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
 // ClusterManagementEngine represents a multi-cluster management solution
@@ -49,14 +51,14 @@ const (
 
 // EnvPatch specify the parameter configuration for different environments
 type EnvPatch struct {
-	Components []ApplicationComponent `json:"components"`
+	Components []common.ApplicationComponent `json:"components"`
 }
 
 // EnvConfig is the configuration for different environments.
 type EnvConfig struct {
-	Name      string           `json:"name"`
-	Placement ClusterPlacement `json:"placement"`
-	Patch     EnvPatch         `json:"patch"`
+	Name      string                  `json:"name"`
+	Placement common.ClusterPlacement `json:"placement"`
+	Patch     EnvPatch                `json:"patch"`
 }
 
 // AppTemplate represents a application to be configured.
@@ -85,7 +87,7 @@ type EnvBindingSpec struct {
 // A EnvBindingStatus is the status of EnvBinding
 type EnvBindingStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	Phase EnvBindingPhase `json:"phase,omitempty"`
 
@@ -117,11 +119,11 @@ type EnvBindingList struct {
 }
 
 // SetConditions set condition for EnvBinding
-func (e *EnvBinding) SetConditions(c ...runtimev1alpha1.Condition) {
+func (e *EnvBinding) SetConditions(c ...condition.Condition) {
 	e.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from EnvBinding
-func (e *EnvBinding) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (e *EnvBinding) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return e.Status.GetCondition(conditionType)
 }

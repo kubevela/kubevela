@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -111,7 +112,7 @@ var _ = Describe("test generate revision ", func() {
 				UID:       "f97e2615-3822-4c62-a3bd-fb880e0bcec5",
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Type:   cd.Name,
 						Name:   "express-server",
@@ -119,7 +120,7 @@ var _ = Describe("test generate revision ", func() {
 						Properties: runtime.RawExtension{
 							Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 						},
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: td.Name,
 								Properties: runtime.RawExtension{
@@ -228,7 +229,7 @@ var _ = Describe("test generate revision ", func() {
 	})
 
 	It("Test appliction contain a SkipAppRevision tait will have same hash", func() {
-		rolloutTrait := v1beta1.ApplicationTrait{
+		rolloutTrait := common.ApplicationTrait{
 			Type: "rollout",
 			Properties: runtime.RawExtension{
 				Raw: []byte(`{"targetRevision":"myrev-v1"}`),
@@ -696,9 +697,9 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 var _ = Describe("Test remove SkipAppRev func", func() {
 	It("Test remove spec", func() {
 		appSpec := v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
-					Traits: []v1beta1.ApplicationTrait{
+					Traits: []common.ApplicationTrait{
 						{
 							Type: "rollout",
 						},
