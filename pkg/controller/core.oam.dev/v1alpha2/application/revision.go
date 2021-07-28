@@ -18,8 +18,12 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"sort"
+	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
@@ -334,6 +338,8 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 }
 
 // HandleComponentsRevision manages Component revisions
+// 1. if update component create a new component Revision
+// 2. check all componentTrait  rely on componentRevName, if yes fill it
 func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
 	for _, cm := range compManifests {
 		if cm.InsertConfigNotReady {
@@ -378,6 +384,11 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 		if needNewRevision {
 			cm.RevisionName = utils.ConstructRevisionName(cm.Name, maxRevisionNum+1)
 			if err := h.createControllerRevision(ctx, cm); err != nil {
+				return err
+			}
+		}
+		for _, trait := range cm.Traits {
+			if err := replaceComponentRevisionContext(trait, cm.RevisionName); err != nil {
 				return err
 			}
 		}
@@ -656,6 +667,17 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 		usingRevision[revName] = true
 	}
 	return usingRevision, nil
+}
+
+func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName string) error {
+	str := string(util.JSONMarshal(u))
+	if strings.Contains(str, process.ComponentRevisionPlaceHolder) {
+		newStr := strings.ReplaceAll(str, process.ComponentRevisionPlaceHolder, compRevName)
+		if err := json.Unmarshal([]byte(newStr), u); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type historiesByRevision []v1beta1.ApplicationRevision

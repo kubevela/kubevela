@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/cue/process"
+
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -630,5 +632,45 @@ var _ = Describe("test generate revision ", func() {
 		Expect(curAppRevision.GetLabels()[labelKey2]).Should(Equal("true"))
 		Expect(curAppRevision.GetAnnotations()[annoKey1]).Should(BeEmpty())
 		Expect(curAppRevision.GetAnnotations()[annoKey2]).Should(Equal("true"))
+	})
+})
+
+var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
+	It("Test replace", func() {
+		rollout := v1alpha1.Rollout{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1alpha1",
+				Kind:       "Rollout",
+			},
+			Spec: v1alpha1.RolloutSpec{
+				TargetRevisionName: process.ComponentRevisionPlaceHolder,
+			},
+		}
+		u, err := util.Object2Unstructured(rollout)
+		Expect(err).Should(BeNil())
+		err = replaceComponentRevisionContext(u, "comp-rev1")
+		Expect(err).Should(BeNil())
+		jsRes, err := u.MarshalJSON()
+		Expect(err).Should(BeNil())
+		err = json.Unmarshal(jsRes, &rollout)
+		Expect(err).Should(BeNil())
+		Expect(rollout.Spec.TargetRevisionName).Should(BeEquivalentTo("comp-rev1"))
+	})
+
+	It("Test replace return error", func() {
+		rollout := v1alpha1.Rollout{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1alpha1",
+				Kind:       "Rollout",
+			},
+			Spec: v1alpha1.RolloutSpec{
+				TargetRevisionName: process.ComponentRevisionPlaceHolder,
+			},
+		}
+		u, err := util.Object2Unstructured(rollout)
+		Expect(err).Should(BeNil())
+		By("test replace with a bad revision")
+		err = replaceComponentRevisionContext(u, "comp-rev1-\\}")
+		Expect(err).ShouldNot(BeNil())
 	})
 })
