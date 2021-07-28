@@ -196,6 +196,14 @@ close({
 			}},
 		},
 		{
+			Name: "output",
+			Type: "ok",
+			Outputs: v1beta1.StepOutputs{{
+				Name:      "podIP",
+				ExportKey: "myIP",
+			}},
+		},
+		{
 			Name: "wait",
 			Type: "wait",
 		},
@@ -213,6 +221,9 @@ close({
 		switch step.Name {
 		case "input":
 			assert.Equal(t, err != nil, true)
+		case "ouput":
+			assert.Equal(t, status.Reason, StatusReasonOutput)
+			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
 		default:
 			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
 		}

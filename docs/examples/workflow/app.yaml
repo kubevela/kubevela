@@ -18,7 +18,7 @@ spec:
           name: "firstApp"
         outputs:
           - name: server1Ip
-            exportKey: "myIp"
+            exportKey: "myIP"
       - name: deploy-server2
         type: apply
         inputs:

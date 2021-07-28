@@ -11,7 +11,6 @@ spec:
            component: string
            name: string
            prefixIP?: string
-           myIp?: string
         }
 
         // load component from application
@@ -34,7 +33,7 @@ spec:
         }
 
         // export podIP
-        myIp: apply.status.podIP
+        myIP: apply.status.podIP
 ---
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
