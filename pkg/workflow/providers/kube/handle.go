@@ -18,11 +18,11 @@ package kube
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -71,7 +71,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if workload.GetNamespace() == "" {
 		workload.SetNamespace("default")
 	}
-	delete(workload.Object,"patch")
+	delete(workload.Object, "patch")
 	if err := h.apply(deployCtx, workload); err != nil {
 		return err
 	}

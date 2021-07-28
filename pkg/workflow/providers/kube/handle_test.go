@@ -81,7 +81,7 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 		v, err := value.NewValue(fmt.Sprintf(`
 %s
 metadata: name: "app"
-`,component.Workload.String()), nil)
+`, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -97,7 +97,7 @@ metadata: name: "app"
 		v, err = value.NewValue(fmt.Sprintf(`
 %s
 metadata: name: "app"
-`,component.Workload.String()), nil)
+`, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -139,7 +139,7 @@ metadata: name: "app"
 		Expect(err).ToNot(HaveOccurred())
 		v, err := value.NewValue(fmt.Sprintf(`
 %s
-patch: metadata: name: "test-app-1"`,component.Workload.String()), nil)
+patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())

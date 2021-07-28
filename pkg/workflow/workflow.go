@@ -18,13 +18,14 @@ package workflow
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
+
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
