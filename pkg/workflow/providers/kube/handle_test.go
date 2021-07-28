@@ -153,6 +153,25 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
 			}, workload)
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
 	})
+	It("test patch error", func() {
+		p := &provider{}
+		ctx, err := newWorkflowContextForTest()
+		Expect(err).ToNot(HaveOccurred())
+
+		v, _ := value.NewValue(`
+kind: "Pod"
+apiVersion: "v1"
+patch: close({kind: 12})`, nil)
+		err = p.Apply(ctx, v, nil)
+		Expect(err).To(HaveOccurred())
+
+		v, _ = value.NewValue(`
+kind: "Pod"
+apiVersion: "v1"
+patch: _|_`, nil)
+		err = p.Apply(ctx, v, nil)
+		Expect(err).To(HaveOccurred())
+	})
 
 })
 

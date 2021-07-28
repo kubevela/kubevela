@@ -204,6 +204,14 @@ close({
 			}},
 		},
 		{
+			Name: "output-var-conflict",
+			Type: "ok",
+			Outputs: v1beta1.StepOutputs{{
+				Name:      "score",
+				ExportKey: "name",
+			}},
+		},
+		{
 			Name: "wait",
 			Type: "wait",
 		},
@@ -221,7 +229,7 @@ close({
 		switch step.Name {
 		case "input":
 			assert.Equal(t, err != nil, true)
-		case "ouput":
+		case "ouput", "output-var-conflict":
 			assert.Equal(t, status.Reason, StatusReasonOutput)
 			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
 		default:
@@ -250,10 +258,10 @@ parameter: {}
 process: {
 	#provider: "test"
 	#do: "%s"
-    // check injected context.
-    name: context.name
 	parameter
 }
+// check injected context.
+name: context.name
 `
 	switch name {
 	case "output":
