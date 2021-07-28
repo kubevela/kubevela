@@ -34,13 +34,7 @@ spec:
         }
 
         // export podIP
-        if parameter.myIp!=_|_{
-            export: op.#Export & {
-                type: "var"
-                path: parameter.myIp
-                value: apply.status.podIP
-            }
-        }
+        myIp: apply.status.podIP
 ---
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition

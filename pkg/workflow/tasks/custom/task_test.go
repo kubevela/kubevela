@@ -229,6 +229,8 @@ func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	wfCtx := new(wfContext.WorkflowContext)
 	err = wfCtx.LoadFromConfigMap(cm)
 	assert.NilError(t, err)
+	v, _ := value.NewValue(`name: "app"`, nil)
+	assert.NilError(t, wfCtx.SetVar(v, types.ContextKeyMetadata))
 	return wfCtx
 }
 func mockLoadTemplate(_ context.Context, name string) (string, error) {
@@ -237,6 +239,8 @@ parameter: {}
 process: {
 	#provider: "test"
 	#do: "%s"
+    // check injected context.
+    name: context.name
 	parameter
 }
 `

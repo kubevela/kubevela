@@ -45,8 +45,8 @@ type provider struct {
 // Apply create or update CR in cluster.
 func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	var workload = new(unstructured.Unstructured)
-	pv, _ := v.Field("patch")
-	if pv.Exists() {
+	pv, err := v.Field("patch")
+	if pv.Exists() && err == nil {
 		base, err := model.NewBase(v.CueValue())
 		if err != nil {
 			return err
