@@ -23,13 +23,13 @@ import (
 	"reflect"
 	"strings"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -149,7 +149,7 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 				return err
 			}
 		}
-		workloadRef := runtimev1alpha1.TypedReference{
+		workloadRef := corev1.ObjectReference{
 			APIVersion: wl.Workload.GetAPIVersion(),
 			Kind:       wl.Workload.GetKind(),
 			Name:       wl.Workload.GetName(),
@@ -347,7 +347,7 @@ func findDereferencedScopes(statusScopes []v1alpha2.WorkloadScope, scopes []unst
 	return toBeDeferenced
 }
 
-func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.Unstructured, workloadRef runtimev1alpha1.TypedReference) error {
+func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.Unstructured, workloadRef corev1.ObjectReference) error {
 	// get ScopeDefinition
 	scopeDefinition, err := util.FetchScopeDefinition(ctx, a.rawClient, a.dm, &s)
 	if err != nil {
@@ -391,7 +391,7 @@ func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.
 
 // applyScopeRemoval remove the workload reference from the scope's reference list.
 // If the scope or scope definition is not found(deleted), it's still regarded as remove successfully.
-func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr runtimev1alpha1.TypedReference, s v1alpha2.WorkloadScope) error {
+func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr corev1.ObjectReference, s v1alpha2.WorkloadScope) error {
 	scopeObject := unstructured.Unstructured{}
 	scopeObject.SetAPIVersion(s.Reference.APIVersion)
 	scopeObject.SetKind(s.Reference.Kind)

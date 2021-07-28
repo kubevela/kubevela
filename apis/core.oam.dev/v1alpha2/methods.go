@@ -19,75 +19,77 @@ limitations under the License.
 package v1alpha2
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
 // GetCondition of this ManualScalerTrait.
-func (tr *ManualScalerTrait) GetCondition(ct runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (tr *ManualScalerTrait) GetCondition(ct condition.ConditionType) condition.Condition {
 	return tr.Status.GetCondition(ct)
 }
 
 // SetConditions of this ManualScalerTrait.
-func (tr *ManualScalerTrait) SetConditions(c ...runtimev1alpha1.Condition) {
+func (tr *ManualScalerTrait) SetConditions(c ...condition.Condition) {
 	tr.Status.SetConditions(c...)
 }
 
 // GetWorkloadReference of this ManualScalerTrait.
-func (tr *ManualScalerTrait) GetWorkloadReference() runtimev1alpha1.TypedReference {
+func (tr *ManualScalerTrait) GetWorkloadReference() corev1.ObjectReference {
 	return tr.Spec.WorkloadReference
 }
 
 // SetWorkloadReference of this ManualScalerTrait.
-func (tr *ManualScalerTrait) SetWorkloadReference(r runtimev1alpha1.TypedReference) {
+func (tr *ManualScalerTrait) SetWorkloadReference(r corev1.ObjectReference) {
 	tr.Spec.WorkloadReference = r
 }
 
 // GetCondition of this ApplicationConfiguration.
-func (ac *ApplicationConfiguration) GetCondition(ct runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (ac *ApplicationConfiguration) GetCondition(ct condition.ConditionType) condition.Condition {
 	return ac.Status.GetCondition(ct)
 }
 
 // SetConditions of this ApplicationConfiguration.
-func (ac *ApplicationConfiguration) SetConditions(c ...runtimev1alpha1.Condition) {
+func (ac *ApplicationConfiguration) SetConditions(c ...condition.Condition) {
 	ac.Status.SetConditions(c...)
 }
 
 // GetCondition of this Component.
-func (cm *Component) GetCondition(ct runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (cm *Component) GetCondition(ct condition.ConditionType) condition.Condition {
 	return cm.Status.GetCondition(ct)
 }
 
 // SetConditions of this Component.
-func (cm *Component) SetConditions(c ...runtimev1alpha1.Condition) {
+func (cm *Component) SetConditions(c ...condition.Condition) {
 	cm.Status.SetConditions(c...)
 }
 
 // GetCondition of this ContainerizedWorkload.
-func (wl *ContainerizedWorkload) GetCondition(ct runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (wl *ContainerizedWorkload) GetCondition(ct condition.ConditionType) condition.Condition {
 	return wl.Status.GetCondition(ct)
 }
 
 // SetConditions of this ContainerizedWorkload.
-func (wl *ContainerizedWorkload) SetConditions(c ...runtimev1alpha1.Condition) {
+func (wl *ContainerizedWorkload) SetConditions(c ...condition.Condition) {
 	wl.Status.SetConditions(c...)
 }
 
 // GetCondition of this HealthScope.
-func (hs *HealthScope) GetCondition(ct runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (hs *HealthScope) GetCondition(ct condition.ConditionType) condition.Condition {
 	return hs.Status.GetCondition(ct)
 }
 
 // SetConditions of this HealthScope.
-func (hs *HealthScope) SetConditions(c ...runtimev1alpha1.Condition) {
+func (hs *HealthScope) SetConditions(c ...condition.Condition) {
 	hs.Status.SetConditions(c...)
 }
 
 // GetWorkloadReferences to get all workload references for scope.
-func (hs *HealthScope) GetWorkloadReferences() []runtimev1alpha1.TypedReference {
+func (hs *HealthScope) GetWorkloadReferences() []corev1.ObjectReference {
 	return hs.Spec.WorkloadReferences
 }
 
 // AddWorkloadReference to add a workload reference to this scope.
-func (hs *HealthScope) AddWorkloadReference(r runtimev1alpha1.TypedReference) {
+func (hs *HealthScope) AddWorkloadReference(r corev1.ObjectReference) {
 	hs.Spec.WorkloadReferences = append(hs.Spec.WorkloadReferences, r)
 }

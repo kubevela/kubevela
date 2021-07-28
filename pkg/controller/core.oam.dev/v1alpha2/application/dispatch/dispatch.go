@@ -117,13 +117,13 @@ func (a *AppManifestsDispatcher) Dispatch(ctx context.Context, manifests []*unst
 }
 
 // ReferenceScopes add workload reference to scopes' workloadRefPath
-func (a *AppManifestsDispatcher) ReferenceScopes(ctx context.Context, wlRef *v1beta1.TypedReference, scopes []*v1beta1.TypedReference) error {
+func (a *AppManifestsDispatcher) ReferenceScopes(ctx context.Context, wlRef *v1.ObjectReference, scopes []*v1.ObjectReference) error {
 	// TODO handle scopes
 	return nil
 }
 
 // DereferenceScopes remove workload reference from scopes' workloadRefPath
-func (a *AppManifestsDispatcher) DereferenceScopes(ctx context.Context, wlRef *v1beta1.TypedReference, scopes []*v1beta1.TypedReference) error {
+func (a *AppManifestsDispatcher) DereferenceScopes(ctx context.Context, wlRef *v1.ObjectReference, scopes []*v1.ObjectReference) error {
 	// TODO handle scopes
 	return nil
 }
@@ -281,10 +281,10 @@ func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, r
 func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context, appliedManifests []*unstructured.Unstructured) error {
 	// merge applied resources and already tracked ones
 	if a.currentRT.Status.TrackedResources == nil {
-		a.currentRT.Status.TrackedResources = make([]v1beta1.TypedReference, 0)
+		a.currentRT.Status.TrackedResources = make([]v1.ObjectReference, 0)
 	}
 	for _, rsc := range appliedManifests {
-		appliedRef := v1beta1.TypedReference{
+		appliedRef := v1.ObjectReference{
 			APIVersion: rsc.GetAPIVersion(),
 			Kind:       rsc.GetKind(),
 			Name:       rsc.GetName(),

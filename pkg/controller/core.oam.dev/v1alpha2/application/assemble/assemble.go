@@ -20,7 +20,6 @@ import (
 	"reflect"
 	"strings"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -404,7 +403,7 @@ func (am *AppManifests) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trai
 	// only add workload reference to the trait if it asks for it
 	if len(workloadRefPath) != 0 {
 		// TODO(roywang) this is for backward compatibility, remove crossplane/runtime/v1alpha1 in the future
-		tmpWLRef := runtimev1alpha1.TypedReference{
+		tmpWLRef := corev1.ObjectReference{
 			APIVersion: wlRef.APIVersion,
 			Kind:       wlRef.Kind,
 			Name:       wlRef.Name,

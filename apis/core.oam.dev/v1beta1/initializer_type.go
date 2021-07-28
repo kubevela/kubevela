@@ -17,9 +17,10 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
 // InitializerPhase is a label for the condition of a initializer at the current time
@@ -52,7 +53,7 @@ type InitializerSpec struct {
 // InitializerStatus is the status of Initializer
 type InitializerStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	Phase InitializerPhase `json:"status,omitempty"`
 
@@ -86,11 +87,11 @@ type InitializerList struct {
 }
 
 // SetConditions set condition for Initializer
-func (i *Initializer) SetConditions(c ...runtimev1alpha1.Condition) {
+func (i *Initializer) SetConditions(c ...condition.Condition) {
 	i.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from Initializer
-func (i *Initializer) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (i *Initializer) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return i.Status.GetCondition(conditionType)
 }

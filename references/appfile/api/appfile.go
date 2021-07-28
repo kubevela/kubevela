@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -198,7 +198,7 @@ func addDefaultHealthScopeToApplication(app *v1beta1.Application) *v1alpha2.Heal
 	}
 	health.Name = FormatDefaultHealthScopeName(app.Name)
 	health.Namespace = app.Namespace
-	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
+	health.Spec.WorkloadReferences = make([]corev1.ObjectReference, 0)
 	for i := range app.Spec.Components {
 		// FIXME(wonderflow): the hardcode health scope should be fixed.
 		app.Spec.Components[i].Scopes = map[string]string{DefaultHealthScopeKey: health.Name}

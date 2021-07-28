@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -38,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -185,10 +186,10 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		// target manifest haven't template yet, call dispatch template target manifest firstly
 		err = h.templateTargetManifest(ctx)
 		if err != nil {
-			h.appRollout.Status.SetConditions(utils.ErrorCondition("template", err))
+			h.appRollout.Status.SetConditions(condition.ErrorCondition("template", err))
 			return reconcile.Result{}, err
 		}
-		h.appRollout.Status.SetConditions(utils.ReadyCondition("template"))
+		h.appRollout.Status.SetConditions(condition.ReadyCondition("template"))
 		// this ensures that we template workload only once
 		h.appRollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
 		klog.InfoS("AppRollout have complete templateTarget", "name", h.appRollout.Name, "namespace",

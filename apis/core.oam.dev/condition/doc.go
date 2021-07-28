@@ -14,21 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package context
-
-import (
-	corev1 "k8s.io/api/core/v1"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-)
-
-// Context is workflow context interface
-type Context interface {
-	GetComponent(name string) (*ComponentManifest, error)
-	PatchComponent(name string, patchValue *value.Value) error
-	GetVar(paths ...string) (*value.Value, error)
-	SetVar(v *value.Value, paths ...string) error
-	Commit() error
-	MakeParameter(parameter map[string]interface{}) (*value.Value, error)
-	StoreRef() *corev1.ObjectReference
-}
+// Package condition contains condition types
+// +kubebuilder:object:generate=true
+package condition

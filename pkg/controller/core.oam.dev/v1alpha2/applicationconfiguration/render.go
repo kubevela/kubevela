@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
@@ -274,7 +273,7 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 	}
 
 	// create the ref after the workload name is set
-	workloadRef := runtimev1alpha1.TypedReference{
+	workloadRef := corev1.ObjectReference{
 		APIVersion: w.GetAPIVersion(),
 		Kind:       w.GetKind(),
 		Name:       w.GetName(),
@@ -585,7 +584,7 @@ func makeUnsatisfiedDependency(obj *unstructured.Unstructured, s *dagSource, toP
 	return v1alpha2.UnstaifiedDependency{
 		Reason: reason,
 		From: v1alpha2.DependencyFromObject{
-			TypedReference: runtimev1alpha1.TypedReference{
+			ObjectReference: corev1.ObjectReference{
 				APIVersion: s.ObjectRef.APIVersion,
 				Kind:       s.ObjectRef.Kind,
 				Name:       s.ObjectRef.Name,
@@ -593,7 +592,7 @@ func makeUnsatisfiedDependency(obj *unstructured.Unstructured, s *dagSource, toP
 			FieldPath: s.ObjectRef.FieldPath,
 		},
 		To: v1alpha2.DependencyToObject{
-			TypedReference: runtimev1alpha1.TypedReference{
+			ObjectReference: corev1.ObjectReference{
 				APIVersion: obj.GetAPIVersion(),
 				Kind:       obj.GetKind(),
 				Name:       obj.GetName(),
@@ -631,8 +630,8 @@ func (r *components) handleDataOutput(ctx context.Context, outputs []v1alpha2.Da
 			if err != nil || !ready {
 				if err == nil {
 					outObj := &unstructured.Unstructured{}
-					outObj.SetGroupVersionKind(out.OutputStore.TypedReference.GroupVersionKind())
-					outObj.SetName(out.OutputStore.TypedReference.Name)
+					outObj.SetGroupVersionKind(out.OutputStore.GroupVersionKind())
+					outObj.SetName(out.OutputStore.Name)
 					toPath := oper.ToFieldPath
 					if len(oper.ToDataPath) != 0 {
 						toPath = toPath + "(" + oper.ToDataPath + ")"

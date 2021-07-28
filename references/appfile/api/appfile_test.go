@@ -20,10 +20,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
-	v12 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -329,7 +328,7 @@ outputs: ingress: {
 		"value": "test-value",
 	}}
 
-	ac3cm := &v12.ConfigMap{
+	ac3cm := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
@@ -348,7 +347,7 @@ outputs: ingress: {
 	}
 	health.Name = FormatDefaultHealthScopeName("myapp")
 	health.Namespace = "default"
-	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
+	health.Spec.WorkloadReferences = make([]corev1.ObjectReference, 0)
 	type args struct {
 		appfileData       string
 		workloadTemplates map[string]string

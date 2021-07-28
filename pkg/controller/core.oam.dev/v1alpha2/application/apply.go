@@ -19,8 +19,8 @@ package application
 import (
 	"context"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,13 +62,13 @@ func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Un
 }
 
 // DispatchAndGC apply manifests and do GC.
-func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*runtimev1alpha1.TypedReference, error) {
+func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
 	h.initDispatcher()
 	tracker, err := h.dispatcher.EndAndGC(h.latestTracker).Dispatch(ctx, manifests)
 	if err != nil {
 		return nil, errors.WithMessage(err, "cannot dispatch application manifests")
 	}
-	return &runtimev1alpha1.TypedReference{
+	return &corev1.ObjectReference{
 		APIVersion: tracker.APIVersion,
 		Kind:       tracker.Kind,
 		Name:       tracker.Name,
@@ -237,10 +237,10 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 	return appStatus, healthy, nil
 }
 
-func generateScopeReference(scopes []appfile.Scope) []runtimev1alpha1.TypedReference {
-	var references []runtimev1alpha1.TypedReference
+func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
+	var references []corev1.ObjectReference
 	for _, scope := range scopes {
-		references = append(references, runtimev1alpha1.TypedReference{
+		references = append(references, corev1.ObjectReference{
 			APIVersion: scope.GVK.GroupVersion().String(),
 			Kind:       scope.GVK.Kind,
 			Name:       scope.Name,

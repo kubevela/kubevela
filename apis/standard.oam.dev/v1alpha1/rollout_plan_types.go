@@ -17,8 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
 // RolloutStrategyType defines strategies for pods rollout
@@ -228,7 +230,7 @@ type CanaryMetric struct {
 
 	// TemplateRef references a metric template object
 	// +optional
-	TemplateRef *runtimev1alpha1.TypedReference `json:"templateRef,omitempty"`
+	TemplateRef *corev1.ObjectReference `json:"templateRef,omitempty"`
 }
 
 // MetricsExpectedRange defines the range used for metrics validation
@@ -245,7 +247,7 @@ type MetricsExpectedRange struct {
 // RolloutStatus defines the observed state of a rollout plan
 type RolloutStatus struct {
 	// Conditions represents the latest available observations of a CloneSet's current state.
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification
 	// and does not change until the rollout is restarted

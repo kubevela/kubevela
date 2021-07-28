@@ -17,8 +17,9 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
 // AppDeploymentPhase defines the phase that the AppDeployment is undergoing.
@@ -166,7 +167,7 @@ type AppDeploymentSpec struct {
 // AppDeploymentStatus defines the observed state of AppDeployment
 type AppDeploymentStatus struct {
 	// Conditions represents the latest available observations of a CloneSet's current state.
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// Phase shows the phase that the AppDeployment is undergoing.
 	// If Phase is Rolling, no update should be made to the spec.

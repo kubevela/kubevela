@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -82,7 +82,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.InfoS("Could not discover the open api of the CRD", "err", err)
 			r.record.Event(&componentDefinition, event.Warning("Could not discover the open api of the CRD", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
 
@@ -92,7 +92,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not generate DefinitionRevision", "componentDefinition", klog.KObj(&componentDefinition), "err", err)
 		r.record.Event(&componentDefinition, event.Warning("Could not generate DefinitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, componentDefinition.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, componentDefinition.Name, err)))
 	}
 
 	if !isNewRevision {
@@ -100,7 +100,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.InfoS("Could not update DefinitionRevision", "err", err)
 			r.record.Event(&(componentDefinition), event.Warning("Could not update DefinitionRevision", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(componentDefinition),
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+				condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
 		klog.InfoS("Successfully update definitionRevision", "definitionRevision", klog.KObj(defRev))
 
@@ -119,7 +119,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not capability in ConfigMap", "err", err)
 		r.record.Event(&(componentDefinition), event.Warning("Could not store capability in ConfigMap", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(componentDefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
 	componentDefinition.Status.ConfigMapRef = cmName
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
@@ -128,7 +128,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not create DefinitionRevision", "err", err)
 		r.record.Event(&(componentDefinition), event.Warning("cannot create DefinitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(componentDefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
 	klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
 
@@ -142,7 +142,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not update componentDefinition Status", "err", err)
 		r.record.Event(&(componentDefinition), event.Warning("cannot update ComponentDefinition Status", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(componentDefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, componentDefinition.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, componentDefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &componentDefinition, r.defRevLimit); err != nil {

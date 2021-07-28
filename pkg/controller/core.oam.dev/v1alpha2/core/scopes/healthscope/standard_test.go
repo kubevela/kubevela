@@ -20,10 +20,10 @@ import (
 	"context"
 	"testing"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/stretchr/testify/assert"
 	apps "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,12 +33,12 @@ import (
 
 func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	scRef := runtimev1alpha1.TypedReference{}
+	scRef := corev1.ObjectReference{}
 	scRef.SetGroupVersionKind(podSpecWorkloadGVK)
 
-	deployRef := runtimev1alpha1.TypedReference{}
+	deployRef := corev1.ObjectReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
-	svcRef := runtimev1alpha1.TypedReference{}
+	svcRef := corev1.ObjectReference{}
 	svcRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindService))
 
 	deployRefData, _ := util.Object2Map(deployRef)
@@ -51,12 +51,12 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     corev1.ObjectReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    corev1.ObjectReference{},
 			expect:   nil,
 		},
 		{

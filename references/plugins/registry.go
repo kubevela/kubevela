@@ -27,11 +27,12 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 

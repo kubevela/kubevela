@@ -25,13 +25,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	apps "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
@@ -54,27 +54,27 @@ var (
 
 func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	cwRef := runtimev1alpha1.TypedReference{}
+	cwRef := corev1.ObjectReference{}
 	cwRef.SetGroupVersionKind(corev1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	deployRef := runtimev1alpha1.TypedReference{}
+	deployRef := corev1.ObjectReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
-	svcRef := runtimev1alpha1.TypedReference{}
+	svcRef := corev1.ObjectReference{}
 	svcRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindService))
 	cw := corev1alpha2.ContainerizedWorkload{
 		Status: corev1alpha2.ContainerizedWorkloadStatus{
-			Resources: []runtimev1alpha1.TypedReference{deployRef, svcRef},
+			Resources: []corev1.ObjectReference{deployRef, svcRef},
 		},
 	}
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     corev1.ObjectReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    corev1.ObjectReference{},
 			expect:   nil,
 		},
 		{
@@ -192,18 +192,18 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 
 func TestCheckDeploymentHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	deployRef := runtimev1alpha1.TypedReference{}
+	deployRef := corev1.ObjectReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     corev1.ObjectReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    corev1.ObjectReference{},
 			expect:   nil,
 		},
 		{
@@ -273,18 +273,18 @@ func TestCheckDeploymentHealth(t *testing.T) {
 
 func TestCheckStatefulsetHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	stsRef := runtimev1alpha1.TypedReference{}
+	stsRef := corev1.ObjectReference{}
 	stsRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindStatefulSet))
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     corev1.ObjectReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    corev1.ObjectReference{},
 			expect:   nil,
 		},
 		{
@@ -354,18 +354,18 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 
 func TestCheckDaemonsetHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	dstRef := runtimev1alpha1.TypedReference{}
+	dstRef := corev1.ObjectReference{}
 	dstRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDaemonSet))
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     corev1.ObjectReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    corev1.ObjectReference{},
 			expect:   nil,
 		},
 		{
@@ -430,7 +430,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 func TestCheckUnknownWorkload(t *testing.T) {
 	mockError := errors.New("mock error")
 	mockClient := test.NewMockClient()
-	unknownWL := runtimev1alpha1.TypedReference{}
+	unknownWL := corev1.ObjectReference{}
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
@@ -489,7 +489,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 }
 
 func TestCheckVersionEnabledComponent(t *testing.T) {
-	deployRef := runtimev1alpha1.TypedReference{}
+	deployRef := corev1.ObjectReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
 	deployRef.Name = "main-workload"
 	deployObj := apps.Deployment{
@@ -651,12 +651,12 @@ func TestPeerHealthConditionsSort(t *testing.T) {
 			want := make(PeerHealthConditions, len(tc.w))
 			for i, v := range tc.d {
 				data[i] = WorkloadHealthCondition{
-					TargetWorkload: runtimev1alpha1.TypedReference{Name: v},
+					TargetWorkload: corev1.ObjectReference{Name: v},
 				}
 			}
 			for i, v := range tc.w {
 				want[i] = WorkloadHealthCondition{
-					TargetWorkload: runtimev1alpha1.TypedReference{Name: v},
+					TargetWorkload: corev1.ObjectReference{Name: v},
 				}
 			}
 			sort.Sort(data)
