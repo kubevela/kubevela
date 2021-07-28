@@ -1717,8 +1717,9 @@ spec:
 
 	})
 
-	It("Test skip apply workload", func() {
-		rolloutTdDef, _ := yaml.YAMLToJSON([]byte(manageWorkloadTrait))
+	It("Test rollout trait all related definition features", func() {
+		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
+		Expect(err).Should(BeNil())
 		rolloutTrait := &v1beta1.TraitDefinition{}
 		Expect(json.Unmarshal([]byte(rolloutTdDef), rolloutTrait)).Should(BeNil())
 		ns := corev1.Namespace{
@@ -1780,6 +1781,18 @@ spec:
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v2"))
 		deploy = &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
+
+		By("check update rollout trait won't generate new appRevision")
+		appRevName := checkApp.Status.LatestRevision.Name
+		checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"myweb1-v3"}`)
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(appRevName))
+		checkRollout = &stdv1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v3"))
 	})
 })
 
@@ -2643,7 +2656,7 @@ spec:
         	MountTargetDomain: string
         }
 `
-	manageWorkloadTrait = `
+	rolloutTraitDefinition = `
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
@@ -2651,6 +2664,7 @@ metadata:
   namespace: default
 spec:
   manageWorkload: true
+  skipRevisionAffect: true
   schematic:
     cue:
       template: |
@@ -2662,7 +2676,7 @@ spec:
                 namespace: context.namespace
         	}
         	spec: {
-                   targetRevisionName: context.revision
+                   targetRevisionName: parameter.targetRevision
                    componentName: "myweb1"
                    rolloutPlan: {
                    	rolloutStrategy: "IncreaseFirst"
@@ -2672,6 +2686,10 @@ spec:
                    }
         		 }
         	}
+
+         parameter: {
+             targetRevision: *context.revision|string
+         }
 `
 )
 

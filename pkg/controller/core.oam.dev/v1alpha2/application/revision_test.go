@@ -52,6 +52,7 @@ var _ = Describe("test generate revision ", func() {
 	wd := v1beta1.WorkloadDefinition{}
 	td := v1beta1.TraitDefinition{}
 	sd := v1beta1.ScopeDefinition{}
+	rolloutTd := v1beta1.TraitDefinition{}
 	var handler AppHandler
 	var comps []*oamtypes.ComponentManifest
 	var namespaceName string
@@ -90,6 +91,11 @@ var _ = Describe("test generate revision ", func() {
 		Expect(json.Unmarshal(workloadDefJson, &wd)).Should(BeNil())
 		wd.ResourceVersion = ""
 		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		rolloutDefJson, _ := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
+		Expect(json.Unmarshal(rolloutDefJson, &rolloutTd)).Should(BeNil())
+		rolloutTd.ResourceVersion = ""
+		Expect(k8sClient.Create(ctx, &rolloutTd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("Create the Namespace for test")
 		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
@@ -143,6 +149,7 @@ var _ = Describe("test generate revision ", func() {
 		appRevision1.Spec.ComponentDefinitions[cd.Name] = cd
 		appRevision1.Spec.WorkloadDefinitions[wd.Name] = wd
 		appRevision1.Spec.TraitDefinitions[td.Name] = td
+		appRevision1.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd
 		appRevision1.Spec.ScopeDefinitions[sd.Name] = sd
 
 		appRevision2 = *appRevision1.DeepCopy()
@@ -218,6 +225,17 @@ var _ = Describe("test generate revision ", func() {
 		appRevision1.Spec.ComponentDefinitions[webCompDef.Name] = webCompDef
 
 		verifyNotEqual()
+	})
+
+	It("Test appliction contain a SkipAppRevision tait will have same hash", func() {
+		rolloutTrait := v1beta1.ApplicationTrait{
+			Type: "rollout",
+			Properties: runtime.RawExtension{
+				Raw: []byte(`{"targetRevision":"myrev-v1"}`),
+			},
+		}
+		appRevision2.Spec.Application.Spec.Components[0].Traits = append(appRevision2.Spec.Application.Spec.Components[0].Traits, rolloutTrait)
+		verifyEqual()
 	})
 
 	It("Test apply success for none rollout case", func() {
@@ -672,5 +690,48 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 		By("test replace with a bad revision")
 		err = replaceComponentRevisionContext(u, "comp-rev1-\\}")
 		Expect(err).ShouldNot(BeNil())
+	})
+})
+
+var _ = Describe("Test remove SkipAppRev func", func() {
+	It("Test remove spec", func() {
+		appSpec := v1beta1.ApplicationSpec{
+			Components: []v1beta1.ApplicationComponent{
+				{
+					Traits: []v1beta1.ApplicationTrait{
+						{
+							Type: "rollout",
+						},
+						{
+							Type: "ingress",
+						},
+						{
+							Type: "service",
+						},
+					},
+				},
+			},
+		}
+		tds := map[string]v1beta1.TraitDefinition{
+			"rollout": {
+				Spec: v1beta1.TraitDefinitionSpec{
+					SkipRevisionAffect: true,
+				},
+			},
+			"ingress": {
+				Spec: v1beta1.TraitDefinitionSpec{
+					SkipRevisionAffect: false,
+				},
+			},
+			"service": {
+				Spec: v1beta1.TraitDefinitionSpec{
+					SkipRevisionAffect: false,
+				},
+			},
+		}
+		res := filterSkipAffectAppRevTrait(appSpec, tds)
+		Expect(len(res.Components[0].Traits)).Should(BeEquivalentTo(2))
+		Expect(res.Components[0].Traits[0].Type).Should(BeEquivalentTo("ingress"))
+		Expect(res.Components[0].Traits[1].Type).Should(BeEquivalentTo("service"))
 	})
 })
