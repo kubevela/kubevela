@@ -5,7 +5,6 @@ go 1.16
 require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
-	github.com/Azure/go-autorest/autorest v0.11.12 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
@@ -18,7 +17,6 @@ require (
 	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
-	github.com/docker/distribution v2.7.1+incompatible
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
@@ -30,8 +28,6 @@ require (
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/spec v0.19.8 // indirect
 	github.com/go-openapi/swag v0.19.11 // indirect
-	github.com/golangplus/bytes v0.0.0-20160111154220-45c989fe5450 // indirect
-	github.com/golangplus/fmt v0.0.0-20150411045040-2a5d6d7d2995 // indirect
 	github.com/google/go-cmp v0.5.5
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
@@ -63,13 +59,9 @@ require (
 	github.com/ugorji/go v1.2.1 // indirect
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
-	github.com/xlab/handysort v0.0.0-20150421192137-fb3537ed64a1 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0
-	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools/v3 v3.0.3 // indirect
@@ -86,12 +78,11 @@ require (
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kubectl v0.21.0
 	k8s.io/utils v0.0.0-20210527160623-6fdb442a123b
+	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.9.3
 	sigs.k8s.io/controller-tools v0.2.4
 	sigs.k8s.io/kind v0.9.0
-	sigs.k8s.io/kustomize v2.0.3+incompatible // indirect
 	sigs.k8s.io/yaml v1.2.0
-	vbom.ml/util v0.0.0-20160121211510-db5cfe13f5cc // indirect
 )
 
 replace (

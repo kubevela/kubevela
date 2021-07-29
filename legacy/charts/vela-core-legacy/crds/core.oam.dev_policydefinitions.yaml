@@ -25,10 +25,14 @@ spec:
       description: PolicyDefinition is the Schema for the policydefinitions API
       properties:
         apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
           type: string
         kind:
-          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
@@ -36,25 +40,32 @@ spec:
           description: PolicyDefinitionSpec defines the desired state of PolicyDefinition
           properties:
             definitionRef:
-              description: Reference to the CustomResourceDefinition that defines this trait kind.
+              description: Reference to the CustomResourceDefinition that defines
+                this trait kind.
               properties:
                 name:
                   description: Name of the referenced CustomResourceDefinition.
                   type: string
                 version:
-                  description: Version indicate which version should be used if CRD has multiple versions by default it will use the first one if not specified
+                  description: Version indicate which version should be used if CRD
+                    has multiple versions by default it will use the first one if
+                    not specified
                   type: string
               required:
               - name
               type: object
             schematic:
-              description: Schematic defines the data format and template of the encapsulation of the policy definition
+              description: Schematic defines the data format and template of the encapsulation
+                of the policy definition
               properties:
                 cue:
                   description: CUE defines the encapsulation in CUE format
                   properties:
                     template:
-                      description: Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field. Template is a required field if CUE is defined in Capability Definition.
+                      description: Template defines the abstraction template data
+                        of the capability, it will replace the old CUE template in
+                        extension field. Template is a required field if CUE is defined
+                        in Capability Definition.
                       type: string
                   required:
                   - template
@@ -63,11 +74,13 @@ spec:
                   description: A Helm represents resources used by a Helm module
                   properties:
                     release:
-                      description: Release records a Helm release used by a Helm module workload.
+                      description: Release records a Helm release used by a Helm module
+                        workload.
                       type: object
                       
                     repository:
-                      description: HelmRelease records a Helm repository used by a Helm module workload.
+                      description: HelmRelease records a Helm repository used by a
+                        Helm module workload.
                       type: object
                       
                   required:
@@ -75,18 +88,24 @@ spec:
                   - repository
                   type: object
                 kube:
-                  description: Kube defines the encapsulation in raw Kubernetes resource format
+                  description: Kube defines the encapsulation in raw Kubernetes resource
+                    format
                   properties:
                     parameters:
                       description: Parameters defines configurable parameters
                       items:
-                        description: A KubeParameter defines a configurable parameter of a component.
+                        description: A KubeParameter defines a configurable parameter
+                          of a component.
                         properties:
                           description:
                             description: Description of this parameter.
                             type: string
                           fieldPaths:
-                            description: "FieldPaths specifies an array of fields within this workload that will be overwritten by the value of this parameter. \tAll fields must be of the same type. Fields are specified as JSON field paths without a leading dot, for example 'spec.replicas'."
+                            description: "FieldPaths specifies an array of fields
+                              within this workload that will be overwritten by the
+                              value of this parameter. \tAll fields must be of the
+                              same type. Fields are specified as JSON field paths
+                              without a leading dot, for example 'spec.replicas'."
                             items:
                               type: string
                             type: array
@@ -95,10 +114,14 @@ spec:
                             type: string
                           required:
                             
-                            description: Required specifies whether or not a value for this parameter must be supplied when authoring an Application.
+                            description: Required specifies whether or not a value
+                              for this parameter must be supplied when authoring an
+                              Application.
                             type: boolean
                           type:
-                            description: 'ValueType indicates the type of the parameter value, and only supports basic data types: string, number, boolean.'
+                            description: 'ValueType indicates the type of the parameter
+                              value, and only supports basic data types: string, number,
+                              boolean.'
                             enum:
                             - string
                             - number
@@ -118,14 +141,16 @@ spec:
                   - template
                   type: object
                 terraform:
-                  description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                  description: Terraform is the struct to describe cloud resources
+                    managed by Hashicorp Terraform
                   properties:
                     configuration:
                       description: Configuration is Terraform Configuration
                       type: string
                     type:
                       default: hcl
-                      description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                      description: Type specifies which Terraform configuration it
+                        is, HCL or JSON syntax
                       enum:
                       - hcl
                       - json
@@ -144,20 +169,25 @@ spec:
                 description: A Condition that may apply to a resource.
                 properties:
                   lastTransitionTime:
-                    description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                    description: LastTransitionTime is the last time this condition
+                      transitioned from one status to another.
                     format: date-time
                     type: string
                   message:
-                    description: A Message containing details about this condition's last transition from one status to another, if any.
+                    description: A Message containing details about this condition's
+                      last transition from one status to another, if any.
                     type: string
                   reason:
-                    description: A Reason for this condition's last transition from one status to another.
+                    description: A Reason for this condition's last transition from
+                      one status to another.
                     type: string
                   status:
-                    description: Status of this condition; is it currently True, False, or Unknown?
+                    description: Status of this condition; is it currently True, False,
+                      or Unknown?
                     type: string
                   type:
-                    description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                    description: Type of this condition. At most one of each condition
+                      type may apply to a resource at any point in time.
                     type: string
                 required:
                 - lastTransitionTime
@@ -175,7 +205,8 @@ spec:
                   format: int64
                   type: integer
                 revisionHash:
-                  description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                  description: RevisionHash record the hash value of the spec of ApplicationRevision
+                    object.
                   type: string
               required:
               - name
