@@ -1729,7 +1729,7 @@ spec:
 		}
 		rolloutTrait.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, rolloutTrait)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, rolloutTrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		app := &v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Application",
