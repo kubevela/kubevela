@@ -135,11 +135,9 @@ func (h *handler) handleFinalizeSucceed(ctx context.Context) error {
 
 // if in middle of previous rollout, continue use previous source and target appRevision as this round rollout
 func (h *handler) handleRolloutModified() {
-	klog.InfoS("rollout target changed, restart the rollout", "new source", h.rollout.Spec.SourceRevisionName,
-		"new target", h.rollout.Spec.TargetRevisionName)
+	klog.InfoS("rollout target changed, restart the rollout", "new target", h.rollout.Spec.TargetRevisionName)
 	h.record.Event(h.rollout, event.Normal("Rollout Restarted",
-		"rollout target changed, restart the rollout", "new source", h.rollout.Spec.SourceRevisionName,
-		"new target", h.rollout.Spec.TargetRevisionName))
+		"rollout target changed, restart the rollout", "new target", h.rollout.Spec.TargetRevisionName))
 	// we are okay to move directly to restart the rollout since we are at the terminal state
 	// however, we need to make sure we properly finalizing the existing rollout before restart if it's
 	// still in the middle of rolling out
@@ -150,12 +148,12 @@ func (h *handler) handleRolloutModified() {
 		h.targetRevName = h.rollout.Status.LastUpgradedTargetRevision
 		h.sourceRevName = h.rollout.Status.LastSourceRevision
 	} else {
-		// previous rollout have finished, go ahead using new source/target revision
+		// previous rollout have finished, using last target as source and real target as targetRevision
 		h.targetRevName = h.rollout.Spec.TargetRevisionName
-		h.sourceRevName = h.rollout.Spec.SourceRevisionName
+		h.sourceRevName = h.rollout.Status.LastUpgradedTargetRevision
 		// mark so that we don't think we are modified again
-		h.rollout.Status.LastUpgradedTargetRevision = h.rollout.Spec.TargetRevisionName
-		h.rollout.Status.LastSourceRevision = h.rollout.Spec.SourceRevisionName
+		h.rollout.Status.LastUpgradedTargetRevision = h.targetRevName
+		h.rollout.Status.LastSourceRevision = h.sourceRevName
 	}
 	h.rollout.Status.StateTransition(v1alpha1.RollingModifiedEvent)
 }
@@ -191,8 +189,7 @@ func checkRollingTerminated(rollout v1alpha1.Rollout) bool {
 	// handle rollout completed
 	if rollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
 		rollout.Status.RollingState == v1alpha1.RolloutFailedState {
-		if rollout.Status.LastUpgradedTargetRevision == rollout.Spec.TargetRevisionName &&
-			rollout.Status.LastSourceRevision == rollout.Spec.SourceRevisionName {
+		if rollout.Status.LastUpgradedTargetRevision == rollout.Spec.TargetRevisionName {
 			// spec.targetSize could be nil, If targetSize isn't nil and not equal to status.RolloutTargetSize it's
 			// means user have modified targetSize to restart an scale operation
 			if rollout.Spec.RolloutPlan.TargetSize != nil {
@@ -219,8 +216,6 @@ func (h *handler) isRolloutModified(rollout v1alpha1.Rollout) bool {
 	return rollout.Status.RollingState != v1alpha1.RolloutDeletingState &&
 		((rollout.Status.LastUpgradedTargetRevision != "" &&
 			rollout.Status.LastUpgradedTargetRevision != rollout.Spec.TargetRevisionName) ||
-			(rollout.Status.LastSourceRevision != "" &&
-				rollout.Status.LastSourceRevision != rollout.Spec.SourceRevisionName) ||
 			(rollout.Spec.RolloutPlan.TargetSize != nil && rollout.Status.RolloutTargetSize != -1 &&
 				rollout.Status.RolloutTargetSize != *rollout.Spec.RolloutPlan.TargetSize))
 }

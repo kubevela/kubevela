@@ -97,10 +97,16 @@ func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if h.isRolloutModified(*rollout) {
 		h.handleRolloutModified()
 	} else {
-		// except modified in middle of one rollout, in most cases use real source/target in appRollout and revision as this round reconcile
-		h.sourceRevName = rollout.Spec.SourceRevisionName
+		// except modified in middle of one rollout, in most cases use last source/target in rollout and revision as this round reconcile
+		h.sourceRevName = rollout.Status.LastSourceRevision
 		h.targetRevName = rollout.Spec.TargetRevisionName
 	}
+
+	// this means user trigger a scale operation by modify targetSize,so empty sourceRevision
+	if h.sourceRevName != "" && h.targetRevName == h.sourceRevName {
+		h.sourceRevName = ""
+	}
+
 	if err := h.extractWorkloadFromCompRevision(ctx); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -142,8 +148,8 @@ func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	rollout.Status.RolloutStatus = *rolloutStatus
 	// do not update the last with new revision if we are still trying to abandon the previous rollout
 	if rolloutStatus.RollingState != v1alpha1.RolloutAbandoningState {
-		rollout.Status.LastUpgradedTargetRevision = rollout.Spec.TargetRevisionName
-		rollout.Status.LastSourceRevision = rollout.Spec.SourceRevisionName
+		rollout.Status.LastUpgradedTargetRevision = h.targetRevName
+		rollout.Status.LastSourceRevision = h.sourceRevName
 	}
 
 	if rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {

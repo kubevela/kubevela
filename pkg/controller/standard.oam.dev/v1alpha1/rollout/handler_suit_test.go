@@ -157,12 +157,12 @@ var _ = Describe("Test rollout related handler func", func() {
 					},
 					Spec: v1alpha1.RolloutSpec{
 						TargetRevisionName: "metrics-provider-v2",
-						SourceRevisionName: "metrics-provider-v1",
 					},
 					Status: v1alpha1.CompRolloutStatus{
 						RolloutStatus: v1alpha1.RolloutStatus{
 							RollingState: v1alpha1.RolloutSucceedState,
 						},
+						LastUpgradedTargetRevision: "metrics-provider-v1",
 					},
 				},
 			}
@@ -183,7 +183,6 @@ var _ = Describe("Test rollout related handler func", func() {
 					},
 					Spec: v1alpha1.RolloutSpec{
 						TargetRevisionName: "metrics-provider-v3",
-						SourceRevisionName: "metrics-provider-v2",
 					},
 					Status: v1alpha1.CompRolloutStatus{
 						RolloutStatus: v1alpha1.RolloutStatus{

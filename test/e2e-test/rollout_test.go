@@ -291,7 +291,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
-			checkRollout.Spec.SourceRevisionName = utils.ConstructRevisionName(compnentName, 1)
+			//checkRollout.Spec.SourceRevisionName = utils.ConstructRevisionName(compnentName, 1)
 			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(compnentName, 2)
 			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
@@ -335,7 +335,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 				}
 				return nil
 			},
-			time.Second*60, time.Millisecond*500).Should(BeNil())
+			time.Second*120, time.Millisecond*500).Should(BeNil())
 		Eventually(func() error {
 			checkRollout := new(v1alpha1.Rollout)
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
@@ -354,7 +354,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
-			checkRollout.Spec.SourceRevisionName = utils.ConstructRevisionName(compnentName, 2)
+			//checkRollout.Spec.SourceRevisionName = utils.ConstructRevisionName(compnentName, 2)
 			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(compnentName, 1)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
 				return err
