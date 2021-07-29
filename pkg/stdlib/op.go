@@ -54,13 +54,14 @@ var opFile = file{
 #Apply: {
   #do: "apply"
   #provider: "kube"
+  patch?: _
   ...
 }
 
 #Read: {
   #do: "read"
   #provider: "kube"
-  result: {...}
+  result?: {...}
   ...
 }
 

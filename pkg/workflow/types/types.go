@@ -47,3 +47,8 @@ type Action interface {
 	Terminate(message string)
 	Wait(message string)
 }
+
+const (
+	// ContextKeyMetadata is key that refer to application metadata.
+	ContextKeyMetadata = "metadata__"
+)

@@ -19,6 +19,7 @@ package kube
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -77,7 +78,10 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 		component, err := ctx.GetComponent("server")
 		Expect(err).ToNot(HaveOccurred())
 
-		v, err := value.NewValue(component.Workload.String()+"\nmetadata: name: \"app\"", nil)
+		v, err := value.NewValue(fmt.Sprintf(`
+%s
+metadata: name: "app"
+`, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -90,7 +94,10 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 			}, workload)
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
 
-		v, err = value.NewValue(component.Workload.String()+"\nmetadata: name: \"app\"", nil)
+		v, err = value.NewValue(fmt.Sprintf(`
+%s
+metadata: name: "app"
+`, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -109,6 +116,90 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cmp.Diff(rv, expected)).Should(BeEquivalentTo(""))
+	})
+	It("patch & apply", func() {
+		p := &provider{
+			apply: func(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+				for _, obj := range manifests {
+					if err := k8sClient.Create(ctx, obj); err != nil {
+						if errors.IsAlreadyExists(err) {
+							return k8sClient.Update(ctx, obj)
+						}
+						return err
+					}
+				}
+				return nil
+			},
+			cli: k8sClient,
+		}
+		ctx, err := newWorkflowContextForTest()
+		Expect(err).ToNot(HaveOccurred())
+
+		component, err := ctx.GetComponent("server")
+		Expect(err).ToNot(HaveOccurred())
+		v, err := value.NewValue(fmt.Sprintf(`
+%s
+patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
+		Expect(err).ToNot(HaveOccurred())
+		err = p.Apply(ctx, v, nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		workload, err := component.Workload.Unstructured()
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return k8sClient.Get(context.Background(), client.ObjectKey{
+				Namespace: "default",
+				Name:      "test-app-1",
+			}, workload)
+		}, time.Second*2, time.Millisecond*300).Should(BeNil())
+	})
+
+	It("test error case", func() {
+		p := &provider{
+			apply: func(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+				for _, obj := range manifests {
+					if err := k8sClient.Create(ctx, obj); err != nil {
+						if errors.IsAlreadyExists(err) {
+							return k8sClient.Update(ctx, obj)
+						}
+						return err
+					}
+				}
+				return nil
+			},
+			cli: k8sClient,
+		}
+		ctx, err := newWorkflowContextForTest()
+		Expect(err).ToNot(HaveOccurred())
+
+		v, _ := value.NewValue(`
+kind: "Pod"
+apiVersion: "v1"
+patch: close({kind: 12})`, nil)
+		err = p.Apply(ctx, v, nil)
+		Expect(err).To(HaveOccurred())
+
+		v, _ = value.NewValue(`
+kind: "Pod"
+apiVersion: "v1"
+patch: _|_`, nil)
+		err = p.Apply(ctx, v, nil)
+		Expect(err).To(HaveOccurred())
+
+		v, err = value.NewValue(`
+metadata: {
+  name: "app-xx"
+  namespace: "default"
+}
+kind: "Pod"
+apiVersion: "v1"
+`, nil)
+		Expect(err).ToNot(HaveOccurred())
+		err = p.Read(ctx, v, nil)
+		Expect(err).ToNot(HaveOccurred())
+		errV, err := v.Field("err")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(errV.Exists()).Should(BeTrue())
 	})
 
 })
@@ -191,7 +282,7 @@ spec: {
 }`
 )
 
-func TestDefinition(t *testing.T) {
+func TestProvider(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,

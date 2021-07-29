@@ -78,7 +78,10 @@ func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	if err != nil {
 		return errors.WithMessage(err, "compile var")
 	}
-	return wf.vars.FillRaw(str, paths...)
+	if err := wf.vars.FillRaw(str, paths...); err != nil {
+		return err
+	}
+	return wf.vars.Error()
 }
 
 // MakeParameter make 'value' with map[string]interface{}

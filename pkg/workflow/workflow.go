@@ -24,6 +24,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -82,21 +84,47 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		wfCtx wfContext.Context
 	)
 
-	if wfStatus.ContextBackend != nil {
-		wfCtx, gerr = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
-		if gerr != nil {
-			gerr = errors.WithMessage(gerr, "load context")
-			return
-		}
-	} else {
-		wfCtx, gerr = wfContext.NewContext(w.cli, w.app.Namespace, rev)
-		if gerr != nil {
-			gerr = errors.WithMessage(gerr, "new context")
-			return
-		}
-		wfStatus.ContextBackend = wfCtx.StoreRef()
+	wfCtx, gerr = w.makeContext(rev)
+	if gerr != nil {
+		return
 	}
 
+	gerr = w.setMetadataToContext(wfCtx)
+	if gerr != nil {
+		return
+	}
+
+	return w.run(wfCtx, taskRunners)
+}
+
+func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) {
+	wfStatus := w.app.Status.Workflow
+	if wfStatus.ContextBackend != nil {
+		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
+		if err != nil {
+			err = errors.WithMessage(err, "load context")
+		}
+		return
+	}
+	wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
+	if err != nil {
+		err = errors.WithMessage(err, "new context")
+		return
+	}
+	wfStatus.ContextBackend = wfCtx.StoreRef()
+	return
+}
+
+func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
+	metadata, err := value.NewValue(string(util.MustJSONMarshal(w.app.ObjectMeta)), nil)
+	if err != nil {
+		return err
+	}
+	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
+}
+
+func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
+	wfStatus := w.app.Status.Workflow
 	for _, run := range taskRunners[wfStatus.StepIndex:] {
 		status, operation, err := run(wfCtx)
 		if err != nil {

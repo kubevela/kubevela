@@ -47,6 +47,8 @@ const (
 	StatusReasonTerminate = "Terminate"
 	// StatusReasonParameter is the reason of the workflow progress condition which is ProcessParameter.
 	StatusReasonParameter = "ProcessParameter"
+	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
+	StatusReasonOutput = "Output"
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -95,10 +97,6 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 
-			for _, output := range outputs {
-				params[output.ExportKey] = output.Name
-			}
-
 			paramsValue, err := ctx.MakeParameter(params)
 			if err != nil {
 				return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
@@ -128,7 +126,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				paramFile = fmt.Sprintf(velacue.ParameterTag+": {%s}\n", ps)
 			}
 
-			taskv, err := value.NewValue(templ+"\n"+paramFile, t.pd)
+			taskv, err := t.makeValue(ctx, templ+"\n"+paramFile)
 			if err != nil {
 				exec.err(err, StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
@@ -139,10 +137,36 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				return exec.status(), exec.operation(), nil
 			}
 
+			if exec.status().Phase == common.WorkflowStepPhaseSucceeded {
+				for _, output := range outputs {
+					v, err := taskv.LookupValue(output.ExportKey)
+					if err != nil {
+						exec.err(err, StatusReasonOutput)
+						return exec.status(), exec.operation(), nil
+					}
+					if err := ctx.SetVar(v, output.Name); err != nil {
+						exec.err(err, StatusReasonOutput)
+						return exec.status(), exec.operation(), nil
+					}
+				}
+			}
+
 			return exec.status(), exec.operation(), nil
 		}, nil
 
 	}, nil
+}
+
+func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string) (*value.Value, error) {
+	meta, _ := ctx.GetVar(wfTypes.ContextKeyMetadata)
+	if meta != nil {
+		ms, err := meta.String()
+		if err != nil {
+			return nil, err
+		}
+		templ += fmt.Sprintf("\ncontext: {%s}", ms)
+	}
+	return value.NewValue(templ, t.pd)
 }
 
 type executor struct {

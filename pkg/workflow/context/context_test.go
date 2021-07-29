@@ -192,6 +192,10 @@ result: 101
 score:  100
 result: 101
 `)
+
+	conflictV, _ := value.NewValue(`score: 101`, nil)
+	err = wfCtx.SetVar(conflictV, "football")
+	assert.Equal(t, err != nil, true)
 }
 
 func TestRefObj(t *testing.T) {
