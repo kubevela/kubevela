@@ -12,6 +12,7 @@ require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
+	github.com/containerd/containerd v1.3.2
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.10.0
 	github.com/davecgh/go-spew v1.1.1
@@ -32,6 +33,7 @@ require (
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
+	github.com/imdario/mergo v0.3.11
 	github.com/klauspost/compress v1.10.5 // indirect
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mailru/easyjson v0.7.6 // indirect

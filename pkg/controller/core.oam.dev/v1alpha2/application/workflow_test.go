@@ -50,7 +50,7 @@ var _ = Describe("Test Workflow", func() {
 			Namespace: namespace,
 		},
 		Spec: oamcore.ApplicationSpec{
-			Components: []oamcore.ApplicationComponent{{
+			Components: []common.ApplicationComponent{{
 				Name:       "test-component",
 				Type:       "worker",
 				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},

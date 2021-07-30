@@ -106,8 +106,8 @@ func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) 
 		err = errors.WithMessage(err, "new context")
 		return
 	}
-	err = w.setMetadataToContext(wfCtx)
-	if err != nil {
+  
+	if err = w.setMetadataToContext(wfCtx); err != nil {
 		return
 	}
 	wfStatus.ContextBackend = wfCtx.StoreRef()

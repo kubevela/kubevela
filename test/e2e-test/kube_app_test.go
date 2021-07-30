@@ -170,14 +170,14 @@ spec:
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: cdName,
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": "nginx:1.14.0",
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -234,14 +234,14 @@ spec:
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: cdName,
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": "nginx:1.14.1", // nginx:1.14.0 => nginx:1.14.1
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -315,7 +315,7 @@ spec:
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: cdName,

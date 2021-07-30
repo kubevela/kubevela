@@ -304,3 +304,52 @@ type AppRolloutStatus struct {
 	// We will restart the rollout if this is not the same as the spec
 	LastSourceAppRevision string `json:"LastSourceAppRevision,omitempty"`
 }
+
+// ApplicationTrait defines the trait of application
+type ApplicationTrait struct {
+	Type string `json:"type"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
+}
+
+// ApplicationComponent describe the component of application
+type ApplicationComponent struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
+
+	// Traits define the trait of one component, the type must be array to keep the order.
+	Traits []ApplicationTrait `json:"traits,omitempty"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// scopes in ApplicationComponent defines the component-level scopes
+	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
+	Scopes map[string]string `json:"scopes,omitempty"`
+}
+
+// ClusterSelector defines the rules to select a Cluster resource.
+// Either name or labels is needed.
+type ClusterSelector struct {
+	// Name is the name of the cluster.
+	Name string `json:"name,omitempty"`
+
+	// Labels defines the label selector to select the cluster.
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+// Distribution defines the replica distribution of an AppRevision to a cluster.
+type Distribution struct {
+	// Replicas is the replica number.
+	Replicas int `json:"replicas,omitempty"`
+}
+
+// ClusterPlacement defines the cluster placement rules for an app revision.
+type ClusterPlacement struct {
+	// ClusterSelector selects the cluster to  deploy apps to.
+	// If not specified, it indicates the host cluster per se.
+	ClusterSelector *ClusterSelector `json:"clusterSelector,omitempty"`
+
+	// Distribution defines the replica distribution of an AppRevision to a cluster.
+	Distribution Distribution `json:"distribution,omitempty"`
+}

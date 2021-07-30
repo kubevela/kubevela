@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	v1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	. "github.com/onsi/ginkgo"
@@ -138,7 +138,7 @@ var _ = Describe("Test application containing helm module", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: cdName,
@@ -147,7 +147,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.2",
 							},
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -206,7 +206,7 @@ var _ = Describe("Test application containing helm module", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: cdName,
@@ -215,7 +215,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.3", // change 5.1.4 => 5.1.3
 							},
 						}),
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -289,7 +289,7 @@ var _ = Describe("Test application containing helm module", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: wdName,
@@ -343,7 +343,7 @@ var _ = Describe("Test application containing helm module", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name: compName,
 						Type: "podinfo",

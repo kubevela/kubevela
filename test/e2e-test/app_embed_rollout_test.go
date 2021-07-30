@@ -114,7 +114,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []apicommon.ApplicationComponent{
 					{
 						Name: appName,
 						Type: compType,
@@ -494,7 +494,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		appName = "app-rollout-5"
 		app := generateNewApp(appName, namespaceName, "clonesetservice", plan)
 		ingressProperties := `{"domain":"test-1.example.com","http":{"/":8080}}`
-		app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{{Type: "ingress", Properties: runtime.RawExtension{Raw: []byte(ingressProperties)}}}
+		app.Spec.Components[0].Traits = []apicommon.ApplicationTrait{{Type: "ingress", Properties: runtime.RawExtension{Raw: []byte(ingressProperties)}}}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 1), "1")
 		updateAppWithCpuAndPlan(app, "2", plan)
@@ -525,7 +525,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		}
 		appName = "app-rollout-6"
 		app := generateNewApp(appName, namespaceName, "clonesetservice", plan)
-		annotherComp := v1beta1.ApplicationComponent{
+		annotherComp := apicommon.ApplicationComponent{
 			Name: "another-comp",
 			Type: "clonesetservice",
 			Properties: runtime.RawExtension{
