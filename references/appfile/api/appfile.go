@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -157,7 +158,7 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 	servApp := new(v1beta1.Application)
 	servApp.SetNamespace(env.Namespace)
 	servApp.SetName(app.Name)
-	servApp.Spec.Components = []v1beta1.ApplicationComponent{}
+	servApp.Spec.Components = []common.ApplicationComponent{}
 	for serviceName, svc := range app.GetServices() {
 		if !silence {
 			io.Infof("\nRendering configs for service (%s)...\n", serviceName)

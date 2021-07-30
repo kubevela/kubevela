@@ -21,10 +21,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-
-	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -39,9 +35,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // Reconcile error strings.
@@ -77,7 +75,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+	ctx, cancel := common.NewReconcileContext()
+	defer cancel()
 	log := r.log.WithValues("podspecworkload", req.NamespacedName)
 	log.Info("Reconcile podspecworkload workload")
 

@@ -28,29 +28,6 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ApplicationTrait defines the trait of application
-type ApplicationTrait struct {
-	Type string `json:"type"`
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties,omitempty"`
-}
-
-// ApplicationComponent describe the component of application
-type ApplicationComponent struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties,omitempty"`
-
-	// Traits define the trait of one component, the type must be array to keep the order.
-	Traits []ApplicationTrait `json:"traits,omitempty"`
-
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// scopes in ApplicationComponent defines the component-level scopes
-	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
-	Scopes map[string]string `json:"scopes,omitempty"`
-}
-
 // AppPolicy defines a global policy for all components in the app.
 type AppPolicy struct {
 	// Name is the unique name of the policy.
@@ -99,7 +76,7 @@ type Workflow struct {
 
 // ApplicationSpec is the spec of Application
 type ApplicationSpec struct {
-	Components []ApplicationComponent `json:"components"`
+	Components []common.ApplicationComponent `json:"components"`
 
 	// Policies defines the global policies for all components in the app, e.g. security, metrics, gitops,
 	// multi-cluster placement rules, etc.
@@ -161,7 +138,7 @@ func (app *Application) GetCondition(t condition.ConditionType) condition.Condit
 }
 
 // GetComponent get the component from the application based on its workload type
-func (app *Application) GetComponent(workloadType string) *ApplicationComponent {
+func (app *Application) GetComponent(workloadType string) *common.ApplicationComponent {
 	for _, c := range app.Spec.Components {
 		if c.Type == workloadType {
 			return &c

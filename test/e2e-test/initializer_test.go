@@ -86,7 +86,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			Spec: v1beta1.InitializerSpec{
 				AppTemplate: v1beta1.Application{
 					Spec: v1beta1.ApplicationSpec{
-						Components: []v1beta1.ApplicationComponent{
+						Components: []common.ApplicationComponent{
 							{
 								Name: compName,
 								Type: "worker",
@@ -139,7 +139,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			Spec: v1beta1.InitializerSpec{
 				AppTemplate: v1beta1.Application{
 					Spec: v1beta1.ApplicationSpec{
-						Components: []v1beta1.ApplicationComponent{
+						Components: []common.ApplicationComponent{
 							{
 								Name: randomNs,
 								Type: "raw",
@@ -197,7 +197,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				Spec: v1beta1.InitializerSpec{
 					AppTemplate: v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{
-							Components: []v1beta1.ApplicationComponent{
+							Components: []common.ApplicationComponent{
 								{
 									Name: compName,
 									Type: "worker",
@@ -230,7 +230,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				Spec: v1beta1.InitializerSpec{
 					AppTemplate: v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{
-							Components: []v1beta1.ApplicationComponent{
+							Components: []common.ApplicationComponent{
 								{
 									Name: compName2,
 									Type: "worker",
@@ -292,7 +292,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				Spec: v1beta1.InitializerSpec{
 					AppTemplate: v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{
-							Components: []v1beta1.ApplicationComponent{{
+							Components: []common.ApplicationComponent{{
 								Name: "comp1",
 								Type: "worker",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -319,7 +319,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			Expect(k8sClient.Create(ctx, init)).Should(HaveOccurred())
 		})
 
-		FIt("initializer depends on built-in initializer", func() {
+		It("initializer depends on built-in initializer", func() {
 			initCm := &corev1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "ConfigMap",
@@ -352,7 +352,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				Spec: v1beta1.InitializerSpec{
 					AppTemplate: v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{
-							Components: []v1beta1.ApplicationComponent{
+							Components: []common.ApplicationComponent{
 								{
 									Name: "comp1",
 									Type: "worker",
@@ -419,7 +419,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				Spec: v1beta1.InitializerSpec{
 					AppTemplate: v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{
-							Components: []v1beta1.ApplicationComponent{
+							Components: []common.ApplicationComponent{
 								{
 									Name: "comp1",
 									Type: "worker",
@@ -445,7 +445,7 @@ var _ = Describe("Initializer Normal tests", func() {
 				Spec: v1beta1.InitializerSpec{
 					AppTemplate: v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{
-							Components: []v1beta1.ApplicationComponent{
+							Components: []common.ApplicationComponent{
 								{
 									Name: "",
 									Type: "worker",

@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -58,8 +59,9 @@ type Reconciler struct {
 
 // Reconcile is the main logic for TraitDefinition controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext()
+	defer cancel()
 	klog.InfoS("Reconcile traitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
-	ctx := context.Background()
 
 	var traitdefinition v1beta1.TraitDefinition
 	if err := r.Get(ctx, req.NamespacedName, &traitdefinition); err != nil {

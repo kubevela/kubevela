@@ -38,6 +38,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	oamv1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -79,7 +80,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=workloaddefinition,verbs=get;list;
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+	ctx, cancel := common.NewReconcileContext()
+	defer cancel()
 	klog.InfoS("Reconcile manualscalar trait", "trait", klog.KRef(req.Namespace, req.Name))
 
 	var manualScalar oamv1alpha2.ManualScalerTrait

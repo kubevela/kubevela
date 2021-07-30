@@ -39,8 +39,7 @@ import (
 )
 
 const (
-	reconcileTimeout = 1 * time.Minute
-	longWait         = 10 * time.Second
+	longWait = 10 * time.Second
 )
 
 // Reconcile error strings.
@@ -130,10 +129,9 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 
 // Reconcile an OAM HealthScope by keeping track of its health status.
 func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	klog.InfoS("Reconcile healthScope", "healthScope", klog.KRef(req.Namespace, req.Name))
-
-	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	ctx, cancel := common.NewReconcileContext()
 	defer cancel()
+	klog.InfoS("Reconcile healthScope", "healthScope", klog.KRef(req.Namespace, req.Name))
 
 	hs := &v1alpha2.HealthScope{}
 	if err := r.client.Get(ctx, req.NamespacedName, hs); err != nil {

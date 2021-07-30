@@ -95,12 +95,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
-						Traits: []v1beta1.ApplicationTrait{{
+						Traits: []common.ApplicationTrait{{
 							Type:       "cluster-scope-trait",
 							Properties: runtime.RawExtension{Raw: []byte("{}")},
 						}},
@@ -173,12 +173,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cluster-scope-trait",
 								Properties: runtime.RawExtension{Raw: []byte("{}")},
@@ -213,12 +213,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							// remove the cluster-scoped trait and keep the
 							// cross-namespaced trait.
 							// if remove both, the resouce tracker will be deleted,
@@ -270,7 +270,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
@@ -375,7 +375,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "normal-worker",
@@ -423,7 +423,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err != nil {
 				return err
 			}
-			app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+			app.Spec.Components[0].Traits = []common.ApplicationTrait{
 				{
 					Type:       "cross-scaler",
 					Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
@@ -491,12 +491,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "normal-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cross-scaler",
 								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
@@ -548,7 +548,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
-			app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{}
+			app.Spec.Components[0].Traits = []common.ApplicationTrait{}
 			return k8sClient.Update(ctx, app)
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
@@ -603,7 +603,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       component1Name,
 						Type:       "normal-worker",
@@ -734,7 +734,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
@@ -878,7 +878,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       component1Name,
 						Type:       "cross-worker",
@@ -1032,12 +1032,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cross-scaler",
 								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 0}`)},
@@ -1107,7 +1107,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		Eventually(func() error {
 			app = new(v1beta1.Application)
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
-			app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{}
+			app.Spec.Components[0].Traits = []common.ApplicationTrait{}
 			return k8sClient.Update(ctx, app)
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 
@@ -1190,7 +1190,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				Namespace: namespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       componentName,
 						Type:       "cross-worker",

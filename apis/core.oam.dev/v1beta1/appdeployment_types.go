@@ -19,6 +19,7 @@ package v1beta1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
@@ -100,39 +101,13 @@ type Traffic struct {
 	HTTP []HTTPRule `json:"http,omitempty"`
 }
 
-// ClusterSelector defines the rules to select a Cluster resource.
-// Either name or labels is needed.
-type ClusterSelector struct {
-	// Name is the name of the cluster.
-	Name string `json:"name,omitempty"`
-
-	// Labels defines the label selector to select the cluster.
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-// Distribution defines the replica distribution of an AppRevision to a cluster.
-type Distribution struct {
-	// Replicas is the replica number.
-	Replicas int `json:"replicas,omitempty"`
-}
-
-// ClusterPlacement defines the cluster placement rules for an app revision.
-type ClusterPlacement struct {
-	// ClusterSelector selects the cluster to  deploy apps to.
-	// If not specified, it indicates the host cluster per se.
-	ClusterSelector *ClusterSelector `json:"clusterSelector,omitempty"`
-
-	// Distribution defines the replica distribution of an AppRevision to a cluster.
-	Distribution Distribution `json:"distribution,omitempty"`
-}
-
 // AppRevision specifies an AppRevision resource to and the rules to apply to it.
 type AppRevision struct {
 	// RevisionName is the name of the AppRevision.
 	RevisionName string `json:"revisionName,omitempty"`
 
 	// Placement defines the cluster placement rules for an app revision.
-	Placement []ClusterPlacement `json:"placement,omitempty"`
+	Placement []common.ClusterPlacement `json:"placement,omitempty"`
 }
 
 // ClusterPlacementStatus shows the placement results of a cluster.

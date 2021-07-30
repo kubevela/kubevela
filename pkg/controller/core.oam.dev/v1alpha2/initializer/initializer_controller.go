@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -57,8 +58,9 @@ type Reconciler struct {
 
 // Reconcile is the main logic for Initializer controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext()
+	defer cancel()
 	klog.InfoS("Reconcile initializer", "initializer", klog.KRef(req.Namespace, req.Name))
-	ctx := context.Background()
 
 	init := new(v1beta1.Initializer)
 	if err := r.Client.Get(ctx, req.NamespacedName, init); err != nil {
@@ -197,13 +199,14 @@ func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializ
 		return false, err
 	}
 
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app)
+	newApp := new(v1beta1.Application)
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, newApp)
 	if err != nil {
 		return false, err
 	}
 
-	klog.InfoS("Check the status of Application", "app", klog.KObj(app), "phase", app.Status.Phase)
-	if app.Status.Phase != common.ApplicationRunning {
+	klog.InfoS("Check the status of Application", "app", klog.KObj(newApp), "phase", newApp.Status.Phase)
+	if newApp.Status.Phase != common.ApplicationRunning {
 		return false, nil
 	}
 	return true, nil
@@ -211,14 +214,15 @@ func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializ
 
 func (r *Reconciler) createOrUpdateResource(ctx context.Context, app *v1beta1.Application) error {
 	klog.InfoS("Create or update resources", "app", klog.KObj(app))
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app)
+	oldApp := new(v1beta1.Application)
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, oldApp)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return r.Create(ctx, app)
 		}
 		return err
 	}
-	return r.Update(ctx, app)
+	return r.Patch(ctx, app, client.Merge)
 }
 
 // UpdateStatus updates v1beta1.Initializer's Status with retry.RetryOnConflict
