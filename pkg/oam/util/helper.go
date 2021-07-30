@@ -27,8 +27,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -45,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"

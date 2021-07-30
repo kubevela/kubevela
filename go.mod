@@ -43,7 +43,7 @@ require (
 	github.com/oam-dev/terraform-controller v0.1.16
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.13.0
+	github.com/onsi/gomega v1.14.0
 	github.com/openkruise/kruise-api v0.7.0
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
@@ -59,7 +59,7 @@ require (
 	github.com/ugorji/go v1.2.1 // indirect
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
-	go.uber.org/zap v1.17.0
+	go.uber.org/zap v1.18.1
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
@@ -69,7 +69,7 @@ require (
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
 	k8s.io/api v0.21.3
-	k8s.io/apiextensions-apiserver v0.21.2
+	k8s.io/apiextensions-apiserver v0.21.3
 	k8s.io/apimachinery v0.21.3
 	k8s.io/cli-runtime v0.21.0
 	k8s.io/client-go v0.21.3
@@ -77,9 +77,9 @@ require (
 	k8s.io/klog/v2 v2.8.0
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kubectl v0.21.0
-	k8s.io/utils v0.0.0-20210527160623-6fdb442a123b
+	k8s.io/utils v0.0.0-20210722164352-7f3ee0f31471
 	rsc.io/letsencrypt v0.0.3 // indirect
-	sigs.k8s.io/controller-runtime v0.9.3
+	sigs.k8s.io/controller-runtime v0.9.5
 	sigs.k8s.io/controller-tools v0.2.4
 	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.2.0

@@ -18,6 +18,7 @@ package applicationconfiguration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -145,7 +146,12 @@ func TestComponentHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(revisions.Items))
 	assert.Equal(t, true, strings.HasPrefix(revisions.Items[0].Name, "comp1-"))
-	gotComp := revisions.Items[0].Data.Object.(*v1alpha2.Component)
+	var gotComp v1alpha2.Component
+	_ = json.Unmarshal(revisions.Items[0].Data.Raw, &gotComp)
+	var gotDeploy appsv1.Deployment
+	_ = json.Unmarshal(gotComp.Spec.Workload.Raw, &gotDeploy)
+	gotComp.Spec.Workload.Object = &gotDeploy
+	gotComp.Spec.Workload.Raw = nil
 	// check component's spec saved in corresponding controllerRevision
 	assert.Equal(t, comp.Spec, gotComp.Spec)
 	// check component's status saved in corresponding controllerRevision
@@ -183,7 +189,12 @@ func TestComponentHandler(t *testing.T) {
 	for _, v := range revisions.Items {
 		assert.Equal(t, true, strings.HasPrefix(v.Name, "comp1-"))
 		if v.Revision == 2 {
-			gotComp := v.Data.Object.(*v1alpha2.Component)
+			var gotComp v1alpha2.Component
+			_ = json.Unmarshal(v.Data.Raw, &gotComp)
+			var gotDeploy appsv1.Deployment
+			_ = json.Unmarshal(gotComp.Spec.Workload.Raw, &gotDeploy)
+			gotComp.Spec.Workload.Object = &gotDeploy
+			gotComp.Spec.Workload.Raw = nil
 			// check component's spec saved in corresponding controllerRevision
 			assert.Equal(t, comp2.Spec, gotComp.Spec)
 			// check component's status saved in corresponding controllerRevision
