@@ -80,6 +80,12 @@ spec:
                   ]]'
                 size: '[[ index .Args "alertmanager-pvc-size" | default "20Gi" ]]'
                 storageClass: '[[ index .Args "alertmanager-pvc-class" ]]'
+            extraScrapeConfigs: |
+              - job_name: 'kubevela'
+                metrics_path: /metrics
+                static_configs:
+                  - targets:
+                      - kubevela-core.vela-system..svc.cluster.local:8080
             server:
               persistentVolume:
                 enabled: '[[ index .Args "server-pvc-enabled" | default "true" ]]'

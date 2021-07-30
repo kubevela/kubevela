@@ -22,7 +22,7 @@ spec:
           kind: TraitDefinition
           metadata:
             annotations:
-              definition.oam.dev/description: Add a datasource to Grafana
+              definition.oam.dev/description: Import one or more dashboards to Grafana
             name: import-grafana-dashboard
             namespace: vela-system
           spec:
@@ -33,10 +33,10 @@ spec:
                   \                  parameter.grafanaServiceName\n\t\t\tnamespace:
                   \                parameter.grafanaServiceNamespace\n\t\t\tcredentialSecret:
                   \         parameter.credentialSecret\n\t\t\tcredentialSecretNamespace:
-                  parameter.credentialSecretNamespace\n\t\t}\n\t\turls: parameter.urls\n\t}\n}\nparameter:
+                  parameter.credentialSecretNamespace\n\t\t}\n\t\turls: parameter.urls\n\t}\n}\n\nparameter:
                   {\n\tgrafanaServiceName:        string\n\tgrafanaServiceNamespace:
                   \  *\"default\" | string\n\tcredentialSecret:          string\n\tcredentialSecretNamespace:
-                  *\"default\" | string\n\turls: [...string]\n} \n"
+                  *\"default\" | string\n\turls: [...string]\n}\n"
         type: raw
       - name: pure-ingress
         properties:

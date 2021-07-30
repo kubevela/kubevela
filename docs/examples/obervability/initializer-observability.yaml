@@ -1,41 +1,60 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+spec: { }
+
+---
 apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
-  annotations:
-    addons.oam.dev/description: "An out of the box solution for KubeVela observability"
-  name: observability
+  name: grafana
   namespace: observability
 spec:
-  dependsOn:
-    - ref:
-        apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: fluxcd
-        namespace: vela-system
-    - ref:
-        apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: observability-asset
-        namespace: vela-system
   appTemplate:
     spec:
       components:
-        - name: grafana-registration
-          type: helm
+        # install grafana datasource registration chart
+        - name: grafana-registration-release
           properties:
-            repoType: git
-            url: https://github.com/oam-dev/grafana-registration
-            git:
-              branch: master
-            chart: ./chart
-            targetNamespace: observability
-            values:
-              replicaCount: 1
+            apiVersion: helm.toolkit.fluxcd.io/v2beta1
+            kind: HelmRelease
+            metadata:
+              name: grafana-registration-release
+              namespace: observability
+            spec:
+              chart:
+                spec:
+                  chart: ./chart
+                  interval: 1m
+                  sourceRef:
+                    kind: GitRepository
+                    name: grafana-registration-repo
+                    namespace: observability
+              interval: 5m
+              values:
+                replicaCount: 1
+          type: raw
+        - name: grafana-registration-repo
+          properties:
+            apiVersion: source.toolkit.fluxcd.io/v1beta1
+            kind: GitRepository
+            metadata:
+              name: grafana-registration-repo
+              namespace: observability
+            spec:
+              interval: 5m
+              ref:
+                branch: master
+              url: https://github.com/oam-dev/grafana-registration
+          type: raw
+
+        # install Grafana
         - name: grafana
           properties:
             chart: grafana
             version: 6.14.1
-            repoType: helm
+            type: helm
             url: https://grafana.github.io/helm-charts
             targetNamespace: observability
             releaseName: grafana
@@ -43,7 +62,7 @@ spec:
           traits:
             - type: pure-ingress
               properties:
-                domain: '[[ index .Args "grafana-domain" ]]'
+                domain: grafana.cf7223b8abedc4691b7eccfe3c675850a.cn-hongkong.alicontainer.com
                 http:
                   "/": 80
             - type: import-grafana-dashboard
@@ -53,15 +72,18 @@ spec:
                 credentialSecret: grafana
                 credentialSecretNamespace: observability
                 urls:
-                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
-                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
-                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/flux2/cluster.json # fluxcd
+                  - "https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json"
+                  - "https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json"
+                  - "https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/flux2/cluster.json"
+                  - "https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_application_logging.json"
+
+        # install loki
         - name: loki
           type: helm
           properties:
             chart: loki-stack
             version: 2.4.1
-            repoType: helm
+            type: helm
             url: https://grafana.github.io/helm-charts
             targetNamespace: observability
             releaseName: loki
@@ -77,32 +99,32 @@ spec:
                 namespace: observability
                 type: loki
                 access: proxy
+
+          # install Prometheus
         - name: prometheus-server
           type: helm
           properties:
             chart: prometheus
             version: 14.4.1
-            repoType: helm
+            type: helm
             url: https://prometheus-community.github.io/helm-charts
             targetNamespace: observability
             releaseName: prometheus
             values:
               alertmanager:
                 persistentVolume:
-                  enabled: '[[ index .Args "alertmanager-pvc-enabled" | default "true" ]]'
-                  storageClass: '[[ index .Args "alertmanager-pvc-class" ]]'
-                  size: '[[ index .Args "alertmanager-pvc-size" | default "20Gi" ]]'
+                  storageClass: "alicloud-disk-available"
+                  size: "20Gi"
               server:
                 persistentVolume:
-                  enabled: '[[ index .Args "server-pvc-enabled" | default "true" ]]'
-                  storageClass: '[[ index .Args "server-pvc-class" ]]'
-                  size: '[[ index .Args "server-pvc-size" | default "20Gi" ]]'
+                  storageClass: "alicloud-disk-available"
+                  size: "20Gi"
               extraScrapeConfigs: |
                 - job_name: 'kubevela'
                   metrics_path: /metrics
                   static_configs:
                     - targets:
-                        - kubevela-core.vela-system..svc.cluster.local:8080
+                        - kubevela-core.vela-system.svc.cluster.local:8080
 
           traits:
             - type: register-grafana-datasource # register Prometheus datasource to Grafana
@@ -116,35 +138,20 @@ spec:
                 namespace: observability
                 type: prometheus
                 access: proxy
+
+        # install kube-state-metrics
         - name: kube-state-metrics
           type: helm
           properties:
             chart: kube-state-metrics
             version: 3.4.1
-            repoType: helm
-            url: https://prometheus-community.github.io/helm-charts
-            targetNamespace: observability
-            values:
-              image:
-                repository: oamdev/kube-state-metrics
-                tag: v2.1.0
-
-        - name: kube-prometheus-stack
-          type: helm
-          properties:
-            chart: kube-prometheus-stack
-            version: 18.0.0
-            repoType: helm
+            type: helm
             url: https://prometheus-community.github.io/helm-charts
             targetNamespace: observability
 
-{{ range .ResourceFiles }}
-        - name: {{ .Name }}
-          type: raw
-          properties:
-{{ .Content | indent 12 }} {{ end }}
-{{ range .DefinitionFiles }}
-        - name: {{ .Name }}
-          type: raw
-          properties:
-{{ .Content | indent 12 }} {{ end }}
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: fluxcd
+        namespace: vela-system

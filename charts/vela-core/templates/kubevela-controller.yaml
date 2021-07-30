@@ -180,3 +180,22 @@ spec:
       tolerations:
     {{- toYaml . | nindent 8 }}
   {{- end }}
+
+---
+# KubeVela core Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubevela-core
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ - include "kubevela.labels" . | nindent 4 }}
+spec:
+  ports:
+    - name: service
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    {{ - include "kubevela.labels" . | nindent 4 }}
+  type: ClusterIP
