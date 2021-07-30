@@ -118,11 +118,6 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 // createOrGetExisting will create the object if it does not exist
 // or get and return the existing object
 func createOrGetExisting(ctx context.Context, c client.Client, desired client.Object, ao ...ApplyOption) (client.Object, error) {
-	m, ok := desired.(oam.Object)
-	if !ok {
-		return nil, errors.New("cannot access object metadata")
-	}
-
 	var create = func() (client.Object, error) {
 		// execute ApplyOptions even the object doesn't exist
 		if err := executeApplyOptions(ctx, nil, desired, ao); err != nil {
@@ -136,13 +131,13 @@ func createOrGetExisting(ctx context.Context, c client.Client, desired client.Ob
 	}
 
 	// allow to create object with only generateName
-	if m.GetName() == "" && m.GetGenerateName() != "" {
+	if desired.GetName() == "" && desired.GetGenerateName() != "" {
 		return create()
 	}
 
 	existing := &unstructured.Unstructured{}
 	existing.GetObjectKind().SetGroupVersionKind(desired.GetObjectKind().GroupVersionKind())
-	err := c.Get(ctx, types.NamespacedName{Name: m.GetName(), Namespace: m.GetNamespace()}, existing)
+	err := c.Get(ctx, types.NamespacedName{Name: desired.GetName(), Namespace: desired.GetNamespace()}, existing)
 	if kerrors.IsNotFound(err) {
 		return create()
 	}

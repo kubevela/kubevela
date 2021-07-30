@@ -54,7 +54,7 @@ func (t *testObject) GetObjectKind() schema.ObjectKind {
 }
 
 type testNoMetaObject struct {
-	client.Object
+	runtime.Object
 }
 
 func TestAPIApplicator(t *testing.T) {
@@ -171,16 +171,6 @@ func TestCreator(t *testing.T) {
 		args   args
 		want   want
 	}{
-		"NotAMetadataObject": {
-			reason: "An error should be returned if cannot access metadata of the desired object",
-			args: args{
-				desired: &testNoMetaObject{},
-			},
-			want: want{
-				existing: nil,
-				err:      errors.New("cannot access object metadata"),
-			},
-		},
 		"CannotCreateObjectWithoutName": {
 			reason: "An error should be returned if cannot create the object",
 			args: args{

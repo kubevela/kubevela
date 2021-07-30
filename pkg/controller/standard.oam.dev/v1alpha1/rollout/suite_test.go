@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -64,6 +65,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	logf.Log.Info("start application deployment suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
 			filepath.Join("..", "config", "crd", "bases")},

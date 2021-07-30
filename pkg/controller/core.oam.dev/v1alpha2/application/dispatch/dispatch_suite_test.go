@@ -64,8 +64,9 @@ var _ = BeforeSuite(func(done Done) {
 		yamlPath = filepath.Join("../../../../../..", "charts", "vela-core", "crds")
 	}
 	testEnv = &envtest.Environment{
-		UseExistingCluster: pointer.BoolPtr(false),
-		CRDDirectoryPaths:  []string{yamlPath},
+		ControlPlaneStartTimeout: time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
+		CRDDirectoryPaths:        []string{yamlPath},
 	}
 
 	cfg, err := testEnv.Start()

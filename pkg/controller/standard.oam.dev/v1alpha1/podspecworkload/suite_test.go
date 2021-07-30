@@ -19,6 +19,7 @@ package podspecworkload
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -54,6 +55,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 			filepath.Join("..", "testdata/crds"),

@@ -81,6 +81,7 @@ var _ = BeforeSuite(func(done Done) {
 	acCRD := "../../../../../charts/oam-runtime/crds/core.oam.dev_applicationconfigurations.yaml"
 	logf.Log.Info("start applicationconfiguration suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
 			compCRD,

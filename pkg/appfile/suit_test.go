@@ -19,6 +19,7 @@ package appfile
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -58,8 +59,9 @@ var _ = BeforeSuite(func(done Done) {
 	By("bootstrapping test environment")
 	useExistCluster := false
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:  []string{filepath.Join("..", "..", "charts", "vela-core", "crds")},
-		UseExistingCluster: &useExistCluster,
+		ControlPlaneStartTimeout: time.Minute,
+		CRDDirectoryPaths:        []string{filepath.Join("..", "..", "charts", "vela-core", "crds")},
+		UseExistingCluster:       &useExistCluster,
 	}
 
 	var err error

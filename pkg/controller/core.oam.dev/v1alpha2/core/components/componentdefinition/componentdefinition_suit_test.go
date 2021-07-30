@@ -22,6 +22,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -53,6 +54,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	useExistCluster := false
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 		},

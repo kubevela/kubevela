@@ -22,6 +22,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -58,6 +59,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	useExistCluster := false
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 			"../../../../../charts/oam-runtime/crds/core.oam.dev_applicationconfigurations.yaml",

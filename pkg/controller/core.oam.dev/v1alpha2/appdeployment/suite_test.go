@@ -76,7 +76,8 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("start application suit test")
 
 	testEnv = &envtest.Environment{
-		UseExistingCluster: pointer.BoolPtr(false),
+		ControlPlaneStartTimeout: time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts", "vela-core", "crds"),
 			"testdata/istio",

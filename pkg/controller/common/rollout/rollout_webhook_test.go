@@ -113,7 +113,7 @@ func TestMakeHTTPRequest(t *testing.T) {
 	}
 	for testName, tt := range tests {
 		func(testName string) {
-			mockUrl := mockUrlBase + strconv.FormatInt(rand.Int63n(128)+1000, 10)
+			mockUrl := mockUrlBase + strconv.FormatInt(rand.Int63n(128)+2000, 10)
 			// generate a test server so we can capture and inspect the request
 			testServer := NewMock(tt.httpParameter.method, mockUrl, tt.httpParameter.statusCode, tt.httpParameter.body)
 			defer testServer.Close()

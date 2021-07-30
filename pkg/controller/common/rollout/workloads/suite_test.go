@@ -21,6 +21,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -55,8 +56,9 @@ var _ = BeforeSuite(func(done Done) {
 			filepath.Join("../../../../..", "charts/vela-core/crds"),
 			"testdata",
 		},
-		ErrorIfCRDPathMissing: true,
-		UseExistingCluster:    pointer.BoolPtr(false),
+		ErrorIfCRDPathMissing:    true,
+		UseExistingCluster:       pointer.BoolPtr(false),
+		ControlPlaneStartTimeout: time.Minute,
 	}
 	var err error
 	cfg, err = testEnv.Start()

@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	core_oam_dev "github.com/oam-dev/kubevela/apis/core.oam.dev"
 
@@ -62,6 +63,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	logf.Log.Info("start application deployment suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
 			filepath.Join("..", "config", "crd", "bases")},

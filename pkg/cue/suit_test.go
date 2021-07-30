@@ -18,6 +18,7 @@ package cue
 
 import (
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -54,7 +55,8 @@ func TestDefinition(t *testing.T) {
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		UseExistingCluster: pointer.BoolPtr(false),
+		ControlPlaneStartTimeout: time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
 	}
 	var err error
 	cfg, err = testEnv.Start()
