@@ -45,15 +45,16 @@ var (
    load: ws.#Load & {
       component: _componentName
    }
-   workload: kube.#Apply & {
-      status: value.status
+   
+   workload: workload__.value
+   workload__: kube.#Apply & {
       value: load.value.workload
       ...
    }
     
-   applyTraits: #Steps & {
+   applyTraits__: #Steps & {
       for index,o in load.value.auxiliaries {
-          "s\(index)": kube.#Apply & {
+          "zz_\(index)": kube.#Apply & {
                value: o
           }
       }
@@ -77,7 +78,7 @@ var (
   }
 
   components: ws.#Load
-  #up: [for name,c in components.value {
+  #up__: [for name,c in components.value {
         #Steps 
         if exceptions[name] != _|_ {
 			   if exceptions[name].skipApplyWorkload == false {
