@@ -18,14 +18,8 @@ package rollout
 
 import (
 	"context"
-	"time"
-
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 
 	"github.com/pkg/errors"
-
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -36,15 +30,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
+	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 const (
-	reconcileTimeOut = 60 * time.Second
-
 	rolloutFinalizer = "finalizers.rollout.standard.oam.dev"
 
 	errUpdateRollout = "failed to update the rollout"
@@ -61,9 +57,9 @@ type reconciler struct {
 }
 
 func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	rollout := new(v1alpha1.Rollout)
-	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
+	ctx, cancel := common2.NewReconcileContext()
 	defer cancel()
+	rollout := new(v1alpha1.Rollout)
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
 	if err := r.Get(ctx, req.NamespacedName, rollout); err != nil {

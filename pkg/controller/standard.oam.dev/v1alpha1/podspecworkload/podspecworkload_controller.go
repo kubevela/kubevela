@@ -22,6 +22,7 @@ import (
 	"reflect"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 
@@ -77,7 +78,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+	ctx, cancel := common2.NewReconcileContext()
+	defer cancel()
 	log := r.log.WithValues("podspecworkload", req.NamespacedName)
 	log.Info("Reconcile podspecworkload workload")
 

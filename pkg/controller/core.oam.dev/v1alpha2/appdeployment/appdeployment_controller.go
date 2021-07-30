@@ -39,6 +39,7 @@ import (
 	oamcorealpha "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -47,7 +48,6 @@ import (
 
 const (
 	appDeploymentFinalizer = "finalizers.appdeployment.oam.dev"
-	reconcileTimeOut       = 60 * time.Second
 	secretKeyConfig        = "config"
 )
 
@@ -71,9 +71,9 @@ type Reconciler struct {
 
 // Reconcile is the main logic of appDeployment controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-	appDeployment := &oamcore.AppDeployment{}
-	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
+	ctx, cancel := common2.NewReconcileContext()
 	defer cancel()
+	appDeployment := &oamcore.AppDeployment{}
 
 	startTime := time.Now()
 	defer func() {

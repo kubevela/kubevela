@@ -53,8 +53,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-const reconcileTimeout = 1 * time.Minute
-
 // Reconcile error strings.
 const (
 	errGetAppConfig          = "cannot get application configuration"
@@ -222,10 +220,9 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...Reco
 // Reconcile an OAM ApplicationConfigurations by rendering and instantiating its
 // Components and Traits.
 func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	klog.InfoS("Reconcile applicationConfiguration", "applicationConfiguration", klog.KRef(req.Namespace, req.Name))
-
-	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	ctx, cancel := common.NewReconcileContext()
 	defer cancel()
+	klog.InfoS("Reconcile applicationConfiguration", "applicationConfiguration", klog.KRef(req.Namespace, req.Name))
 
 	ac := &v1alpha2.ApplicationConfiguration{}
 	if err := r.client.Get(ctx, req.NamespacedName, ac); err != nil {

@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -36,8 +34,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -48,8 +48,6 @@ const (
 	errUpdateAppRollout = "failed to update the app rollout"
 
 	appRolloutFinalizer = "finalizers.approllout.oam.dev"
-
-	reconcileTimeOut = 60 * time.Second
 )
 
 // Reconciler reconciles an AppRollout object
@@ -69,10 +67,10 @@ type Reconciler struct {
 // Reconcile is the main logic of appRollout controller
 // nolint:gocyclo
 func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-	var appRollout v1beta1.AppRollout
-	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
+	ctx, cancel := common2.NewReconcileContext()
 	defer cancel()
 	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
+	var appRollout v1beta1.AppRollout
 
 	startTime := time.Now()
 	defer func() {

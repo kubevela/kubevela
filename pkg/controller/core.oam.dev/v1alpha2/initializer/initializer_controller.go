@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -57,8 +58,9 @@ type Reconciler struct {
 
 // Reconcile is the main logic for Initializer controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext()
+	defer cancel()
 	klog.InfoS("Reconcile initializer", "initializer", klog.KRef(req.Namespace, req.Name))
-	ctx := context.Background()
 
 	init := new(v1beta1.Initializer)
 	if err := r.Client.Get(ctx, req.NamespacedName, init); err != nil {
