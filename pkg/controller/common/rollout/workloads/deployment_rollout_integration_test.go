@@ -247,9 +247,11 @@ var _ = Describe("deployment controller", func() {
 			var sourceReplica int32 = 6
 			sourceDeploy.Spec.Replicas = &sourceReplica
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+
 			// test environment doesn't have deployment controller, has to fake it
-			c.sourceDeploy.Status.Replicas = sourceReplica // this has to pass batch check
+			sourceDeploy.Status.Replicas = sourceReplica // this has to pass batch check
 			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+
 			targetDeploy.Spec.Replicas = pointer.Int32Ptr(0)
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 

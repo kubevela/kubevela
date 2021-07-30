@@ -302,7 +302,6 @@ func (c *DeploymentRolloutController) fetchDeployments(ctx context.Context) erro
 		}
 		return err
 	}
-
 	if err := c.client.Get(ctx, c.targetNamespacedName, &c.targetDeploy); err != nil {
 		if !apierrors.IsNotFound(err) {
 			c.recorder.Event(c.parentController, event.Warning("Failed to get the target Deployment", err))
