@@ -325,8 +325,9 @@ func (a *Addon) enable() error {
 func waitForInitializerSuccess(obj *unstructured.Unstructured) error {
 	ctx := context.Background()
 	period := 20 * time.Second
+	timeout := 10 * time.Minute
 	var init v1beta1.Initializer
-	return wait.PollImmediateInfinite(period, func() (done bool, err error) {
+	return wait.PollImmediate(period, timeout, func() (done bool, err error) {
 		err = clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &init)
 		if err != nil {
 			return false, client.IgnoreNotFound(err)

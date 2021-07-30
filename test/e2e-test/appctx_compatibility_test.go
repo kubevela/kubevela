@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kind/pkg/errors"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -175,7 +176,7 @@ var _ = Describe("Test compatibility for deprecation of appContext", func() {
 				Namespace: namespaceName,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{{
+				Components: []common.ApplicationComponent{{
 					Name:       "mycomp",
 					Type:       "worker",
 					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},

@@ -67,7 +67,7 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: "app-with-config",
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "myweb1",
 					Type:       "worker",
@@ -85,7 +85,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name: "app-with-no-trait",
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "myweb2",
 					Type:       "worker",
@@ -114,12 +114,12 @@ var _ = Describe("Test Application Controller", func() {
 			Name: "app-import-pkg",
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "myweb",
 					Type:       "worker-import",
 					Properties: runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
-					Traits: []v1beta1.ApplicationTrait{
+					Traits: []common.ApplicationTrait{
 						{
 							Type:       "ingress-import",
 							Properties: runtime.RawExtension{Raw: []byte("{\"http\":{\"/\":80},\"domain\":\"abc.com\"}")},
@@ -164,7 +164,7 @@ var _ = Describe("Test Application Controller", func() {
 
 	appWithTrait := appwithNoTrait.DeepCopy()
 	appWithTrait.SetName("app-with-trait")
-	appWithTrait.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+	appWithTrait.Spec.Components[0].Traits = []common.ApplicationTrait{
 		{
 			Type:       "scaler",
 			Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
@@ -199,7 +199,7 @@ var _ = Describe("Test Application Controller", func() {
 	appWithTwoComp.SetName("app-with-two-comp")
 	appWithTwoComp.Spec.Components[0].Scopes = map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"}
 	appWithTwoComp.Spec.Components[0].Name = "myweb5"
-	appWithTwoComp.Spec.Components = append(appWithTwoComp.Spec.Components, v1beta1.ApplicationComponent{
+	appWithTwoComp.Spec.Components = append(appWithTwoComp.Spec.Components, common.ApplicationComponent{
 		Name:       "myweb6",
 		Type:       "worker",
 		Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2","config":"myconfig"}`)},
@@ -428,7 +428,7 @@ spec:
 				Namespace: ns,
 			}
 		)
-		businessApplication.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{{
+		businessApplication.Spec.Components[0].Traits = []common.ApplicationTrait{{
 			Type:       "share-fs",
 			Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
 		}}
@@ -640,7 +640,7 @@ spec:
 		appWithComposedWorkload := appwithNoTrait.DeepCopy()
 		appWithComposedWorkload.Spec.Components[0].Type = "webserver"
 		appWithComposedWorkload.SetName(appname)
-		appWithComposedWorkload.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+		appWithComposedWorkload.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "scaler",
 				Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
@@ -876,13 +876,13 @@ spec:
 		By("Update Application with new revision, component5 with new spec, rename component6 it should create new component ")
 
 		curApp.SetNamespace(app.Namespace)
-		curApp.Spec.Components[0] = v1beta1.ApplicationComponent{
+		curApp.Spec.Components[0] = common.ApplicationComponent{
 			Name:       "myweb5",
 			Type:       "worker",
 			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3"}`)},
 			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 		}
-		curApp.Spec.Components[1] = v1beta1.ApplicationComponent{
+		curApp.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "myweb7",
 			Type:       "worker",
 			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -1339,7 +1339,7 @@ spec:
 
 	It("app with a component refer to an existing WorkloadDefinition", func() {
 		appRefertoWd := appwithNoTrait.DeepCopy()
-		appRefertoWd.Spec.Components[0] = v1beta1.ApplicationComponent{
+		appRefertoWd.Spec.Components[0] = common.ApplicationComponent{
 			Name:       "mytask",
 			Type:       "task",
 			Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
@@ -1388,7 +1388,7 @@ spec:
 
 	It("app with two components and one component refer to an existing WorkloadDefinition", func() {
 		appMix := appWithTwoComp.DeepCopy()
-		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+		appMix.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "mytask",
 			Type:       "task",
 			Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
@@ -1573,7 +1573,7 @@ spec:
 
 	It("app with two components and one component can apply first while another one has secret insert", func() {
 		appMix := appWithTwoComp.DeepCopy()
-		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+		appMix.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "myconsumer",
 			Type:       "secretconsumer",
 			Properties: runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.14.0", "dbSecret":"mys"}`)},
@@ -1641,11 +1641,11 @@ spec:
 
 	It("app with two components and one component can apply first while another one'trait has secret insert", func() {
 		appMix := appWithTwoComp.DeepCopy()
-		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+		appMix.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "web-pv",
 			Type:       "worker",
 			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2"}`)},
-			Traits: []v1beta1.ApplicationTrait{{
+			Traits: []common.ApplicationTrait{{
 				Type:       "share-fs",
 				Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
 			}},
@@ -1740,12 +1740,12 @@ spec:
 				Namespace: ns.Name,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{
+				Components: []common.ApplicationComponent{
 					{
 						Name:       "myweb1",
 						Type:       "worker",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Traits: []v1beta1.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Type:       "rollout",
 								Properties: runtime.RawExtension{Raw: []byte(`{}`)},

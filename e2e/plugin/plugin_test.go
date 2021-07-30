@@ -55,12 +55,12 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			output, err := e2e.Exec("kubectl-vela dry-run -f dry-run-app.yaml -n vela-system")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(Equal(dryRunResult))
+			Expect(output).Should(ContainSubstring(dryRunResult))
 		})
 
 		It("Test dry-run application use definitions in local", func() {
 			output, err := e2e.Exec("kubectl-vela dry-run -f dry-run-app.yaml -d definitions")
-			Expect(output).Should(Equal(dryRunResult))
+			Expect(output).Should(ContainSubstring(dryRunResult))
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -95,13 +95,13 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			output, err := e2e.Exec("kubectl-vela live-diff -f live-diff-app.yaml")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(Equal(livediffResult))
+			Expect(output).Should(ContainSubstring(livediffResult))
 		})
 
 		It("Test dry-run application use definitions in local", func() {
 			output, err := e2e.Exec("kubectl-vela live-diff -f live-diff-app.yaml -d definitions")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(Equal(livediffResult))
+			Expect(output).Should(ContainSubstring(livediffResult))
 		})
 	})
 
@@ -110,13 +110,13 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			cdName := "test-show-task"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(Equal(showCdResult))
+			Expect(output).Should(ContainSubstring(showCdResult))
 		})
 		It("Test show traitDefinition reference", func() {
 			tdName := "test-sidecar"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(Equal(showTdResult))
+			Expect(output).Should(ContainSubstring(showTdResult))
 		})
 		It("Test show componentDefinition use Helm Charts as Workload", func() {
 			cdName := "test-webapp-chart"

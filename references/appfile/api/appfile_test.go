@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -73,7 +74,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 					Name: "test",
 				},
 				Spec: v1beta1.ApplicationSpec{
-					Components: []v1beta1.ApplicationComponent{
+					Components: []common.ApplicationComponent{
 						{
 							Name: "webapp",
 							Type: "containerWorkload",
@@ -107,7 +108,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 					Name: "test",
 				},
 				Spec: v1beta1.ApplicationSpec{
-					Components: []v1beta1.ApplicationComponent{
+					Components: []common.ApplicationComponent{
 						{
 							Name: "webapp",
 							Type: "containerWorkload",
@@ -115,7 +116,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 								Raw: []byte("{\"image\":\"busybox\"}"),
 							},
 							Scopes: map[string]string{"healthscopes.core.oam.dev": "test-default-health"},
-							Traits: []v1beta1.ApplicationTrait{
+							Traits: []common.ApplicationTrait{
 								{
 									Type: "scaler",
 									Properties: runtime.RawExtension{
@@ -289,14 +290,14 @@ outputs: ingress: {
 			Namespace: "default",
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{{
+			Components: []common.ApplicationComponent{{
 				Type:   "webservice",
 				Name:   "express-server",
 				Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
 				Properties: runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
-				Traits: []v1beta1.ApplicationTrait{{
+				Traits: []common.ApplicationTrait{{
 					Type: "route",
 					Properties: runtime.RawExtension{
 						Raw: []byte(`{"domain": "example.com", "http":{"/": 8080}}`),
@@ -307,13 +308,13 @@ outputs: ingress: {
 		},
 	}
 	ac2 := ac1.DeepCopy()
-	ac2.Spec.Components = append(ac2.Spec.Components, v1beta1.ApplicationComponent{
+	ac2.Spec.Components = append(ac2.Spec.Components, common.ApplicationComponent{
 		Name: "mongodb",
 		Type: "backend",
 		Properties: runtime.RawExtension{
 			Raw: []byte(`{"image":"bitnami/mongodb:3.6.20","cmd": ["mongodb"]}`),
 		},
-		Traits: []v1beta1.ApplicationTrait{},
+		Traits: []common.ApplicationTrait{},
 		Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
 	})
 

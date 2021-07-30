@@ -21,14 +21,14 @@ import (
 	"testing"
 
 	"github.com/ghodss/yaml"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 )
 
 func TestAssemble(t *testing.T) {
@@ -215,10 +215,10 @@ var _ = Describe("Test CheckSkipApplyWorkloadComp func", func() {
 				Spec: v1beta1.ApplicationRevisionSpec{
 					Application: v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{
-							Components: []v1beta1.ApplicationComponent{
+							Components: []common.ApplicationComponent{
 								{
 									Name: "comp1",
-									Traits: []v1beta1.ApplicationTrait{
+									Traits: []common.ApplicationTrait{
 										{
 											Type: "rollout",
 										},
@@ -229,7 +229,7 @@ var _ = Describe("Test CheckSkipApplyWorkloadComp func", func() {
 								},
 								{
 									Name: "comp2",
-									Traits: []v1beta1.ApplicationTrait{
+									Traits: []common.ApplicationTrait{
 										{
 											Type: "normal",
 										},

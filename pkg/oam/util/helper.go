@@ -689,6 +689,22 @@ func RawExtension2Component(raw runtime.RawExtension) (*v1alpha2.Component, erro
 	return c, nil
 }
 
+// RawExtension2Application converts runtime.RawExtension to Application
+func RawExtension2Application(raw runtime.RawExtension) (*v1beta1.Application, error) {
+	a := &v1beta1.Application{}
+	b, err := raw.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, a); err != nil {
+		return nil, err
+	}
+	if len(a.GetNamespace()) == 0 {
+		a.SetNamespace("default")
+	}
+	return a, nil
+}
+
 // AppConfig2ComponentManifests convert AppConfig and Components to a slice of ComponentManifest.
 func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.RawComponent) ([]*oamtypes.ComponentManifest, error) {
 	var err error
