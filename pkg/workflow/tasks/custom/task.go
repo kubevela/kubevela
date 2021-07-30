@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
@@ -27,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -229,12 +231,38 @@ func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, 
 }
 
 func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
-	return v.StepByFields(func(in *value.Value) (bool, error) {
-		if in.CueValue().Kind() == cue.BottomKind {
-			return true, errors.New("value is _|_")
+	do := opTpy(v)
+	if do != "" && do != "steps" {
+		provider := opProvider(v)
+		if err := exec.Handle(ctx, provider, do, v); err != nil {
+			return errors.WithMessagef(err, "run step(provider=%s,do=%s)", provider, do)
 		}
-		if in.CueValue().Err() != nil {
-			return true, in.CueValue().Err()
+		return nil
+	}
+	return v.StepByFields(func(fieldName string, in *value.Value) (bool, error) {
+		if in.CueValue().IncompleteKind() == cue.BottomKind {
+			errInfo, err := sets.ToString(in.CueValue())
+			if err != nil {
+				errInfo = "value is _|_"
+			}
+			return true, errors.New(errInfo + "(bottom kind)")
+		}
+		if retErr := in.CueValue().Err(); retErr != nil {
+			errInfo, err := sets.ToString(in.CueValue())
+			if err == nil {
+				retErr = errors.WithMessage(retErr, errInfo)
+			}
+			return false, retErr
+		}
+
+		if isStepList(fieldName) {
+			return false, in.StepByList(func(name string, item *value.Value) (bool, error) {
+				do := opTpy(item)
+				if do == "" {
+					return false, nil
+				}
+				return false, exec.doSteps(ctx, item)
+			})
 		}
 		do := opTpy(in)
 		if do == "" {
@@ -256,6 +284,13 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 		}
 		return false, nil
 	})
+}
+
+func isStepList(fieldName string) bool {
+	if fieldName == "#up" {
+		return true
+	}
+	return strings.HasPrefix(fieldName, "#up_")
 }
 
 func opTpy(v *value.Value) string {

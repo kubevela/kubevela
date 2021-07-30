@@ -315,17 +315,18 @@ spec:
         
         // apply workload to kubernetes cluster
         apply: op.#Apply & {
-          apiVersion: "example.com/v1"
-          kind: "Foo"
-          metadata: {
-            name: "test-foo"
-            namespace: parameter.namespace
+          value: {
+            apiVersion: "example.com/v1"
+            kind: "Foo"
+            metadata: {
+              name: "test-foo"
+              namespace: parameter.namespace
+            }
           }
         }
-        
         // wait until workload.status equal "Running"
         wait: op.#ConditionalWait & {
-          continue: apply.spec.key != ""
+          continue: apply.value.spec.key != ""
         }
 `
 

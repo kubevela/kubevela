@@ -166,23 +166,49 @@ type field struct {
 	Value *Value
 }
 
+// StepByList process item in list.
+func (val *Value) StepByList(handle func(name string, in *Value) (bool, error)) error {
+	iter, err := val.CueValue().List()
+	if err != nil {
+		return err
+	}
+	for iter.Next() {
+		stop, err := handle(iter.Label(), &Value{
+			v:  iter.Value(),
+			r:  val.r,
+			pd: val.pd,
+		})
+		if err != nil {
+			return err
+		}
+		if stop {
+			return nil
+		}
+	}
+	return nil
+}
+
 // StepByFields process the fields in order
-func (val *Value) StepByFields(handle func(in *Value) (bool, error)) error {
+func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)) error {
 	for i := 0; ; i++ {
 		field, end, err := val.fieldIndex(i)
 		if err != nil {
 			return err
 		}
-		stop, err := handle(field.Value)
+		stop, err := handle(field.Name, field.Value)
 		if err != nil {
 			return errors.WithMessagef(err, "step %s", field.Name)
 		}
 		if stop {
 			return nil
 		}
-		if err := val.FillObject(field.Value, field.Name); err != nil {
-			return err
+
+		if !isDef(field.Name) {
+			if err := val.FillObject(field.Value, field.Name); err != nil {
+				return err
+			}
 		}
+
 		if end {
 			break
 		}
@@ -224,7 +250,7 @@ func (val *Value) Field(label string) (cue.Value, error) {
 		return v, errors.Errorf("label %s not found", label)
 	}
 
-	if v.Kind() == cue.BottomKind {
+	if v.IncompleteKind() == cue.BottomKind {
 		return v, errors.Errorf("label %s's value not computed", label)
 	}
 	return v, nil
