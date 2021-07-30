@@ -18,6 +18,7 @@ package applicationconfiguration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -137,7 +138,7 @@ func (c *ComponentHandler) IsRevisionDiff(mt klog.KMetadata, curComp *v1alpha2.C
 	return needNewRevision, curComp.Status.LatestRevision.Revision
 }
 
-func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtime.Object) ([]reconcile.Request, bool) {
+func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj client.Object) ([]reconcile.Request, bool) {
 	curComp := obj.(*v1alpha2.Component)
 	comp := curComp.DeepCopy()
 	// No generation changed, will not create revision
@@ -168,8 +169,13 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 		Name:     revisionName,
 		Revision: nextRevision,
 	}
+	compRaw, err := json.Marshal(comp)
+	if err != nil {
+		klog.InfoS(fmt.Sprintf("json.Marshal failed:  %v", err), "componentName", mt.GetName())
+		return nil, false
+	}
 	// set annotation to component
-	revision := appsv1.ControllerRevision{
+	revision := &appsv1.ControllerRevision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      revisionName,
 			Namespace: comp.Namespace,
@@ -187,11 +193,11 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 			},
 		},
 		Revision: nextRevision,
-		Data:     runtime.RawExtension{Object: comp},
+		Data:     runtime.RawExtension{Raw: compRaw},
 	}
 
 	// TODO: we should update the status first. otherwise, the subsequent create will all fail if the update fails
-	err := c.Client.Create(context.TODO(), &revision)
+	err = c.Client.Create(context.TODO(), revision)
 	if err != nil {
 		klog.InfoS(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
 		return nil, false

@@ -48,8 +48,8 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for EnvBinding controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
 	klog.InfoS("Reconcile EnvBinding", "envbinding", klog.KRef(req.Namespace, req.Name))
 
@@ -119,7 +119,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// 6. store manifest of different envs to configmap
-	if err = StoreManifest2ConfigMap(ctx, r, envBinding, envBindApps); err != nil {
+	if err = StoreManifest2ConfigMap(ctx, r.Client, envBinding, envBindApps); err != nil {
 		klog.ErrorS(err, "Failed to store manifest of different envs to configmap")
 		r.record.Event(envBinding, event.Warning("Failed to store manifest of different envs to configmap", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
