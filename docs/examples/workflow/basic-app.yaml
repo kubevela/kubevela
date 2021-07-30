@@ -16,12 +16,12 @@ spec:
         properties:
           component: "server1"
         outputs:
-          - name: server1Ip
+          - name: server1IP
             exportKey: "myIP"
       - name: deploy-server2
-        type: apply-withIP
+        type: apply-with-ip
         inputs:
-          - from: server1Ip
-            parameterKey: prefixIP
+          - from: server1IP
+            parameterKey: serverIP
         properties:
           component: "server2"

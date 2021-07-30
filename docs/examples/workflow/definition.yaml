@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
-  name: apply-withIP
+  name: apply-with-ip
 spec:
   schematic:
     cue:
@@ -9,7 +9,7 @@ spec:
         import ("vela/op")
         parameter: {
            component: string
-           prefixIP?: string
+           serverIP?: string
         }
 
         // load component from application
@@ -24,7 +24,7 @@ spec:
               component.value.workload
               metadata: name: parameter.name
               if parameter.prefixIP!=_|_{
-                 spec: containers: [{env: [{name: "PrefixIP",value: parameter.prefixIP}]}]
+                 spec: containers: [{env: [{name: "ServerIP",value: parameter.ServerIP}]}]
               }
            }
         }

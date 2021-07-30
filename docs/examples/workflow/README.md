@@ -17,7 +17,7 @@
 
     NAME              AGE
     apply-component   49s
-    apply-withIP      49s
+    apply-with-ip      49s
    ```
 
 

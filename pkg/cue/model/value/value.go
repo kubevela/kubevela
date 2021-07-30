@@ -37,7 +37,7 @@ type Value struct {
 
 // String return value's cue format string
 func (val *Value) String() (string, error) {
-	return sets.ToString(val.v)
+	return sets.ToString(val.v, sets.OptBytesToString)
 }
 
 // Error return value's error information.
