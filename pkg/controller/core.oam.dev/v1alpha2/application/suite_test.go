@@ -100,6 +100,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("start application suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.BoolPtr(false),
 		CRDDirectoryPaths:        []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
 	}
@@ -166,9 +167,9 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
+	controllerDone()
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
-	controllerDone()
 })
 
 type FakeRecorder struct {

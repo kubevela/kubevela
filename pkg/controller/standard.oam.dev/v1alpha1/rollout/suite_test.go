@@ -66,6 +66,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("start application deployment suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
 			filepath.Join("..", "config", "crd", "bases")},

@@ -58,6 +58,7 @@ var _ = BeforeSuite(func(done Done) {
 	testEnv = &envtest.Environment{
 		UseExistingCluster:       pointer.BoolPtr(false),
 		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 	}
 	var err error
 	cfg, err = testEnv.Start()

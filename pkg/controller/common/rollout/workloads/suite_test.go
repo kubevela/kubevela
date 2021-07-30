@@ -59,6 +59,7 @@ var _ = BeforeSuite(func(done Done) {
 		ErrorIfCRDPathMissing:    true,
 		UseExistingCluster:       pointer.BoolPtr(false),
 		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 	}
 	var err error
 	cfg, err = testEnv.Start()

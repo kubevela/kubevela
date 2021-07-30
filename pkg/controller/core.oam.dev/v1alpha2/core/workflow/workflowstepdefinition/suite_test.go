@@ -59,6 +59,7 @@ var _ = BeforeSuite(func(done Done) {
 		},
 		UseExistingCluster:       &useExistCluster,
 		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 	}
 	var err error
 	cfg, err = testEnv.Start()

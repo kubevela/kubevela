@@ -64,6 +64,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 		CRDDirectoryPaths:        []string{yamlPath},
 	}
 

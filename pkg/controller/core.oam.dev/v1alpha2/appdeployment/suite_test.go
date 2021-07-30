@@ -77,6 +77,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.BoolPtr(false),
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts", "vela-core", "crds"),
@@ -121,7 +122,7 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
+	controllerDone()
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
-	controllerDone()
 })
