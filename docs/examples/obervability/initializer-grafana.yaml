@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grafana
+spec: { }
+
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  name: grafana
+  namespace: grafana
+spec:
+  appTemplate:
+    spec:
+      components:
+        - name: grafana
+          properties:
+            chart: grafana
+            version: 6.14.1
+            repoType: helm
+            repoUrl: https://grafana.github.io/helm-charts
+            targetNamespace: grafana
+          type: helm
+          traits:
+            - type: pure-ingress
+              properties:
+                domain: grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
+                http:
+                  "/": 80
+        - name: loki
+          type: helm
+          properties:
+            chart: loki-stack
+            version: 2.4.1
+            repoType: helm
+            repoUrl: https://grafana.github.io/helm-charts
+            targetNamespace: loki
+          traits:
+            - type: pure-ingress
+              properties:
+                domain: loki.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
+                http:
+                  "/": 3100
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: fluxcd
+        namespace: vela-system
