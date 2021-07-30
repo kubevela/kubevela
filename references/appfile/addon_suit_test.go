@@ -109,7 +109,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient.Create(ctx, &terraformDefinition)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	close(done)
-}, 60)
+}, 120)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

@@ -84,7 +84,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(pd).ToNot(BeNil())
 
 	close(done)
-}, 60)
+}, 120)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

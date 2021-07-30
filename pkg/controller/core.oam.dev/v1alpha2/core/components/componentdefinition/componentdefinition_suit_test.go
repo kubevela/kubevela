@@ -105,7 +105,7 @@ var _ = BeforeSuite(func(done Done) {
 	}()
 
 	close(done)
-}, 60)
+}, 120)
 
 var _ = AfterSuite(func() {
 	By("Stop the controller")
