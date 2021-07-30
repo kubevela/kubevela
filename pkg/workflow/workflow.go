@@ -89,11 +89,6 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		return
 	}
 
-	gerr = w.setMetadataToContext(wfCtx)
-	if gerr != nil {
-		return
-	}
-
 	return w.run(wfCtx, taskRunners)
 }
 
@@ -109,6 +104,10 @@ func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) 
 	wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
 	if err != nil {
 		err = errors.WithMessage(err, "new context")
+		return
+	}
+
+	if err = w.setMetadataToContext(wfCtx); err != nil {
 		return
 	}
 	wfStatus.ContextBackend = wfCtx.StoreRef()
