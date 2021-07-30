@@ -40,6 +40,9 @@ func TestComponent(t *testing.T) {
 	assert.Equal(t, err != nil, true)
 	cmf, err := wfCtx.GetComponent("server")
 	assert.NilError(t, err)
+	components := wfCtx.GetComponents()
+	_, ok := components["server"]
+	assert.Equal(t, ok, true)
 
 	assert.Equal(t, cmf.Workload.String(), `apiVersion: "v1"
 kind:       "Pod"

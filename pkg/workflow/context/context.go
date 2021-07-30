@@ -58,6 +58,11 @@ func (wf *WorkflowContext) GetComponent(name string) (*ComponentManifest, error)
 	return component, nil
 }
 
+// GetComponents Get All ComponentManifest from workflow context.
+func (wf *WorkflowContext) GetComponents() map[string]*ComponentManifest {
+	return wf.components
+}
+
 // PatchComponent patch component with value.
 func (wf *WorkflowContext) PatchComponent(name string, patchValue *value.Value) error {
 	component, err := wf.GetComponent(name)

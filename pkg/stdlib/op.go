@@ -22,25 +22,11 @@ type file struct {
 	content string
 }
 
-var opFile = file{
+var (
+	opFile = file{
 	name: "op.cue",
 	path: "vela/op",
 	content: `
-#Load: {
-  #do: "load"
-  component?: string
-  workload?: {...}
-  auxiliaries?: [...{...}]
-}  
-
-#Export: {
-  #do: "export"
-  type: *"patch" | "var"
-  component?: string
-  path?: string
-  value: _
-}
-
 #ConditionalWait: {
   #do: "wait"
   continue: bool
@@ -51,19 +37,67 @@ var opFile = file{
   message: string
 }
 
-#Apply: {
-  #do: "apply"
-  #provider: "kube"
-  patch?: _
+#Apply: #Steps & {
+
+  object: #KubeApply
+  object: patch: _patch
+  export: #Export & {
+      type: "var"
+      path: "applied__"
+      value: {"\(object.metadata.namespace)_\(object.apiVersion)_\(object.kind)_\(object.metadata.name)": true}
+  }
+  _patch?: _
   ...
 }
 
-#Read: {
-  #do: "read"
-  #provider: "kube"
-  result?: {...}
-  ...
+#ApplyComponent: #Steps & {
+   componentName: string
+   load: #Load & {
+      component: componentName
+   }
+   _applyWorkload: #Apply & {
+      object: load.workload
+   }
+    
+   _applyTraits: #Steps & {
+      for index,o in load.auxiliaries {
+          "s\(index)": #Apply & {
+               object: o
+          }
+      }
+   }
 }
+
+#ApplyRemaining: #Steps & {
+  namespace?: string
+
+  // exceptions specify the resources not to apply.
+  exceptions?: {
+    [componentName: string]: {
+      // skipApplyWorkload indicates whether to skip apply the workload resource
+      skipApplyWorkload: *true | bool
+      
+      // skipAllTraits indicates to skip apply all resources of the traits.
+      // If this is true, skipApplyTraits will be ignored
+      skipAllTraits: *true| bool
+
+      // skipApplyTraits specifies the names of the traits to skip apply
+      skipApplyTraits: [...string]
+    }
+  }
+  
+  list: #ListObjects
+  applied: #GetVar & {
+      path: "applied__"
+  } 
+  for i,o in list.objects {
+     if applied.value["\(o.metadata.namespace)_\(o.apiVersion)_\(o.kind)_\(o.metadata.name)"]==_|_{
+        "s\(i)": #KubeApply & {object: o}
+     }
+  }
+}
+
+#Read: #KubeRead
 
 #Steps: {
   #do: "steps"
@@ -74,3 +108,54 @@ NoExist: _|_
 
 `,
 }
+	kubeFile=file{
+		name: "kube.cue",
+		path: "vela/op",
+		content:`
+#KubeApply: {
+  #do: "apply"
+  #provider: "kube"
+}
+
+
+#KubeRead: {
+  #do: "read"
+  #provider: "kube"
+  result?: {...}
+  ...
+}
+`,
+	}
+
+	workspaceFile=file{
+		name: "workspace.cue",
+		path: "vela/op",
+		content:`
+#Load: {
+  #do: "load"
+  component?: string
+  workload?: {...}
+  auxiliaries?: [...{...}]
+}  
+
+#ListObjects: {
+   #do: "listObjs"
+}
+
+#Export: {
+  #do: "export"
+  type: *"patch" | "var"
+  component?: string
+  path?: string
+  value: _
+}
+
+#GetVar: {
+  #do: "var"
+  method: *"Get" | "Get"
+  path: sting
+  value?: _
+}
+`,
+	}
+)

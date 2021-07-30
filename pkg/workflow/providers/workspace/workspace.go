@@ -42,9 +42,6 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err != nil {
 		return err
 	}
-	if !componentName.Exists() {
-		return nil
-	}
 	name, err := componentName.String()
 	if err != nil {
 		return err
@@ -53,10 +50,13 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err != nil {
 		return err
 	}
+	return fillComponent(v, component)
+}
+
+func fillComponent(v *value.Value, component *wfContext.ComponentManifest) error {
 	if err := v.FillRaw(component.Workload.String(), "workload"); err != nil {
 		return err
 	}
-
 	if len(component.Auxiliaries) > 0 {
 		var auxiliaries []string
 		for _, aux := range component.Auxiliaries {
@@ -65,6 +65,58 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), "auxiliaries"); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ListObjects List all object from context.
+func (h *provider) ListObjects(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	var (
+		insts []string
+	)
+	components := ctx.GetComponents()
+	for _, c := range components {
+		insts = append(insts, c.Workload.String())
+		for _, aux := range c.Auxiliaries {
+			insts = append(insts, aux.String())
+		}
+	}
+	return v.FillRaw(fmt.Sprintf("[%s]", strings.Join(insts, ",")), "objects")
+}
+
+// Var get & put varible from context.
+func (h *provider) Var(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	methodV, err := v.Field("method")
+	if err != nil {
+		return err
+	}
+	method, err := methodV.String()
+	if err != nil {
+		return err
+	}
+
+	pathV, err := v.Field("path")
+	if err != nil {
+		return err
+	}
+	path, err := pathV.String()
+	if err != nil {
+		return err
+	}
+
+	switch method {
+	case "Get":
+		value, err := ctx.GetVar(strings.Split(path, ".")...)
+		if err != nil {
+			return err
+		}
+		return v.FillObject(value, "value")
+	case "Put":
+		value, err := v.LookupValue("value")
+		if err != nil {
+			return err
+		}
+		return ctx.SetVar(value, strings.Split(path, ".")...)
 	}
 	return nil
 }
@@ -142,9 +194,11 @@ func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action
 func Install(p providers.Providers) {
 	prd := &provider{}
 	p.Register(ProviderName, map[string]providers.Handler{
-		"load":   prd.Load,
-		"export": prd.Export,
-		"wait":   prd.Wait,
-		"break":  prd.Break,
+		"load":     prd.Load,
+		"export":   prd.Export,
+		"wait":     prd.Wait,
+		"break":    prd.Break,
+		"listObjs": prd.ListObjects,
+		"var":      prd.Var,
 	})
 }
