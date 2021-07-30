@@ -44,7 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = Describe("Cloneset based rollout tests", func() {
+var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func() {
 	ctx := context.Background()
 	var namespaceName, appRolloutName string
 	var ns corev1.Namespace

@@ -38,7 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
-var _ = Describe("rollout trait test", func() {
+var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 	ctx := context.Background()
 	var namespaceName, componentName, compRevName string
 	var ns corev1.Namespace

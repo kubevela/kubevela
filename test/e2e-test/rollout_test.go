@@ -49,7 +49,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Cloneset component rollout tests", func() {
+var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", func() {
 	ctx := context.Background()
 	var namespaceName, compnentName, rolloutName string
 	var ns corev1.Namespace
@@ -291,7 +291,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
-			//checkRollout.Spec.SourceRevisionName = utils.ConstructRevisionName(compnentName, 1)
+			// we needn't specify sourceRevision, rollout use lastTarget as source
 			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(compnentName, 2)
 			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
@@ -354,7 +354,7 @@ var _ = Describe("Cloneset component rollout tests", func() {
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
-			//checkRollout.Spec.SourceRevisionName = utils.ConstructRevisionName(compnentName, 2)
+			// we needn't specify sourceRevision, rollout use lastTarget as source
 			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(compnentName, 1)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
 				return err

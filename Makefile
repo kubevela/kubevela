@@ -170,11 +170,11 @@ e2e-api-test:
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v  --skip Cloneset based app embed rollout tests --skip Cloneset based rollout tests --skip Cloneset component rollout tests ./test/e2e-test
+	ginkgo -v  --skip="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
 
 e2e-rollout-test:
-	ginkgo -v  --focus Cloneset based app embed rollout tests --focus Cloneset based rollout tests --focus Cloneset component rollout tests ./test/e2e-test
+	ginkgo -v  --focus="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
