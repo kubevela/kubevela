@@ -44,10 +44,14 @@ type provider struct {
 
 // Apply create or update CR in cluster.
 func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("value")
+	if err != nil {
+		return err
+	}
 	var workload = new(unstructured.Unstructured)
 	pv, err := v.Field("patch")
 	if pv.Exists() && err == nil {
-		base, err := model.NewBase(v.CueValue())
+		base, err := model.NewBase(val.CueValue())
 		if err != nil {
 			return err
 		}
@@ -63,7 +67,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 		if err != nil {
 			return err
 		}
-	} else if err := v.UnmarshalTo(workload); err != nil {
+	} else if err := val.UnmarshalTo(workload); err != nil {
 		return err
 	}
 
@@ -71,17 +75,21 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if workload.GetNamespace() == "" {
 		workload.SetNamespace("default")
 	}
-	delete(workload.Object, "patch")
 	if err := h.apply(deployCtx, workload); err != nil {
 		return err
 	}
-	return v.FillObject(workload.Object)
+	return v.FillObject(workload.Object, "value")
 }
 
 // Read get CR from cluster.
 func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("value")
+	if err != nil {
+		return err
+	}
+
 	obj := new(unstructured.Unstructured)
-	if err := v.UnmarshalTo(obj); err != nil {
+	if err := val.UnmarshalTo(obj); err != nil {
 		return err
 	}
 	key, err := client.ObjectKeyFromObject(obj)
@@ -92,13 +100,10 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 		key.Namespace = "default"
 	}
 
-	retObj := new(unstructured.Unstructured)
-	retObj.SetKind(obj.GetKind())
-	retObj.SetAPIVersion(obj.GetAPIVersion())
-	if err := h.cli.Get(context.Background(), key, retObj); err != nil {
+	if err := h.cli.Get(context.Background(), key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(retObj.Object, "result")
+	return v.FillObject(obj.Object, "value")
 }
 
 // Install register handlers to provider discover.

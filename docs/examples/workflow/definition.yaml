@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
-  name: apply
+  name: apply-with-ip
 spec:
   schematic:
     cue:
@@ -9,7 +9,42 @@ spec:
         import ("vela/op")
         parameter: {
            component: string
-           name: string
+           serverIP?: string
+        }
+
+        // load component from application
+        component: op.#Load & {
+           component: parameter.component
+           value: {}
+        }
+
+        // apply workload to kubernetes cluster
+        apply: op.#Apply & {
+           value: {
+              component.value.workload
+              metadata: name: parameter.name
+              if parameter.prefixIP!=_|_{
+                 spec: containers: [{env: [{name: "ServerIP",value: parameter.ServerIP}]}]
+              }
+           }
+        }
+
+        // wait until workload.status equal "Running"
+        wait: op.#ConditionalWait & {
+           continue: apply.value.status.phase =="Running"
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: apply-component
+spec:
+  schematic:
+    cue:
+      template: |
+        import ("vela/op")
+        parameter: {
+           component: string
            prefixIP?: string
         }
 
@@ -19,12 +54,8 @@ spec:
         }
 
         // apply workload to kubernetes cluster
-        apply: op.#Apply & {
-           component.workload
-           metadata: name: parameter.name
-           if parameter.prefixIP!=_|_{
-                spec: containers: [{env: [{name: "PrefixIP",value: parameter.prefixIP}]}]
-           }
+        apply: op.#ApplyComponent & {
+           component: parameter.name
         }
 
         // wait until workload.status equal "Running"
@@ -33,7 +64,7 @@ spec:
         }
 
         // export podIP
-        myIP: apply.status.podIP
+        myIP: apply.workload.status.podIP
 ---
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
@@ -57,6 +88,7 @@ spec:
           kind: "Pod"
           metadata: {
             labels: app: "nginx"
+            name: context.name
           }
           spec:{
             containers:[{

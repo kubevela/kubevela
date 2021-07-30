@@ -37,14 +37,26 @@ component: "server"
 	assert.NilError(t, err)
 	err = p.Load(wfCtx, v, &mockAction{})
 	assert.NilError(t, err)
+	v, err = v.LookupValue("value")
+	assert.NilError(t, err)
 	str, err := v.String()
+	assert.NilError(t, err)
+	assert.Equal(t, str, expectedManifest)
+
+	// check Get Components
+	v, err = value.NewValue(`{}`, nil)
+	assert.NilError(t, err)
+	err = p.Load(wfCtx, v, &mockAction{})
+	assert.NilError(t, err)
+	v, err = v.LookupValue("value", "server")
+	assert.NilError(t, err)
+	str, err = v.String()
 	assert.NilError(t, err)
 	assert.Equal(t, str, expectedManifest)
 
 	errTestCases := []string{
 		`component: "not-found"`,
 		`component: 124`,
-		`not: "server"`,
 		`component: _|_`,
 	}
 
@@ -60,7 +72,6 @@ func TestProvider_Export(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
 	p := &provider{}
 	v, err := value.NewValue(`
-type: "patch"
 value: {
 	spec: containers: [{
       // +patchKey=name
@@ -103,44 +114,69 @@ spec: {
 }
 `)
 
-	v, err = value.NewValue(`
-type: "var"
-path: "clusterIP"
-value: "1.1.1.1"
-`, nil)
-	assert.NilError(t, err)
-	err = p.Export(wfCtx, v, &mockAction{})
-	assert.NilError(t, err)
-	varV, err := wfCtx.GetVar("clusterIP")
-	assert.NilError(t, err)
-	s, err = varV.CueValue().String()
-	assert.NilError(t, err)
-	assert.Equal(t, s, "1.1.1.1")
-
 	errCases := []string{`
-type: "vars"
-path: "clusterIP"
 value: "1.1.1.1"
 `, `
-type: "patch"
-path: "clusterIP"
-value: "1.1.1.1"
-`, `
-type: "patch"
 component: "not-found"
 value: {}
 `, `
-type: "patch"
 component: "server"
-`, `
-component: "server"
-value: {}
 `}
 
 	for _, tCase := range errCases {
 		v, err = value.NewValue(tCase, nil)
 		assert.NilError(t, err)
 		err = p.Export(wfCtx, v, &mockAction{})
+		assert.Equal(t, err != nil, true)
+	}
+}
+
+func TestProvider_DoVar(t *testing.T) {
+	wfCtx := newWorkflowContextForTest(t)
+	p := &provider{}
+
+	v, err := value.NewValue(`
+method: "Put"
+path: "clusterIP"
+value: "1.1.1.1"
+`, nil)
+	assert.NilError(t, err)
+	err = p.DoVar(wfCtx, v, &mockAction{})
+	assert.NilError(t, err)
+	varV, err := wfCtx.GetVar("clusterIP")
+	assert.NilError(t, err)
+	s, err := varV.CueValue().String()
+	assert.NilError(t, err)
+	assert.Equal(t, s, "1.1.1.1")
+
+	v, err = value.NewValue(`
+method: "Get"
+path: "clusterIP"
+`, nil)
+	assert.NilError(t, err)
+	err = p.DoVar(wfCtx, v, &mockAction{})
+	assert.NilError(t, err)
+	varV, err = v.LookupValue("value")
+	assert.NilError(t, err)
+	s, err = varV.CueValue().String()
+	assert.NilError(t, err)
+	assert.Equal(t, s, "1.1.1.1")
+
+	errCases := []string{`
+value: "1.1.1.1"
+`, `
+method: "Get"
+`, `
+path: "ClusterIP"
+`, `
+method: "Put"
+path: "ClusterIP"
+`}
+
+	for _, tCase := range errCases {
+		v, err = value.NewValue(tCase, nil)
+		assert.NilError(t, err)
+		err = p.DoVar(wfCtx, v, &mockAction{})
 		assert.Equal(t, err != nil, true)
 	}
 }
@@ -234,8 +270,7 @@ kind: ConfigMap
 metadata:
   name: app-v1
 `
-	expectedManifest = `component: "server"
-workload: {
+	expectedManifest = `workload: {
 	apiVersion: "v1"
 	kind:       "Pod"
 	metadata: {

@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -38,11 +36,14 @@ type provider struct {
 
 // Load get component from context.
 func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	componentName, err := v.Field("component")
-	if err != nil {
-		return err
-	}
+	componentName, _ := v.Field("component")
 	if !componentName.Exists() {
+		componets := ctx.GetComponents()
+		for name, c := range componets {
+			if err := fillComponent(v, c, "value", name); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	name, err := componentName.String()
@@ -53,65 +54,83 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err != nil {
 		return err
 	}
-	if err := v.FillRaw(component.Workload.String(), "workload"); err != nil {
+	return fillComponent(v, component, "value")
+}
+
+func fillComponent(v *value.Value, component *wfContext.ComponentManifest, paths ...string) error {
+	if err := v.FillRaw(component.Workload.String(), append(paths, "workload")...); err != nil {
 		return err
 	}
-
 	if len(component.Auxiliaries) > 0 {
 		var auxiliaries []string
 		for _, aux := range component.Auxiliaries {
 			auxiliaries = append(auxiliaries, "{"+aux.String()+"}")
 		}
-		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), "auxiliaries"); err != nil {
+		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), append(paths, "auxiliaries")...); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Export put data into context.
-func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	tpyValue, err := v.Field("type")
+// DoVar get & put variable from context.
+func (h *provider) DoVar(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	methodV, err := v.Field("method")
 	if err != nil {
 		return err
 	}
-	tpy, err := tpyValue.String()
+	method, err := methodV.String()
 	if err != nil {
 		return err
 	}
 
+	pathV, err := v.Field("path")
+	if err != nil {
+		return err
+	}
+	path, err := pathV.String()
+	if err != nil {
+		return err
+	}
+
+	switch method {
+	case "Get":
+		value, err := ctx.GetVar(strings.Split(path, ".")...)
+		if err != nil {
+			return err
+		}
+		raw, err := value.String()
+		if err != nil {
+			return err
+		}
+		return v.FillRaw(raw, "value")
+	case "Put":
+		value, err := v.LookupValue("value")
+		if err != nil {
+			return err
+		}
+		return ctx.SetVar(value, strings.Split(path, ".")...)
+	}
+	return nil
+}
+
+// Export put data into context.
+func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
 	}
 
-	switch tpy {
-	case "patch":
-		nameValue, err := v.Field("component")
-		if err != nil {
-			return err
-		}
-
-		name, err := nameValue.String()
-		if err != nil {
-			return err
-		}
-		return ctx.PatchComponent(name, val)
-	case "var":
-		pathValue, err := v.Field("path")
-		if err != nil {
-			return err
-		}
-
-		path, err := pathValue.String()
-		if err != nil {
-			return err
-		}
-
-		return ctx.SetVar(val, strings.Split(path, ".")...)
-	default:
-		return errors.Errorf("export type=%s not supported", tpy)
+	nameValue, err := v.Field("component")
+	if err != nil {
+		return err
 	}
+
+	name, err := nameValue.String()
+	if err != nil {
+		return err
+	}
+	return ctx.PatchComponent(name, val)
 }
 
 // Wait let workflow wait.
@@ -146,5 +165,6 @@ func Install(p providers.Providers) {
 		"export": prd.Export,
 		"wait":   prd.Wait,
 		"break":  prd.Break,
+		"var":    prd.DoVar,
 	})
 }

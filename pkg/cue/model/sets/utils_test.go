@@ -75,3 +75,59 @@ if foo > 5 {
 		assert.Equal(t, str, tcase.expected)
 	}
 }
+
+func TestOptBytesToString(t *testing.T) {
+	testCases := []struct {
+		s        string
+		expected string
+	}{
+		{
+			s: `
+import "encoding/base64"
+foo: int
+lacy: base64.Decode(null,base64.Encode(null,"abc"))
+`,
+			expected: `foo:  int
+lacy: "abc"
+`},
+		{
+			s: `
+foo: int
+lacy: 'xxx==vv-'
+`,
+			expected: `foo:  int
+lacy: "xxx==vv-"
+`},
+		{
+			s: `
+foo: int
+lacy: "123456"
+`,
+			expected: `foo:  int
+lacy: "123456"
+`},
+		{
+			s: `
+foo: int
+lacy: #"""
+abc
+123
+"""#
+`,
+			expected: `foo: int
+lacy: """
+        abc
+        123
+        """
+`},
+	}
+
+	var r cue.Runtime
+	for _, tcase := range testCases {
+		inst, err := r.Compile("-", tcase.s)
+		assert.NilError(t, err)
+		str, err := ToString(inst.Value(), OptBytesToString)
+		assert.NilError(t, err)
+		assert.Equal(t, str, tcase.expected)
+	}
+}

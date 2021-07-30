@@ -136,7 +136,7 @@ step3: {
 		val, err := NewValue(tCase.base, nil)
 		assert.NilError(t, err)
 		number := 99
-		err = val.StepByFields(func(in *Value) (bool, error) {
+		err = val.StepByFields(func(_ string, in *Value) (bool, error) {
 			number++
 			return false, in.FillObject(map[string]interface{}{
 				"value": number,
@@ -156,7 +156,7 @@ step3: "3"
 	val, err := NewValue(caseSkip, nil)
 	assert.NilError(t, err)
 	inc := 0
-	err = val.StepByFields(func(in *Value) (bool, error) {
+	err = val.StepByFields(func(_ string, in *Value) (bool, error) {
 		inc++
 		s, err := in.CueValue().String()
 		assert.NilError(t, err)
@@ -169,7 +169,7 @@ step3: "3"
 	assert.Equal(t, inc, 2)
 
 	inc = 0
-	err = val.StepByFields(func(in *Value) (bool, error) {
+	err = val.StepByFields(func(_ string, in *Value) (bool, error) {
 		inc++
 		s, err := in.CueValue().String()
 		assert.NilError(t, err)
@@ -182,7 +182,7 @@ step3: "3"
 	assert.Equal(t, inc, 2)
 
 	inc = 0
-	err = val.StepByFields(func(in *Value) (bool, error) {
+	err = val.StepByFields(func(_ string, in *Value) (bool, error) {
 		inc++
 		s, err := in.CueValue().String()
 		assert.NilError(t, err)
@@ -228,6 +228,44 @@ do: string
 	val, err = NewValue(caseIncomplete, nil)
 	assert.NilError(t, err)
 	err = val.UnmarshalTo(&out)
+	assert.Equal(t, err != nil, true)
+}
+
+func TestStepByList(t *testing.T) {
+	base := `[{step: 1},{step: 2}]`
+	v, err := NewValue(base, nil)
+	assert.NilError(t, err)
+	var i int64
+	err = v.StepByList(func(name string, in *Value) (bool, error) {
+		i++
+		num, err := in.CueValue().Lookup("step").Int64()
+		assert.NilError(t, err)
+		assert.Equal(t, num, i)
+		return false, nil
+	})
+	assert.NilError(t, err)
+
+	i = 0
+	err = v.StepByList(func(_ string, _ *Value) (bool, error) {
+		i++
+		return true, nil
+	})
+	assert.NilError(t, err)
+	assert.Equal(t, i, int64(1))
+
+	i = 0
+	err = v.StepByList(func(_ string, _ *Value) (bool, error) {
+		i++
+		return false, errors.New("mock error")
+	})
+	assert.Equal(t, err.Error(), "mock error")
+	assert.Equal(t, i, int64(1))
+
+	notListV, err := NewValue(`{}`, nil)
+	assert.NilError(t, err)
+	err = notListV.StepByList(func(_ string, _ *Value) (bool, error) {
+		return false, nil
+	})
 	assert.Equal(t, err != nil, true)
 }
 
@@ -285,7 +323,7 @@ close({provider: int})
 
 	providerValue, err := val.LookupValue("provider")
 	assert.NilError(t, err)
-	err = providerValue.StepByFields(func(in *Value) (bool, error) {
+	err = providerValue.StepByFields(func(_ string, in *Value) (bool, error) {
 		return false, nil
 	})
 	assert.Equal(t, err != nil, true)

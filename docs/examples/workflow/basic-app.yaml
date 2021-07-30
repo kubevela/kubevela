@@ -12,18 +12,16 @@ spec:
   workflow:
     steps:
       - name: deploy-server1
-        type: apply
+        type: apply-component
         properties:
           component: "server1"
-          name: "firstApp"
         outputs:
-          - name: server1Ip
+          - name: server1IP
             exportKey: "myIP"
       - name: deploy-server2
-        type: apply
+        type: apply-with-ip
         inputs:
-          - from: server1Ip
-            parameterKey: prefixIP
+          - from: server1IP
+            parameterKey: serverIP
         properties:
-          name: "secondApp"
           component: "server2"

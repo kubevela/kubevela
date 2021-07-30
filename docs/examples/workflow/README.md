@@ -13,10 +13,11 @@
  Output:
    ```
     NAME              AGE
-    singletonServer   41s
+    singletonServer   49s
 
-    NAME    AGE
-    apply   49s
+    NAME              AGE
+    apply-component   49s
+    apply-with-ip      49s
    ```
 
 
@@ -79,17 +80,17 @@ This Demo is to apply component in the cluster in order by workflow, and inject 
 
     ```
     NAME       READY   STATUS    RESTARTS   AGE
-    firstApp   1/1     Running   0          15s
-    secondApp  1/1     Running   0          18s
+    server1    1/1     Running   0          15s
+    server2    1/1     Running   0          18s
     ```
 
     This means the resource has been rendered correctly.
 
 
-3. Check `secondApp` Environment variable
+3. Check `server2` Environment variable
 
     ```
-    kubectl exec secondApp -- env|grep PrefixIP
+    kubectl exec server2 -- env|grep PrefixIP
     ```
 
     Output:
@@ -107,5 +108,3 @@ WorkflowStep consists of a series of actions, you can describe the actions to be
    Apply schema to cluster.
 3. `op.#ConditionalWait`
    Condition waits until continue is true.
-4. `op.#Export`
-   Export data to workflow context.

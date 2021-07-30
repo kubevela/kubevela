@@ -238,6 +238,113 @@ close({
 	}
 }
 
+func TestNestedSteps(t *testing.T) {
+
+	var (
+		echo    string
+		mockErr = errors.New("mock error")
+	)
+
+	wfCtx := newWorkflowContextForTest(t)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			echo = echo + "ok"
+			return nil
+		},
+		"error": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return mockErr
+		},
+	})
+	exec := &executor{
+		handlers: discover,
+	}
+
+	testCases := []struct {
+		base     string
+		expected string
+		hasErr   bool
+	}{
+		{
+			base: `
+process: {
+	#provider: "test"
+	#do: "ok"
+}
+
+#up: [process]
+`,
+			expected: "okok",
+		},
+		{
+			base: `
+process: {
+	#provider: "test"
+	#do: "ok"
+}
+
+#up: [process,{
+  #do: "steps"
+  p1: process
+  #up: [process]
+}]
+`,
+			expected: "okokokok",
+		},
+		{
+			base: `
+process: {
+	#provider: "test"
+	#do: "ok"
+}
+
+#up: [process,{
+  p1: process
+  #up: [process]
+}]
+`,
+			expected: "okok",
+		},
+		{
+			base: `
+process: {
+	#provider: "test"
+	#do: "ok"
+}
+
+#up: [process,{
+  #do: "steps"
+  err: {
+    #provider: "test"
+	#do: "error"
+  }
+  #up_1: [{},process]
+}]
+`,
+			expected: "okok",
+			hasErr:   true,
+		},
+
+		{
+			base: `
+	#provider: "test"
+	#do: "ok"
+`,
+			expected: "ok",
+		},
+	}
+
+	for _, tc := range testCases {
+		echo = ""
+		v, err := value.NewValue(tc.base, nil)
+		assert.NilError(t, err)
+		err = exec.doSteps(wfCtx, v)
+		assert.Equal(t, err != nil, tc.hasErr)
+		assert.Equal(t, echo, tc.expected)
+	}
+
+}
+
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	cm := corev1.ConfigMap{}
 	testCaseJson, err := yaml.YAMLToJSON([]byte(testCaseYaml))

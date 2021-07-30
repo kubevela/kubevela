@@ -39,5 +39,7 @@ func (p *discover) addFile(f file) {
 func GetPackages() Pkgs {
 	d := &discover{}
 	d.addFile(opFile)
+	d.addFile(kubeFile)
+	d.addFile(workspaceFile)
 	return d.packages()
 }

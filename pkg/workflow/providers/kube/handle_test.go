@@ -79,8 +79,10 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		v, err := value.NewValue(fmt.Sprintf(`
-%s
-metadata: name: "app"
+value:{
+	%s
+	metadata: name: "app"
+}
 `, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
@@ -95,13 +97,15 @@ metadata: name: "app"
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
 
 		v, err = value.NewValue(fmt.Sprintf(`
+value: {
 %s
 metadata: name: "app"
+}
 `, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
-		result, err := v.LookupValue("result")
+		result, err := v.LookupValue("value")
 		Expect(err).ToNot(HaveOccurred())
 		rv := new(unstructured.Unstructured)
 		err = result.UnmarshalTo(rv)
@@ -138,7 +142,7 @@ metadata: name: "app"
 		component, err := ctx.GetComponent("server")
 		Expect(err).ToNot(HaveOccurred())
 		v, err := value.NewValue(fmt.Sprintf(`
-%s
+value: {%s}
 patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
@@ -172,27 +176,35 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
 		ctx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
 
-		v, _ := value.NewValue(`
-kind: "Pod"
-apiVersion: "v1"
-patch: close({kind: 12})`, nil)
+		v, err := value.NewValue(`
+value: {
+  kind: "Pod"
+  apiVersion: "v1"
+  spec: close({kind: 12})	
+}`, nil)
+		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).To(HaveOccurred())
 
 		v, _ = value.NewValue(`
-kind: "Pod"
-apiVersion: "v1"
-patch: _|_`, nil)
+value: {
+  kind: "Pod"
+  apiVersion: "v1"
+}
+patch: _|_
+`, nil)
 		err = p.Apply(ctx, v, nil)
 		Expect(err).To(HaveOccurred())
 
 		v, err = value.NewValue(`
-metadata: {
-  name: "app-xx"
-  namespace: "default"
+value: {
+  metadata: {
+     name: "app-xx"
+     namespace: "default"
+  }
+  kind: "Pod"
+  apiVersion: "v1"
 }
-kind: "Pod"
-apiVersion: "v1"
 `, nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
@@ -200,6 +212,22 @@ apiVersion: "v1"
 		errV, err := v.Field("err")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(errV.Exists()).Should(BeTrue())
+
+		v, err = value.NewValue(`
+val: {
+  metadata: {
+     name: "app-xx"
+     namespace: "default"
+  }
+  kind: "Pod"
+  apiVersion: "v1"
+}
+`, nil)
+		Expect(err).ToNot(HaveOccurred())
+		err = p.Read(ctx, v, nil)
+		Expect(err).To(HaveOccurred())
+		err = p.Apply(ctx, v, nil)
+		Expect(err).To(HaveOccurred())
 	})
 
 })
