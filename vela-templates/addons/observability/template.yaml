@@ -36,7 +36,8 @@ spec:
             chart: grafana
             version: 6.14.1
             repoType: helm
-            url: https://grafana.github.io/helm-charts
+            # original url: https://grafana.github.io/helm-charts
+            url: https://charts.kubevela.net/addons
             targetNamespace: observability
             releaseName: grafana
           type: helm
@@ -53,17 +54,18 @@ spec:
                 credentialSecret: grafana
                 credentialSecretNamespace: observability
                 urls:
-                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
-                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
-                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/flux2/cluster.json # fluxcd
-                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_application_logging.json # business application logging
+                  - https://charts.kubevela.net/addons/dashboards/kubevela_core_logging.json
+                  - https://charts.kubevela.net/addons/dashboards/kubevela_core_monitoring.json
+                  - https://charts.kubevela.net/addons/dashboards/kubevela_application_logging.json
+                  - https://charts.kubevela.net/addons/dashboards/flux2/cluster.json # fluxcd
         - name: loki
           type: helm
           properties:
             chart: loki-stack
             version: 2.4.1
             repoType: helm
-            url: https://grafana.github.io/helm-charts
+            # original url: https://grafana.github.io/helm-charts
+            url: https://charts.kubevela.net/addons
             targetNamespace: observability
             releaseName: loki
           traits:
@@ -84,7 +86,8 @@ spec:
             chart: prometheus
             version: 14.4.1
             repoType: helm
-            url: https://prometheus-community.github.io/helm-charts
+            # original url: https://prometheus-community.github.io/helm-charts
+            url: https://charts.kubevela.net/addons
             targetNamespace: observability
             releaseName: prometheus
             values:
@@ -116,7 +119,8 @@ spec:
             chart: kube-state-metrics
             version: 3.4.1
             repoType: helm
-            url: https://prometheus-community.github.io/helm-charts
+            # original url: https://prometheus-community.github.io/helm-charts
+            url: https://charts.kubevela.net/addons
             targetNamespace: observability
             values:
               image:
@@ -129,7 +133,8 @@ spec:
             chart: kube-prometheus-stack
             version: 18.0.0
             repoType: helm
-            url: https://prometheus-community.github.io/helm-charts
+            # original url: https://prometheus-community.github.io/helm-charts
+            url: https://charts.kubevela.net/addons
             targetNamespace: observability
 
 {{ range .ResourceFiles }}
