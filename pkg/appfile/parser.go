@@ -136,7 +136,7 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 
 func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
-	if err != nil && !kerrors.IsNotFound(err) {
+	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch type of %s", name)
 	}
 	settings, err := util.RawExtension2Map(&props)
