@@ -143,7 +143,6 @@ func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType typ
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
 	}
-
 	wlType, err := util.ConvertDefinitionRevName(typ)
 	if err != nil {
 		wlType = typ
