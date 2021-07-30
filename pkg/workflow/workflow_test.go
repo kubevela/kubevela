@@ -173,6 +173,8 @@ var _ = Describe("Test Workflow", func() {
 
 		// check resume
 		app.Status.Workflow.Suspend = false
+		// check app meta changed
+		app.Name = "changed"
 		done, pause, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pause).Should(BeFalse())
