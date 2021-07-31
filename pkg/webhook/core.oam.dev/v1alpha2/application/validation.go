@@ -30,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
@@ -81,11 +80,6 @@ func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, ap
 		}
 
 		revisionName := comp.ExternalRevision
-		_, err := utils.ExtractRevision(revisionName)
-		if err != nil {
-			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, err.Error()))
-			continue
-		}
 		cr := &appsv1.ControllerRevision{}
 		if err := h.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revisionName}, cr); err != nil {
 			if !apierrors.IsNotFound(err) {
@@ -98,6 +92,7 @@ func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, ap
 		labeledRevisionHash := cr.GetLabels()[oam.LabelComponentRevisionHash]
 		if labeledControllerComponent != comp.Name {
 			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, fmt.Sprintf("label:%s for revision:%s should be equal with component name", oam.LabelControllerRevisionComponent, revisionName)))
+			continue
 		}
 		if len(labeledRevisionHash) == 0 {
 			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, fmt.Sprintf("label:%s for revision:%s should exist", oam.LabelComponentRevisionHash, revisionName)))
