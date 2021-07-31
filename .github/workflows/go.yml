@@ -72,7 +72,7 @@ jobs:
           version: 3.1.0
           kubebuilderOnly: false
           kubernetesVersion: v1.21.2
-      
+
       - name: Run Make compatibility-test
         run: make compatibility-test
 
