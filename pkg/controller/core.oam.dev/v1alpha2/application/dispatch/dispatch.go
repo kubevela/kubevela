@@ -20,9 +20,8 @@ import (
 	"context"
 	"reflect"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,6 +31,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -241,7 +241,7 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		}
 
 		// each resource applied by dispatcher MUST be controlled by resource tracker
-		setOrOverrideControllerOwner(rsc, ownerRef)
+		setOrOverrideOAMControllerOwner(rsc, ownerRef)
 		if err := a.applicator.Apply(ctx, rsc, applyOpts...); err != nil {
 			klog.ErrorS(err, "Failed to apply a resource", "object",
 				klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
@@ -270,7 +270,7 @@ func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, r
 		if err != nil {
 			return true, err
 		}
-		setOrOverrideControllerOwner(pv, ownerRef)
+		setOrOverrideOAMControllerOwner(pv, ownerRef)
 		pv.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1.PersistentVolume{}).Name()))
 		return true, a.applicator.Apply(ctx, pv, applyOpts...)
 	default:
@@ -327,14 +327,23 @@ type ObjectOwner interface {
 	SetOwnerReferences([]metav1.OwnerReference)
 }
 
-func setOrOverrideControllerOwner(obj ObjectOwner, controllerOwner metav1.OwnerReference) {
-	ownerRefs := []metav1.OwnerReference{controllerOwner}
+// setOrOverrideOAMControllerOwner will set the
+func setOrOverrideOAMControllerOwner(obj ObjectOwner, controllerOwner metav1.OwnerReference) {
+	newOwnerRefs := []metav1.OwnerReference{controllerOwner}
 	for _, owner := range obj.GetOwnerReferences() {
+		// delete the old resourceTracker owner
+		if owner.Kind == v1beta1.ResourceTrackerKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+			continue
+		}
+		// delete the old appContext owner
+		if owner.Kind == v1alpha2.ApplicationContextKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+			continue
+		}
 		if owner.Controller != nil && *owner.Controller &&
 			owner.UID != controllerOwner.UID {
 			owner.Controller = pointer.BoolPtr(false)
 		}
-		ownerRefs = append(ownerRefs, owner)
+		newOwnerRefs = append(newOwnerRefs, owner)
 	}
-	obj.SetOwnerReferences(ownerRefs)
+	obj.SetOwnerReferences(newOwnerRefs)
 }
