@@ -20,6 +20,7 @@ import (
 	"flag"
 
 	"github.com/containerd/containerd/log"
+	"github.com/sirupsen/logrus"
 	"k8s.io/klog"
 )
 
@@ -27,7 +28,7 @@ var _flagSet *flag.FlagSet
 
 // disable logging during import
 func init() {
-	lvl, _ := log.ParseLevel("panic")
+	lvl, _ := logrus.ParseLevel("panic")
 	log.L.Logger.SetLevel(lvl)
 	_flagSet = flag.CommandLine
 	klog.InitFlags(_flagSet)
@@ -36,7 +37,7 @@ func init() {
 
 // Start recover logging
 func Start() {
-	lvl, _ := log.ParseLevel("info")
+	lvl, _ := logrus.ParseLevel("info")
 	log.L.Logger.SetLevel(lvl)
 	_ = _flagSet.Set("v", "0")
 }
