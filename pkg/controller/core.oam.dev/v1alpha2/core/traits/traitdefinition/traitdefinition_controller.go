@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
@@ -81,7 +81,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.InfoS("Could not refresh packageDiscover", "err", err)
 			r.record.Event(&traitdefinition, event.Warning("cannot refresh packageDiscover", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
 
@@ -91,14 +91,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not generate definitionRevision", "traitDefinition", klog.KObj(&traitdefinition), "err", err)
 		r.record.Event(&traitdefinition, event.Warning("Could not generate DefinitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, traitdefinition.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, traitdefinition.Name, err)))
 	}
 	if !isNewRevision {
 		if err = r.createOrUpdateTraitDefRevision(ctx, req.Namespace, &traitdefinition, defRev); err != nil {
 			klog.InfoS("Could not update DefinitionRevision", "err", err)
 			r.record.Event(&(traitdefinition), event.Warning("cannot update DefinitionRevision", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(traitdefinition),
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+				condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
 		klog.InfoS("Successfully update definitionRevision", "definitionRevision", klog.KObj(defRev))
 
@@ -118,7 +118,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not store capability in ConfigMap", "err", err)
 		r.record.Event(&(traitdefinition), event.Warning("Could not store capability in ConfigMap", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, traitdefinition.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, traitdefinition.Name, err)))
 	}
 	traitdefinition.Status.ConfigMapRef = cmName
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
@@ -127,7 +127,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not create DefinitionRevision", "err", err)
 		r.record.Event(&(traitdefinition), event.Warning("Could not create definitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(traitdefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
 	klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
 
@@ -141,7 +141,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.InfoS("Could not update TraitDefinition Status", "err", err)
 		r.record.Event(&(traitdefinition), event.Warning("Could not update TraitDefinition Status", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(traitdefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
+			condition.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {

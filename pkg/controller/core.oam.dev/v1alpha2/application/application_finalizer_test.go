@@ -50,6 +50,9 @@ var _ = Describe("Test application controller finalizer logic", func() {
 	ncd := &v1beta1.ComponentDefinition{}
 	ncdDefJson, _ := yaml.YAMLToJSON([]byte(normalCompDefYaml))
 
+	badCD := &v1beta1.ComponentDefinition{}
+	badCDJson, _ := yaml.YAMLToJSON([]byte(badCompDefYaml))
+
 	td := &v1beta1.TraitDefinition{}
 	tdDefJson, _ := yaml.YAMLToJSON([]byte(crossNsTdYaml))
 
@@ -69,6 +72,9 @@ var _ = Describe("Test application controller finalizer logic", func() {
 
 		Expect(json.Unmarshal(ncdDefJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		Expect(json.Unmarshal(badCDJson, badCD)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, badCD.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
@@ -96,7 +102,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 
 		By("add a cross namespace trait for application")
 		updateApp := checkApp.DeepCopy()
-		updateApp.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+		updateApp.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "cross-scaler",
 				Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
@@ -127,6 +133,35 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(Succeed())
 		Expect(checkApp.Status.ResourceTracker).Should(BeNil())
+	})
+
+	It("Test error occurs in the middle of dispatching", func() {
+		appName := "bad-app"
+		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
+		app := getApp(appName, namespace, "bad-worker")
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		By("Create a bad workload app")
+		checkApp := &v1beta1.Application{}
+		reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+
+		// because error occurs in the middle of dispatching
+		// resource tracker for v1 is created but v1 is not recorded in app status
+		By("Verify latest app revision is not recorded in status")
+		Expect(checkApp.Status.LatestRevision).Should(BeNil())
+
+		By("Verify ResourceTracker is created")
+		rt := &v1beta1.ResourceTracker{}
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(Succeed())
+
+		By("Delete Application")
+		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
+		reconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+
+		By("Verify ResourceTracker is deleted")
+		rt = &v1beta1.ResourceTracker{}
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(util.NotFoundMatcher{})
 	})
 
 	It("Test cross namespace workload, then delete the app", func() {
@@ -195,7 +230,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		appName := "app-4"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "cross-worker")
-		app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+		app.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "cross-scaler",
 				Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
@@ -242,7 +277,7 @@ func getApp(appName, namespace, comptype string) *v1beta1.Application {
 			Namespace: namespace,
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "comp1",
 					Type:       comptype,
@@ -386,6 +421,40 @@ spec:
                   }
               }
 
+              selector:
+                  matchLabels:
+                      "app.oam.dev/component": context.name
+          }
+      }
+
+      parameter: {
+          // +usage=Which image would you like to use for your service
+          // +short=i
+          image: string
+
+          cmd?: [...string]
+      }
+`
+	badCompDefYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: bad-worker
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "It will make dispatching failed"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  extension:
+    template: |
+      output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          spec: {
+              replicas: 0
               selector:
                   matchLabels:
                       "app.oam.dev/component": context.name

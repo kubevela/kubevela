@@ -181,6 +181,67 @@ containers: [{
 }, ...]
 `,
 		},
+		{
+			base: `envFrom: [{
+					secretRef: {
+						name:  "nginx-rds"
+					}},...]`,
+			patch: `
+// +patchKey=secretRef.name
+envFrom: [{
+					secretRef: {
+						name:  "nginx-redis"
+					}},...]
+`,
+			result: `// +patchKey=secretRef.name
+envFrom: [{
+	secretRef: {
+		name: "nginx-rds"
+	}
+}, {
+	secretRef: {
+		name: "nginx-redis"
+	}
+}, ...]
+`},
+		{
+			base: `
+             containers: [{
+                 name: "c1"
+             },{
+                 name: "c2"
+                 envFrom: [{
+					secretRef: {
+						name:  "nginx-rds"
+                 }},...]
+             },...]`,
+			patch: `
+             // +patchKey=name
+             containers: [{
+                 name: "c2"
+                 // +patchKey=secretRef.name
+                 envFrom: [{
+					secretRef: {
+						name:  "nginx-redis"
+                 }},...]
+             }]`,
+			result: `// +patchKey=name
+containers: [{
+	name: "c1"
+}, {
+	name: "c2"
+	// +patchKey=secretRef.name
+	envFrom: [{
+		secretRef: {
+			name: "nginx-rds"
+		}
+	}, {
+		secretRef: {
+			name: "nginx-redis"
+		}
+	}, ...]
+}, ...]
+`},
 	}
 
 	for i, tcase := range testCase {

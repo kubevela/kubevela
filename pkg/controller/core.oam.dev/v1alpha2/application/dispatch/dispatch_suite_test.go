@@ -92,21 +92,23 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test AppManifestsDispatcher", func() {
 	var (
-		ctx                                    = context.Background()
-		namespace                              string
-		deploy1, deploy2, svc1, svc2, pv1, pv2 *unstructured.Unstructured
-		appRev1, appRev2                       *v1beta1.ApplicationRevision
+		ctx                                             = context.Background()
+		namespace                                       string
+		deploy1, deploy2, deploy3, svc1, svc2, pv1, pv2 *unstructured.Unstructured
+		appRev1, appRev2, appRev3                       *v1beta1.ApplicationRevision
 	)
 
 	var (
 		deployName1 = "deploy-1"
 		deployName2 = "deploy-2"
+		deployName3 = "deploy-3"
 		svcName1    = "svc-1"
 		svcName2    = "svc-2"
 		// persistent volume is cluster-scoped, generate random name for each case to avoid interference
 		pvName1, pvName2 string
 		appRevName1      = "app-v1"
 		appRevName2      = "app-v2"
+		appRevName3      = "app-v3"
 	)
 
 	BeforeEach(func() {
@@ -116,9 +118,9 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 
 		By("Init test data")
 		var (
-			d1, d2 *appsv1.Deployment       // represent common workload
-			s1, s2 *corev1.Service          // represent common trait
-			p1, p2 *corev1.PersistentVolume // represent cluster-scoped resource
+			d1, d2, d3 *appsv1.Deployment       // represent common workload
+			s1, s2     *corev1.Service          // represent common trait
+			p1, p2     *corev1.PersistentVolume // represent cluster-scoped resource
 		)
 		d := &appsv1.Deployment{TypeMeta: metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"}}
 		d.SetNamespace(namespace)
@@ -136,6 +138,9 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 		d2 = d.DeepCopy()
 		d2.SetName(deployName2)
 		deploy2, _ = util.Object2Unstructured(d2)
+		d3 = d.DeepCopy()
+		d3.SetName(deployName3)
+		deploy3, _ = util.Object2Unstructured(d3)
 
 		svc := &corev1.Service{
 			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
@@ -182,6 +187,9 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 		appRev2 = appRev.DeepCopy()
 		appRev2.SetName(appRevName2)
 		appRev2.SetUID("fake-uid-app-revision-2")
+		appRev3 = appRev.DeepCopy()
+		appRev3.SetName(appRevName3)
+		appRev3.SetUID("fake-uid-app-revision-2")
 	})
 
 	AfterEach(func() {
@@ -267,6 +275,67 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 
 			By("Verify v1 resource tracker is deleted (GC works)")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ConstructResourceTrackerName(appRevName1, namespace)},
+				&v1beta1.ResourceTracker{})).Should(util.NotFoundMatcher{})
+		})
+
+		It("Test upgrade and garbage collect legacy resource tracker", func() {
+			// real scenario case: upgrade v1 => v2 (error occurs) => v3
+			By("Dispatch application revision 1")
+			dp := NewAppManifestsDispatcher(k8sClient, appRev1)
+			rtForAppV1, err := dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			Expect(err).Should(BeNil())
+			By("Verify resources are applied successfully")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: svcName1, Namespace: namespace}, &corev1.Service{})).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: pvName1}, &corev1.PersistentVolume{})).Should(Succeed())
+
+			By("Dispatch application revision 2 with v1 as latest RT")
+			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2).EndAndGC(rtForAppV1)
+			By("Prepare a bad resource in order to fail the applying")
+			badRsrc := &unstructured.Unstructured{}
+			badRsrc.SetName("bad")
+			_, err = dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc2, pv2, badRsrc})
+			By("Verify dispatch failed")
+			Expect(err).ShouldNot(BeNil())
+
+			By("Verify part of v2 resources are applied successfully")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName2, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: svcName2, Namespace: namespace}, &corev1.Service{})).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: pvName2}, &corev1.PersistentVolume{})).Should(Succeed())
+
+			By("Verify v1 resources are not deleted (GC not work)")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: svcName1, Namespace: namespace}, &corev1.Service{})).Should(Succeed())
+			getPV1 := &corev1.PersistentVolume{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: pvName1}, getPV1)).Should(Succeed())
+			Expect(persistentVolumeIsDeleted(getPV1)).Should(BeFalse())
+
+			By("Verify v1 resource tracker is not deleted (GC not work)")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ConstructResourceTrackerName(appRevName1, namespace)},
+				&v1beta1.ResourceTracker{})).Should(Succeed())
+
+			// because dispatching v2 failed, app controller still uses v1 as latest revision
+			By("Dispatch application revision 3 with v1 as latest RT")
+			dp3 := NewAppManifestsDispatcher(k8sClient, appRev3).EndAndGC(rtForAppV1)
+			_, err = dp3.Dispatch(ctx, []*unstructured.Unstructured{deploy3, deploy2})
+			Expect(err).Should(BeNil())
+
+			By("Verify v1 resources are deleted (GC works)")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(util.NotFoundMatcher{})
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: svcName1, Namespace: namespace}, &corev1.Service{})).Should(util.NotFoundMatcher{})
+			getPV1 = &corev1.PersistentVolume{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: pvName1}, getPV1)).Should(Succeed())
+			Expect(persistentVolumeIsDeleted(getPV1)).Should(BeTrue())
+
+			By("Verify v1 resource tracker is deleted (GC works)")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ConstructResourceTrackerName(appRevName1, namespace)},
+				&v1beta1.ResourceTracker{})).Should(util.NotFoundMatcher{})
+
+			By("Verify v3 can re-use v2's resource")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName2, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
+
+			By("Verify v2 resource tracker is deleted (GC works)")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ConstructResourceTrackerName(appRevName2, namespace)},
 				&v1beta1.ResourceTracker{})).Should(util.NotFoundMatcher{})
 		})
 

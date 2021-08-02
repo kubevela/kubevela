@@ -25,10 +25,11 @@ import (
 	"strings"
 	"time"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	mapset "github.com/deckarep/golang-set"
+	"github.com/ghodss/yaml"
 	"github.com/mitchellh/hashstructure/v2"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -43,8 +44,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -357,7 +360,7 @@ func CheckAppDeploymentUsingAppRevision(ctx context.Context, c client.Reader, ap
 }
 
 // GetUnstructuredObjectStatusCondition returns the status.condition with matching condType from an unstructured object.
-func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condType string) (*runtimev1alpha1.Condition, bool, error) {
+func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condType string) (*condition.Condition, bool, error) {
 	cs, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
 	if err != nil {
 		return nil, false, err
@@ -370,7 +373,7 @@ func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condTy
 		if err != nil {
 			return nil, false, err
 		}
-		condObj := &runtimev1alpha1.Condition{}
+		condObj := &condition.Condition{}
 		err = json.Unmarshal(b, condObj)
 		if err != nil {
 			return nil, false, err
@@ -385,23 +388,42 @@ func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condTy
 	return nil, false, nil
 }
 
-// ReadyCondition generate ready condition for conditionType
-func ReadyCondition(tpy string) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
-		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             corev1.ConditionTrue,
-		Reason:             runtimev1alpha1.ReasonAvailable,
-		LastTransitionTime: metav1.NewTime(time.Now()),
+// GetInitializer get initializer from two level namespace
+func GetInitializer(ctx context.Context, cli client.Client, namespace, name string) (*v1beta1.Initializer, error) {
+	init := new(v1beta1.Initializer)
+	req := client.ObjectKey{Namespace: namespace, Name: name}
+	err := cli.Get(ctx, req, init)
+	if kerrors.IsNotFound(err) && req.Namespace == "" {
+		req.Namespace = velatypes.DefaultKubeVelaNS
+		err = cli.Get(ctx, req, init)
+		return init, err
 	}
+	return init, err
 }
 
-// ErrorCondition generate error condition for conditionType and error
-func ErrorCondition(tpy string, err error) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
-		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             corev1.ConditionFalse,
-		LastTransitionTime: metav1.NewTime(time.Now()),
-		Reason:             runtimev1alpha1.ReasonReconcileError,
-		Message:            err.Error(),
+// GetBuildInInitializer get built-in initializer from configMap in vela-system namespace
+func GetBuildInInitializer(ctx context.Context, cli client.Client, name string) (*v1beta1.Initializer, error) {
+	listOpts := []client.ListOption{
+		client.InNamespace(velatypes.DefaultKubeVelaNS),
+		client.MatchingLabels{
+			oam.LabelAddonsName: name,
+		},
 	}
+	configMapList := new(corev1.ConfigMapList)
+	err := cli.List(ctx, configMapList, listOpts...)
+	if err != nil {
+		return nil, err
+	}
+	if len(configMapList.Items) != 1 {
+		return nil, errors.Errorf("fail to get built-in initializer %s, there are %d matched initializers", name, len(configMapList.Items))
+	}
+
+	init := new(v1beta1.Initializer)
+	initYaml := configMapList.Items[0].Data["initializer"]
+	err = yaml.Unmarshal([]byte(initYaml), init)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "fail to unmarshal built-in initializer %s from configmap", name)
+	}
+
+	return init, nil
 }

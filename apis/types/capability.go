@@ -19,12 +19,12 @@ package types
 import (
 	"encoding/json"
 
-	"cuelang.org/go/cue"
-	"github.com/google/go-cmp/cmp"
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
+	"cuelang.org/go/cue"
+	"github.com/spf13/pflag"
 )
 
 // Source record the source of Capability
@@ -37,38 +37,6 @@ type Source struct {
 type CRDInfo struct {
 	APIVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
-}
-
-// Capability defines the content of a capability
-type Capability struct {
-	Name           string             `json:"name"`
-	Type           CapType            `json:"type"`
-	CueTemplate    string             `json:"template,omitempty"`
-	CueTemplateURI string             `json:"templateURI,omitempty"`
-	Parameters     []Parameter        `json:"parameters,omitempty"`
-	CrdName        string             `json:"crdName,omitempty"`
-	Center         string             `json:"center,omitempty"`
-	Status         string             `json:"status,omitempty"`
-	Description    string             `json:"description,omitempty"`
-	Category       CapabilityCategory `json:"category,omitempty"`
-
-	// trait only
-	AppliesTo []string `json:"appliesTo,omitempty"`
-
-	// Namespace represents it's a system-level or user-level capability.
-	Namespace string `json:"namespace,omitempty"`
-
-	// Plugin Source
-	Source  *Source       `json:"source,omitempty"`
-	Install *Installation `json:"install,omitempty"`
-	CrdInfo *CRDInfo      `json:"crdInfo,omitempty"`
-
-	// Terraform
-	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
-
-	// KubeTemplate
-	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
-	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }
 
 // Chart defines all necessary information to install a whole chart
@@ -183,72 +151,34 @@ func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 	}
 }
 
-// CapabilityCmpOptions will set compare option
-var CapabilityCmpOptions = []cmp.Option{
-	cmp.Comparer(func(a, b Parameter) bool {
-		if a.Name != b.Name || a.Short != b.Short || a.Required != b.Required ||
-			a.Usage != b.Usage || a.Type != b.Type {
-			return false
-		}
-		// nolint:exhaustive
-		switch a.Type {
-		case cue.IntKind:
-			var va, vb int64
-			switch vala := a.Default.(type) {
-			case int64:
-				va = vala
-			case json.Number:
-				va, _ = vala.Int64()
-			case int:
-				va = int64(vala)
-			case float64:
-				va = int64(vala)
-			}
-			switch valb := b.Default.(type) {
-			case int64:
-				vb = valb
-			case json.Number:
-				vb, _ = valb.Int64()
-			case int:
-				vb = int64(valb)
-			case float64:
-				vb = int64(valb)
-			}
-			return va == vb
-		case cue.StringKind:
-			return a.Default.(string) == b.Default.(string)
-		case cue.BoolKind:
-			return a.Default.(bool) == b.Default.(bool)
-		case cue.NumberKind, cue.FloatKind:
-			var va, vb float64
-			switch vala := a.Default.(type) {
-			case int64:
-				va = float64(vala)
-			case json.Number:
-				va, _ = vala.Float64()
-			case int:
-				va = float64(vala)
-			case float64:
-				va = vala
-			}
-			switch valb := b.Default.(type) {
-			case int64:
-				vb = float64(valb)
-			case json.Number:
-				vb, _ = valb.Float64()
-			case int:
-				vb = float64(valb)
-			case float64:
-				vb = valb
-			}
-			return va == vb
-		default:
-			// complex type not supported, will regard them as not changed.
-		}
-		return true
-	})}
+// Capability defines the content of a capability
+type Capability struct {
+	Name           string             `json:"name"`
+	Type           CapType            `json:"type"`
+	CueTemplate    string             `json:"template,omitempty"`
+	CueTemplateURI string             `json:"templateURI,omitempty"`
+	Parameters     []Parameter        `json:"parameters,omitempty"`
+	CrdName        string             `json:"crdName,omitempty"`
+	Center         string             `json:"center,omitempty"`
+	Status         string             `json:"status,omitempty"`
+	Description    string             `json:"description,omitempty"`
+	Category       CapabilityCategory `json:"category,omitempty"`
 
-// EqualCapability will check whether two capabilities is equal
-func EqualCapability(a, b Capability) bool {
-	return cmp.Equal(a, b, CapabilityCmpOptions...)
+	// trait only
+	AppliesTo []string `json:"appliesTo,omitempty"`
+
+	// Namespace represents it's a system-level or user-level capability.
+	Namespace string `json:"namespace,omitempty"`
+
+	// Plugin Source
+	Source  *Source       `json:"source,omitempty"`
+	Install *Installation `json:"install,omitempty"`
+	CrdInfo *CRDInfo      `json:"crdInfo,omitempty"`
+
+	// Terraform
+	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
+
+	// KubeTemplate
+	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
+	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }

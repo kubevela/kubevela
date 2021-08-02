@@ -21,10 +21,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/oam-dev/kubevela/references/a/preimport"
 	"github.com/oam-dev/kubevela/references/cli"
 )
 
 func main() {
+	preimport.Start()
 	rand.Seed(time.Now().UnixNano())
 
 	command := cli.NewCommand()

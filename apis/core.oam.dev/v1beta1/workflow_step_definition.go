@@ -17,8 +17,9 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
@@ -36,7 +37,7 @@ type WorkflowStepDefinitionSpec struct {
 // WorkflowStepDefinitionStatus is the status of WorkflowStepDefinition
 type WorkflowStepDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// LatestRevision of the component definition
 	// +optional
@@ -44,12 +45,12 @@ type WorkflowStepDefinitionStatus struct {
 }
 
 // SetConditions set condition for WorkflowStepDefinition
-func (d *WorkflowStepDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (d *WorkflowStepDefinition) SetConditions(c ...condition.Condition) {
 	d.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from WorkflowStepDefinition
-func (d *WorkflowStepDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (d *WorkflowStepDefinition) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return d.Status.GetCondition(conditionType)
 }
 

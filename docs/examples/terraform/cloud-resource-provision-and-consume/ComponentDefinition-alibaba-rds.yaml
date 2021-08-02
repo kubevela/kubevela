@@ -48,12 +48,12 @@ spec:
 
         variable "account_name" {
           description = "RDS instance user account name"
-          type = "string"
+          type = string
           default = "oam"
         }
 
         variable "password" {
           description = "RDS instance account password"
-          type = "string"
+          type = string
           default = "Xyfff83jfewGGfaked"
         }

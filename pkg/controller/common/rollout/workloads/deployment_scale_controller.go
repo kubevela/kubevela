@@ -279,7 +279,7 @@ func (s *DeploymentScaleController) size(ctx context.Context) (int32, error) {
 			return 0, err
 		}
 	}
-	return getDeployReplicaSize(s.deploy), nil
+	return getDeploymentReplicas(s.deploy), nil
 }
 
 func (s *DeploymentScaleController) fetchDeployment(ctx context.Context) error {

@@ -17,9 +17,9 @@ limitations under the License.
 package assemble
 
 import (
+	"reflect"
 	"strings"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -64,7 +64,8 @@ type AppManifests struct {
 	assembledWorkloads map[string]*unstructured.Unstructured
 	assembledTraits    map[string][]*unstructured.Unstructured
 	// key is workload reference, values are the references of scopes the workload belongs to
-	referencedScopes map[corev1.ObjectReference][]corev1.ObjectReference
+	referencedScopes      map[corev1.ObjectReference][]corev1.ObjectReference
+	skipWorkloadApplyComp map[string]bool
 
 	finalized bool
 	err       error
@@ -107,9 +108,15 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 	if am.err != nil {
 		return nil, am.err
 	}
+	am.CheckSkipApplyWorkloadComp()
 	r := make([]*unstructured.Unstructured, 0)
 	for compName, wl := range am.assembledWorkloads {
-		r = append(r, wl.DeepCopy())
+		if !am.skipWorkloadApplyComp[compName] {
+			r = append(r, wl.DeepCopy())
+		} else {
+			klog.InfoS("assemble meet a managedByTrait workload, so skip apply it",
+				"namespace", am.AppRevision.Namespace, "appRev", am.AppRevision.Name)
+		}
 		ts := am.assembledTraits[compName]
 		for _, t := range ts {
 			r = append(r, t.DeepCopy())
@@ -233,6 +240,7 @@ func (am *AppManifests) complete() {
 	am.assembledWorkloads = make(map[string]*unstructured.Unstructured)
 	am.assembledTraits = make(map[string][]*unstructured.Unstructured)
 	am.referencedScopes = make(map[corev1.ObjectReference][]corev1.ObjectReference)
+	am.skipWorkloadApplyComp = make(map[string]bool)
 }
 
 func (am *AppManifests) finalizeAssemble(err error) {
@@ -300,6 +308,13 @@ func (am *AppManifests) filterAndSetAnnotations(obj *unstructured.Unstructured) 
 }
 
 func (am *AppManifests) setNamespace(obj *unstructured.Unstructured) {
+
+	// we should not set namespace for namespace resources
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	if gvk == corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Namespace{}).Name()) {
+		return
+	}
+
 	// only set app's namespace when namespace is unspecified
 	// it's by design to set arbitrary namespace in render phase
 	if len(obj.GetNamespace()) == 0 {
@@ -388,7 +403,7 @@ func (am *AppManifests) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trai
 	// only add workload reference to the trait if it asks for it
 	if len(workloadRefPath) != 0 {
 		// TODO(roywang) this is for backward compatibility, remove crossplane/runtime/v1alpha1 in the future
-		tmpWLRef := runtimev1alpha1.TypedReference{
+		tmpWLRef := corev1.ObjectReference{
 			APIVersion: wlRef.APIVersion,
 			Kind:       wlRef.Kind,
 			Name:       wlRef.Name,
@@ -398,4 +413,26 @@ func (am *AppManifests) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trai
 		}
 	}
 	return nil
+}
+
+// CheckSkipApplyWorkloadComp check  component's workload is manage by trait, if yes skip apply it
+func (am *AppManifests) CheckSkipApplyWorkloadComp() {
+	app := am.AppRevision.Spec.Application
+	traitDefs := am.AppRevision.Spec.TraitDefinitions
+	manageWorkloadTrait := map[string]bool{}
+	for traitName, definition := range traitDefs {
+		if definition.Spec.ManageWorkload {
+			manageWorkloadTrait[traitName] = true
+		}
+	}
+	if len(manageWorkloadTrait) == 0 {
+		return
+	}
+	for _, component := range app.Spec.Components {
+		for _, trait := range component.Traits {
+			if manageWorkloadTrait[trait.Type] {
+				am.skipWorkloadApplyComp[component.Name] = true
+			}
+		}
+	}
 }

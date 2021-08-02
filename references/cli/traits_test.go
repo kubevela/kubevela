@@ -20,10 +20,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"

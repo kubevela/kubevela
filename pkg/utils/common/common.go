@@ -41,7 +41,9 @@ import (
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -235,4 +237,27 @@ func ParseTerraformVariables(configuration string) (map[string]*tfconfig.Variabl
 		return nil, errors.New(diagnostic.Error())
 	}
 	return mod.Variables, nil
+}
+
+// GenerateUnstructuredObj generate UnstructuredObj
+func GenerateUnstructuredObj(name, ns string, gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(gvk)
+	u.SetName(name)
+	u.SetNamespace(ns)
+	return u
+}
+
+// SetSpecObjIntoUnstructuredObj set UnstructuredObj spec field
+func SetSpecObjIntoUnstructuredObj(spec interface{}, u *unstructured.Unstructured) error {
+	bts, err := json.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	data := make(map[string]interface{})
+	if err := json.Unmarshal(bts, &data); err != nil {
+		return err
+	}
+	_ = unstructured.SetNestedMap(u.Object, data, "spec")
+	return nil
 }

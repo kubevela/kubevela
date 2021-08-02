@@ -23,7 +23,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -192,7 +191,7 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 					Namespace: namespace,
 				},
 				Spec: v1alpha2.HealthScopeSpec{
-					WorkloadReferences: []v1alpha1.TypedReference{},
+					WorkloadReferences: []corev1.ObjectReference{},
 				},
 			}
 			By("Creat health scope")
@@ -203,7 +202,7 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 					ComponentName: componentName,
 					Scopes: []v1alpha2.ComponentScope{
 						{
-							ScopeReference: v1alpha1.TypedReference{
+							ScopeReference: corev1.ObjectReference{
 								APIVersion: "core.oam.dev/v1alpha2",
 								Kind:       "HealthScope",
 								Name:       healthScopeName,

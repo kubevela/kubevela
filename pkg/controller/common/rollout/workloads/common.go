@@ -110,14 +110,14 @@ func verifyBatchesWithScale(rolloutSpec *v1alpha1.RolloutPlan, originalSize, tar
 }
 
 func calculateNewBatchTarget(rolloutSpec *v1alpha1.RolloutPlan, originalSize, targetSize, currentBatch int) int {
-	newPodTarget := originalSize
 	if currentBatch == len(rolloutSpec.RolloutBatches)-1 {
-		newPodTarget = targetSize
 		// special handle the last batch, we ignore the rest of the batch in case there are rounding errors
 		klog.InfoS("use the target size as the total pod target for the last rolling batch",
-			"current batch", currentBatch, "new  pod target", newPodTarget)
-		return newPodTarget
+			"current batch", currentBatch, "new pod target", targetSize)
+		return targetSize
 	}
+
+	newPodTarget := originalSize
 	for i := 0; i <= currentBatch && i < len(rolloutSpec.RolloutBatches); i++ {
 		if targetSize > originalSize {
 			batchSize, _ := intstr.GetValueFromIntOrPercent(&rolloutSpec.RolloutBatches[i].Replicas, targetSize-originalSize,
@@ -129,15 +129,24 @@ func calculateNewBatchTarget(rolloutSpec *v1alpha1.RolloutPlan, originalSize, ta
 			newPodTarget -= batchSize
 		}
 	}
+
 	klog.InfoS("calculated the number of new pod size", "current batch", currentBatch,
 		"new pod target", newPodTarget)
 	return newPodTarget
 }
 
-func getDeployReplicaSize(deploy *apps.Deployment) int32 {
+func getDeploymentReplicas(deploy *apps.Deployment) int32 {
 	// replicas default is 1
 	if deploy.Spec.Replicas != nil {
 		return *deploy.Spec.Replicas
+	}
+	return 1
+}
+
+func getStatefulSetReplicas(statefulSet *apps.StatefulSet) int32 {
+	// replicas default is 1
+	if statefulSet.Spec.Replicas != nil {
+		return *statefulSet.Spec.Replicas
 	}
 	return 1
 }

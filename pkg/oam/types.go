@@ -20,11 +20,12 @@ package oam
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 )
 
 // ScopeKind contains the type metadata for a kind of an OAM scope resource.
@@ -39,20 +40,20 @@ type WorkloadKind schema.GroupVersionKind
 // A Conditioned may have conditions set or retrieved. Conditions are typically
 // indicate the status of both a resource and its reconciliation process.
 type Conditioned interface {
-	SetConditions(c ...runtimev1alpha1.Condition)
-	GetCondition(runtimev1alpha1.ConditionType) runtimev1alpha1.Condition
+	SetConditions(c ...condition.Condition)
+	GetCondition(condition.ConditionType) condition.Condition
 }
 
 // A WorkloadReferencer may reference an OAM workload.
 type WorkloadReferencer interface {
-	GetWorkloadReference() runtimev1alpha1.TypedReference
-	SetWorkloadReference(runtimev1alpha1.TypedReference)
+	GetWorkloadReference() corev1.ObjectReference
+	SetWorkloadReference(corev1.ObjectReference)
 }
 
 // A WorkloadsReferencer may reference an OAM workload.
 type WorkloadsReferencer interface {
-	GetWorkloadReferences() []runtimev1alpha1.TypedReference
-	AddWorkloadReference(runtimev1alpha1.TypedReference)
+	GetWorkloadReferences() []corev1.ObjectReference
+	AddWorkloadReference(corev1.ObjectReference)
 }
 
 // A Finalizer manages the finalizers on the resource.

@@ -25,6 +25,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -33,7 +34,7 @@ import (
 var _ = It("Test ApplyTerraform", func() {
 	app := &v1beta1.Application{
 		ObjectMeta: v1.ObjectMeta{Name: "test-terraform-app"},
-		Spec: v1beta1.ApplicationSpec{Components: []v1beta1.ApplicationComponent{{
+		Spec: v1beta1.ApplicationSpec{Components: []commontype.ApplicationComponent{{
 			Name:       "test-terraform-svc",
 			Type:       "aliyun-oss",
 			Properties: runtime.RawExtension{Raw: []byte("{\"bucket\": \"oam-website\"}")},

@@ -1,0 +1,121 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package stdlib
+
+type file struct {
+	name    string
+	path    string
+	content string
+}
+
+var (
+	opFile = file{
+		name: "op.cue",
+		path: "vela/op",
+		content: `
+#ConditionalWait: {
+  #do: "wait"
+  continue: bool
+}
+
+#Break: {
+  #do: "break"
+  message: string
+}
+
+#Apply: kube.#Apply
+
+#ApplyComponent: #Steps & {
+   component: string
+   _componentName: component
+   load: ws.#Load & {
+      component: _componentName
+   }
+   
+   workload: workload__.value
+   workload__: kube.#Apply & {
+      value: load.value.workload
+      ...
+   }
+    
+   applyTraits__: #Steps & {
+      for index,o in load.value.auxiliaries {
+          "zz_\(index)": kube.#Apply & {
+               value: o
+          }
+      }
+   }
+}
+
+#ApplyRemaining: #Steps & {
+  namespace?: string
+
+  // exceptions specify the resources not to apply.
+  exceptions?: [componentName=string]: {
+      // skipApplyWorkload indicates whether to skip apply the workload resource
+      skipApplyWorkload: *true | bool
+      
+      // skipAllTraits indicates to skip apply all resources of the traits.
+      // If this is true, skipApplyTraits will be ignored
+      skipAllTraits: *true| bool
+
+      // skipApplyTraits specifies the names of the traits to skip apply
+      skipApplyTraits: [...string]
+  }
+
+  components: ws.#Load
+  #up__: [for name,c in components.value {
+        #Steps 
+        if exceptions[name] != _|_ {
+			   if exceptions[name].skipApplyWorkload == false {
+                   "apply-workload": kube.#Apply & {value: c.workload}
+			   }
+			   if exceptions[name].skipAllTraits == false && c.auxiliaries != _|_ {
+				   #up_auxiliaries: [for t in c.auxiliaries {
+						kube.#Apply & {value: t}
+				   }]
+			   }
+        }
+        if exceptions[name] == _|_ {
+			   "apply-workload": kube.#Apply & {value: c.workload}
+                if c.auxiliaries != _|_ {
+                   #up_auxiliaries:[for index,o in c.auxiliaries {
+					   "s\(index)": kube.#Apply & {
+						  value: o
+					   }
+				   }]
+                }
+				
+        }
+     }
+  ]
+}
+
+#Load: ws.#Load
+
+#Read: kube.#Read
+
+#Steps: {
+  #do: "steps"
+  ...
+}
+
+NoExist: _|_
+
+`,
+	}
+)
