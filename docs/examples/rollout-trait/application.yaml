@@ -13,3 +13,6 @@ spec:
         - type: rollout
           properties:
             targetSize: 5
+            rolloutBatches:
+              - replicas: 2
+              - replicas: 3

@@ -13,4 +13,7 @@ spec:
       traits:
         - type: rollout
           properties:
-            targetSize: 10
+            targetSize: 7
+            rolloutBatches:
+              - replicas: 1
+              - replicas: 1

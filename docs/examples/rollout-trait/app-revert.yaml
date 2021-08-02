@@ -15,3 +15,6 @@ spec:
           properties:
             targetSize: 5
             targetRevision: express-server-v1
+            rolloutBatches:
+              - replicas: 2
+              - replicas: 3
