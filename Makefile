@@ -246,7 +246,7 @@ manifests: installcue kustomize
 	./vela-templates/gen_definitions.sh
 	go run ./vela-templates/gen_addons.go --addons-path=./vela-templates/addons --store-path=./charts/vela-core/templates/addons
 
-GOLANGCILINT_VERSION ?= v1.41.0
+GOLANGCILINT_VERSION ?= v1.31.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 HOSTARCH := $(shell uname -m)
 ifeq ($(HOSTARCH),x86_64)

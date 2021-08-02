@@ -16,131 +16,127 @@ limitations under the License.
 
 package cli
 
-/*
-func delDir(dir string, t *testing.T) {
-	if err := os.RemoveAll(dir); err != nil {
-		t.Fatalf("failed to remove dir %s: %v", dir, err)
-	}
-}
+import (
+	"context"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
 
-func testGetVelaDefinitionLocalDir(t *testing.T) string {
-	if velaDefDir, err := GetVelaDefinitionLocalDir(); err != nil {
-		t.Fatalf("failed to get vela definition local dir: %v", err)
-		return ""
-	} else {
-		return velaDefDir
-	}
-}
+	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
-func testDirExist(dir string, t *testing.T) {
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("failed to find dir %s: %v", dir, err)
-	}
-}
+	//lint:ignore SA1019 currently using fake client, wait for controller-runtime upgrade for further change
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-func getArgs(t *testing.T) common2.Args {
-	c := common2.Args{}
-	if err := c.SetConfig(); err != nil {
-		t.Fatalf("failed to set kube config: %v", err)
-	}
-	c.Schema = k8sruntime.NewScheme()
-	if err := clientgoscheme.AddToScheme(c.Schema); err != nil {
-		t.Fatalf("failed to add client-go scheme")
-	}
-	if err := oamcore.AddToScheme(c.Schema); err != nil {
-		t.Fatalf("failed to set oam core scheme")
-	}
-	if _, err := c.GetClient(); err != nil {
-		t.Fatalf("failed to get kube client: %v", err)
-	}
-	return c
-}
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/common"
+)
 
-func getTestTrait(t *testing.T) (string, *unstructured.Unstructured) {
-	traitName := fmt.Sprintf("scaler-test-%d", time.Now().UnixNano())
-	testDef := fmt.Sprintf(`apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the component."
-  name: %s
-  namespace: vela-system
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  podDisruptive: false
-  schematic:
-    cue:
-      template: |
-        patch: {
-          spec: replicas: parameter.replicas
-        }
-        parameter: {
-          // +usage=Specify the number of workload
-          replicas: *1 | int
-        }`, traitName)
-	obj := &unstructured.Unstructured{}
-	if err := yaml.Unmarshal([]byte(testDef), obj); err != nil {
-		t.Fatalf("failed to unmarshal test trait: %v", err)
-	}
-	obj.SetNamespace("vela-system")
-	return traitName, obj
-}
+const (
+	// VelaTestNamespace namespace for hosting objects used during test
+	VelaTestNamespace = "vela-test-system"
+)
 
-func testGetCRD(c common2.Args, key client.ObjectKey, obj *unstructured.Unstructured, t *testing.T) {
-	if err := c.Client.Get(context.Background(), key, obj); err != nil {
-		t.Fatalf("failed to get crd %s: %v", key, err)
+func initArgs() common2.Args {
+	return common2.Args{
+		Client: fake.NewFakeClientWithScheme(common2.Scheme),
 	}
-}
-
-func testCreateCRD(c common2.Args, obj *unstructured.Unstructured, t *testing.T) {
-	if err := c.Client.Create(context.Background(), obj); err != nil {
-		t.Fatalf("failed to create crd %s: %v", obj.GetName(), err)
-	}
-}
-
-func testDeleteCRD(c common2.Args, obj *unstructured.Unstructured, t *testing.T) {
-	if err := c.Client.Delete(context.Background(), obj); err != nil {
-		t.Fatalf("failed to delete crd %s: %v", obj.GetName(), err)
-	}
-}
-
-func testWriteDefDir(dir string, create_dir bool, t *testing.T) (string, string) {
-	baseYaml := `description: Manually scale the component.
-spec:
-  appliesToWorkloads:
-    - webservice
-    - worker
-  podDisruptive: true`
-	templateCue := fmt.Sprintf(`patch: {
-  spec: replicas: parameter.replicas
-}
-parameter: {
-  // +usage=Specify the number of workload (ts=%d)
-  replicas: *1 | int
-}`, time.Now().UnixNano())
-	if create_dir {
-		if err := os.MkdirAll(dir, 0700); err != nil {
-			t.Fatalf("failed to create dir %s: %v", dir, err)
-		}
-	}
-	baseYamlFilename := filepath.Join(dir, DefinitionBaseFilename)
-	if err := ioutil.WriteFile(baseYamlFilename, []byte(baseYaml), 0600); err != nil {
-		t.Fatalf("failed to create base YAML file %s: %v", baseYamlFilename, err)
-	}
-	templateCueFilename := filepath.Join(dir, DefinitionTemplateFilename)
-	if err := ioutil.WriteFile(templateCueFilename, []byte(templateCue), 0600); err != nil {
-		t.Fatalf("failed to create template CUE file %s: %v", templateCueFilename, err)
-	}
-	return baseYaml, templateCue
 }
 
 func initCommand(cmd *cobra.Command) {
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.Flags().StringP("env", "", "", "")
-	cmd.Flags().StringP(Namespace, "n", "", "")
 	cmd.SetOut(ioutil.Discard)
+}
+
+func createTrait(c common2.Args, t *testing.T) string {
+	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
+	createNamespacedTrait(c, traitName, VelaTestNamespace, t)
+	return traitName
+}
+
+func createNamespacedTrait(c common2.Args, name string, ns string, t *testing.T) {
+	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
+	if err := c.Client.Create(context.Background(), &v1beta1.TraitDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Annotations: map[string]string{
+				common.DefinitionDescriptionKey: "My test-trait " + traitName,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("failed to create trait: %v", err)
+	}
+}
+
+func createLocalTrait(t *testing.T) (string, string) {
+	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
+	s := fmt.Sprintf(`// k8s metadata
+"%s": {
+        type:   "trait"
+        description: "My test-trait %s"
+        attributes: {
+                appliesToWorkloads: ["webservice", "worker"]
+                podDisruptive: true
+        }
+}
+
+// template
+template: {
+        patch: {
+                spec: {
+                        replicas: *1 | int
+                }
+        }
+        parameter: {
+                // +usage=Specify the number of workloads
+                replicas: *1 | int
+        }
+}
+`, traitName, traitName)
+	//fmt.Println(s)
+	filename := filepath.Join(os.TempDir(), traitName+".cue")
+	if err := os.WriteFile(filename, []byte(s), 0600); err != nil {
+		t.Fatalf("failed to write temp trait file %s: %v", filename, err)
+	}
+	return traitName, filename
+}
+
+func createLocalDeploymentYAML(t *testing.T) string {
+	s := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "main"
+Spec:
+  image: "busybox"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "secondary"
+Spec:
+  image: "busybox"
+`
+	filename := filepath.Join(os.TempDir(), fmt.Sprintf("%d-deployments.yaml", time.Now().UnixNano()))
+	if err := os.WriteFile(filename, []byte(s), 0600); err != nil {
+		t.Fatalf("failed to create temp deployments file %s: %v", filename, err)
+	}
+	return filename
+}
+
+func removeFile(filename string, t *testing.T) {
+	if err := os.Remove(filename); err != nil {
+		t.Fatalf("failed to remove file %s: %v", filename, err)
+	}
 }
 
 func TestNewDefinitionCommandGroup(t *testing.T) {
@@ -155,291 +151,168 @@ func TestNewDefinitionCommandGroup(t *testing.T) {
 	}
 }
 
-func TestNewDefinitionCreateCommand(t *testing.T) {
-	cmd := NewDefinitionInitCommand(common2.Args{})
+func TestNewDefinitionInitCommand(t *testing.T) {
+	c := initArgs()
+	// test normal
+	cmd := NewDefinitionInitCommand(c)
 	initCommand(cmd)
-	ts := time.Now().UnixNano()
-	traitName := fmt.Sprintf("trait.test-%d", ts)
-	velaDefDir := testGetVelaDefinitionLocalDir(t)
-	var err error
-	// create normally
+	cmd.SetArgs([]string{"my-ingress", "-t", "trait", "--desc", "test ingress"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error when executing init command: %v", err)
+	}
+	// test interactive
+	cmd = NewDefinitionInitCommand(initArgs())
+	initCommand(cmd)
+	componentName := "my-webservice"
+	cmd.SetArgs([]string{componentName, "--interactive"})
+	templateFilename := createLocalDeploymentYAML(t)
+	filename := strings.Replace(templateFilename, ".yaml", ".cue", 1)
+	defer removeFile(templateFilename, t)
+	defer removeFile(filename, t)
+	inputs := fmt.Sprintf("comp\ncomponent\nMy webservice component.\n%s\n%s\n", templateFilename, filename)
+	reader := strings.NewReader(inputs)
+	cmd.SetIn(reader)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing init command interactively: %v", err)
+	}
+}
+
+func TestNewDefinitionGetCommand(t *testing.T) {
+	c := initArgs()
+	// normal test
+	cmd := NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	traitName := createTrait(c, t)
 	cmd.SetArgs([]string{traitName})
-	traitDir := filepath.Join(velaDefDir, traitName)
-	defer delDir(traitDir, t)
-	if err = cmd.Execute(); err != nil {
-		t.Fatalf("failed to create new definition %s: %v", traitName, err)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing get command: %v", err)
 	}
-	if _, err = os.Stat(traitDir); err != nil {
-		t.Fatalf("failed to find def directory: %v", err)
-	}
-	testDirExist(traitDir, t)
-	// create again, should fail
+	// test multi trait
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	createNamespacedTrait(c, traitName, "default", t)
 	cmd.SetArgs([]string{traitName})
-	if err = cmd.Execute(); err == nil {
-		t.Fatalf("should fail due to existing dir %s", traitDir)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expect found multiple traits error, but not found")
 	}
-	// test invalid args
-	cmd.SetArgs([]string{"trait.test.def"})
-	if err = cmd.Execute(); err == nil {
-		t.Fatalf("should fail due to invalid typed name %s", traitDir)
+	// test no trait
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{traitName + "s"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expect found no trait error, but not found")
 	}
-	// create again with overwrite flag, should succeed
-	cmd.SetArgs([]string{traitName, "--overwrite"})
-	if err = cmd.Execute(); err != nil {
-		t.Fatalf("failed to overwrite definition %s", traitDir)
+}
+
+func TestNewDefinitionListCommand(t *testing.T) {
+	c := initArgs()
+	// normal test
+	cmd := NewDefinitionListCommand(c)
+	initCommand(cmd)
+	_ = createTrait(c, t)
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing list command: %v", err)
 	}
-	// test customized directory
-	customizedDir := "./.test/definitions/"
-	cmd.SetArgs([]string{traitName, customizedDir})
-	traitDir = filepath.Join(customizedDir, traitName)
-	defer delDir(traitDir, t)
-	if err = cmd.Execute(); err != nil {
-		t.Fatalf("failed to create new definition %s: %v", traitName, err)
+	// test no trait
+	cmd = NewDefinitionListCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"--namespace", "default"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("no trait found should not return error, err: %v", err)
 	}
-	testDirExist(traitDir, t)
 }
 
 func TestNewDefinitionEditCommand(t *testing.T) {
-	c := getArgs(t)
-	traitName, traitObj := getTestTrait(t)
-	testCreateCRD(c, traitObj, t)
-	defer testDeleteCRD(c, traitObj, t)
+	c := initArgs()
+	// normal test
 	cmd := NewDefinitionEditCommand(c)
 	initCommand(cmd)
-	// should fail due to invalid typed name
+	traitName := createTrait(c, t)
+	if err := os.Setenv("EDITOR", "sed -i -e 's/test-trait/TestTrait/g'"); err != nil {
+		t.Fatalf("failed to set editor env: %v", err)
+	}
 	cmd.SetArgs([]string{traitName})
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("should fail due to invalid typed name")
-	}
-	// normal exec
-	cmd.SetArgs([]string{"trait." + traitName, "-n", "vela-system", "--editor", "sed -i -e 's/Manually/manually/g'"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to edit definition: %v", err)
+		t.Fatalf("unexpeced error when executing edit command: %v", err)
 	}
-	testGetCRD(c, types.NamespacedName{Namespace: "vela-system", Name: traitName}, traitObj, t)
-	desc, ok, err := unstructured.NestedString(traitObj.Object, DefinitionDescriptionKeys...)
-	if err != nil || !ok {
-		t.Fatalf("failed to get description from definition: %v|%v", ok, err)
-	}
-	if strings.Contains(desc, "Manually") || !strings.Contains(desc, "manually") {
-		t.Fatalf("failed to edit base YAML, expected description with 'manully', actual: %s", desc)
-	}
-	// normal exec with no change
-	cmd.SetArgs([]string{"trait." + traitName, "-n", "vela-system", "--editor", "sed -i -e 's/Manually/manually/g'"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to edit definition: %v", err)
-	}
-	testGetCRD(c, types.NamespacedName{Namespace: "vela-system", Name: traitName}, traitObj, t)
-	_desc, ok, err := unstructured.NestedString(traitObj.Object, DefinitionDescriptionKeys...)
-	if err != nil || !ok {
-		t.Fatalf("failed to get description from definition: %v|%v", ok, err)
-	}
-	if desc != _desc {
-		t.Fatalf("failed to do unchanged edit\n=== Expected ===\n%s\n=== Actual ===\n%s\n", desc, _desc)
-	}
-	// edit template
-	cmd.SetArgs([]string{"trait." + traitName, "-n", "vela-system", "--editor", "sed -i -e 's/workload/workloads/g'", "--edit-template"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to edit definition: %v", err)
-	}
-	testGetCRD(c, types.NamespacedName{Namespace: "vela-system", Name: traitName}, traitObj, t)
-	template, ok, err := unstructured.NestedString(traitObj.Object, DefinitionTemplateKeys...)
-	if err != nil || !ok {
-		t.Fatalf("failed to get template from definition: %v|%v", ok, err)
-	}
-	if !strings.Contains(template, "workloads") {
-		t.Fatalf("failed to edit template CUE, expected description with 'workloads', actual: %s", template)
-	}
-}
-
-func TestNewDefinitionDownloadCommand(t *testing.T) {
-	velaDefDir := testGetVelaDefinitionLocalDir(t)
-	c := getArgs(t)
-	traitName, traitObj := getTestTrait(t)
-	traitTypedName := "trait." + traitName
-	testCreateCRD(c, traitObj, t)
-	defer testDeleteCRD(c, traitObj, t)
-	cmd := NewDefinitionGetCommand(c)
+	// test no change
+	cmd = NewDefinitionEditCommand(c)
 	initCommand(cmd)
-	// no namespace specified, should fail
-	cmd.SetArgs([]string{traitTypedName})
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("should fail due to namespace unspecified")
+	createNamespacedTrait(c, traitName, "default", t)
+	if err := os.Setenv("EDITOR", "sed -i -e 's/test-trait-test/TestTrait/g'"); err != nil {
+		t.Fatalf("failed to set editor env: %v", err)
 	}
-	// normal exec
-	cmd.SetArgs([]string{"trait." + traitName, "-n", "vela-system"})
+	cmd.SetArgs([]string{traitName, "-n", "default"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to run def download: %v", err)
+		t.Fatalf("unexpeced error when executing edit command: %v", err)
 	}
-	traitPath := filepath.Join(velaDefDir, traitTypedName)
-	testDirExist(traitPath, t)
-	defer delDir(traitPath, t)
-	// should fail due to duplicated dir
-	cmd.SetArgs([]string{"trait." + traitName, "-n", "vela-system"})
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("should fail due to duplicated dir")
-	}
-	// test specified directory
-	cmd.SetArgs([]string{"trait." + traitName, "./.test/", "-n", "vela-system"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to run def download with specified path: %v", err)
-	}
-	traitPath = filepath.Join("./.test/", traitTypedName)
-	testDirExist(traitPath, t)
-	defer delDir(traitPath, t)
 }
 
 func TestNewDefinitionApplyCommand(t *testing.T) {
-	velaDefDir := testGetVelaDefinitionLocalDir(t)
-	c := getArgs(t)
-	traitName := fmt.Sprintf("scaler-test-%d", time.Now().UnixNano())
-	testDirname := fmt.Sprintf("./.test/trait.%s", traitName)
-	_, templateCue := testWriteDefDir(testDirname, true, t)
-	defer delDir(testDirname, t)
+	c := initArgs()
+	// dry-run test
 	cmd := NewDefinitionApplyCommand(c)
 	initCommand(cmd)
-	// no invalid dirname, should fail
-	cmd.SetArgs([]string{"./.test/trait-test"})
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("should fail due to invalid definition typed name")
-	}
-	// normal exec
-	cmd.SetArgs([]string{testDirname, "-n", "vela-system"})
+	_, traitFilename := createLocalTrait(t)
+	defer removeFile(traitFilename, t)
+	cmd.SetArgs([]string{traitFilename, "--dry-run"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to run def apply: %v", err)
+		t.Fatalf("unexpeced error when executing edit command: %v", err)
 	}
-	_o := &unstructured.Unstructured{}
-	_o.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
-	_o.SetNamespace("vela-system")
-	_o.SetName(traitName)
-	defer testDeleteCRD(c, _o, t)
-	testGetCRD(c, types.NamespacedName{Namespace: "vela-system", Name: traitName}, _o, t)
-	_templateCue, ok, err := unstructured.NestedString(_o.Object, DefinitionTemplateKeys...)
-	if err != nil || !ok {
-		t.Fatalf("failed to set correct template, err: %s", err)
-	}
-	if templateCue != _templateCue {
-		t.Fatalf("failed to set correct template\n=== Expected ===\n%s\n=== Found ===\n%s\n", templateCue, _templateCue)
-	}
-	// test default directory with dry-run
-	oldTraitName := traitName
-	oldTestDirname := testDirname
-	traitName = fmt.Sprintf("scaler-test-%d", time.Now().UnixNano())
-	testDirname = filepath.Join(velaDefDir, fmt.Sprintf("trait.%s", traitName))
-	testWriteDefDir(testDirname, true, t)
-	defer delDir(testDirname, t)
-	cmd.SetArgs([]string{"trait." + traitName, "-n", "vela-system", "--dry-run"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to run def apply: %v", err)
-	}
-	_o = &unstructured.Unstructured{}
-	_o.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
-	_o.SetNamespace("vela-system")
-	_o.SetName(traitName)
-	err = c.Client.Get(context.Background(), types.NamespacedName{Namespace: "vela-system", Name: traitName}, _o)
-	if err == nil || !errors.IsNotFound(err) {
-		t.Fatalf("dry-run apply should not apply to k8s")
-	}
-	// test default directory updating previously created one
-	traitName = oldTraitName
-	testDirname = oldTestDirname
-	_, templateCue = testWriteDefDir(testDirname, false, t)
+	// normal test and reapply
 	cmd = NewDefinitionApplyCommand(c)
 	initCommand(cmd)
-	cmd.SetArgs([]string{testDirname, "-n", "vela-system"})
+	cmd.SetArgs([]string{traitFilename})
+	for i := 0; i < 2; i++ {
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpeced error when executing edit command: %v", err)
+		}
+	}
+}
+
+func TestNewDefinitionDelCommand(t *testing.T) {
+	c := initArgs()
+	cmd := NewDefinitionDelCommand(c)
+	initCommand(cmd)
+	traitName := createTrait(c, t)
+	reader := strings.NewReader("yes\n")
+	cmd.SetIn(reader)
+	cmd.SetArgs([]string{traitName})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("failed to run def apply: %v", err)
+		t.Fatalf("unexpeced error when executing edit command: %v", err)
 	}
-	_o = &unstructured.Unstructured{}
-	_o.SetGroupVersionKind(v1beta1.TraitDefinitionGroupVersionKind)
-	_o.SetNamespace("vela-system")
-	_o.SetName(traitName)
-	testGetCRD(c, types.NamespacedName{Namespace: "vela-system", Name: traitName}, _o, t)
-	_templateCue, ok, err = unstructured.NestedString(_o.Object, DefinitionTemplateKeys...)
-	if err != nil || !ok {
-		t.Fatalf("failed to set correct template, err: %s", err)
+	obj := &v1beta1.TraitDefinition{}
+	if err := c.Client.Get(context.Background(), types.NamespacedName{
+		Namespace: VelaTestNamespace,
+		Name:      traitName,
+	}, obj); !errors.IsNotFound(err) {
+		t.Fatalf("should not found target definition %s, err: %v", traitName, err)
 	}
-	if templateCue != _templateCue {
-		t.Fatalf("failed to set correct template\n=== Expected ===\n%s\n=== Found ===\n%s\n", templateCue, _templateCue)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("should encounter not found error, but no error found")
 	}
 }
 
-func TestLoadCUE(t *testing.T) {
-	r := &cue.Runtime{}
-	bits := load.Instances([]string{"/Users/yinda/Codes/OAM/temp/scaler.cue", "/Users/yinda/Codes/OAM/temp/def.cue"}, nil)
-	for _, bi := range bits {
-		if bi.Err != nil {
-			fmt.Println("Error during load:", bi.Err)
-			continue
-		}
-		I, err := r.Build(bi)
-		if err != nil {
-			fmt.Println("Error during build:", bi.Err)
-			continue
-		}
-		// get the root value and print it
-		value := I.Value()
-		fmt.Println("root value:", value)
-		// Validate the value
-		err = value.Validate()
-		if err != nil {
-			fmt.Println("Error during validate:", err)
-			continue
-		}
-		//valstr, err := sets.ToString(val)
-		//if err != nil {
-		//	fmt.Println("Error for tostring", err)
-		//}
-		//fmt.Println("Eval Value: ", valstr)
+func TestNewDefinitionVetCommand(t *testing.T) {
+	c := initArgs()
+	cmd := NewDefinitionValidateCommand(c)
+	initCommand(cmd)
+	_, traitFilename := createLocalTrait(t)
+	defer removeFile(traitFilename, t)
+	cmd.SetArgs([]string{traitFilename})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing edit command: %v", err)
 	}
-}
-
-func TestGenerateCUE(t *testing.T) {
-	//ast.NewIdent()
-	//ast.NewSel()
-
-	//expr := ast.NewBinExpr(token.COLON, ast.NewString("name"), ast.NewString("val"))
-	//r := cue.Runtime{}
-	//inst, err := r.CompileExpr(expr)
-	//if err != nil {
-	//	fmt.Println("error", err)
-	//}
-	//inst.
-	//fmt.Print("value", inst.)
-	r := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
-	m := map[string]interface{}{
-		"a": "b",
-		"b": map[string]interface{}{
-			"c": 5,
-		},
-	}
-	v, err := r.Decode(m)
+	bs, err := os.ReadFile(traitFilename)
 	if err != nil {
-		fmt.Println("err", err)
-	} else {
-		fmt.Printf("value: %v\n", v)
+		t.Fatalf("failed to read trait file %s: %v", traitFilename, err)
+	}
+	bs = []byte(string(bs) + "abc")
+	if err = os.WriteFile(traitFilename, bs, 0600); err != nil {
+		t.Fatalf("failed to modify trait file %s: %v", traitFilename, err)
+	}
+	if err = cmd.Execute(); err == nil {
+		t.Fatalf("expect validation failed but error not found")
 	}
 }
-
-func TestGetDefCUE(t *testing.T) {
-	c := dynamic.NewForConfigOrDie(config.GetConfigOrDie())
-	r := c.Resource(schema.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "traitdefinitions"})
-	obj, err := r.Namespace("vela-system").Get(context.Background(), "scaler", metav1.GetOptions{})
-	if err != nil {
-		t.Errorf("k8s %v", err)
-	}
-	defx := &common.DefinitionX{Unstructured: *obj}
-	val, err := defx.ToCUE()
-	if err != nil {
-		t.Errorf("defx %v", err)
-	}
-	fmt.Printf("%v\n", val)
-
-	newDef := &common.DefinitionX{}
-	if err := newDef.FromCUE(val); err != nil {
-		t.Errorf("fromcue %v", err)
-	}
-	s, _ := yaml.Marshal(newDef.Object)
-	fmt.Printf("from val: %v", string(s))
-}
-*/

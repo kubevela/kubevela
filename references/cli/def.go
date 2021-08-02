@@ -87,9 +87,8 @@ func DefinitionCommandGroup(c common.Args) *cobra.Command {
 	return cmd
 }
 
-func getPrompt(cmd *cobra.Command, description string, prompt string, validate func(string) error) (string, error) {
+func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, prompt string, validate func(string) error) (string, error) {
 	cmd.Printf(description)
-	reader := bufio.NewReader(cmd.InOrStdin())
 	for {
 		cmd.Printf(prompt)
 		resp, err := reader.ReadString('\n')
@@ -114,6 +113,48 @@ func loadYAMLBytesFromFileOrHTTP(pathOrURL string) ([]byte, error) {
 		return common.HTTPGet(context.Background(), pathOrURL)
 	}
 	return ioutil.ReadFile(path.Clean(pathOrURL))
+}
+
+func buildTemplateFromYAML(templateYAML string, def *common2.Definition) error {
+	templateYAMLBytes, err := loadYAMLBytesFromFileOrHTTP(templateYAML)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get template YAML file %s", templateYAML)
+	}
+	yamlStrings := regexp.MustCompile(`\n---[^\n]*\n`).Split(string(templateYAMLBytes), -1)
+	templateObject := map[string]interface{}{
+		"output":     map[string]interface{}{},
+		"outputs":    map[string]interface{}{},
+		"parameters": map[string]interface{}{},
+	}
+	for index, yamlString := range yamlStrings {
+		var yamlObject map[string]interface{}
+		if err = yaml.Unmarshal([]byte(yamlString), &yamlObject); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal template yaml file")
+		}
+		if index == 0 {
+			templateObject["output"] = yamlObject
+		} else {
+			name, _, _ := unstructured.NestedString(yamlObject, "metadata", "name")
+			if name == "" {
+				name = fmt.Sprintf("output-%d", index)
+			}
+			templateObject["outputs"].(map[string]interface{})[name] = yamlObject
+		}
+	}
+	codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
+	val, err := codec.Decode(templateObject)
+	if err != nil {
+		return errors.Wrapf(err, "failed to decode template into cue")
+	}
+	templateString, err := sets.ToString(val)
+	if err != nil {
+		return errors.Wrapf(err, "failed to encode template cue string")
+	}
+	err = unstructured.SetNestedField(def.Object, templateString, common2.DefinitionTemplateKeys...)
+	if err != nil {
+		return errors.Wrapf(err, "failed to merge template cue string")
+	}
+	return nil
 }
 
 // NewDefinitionInitCommand create the `vela def init` command to help user initialize a definition locally
@@ -152,8 +193,9 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			}
 
 			if interactive {
+				reader := bufio.NewReader(cmd.InOrStdin())
 				if definitionType == "" {
-					if definitionType, err = getPrompt(cmd, "Please choose one definition type from the following values: "+strings.Join(common2.ValidDefinitionTypes(), ", ")+"\n", "> Definition type: ", func(resp string) error {
+					if definitionType, err = getPrompt(cmd, reader, "Please choose one definition type from the following values: "+strings.Join(common2.ValidDefinitionTypes(), ", ")+"\n", "> Definition type: ", func(resp string) error {
 						if _, ok := common2.DefinitionTypeToKind[resp]; !ok {
 							return errors.New("invalid definition type")
 						}
@@ -163,14 +205,12 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 					}
 				}
 				if desc == "" {
-					if desc, err = getPrompt(cmd, "", "> Definition description: ", func(resp string) error {
-						return nil
-					}); err != nil {
+					if desc, err = getPrompt(cmd, reader, "", "> Definition description: ", nil); err != nil {
 						return err
 					}
 				}
 				if templateYAML == "" {
-					if templateYAML, err = getPrompt(cmd, "Please enter the location the template YAML file to build definition. Leave it empty to generate default template.\n", "> Definition template filename: ", func(resp string) error {
+					if templateYAML, err = getPrompt(cmd, reader, "Please enter the location the template YAML file to build definition. Leave it empty to generate default template.\n", "> Definition template filename: ", func(resp string) error {
 						if resp == "" {
 							return nil
 						}
@@ -181,9 +221,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 					}
 				}
 				if output == "" {
-					if output, err = getPrompt(cmd, "Please enter the output location of the generated definition. Leave it empty to print definition to stdout.\n", "> Definition output filename: ", func(resp string) error {
-						return nil
-					}); err != nil {
+					if output, err = getPrompt(cmd, reader, "Please enter the output location of the generated definition. Leave it empty to print definition to stdout.\n", "> Definition output filename: ", nil); err != nil {
 						return err
 					}
 				}
@@ -202,43 +240,8 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			def.SetLabels(map[string]string{})
 			def.Object["spec"] = common2.GetDefinitionDefaultSpec(def.GetKind())
 			if templateYAML != "" {
-				templateYAMLBytes, err := loadYAMLBytesFromFileOrHTTP(templateYAML)
-				if err != nil {
-					return errors.Wrapf(err, "failed to get template YAML file %s", templateYAML)
-				}
-				yamlStrings := regexp.MustCompile(`\n---[^\n]*\n`).Split(string(templateYAMLBytes), -1)
-				templateObject := map[string]interface{}{
-					"output":     map[string]interface{}{},
-					"outputs":    map[string]interface{}{},
-					"parameters": map[string]interface{}{},
-				}
-				for index, yamlString := range yamlStrings {
-					var yamlObject map[string]interface{}
-					if err = yaml.Unmarshal([]byte(yamlString), &yamlObject); err != nil {
-						return errors.Wrapf(err, "failed to unmarshal template yaml file")
-					}
-					if index == 0 {
-						templateObject["output"] = yamlObject
-					} else {
-						name, _, _ := unstructured.NestedString(yamlObject, "metadata", "name")
-						if name == "" {
-							name = fmt.Sprintf("output-%d", index)
-						}
-						templateObject["outputs"].(map[string]interface{})[name] = yamlObject
-					}
-				}
-				codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
-				val, err := codec.Decode(templateObject)
-				if err != nil {
-					return errors.Wrapf(err, "failed to decode template into cue")
-				}
-				templateString, err := sets.ToString(val)
-				if err != nil {
-					return errors.Wrapf(err, "failed to encode template cue string")
-				}
-				err = unstructured.SetNestedField(def.Object, templateString, common2.DefinitionTemplateKeys...)
-				if err != nil {
-					return errors.Wrapf(err, "failed to merge template cue string")
+				if err = buildTemplateFromYAML(templateYAML, &def); err != nil {
+					return err
 				}
 			}
 			cueString, err := def.ToCUEString()
@@ -250,9 +253,8 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 					return errors.Wrapf(err, "failed to write definition into %s", output)
 				}
 				cmd.Printf("Definition written to %s\n", output)
-			} else {
-				cmd.SetOut(os.Stdout)
-				cmd.Println(cueString)
+			} else if _, err = cmd.OutOrStdout().Write([]byte(cueString + "\n")); err != nil {
+				return errors.Wrapf(err, "failed to write out cue string")
 			}
 			return nil
 		},
@@ -321,8 +323,9 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cue format definition")
 			}
-			cmd.SetOut(os.Stdout)
-			cmd.Println(cueString)
+			if _, err = cmd.OutOrStdout().Write([]byte(cueString + "\n")); err != nil {
+				return errors.Wrapf(err, "failed to write out cue string")
+			}
 			return nil
 		},
 	}
@@ -500,7 +503,6 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			if err := def.FromCUEString(string(cueBytes)); err != nil {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}
-
 			def.SetNamespace(namespace)
 			if dryRun {
 				crd, err := yaml.Marshal(def.Object)
@@ -572,7 +574,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 			}
 			desc := def.GetAnnotations()[common2.DefinitionDescriptionKey]
 			toDelete := false
-			_, err = getPrompt(cmd,
+			_, err = getPrompt(cmd, bufio.NewReader(cmd.InOrStdin()),
 				fmt.Sprintf("Are you sure to delete the following definition in namespace %s?\n", def.GetNamespace())+
 					fmt.Sprintf("%s %s: %s\n", def.GetKind(), def.GetName(), desc),
 				"[yes|no] > ",

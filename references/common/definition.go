@@ -67,7 +67,7 @@ func (def *Definition) SetGVK(kind string) {
 	})
 }
 
-// GetType get the type of Definition
+// GetType gets the type of Definition
 func (def *Definition) GetType() string {
 	kind := def.GetKind()
 	for k, v := range DefinitionTypeToKind {
@@ -76,6 +76,16 @@ func (def *Definition) GetType() string {
 		}
 	}
 	return strings.ToLower(strings.TrimSuffix(kind, "Definition"))
+}
+
+// SetType sets the type of Definition
+func (def *Definition) SetType(t string) error {
+	kind, ok := DefinitionTypeToKind[t]
+	if !ok {
+		return fmt.Errorf("invalid type %s", t)
+	}
+	def.SetGVK(kind)
+	return nil
 }
 
 // ToCUE converts Definition to CUE value (with predefined Definition's cue format)
@@ -101,11 +111,11 @@ func (def *Definition) ToCUE() (*cue.Value, error) {
 	}
 	obj := map[string]interface{}{
 		def.GetName(): map[string]interface{}{
-			"type": def.GetType(),
+			"type":        def.GetType(),
 			"description": desc,
 			"annotations": annotations,
 			"labels":      labels,
-			"spec":        spec,
+			"attributes":  spec,
 		},
 	}
 	r := &cue.Runtime{}
@@ -147,6 +157,7 @@ func (def *Definition) ToCUEString() (string, error) {
 }
 
 // FromCUE converts CUE value (predefined Definition's cue format) to Definition
+// nolint:gocyclo
 func (def *Definition) FromCUE(val *cue.Value) error {
 	if def.Object == nil {
 		def.Object = map[string]interface{}{}
@@ -173,52 +184,66 @@ func (def *Definition) FromCUE(val *cue.Value) error {
 	}
 	templateString := ""
 	codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
+	nameFlag := false
 	for fields.Next() {
 		k := fields.Label()
 		v := fields.Value()
 		switch k {
-		case "kind":
-			kind, err := v.String()
-			if err != nil {
-				return err
-			}
-			def.SetGVK(kind)
-		case "name":
-			name, err := v.String()
-			if err != nil {
-				return err
-			}
-			def.SetName(name)
-		case "description":
-			desc, err := v.String()
-			if err != nil {
-				return err
-			}
-			annotations[DefinitionDescriptionKey] = desc
-		case "annotations":
-			var _annotations map[string]string
-			if err := codec.Encode(v, &_annotations); err != nil {
-				return err
-			}
-			for _k, _v := range _annotations {
-				annotations[DefinitionUserPrefix+_k] = _v
-			}
-		case "labels":
-			var _labels map[string]string
-			if err := codec.Encode(v, &_labels); err != nil {
-				return err
-			}
-			for _k, _v := range _labels {
-				labels[DefinitionUserPrefix+_k] = _v
-			}
-		case "spec":
-			if err := codec.Encode(v, &spec); err != nil {
-				return err
-			}
 		case "template":
 			templateString, err = sets.ToString(v)
 			if err != nil {
 				return err
+			}
+		case "context":
+		default:
+			if nameFlag {
+				return fmt.Errorf("duplicated definition name found, %s and %s", def.GetName(), k)
+			}
+			nameFlag = true
+			def.SetName(k)
+			_fields, err := v.Fields()
+			if err != nil {
+				return err
+			}
+			for _fields.Next() {
+				_key := _fields.Label()
+				_value := _fields.Value()
+				switch _key {
+				case "type":
+					_type, err := _value.String()
+					if err != nil {
+						return err
+					}
+					if err = def.SetType(_type); err != nil {
+						return err
+					}
+				case "description":
+					desc, err := _value.String()
+					if err != nil {
+						return err
+					}
+					annotations[DefinitionDescriptionKey] = desc
+				case "annotations":
+					var _annotations map[string]string
+					if err := codec.Encode(_value, &_annotations); err != nil {
+						return err
+					}
+					for _k, _v := range _annotations {
+						annotations[DefinitionUserPrefix+_k] = _v
+					}
+				case "labels":
+					var _labels map[string]string
+					if err := codec.Encode(_value, &_labels); err != nil {
+						return err
+					}
+					for _k, _v := range _labels {
+						labels[DefinitionUserPrefix+_k] = _v
+					}
+				case "attributes":
+					if err := codec.Encode(_value, &spec); err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}
@@ -277,7 +302,7 @@ func SearchDefinition(definitionName string, c client.Client, definitionType str
 		objs.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   v1beta1.Group,
 			Version: v1beta1.Version,
-			Kind:    kind,
+			Kind:    kind + "List",
 		})
 		if err := c.List(ctx, &objs, listOptions...); err != nil {
 			return nil, errors.Wrapf(err, "failed to get %s", kind)
@@ -310,8 +335,8 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 		}
 	case v1beta1.TraitDefinitionKind:
 		return map[string]interface{}{
-			"appliesToWorkloads": []string{},
-			"conflictsWith":      []string{},
+			"appliesToWorkloads": []interface{}{},
+			"conflictsWith":      []interface{}{},
 			"workloadRefPath":    "",
 			"definitionRef":      "",
 			"podDisruptive":      false,
