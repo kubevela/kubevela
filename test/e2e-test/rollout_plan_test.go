@@ -117,6 +117,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		By("Get Application latest status")
 		Eventually(
 			func() *oamcomm.Revision {
+				app = v1beta1.Application{}
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, &app)
 				if app.Status.LatestRevision != nil {
 					return app.Status.LatestRevision
@@ -133,7 +134,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		Eventually(
 			func() error {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
+				app = v1beta1.Application{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: targetApp.Name}, &app)
 				if err != nil {
 					return err
 				}
@@ -213,6 +215,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Eventually(
 			func() error {
 				var clonesetOwner *metav1.OwnerReference
+				kc = kruise.CloneSet{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
 				if err != nil {
 					return err
