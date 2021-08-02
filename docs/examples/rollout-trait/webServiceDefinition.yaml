@@ -32,9 +32,6 @@ spec:
                                            resources: {
                                            limits:
                                               cpu: parameter.cpu
-                                           requests:
-                                              cpu: parameter.cpu
-                                           }
                                            }
                                      }]
                                 }
