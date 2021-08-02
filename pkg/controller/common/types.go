@@ -37,4 +37,6 @@ const (
 	ContainerizedWorkloadControllerName = "containerizedwokrload"
 	// HealthScopeControllerName is the controller name of healthScope controller
 	HealthScopeControllerName = "healthscope"
+	// RolloutControllerName is the controller name of rollout controller
+	RolloutControllerName = "rollout"
 )

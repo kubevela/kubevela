@@ -238,7 +238,7 @@ var appConfigWithTraitsBytes = []byte(`
 
 var appref = oamcore.Application{ // work around AppRevision validation
 	Spec: oamcore.ApplicationSpec{
-		Components: []oamcore.ApplicationComponent{},
+		Components: []common.ApplicationComponent{},
 	},
 }
 
@@ -269,8 +269,8 @@ var _ = Describe("Test AppDeployment Controller", func() {
 			Spec: oamcore.AppDeploymentSpec{
 				AppRevisions: []oamcore.AppRevision{{
 					RevisionName: apprev1.Name,
-					Placement: []oamcore.ClusterPlacement{{
-						Distribution: oamcore.Distribution{
+					Placement: []common.ClusterPlacement{{
+						Distribution: common.Distribution{
 							Replicas: 2,
 						},
 					}},
@@ -285,15 +285,15 @@ var _ = Describe("Test AppDeployment Controller", func() {
 
 		appd.Spec.AppRevisions = []oamcore.AppRevision{{
 			RevisionName: apprev1.Name,
-			Placement: []oamcore.ClusterPlacement{{
-				Distribution: oamcore.Distribution{
+			Placement: []common.ClusterPlacement{{
+				Distribution: common.Distribution{
 					Replicas: 1,
 				},
 			}},
 		}, {
 			RevisionName: apprev2.Name,
-			Placement: []oamcore.ClusterPlacement{{
-				Distribution: oamcore.Distribution{
+			Placement: []common.ClusterPlacement{{
+				Distribution: common.Distribution{
 					Replicas: 1,
 				},
 			}},
@@ -317,8 +317,8 @@ var _ = Describe("Test AppDeployment Controller", func() {
 			Spec: oamcore.AppDeploymentSpec{
 				AppRevisions: []oamcore.AppRevision{{
 					RevisionName: apprev3.Name,
-					Placement: []oamcore.ClusterPlacement{{
-						Distribution: oamcore.Distribution{
+					Placement: []common.ClusterPlacement{{
+						Distribution: common.Distribution{
 							Replicas: 2,
 						},
 					}},
@@ -360,15 +360,15 @@ var _ = Describe("Test AppDeployment Controller", func() {
 				},
 				AppRevisions: []oamcore.AppRevision{{
 					RevisionName: apprev4.Name,
-					Placement: []oamcore.ClusterPlacement{{
-						Distribution: oamcore.Distribution{
+					Placement: []common.ClusterPlacement{{
+						Distribution: common.Distribution{
 							Replicas: 1,
 						},
 					}},
 				}, {
 					RevisionName: apprev5.Name,
-					Placement: []oamcore.ClusterPlacement{{
-						Distribution: oamcore.Distribution{
+					Placement: []common.ClusterPlacement{{
+						Distribution: common.Distribution{
 							Replicas: 1,
 						},
 					}},

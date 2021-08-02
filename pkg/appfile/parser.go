@@ -21,16 +21,16 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/klog/v2"
-
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -115,10 +115,10 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
 
-	appfile.WorkflowSteps, err = p.parseWorkflow(ctx, app.Spec.Workflow)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parseWorkflow: %w", err)
+	if wfSpec := app.Spec.Workflow; wfSpec != nil {
+		appfile.WorkflowSteps = wfSpec.Steps
 	}
+
 	return appfile, nil
 }
 
@@ -134,32 +134,15 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 	return ws, nil
 }
 
-func (p *Parser) parseWorkflow(ctx context.Context, workflow *v1beta1.Workflow) ([]*Workload, error) {
-	if workflow == nil {
-		return []*Workload{}, nil
-	}
-	steps := workflow.Steps
-	ws := []*Workload{}
-	for _, step := range steps {
-		w, err := p.makeWorkload(ctx, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)
-		if err != nil {
-			return nil, err
-		}
-		ws = append(ws, w)
-	}
-	return ws, nil
-}
-
 func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
-	if err != nil && !kerrors.IsNotFound(err) {
+	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch type of %s", name)
 	}
 	settings, err := util.RawExtension2Map(&props)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
 	}
-
 	wlType, err := util.ConvertDefinitionRevName(typ)
 	if err != nil {
 		wlType = typ
@@ -178,7 +161,7 @@ func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType typ
 
 // parseWorkload resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile.
-func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent) (*Workload, error) {
+func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationComponent) (*Workload, error) {
 	workload, err := p.makeWorkload(ctx, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
 	if err != nil {
 		return nil, err

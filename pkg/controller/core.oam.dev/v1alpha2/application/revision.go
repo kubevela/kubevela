@@ -17,12 +17,14 @@ limitations under the License.
 package application
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"reflect"
 	"sort"
+	"strings"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
+
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,8 +50,16 @@ import (
 )
 
 const (
-	// ConfigMapKeyResources is the key in ConfigMap Data field for containing data of resources
-	ConfigMapKeyResources = "resources"
+	// ConfigMapKeyComponents is the key in ConfigMap Data field for containing data of components
+	ConfigMapKeyComponents = "components"
+	// ConfigMapKeyPolicy is the key in ConfigMap Data field for containing data of policies
+	ConfigMapKeyPolicy = "policies"
+	// ManifestKeyWorkload is the key in Component Manifest for containing workload cr.
+	ManifestKeyWorkload = "StandardWorkload"
+	// ManifestKeyTraits is the key in Component Manifest for containing Trait cr.
+	ManifestKeyTraits = "Traits"
+	// ManifestKeyScopes is the key in Component Manifest for containing scope cr reference.
+	ManifestKeyScopes = "Scopes"
 )
 
 func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
@@ -57,31 +67,14 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 	comps []*types.ComponentManifest,
 	policies []*unstructured.Unstructured) error {
 
-	buf := &bytes.Buffer{}
+	components := map[string]interface{}{}
 	for _, c := range comps {
 		if c.InsertConfigNotReady {
 			continue
 		}
-		r := c.StandardWorkload.DeepCopy()
-		r.SetName(c.Name)
-		r.SetNamespace(appRev.Namespace)
-		buf.Write(util.MustJSONMarshal(r))
-	}
-	for _, c := range comps {
-		if c.InsertConfigNotReady {
-			continue
-		}
-		for _, tr := range c.Traits {
-			r := tr.DeepCopy()
-			r.SetName(c.Name)
-			r.SetNamespace(appRev.Namespace)
-			buf.Write(util.MustJSONMarshal(r))
-		}
-	}
-	for _, policy := range policies {
-		buf.Write(util.MustJSONMarshal(policy))
-	}
+		components[c.Name] = SprintComponentManifest(c)
 
+	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      appRev.Name,
@@ -91,10 +84,10 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 			},
 		},
 		Data: map[string]string{
-			ConfigMapKeyResources: buf.String(),
+			ConfigMapKeyComponents: string(util.MustJSONMarshal(components)),
+			ConfigMapKeyPolicy:     string(util.MustJSONMarshal(policies)),
 		},
 	}
-
 	err := h.r.Client.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, &corev1.ConfigMap{})
 	if err == nil {
 		return nil
@@ -103,6 +96,21 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 		return err
 	}
 	return h.r.Client.Create(ctx, cm)
+}
+
+// SprintComponentManifest formats and returns the resulting string.
+func SprintComponentManifest(cm *types.ComponentManifest) string {
+	cl := map[string]interface{}{
+		ManifestKeyWorkload: string(util.MustJSONMarshal(cm.StandardWorkload)),
+	}
+
+	trs := []string{}
+	for _, tr := range cm.Traits {
+		trs = append(trs, string(util.MustJSONMarshal(tr)))
+	}
+	cl[ManifestKeyTraits] = trs
+	cl[ManifestKeyScopes] = cm.Scopes
+	return string(util.MustJSONMarshal(cl))
 }
 
 // PrepareCurrentAppRevision will generate a pure revision without metadata and rendered result
@@ -218,7 +226,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash:     make(map[string]string),
 	}
 	var err error
-	appRevisionHash.ApplicationSpecHash, err = utils.ComputeSpecHash(&appRevision.Spec.Application.Spec)
+	appRevisionHash.ApplicationSpecHash, err = utils.ComputeSpecHash(filterSkipAffectAppRevTrait(appRevision.Spec.Application.Spec, appRevision.Spec.TraitDefinitions))
 	if err != nil {
 		return "", err
 	}
@@ -325,10 +333,13 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 			return false
 		}
 	}
-	return apiequality.Semantic.DeepEqual(&old.Spec.Application.Spec, &new.Spec.Application.Spec)
+	return apiequality.Semantic.DeepEqual(filterSkipAffectAppRevTrait(old.Spec.Application.Spec, old.Spec.TraitDefinitions),
+		filterSkipAffectAppRevTrait(new.Spec.Application.Spec, new.Spec.TraitDefinitions))
 }
 
 // HandleComponentsRevision manages Component revisions
+// 1. if update component create a new component Revision
+// 2. check all componentTrait  rely on componentRevName, if yes fill it
 func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
 	for _, cm := range compManifests {
 		if cm.InsertConfigNotReady {
@@ -373,6 +384,11 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 		if needNewRevision {
 			cm.RevisionName = utils.ConstructRevisionName(cm.Name, maxRevisionNum+1)
 			if err := h.createControllerRevision(ctx, cm); err != nil {
+				return err
+			}
+		}
+		for _, trait := range cm.Traits {
+			if err := replaceComponentRevisionContext(trait, cm.RevisionName); err != nil {
 				return err
 			}
 		}
@@ -527,7 +543,7 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 		acc.Scopes = make([]v1alpha2.ComponentScope, len(cm.Scopes))
 		for x, s := range cm.Scopes {
 			acc.Scopes[x] = v1alpha2.ComponentScope{
-				ScopeReference: runtimev1alpha1.TypedReference{
+				ScopeReference: corev1.ObjectReference{
 					APIVersion: s.APIVersion,
 					Kind:       s.Kind,
 					Name:       s.Name,
@@ -653,6 +669,34 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 	return usingRevision, nil
 }
 
+func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName string) error {
+	str := string(util.JSONMarshal(u))
+	if strings.Contains(str, process.ComponentRevisionPlaceHolder) {
+		newStr := strings.ReplaceAll(str, process.ComponentRevisionPlaceHolder, compRevName)
+		if err := json.Unmarshal([]byte(newStr), u); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// before computing hash or deepEqual, filterSkipAffectAppRevTrait filter can remove `SkipAffectAppRevTrait` trait from appSpec
+func filterSkipAffectAppRevTrait(appSpec v1beta1.ApplicationSpec, tds map[string]v1beta1.TraitDefinition) v1beta1.ApplicationSpec {
+	// deepCopy avoid modify origin appSpec
+	res := appSpec.DeepCopy()
+	for index, comp := range res.Components {
+		i := 0
+		for _, trait := range comp.Traits {
+			if !tds[trait.Type].Spec.SkipRevisionAffect {
+				comp.Traits[i] = trait
+				i++
+			}
+		}
+		res.Components[index].Traits = res.Components[index].Traits[:i]
+	}
+	return *res
+}
+
 type historiesByRevision []v1beta1.ApplicationRevision
 
 func (h historiesByRevision) Len() int      { return len(h) }
@@ -688,8 +732,7 @@ func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 		}
 	}
 
-	comps, err := util.AppConfig2ComponentManifests(h.currentAppRev.Spec.ApplicationConfiguration,
-		h.currentAppRev.Spec.Components)
+	comps, err := util.AppConfig2ComponentManifests(h.currentAppRev.Spec.ApplicationConfiguration, h.currentAppRev.Spec.Components)
 	if err != nil {
 		return err
 	}

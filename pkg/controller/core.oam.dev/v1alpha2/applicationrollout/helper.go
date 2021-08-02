@@ -38,7 +38,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-func rolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
+// RolloutWorkloadName generate workload name for when rollout
+func RolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 	return assemble.WorkloadOptionFn(func(w *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 
 		compName := w.GetLabels()[oam.LabelAppComponent]
@@ -68,7 +69,8 @@ func rolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 	})
 }
 
-func handleReplicas(ctx context.Context, rolloutComp string, c client.Client) assemble.WorkloadOption {
+// HandleReplicas override initial replicas of workload
+func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) assemble.WorkloadOption {
 	return assemble.WorkloadOptionFn(func(u *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 		compName := u.GetLabels()[oam.LabelAppComponent]
 		if compName != rolloutComp {

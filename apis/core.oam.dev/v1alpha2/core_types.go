@@ -17,10 +17,12 @@ limitations under the License.
 package v1alpha2
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -60,7 +62,7 @@ type WorkloadDefinitionSpec struct {
 
 // WorkloadDefinitionStatus is the status of WorkloadDefinition
 type WorkloadDefinitionStatus struct {
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -80,12 +82,12 @@ type WorkloadDefinition struct {
 }
 
 // SetConditions set condition for WorkloadDefinition
-func (wd *WorkloadDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (wd *WorkloadDefinition) SetConditions(c ...condition.Condition) {
 	wd.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from WorkloadDefinition
-func (wd *WorkloadDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (wd *WorkloadDefinition) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return wd.Status.GetCondition(conditionType)
 }
 
@@ -151,7 +153,7 @@ type TraitDefinitionSpec struct {
 // TraitDefinitionStatus is the status of TraitDefinition
 type TraitDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 	// ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
 	ConfigMapRef string `json:"configMapRef,omitempty"`
 	// LatestRevision of the trait definition
@@ -178,12 +180,12 @@ type TraitDefinition struct {
 }
 
 // SetConditions set condition for TraitDefinition
-func (td *TraitDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (td *TraitDefinition) SetConditions(c ...condition.Condition) {
 	td.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from TraitDefinition
-func (td *TraitDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (td *TraitDefinition) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return td.Status.GetCondition(conditionType)
 }
 
@@ -289,7 +291,7 @@ type ComponentStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
 
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// LatestRevision of component
 	// +optional
@@ -351,7 +353,7 @@ type ComponentTrait struct {
 // A ComponentScope specifies a scope in which a component should exist.
 type ComponentScope struct {
 	// A ScopeReference must refer to an OAM scope resource.
-	ScopeReference runtimev1alpha1.TypedReference `json:"scopeRef"`
+	ScopeReference corev1.ObjectReference `json:"scopeRef"`
 }
 
 // An ApplicationConfigurationComponent specifies a component of an
@@ -408,7 +410,7 @@ type WorkloadTrait struct {
 	Status TraitStatus `json:"status,omitempty"`
 
 	// Reference to a trait created by an ApplicationConfiguration.
-	Reference runtimev1alpha1.TypedReference `json:"traitRef"`
+	Reference corev1.ObjectReference `json:"traitRef"`
 
 	// Message will allow controller to leave some additional information for this trait
 	Message string `json:"message,omitempty"`
@@ -434,7 +436,7 @@ type WorkloadScope struct {
 	Status ScopeStatus `json:"status,omitempty"`
 
 	// Reference to a scope created by an ApplicationConfiguration.
-	Reference runtimev1alpha1.TypedReference `json:"scopeRef"`
+	Reference corev1.ObjectReference `json:"scopeRef"`
 }
 
 // A WorkloadStatus represents the status of a workload.
@@ -456,7 +458,7 @@ type WorkloadStatus struct {
 	AppliedComponentRevision string `json:"appliedComponentRevision,omitempty"`
 
 	// Reference to a workload created by an ApplicationConfiguration.
-	Reference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`
+	Reference corev1.ObjectReference `json:"workloadRef,omitempty"`
 
 	// Traits associated with this workload.
 	Traits []WorkloadTrait `json:"traits,omitempty"`
@@ -471,7 +473,7 @@ type HistoryWorkload struct {
 	Revision string `json:"revision,omitempty"`
 
 	// Reference to running workload.
-	Reference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`
+	Reference corev1.ObjectReference `json:"workloadRef,omitempty"`
 }
 
 // A ApplicationStatus represents the state of the entire application.
@@ -480,7 +482,7 @@ type ApplicationStatus string
 // An ApplicationConfigurationStatus represents the observed state of a
 // ApplicationConfiguration.
 type ApplicationConfigurationStatus struct {
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
 
 	// Status is a place holder for a customized controller to fill
 	// if it needs a single place to summarize the status of the entire application
@@ -518,14 +520,14 @@ type UnstaifiedDependency struct {
 
 // DependencyFromObject represents the object that dependency data comes from.
 type DependencyFromObject struct {
-	runtimev1alpha1.TypedReference `json:",inline"`
-	FieldPath                      string `json:"fieldPath,omitempty"`
+	corev1.ObjectReference `json:",inline"`
+	FieldPath              string `json:"fieldPath,omitempty"`
 }
 
 // DependencyToObject represents the object that dependency data goes to.
 type DependencyToObject struct {
-	runtimev1alpha1.TypedReference `json:",inline"`
-	FieldPaths                     []string `json:"fieldPaths,omitempty"`
+	corev1.ObjectReference `json:",inline"`
+	FieldPaths             []string `json:"fieldPaths,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -569,7 +571,7 @@ type DataOutput struct {
 
 // StoreReference specifies the referenced object in DataOutput or DataInput
 type StoreReference struct {
-	runtimev1alpha1.TypedReference `json:",inline"`
+	corev1.ObjectReference `json:",inline"`
 	// Operations specify the data processing operations
 	Operations []DataOperation `json:"operations,omitempty"`
 }

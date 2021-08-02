@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  annotations:
+    addons.oam.dev/description: Prometheus is an open-source systems monitoring and alerting toolkit
+  name: prometheus
+  namespace: vela-system
+spec:
+  appTemplate:
+    spec:
+      components:
+      - name: prometheus
+        properties:
+          chart: premetheus
+          repoType: helm
+          repoUrl: https://prometheus-community.github.io/helm-charts
+        type: helm
+    status:
+      rollout:
+        batchRollingState: ""
+        currentBatch: 0
+        lastTargetAppRevision: ""
+        rollingState: ""
+        upgradedReadyReplicas: 0
+        upgradedReplicas: 0
+  dependsOn:
+  - ref:
+      apiVersion: core.oam.dev/v1beta1
+      kind: Initializer
+      name: fluxcd
+      namespace: vela-system
+status:
+  observedGeneration: 0

@@ -151,11 +151,15 @@ e2e-setup:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
 	bin/vela addon enable fluxcd
+	bin/vela addon enable ocm-cluster-manager
 	ginkgo version
 	ginkgo -v -r e2e/setup
+
+	timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $$? -eq 0 ] ; then break; else sleep 5; fi;done'
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
+	kubectl wait --for=condition=Ready pod -l app=cluster-manager -n open-cluster-management --timeout=600s
 	bin/vela dashboard &
 
 e2e-api-test:
@@ -166,7 +170,11 @@ e2e-api-test:
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v ./test/e2e-test
+	ginkgo -v  --skip Cloneset based app embed rollout tests --skip Cloneset based rollout tests --skip Cloneset component rollout tests ./test/e2e-test
+	@$(OK) tests pass
+
+e2e-rollout-test:
+	ginkgo -v  --focus Cloneset based app embed rollout tests --focus Cloneset based rollout tests --focus Cloneset component rollout tests ./test/e2e-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
@@ -319,3 +327,6 @@ swagger-gen:
 
 check-license-header:
 	./hack/licence/header-check.sh
+
+check-install-def:
+	./hack/utils/installdefinition.sh

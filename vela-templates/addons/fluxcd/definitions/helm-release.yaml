@@ -1,0 +1,81 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: helm
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "helm release is a group of K8s resources from either git repository or helm repo"
+spec:
+  workload:
+    type: autodetects.core.oam.dev
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "source.toolkit.fluxcd.io/v1beta1"
+        	metadata: {
+        		name: context.name
+        	}
+        	if parameter.repoType == "git" {
+        		kind: "GitRepository"
+        		spec: {
+        			url: parameter.repoUrl
+        			ref:
+        				branch: parameter.branch
+        			interval: parameter.pullInterval
+        		}
+        	}
+        	if parameter.repoType == "helm" {
+        		kind: "HelmRepository"
+        		spec: {
+        			interval: parameter.pullInterval
+        			url:      parameter.repoUrl
+        			if parameter.secretRef != _|_ {
+        				secretRef: {
+        					name: parameter.secretRef
+        				}
+        			}
+        		}
+        	}
+        }
+
+        outputs: release: {
+        	apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+        	kind:       "HelmRelease"
+        	metadata: {
+        		name: context.name
+        	}
+        	spec: {
+        		interval: parameter.pullInterval
+        		chart: {
+        			spec: {
+        				chart: parameter.chart
+        				sourceRef: {
+        					if parameter.repoType == "git" {
+        						kind: "GitRepository"
+        					}
+        					if parameter.repoType == "helm" {
+        						kind: "HelmRepository"
+        					}
+        					name:      context.name
+        					namespace: context.namespace
+        				}
+        				interval: parameter.pullInterval
+        			}
+        		}
+        	}
+        }
+
+        parameter: {
+        	repoType: "git" | "helm"
+        	// +usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url.
+        	repoUrl: string
+        	// +usage=The interval at which to check for repository and relese updates.
+        	pullInterval: *"5m" | string
+        	// +usage=1.The relative path to helm chart for git source. 2. chart name for helm resource
+        	chart: string
+            // +usage=The Git reference to checkout and monitor for changes, defaults to master branch.
+            branch: *"master" | string
+            // +usage=The name of the secret containing authentication credentials for the Helm repository.
+        	secretRef?: string
+        }

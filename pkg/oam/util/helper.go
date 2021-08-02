@@ -27,7 +27,8 @@ import (
 	"strconv"
 	"strings"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -453,21 +454,12 @@ func fetchChildResources(ctx context.Context, r client.Reader, workload *unstruc
 // It should not handle reconcile success with positive conditions, otherwise it will trigger
 // infinite requeue.
 func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
-	condition ...cpv1alpha1.Condition) error {
+	condition ...condition.Condition) error {
 	if len(condition) == 0 {
 		return nil
 	}
 	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
-	var conditionIsChanged bool
-	for _, newCond := range condition {
-		// NOTE(roywang) an implicit rule here: condition type is unique in an object's conditions
-		// if this rule is changed in the future, we must revise below logic correspondingly
-		existingCond := workload.GetCondition(newCond.Type)
-		if !existingCond.Equal(newCond) {
-			conditionIsChanged = true
-			break
-		}
-	}
+	conditionIsChanged := IsConditionChanged(condition, workload)
 	workload.SetConditions(condition...)
 	if err := r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID())); err != nil {
 		return errors.Wrap(err, ErrUpdateStatus)
@@ -479,13 +471,29 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	}
 	// if no condition is changed, patching status can not trigger requeue, so we must return an error to
 	// requeue the resource
-	return fmt.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
+	return errors.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
+}
+
+// IsConditionChanged will check if conditions in workload is changed compare to newCondition
+func IsConditionChanged(newCondition []condition.Condition, workload ConditionedObject) bool {
+	var conditionIsChanged bool
+	for _, newCond := range newCondition {
+		// NOTE(roywang) an implicit rule here: condition type is unique in an object's conditions
+		// if this rule is changed in the future, we must revise below logic correspondingly
+		existingCond := workload.GetCondition(newCond.Type)
+
+		if !existingCond.Equal(newCond) {
+			conditionIsChanged = true
+			break
+		}
+	}
+	return conditionIsChanged
 }
 
 // EndReconcileWithPositiveCondition is used to handle reconcile success for a conditioned resource.
 // It should only accept positive condition which means no need to requeue the resource.
 func EndReconcileWithPositiveCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
-	condition ...cpv1alpha1.Condition) error {
+	condition ...condition.Condition) error {
 	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
 	workload.SetConditions(condition...)
 	return errors.Wrap(
@@ -679,6 +687,22 @@ func RawExtension2Component(raw runtime.RawExtension) (*v1alpha2.Component, erro
 		return nil, err
 	}
 	return c, nil
+}
+
+// RawExtension2Application converts runtime.RawExtension to Application
+func RawExtension2Application(raw runtime.RawExtension) (*v1beta1.Application, error) {
+	a := &v1beta1.Application{}
+	b, err := raw.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, a); err != nil {
+		return nil, err
+	}
+	if len(a.GetNamespace()) == 0 {
+		a.SetNamespace("default")
+	}
+	return a, nil
 }
 
 // AppConfig2ComponentManifests convert AppConfig and Components to a slice of ComponentManifest.
@@ -967,4 +991,23 @@ func Abs(a int) int {
 		return -a
 	}
 	return a
+}
+
+// AsOwner converts the supplied object reference to an owner reference.
+func AsOwner(r *corev1.ObjectReference) metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: r.APIVersion,
+		Kind:       r.Kind,
+		Name:       r.Name,
+		UID:        r.UID,
+	}
+}
+
+// AsController converts the supplied object reference to a controller
+// reference. You may also consider using metav1.NewControllerRef.
+func AsController(r *corev1.ObjectReference) metav1.OwnerReference {
+	c := true
+	ref := AsOwner(r)
+	ref.Controller = &c
+	return ref
 }

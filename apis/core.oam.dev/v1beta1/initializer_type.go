@@ -17,9 +17,22 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+)
+
+// InitializerPhase is a label for the condition of a initializer at the current time
+type InitializerPhase string
+
+const (
+	// InitializerCheckingDependsOn means the initializer is checking the status of dependent Initializer
+	InitializerCheckingDependsOn InitializerPhase = "checkingDependsOn"
+	// InitializerInitializing means the initializer is initializing
+	InitializerInitializing InitializerPhase = "initializing"
+	// InitializerSuccess means the initializer successfully initialized the environment
+	InitializerSuccess InitializerPhase = "success"
 )
 
 // DependsOn refer to an object which Initializer depends on
@@ -40,7 +53,9 @@ type InitializerSpec struct {
 // InitializerStatus is the status of Initializer
 type InitializerStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	condition.ConditionedStatus `json:",inline"`
+
+	Phase InitializerPhase `json:"status,omitempty"`
 
 	// The generation observed by the Initializer controller.
 	// +optional
@@ -52,6 +67,8 @@ type InitializerStatus struct {
 // Initializer is the Schema for the Initializer API
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=init
+// +kubebuilder:printcolumn:name="PHASE",type=string,JSONPath=`.status.status`
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type Initializer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -69,12 +86,12 @@ type InitializerList struct {
 	Items           []Initializer `json:"items"`
 }
 
-// SetConditions set condition for ComponentDefinition
-func (i *Initializer) SetConditions(c ...runtimev1alpha1.Condition) {
+// SetConditions set condition for Initializer
+func (i *Initializer) SetConditions(c ...condition.Condition) {
 	i.Status.SetConditions(c...)
 }
 
-// GetCondition gets condition from ComponentDefinition
-func (i *Initializer) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+// GetCondition gets condition from Initializer
+func (i *Initializer) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return i.Status.GetCondition(conditionType)
 }

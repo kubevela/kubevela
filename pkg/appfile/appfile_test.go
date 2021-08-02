@@ -17,6 +17,7 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -37,6 +38,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -345,6 +347,74 @@ spec:
 		expectError := errors.WithMessage(errors.New(`require parameter "image"`), "cannot resolve parameter settings")
 		diff := cmp.Diff(expectError, err, test.EquateErrors())
 		Expect(diff).Should(BeEmpty())
+	})
+})
+
+var _ = Describe("Test Workflow", func() {
+	It("generate workflow task runners", func() {
+		workflowStepDef := v1beta1.WorkflowStepDefinition{
+			Spec: v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+wait: op.#ConditionalWait & {
+  continue: true
+}
+`,
+					},
+				},
+			},
+		}
+		workflowStepDef.Name = "test-wait"
+		workflowStepDef.Namespace = "default"
+		err := k8sClient.Create(context.Background(), &workflowStepDef)
+		Expect(err).To(BeNil())
+
+		notCueStepDef := v1beta1.WorkflowStepDefinition{
+			Spec: v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{},
+			},
+		}
+
+		notCueStepDef.Name = "not-cue"
+		notCueStepDef.Namespace = "default"
+		err = k8sClient.Create(context.Background(), &notCueStepDef)
+		Expect(err).To(BeNil())
+
+		appfile := &Appfile{
+			WorkflowSteps: []v1beta1.WorkflowStep{
+				{
+					Name: "wait",
+					Type: "test-wait",
+				},
+			},
+		}
+		ctx := context.WithValue(context.Background(), util.AppDefinitionNamespace, "default")
+		runners, err := appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
+		Expect(err).To(BeNil())
+		Expect(len(runners)).Should(BeEquivalentTo(1))
+
+		appfile.WorkflowSteps = []v1beta1.WorkflowStep{
+			{
+				Name: "wait",
+				Type: "test-wait",
+			},
+			{
+				Name: "empty",
+				Type: "empty",
+			},
+		}
+		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
+		Expect(err).NotTo(BeNil())
+
+		appfile.WorkflowSteps = []v1beta1.WorkflowStep{
+			{
+				Name: "foo",
+				Type: "not-cue",
+			},
+		}
+		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
+		Expect(err).NotTo(BeNil())
 	})
 })
 

@@ -22,11 +22,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -79,7 +79,7 @@ func TestApplyWorkloads(t *testing.T) {
 		},
 		Spec: v1alpha2.HealthScopeSpec{
 			// set an empty ref to enable wrokloadRefs field
-			WorkloadReferences: []v1alpha1.TypedReference{
+			WorkloadReferences: []corev1.ObjectReference{
 				{
 					APIVersion: "",
 					Kind:       "",
@@ -101,7 +101,7 @@ func TestApplyWorkloads(t *testing.T) {
 			Kind:       "scopeKind",
 		},
 		Spec: v1alpha2.HealthScopeSpec{
-			WorkloadReferences: []v1alpha1.TypedReference{
+			WorkloadReferences: []corev1.ObjectReference{
 				{
 					APIVersion: workload.GetAPIVersion(),
 					Kind:       workload.GetKind(),
@@ -209,14 +209,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: corev1.ObjectReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: corev1.ObjectReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -250,14 +250,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: corev1.ObjectReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: corev1.ObjectReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -308,14 +308,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: corev1.ObjectReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: corev1.ObjectReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -362,14 +362,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: corev1.ObjectReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: corev1.ObjectReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -417,7 +417,7 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 			Kind:       "scopeKind",
 		},
 		Spec: v1alpha2.HealthScopeSpec{
-			WorkloadReferences: []v1alpha1.TypedReference{
+			WorkloadReferences: []corev1.ObjectReference{
 				{
 					APIVersion: workload.GetAPIVersion(),
 					Kind:       workload.GetKind(),
@@ -450,14 +450,14 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 		Status: v1alpha2.ApplicationConfigurationStatus{
 			Workloads: []v1alpha2.WorkloadStatus{
 				{
-					Reference: v1alpha1.TypedReference{
+					Reference: corev1.ObjectReference{
 						APIVersion: workload.GetAPIVersion(),
 						Kind:       workload.GetKind(),
 						Name:       workload.GetName(),
 					},
 					Scopes: []v1alpha2.WorkloadScope{
 						{
-							Reference: v1alpha1.TypedReference{
+							Reference: corev1.ObjectReference{
 								APIVersion: scope.GetAPIVersion(),
 								Kind:       scope.GetKind(),
 								Name:       scope.GetName(),
@@ -585,7 +585,7 @@ func TestApplyOutputRef(t *testing.T) {
 				outputs: map[string]v1alpha2.DataOutput{
 					"test": {
 						OutputStore: v1alpha2.StoreReference{
-							TypedReference: v1alpha1.TypedReference{
+							ObjectReference: corev1.ObjectReference{
 								APIVersion: refConfigMap.GetAPIVersion(),
 								Kind:       refConfigMap.GetKind(),
 								Name:       refConfigMap.GetName(),
@@ -712,7 +712,7 @@ func TestApplyInputRef(t *testing.T) {
 				workload: workload.DeepCopy(),
 				inputs: []v1alpha2.DataInput{{
 					InputStore: v1alpha2.StoreReference{
-						TypedReference: v1alpha1.TypedReference{
+						ObjectReference: corev1.ObjectReference{
 							APIVersion: refConfigMap.GetAPIVersion(),
 							Kind:       refConfigMap.GetKind(),
 							Name:       refConfigMap.GetName(),

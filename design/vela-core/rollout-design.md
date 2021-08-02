@@ -68,12 +68,12 @@ type RolloutTraitSpec struct {
 	// TargetRef references a target resource that contains the newer version
 	// of the software. We assumed that new resource already exists.
 	// This is the only resource we work on if the resource is a stateful resource (cloneset/statefulset)
-	TargetRef runtimev1alpha1.TypedReference `json:"targetRef"`
+	TargetRef corev1.ObjectReference `json:"targetRef"`
 
 	// SourceRef references the list of resources that contains the older version
 	// of the software. We assume that it's the first time to deploy when we cannot find any source.
 	// +optional
-	SourceRef []runtimev1alpha1.TypedReference `json:"sourceRef,omitempty"`
+	SourceRef []corev1.ObjectReference `json:"sourceRef,omitempty"`
 
 	// RolloutPlan is the details on how to rollout the resources
 	RolloutPlan RolloutPlan `json:"rolloutPlan"`

@@ -18,166 +18,155 @@ package workflow
 
 import (
 	"context"
-	"encoding/json"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 type workflow struct {
-	app        *oamcore.Application
-	applicator apply.Applicator
+	app *oamcore.Application
+	cli client.Client
 }
 
 // NewWorkflow returns a Workflow implementation.
-func NewWorkflow(app *oamcore.Application, applicator apply.Applicator) Workflow {
+func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
 	return &workflow{
-		app:        app,
-		applicator: applicator,
+		app: app,
+		cli: cli,
 	}
 }
 
-func (w *workflow) ExecuteSteps(ctx context.Context, rev string, objects []*unstructured.Unstructured) (bool, error) {
+// ExecuteSteps process workflow step in order.
+func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
 	if w.app.Spec.Workflow == nil {
-		return true, nil
+		return true, false, nil
 	}
 
 	steps := w.app.Spec.Workflow.Steps
 	if len(steps) == 0 {
-		return true, nil
+		return true, false, nil
+	}
+
+	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != rev {
+		w.app.Status.Workflow = &common.WorkflowStatus{
+			AppRevision: rev,
+			Steps:       []common.WorkflowStepStatus{},
+		}
+	}
+
+	wfStatus := w.app.Status.Workflow
+
+	if wfStatus.Terminated {
+		done = true
+		return
 	}
 
 	w.app.Status.Phase = common.ApplicationRunningWorkflow
 
-	w.app.Status.Workflow = &common.WorkflowStatus{
-		Steps: []common.WorkflowStepStatus{},
+	if len(taskRunners) <= wfStatus.StepIndex {
+		done = true
+		return
 	}
-	for i, step := range steps {
-		obj := objects[i].DeepCopy()
-		obj.SetName(step.Name)
-		obj.SetNamespace(w.app.Namespace)
-		obj.SetOwnerReferences([]metav1.OwnerReference{
-			*metav1.NewControllerRef(w.app, oamcore.ApplicationKindVersionKind),
-		})
-		err := w.applyWorkflowStep(ctx, obj, &types.WorkflowContext{
-			AppName:       w.app.Name,
-			AppRevision:   rev,
-			WorkflowIndex: i,
-			ResourceConfigMap: corev1.LocalObjectReference{
-				Name: rev,
-			},
-		})
-		if err != nil {
-			return false, err
-		}
 
-		status, err := w.syncWorkflowStatus(step, obj)
-		if err != nil {
-			return false, err
-		}
-
-		w.app.Status.Workflow.Steps = append(w.app.Status.Workflow.Steps, *status)
-		switch status.Phase {
-		case common.WorkflowStepPhaseSucceeded: // This one is done. Continue
-		case common.WorkflowStepPhaseRunning: // Need to retry shortly.
-			return false, nil
-		default:
-			return true, nil
-		}
+	if wfStatus.Suspend {
+		pause = true
+		return
 	}
-	return true, nil // all steps done
+
+	var (
+		wfCtx wfContext.Context
+	)
+
+	wfCtx, gerr = w.makeContext(rev)
+	if gerr != nil {
+		return
+	}
+
+	return w.run(wfCtx, taskRunners)
 }
 
-func (w *workflow) applyWorkflowStep(ctx context.Context, obj *unstructured.Unstructured, wctx *types.WorkflowContext) error {
-	if err := addWorkflowContextToAnnotation(obj, wctx); err != nil {
-		return err
+func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) {
+	wfStatus := w.app.Status.Workflow
+	if wfStatus.ContextBackend != nil {
+		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
+		if err != nil {
+			err = errors.WithMessage(err, "load context")
+		}
+		return
+	}
+	wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
+	if err != nil {
+		err = errors.WithMessage(err, "new context")
+		return
 	}
 
-	return w.applicator.Apply(ctx, obj)
+	if err = w.setMetadataToContext(wfCtx); err != nil {
+		return
+	}
+	wfStatus.ContextBackend = wfCtx.StoreRef()
+	return
 }
 
-func addWorkflowContextToAnnotation(obj *unstructured.Unstructured, wc *types.WorkflowContext) error {
-	b, err := json.Marshal(wc)
+func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
+	metadata, err := value.NewValue(string(util.MustJSONMarshal(w.app.ObjectMeta)), nil)
 	if err != nil {
 		return err
 	}
-	m := map[string]string{
-		oam.AnnotationWorkflowContext: string(b),
-	}
-	obj.SetAnnotations(oamutil.MergeMapOverrideWithDst(m, obj.GetAnnotations()))
-	return nil
+	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
-const (
-	// CondTypeWorkflowFinish is the type of the Condition indicating workflow progress
-	CondTypeWorkflowFinish = "workflow-progress"
-
-	// CondReasonSucceeded is the reason of the workflow progress condition which is succeeded
-	CondReasonSucceeded = "Succeeded"
-	// CondReasonStopped is the reason of the workflow progress condition which is stopped
-	CondReasonStopped = "Stopped"
-	// CondReasonFailed is the reason of the workflow progress condition which is failed
-	CondReasonFailed = "Failed"
-
-	// CondStatusTrue is the status of the workflow progress condition which is True
-	CondStatusTrue = "True"
-)
-
-func (w *workflow) syncWorkflowStatus(step oamcore.WorkflowStep, obj *unstructured.Unstructured) (*common.WorkflowStepStatus, error) {
-	status := &common.WorkflowStepStatus{
-		Name: step.Name,
-		Type: step.Type,
-		ResourceRef: runtimev1alpha1.TypedReference{
-			APIVersion: obj.GetAPIVersion(),
-			Kind:       obj.GetKind(),
-			Name:       obj.GetName(),
-			UID:        obj.GetUID(),
-		},
-	}
-
-	cond, found, err := utils.GetUnstructuredObjectStatusCondition(obj, CondTypeWorkflowFinish)
-	if err != nil {
-		return nil, err
-	}
-
-	if !found || cond.Status != CondStatusTrue {
-		status.Phase = common.WorkflowStepPhaseRunning
-		return status, nil
-	}
-
-	switch cond.Reason {
-	case CondReasonSucceeded:
-		observedG, err := parseGeneration(cond.Message)
+func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
+	wfStatus := w.app.Status.Workflow
+	for _, run := range taskRunners[wfStatus.StepIndex:] {
+		status, operation, err := run(wfCtx)
 		if err != nil {
-			return nil, err
+			gerr = err
+			return
 		}
-		if observedG != obj.GetGeneration() {
-			status.Phase = common.WorkflowStepPhaseRunning
-		} else {
-			status.Phase = common.WorkflowStepPhaseSucceeded
-		}
-	case CondReasonFailed:
-		status.Phase = common.WorkflowStepPhaseFailed
-	case CondReasonStopped:
-		status.Phase = common.WorkflowStepPhaseStopped
-	default:
-		status.Phase = common.WorkflowStepPhaseRunning
-	}
-	return status, nil
-}
 
-func parseGeneration(message string) (int64, error) {
-	m := &SucceededMessage{}
-	err := json.Unmarshal([]byte(message), m)
-	return m.ObservedGeneration, err
+		var conditionUpdated bool
+		for i := range wfStatus.Steps {
+			if wfStatus.Steps[i].Name == status.Name {
+				wfStatus.Steps[i] = status
+				conditionUpdated = true
+				break
+			}
+		}
+
+		if !conditionUpdated {
+			wfStatus.Steps = append(wfStatus.Steps, status)
+		}
+
+		if status.Phase != common.WorkflowStepPhaseSucceeded {
+			return
+		}
+
+		if err := wfCtx.Commit(); err != nil {
+			gerr = errors.WithMessage(err, "commit workflow context")
+			return
+		}
+		wfStatus.StepIndex++
+
+		if operation != nil {
+			wfStatus.Terminated = operation.Terminated
+			wfStatus.Suspend = operation.Suspend
+		}
+
+		if wfStatus.Terminated {
+			done = true
+			return
+		}
+		if wfStatus.Suspend {
+			pause = true
+			return
+		}
+	}
+	return true, false, nil // all steps done
 }

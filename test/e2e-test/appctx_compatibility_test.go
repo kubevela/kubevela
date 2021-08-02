@@ -21,21 +21,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/kind/pkg/errors"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/kind/pkg/errors"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -78,7 +76,7 @@ var _ = Describe("Test compatibility for deprecation of appContext", func() {
 		By("Mock owner references: appCtx owns Deployment and Service")
 		appCtx := &v1alpha2.ApplicationContext{}
 		Expect(k8sClient.Get(ctx, *appCtxKey, appCtx)).Should(Succeed())
-		appCtxOwnRef := meta.AsController(&v1alpha1.TypedReference{
+		appCtxOwnRef := util.AsController(&corev1.ObjectReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "ApplicationContext",
 			Name:       appCtx.GetName(),
@@ -88,7 +86,7 @@ var _ = Describe("Test compatibility for deprecation of appContext", func() {
 		By("Mock owner references: rscTracker owns PersistentVolume")
 		rt := &v1beta1.ResourceTracker{}
 		Expect(k8sClient.Get(ctx, *rtKey, rt)).Should(Succeed())
-		rtOwnerRef := meta.AsController(&v1alpha1.TypedReference{
+		rtOwnerRef := util.AsController(&corev1.ObjectReference{
 			APIVersion: "core.oam.dev/v1beta1",
 			Kind:       "ResourceTracker",
 			Name:       rt.GetName(),
@@ -178,7 +176,7 @@ var _ = Describe("Test compatibility for deprecation of appContext", func() {
 				Namespace: namespaceName,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []v1beta1.ApplicationComponent{{
+				Components: []common.ApplicationComponent{{
 					Name:       "mycomp",
 					Type:       "worker",
 					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},

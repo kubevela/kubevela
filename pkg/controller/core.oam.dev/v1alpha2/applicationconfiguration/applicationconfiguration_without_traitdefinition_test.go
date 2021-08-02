@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/ghodss/yaml"
@@ -192,7 +190,7 @@ spec:
 			},
 			Spec: v1alpha2.ManualScalerTraitSpec{
 				ReplicaCount: 3,
-				WorkloadReference: v1alpha1.TypedReference{
+				WorkloadReference: corev1.ObjectReference{
 					APIVersion: "core.oam.dev/v1alpha2",
 					Kind:       "ContainerizedWorkload",
 					Name:       componentName,

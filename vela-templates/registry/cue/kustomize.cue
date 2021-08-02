@@ -5,8 +5,8 @@ output: {
 		name: context.name
 	}
 	spec: {
-		interval: parameter.pull_interval
-		url:      parameter.repo_url
+		interval: parameter.pullInterval
+		url:      parameter.repoUrl
 		ref: branch: parameter.branch
 	}
 }
@@ -17,7 +17,7 @@ outputs: kustomize: {
 		name: context.name
 	}
 	spec: {
-		interval: parameter.pull_interval
+		interval: parameter.pullInterval
 		sourceRef: {
 			kind: "GitRepository"
 			name: context.name
@@ -30,10 +30,10 @@ outputs: kustomize: {
 
 parameter: {
 	//+usage=The repository URL, can be a HTTP/S or SSH address.
-	repo_url: string
+	repoUrl: string
 
 	//+usage=The interval at which to check for repository updates.
-	pull_interval: *"1m" | string
+	pullInterval: *"1m" | string
 
 	//+usage=The Git reference to checkout and monitor for changes, defaults to master branch.
 	branch: *"master" | string

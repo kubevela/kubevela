@@ -21,7 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
 
@@ -64,22 +64,22 @@ outerLoop:
 }
 
 // RenderServiceToApplicationComponent render all capabilities of a service to CUE values to KubeVela Application.
-func (s Service) RenderServiceToApplicationComponent(tm template.Manager, serviceName string) (v1beta1.ApplicationComponent, error) {
+func (s Service) RenderServiceToApplicationComponent(tm template.Manager, serviceName string) (common.ApplicationComponent, error) {
 
 	// sort out configs by workload/trait
 	workloadKeys := map[string]interface{}{}
-	var traits []v1beta1.ApplicationTrait
+	var traits []common.ApplicationTrait
 
 	wtype := s.GetType()
 
-	comp := v1beta1.ApplicationComponent{
+	comp := common.ApplicationComponent{
 		Name: serviceName,
 		Type: wtype,
 	}
 
 	for k, v := range s.GetApplicationConfig() {
 		if tm.IsTrait(k) {
-			trait := v1beta1.ApplicationTrait{
+			trait := common.ApplicationTrait{
 				Type: k,
 			}
 			pts := &runtime.RawExtension{}

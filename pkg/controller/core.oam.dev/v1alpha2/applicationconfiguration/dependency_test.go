@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -178,7 +177,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 				Reason: reason,
 				From: v1alpha2.DependencyFromObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       outName,
 						Kind:       tempFoo.GetKind(),
@@ -186,7 +185,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					FieldPath: "status.key",
 				},
 				To: v1alpha2.DependencyToObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       inName,
 						Kind:       tempFoo.GetKind(),
@@ -520,7 +519,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 				Reason: "got(hash-v1) expected to be hash-v2",
 				From: v1alpha2.DependencyFromObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       outName,
 						Kind:       tempFoo.GetKind(),
@@ -528,7 +527,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					FieldPath: "status.key",
 				},
 				To: v1alpha2.DependencyToObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       inName,
 						Kind:       tempFoo.GetKind(),
@@ -794,7 +793,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 						},
 						ToFieldPaths: []string{"spec.key"},
 						InputStore: v1alpha2.StoreReference{
-							TypedReference: v1alpha1.TypedReference{
+							ObjectReference: corev1.ObjectReference{
 								APIVersion: store.GetAPIVersion(),
 								Name:       store.GetName(),
 								Kind:       store.GetKind(),
@@ -821,7 +820,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 							Name:      "trait-comp",
 							FieldPath: "status.key",
 							OutputStore: v1alpha2.StoreReference{
-								TypedReference: v1alpha1.TypedReference{
+								ObjectReference: corev1.ObjectReference{
 									APIVersion: store.GetAPIVersion(),
 									Name:       store.GetName(),
 									Kind:       store.GetKind(),
@@ -975,7 +974,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 				Reason: "got(hash-v1) expected to be hash-v2",
 				From: v1alpha2.DependencyFromObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       outName,
 						Kind:       tempFoo.GetKind(),
@@ -983,7 +982,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					FieldPath: "status.key",
 				},
 				To: v1alpha2.DependencyToObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       inName,
 						Kind:       tempFoo.GetKind(),
@@ -994,7 +993,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 				}}, {
 				Reason: "got(hash-v1) expected to be hash-v2",
 				From: v1alpha2.DependencyFromObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       outName,
 						Kind:       tempFoo.GetKind(),
@@ -1002,7 +1001,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					FieldPath: "status.key",
 				},
 				To: v1alpha2.DependencyToObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: store.GetAPIVersion(),
 						Name:       store.GetName(),
 						Kind:       store.GetKind(),
@@ -1073,7 +1072,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					ComponentName: componentInName,
 					DataInputs: []v1alpha2.DataInput{{
 						InputStore: v1alpha2.StoreReference{
-							TypedReference: v1alpha1.TypedReference{
+							ObjectReference: corev1.ObjectReference{
 								APIVersion: store.GetAPIVersion(),
 								Name:       store.GetName(),
 								Kind:       store.GetKind(),
@@ -1103,7 +1102,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 						},
 						DataOutputs: []v1alpha2.DataOutput{{
 							OutputStore: v1alpha2.StoreReference{
-								TypedReference: v1alpha1.TypedReference{
+								ObjectReference: corev1.ObjectReference{
 									APIVersion: store.GetAPIVersion(),
 									Name:       store.GetName(),
 									Kind:       store.GetKind(),
@@ -1260,7 +1259,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 				Reason: "got(hash-v1) expected to be hash-v2",
 				From: v1alpha2.DependencyFromObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       outName,
 						Kind:       tempFoo.GetKind(),
@@ -1268,7 +1267,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					FieldPath: "status.key",
 				},
 				To: v1alpha2.DependencyToObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: store.GetAPIVersion(),
 						Name:       store.GetName(),
 						Kind:       store.GetKind(),
@@ -1343,7 +1342,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 						},
 						ToFieldPaths: []string{"spec.key"},
 						InputStore: v1alpha2.StoreReference{
-							TypedReference: v1alpha1.TypedReference{
+							ObjectReference: corev1.ObjectReference{
 								APIVersion: store.GetAPIVersion(),
 								Name:       store.GetName(),
 								Kind:       store.GetKind(),
@@ -1376,7 +1375,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 							Name:      "trait-comp",
 							FieldPath: "status.key",
 							OutputStore: v1alpha2.StoreReference{
-								TypedReference: v1alpha1.TypedReference{
+								ObjectReference: corev1.ObjectReference{
 									APIVersion: store.GetAPIVersion(),
 									Name:       store.GetName(),
 									Kind:       store.GetKind(),
@@ -1503,7 +1502,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 				Reason: "DataInputs Conditions: got(test) expected to be ",
 				From: v1alpha2.DependencyFromObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       outName,
 						Kind:       tempFoo.GetKind(),
@@ -1511,7 +1510,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					FieldPath: "status.key",
 				},
 				To: v1alpha2.DependencyToObject{
-					TypedReference: v1alpha1.TypedReference{
+					ObjectReference: corev1.ObjectReference{
 						APIVersion: tempFoo.GetAPIVersion(),
 						Name:       inName,
 						Kind:       tempFoo.GetKind(),
@@ -1553,7 +1552,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					ComponentName: componentInName,
 					DataInputs: []v1alpha2.DataInput{{
 						InputStore: v1alpha2.StoreReference{
-							TypedReference: v1alpha1.TypedReference{
+							ObjectReference: corev1.ObjectReference{
 								APIVersion: store.GetAPIVersion(),
 								Name:       store.GetName(),
 								Kind:       store.GetKind(),
@@ -1573,7 +1572,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 						},
 						DataOutputs: []v1alpha2.DataOutput{{
 							OutputStore: v1alpha2.StoreReference{
-								TypedReference: v1alpha1.TypedReference{
+								ObjectReference: corev1.ObjectReference{
 									APIVersion: store.GetAPIVersion(),
 									Name:       store.GetName(),
 									Kind:       store.GetKind(),

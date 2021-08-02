@@ -21,10 +21,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/token"
 	"github.com/pkg/errors"
 )
@@ -98,7 +100,7 @@ func labelStr(label ast.Label) string {
 	return ""
 }
 
-func toString(v cue.Value) (string, error) {
+func toString(v cue.Value, opts ...func(node ast.Node) ast.Node) (string, error) {
 	v = v.Eval()
 	syopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
 
@@ -116,7 +118,11 @@ func toString(v cue.Value) (string, error) {
 		if err != nil {
 			return err
 		}
-		b, err := format.Node(f)
+		var node ast.Node = f
+		for _, opt := range opts {
+			node = opt(node)
+		}
+		b, err := format.Node(node)
 		if err != nil {
 			return err
 		}
@@ -129,6 +135,11 @@ func toString(v cue.Value) (string, error) {
 	}
 	instStr := w.String()
 	return instStr, nil
+}
+
+// ToString convert cue.Value to string
+func ToString(v cue.Value, opts ...func(node ast.Node) ast.Node) (string, error) {
+	return toString(v, opts...)
 }
 
 // ToFile convert ast.Node to ast.File
@@ -150,4 +161,30 @@ func toFile(n ast.Node) (*ast.File, error) {
 	default:
 		return nil, errors.Errorf("Unsupported node type %T", x)
 	}
+}
+
+// OptBytesToString convert cue bytes to string.
+func OptBytesToString(node ast.Node) ast.Node {
+	ast.Walk(node, nil, func(node ast.Node) {
+		basic, ok := node.(*ast.BasicLit)
+		if ok {
+			if basic.Kind == token.STRING {
+				s := basic.Value
+				if strings.HasPrefix(s, "'") {
+					info, nStart, _, err := literal.ParseQuotes(s, s)
+					if err != nil {
+						return
+					}
+					if !info.IsDouble() {
+						s = s[nStart:]
+						s, err := info.Unquote(s)
+						if err == nil {
+							basic.Value = fmt.Sprintf(`"%s"`, s)
+						}
+					}
+				}
+			}
+		}
+	})
+	return node
 }

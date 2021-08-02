@@ -233,12 +233,21 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
 			var data = r.Data.([]interface{})
+			componentDefinitions := make([]string, 0)
+			builtinCompDefs := []string{webserviceWorkloadType, workerWorkloadType, taskWorkloadType, rawWorkloadType}
 			for _, i := range data {
-				var workloadDefinition = i.(map[string]interface{})
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect([]string{webserviceWorkloadType, workerWorkloadType, taskWorkloadType, rawWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
+				workloadDefinition, ok := i.(map[string]interface{})
+				gomega.Expect(ok).To(gomega.BeTrue())
+				name, ok := workloadDefinition["name"].(string)
+				gomega.Expect(ok).To(gomega.BeTrue())
+				componentDefinitions = append(componentDefinitions, name)
+			}
+			gomega.Expect(len(componentDefinitions)).To(gomega.BeNumerically(">=", 4))
+			for _, d := range builtinCompDefs {
+				gomega.Expect(componentDefinitions).To(gomega.ContainElements(d))
 			}
 		})
 

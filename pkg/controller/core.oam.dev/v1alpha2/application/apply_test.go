@@ -106,7 +106,7 @@ var _ = Describe("Test Application apply", func() {
 		}
 		app.Namespace = namespaceName
 		app.Spec = v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{{
+			Components: []common.ApplicationComponent{{
 				Type: "test-worker",
 				Name: "test-app",
 				Properties: runtime.RawExtension{

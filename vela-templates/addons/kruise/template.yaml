@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  annotations:
+    addons.oam.dev/description: "Kruise is a Kubernetes extended suite for application automations"
+  name: kruise
+  namespace: vela-system
+spec:
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: fluxcd
+        namespace: vela-system
+  appTemplate:
+    spec:
+      components:
+        - name: kruise
+          type: helm
+          properties:
+            repoType: git
+            repoUrl: https://github.com/openkruise/kruise
+            chart: ./charts/kruise/v0.9.0
+            branch: master

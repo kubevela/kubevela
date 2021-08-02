@@ -29,7 +29,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/apps/v1"
@@ -38,13 +37,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	stdv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -65,7 +67,7 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: "app-with-config",
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "myweb1",
 					Type:       "worker",
@@ -83,7 +85,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name: "app-with-no-trait",
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "myweb2",
 					Type:       "worker",
@@ -112,12 +114,12 @@ var _ = Describe("Test Application Controller", func() {
 			Name: "app-import-pkg",
 		},
 		Spec: v1beta1.ApplicationSpec{
-			Components: []v1beta1.ApplicationComponent{
+			Components: []common.ApplicationComponent{
 				{
 					Name:       "myweb",
 					Type:       "worker-import",
 					Properties: runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
-					Traits: []v1beta1.ApplicationTrait{
+					Traits: []common.ApplicationTrait{
 						{
 							Type:       "ingress-import",
 							Properties: runtime.RawExtension{Raw: []byte("{\"http\":{\"/\":80},\"domain\":\"abc.com\"}")},
@@ -162,7 +164,7 @@ var _ = Describe("Test Application Controller", func() {
 
 	appWithTrait := appwithNoTrait.DeepCopy()
 	appWithTrait.SetName("app-with-trait")
-	appWithTrait.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+	appWithTrait.Spec.Components[0].Traits = []common.ApplicationTrait{
 		{
 			Type:       "scaler",
 			Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
@@ -197,7 +199,7 @@ var _ = Describe("Test Application Controller", func() {
 	appWithTwoComp.SetName("app-with-two-comp")
 	appWithTwoComp.Spec.Components[0].Scopes = map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"}
 	appWithTwoComp.Spec.Components[0].Name = "myweb5"
-	appWithTwoComp.Spec.Components = append(appWithTwoComp.Spec.Components, v1beta1.ApplicationComponent{
+	appWithTwoComp.Spec.Components = append(appWithTwoComp.Spec.Components, common.ApplicationComponent{
 		Name:       "myweb6",
 		Type:       "worker",
 		Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2","config":"myconfig"}`)},
@@ -426,7 +428,7 @@ var _ = Describe("Test Application Controller", func() {
 				Namespace: ns,
 			}
 		)
-		businessApplication.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{{
+		businessApplication.Spec.Components[0].Traits = []common.ApplicationTrait{{
 			Type:       "share-fs",
 			Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
 		}}
@@ -638,7 +640,7 @@ var _ = Describe("Test Application Controller", func() {
 		appWithComposedWorkload := appwithNoTrait.DeepCopy()
 		appWithComposedWorkload.Spec.Components[0].Type = "webserver"
 		appWithComposedWorkload.SetName(appname)
-		appWithComposedWorkload.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+		appWithComposedWorkload.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "scaler",
 				Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
@@ -874,13 +876,13 @@ var _ = Describe("Test Application Controller", func() {
 		By("Update Application with new revision, component5 with new spec, rename component6 it should create new component ")
 
 		curApp.SetNamespace(app.Namespace)
-		curApp.Spec.Components[0] = v1beta1.ApplicationComponent{
+		curApp.Spec.Components[0] = common.ApplicationComponent{
 			Name:       "myweb5",
 			Type:       "worker",
 			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3"}`)},
 			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 		}
-		curApp.Spec.Components[1] = v1beta1.ApplicationComponent{
+		curApp.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "myweb7",
 			Type:       "worker",
 			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
@@ -1041,8 +1043,8 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 			Name:      app.Name,
 		}, got)).Should(BeNil())
-		expTrait.Object["status"] = v1alpha1.ConditionedStatus{
-			Conditions: []v1alpha1.Condition{{
+		expTrait.Object["status"] = condition.ConditionedStatus{
+			Conditions: []condition.Condition{{
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 			}},
@@ -1337,7 +1339,7 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app with a component refer to an existing WorkloadDefinition", func() {
 		appRefertoWd := appwithNoTrait.DeepCopy()
-		appRefertoWd.Spec.Components[0] = v1beta1.ApplicationComponent{
+		appRefertoWd.Spec.Components[0] = common.ApplicationComponent{
 			Name:       "mytask",
 			Type:       "task",
 			Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
@@ -1386,7 +1388,7 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app with two components and one component refer to an existing WorkloadDefinition", func() {
 		appMix := appWithTwoComp.DeepCopy()
-		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+		appMix.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "mytask",
 			Type:       "task",
 			Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
@@ -1571,7 +1573,7 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app with two components and one component can apply first while another one has secret insert", func() {
 		appMix := appWithTwoComp.DeepCopy()
-		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+		appMix.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "myconsumer",
 			Type:       "secretconsumer",
 			Properties: runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.14.0", "dbSecret":"mys"}`)},
@@ -1639,11 +1641,11 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app with two components and one component can apply first while another one'trait has secret insert", func() {
 		appMix := appWithTwoComp.DeepCopy()
-		appMix.Spec.Components[1] = v1beta1.ApplicationComponent{
+		appMix.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "web-pv",
 			Type:       "worker",
 			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2"}`)},
-			Traits: []v1beta1.ApplicationTrait{{
+			Traits: []common.ApplicationTrait{{
 				Type:       "share-fs",
 				Properties: runtime.RawExtension{Raw: []byte(`{"pvcName":"test-pvc", "nasSecret": "nas-conn"}`)},
 			}},
@@ -1713,6 +1715,84 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(pv.Spec.CSI.VolumeAttributes["host"]).Should(Equal("test.com"))
 
+	})
+
+	It("Test rollout trait all related definition features", func() {
+		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
+		Expect(err).Should(BeNil())
+		rolloutTrait := &v1beta1.TraitDefinition{}
+		Expect(json.Unmarshal([]byte(rolloutTdDef), rolloutTrait)).Should(BeNil())
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-rollout-trait",
+			},
+		}
+		rolloutTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, rolloutTrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-rollout",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Traits: []common.ApplicationTrait{
+							{
+								Type:       "rollout",
+								Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+							},
+						},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		reconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		checkRollout := &stdv1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		By("verify targetRevision will be filled with real compRev by context.ComponentRevName")
+		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v1"))
+		deploy := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
+
+		By("update component targetComponentRev will change")
+		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","2000"],"image":"nginx"}`)}
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		checkRollout = &stdv1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		By("verify targetRevision will be filled with newest")
+		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v2"))
+		deploy = &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
+
+		By("check update rollout trait won't generate new appRevision")
+		appRevName := checkApp.Status.LatestRevision.Name
+		checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"myweb1-v3"}`)
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		reconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(appRevName))
+		checkRollout = &stdv1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v3"))
 	})
 })
 
@@ -2575,6 +2655,41 @@ spec:
         nasConn: {
         	MountTargetDomain: string
         }
+`
+	rolloutTraitDefinition = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: rollout
+  namespace: default
+spec:
+  manageWorkload: true
+  skipRevisionAffect: true
+  schematic:
+    cue:
+      template: |
+        outputs: rollout: {
+        	apiVersion: "standard.oam.dev/v1alpha1"
+        	kind:       "Rollout"
+        	metadata: {
+        		name:  context.name
+                namespace: context.namespace
+        	}
+        	spec: {
+                   targetRevisionName: parameter.targetRevision
+                   componentName: "myweb1"
+                   rolloutPlan: {
+                   	rolloutStrategy: "IncreaseFirst"
+                    rolloutBatches:[
+                    	{ replicas: 3}]    
+                    targetSize: 5
+                   }
+        		 }
+        	}
+
+         parameter: {
+             targetRevision: *context.revision|string
+         }
 `
 )
 

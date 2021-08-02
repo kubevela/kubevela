@@ -23,6 +23,15 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 
 	"cuelang.org/go/cue"
@@ -182,19 +191,17 @@ type Appfile struct {
 	Workloads    []*Workload
 
 	Policies      []*Workload
-	WorkflowSteps []*Workload
+	WorkflowSteps []v1beta1.WorkflowStep
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy() (policies, steps []*unstructured.Unstructured, err error) {
+func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
-	steps, err = af.generateUnstructureds(af.WorkflowSteps)
-	if err != nil {
-		return
-	}
+
+	steps, err = af.generateSteps(ctx, m, cli, pd, dispatcher)
 	return
 }
 
@@ -208,6 +215,37 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 		uns = append(uns, un)
 	}
 	return uns, nil
+}
+
+func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) ([]wfTypes.TaskRunner, error) {
+	loadTaskTemplate := func(ctx context.Context, name string) (string, error) {
+		templ, err := LoadTemplate(ctx, dm, cli, name, types.TypeWorkflowStep)
+		if err != nil {
+			return "", err
+		}
+		schematic := templ.WorkflowStepDefinition.Spec.Schematic
+		if schematic != nil && schematic.CUE != nil {
+			return schematic.CUE.Template, nil
+		}
+		return "", errors.New("custom workflowStep only support cue")
+	}
+
+	handlerProviders := providers.NewProviders()
+	kube.Install(handlerProviders, cli, dispatcher)
+	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, loadTaskTemplate)
+	var tasks []wfTypes.TaskRunner
+	for _, step := range af.WorkflowSteps {
+		genTask, err := taskDiscover.GetTaskGenerator(ctx, step.Type)
+		if err != nil {
+			return nil, err
+		}
+		task, err := genTask(step)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, nil
 }
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string) (*unstructured.Unstructured, error) {

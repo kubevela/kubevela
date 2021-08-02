@@ -21,6 +21,7 @@ import (
 	encoding "encoding/json"
 	"testing"
 
+
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	"k8s.io/utils/pointer"
@@ -28,6 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 

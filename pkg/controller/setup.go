@@ -19,6 +19,8 @@ package controller
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/rollout"
+
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait"
@@ -39,6 +41,7 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 			manualscalertrait.Setup,
 			containerizedworkload.Setup,
 			healthscope.Setup,
+			rollout.Setup,
 		}
 	case common.DisableAllCaps:
 	default:
@@ -54,6 +57,9 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 		}
 		if !disableCapsSet.Contains(common.HealthScopeControllerName) {
 			functions = append(functions, healthscope.Setup)
+		}
+		if !disableCapsSet.Contains(common.RolloutControllerName) {
+			functions = append(functions, rollout.Setup)
 		}
 	}
 

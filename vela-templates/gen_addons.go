@@ -57,6 +57,9 @@ const (
 
 	// MarkLabel is annotation key marks configMap as an addon
 	MarkLabel = "addons.oam.dev/type"
+
+	// ChartTemplateNamespace is placeholder for helm chart
+	ChartTemplateNamespace = "{{.Values.systemDefinitionNamespace}}"
 )
 
 type velaFile struct {
@@ -71,7 +74,6 @@ type AddonInfo struct {
 	DefinitionFiles []velaFile
 	HasDefs         bool
 	Name            string
-	Namespace       string
 	Description     string
 	TemplatePath    string
 }
@@ -132,19 +134,21 @@ func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
 		Name:         addon,
 		TemplatePath: filepath.Join(addonRoot, InitializerTemplateName),
 	}
-	if err := filepath.Walk(resourceRoot, newWalkFn(&resourcesFiles)); err != nil {
-		return nil, err
+	// raw resources directory
+	if pathExist(resourceRoot) {
+		if err := filepath.Walk(resourceRoot, newWalkFn(&resourcesFiles)); err != nil {
+			return nil, err
+		}
+		addInfo.ResourceFiles = resourcesFiles
 	}
-	addInfo.ResourceFiles = resourcesFiles
 
-	if !pathExist(defRoot) {
-		return addInfo, nil
+	if pathExist(defRoot) {
+		if err := filepath.Walk(defRoot, newWalkFn(&defFiles)); err != nil {
+			return nil, err
+		}
+		addInfo.HasDefs = true
+		addInfo.DefinitionFiles = defFiles
 	}
-	if err := filepath.Walk(defRoot, newWalkFn(&defFiles)); err != nil {
-		return nil, err
-	}
-	addInfo.HasDefs = true
-	addInfo.DefinitionFiles = defFiles
 	return addInfo, nil
 }
 
@@ -199,11 +203,16 @@ func setConfigMapAnnotations(addonInfo *AddonInfo) map[string]string {
 	}
 }
 func removeTimestampInplace(s *string) {
-	clearStr := "(\n.*?metadata:.*?)?\n.*?creationTimestamp:.*?null"
-	var re = regexp.MustCompile(clearStr)
+	timeStampwithApptemplate := "appTemplate:\n(.*metadata:)?\n[ ]*creationTimestamp: null"
+	re := regexp.MustCompile(timeStampwithApptemplate)
+	*s = re.ReplaceAllString(*s, "appTemplate:")
+
+	pureTimeStamp := "\n[ ]*creationTimestamp: null"
+	re = regexp.MustCompile(pureTimeStamp)
 	*s = re.ReplaceAllString(*s, "")
 }
 
+// storeConfigMap store configMap in helm chart
 func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, storePath string) error {
 	configMap := &corev1.ConfigMap{
 		TypeMeta: v1.TypeMeta{
@@ -213,7 +222,7 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	}
 	addonInfo.Description = initializer.GetAnnotations()[DescAnnotation]
 	configMap.SetName(addonInfo.Name)
-	configMap.SetNamespace(addonInfo.Namespace)
+	configMap.SetNamespace(ChartTemplateNamespace)
 	configMap.SetAnnotations(setConfigMapAnnotations(addonInfo))
 	configMap.SetLabels(setConfigMapLabels(addonInfo))
 
@@ -230,44 +239,22 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	}
 	raw := string(content)
 	removeTimestampInplace(&raw)
+	raw = strings.ReplaceAll(raw, fmt.Sprintf("'%s'", ChartTemplateNamespace), ChartTemplateNamespace)
 	filename := storePath + "/" + addonInfo.Name + ".yaml"
 	return WriteToFile(filename, raw)
 }
 
-func storeInitAndDef(init *v1beta1.Initializer, cds []*v1beta1.ComponentDefinition, addonPath string, addonName string) error {
+// storeInitializer store init in one file for apply directly
+func storeInitializer(init *v1beta1.Initializer, addonPath string, addonName string) error {
 	initContent, err := yaml.Marshal(init)
 	if err != nil {
 		return err
 	}
-	filename := path.Join(addonPath, InitializerFileDir, addonName+".yaml")
-	splitter := "---\n"
-	cdContents := make([]string, 0, len(cds))
-	for _, cd := range cds {
-		cdContent, err := yaml.Marshal(cd)
-		if err != nil {
-			return err
-		}
-		cdContents = append(cdContents, string(cdContent))
-	}
-	fileContent := strings.Join(append(cdContents, string(initContent)), splitter)
-	removeTimestampInplace(&fileContent)
-	return WriteToFile(filename, fileContent)
-}
 
-func getComponentDefs(info *AddonInfo) ([]*v1beta1.ComponentDefinition, error) {
-	cds := make([]*v1beta1.ComponentDefinition, 0)
-	if !info.HasDefs {
-		return cds, nil
-	}
-	for _, file := range info.DefinitionFiles {
-		cd := v1beta1.ComponentDefinition{}
-		err := yaml.Unmarshal([]byte(file.Content), &cd)
-		if err != nil {
-			return nil, err
-		}
-		cds = append(cds, &cd)
-	}
-	return cds, nil
+	filename := path.Join(addonPath, InitializerFileDir, addonName+".yaml")
+	contents := string(initContent)
+	removeTimestampInplace(&contents)
+	return WriteToFile(filename, contents)
 }
 
 func main() {
@@ -294,9 +281,7 @@ func main() {
 		dealErr(err)
 		init, err := generateInitializer(addInfo)
 		dealErr(err)
-		cds, err := getComponentDefs(addInfo)
-		dealErr(err)
-		err = storeInitAndDef(init, cds, addonsPath, addInfo.Name)
+		err = storeInitializer(init, addonsPath, addInfo.Name)
 		dealErr(err)
 		err = storeConfigMap(addInfo, init, storePath)
 		dealErr(err)

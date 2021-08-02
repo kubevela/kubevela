@@ -1,52 +1,100 @@
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  name: foo.example.com
-spec:
-  group: example.com
-  names:
-    kind: Foo
-    listKind: FooList
-    plural: foo
-    singular: foo
-  scope: Namespaced
-  version: v1
-  preserveUnknownFields: true
----
 apiVersion: core.oam.dev/v1beta1
-kind: PolicyDefinition
+kind: WorkflowStepDefinition
 metadata:
-  name: foopolicy
+  name: apply-with-ip
 spec:
   schematic:
     cue:
       template: |
-        output: {
-          apiVersion: "example.com/v1"
-          kind:       "Foo"
-          spec: {
-            key: parameter.key
-          }
-        }
+        import ("vela/op")
         parameter: {
-          key: string
+           component: string
+           serverIP?: string
+        }
+
+        // load component from application
+        component: op.#Load & {
+           component: parameter.component
+           value: {}
+        }
+
+        // apply workload to kubernetes cluster
+        apply: op.#Apply & {
+           value: {
+              component.value.workload
+              metadata: name: parameter.name
+              if parameter.prefixIP!=_|_{
+                 spec: containers: [{env: [{name: "ServerIP",value: parameter.ServerIP}]}]
+              }
+           }
+        }
+
+        // wait until workload.status equal "Running"
+        wait: op.#ConditionalWait & {
+           continue: apply.value.status.phase =="Running"
         }
 ---
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
-  name: foowf
+  name: apply-component
 spec:
   schematic:
     cue:
       template: |
-        output: {
-          apiVersion: "example.com/v1"
-          kind:       "Foo"
-          spec: {
-            key: parameter.key
-          }
-        }
+        import ("vela/op")
         parameter: {
-          key: string
+           component: string
+           prefixIP?: string
+        }
+
+        // load component from application
+        component: op.#Load & {
+           component: parameter.component
+        }
+
+        // apply workload to kubernetes cluster
+        apply: op.#ApplyComponent & {
+           component: parameter.name
+        }
+
+        // wait until workload.status equal "Running"
+        wait: op.#ConditionalWait & {
+           continue: apply.status.phase =="Running"
+        }
+
+        // export podIP
+        myIP: apply.workload.status.podIP
+---
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: singletonServer
+  annotations:
+    definition.oam.dev/description: "singletonServer is Pod"
+spec:
+  workload:
+    definition:
+      apiVersion: v1
+      kind: Pod
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          version: *"1.14.2" | string
+        }
+        output: {
+          apiVersion: "v1"
+          kind: "Pod"
+          metadata: {
+            labels: app: "nginx"
+            name: context.name
+          }
+          spec:{
+            containers:[{
+                name: "nginx"
+                image: "nginx:"+parameter.version
+                ports: [{containerPort: 80}]
+            }]
+          }
         }

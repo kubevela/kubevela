@@ -20,12 +20,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -111,6 +113,12 @@ var expectedExceptApp = &Appfile{
 `,
 				},
 			},
+		},
+	},
+	WorkflowSteps: []v1beta1.WorkflowStep{
+		{
+			Name: "suspend",
+			Type: "suspend",
 		},
 	},
 }
@@ -214,6 +222,24 @@ spec:
         - type: scaler
           properties:
             replicas: 10
+  workflow:
+    steps:
+    - name: "suspend"
+      type: "suspend" 
+`
+
+const appfileYaml2 = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-sample
+  namespace: default
+spec:
+  components:
+    - name: myweb
+      type: worker-notexist
+      properties:
+        image: "busybox"
 `
 
 var _ = Describe("Test application parser", func() {
@@ -225,6 +251,9 @@ var _ = Describe("Test application parser", func() {
 		// Create mock client
 		tclient := test.MockClient{
 			MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				if strings.Contains(key.Name, "notexist") {
+					return &errors2.StatusError{ErrStatus: metav1.Status{Reason: "NotFound", Message: "not found"}}
+				}
 				switch o := obj.(type) {
 				case *v1beta1.ComponentDefinition:
 					wd, err := util.UnMarshalStringToComponentDefinition(componenetDefinition)
@@ -246,6 +275,12 @@ var _ = Describe("Test application parser", func() {
 		appfile, err := NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
+
+		notfound := v1beta1.Application{}
+		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
+		Expect(err).ShouldNot(HaveOccurred())
+		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &notfound)
+		Expect(err).Should(HaveOccurred())
 	})
 })
 

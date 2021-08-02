@@ -83,7 +83,7 @@ var _ = Describe("TestHandleReplicasFunc", func() {
 			oam.LabelAppComponent: workloadName,
 		})
 		Eventually(func() error {
-			handleFunc := handleReplicas(ctx, workloadName, k8sClient)
+			handleFunc := HandleReplicas(ctx, workloadName, k8sClient)
 			if err := handleFunc.ApplyToWorkload(&checkworkload, nil, nil); err != nil {
 				return err
 			}
@@ -111,7 +111,7 @@ var _ = Describe("TestHandleReplicasFunc", func() {
 			oam.LabelAppComponent: workloadName,
 		})
 		Eventually(func() error {
-			handleFunc := handleReplicas(ctx, workloadName, k8sClient)
+			handleFunc := HandleReplicas(ctx, workloadName, k8sClient)
 			if err := handleFunc.ApplyToWorkload(&checkworkload, nil, nil); err != nil {
 				return err
 			}

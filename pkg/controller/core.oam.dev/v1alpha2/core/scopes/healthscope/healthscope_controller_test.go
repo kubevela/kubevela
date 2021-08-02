@@ -29,12 +29,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -60,11 +60,11 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 		Client: &test.MockClient{},
 	}
 	MockHealthyChecker := WorkloadHealthCheckFn(
-		func(context.Context, client.Client, v1alpha1.TypedReference, string) *WorkloadHealthCondition {
+		func(context.Context, client.Client, corev1.ObjectReference, string) *WorkloadHealthCondition {
 			return &WorkloadHealthCondition{HealthStatus: StatusHealthy}
 		})
 	MockUnhealthyChecker := WorkloadHealthCheckFn(
-		func(context.Context, client.Client, v1alpha1.TypedReference, string) *WorkloadHealthCondition {
+		func(context.Context, client.Client, corev1.ObjectReference, string) *WorkloadHealthCondition {
 			return &WorkloadHealthCondition{HealthStatus: StatusUnhealthy}
 		})
 	reconciler := NewReconciler(mockMgr,
@@ -72,7 +72,7 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 		WithChecker(MockHealthyChecker),
 	)
 
-	hs := v1alpha2.HealthScope{Spec: v1alpha2.HealthScopeSpec{WorkloadReferences: []v1alpha1.TypedReference{
+	hs := v1alpha2.HealthScope{Spec: v1alpha2.HealthScopeSpec{WorkloadReferences: []corev1.ObjectReference{
 		// add one wlRef to trigger mockChecker
 		{
 			APIVersion: "mock",
@@ -166,7 +166,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 
 	hs := v1alpha2.HealthScope{}
 
-	var cwRef, deployRef, svcRef v1alpha1.TypedReference
+	var cwRef, deployRef, svcRef corev1.ObjectReference
 	cwRef.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
 	cwRef.Name = "cw"
 	deployRef.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindDeployment))
@@ -175,7 +175,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 
 	cw := v1alpha2.ContainerizedWorkload{}
 	cw.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	cw.Status.Resources = []v1alpha1.TypedReference{deployRef, svcRef}
+	cw.Status.Resources = []corev1.ObjectReference{deployRef, svcRef}
 
 	hDeploy := appsv1.Deployment{
 		Spec: appsv1.DeploymentSpec{
@@ -188,7 +188,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 	hDeploy.SetName("deploy")
 	hDeploy.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindDeployment))
 
-	uhGeneralRef := v1alpha1.TypedReference{
+	uhGeneralRef := corev1.ObjectReference{
 		APIVersion: "unknown",
 		Kind:       "unknown",
 		Name:       "unhealthyGeneral",
@@ -203,7 +203,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 
 	BeforeEach(func() {
 		logf.Log.Info("Set up resources before an unit test")
-		hs.Spec.WorkloadReferences = []v1alpha1.TypedReference{}
+		hs.Spec.WorkloadReferences = []corev1.ObjectReference{}
 	})
 
 	AfterEach(func() {
@@ -214,13 +214,13 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 	It("Test healthy scope", func() {
 		tests := []struct {
 			caseName           string
-			hsWorkloadRefs     []v1alpha1.TypedReference
+			hsWorkloadRefs     []corev1.ObjectReference
 			mockGetFn          test.MockGetFn
 			wantScopeCondition ScopeHealthCondition
 		}{
 			{
 				caseName:       "2 supportted workloads(cw,deploy)",
-				hsWorkloadRefs: []v1alpha1.TypedReference{cwRef, deployRef},
+				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 					if o, ok := obj.(*v1alpha2.ContainerizedWorkload); ok {
 						*o = cw
@@ -256,13 +256,13 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 	It("Test unhealthy scope", func() {
 		tests := []struct {
 			caseName           string
-			hsWorkloadRefs     []v1alpha1.TypedReference
+			hsWorkloadRefs     []corev1.ObjectReference
 			mockGetFn          test.MockGetFn
 			wantScopeCondition ScopeHealthCondition
 		}{
 			{
 				caseName:       "2 supportted workloads but one is unhealthy",
-				hsWorkloadRefs: []v1alpha1.TypedReference{cwRef, deployRef},
+				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha2.ContainerizedWorkload:
@@ -288,7 +288,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			},
 			{
 				caseName:       "1 healthy supportted workload and 1 unsupportted workloads",
-				hsWorkloadRefs: []v1alpha1.TypedReference{cwRef, uhGeneralRef},
+				hsWorkloadRefs: []corev1.ObjectReference{cwRef, uhGeneralRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha2.ContainerizedWorkload:
