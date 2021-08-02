@@ -205,6 +205,10 @@ func TestFixOpenAPISchema(t *testing.T) {
 			inputFile: "shortTagSchema.json",
 			fixedFile: "shortTagSchemaFixed.json",
 		},
+		"EmptyArrayJson": {
+			inputFile: "arrayWithoutItemsSchema.json",
+			fixedFile: "arrayWithoutItemsSchemaFixed.json",
+		},
 	}
 
 	for name, tc := range cases {

@@ -448,7 +448,9 @@ func fixOpenAPISchema(name string, schema *openapi3.Schema) {
 			fixOpenAPISchema(k, s)
 		}
 	case "array":
-		fixOpenAPISchema("", schema.Items.Value)
+		if schema.Items != nil {
+			fixOpenAPISchema("", schema.Items.Value)
+		}
 	}
 	if name != "" {
 		schema.Title = name
