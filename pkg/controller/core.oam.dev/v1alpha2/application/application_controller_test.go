@@ -339,20 +339,20 @@ var _ = Describe("Test Application Controller", func() {
 			}
 
 			businessApplication = `
-apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: webapp
-  namespace: default
-spec:
-  components:
-    - name: express-server-test
-      type: deployment
-      properties:
-        image: "nignx:latest"
-        ports: 80
-        dbSecret: "db-conn"
-`
+				apiVersion: core.oam.dev/v1beta1
+				kind: Application
+				metadata:
+				name: webapp
+				namespace: default
+				spec:
+				components:
+					- name: express-server-test
+					type: deployment
+					properties:
+						image: "nignx:latest"
+						ports: 80
+						dbSecret: "db-conn"
+				`
 			appKey = client.ObjectKey{
 				Name:      appName,
 				Namespace: ns,

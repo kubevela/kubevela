@@ -17,14 +17,22 @@ limitations under the License.
 package applicationrollout
 
 import (
+	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	core_oam_dev "github.com/oam-dev/kubevela/apis/core.oam.dev"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,8 +47,11 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var cfg *rest.Config
+var recorder = NewFakeRecorder(10000)
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var reconciler *Reconciler
+var testScheme = runtime.NewScheme()
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -60,7 +71,7 @@ var _ = BeforeSuite(func(done Done) {
 	} else {
 		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
 	}
-	logf.Log.Info("start application deployment suit test", "yaml_path", yamlPath)
+	logf.Log.Info("start application rollout suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
@@ -81,6 +92,17 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	dm, err := discoverymapper.New(cfg)
+	Expect(err).To(BeNil())
+
+	reconciler = &Reconciler{
+		Client:               k8sClient,
+		Scheme:               scheme.Scheme,
+		dm:                   dm,
+		Recorder:             event.NewAPIRecorder(recorder),
+		concurrentReconciles: 1,
+	}
+
 	// TODO write test here
 
 	close(done)
@@ -91,3 +113,76 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
+
+type FakeRecorder struct {
+	Events  chan string
+	Message map[string][]*Events
+}
+
+type Events struct {
+	Name      string
+	Namespace string
+	EventType string
+	Reason    string
+	Message   string
+}
+
+func (f *FakeRecorder) Event(object runtime.Object, eventtype, reason, message string) {
+	if f.Events != nil {
+		objectMeta, err := meta.Accessor(object)
+		if err != nil {
+			return
+		}
+
+		event := &Events{
+			Name:      objectMeta.GetName(),
+			Namespace: objectMeta.GetNamespace(),
+			EventType: eventtype,
+			Reason:    reason,
+			Message:   message,
+		}
+
+		records, ok := f.Message[objectMeta.GetName()]
+		if !ok {
+			f.Message[objectMeta.GetName()] = []*Events{event}
+			return
+		}
+
+		records = append(records, event)
+		f.Message[objectMeta.GetName()] = records
+
+	}
+}
+
+func (f *FakeRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.Event(object, eventtype, reason, messageFmt)
+}
+
+func (f *FakeRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.Eventf(object, eventtype, reason, messageFmt, args...)
+}
+
+func (f *FakeRecorder) GetEventsWithName(name string) ([]*Events, error) {
+	records, ok := f.Message[name]
+	if !ok {
+		return nil, errors.New("not found events")
+	}
+
+	return records, nil
+}
+
+// NewFakeRecorder creates new fake event recorder with event channel with
+// buffer of given size.
+func NewFakeRecorder(bufferSize int) *FakeRecorder {
+	return &FakeRecorder{
+		Events:  make(chan string, bufferSize),
+		Message: make(map[string][]*Events),
+	}
+}
+
+// randomNamespaceName generates a random name based on the basic name.
+// Running each ginkgo case in a new namespace with a random name can avoid
+// waiting a long time to GC namesapce.
+func randomNamespaceName(basic string) string {
+	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
+}
