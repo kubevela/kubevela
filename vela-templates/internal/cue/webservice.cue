@@ -4,9 +4,6 @@ output: {
 	spec: {
 		selector: matchLabels: {
 			"app.oam.dev/component": context.name
-			if parameter.addRevisionLabel {
-				"app.oam.dev/appRevision": context.appRevision
-			}
 		}
 
 		template: {
