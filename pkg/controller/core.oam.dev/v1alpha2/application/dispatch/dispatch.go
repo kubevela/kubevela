@@ -327,7 +327,7 @@ type ObjectOwner interface {
 	SetOwnerReferences([]metav1.OwnerReference)
 }
 
-// setOrOverrideOAMControllerOwner will set the
+// setOrOverrideOAMControllerOwner will set the new owner and remove the legacy OAM owner
 func setOrOverrideOAMControllerOwner(obj ObjectOwner, controllerOwner metav1.OwnerReference) {
 	newOwnerRefs := []metav1.OwnerReference{controllerOwner}
 	for _, owner := range obj.GetOwnerReferences() {

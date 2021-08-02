@@ -56,17 +56,11 @@ type reconciler struct {
 	concurrentReconciles int
 }
 
-<<<<<<< HEAD
-func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
-=======
 func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	rollout := new(v1alpha1.Rollout)
-	ctx, cancel := context.WithTimeout(ctx, reconcileTimeOut)
->>>>>>> bde2baea... upgrade K8s dependency to v0.21
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
-	rollout := new(v1alpha1.Rollout)
 
+	rollout := new(v1alpha1.Rollout)
 	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
 	if err := r.Get(ctx, req.NamespacedName, rollout); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)

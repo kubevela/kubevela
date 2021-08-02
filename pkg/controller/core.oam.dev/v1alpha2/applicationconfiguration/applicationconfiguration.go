@@ -218,7 +218,6 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...Reco
 
 // Reconcile an OAM ApplicationConfigurations by rendering and instantiating its
 // Components and Traits.
-
 func (r *OAMApplicationReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	ctx, cancel := common.NewReconcileContext(ctx)
 	defer cancel()

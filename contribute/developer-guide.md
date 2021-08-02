@@ -8,27 +8,28 @@ This guide helps you get started developing KubeVela.
 2. Kubernetes version v1.18+ with `~/.kube/config` configured.
 3. ginkgo 1.14.0+ (just for [E2E test](./developer-guide.md#e2e-test))
 4. golangci-lint 1.38.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
-5. kubebuilder v2.3.0+
+5. kubebuilder v3.1.0+ and you need to manually install the dependency tools for unit test.
 
 <details>
   <summary>Install Kubebuilder manually</summary>
 
 linux:
 ```
-wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.1/kubebuilder_2.3.1_linux_amd64.tar.gz
-tar -zxvf  kubebuilder_2.3.1_linux_amd64.tar.gz
+wget https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.21.2-linux-amd64.tar.gz
+tar -zxvf  kubebuilder-tools-1.21.2-linux-amd64.tar.gz
 mkdir -p /usr/local/kubebuilder/bin
-sudo mv kubebuilder_2.3.1_linux_amd64/bin/* /usr/local/kubebuilder/bin
+sudo mv kubebuilder/bin/* /usr/local/kubebuilder/bin
 ```
 
 macOS:
 ```
-wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.1/kubebuilder_2.3.1_darwin_amd64.tar.gz
-tar -zxvf  kubebuilder_2.3.1_darwin_amd64.tar.gz
+wget https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.21.2-darwin-amd64.tar.gz
+tar -zxvf  kubebuilder-tools-1.21.2-darwin-amd64.tar.gz
 mkdir -p /usr/local/kubebuilder/bin
-sudo mv kubebuilder_2.3.1_darwin_amd64/bin/* /usr/local/kubebuilder/bin
+sudo mv kubebuilder/bin/* /usr/local/kubebuilder/bin
 ```
 
+For other OS or system architecture, please refer to https://storage.googleapis.com/kubebuilder-tools/ 
 </details>
 
 You may also be interested with KubeVela's [design](https://github.com/oam-dev/kubevela/tree/master/design/vela-core) before diving into its code.
