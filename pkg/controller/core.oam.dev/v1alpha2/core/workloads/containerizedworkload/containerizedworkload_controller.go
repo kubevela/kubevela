@@ -37,6 +37,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -74,7 +75,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+	ctx, cancel := common2.NewReconcileContext()
+	defer cancel()
 	klog.InfoS("Reconcile containerizedworkload", klog.KRef(req.Namespace, req.Name))
 
 	var workload v1alpha2.ContainerizedWorkload

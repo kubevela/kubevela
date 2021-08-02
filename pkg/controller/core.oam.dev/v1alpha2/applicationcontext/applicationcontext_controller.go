@@ -17,7 +17,6 @@ limitations under the License.
 package applicationcontext
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	ac "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -48,8 +48,6 @@ const (
 	errUpdateAppContextStatus = "cannot update application context status"
 )
 
-const reconcileTimeout = 1 * time.Minute
-
 // Reconciler reconciles an Application Context by constructing an in-memory
 // application configuration and reuse its reconcile logic
 type Reconciler struct {
@@ -62,9 +60,9 @@ type Reconciler struct {
 
 // Reconcile reconcile an application context
 func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
-	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	ctx, cancel := common2.NewReconcileContext()
 	defer cancel()
+	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
 	// fetch the app context
 	appContext := &v1alpha2.ApplicationContext{}
 	if err := r.client.Get(ctx, request.NamespacedName, appContext); err != nil {

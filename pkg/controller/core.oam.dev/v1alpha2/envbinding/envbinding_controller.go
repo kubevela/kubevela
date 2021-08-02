@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -48,9 +49,10 @@ type Reconciler struct {
 
 // Reconcile is the main logic for EnvBinding controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext()
+	defer cancel()
 	klog.InfoS("Reconcile EnvBinding", "envbinding", klog.KRef(req.Namespace, req.Name))
 
-	ctx := context.Background()
 	envBinding := new(v1alpha1.EnvBinding)
 	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, envBinding); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
