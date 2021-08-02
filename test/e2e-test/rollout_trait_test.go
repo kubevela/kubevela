@@ -129,7 +129,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 				return fmt.Errorf("source deploy still exist")
 			}
 			return nil
-		}, time.Second*180, 300*time.Millisecond).Should(BeNil())
+		}, time.Second*360, 300*time.Millisecond).Should(BeNil())
 	}
 
 	BeforeEach(func() {
