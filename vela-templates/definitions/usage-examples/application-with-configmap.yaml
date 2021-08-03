@@ -1,0 +1,36 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-with-configmap
+spec:
+  components:
+    - name: busybox-runner
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000'
+      traits:
+        - type: annotations
+          properties:
+            annotation-a: annotation-A
+        - type: configmap
+          properties:
+            volumes:
+              - name: read-only-configmap
+                mountPath: /read-only-configmap
+                readOnly: true
+                data:
+                  dataA: a
+                  dataB: b
+              - name: default-configmap
+                mountPath: /default-configmap
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: default-configmap
+data:
+  data1: "1"
+  data2: "2"

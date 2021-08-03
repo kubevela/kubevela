@@ -91,6 +91,7 @@ func NewCommand() *cobra.Command {
 		NewTraitsCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),
 		NewWorkloadsCommand(commandArgs, ioStream),
+		DefinitionCommandGroup(commandArgs),
 
 		// Addons
 		NewAddonCommand(commandArgs, ioStream),
