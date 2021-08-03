@@ -168,7 +168,7 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string) (*value.Valu
 		}
 		templ += fmt.Sprintf("\ncontext: {%s}", ms)
 	}
-	return value.NewValue(templ, t.pd)
+	return value.NewValue(templ, t.pd, value.TagFieldOrder)
 }
 
 type executor struct {

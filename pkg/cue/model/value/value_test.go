@@ -130,10 +130,60 @@ step3: {
 	value:  103
 }
 `},
+
+		{base: `
+step2: {prefix: step1.value} @step(2)
+step1: {} @step(1)
+step3: {prefix: step2.value} @step(4)
+if step2.value > 100 {
+        step2_3: {prefix: step2.value} @step(3)
+}
+`,
+			expected: `step2: {
+	prefix: 100
+	value:  101
+} @step(2)
+step1: {
+	value: 100
+} @step(1)
+step3: {
+	prefix: 101
+	value:  103
+} @step(4)
+step2_3: {
+	prefix: 101
+	value:  102
+} @step(3)
+`},
+
+		{base: `
+step2: {prefix: step1.value} 
+step1: {} @step(1)
+if step2.value > 100 {
+        step2_3: {prefix: step2.value}
+}
+step3: {prefix: step2.value}
+`,
+			expected: `step2: {
+	prefix: 100
+	value:  101
+}
+step1: {
+	value: 100
+} @step(1)
+step2_3: {
+	prefix: 101
+	value:  102
+}
+step3: {
+	prefix: 101
+	value:  103
+}
+`},
 	}
 
 	for _, tCase := range testCases {
-		val, err := NewValue(tCase.base, nil)
+		val, err := NewValue(tCase.base, nil, TagFieldOrder)
 		assert.NilError(t, err)
 		number := 99
 		err = val.StepByFields(func(_ string, in *Value) (bool, error) {

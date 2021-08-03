@@ -18,10 +18,14 @@ package value
 
 import (
 	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/parser"
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
@@ -67,8 +71,16 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 }
 
 // NewValue new a value
-func NewValue(s string, pd *packages.PackageDiscover) (*Value, error) {
+func NewValue(s string, pd *packages.PackageDiscover, opts ...func(ast.Node)) (*Value, error) {
 	builder := &build.Instance{}
+
+	file, err := parser.ParseFile("-", s)
+	if err != nil {
+		return nil, err
+	}
+	for _, opt := range opts {
+		opt(file)
+	}
 	if err := builder.AddFile("-", s); err != nil {
 		return nil, err
 	}
@@ -89,6 +101,20 @@ func NewValue(s string, pd *packages.PackageDiscover) (*Value, error) {
 	val.v = inst.Value()
 	val.pd = pd
 	return val, nil
+}
+
+// TagFieldOrder add step tag.
+func TagFieldOrder(root ast.Node) {
+	i := 0
+	ast.Walk(root, func(node ast.Node) bool {
+		field, ok := node.(*ast.Field)
+		if ok && field.Attrs == nil {
+			field.Attrs = []*ast.Attribute{
+				{Text: fmt.Sprintf("@step(%d)", i)},
+			}
+		}
+		return true
+	}, nil)
 }
 
 // MakeValue generate an value with same runtime
@@ -164,6 +190,7 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 type field struct {
 	Name  string
 	Value *Value
+	no    int64
 }
 
 // StepByList process item in list.
@@ -217,24 +244,56 @@ func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)
 }
 
 func (val *Value) fieldIndex(index int) (*field, bool, error) {
-	st, err := val.v.Struct()
+	fields, err := val.fields()
 	if err != nil {
 		return nil, false, err
 	}
-	if index >= st.Len() {
+	if index >= len(fields) {
 		return nil, false, errors.New("get value field by index overhead")
 	}
 	end := false
-	if index == (st.Len() - 1) {
+	if index == (len(fields) - 1) {
 		end = true
 	}
-	v := st.Field(index)
-	return &field{
-		Name: v.Name,
-		Value: &Value{
-			r: val.r,
-			v: v.Value,
-		}}, end, nil
+	return fields[index], end, nil
+}
+
+func (val *Value) fields() ([]*field, error) {
+	st, err := val.v.Struct()
+	if err != nil {
+		return nil, err
+	}
+	var fields []*field
+	for i := 0; i < st.Len(); i++ {
+		v := st.Field(i)
+		attr := v.Value.Attribute("step")
+		no, err := attr.Int(0)
+		if err != nil {
+			no = 100
+		}
+		fields = append(fields, &field{
+			no:   no,
+			Name: v.Name,
+			Value: &Value{
+				r: val.r,
+				v: v.Value,
+			}})
+	}
+	sort.Sort(sortFields(fields))
+	return fields, nil
+}
+
+type sortFields []*field
+
+func (sf sortFields) Len() int {
+	return len(sf)
+}
+func (sf sortFields) Less(i, j int) bool {
+	return sf[i].no < sf[j].no
+}
+
+func (sf sortFields) Swap(i, j int) {
+	sf[i], sf[j] = sf[j], sf[i]
 }
 
 // Field return the cue value corresponding to the specified field
