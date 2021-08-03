@@ -163,7 +163,6 @@ func Test_isRolloutModified(t *testing.T) {
 			rollout: oamstandard.Rollout{
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
-					SourceRevisionName: "source1",
 				},
 				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
@@ -191,14 +190,12 @@ func Test_isRolloutModified(t *testing.T) {
 			rollout: oamstandard.Rollout{
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target1",
-					SourceRevisionName: "source1",
 				},
 				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
 					LastUpgradedTargetRevision: "target1",
-					LastSourceRevision:         "source1",
 				},
 			},
 			want: false,
@@ -221,14 +218,12 @@ func Test_isRolloutModified(t *testing.T) {
 			rollout: oamstandard.Rollout{
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target2",
-					SourceRevisionName: "source1",
 				},
 				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
 					LastUpgradedTargetRevision: "target1",
-					LastSourceRevision:         "source1",
 				},
 			},
 			want: true,
@@ -237,14 +232,12 @@ func Test_isRolloutModified(t *testing.T) {
 			rollout: oamstandard.Rollout{
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target2",
-					SourceRevisionName: "source2",
 				},
 				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RollingInBatchesState,
 					},
 					LastUpgradedTargetRevision: "target1",
-					LastSourceRevision:         "source1",
 				},
 			},
 			want: true,
@@ -253,14 +246,12 @@ func Test_isRolloutModified(t *testing.T) {
 			rollout: oamstandard.Rollout{
 				Spec: oamstandard.RolloutSpec{
 					TargetRevisionName: "target2",
-					SourceRevisionName: "source2",
 				},
 				Status: oamstandard.CompRolloutStatus{
 					RolloutStatus: oamstandard.RolloutStatus{
 						RollingState: oamstandard.RolloutDeletingState,
 					},
 					LastUpgradedTargetRevision: "target1",
-					LastSourceRevision:         "source1",
 				},
 			},
 			want: false,

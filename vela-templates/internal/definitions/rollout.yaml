@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: rollout
+  annotations:
+    definition.oam.dev/description: "rollout the component"
+  namespace: {{.Values.systemDefinitionNamespace}}
+spec:
+  manageWorkload: true
+  skipRevisionAffect: true
+  schematic:
+    cue:
+      template: |

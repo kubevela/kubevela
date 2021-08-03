@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: rollout-trait-test
+  namespace: rollout-trait-test
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: stefanprodan/podinfo:4.0.3
+        cpu: "0.2"
+      traits:
+        - type: rollout
+          properties:
+            targetSize: 5
+            targetRevision: express-server-v1
+            rolloutBatches:
+              - replicas: 2
+              - replicas: 3
