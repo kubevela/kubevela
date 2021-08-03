@@ -96,7 +96,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	appConfig.Status = appContext.Status
+	//appConfig.Status = appContext.Status
+	appContext.Status.DeepCopyInto(&appConfig.Status)
 	// the name of the appConfig has to be the same as the appContext
 	appConfig.Name = appContext.Name
 	appConfig.UID = appContext.UID
