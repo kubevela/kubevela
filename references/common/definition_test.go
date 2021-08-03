@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	//lint:ignore SA1019 currently using fake client, wait for controller-runtime upgrade for further change
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -31,7 +30,7 @@ import (
 )
 
 func TestDefinitionBasicFunctions(t *testing.T) {
-	c := fake.NewFakeClientWithScheme(common.Scheme)
+	c := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 	def := &Definition{Unstructured: unstructured.Unstructured{}}
 	def.SetAnnotations(map[string]string{
 		DefinitionUserPrefix + "annotation": "annotation",
@@ -66,7 +65,6 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	if err = def.FromCUEString(cueString + "\nabc: {}\n"); err == nil {
 		t.Fatalf("should encounter duplicated object name error but not found error")
 	}
-	//fmt.Println("::", strings.Replace(cueString, "\"trait\"", "\"tr\"", 1))
 	if err = def.FromCUEString(strings.Replace(cueString, "\"trait\"", "\"tr\"", 1)); err == nil {
 		t.Fatalf("should encounter invalid type error but not found error")
 	}

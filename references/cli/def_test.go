@@ -31,7 +31,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	//lint:ignore SA1019 currently using fake client, wait for controller-runtime upgrade for further change
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -46,7 +45,7 @@ const (
 
 func initArgs() common2.Args {
 	return common2.Args{
-		Client: fake.NewFakeClientWithScheme(common2.Scheme),
+		Client: fake.NewClientBuilder().WithScheme(common2.Scheme).Build(),
 	}
 }
 

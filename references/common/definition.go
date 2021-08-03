@@ -22,7 +22,10 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/encoding/gocode/gocodec"
+	"cuelang.org/go/tools/fix"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -89,7 +92,7 @@ func (def *Definition) SetType(t string) error {
 }
 
 // ToCUE converts Definition to CUE value (with predefined Definition's cue format)
-func (def *Definition) ToCUE() (*cue.Value, error) {
+func (def *Definition) ToCUE() (*cue.Value, string, error) {
 	annotations := map[string]string{}
 	for key, val := range def.GetAnnotations() {
 		if strings.HasPrefix(key, DefinitionUserPrefix) {
@@ -122,49 +125,38 @@ func (def *Definition) ToCUE() (*cue.Value, error) {
 	codec := gocodec.New(r, &gocodec.Config{})
 	val, err := codec.Decode(obj)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	templateString, _, err := unstructured.NestedString(def.Object, DefinitionTemplateKeys...)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	templateString += "\ncontext: [string]: string"
-	inst, err := r.Compile("-", templateString)
+	templateString, err = formatCUEString(templateString)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	templateVal := inst.Value()
-	fields, err := templateVal.Fields()
-	if err != nil {
-		return nil, err
-	}
-	for fields.Next() {
-		if k := fields.Label(); k != "context" {
-			val = val.Fill(fields.Value(), "template", k)
-		}
-	}
-	return &val, nil
+	return &val, templateString, nil
 }
 
 // ToCUEString converts definition to CUE value and then encode to string
 func (def *Definition) ToCUEString() (string, error) {
-	val, err := def.ToCUE()
+	val, templateString, err := def.ToCUE()
 	if err != nil {
 		return "", err
 	}
-	return sets.ToString(*val)
+	s, err := sets.ToString(*val)
+	if err != nil {
+		return "", err
+	}
+	return s + fmt.Sprintf("template: {\n\t%s\n}\n", strings.ReplaceAll(templateString, "\n", "\n\t")), nil
 }
 
 // FromCUE converts CUE value (predefined Definition's cue format) to Definition
 // nolint:gocyclo
-func (def *Definition) FromCUE(val *cue.Value) error {
+func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	if def.Object == nil {
 		def.Object = map[string]interface{}{}
-	}
-	fields, err := val.Fields()
-	if err != nil {
-		return err
 	}
 	annotations := map[string]string{}
 	for k, v := range def.GetAnnotations() {
@@ -182,67 +174,61 @@ func (def *Definition) FromCUE(val *cue.Value) error {
 	if !ok {
 		spec = map[string]interface{}{}
 	}
-	templateString := ""
 	codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
 	nameFlag := false
+	fields, err := val.Fields()
+	if err != nil {
+		return err
+	}
 	for fields.Next() {
-		k := fields.Label()
+		definitionName := fields.Label()
 		v := fields.Value()
-		switch k {
-		case "template":
-			templateString, err = sets.ToString(v)
-			if err != nil {
-				return err
-			}
-		case "context":
-		default:
-			if nameFlag {
-				return fmt.Errorf("duplicated definition name found, %s and %s", def.GetName(), k)
-			}
-			nameFlag = true
-			def.SetName(k)
-			_fields, err := v.Fields()
-			if err != nil {
-				return err
-			}
-			for _fields.Next() {
-				_key := _fields.Label()
-				_value := _fields.Value()
-				switch _key {
-				case "type":
-					_type, err := _value.String()
-					if err != nil {
-						return err
-					}
-					if err = def.SetType(_type); err != nil {
-						return err
-					}
-				case "description":
-					desc, err := _value.String()
-					if err != nil {
-						return err
-					}
-					annotations[DefinitionDescriptionKey] = desc
-				case "annotations":
-					var _annotations map[string]string
-					if err := codec.Encode(_value, &_annotations); err != nil {
-						return err
-					}
-					for _k, _v := range _annotations {
-						annotations[DefinitionUserPrefix+_k] = _v
-					}
-				case "labels":
-					var _labels map[string]string
-					if err := codec.Encode(_value, &_labels); err != nil {
-						return err
-					}
-					for _k, _v := range _labels {
-						labels[DefinitionUserPrefix+_k] = _v
-					}
-				case "attributes":
-					if err := codec.Encode(_value, &spec); err != nil {
-						return err
-					}
+		if nameFlag {
+			return fmt.Errorf("duplicated definition name found, %s and %s", def.GetName(), definitionName)
+		}
+		nameFlag = true
+		def.SetName(definitionName)
+		_fields, err := v.Fields()
+		if err != nil {
+			return err
+		}
+		for _fields.Next() {
+			_key := _fields.Label()
+			_value := _fields.Value()
+			switch _key {
+			case "type":
+				_type, err := _value.String()
+				if err != nil {
+					return err
+				}
+				if err = def.SetType(_type); err != nil {
+					return err
+				}
+			case "description":
+				desc, err := _value.String()
+				if err != nil {
+					return err
+				}
+				annotations[DefinitionDescriptionKey] = desc
+			case "annotations":
+				var _annotations map[string]string
+				if err := codec.Encode(_value, &_annotations); err != nil {
+					return err
+				}
+				for _k, _v := range _annotations {
+					annotations[DefinitionUserPrefix+_k] = _v
+				}
+			case "labels":
+				var _labels map[string]string
+				if err := codec.Encode(_value, &_labels); err != nil {
+					return err
+				}
+				for _k, _v := range _labels {
+					labels[DefinitionUserPrefix+_k] = _v
+				}
+			case "attributes":
+				if err := codec.Encode(_value, &spec); err != nil {
+					return err
 				}
 			}
 		}
@@ -259,13 +245,25 @@ func (def *Definition) FromCUE(val *cue.Value) error {
 // FromCUEString converts cue string into Definition
 func (def *Definition) FromCUEString(cueString string) error {
 	r := &cue.Runtime{}
-	cueString += "\ncontext: [string]: string"
-	inst, err := r.Compile("-", cueString)
+	cueStringParts := strings.SplitN(cueString, "\ntemplate:", 2)
+	if len(cueStringParts) != 2 {
+		return fmt.Errorf("invalid cue string, should contain definition metadata and template")
+	}
+	metadataString := cueStringParts[0]
+	inst, err := r.Compile("-", metadataString)
 	if err != nil {
 		return err
 	}
+	templateString := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(cueStringParts[1]), "{"), "}")
+	templateString, err = formatCUEString(templateString)
+	if err != nil {
+		return err
+	}
+	if _, err = r.Compile("-", templateString+"\ncontext: [string]: string"); err != nil {
+		return err
+	}
 	val := inst.Value()
-	return def.FromCUE(&val)
+	return def.FromCUE(&val, templateString)
 }
 
 // ValidDefinitionTypes return the list of valid definition types
@@ -348,4 +346,17 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 		}
 	}
 	return map[string]interface{}{}
+}
+
+func formatCUEString(cueString string) (string, error) {
+	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to parse file during format cue string")
+	}
+	n := fix.File(f)
+	b, err := format.Node(n)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to format node during formating cue string")
+	}
+	return string(b), nil
 }
