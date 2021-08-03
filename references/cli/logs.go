@@ -57,7 +57,7 @@ func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 			ioStreams.Errorf("please specify app name")
 			return nil
 		}
-		env, err := GetEnv(cmd)
+		env, err := GetFlagEnvOrCurrent(cmd, c)
 		if err != nil {
 			return err
 		}

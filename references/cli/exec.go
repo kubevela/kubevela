@@ -133,7 +133,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.Cmd = c
 	o.Args = argsIn
 
-	env, err := GetEnv(o.Cmd)
+	env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
 	if err != nil {
 		return err
 	}

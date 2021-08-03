@@ -124,7 +124,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	o.Cmd = cmd
 	o.Args = argsIn
 
-	env, err := GetEnv(o.Cmd)
+	env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
 	if err != nil {
 		return err
 	}

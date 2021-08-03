@@ -49,7 +49,7 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvSetContext("env set", envName)
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
-	e2e.JsonAppFileContext("update app-basic, add scaler trait with replicas 2", appbasicAddTraitJsonAppFile)
+	e2e.JsonAppFileContext("update app-basic, add scalar trait with replicas 2", appbasicAddTraitJsonAppFile)
 	e2e.ComponentListContext("ls", applicationName, workloadType, traitAlias)
 	ApplicationStatusContext("status", applicationName, workloadType)
 	ApplicationStatusDeeplyContext("status", applicationName, workloadType, envName)
@@ -111,9 +111,9 @@ var ApplicationExecContext = func(context string, appName string) bool {
 
 var ApplicationPortForwardContext = func(context string, appName string) bool {
 	return ginkgo.Context(context, func() {
-		ginkgo.It("should get output of portward successfully", func() {
-			cli := fmt.Sprintf("vela port-forward %s 80:80 ", appName)
-			output, err := e2e.ExecAndTerminate(cli)
+		ginkgo.It("should get output of port-forward successfully", func() {
+			cli := fmt.Sprintf("vela port-forward %s 8080:8080 ", appName)
+			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Forward successfully"))
 		})
@@ -128,14 +128,6 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 				data := []struct {
 					q, a string
 				}{
-					{
-						q: "What is the domain of your application service (optional): ",
-						a: "testdomain",
-					},
-					{
-						q: "What is your email (optional, used to generate certification): ",
-						a: "test@mail",
-					},
 					{
 						q: "What would you like to name your application (required): ",
 						a: appName,

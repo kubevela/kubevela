@@ -106,7 +106,7 @@ func NewAppStatusCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 				os.Exit(1)
 			}
 			appName := args[0]
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				ioStreams.Errorf("Error: failed to get Env: %s", err)
 				return err

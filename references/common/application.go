@@ -209,9 +209,6 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, appli
 
 // DeleteApp will delete app including server side
 func (o *DeleteOptions) DeleteApp() (string, error) {
-	if err := appfile.Delete(o.Env.Name, o.AppName); err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
 	ctx := context.Background()
 	var app = new(corev1beta1.Application)
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, app)
@@ -443,9 +440,6 @@ func (o *AppfileOptions) Run(filePath, namespace string, c common.Args) error {
 
 // BaseAppFileRun starts an application according to Appfile
 func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) error {
-	if err := o.saveToAppDir(result.appFile); err != nil {
-		return errors.Wrap(err, "save to app dir failed")
-	}
 
 	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Env.Namespace, args)
 	if err != nil {
@@ -455,11 +449,6 @@ func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) e
 
 	o.IO.Infof("\nApplying application ...\n")
 	return o.ApplyApp(result.application, result.scopes)
-}
-
-func (o *AppfileOptions) saveToAppDir(f *api.AppFile) error {
-	app := &api.Application{AppFile: f}
-	return appfile.Save(app, o.Env.Name)
 }
 
 // ApplyApp applys config resources for the app.

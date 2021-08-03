@@ -91,6 +91,23 @@ func InitBaseRestConfig() (Args, error) {
 	}, nil
 }
 
+// globalClient will be a client for whole command lifecycle
+var globalClient client.Client
+
+// SetGlobalClient will set a client for one cli command
+func SetGlobalClient(clt client.Client) error {
+	globalClient = clt
+	return nil
+}
+
+// GetClient will K8s client in args
+func GetClient() (client.Client, error) {
+	if globalClient != nil {
+		return globalClient, nil
+	}
+	return nil, errors.New("client not set, call SetGlobalClient first")
+}
+
 // HTTPGet will send GET http request with context
 func HTTPGet(ctx context.Context, url string) ([]byte, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
