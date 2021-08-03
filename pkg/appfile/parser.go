@@ -107,6 +107,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		wds = append(wds, wd)
 	}
 	appfile.Workloads = wds
+	appfile.Components = app.Spec.Components
 
 	var err error
 

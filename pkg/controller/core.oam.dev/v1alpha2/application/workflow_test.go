@@ -107,7 +107,34 @@ var _ = Describe("Test Workflow", func() {
 		}, cm)).Should(BeNil())
 
 		Expect(cm.Data[ConfigMapKeyComponents]).Should(Equal(testConfigMapComponentValue))
-		Expect(cm.Data[ConfigMapKeyPolicy]).Should(Equal(testConfigMapPolicyValue))
+	})
+
+	It("should create workload in policy before workflow start", func() {
+		appWithPolicy := appWithWorkflow.DeepCopy()
+		appWithPolicy.SetName("test-app-with-policy")
+		appWithPolicy.Spec.Policies = []oamcore.AppPolicy{{
+			Name:       "test-foo-policy",
+			Type:       "foopolicy",
+			Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+		}}
+
+		Expect(k8sClient.Create(ctx, appWithPolicy)).Should(BeNil())
+
+		// first try to add finalizer
+		tryReconcile(reconciler, appWithPolicy.Name, appWithPolicy.Namespace)
+		tryReconcile(reconciler, appWithPolicy.Name, appWithPolicy.Namespace)
+
+		policyObj := &unstructured.Unstructured{}
+		policyObj.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "example.com",
+			Kind:    "Foo",
+			Version: "v1",
+		})
+
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      "test-foo-policy",
+			Namespace: appWithPolicy.Namespace,
+		}, policyObj)).Should(BeNil())
 	})
 
 	It("should execute workflow step to apply and wait", func() {
@@ -331,5 +358,4 @@ spec:
 `
 
 	testConfigMapComponentValue = `{"test-component":"{\"Scopes\":[],\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"apps/v1\\\",\\\"kind\\\":\\\"Deployment\\\",\\\"metadata\\\":{\\\"annotations\\\":{},\\\"labels\\\":{\\\"app.oam.dev/appRevision\\\":\\\"test-wf-policy-v1\\\",\\\"app.oam.dev/component\\\":\\\"test-component\\\",\\\"app.oam.dev/name\\\":\\\"test-wf-policy\\\",\\\"workload.oam.dev/type\\\":\\\"worker\\\"}},\\\"spec\\\":{\\\"selector\\\":{\\\"matchLabels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"template\\\":{\\\"metadata\\\":{\\\"labels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"command\\\":[\\\"sleep\\\",\\\"1000\\\"],\\\"image\\\":\\\"busybox\\\",\\\"name\\\":\\\"test-component\\\"}]}}}}\",\"Traits\":[]}"}`
-	testConfigMapPolicyValue    = `[{"apiVersion":"example.com/v1","kind":"Foo","metadata":{"labels":{"app.oam.dev/appRevision":"test-wf-policy-v1","app.oam.dev/component":"test-policy","app.oam.dev/name":"test-wf-policy","workload.oam.dev/type":"foopolicy"}},"spec":{"key":"test"}}]`
 )

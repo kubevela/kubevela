@@ -151,7 +151,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 
 			By("Check whether the parameter is patched")
 			mw := new(ocmapi.ManifestWork)
-			mwYaml := cm.Data[envBinding.Spec.Envs[0].Name]
+			mwYaml := cm.Data[fmt.Sprintf("%s-%s", envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)]
 			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
 			workload := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload)).Should(BeNil())
@@ -184,7 +184,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 
 			By("Check whether the parameter is patched")
 			mw := new(ocmapi.ManifestWork)
-			mwYaml := cm.Data[envBinding.Spec.Envs[0].Name]
+			mwYaml := cm.Data[fmt.Sprintf("%s-%s", envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)]
 			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
 			workload := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload)).Should(BeNil())

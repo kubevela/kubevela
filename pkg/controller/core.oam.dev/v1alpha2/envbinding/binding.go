@@ -18,6 +18,7 @@ package envbinding
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ghodss/yaml"
 	"github.com/imdario/mergo"
@@ -46,9 +47,9 @@ type EnvBindApp struct {
 	envConfig  *v1alpha1.EnvConfig
 
 	componentManifests []*types.ComponentManifest
-	assembledManifests []*unstructured.Unstructured
+	assembledManifests map[string][]*unstructured.Unstructured
 
-	ManifestWork *unstructured.Unstructured
+	ManifestWork map[string]*unstructured.Unstructured
 }
 
 // NewEnvBindApp create EnvBindApp
@@ -109,7 +110,7 @@ func (e *EnvBindApp) assemble() error {
 		return errors.New("EnvBindApp must has been rendered")
 	}
 
-	var assembledManifests []*unstructured.Unstructured
+	assembledManifests := make(map[string][]*unstructured.Unstructured, len(e.componentManifests))
 	for _, comp := range e.componentManifests {
 		resources := make([]*unstructured.Unstructured, len(comp.Traits)+1)
 		workload := comp.StandardWorkload
@@ -123,10 +124,10 @@ func (e *EnvBindApp) assemble() error {
 			e.SetNamespace(trait)
 			resources[i+1] = trait
 		}
-		assembledManifests = append(assembledManifests, resources...)
+		assembledManifests[comp.Name] = resources
 
 		if len(comp.PackagedWorkloadResources) != 0 {
-			assembledManifests = append(assembledManifests, comp.PackagedWorkloadResources...)
+			assembledManifests[comp.Name] = append(assembledManifests[comp.Name], comp.PackagedWorkloadResources...)
 		}
 	}
 	e.assembledManifests = assembledManifests
@@ -254,11 +255,13 @@ func StoreManifest2ConfigMap(ctx context.Context, cli client.Client, envBinding 
 	cm := new(corev1.ConfigMap)
 	data := make(map[string]string)
 	for _, app := range apps {
-		objYaml, err := yaml.Marshal(app.ManifestWork.UnstructuredContent())
-		if err != nil {
-			return err
+		for componentName, manifest := range app.ManifestWork {
+			objYaml, err := yaml.Marshal(manifest.UnstructuredContent())
+			if err != nil {
+				return err
+			}
+			data[fmt.Sprintf("%s-%s", app.envConfig.Name, componentName)] = string(objYaml)
 		}
-		data[app.envConfig.Name] = string(objYaml)
 	}
 	cm.Data = data
 	cm.SetName(envBinding.Name)

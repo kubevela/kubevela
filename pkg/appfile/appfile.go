@@ -192,6 +192,7 @@ type Appfile struct {
 
 	Policies      []*Workload
 	WorkflowSteps []v1beta1.WorkflowStep
+	Components    []common.ApplicationComponent
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
@@ -206,11 +207,15 @@ func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymap
 }
 
 func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
-	uns := []*unstructured.Unstructured{}
+	var uns []*unstructured.Unstructured
 	for _, wl := range workloads {
-		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace, af.Components)
 		if err != nil {
 			return nil, err
+		}
+		un.SetName(wl.Name)
+		if len(un.GetNamespace()) == 0 {
+			un.SetNamespace(af.Namespace)
 		}
 		uns = append(uns, un)
 	}
@@ -248,10 +253,10 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 	return tasks, nil
 }
 
-func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string) (*unstructured.Unstructured, error) {
-	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
-	if err != nil {
-		return nil, err
+func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent) (*unstructured.Unstructured, error) {
+	pCtx := process.NewPolicyContext(ns, wl.Name, appName, revision, components)
+	if err := wl.EvalContext(pCtx); err != nil {
+		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", appName, ns)
 	}
 	return makeWorkloadWithContext(pCtx, wl, ns, appName)
 }
