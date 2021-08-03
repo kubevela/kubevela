@@ -146,7 +146,7 @@ var _ = BeforeSuite(func(done Done) {
 	// setup the controller manager since we need the component handler to run in the background
 	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                  testScheme,
-		MetricsBindAddress:      ":8080",
+		MetricsBindAddress:      "0",
 		LeaderElection:          false,
 		LeaderElectionNamespace: "default",
 		LeaderElectionID:        "test",
