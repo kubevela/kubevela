@@ -207,7 +207,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 				return err
 			}
 			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
-				[]byte(`{"targetRevision":"express-server-v2","targetSize":7,"firstBatchReplicas":1,"secondBatchReplicas":1}`)
+				[]byte(`{"targetRevision":"express-server-v2","targetSize":4,"firstBatchReplicas":1,"secondBatchReplicas":1}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -222,7 +222,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			}
 			checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image":"stefanprodan/podinfo:4.0.3","cpu":"0.3"}`)
 			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
-				[]byte(`{"firstBatchReplicas":3,"secondBatchReplicas":4,"targetSize":7}`)
+				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -316,8 +316,8 @@ spec:
 
                  parameter: {
                      targetRevision: *context.revision|string
-                     targetSize: *5|int
-                     firstBatchReplicas: *2|int
-                     secondBatchReplicas: *3|int
+                     targetSize: *2|int
+                     firstBatchReplicas: *1|int
+                     secondBatchReplicas: *1|int
                  }`
 )

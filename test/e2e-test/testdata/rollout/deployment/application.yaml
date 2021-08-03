@@ -11,4 +11,4 @@ spec:
       traits:
         - type: rollout
           properties:
-            targetSize: 5
+            targetSize: 2
