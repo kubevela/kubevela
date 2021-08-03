@@ -18,6 +18,7 @@ package applicationconfiguration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllertest"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -45,7 +47,7 @@ func TestComponentHandler(t *testing.T) {
 	var createdRevisions = []appsv1.ControllerRevision{}
 	var instance = ComponentHandler{
 		Client: &test.MockClient{
-			MockList: test.NewMockListFn(nil, func(obj runtime.Object) error {
+			MockList: test.NewMockListFn(nil, func(obj client.ObjectList) error {
 				switch robj := obj.(type) {
 				case *v1alpha2.ApplicationConfigurationList:
 					lists := v1alpha2.ApplicationConfigurationList{
@@ -72,7 +74,7 @@ func TestComponentHandler(t *testing.T) {
 				}
 				return nil
 			}),
-			MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(obj runtime.Object) error {
+			MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(obj client.Object) error {
 				switch robj := obj.(type) {
 				case *v1alpha2.Component:
 					robj.DeepCopyInto(curComp)
@@ -85,14 +87,14 @@ func TestComponentHandler(t *testing.T) {
 				}
 				return nil
 			}),
-			MockCreate: test.NewMockCreateFn(nil, func(obj runtime.Object) error {
+			MockCreate: test.NewMockCreateFn(nil, func(obj client.Object) error {
 				cur, ok := obj.(*appsv1.ControllerRevision)
 				if ok {
 					createdRevisions = append(createdRevisions, *cur)
 				}
 				return nil
 			}),
-			MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+			MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 				switch robj := obj.(type) {
 				case *appsv1.ControllerRevision:
 					if len(createdRevisions) == 0 {
@@ -105,7 +107,7 @@ func TestComponentHandler(t *testing.T) {
 				}
 				return nil
 			}),
-			MockDelete: test.NewMockDeleteFn(nil, func(obj runtime.Object) error {
+			MockDelete: test.NewMockDeleteFn(nil, func(obj client.Object) error {
 				if robj, ok := obj.(*appsv1.ControllerRevision); ok {
 					newRevisions := []appsv1.ControllerRevision{}
 					for _, revision := range createdRevisions {
@@ -130,7 +132,6 @@ func TestComponentHandler(t *testing.T) {
 	// ============ Test Create Event Start ===================
 	evt := event.CreateEvent{
 		Object: comp,
-		Meta:   comp.GetObjectMeta(),
 	}
 	instance.Create(evt, q)
 	if q.Len() != 1 {
@@ -145,7 +146,12 @@ func TestComponentHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(revisions.Items))
 	assert.Equal(t, true, strings.HasPrefix(revisions.Items[0].Name, "comp1-"))
-	gotComp := revisions.Items[0].Data.Object.(*v1alpha2.Component)
+	var gotComp v1alpha2.Component
+	_ = json.Unmarshal(revisions.Items[0].Data.Raw, &gotComp)
+	var gotDeploy appsv1.Deployment
+	_ = json.Unmarshal(gotComp.Spec.Workload.Raw, &gotDeploy)
+	gotComp.Spec.Workload.Object = &gotDeploy
+	gotComp.Spec.Workload.Raw = nil
 	// check component's spec saved in corresponding controllerRevision
 	assert.Equal(t, comp.Spec, gotComp.Spec)
 	// check component's status saved in corresponding controllerRevision
@@ -165,9 +171,7 @@ func TestComponentHandler(t *testing.T) {
 	curComp.Status.DeepCopyInto(&comp2.Status)
 	updateEvt := event.UpdateEvent{
 		ObjectOld: comp,
-		MetaOld:   comp.GetObjectMeta(),
 		ObjectNew: comp2,
-		MetaNew:   comp2.GetObjectMeta(),
 	}
 	instance.Update(updateEvt, q)
 	if q.Len() != 1 {
@@ -185,7 +189,12 @@ func TestComponentHandler(t *testing.T) {
 	for _, v := range revisions.Items {
 		assert.Equal(t, true, strings.HasPrefix(v.Name, "comp1-"))
 		if v.Revision == 2 {
-			gotComp := v.Data.Object.(*v1alpha2.Component)
+			var gotComp v1alpha2.Component
+			_ = json.Unmarshal(v.Data.Raw, &gotComp)
+			var gotDeploy appsv1.Deployment
+			_ = json.Unmarshal(gotComp.Spec.Workload.Raw, &gotDeploy)
+			gotComp.Spec.Workload.Object = &gotDeploy
+			gotComp.Spec.Workload.Raw = nil
 			// check component's spec saved in corresponding controllerRevision
 			assert.Equal(t, comp2.Spec, gotComp.Spec)
 			// check component's status saved in corresponding controllerRevision
@@ -202,9 +211,7 @@ func TestComponentHandler(t *testing.T) {
 	curComp.Status.DeepCopyInto(&comp3.Status)
 	updateEvt = event.UpdateEvent{
 		ObjectOld: comp2,
-		MetaOld:   comp2.GetObjectMeta(),
 		ObjectNew: comp3,
-		MetaNew:   comp3.GetObjectMeta(),
 	}
 	instance.Update(updateEvt, q)
 	if q.Len() != 0 {
@@ -221,9 +228,7 @@ func TestComponentHandler(t *testing.T) {
 	curComp.Status.DeepCopyInto(&comp4.Status)
 	updateEvt = event.UpdateEvent{
 		ObjectOld: comp2,
-		MetaOld:   comp2.GetObjectMeta(),
 		ObjectNew: comp4,
-		MetaNew:   comp4.GetObjectMeta(),
 	}
 	instance.Update(updateEvt, q)
 	revisions = &appsv1.ControllerRevisionList{}

@@ -58,9 +58,10 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for WorkflowStepDefinition controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
+
 	definitionName := req.NamespacedName.Name
 	klog.InfoS("Reconciling WorkflowStepDefinition...", "Name", definitionName, "Namespace", req.Namespace)
 

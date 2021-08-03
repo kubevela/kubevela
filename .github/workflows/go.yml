@@ -67,7 +67,11 @@ jobs:
           version: ${{ env.KIND_VERSION }}
 
       - name: install Kubebuilder
-        uses: wonderflow/kubebuilder-action@v1.1
+        uses: RyanSiu1995/kubebuilder-action@v1.2
+        with:
+          version: 3.1.0
+          kubebuilderOnly: false
+          kubernetesVersion: v1.21.2
 
       - name: Run Make compatibility-test
         run: make compatibility-test

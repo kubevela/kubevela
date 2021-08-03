@@ -199,7 +199,7 @@ var _ = Describe("Test WorkloadOption", func() {
 				reason:         "An error should occur because the found workload is not managed by Helm",
 				helm:           release.DeepCopy(),
 				workloadInComp: &unstructured.Unstructured{},
-				c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 					o, _ := obj.(*unstructured.Unstructured)
 					*o = unstructured.Unstructured{}
 					o.SetLabels(map[string]string{
@@ -212,7 +212,7 @@ var _ = Describe("Test WorkloadOption", func() {
 			}),
 			Entry("DiscoverSuccessfully", SubCase{
 				reason: "No error should occur and the workload should be found",
-				c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 					o, _ := obj.(*unstructured.Unstructured)
 					*o = *wl.DeepCopy()
 					return nil

@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -102,8 +102,8 @@ var _ = Describe("Component Admission controller Test", func() {
 
 		It("Test bad admission request format", func() {
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: []byte("bad request")},
 				},
@@ -116,8 +116,8 @@ var _ = Describe("Component Admission controller Test", func() {
 			component.Spec.Workload = runtime.RawExtension{Raw: util.JSONMarshal(baseWorkload)}
 
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: util.JSONMarshal(component)},
 				},
@@ -160,7 +160,7 @@ var _ = Describe("Component Admission controller Test", func() {
 				},
 				"update gvk get failed case": {
 					client: &test.MockClient{
-						MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+						MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 							switch obj.(type) {
 							case *v1alpha2.WorkloadDefinition:
 								return fmt.Errorf("does not exist")
@@ -173,7 +173,7 @@ var _ = Describe("Component Admission controller Test", func() {
 				},
 				"update gvk and label case": {
 					client: &test.MockClient{
-						MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+						MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 							switch o := obj.(type) {
 							case *v1alpha2.WorkloadDefinition:
 								Expect(key.Name).Should(BeEquivalentTo(typeContent[TypeField]))
@@ -227,37 +227,37 @@ var _ = Describe("Component Admission controller Test", func() {
 		noKindWorkload.SetKind("")
 		tests := map[string]struct {
 			workload  interface{}
-			operation admissionv1beta1.Operation
+			operation admissionv1.Operation
 			pass      bool
 			reason    string
 		}{
 			"valid create case": {
 				workload:  validWorkload.DeepCopyObject(),
-				operation: admissionv1beta1.Create,
+				operation: admissionv1.Create,
 				pass:      true,
 				reason:    "",
 			},
 			"valid update case": {
 				workload:  validWorkload.DeepCopyObject(),
-				operation: admissionv1beta1.Update,
+				operation: admissionv1.Update,
 				pass:      true,
 				reason:    "",
 			},
 			"malformat component": {
 				workload:  "bad format",
-				operation: admissionv1beta1.Create,
+				operation: admissionv1.Create,
 				pass:      false,
 				reason:    "the workload is malformat",
 			},
 			"workload still has type": {
 				workload:  workloadWithType.DeepCopyObject(),
-				operation: admissionv1beta1.Create,
+				operation: admissionv1.Create,
 				pass:      false,
 				reason:    "the workload contains type info",
 			},
 			"no kind workload component": {
 				workload:  noKindWorkload.DeepCopyObject(),
-				operation: admissionv1beta1.Update,
+				operation: admissionv1.Update,
 				pass:      false,
 				reason:    "the workload data missing GVK",
 			},
@@ -266,7 +266,7 @@ var _ = Describe("Component Admission controller Test", func() {
 			By(fmt.Sprintf("start test : %s", testCase))
 			component.Spec.Workload = runtime.RawExtension{Raw: util.JSONMarshal(test.workload)}
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
+				AdmissionRequest: admissionv1.AdmissionRequest{
 					Operation: test.operation,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: util.JSONMarshal(component)},
@@ -280,8 +280,8 @@ var _ = Describe("Component Admission controller Test", func() {
 		}
 		By("Test bad admission request format")
 		req := admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  reqResource,
 				Object:    runtime.RawExtension{Raw: []byte("bad request")},
 			},

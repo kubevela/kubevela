@@ -58,9 +58,11 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for TraitDefinition controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
+
 	klog.InfoS("Reconcile traitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 
 	var traitdefinition v1beta1.TraitDefinition

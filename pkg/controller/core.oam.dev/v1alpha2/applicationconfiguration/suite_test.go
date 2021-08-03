@@ -42,7 +42,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
@@ -55,7 +54,7 @@ import (
 
 var reconciler *OAMApplicationReconciler
 var componentHandler *ComponentHandler
-var mgrclose chan struct{}
+var controllerDone context.CancelFunc
 var testEnv *envtest.Environment
 var cfg *rest.Config
 var k8sClient client.Client
@@ -71,7 +70,6 @@ func TestReconcilerSuit(t *testing.T) {
 }
 
 var _ = BeforeSuite(func(done Done) {
-	ctx := context.Background()
 	By("Bootstrapping test environment")
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
@@ -83,6 +81,8 @@ var _ = BeforeSuite(func(done Done) {
 	acCRD := "../../../../../charts/oam-runtime/crds/core.oam.dev_applicationconfigurations.yaml"
 	logf.Log.Info("start applicationconfiguration suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
 			compCRD,
@@ -120,8 +120,9 @@ var _ = BeforeSuite(func(done Done) {
 	By("Creating Reconciler for appconfig")
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme, MetricsBindAddress: "0"})
 	Expect(err).Should(BeNil())
-	mgrclose = make(chan struct{})
-	go mgr.Start(mgrclose)
+	var ctx context.Context
+	ctx, controllerDone = context.WithCancel(context.Background())
+	go mgr.Start(ctx)
 
 	// Create a crd for appconfig dependency test
 	crd = crdv1.CustomResourceDefinition{
@@ -243,21 +244,7 @@ var _ = AfterSuite(func() {
 	By("Deleted the custom resource definition")
 
 	By("Tearing down the test environment")
+	controllerDone()
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
-	close(mgrclose)
 })
-
-func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
-	Eventually(func() error {
-		_, err := r.Reconcile(req)
-		return err
-	}, 3*time.Second, time.Second).Should(BeNil())
-}
-
-func reconcileRetryAndExpectErr(r reconcile.Reconciler, req reconcile.Request) {
-	Eventually(func() error {
-		_, err := r.Reconcile(req)
-		return err
-	}, 3*time.Second, time.Second).ShouldNot(BeNil())
-}

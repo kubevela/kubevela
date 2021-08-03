@@ -27,7 +27,6 @@ import (
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -220,7 +219,7 @@ func TestRefObj(t *testing.T) {
 func TestContext(t *testing.T) {
 	var wfCm *corev1.ConfigMap
 	cli := &test.MockClient{
-		MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 			o, ok := obj.(*corev1.ConfigMap)
 			if ok {
 				switch key.Name {
@@ -241,14 +240,14 @@ func TestContext(t *testing.T) {
 			}
 			return kerrors.NewNotFound(corev1.Resource("configMap"), key.Name)
 		},
-		MockCreate: func(ctx context.Context, obj runtime.Object, opts ...client.CreateOption) error {
+		MockCreate: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 			o, ok := obj.(*corev1.ConfigMap)
 			if ok {
 				wfCm = o
 			}
 			return nil
 		},
-		MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+		MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 			o, ok := obj.(*corev1.ConfigMap)
 			if ok {
 				if wfCm == nil {

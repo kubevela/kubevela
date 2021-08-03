@@ -27,8 +27,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -45,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
@@ -147,7 +146,7 @@ const (
 
 // A ConditionedObject is an Object type with condition field
 type ConditionedObject interface {
-	oam.Object
+	client.Object
 
 	oam.Conditioned
 }
@@ -314,7 +313,7 @@ func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
 }
 
 // GetDefinition get definition from two level namespace
-func GetDefinition(ctx context.Context, cli client.Reader, definition runtime.Object, definitionName string) error {
+func GetDefinition(ctx context.Context, cli client.Reader, definition client.Object, definitionName string) error {
 	if dns := os.Getenv(DefinitionNamespaceEnv); dns != "" {
 		if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: dns}, definition); err == nil {
 			return nil
@@ -344,7 +343,7 @@ func GetDefinition(ctx context.Context, cli client.Reader, definition runtime.Ob
 }
 
 // GetCapabilityDefinition can get different versions of ComponentDefinition/TraitDefinition
-func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition runtime.Object,
+func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition client.Object,
 	definitionName string) error {
 	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName)
 	if err != nil {
@@ -458,7 +457,7 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	if len(condition) == 0 {
 		return nil
 	}
-	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
+	workloadPatch := client.MergeFrom(workload.DeepCopyObject().(client.Object))
 	conditionIsChanged := IsConditionChanged(condition, workload)
 	workload.SetConditions(condition...)
 	if err := r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID())); err != nil {
@@ -494,7 +493,7 @@ func IsConditionChanged(newCondition []condition.Condition, workload Conditioned
 // It should only accept positive condition which means no need to requeue the resource.
 func EndReconcileWithPositiveCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
 	condition ...condition.Condition) error {
-	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
+	workloadPatch := client.MergeFrom(workload.DeepCopyObject().(client.Object))
 	workload.SetConditions(condition...)
 	return errors.Wrap(
 		r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID())),

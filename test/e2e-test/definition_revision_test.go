@@ -258,7 +258,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 
 		By("Wait for dispatching v2 resources successfully")
 		Eventually(func() error {
-			requestReconcileNow(ctx, &app)
+			RequestReconcileNow(ctx, &app)
 			rt := &v1beta1.ResourceTracker{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v2-%s", appName, namespace)}, rt); err != nil {
 				return err

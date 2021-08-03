@@ -659,7 +659,7 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 		appRev := dispatch.ExtractAppRevisionName(rt.Name, ns)
 		usingRevision[appRev] = true
 	}
-	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r, h.app.Namespace, h.app.Name)
+	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
 	if err != nil {
 		return usingRevision, err
 	}

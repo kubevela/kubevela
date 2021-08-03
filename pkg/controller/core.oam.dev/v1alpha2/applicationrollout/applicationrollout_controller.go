@@ -66,9 +66,10 @@ type Reconciler struct {
 
 // Reconcile is the main logic of appRollout controller
 // nolint:gocyclo
-func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res reconcile.Result, retErr error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
+
 	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
 	var appRollout v1beta1.AppRollout
 
@@ -208,7 +209,7 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 	}
 
 	// reconcile the rollout part of the spec given the target and source workload
-	rolloutPlanController := rollout.NewRolloutPlanController(r, appRollout, r.record,
+	rolloutPlanController := rollout.NewRolloutPlanController(r.Client, appRollout, r.record,
 		&appRollout.Spec.RolloutPlan, &appRollout.Status.RolloutStatus, targetWorkload, sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back

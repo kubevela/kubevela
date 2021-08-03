@@ -316,7 +316,7 @@ var _ = Describe("HealthScope", func() {
 		By("Verify health scope")
 		Eventually(
 			func() v1alpha2.ScopeHealthCondition {
-				requestReconcileNow(ctx, &appConfig)
+				RequestReconcileNow(ctx, &appConfig)
 				*healthScope = v1alpha2.HealthScope{}
 				k8sClient.Get(ctx, healthScopeObject, healthScope)
 				logf.Log.Info("Checking on health scope",

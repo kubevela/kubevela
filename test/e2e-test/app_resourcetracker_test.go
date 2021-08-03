@@ -248,7 +248,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 
 		By("Verify cluster-scoped trait is deleted")
 		Eventually(func() error {
-			requestReconcileNow(ctx, app)
+			RequestReconcileNow(ctx, app)
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
 		}, 20*time.Second, 2*time.Second).Should(SatisfyAll(&util.NotFoundMatcher{}))
 	})

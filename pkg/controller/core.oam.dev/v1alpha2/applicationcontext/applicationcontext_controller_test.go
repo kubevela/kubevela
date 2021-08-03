@@ -31,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	core_oam_dev "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -41,7 +42,7 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 		Context("appContext not found", func() {
 			By("reconciling")
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: "not-existed-appContext", Namespace: "ns1"}}
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 		})
 
 		Context("appContext rollingStatus is completed", func() {
@@ -67,12 +68,12 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 				req = reconcile.Request{NamespacedName: client.ObjectKey{Name: appContextName, Namespace: ns}}
 			)
 			Expect(k8sClient.Create(ctx, &appContext)).Should(Succeed())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("check the ApplicationContext")
 			var got v1alpha2.ApplicationContext
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appContextName}, &got)).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("create an component")
 			workload := v1.Deployment{
@@ -154,7 +155,7 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, &appRevision)).Should(Succeed())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 		})
 	})
 

@@ -17,6 +17,7 @@ limitations under the License.
 package appdeployment
 
 import (
+	"context"
 	"math/rand"
 	"path/filepath"
 	"testing"
@@ -46,7 +47,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var reconciler *Reconciler
-var stop = make(chan struct{})
+var controllerDone context.CancelFunc
 var ctlManager ctrl.Manager
 
 func TestAPIs(t *testing.T) {
@@ -75,7 +76,9 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("start application suit test")
 
 	testEnv = &envtest.Environment{
-		UseExistingCluster: pointer.BoolPtr(false),
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts", "vela-core", "crds"),
 			"testdata/istio",
@@ -107,17 +110,19 @@ var _ = BeforeSuite(func(done Done) {
 	// definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	// Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
 
+	var ctx context.Context
+	ctx, controllerDone = context.WithCancel(context.Background())
 	// start the controller in the background so that new componentRevisions are created
 	go func() {
-		err = ctlManager.Start(stop)
+		err = ctlManager.Start(ctx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
 	close(done)
-}, 60)
+}, 120)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
+	controllerDone()
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
-	close(stop)
 })

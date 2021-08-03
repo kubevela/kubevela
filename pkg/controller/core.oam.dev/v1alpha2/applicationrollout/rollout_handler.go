@@ -197,7 +197,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	}
 
 	// use source resourceTracker to handle same resource owner transfer
-	dispatcher := dispatch.NewAppManifestsDispatcher(h, h.targetAppRevision).StartAndSkipGC(rt)
+	dispatcher := dispatch.NewAppManifestsDispatcher(h.Client, h.targetAppRevision).StartAndSkipGC(rt)
 	_, err := dispatcher.Dispatch(ctx, h.targetManifests)
 	if err != nil {
 		klog.Errorf("dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
@@ -323,7 +323,7 @@ func (h *rolloutHandler) assembleManifest(ctx context.Context) error {
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision).
 		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
-		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).WithWorkloadOption(HandleReplicas(ctx, h.needRollComponent, h))
+		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).WithWorkloadOption(HandleReplicas(ctx, h.needRollComponent, h.Client))
 
 	// in template phase, we should use targetManifests including target workloads/traits to
 	h.targetManifests, err = targetAssemble.AssembledManifests()

@@ -70,10 +70,10 @@ func TestAPIApplicator(t *testing.T) {
 		Kind:    "Deployment",
 	})
 	type args struct {
-		existing   runtime.Object
+		existing   client.Object
 		creatorErr error
 		patcherErr error
-		desired    runtime.Object
+		desired    client.Object
 		ao         []ApplyOption
 	}
 
@@ -137,10 +137,10 @@ func TestAPIApplicator(t *testing.T) {
 	for caseName, tc := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			a := &APIApplicator{
-				creator: creatorFn(func(_ context.Context, _ client.Client, _ runtime.Object, _ ...ApplyOption) (runtime.Object, error) {
+				creator: creatorFn(func(_ context.Context, _ client.Client, _ client.Object, _ ...ApplyOption) (client.Object, error) {
 					return tc.args.existing, tc.args.creatorErr
 				}),
-				patcher: patcherFn(func(c, m runtime.Object) (client.Patch, error) {
+				patcher: patcherFn(func(c, m client.Object) (client.Patch, error) {
 					return nil, tc.args.patcherErr
 				}),
 				c: tc.c,
@@ -157,11 +157,11 @@ func TestCreator(t *testing.T) {
 	desired := &unstructured.Unstructured{}
 	desired.SetName("desired")
 	type args struct {
-		desired runtime.Object
+		desired client.Object
 		ao      []ApplyOption
 	}
 	type want struct {
-		existing runtime.Object
+		existing client.Object
 		err      error
 	}
 
@@ -171,16 +171,6 @@ func TestCreator(t *testing.T) {
 		args   args
 		want   want
 	}{
-		"NotAMetadataObject": {
-			reason: "An error should be returned if cannot access metadata of the desired object",
-			args: args{
-				desired: &testNoMetaObject{},
-			},
-			want: want{
-				existing: nil,
-				err:      errors.New("cannot access object metadata"),
-			},
-		},
 		"CannotCreateObjectWithoutName": {
 			reason: "An error should be returned if cannot create the object",
 			args: args{
@@ -287,7 +277,7 @@ func TestCreator(t *testing.T) {
 		"GetExistingSuccessfully": {
 			reason: "Existing object and no error should be returned",
 			c: &test.MockClient{
-				MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
 					o, _ := obj.(*unstructured.Unstructured)
 					*o = *desired
 					return nil

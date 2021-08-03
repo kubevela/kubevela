@@ -92,10 +92,7 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err := val.UnmarshalTo(obj); err != nil {
 		return err
 	}
-	key, err := client.ObjectKeyFromObject(obj)
-	if err != nil {
-		return err
-	}
+	key := client.ObjectKeyFromObject(obj)
 	if key.Namespace == "" {
 		key.Namespace = "default"
 	}

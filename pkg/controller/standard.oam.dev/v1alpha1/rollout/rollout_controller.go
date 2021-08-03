@@ -56,11 +56,11 @@ type reconciler struct {
 	concurrentReconciles int
 }
 
-func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
-	rollout := new(v1alpha1.Rollout)
 
+	rollout := new(v1alpha1.Rollout)
 	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
 	if err := r.Get(ctx, req.NamespacedName, rollout); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -132,7 +132,7 @@ func (r *reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	default:
 		// we should do nothing
 	}
-	rolloutPlanController := rolloutplan.NewRolloutPlanController(r, rollout, r.record, &rollout.Spec.RolloutPlan,
+	rolloutPlanController := rolloutplan.NewRolloutPlanController(r.Client, rollout, r.record, &rollout.Spec.RolloutPlan,
 		&rollout.Status.RolloutStatus, h.targetWorkload, h.sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	rollout.Status.RolloutStatus = *rolloutStatus

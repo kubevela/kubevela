@@ -320,10 +320,10 @@ func RemoveCapability(userNamespace string, c common.Args, client client.Client,
 	return errors.New(capabilityName + " not exist")
 }
 
-func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.IOStreams) error {
+func uninstallCap(cli client.Client, cap types.Capability, ioStreams cmdutil.IOStreams) error {
 	// 1. Remove WorkloadDefinition or TraitDefinition
 	ctx := context.Background()
-	var obj runtime.Object
+	var obj client.Object
 	switch cap.Type {
 	case types.TypeTrait:
 		obj = &v1beta1.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
@@ -336,7 +336,7 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	default:
 		return fmt.Errorf("unsupported type: %v", cap.Type)
 	}
-	if err := client.Delete(ctx, obj); err != nil {
+	if err := cli.Delete(ctx, obj); err != nil {
 		return err
 	}
 

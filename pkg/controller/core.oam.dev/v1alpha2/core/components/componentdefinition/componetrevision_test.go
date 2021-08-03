@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -61,7 +63,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test")
 			By("create componentDefinition")
 			Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAll(BeNil()))
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("check whether DefinitionRevision is created")
 			cdRevName := fmt.Sprintf("%s-v1", cdName)
@@ -80,7 +82,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			cd1.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test-v1")
 			By("create componentDefinition")
 			Expect(k8sClient.Create(ctx, cd1)).Should(SatisfyAll(BeNil()))
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("check whether definitionRevision is created")
 			cdRevName1 := fmt.Sprintf("%s-v1", cdName)
@@ -100,7 +102,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				return k8sClient.Update(ctx, cd)
 			}, 10*time.Second, time.Second).Should(BeNil())
 
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("check whether a new definitionRevision is created")
 			cdRevName2 := fmt.Sprintf("%s-v2", cdName)
@@ -136,7 +138,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			req := reconcile.Request{NamespacedName: defKey}
 			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test")
 			Expect(k8sClient.Create(ctx, cd)).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("Check revision create by ComponentDefinition")
 			defRevName := fmt.Sprintf("%s-v1", cdName)
@@ -158,7 +160,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				})
 				return k8sClient.Update(ctx, &checkRev)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			newDefRevName := fmt.Sprintf("%s-v2", cdName)
 			newRevKey := client.ObjectKey{Namespace: namespace, Name: newDefRevName}
@@ -193,7 +195,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 					checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 					return k8sClient.Update(ctx, checkComp)
 				}, 10*time.Second, time.Second).Should(BeNil())
-				reconcileRetry(&r, req)
+				testutil.ReconcileRetry(&r, req)
 
 				revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
 				revisionNum++
@@ -212,7 +214,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
 			revisionNum++
@@ -253,7 +255,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
 			Eventually(func() error {

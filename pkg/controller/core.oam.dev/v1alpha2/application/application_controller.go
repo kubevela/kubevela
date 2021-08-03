@@ -79,9 +79,10 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
 // Reconcile process app event
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
+
 	klog.InfoS("Reconcile application", "application", klog.KRef(req.Namespace, req.Name))
 
 	app := new(v1beta1.Application)

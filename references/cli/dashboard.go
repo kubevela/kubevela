@@ -172,7 +172,7 @@ func SetupAPIServer(c common.Args, cmd *cobra.Command, o Options) error {
 	}
 	ctrl.SetLogger(zap.New(func(zo *zap.Options) {
 		zo.Development = o.development
-		zo.DestWritter = w
+		zo.DestWriter = w
 	}))
 
 	var err error

@@ -70,11 +70,11 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=clusters/status,verbs=get;update;patch
 
 // Reconcile is the main logic of appDeployment controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res reconcile.Result, retErr error) {
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
-	appDeployment := &oamcore.AppDeployment{}
 
+	appDeployment := &oamcore.AppDeployment{}
 	startTime := time.Now()
 	defer func() {
 		if retErr == nil {

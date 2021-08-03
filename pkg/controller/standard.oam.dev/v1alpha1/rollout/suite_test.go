@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -64,6 +65,8 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	logf.Log.Info("start application deployment suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 		CRDDirectoryPaths: []string{
 			yamlPath, // this has all the required CRDs,
 			filepath.Join("..", "config", "crd", "bases")},
@@ -87,7 +90,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient).ToNot(BeNil())
 
 	close(done)
-}, 60)
+}, 120)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

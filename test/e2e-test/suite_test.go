@@ -314,11 +314,11 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
 })
 
-// requestReconcileNow will trigger an immediate reconciliation on K8s object.
+// RequestReconcileNow will trigger an immediate reconciliation on K8s object.
 // Some test cases may fail for timeout to wait a scheduled reconciliation.
 // This is a workaround to avoid long-time wait before next scheduled
 // reconciliation.
-func requestReconcileNow(ctx context.Context, o runtime.Object) {
+func RequestReconcileNow(ctx context.Context, o client.Object) {
 	oCopy := o.DeepCopyObject()
 	oMeta, ok := oCopy.(metav1.Object)
 	Expect(ok).Should(BeTrue())
@@ -327,7 +327,7 @@ func requestReconcileNow(ctx context.Context, o runtime.Object) {
 	})
 	oMeta.SetResourceVersion("")
 	By(fmt.Sprintf("Requset reconcile %q now", oMeta.GetName()))
-	Expect(k8sClient.Patch(ctx, oCopy, client.Merge)).Should(Succeed())
+	Expect(k8sClient.Patch(ctx, oCopy.(client.Object), client.Merge)).Should(Succeed())
 }
 
 // randomNamespaceName generates a random name based on the basic name.

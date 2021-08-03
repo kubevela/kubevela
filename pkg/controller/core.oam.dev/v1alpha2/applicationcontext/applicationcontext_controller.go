@@ -17,6 +17,7 @@ limitations under the License.
 package applicationcontext
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -59,8 +60,9 @@ type Reconciler struct {
 }
 
 // Reconcile reconcile an application context
-func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
 	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
 	// fetch the app context

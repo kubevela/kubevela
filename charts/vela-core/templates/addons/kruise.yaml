@@ -5,7 +5,8 @@ data:
     kind: Initializer
     metadata:
       annotations:
-        addons.oam.dev/description: Kruise is a Kubernetes extended suite for application automations
+        addons.oam.dev/description: Kruise is a Kubernetes extended suite for application
+          automations
       name: kruise
       namespace: vela-system
     spec:
@@ -38,7 +39,8 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
-    addons.oam.dev/description: Kruise is a Kubernetes extended suite for application automations
+    addons.oam.dev/description: Kruise is a Kubernetes extended suite for application
+      automations
   labels:
     addons.oam.dev/type: kruise
   name: kruise

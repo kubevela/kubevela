@@ -40,7 +40,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = development
-		o.DestWritter = w
+		o.DestWriter = w
 	}))
 
 	c, err := common.InitBaseRestConfig()

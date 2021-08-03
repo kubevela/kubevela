@@ -38,17 +38,18 @@ var _ = Describe("Test Capability", func() {
 		ns        corev1.Namespace
 	)
 
+	BeforeEach(func() {
+		ns = corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+			},
+		}
+		By("Create a namespace")
+		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+	})
+
 	Context("When the definition is ComponentDefinition", func() {
 		var componentDefinitionName = "web1"
-		BeforeEach(func() {
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			By("Create a namespace")
-			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
 
 		It("Test CapabilityComponentDefinition", func() {
 			By("Apply ComponentDefinition")
@@ -119,16 +120,6 @@ spec:
 	Context("When the definition is TraitDefinition", func() {
 		var traitDefinitionName = "scaler1"
 
-		BeforeEach(func() {
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			By("Create a namespace")
-			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
-
 		It("Test CapabilityTraitDefinition", func() {
 			By("Apply TraitDefinition")
 			var validTraitDefinition = `
@@ -177,15 +168,6 @@ spec:
 	})
 
 	Context("When the definition is CapabilityBaseDefinition", func() {
-		BeforeEach(func() {
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			By("Create a namespace")
-			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
 
 		It("Test CapabilityTraitDefinition", func() {
 			By("Test CreateOrUpdateConfigMap")

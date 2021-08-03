@@ -64,8 +64,8 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
 var reconciler *Reconciler
-var stop = make(chan struct{})
-var ctlManager ctrl.Manager
+var controllerDone context.CancelFunc
+var mgr ctrl.Manager
 var appRevisionLimit = 5
 
 // TODO: create a mock client and add UT to cover all the failure cases
@@ -82,7 +82,7 @@ type NoOpReconciler struct {
 	Log logr.Logger
 }
 
-func (r *NoOpReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *NoOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log.Info("received a request", "object name", req.Name)
 	return ctrl.Result{}, nil
 }
@@ -99,8 +99,10 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	logf.Log.Info("start application suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
-		UseExistingCluster: pointer.BoolPtr(false),
-		CRDDirectoryPaths:  []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
+		CRDDirectoryPaths:        []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
 	}
 
 	var err error
@@ -142,7 +144,7 @@ var _ = BeforeSuite(func(done Done) {
 		applicator:       apply.NewAPIApplicator(k8sClient),
 	}
 	// setup the controller manager since we need the component handler to run in the background
-	ctlManager, err = ctrl.NewManager(cfg, ctrl.Options{
+	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                  testScheme,
 		MetricsBindAddress:      ":8080",
 		LeaderElection:          false,
@@ -152,19 +154,22 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
+
+	var ctx context.Context
+	ctx, controllerDone = context.WithCancel(context.Background())
 	// start the controller in the background so that new componentRevisions are created
 	go func() {
-		err = ctlManager.Start(stop)
+		err = mgr.Start(ctx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
 	close(done)
-}, 60)
+}, 120)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
+	controllerDone()
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
-	close(stop)
 })
 
 type FakeRecorder struct {

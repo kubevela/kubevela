@@ -23,8 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -32,6 +30,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -55,6 +54,44 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var scheme = runtime.NewScheme()
 var pd *packages.PackageDiscover
+
+func TestProvider(t *testing.T) {
+	RegisterFailHandler(Fail)
+
+	RunSpecsWithDefaultAndCustomReporters(t,
+		"Test Definition Suite",
+		[]Reporter{printer.NewlineReporter{}})
+}
+
+var _ = BeforeSuite(func(done Done) {
+	By("Bootstrapping test environment")
+	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
+	}
+	var err error
+	cfg, err = testEnv.Start()
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cfg).ToNot(BeNil())
+	Expect(clientgoscheme.AddToScheme(scheme)).Should(BeNil())
+	Expect(crdv1.AddToScheme(scheme)).Should(BeNil())
+	// +kubebuilder:scaffold:scheme
+	By("Create the k8s client")
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(k8sClient).ToNot(BeNil())
+	pd, err = packages.NewPackageDiscover(cfg)
+	Expect(err).ToNot(HaveOccurred())
+
+	close(done)
+}, 120)
+
+var _ = AfterSuite(func() {
+	By("Tearing down the test environment")
+	err := testEnv.Stop()
+	Expect(err).ToNot(HaveOccurred())
+})
 
 var _ = Describe("Test Workflow Provider Kube", func() {
 	It("apply and read", func() {
@@ -118,7 +155,8 @@ metadata: name: "app"
 		Expect(err).ToNot(HaveOccurred())
 		err = ev.UnmarshalTo(expected)
 		Expect(err).ToNot(HaveOccurred())
-
+		rv.SetManagedFields(nil)
+		rv.SetResourceVersion("")
 		Expect(cmp.Diff(rv, expected)).Should(BeEquivalentTo(""))
 	})
 	It("patch & apply", func() {
@@ -269,8 +307,6 @@ metadata: {
 		app: "nginx"
 	}
 	namespace:         "default"
-	resourceVersion:   "44"
-	selfLink:          "/api/v1/namespaces/default/pods/app"
 }
 spec: {
 	containers: [{
@@ -291,6 +327,7 @@ spec: {
 	}]
 	dnsPolicy:          "ClusterFirst"
 	enableServiceLinks: true
+	preemptionPolicy:  "PreemptLowerPriority"
 	priority:           0
 	restartPolicy:      "Always"
 	schedulerName:      "default-scheduler"
@@ -309,39 +346,3 @@ spec: {
 	}]
 }`
 )
-
-func TestProvider(t *testing.T) {
-	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Test Definition Suite",
-		[]Reporter{printer.NewlineReporter{}})
-}
-
-var _ = BeforeSuite(func(done Done) {
-	By("Bootstrapping test environment")
-	testEnv = &envtest.Environment{
-		UseExistingCluster: pointer.BoolPtr(false),
-	}
-	var err error
-	cfg, err = testEnv.Start()
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
-	Expect(clientgoscheme.AddToScheme(scheme)).Should(BeNil())
-	Expect(crdv1.AddToScheme(scheme)).Should(BeNil())
-	// +kubebuilder:scaffold:scheme
-	By("Create the k8s client")
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
-	pd, err = packages.NewPackageDiscover(cfg)
-	Expect(err).ToNot(HaveOccurred())
-
-	close(done)
-}, 60)
-
-var _ = AfterSuite(func() {
-	By("Tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
-})

@@ -22,7 +22,7 @@ import (
 	"net/http"
 
 	"github.com/pkg/errors"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -77,7 +77,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", traitDefGVR))
 	}
 
-	if req.Operation == admissionv1beta1.Create || req.Operation == admissionv1beta1.Update {
+	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
 		err := h.Decoder.Decode(req, obj)
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)

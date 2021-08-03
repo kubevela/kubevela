@@ -48,7 +48,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = true
-		o.DestWritter = os.Stdout
+		o.DestWriter = os.Stdout
 	}))
 	By("Setup scheme")
 	err := core.AddToScheme(scheme)

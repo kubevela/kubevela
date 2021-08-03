@@ -25,8 +25,8 @@ import (
 	apps "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -62,7 +62,7 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 		{
 			caseName: "healthy workload",
 			wlRef:    scRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*unstructured.Unstructured); ok {
 					*o = scUnstructured
 					return nil
@@ -86,7 +86,7 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    scRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*unstructured.Unstructured); ok {
 					*o = scUnstructured
 					return nil
@@ -110,7 +110,7 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for PodSpecWorkload not found",
 			wlRef:    scRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -120,7 +120,7 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not found",
 			wlRef:    scRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				if o, ok := obj.(*unstructured.Unstructured); ok {
 					*o = scUnstructured
 					return nil

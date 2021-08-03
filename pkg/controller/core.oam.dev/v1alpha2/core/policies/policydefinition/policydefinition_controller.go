@@ -58,12 +58,13 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for PolicyDefinition controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
+
 	definitionName := req.NamespacedName.Name
 	klog.InfoS("Reconciling PolicyDefinition...", "Name", definitionName, "Namespace", req.Namespace)
-
 	var policydefinition v1beta1.PolicyDefinition
 	if err := r.Get(ctx, req.NamespacedName, &policydefinition); err != nil {
 		if apierrors.IsNotFound(err) {

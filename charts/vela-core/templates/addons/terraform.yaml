@@ -5,7 +5,8 @@ data:
     kind: Initializer
     metadata:
       annotations:
-        addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
+        addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for
+          Terraform.
       name: terraform
       namespace: vela-system
     spec:
@@ -44,7 +45,8 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
-    addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for Terraform.
+    addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for
+      Terraform.
   labels:
     addons.oam.dev/type: terraform
   name: terraform

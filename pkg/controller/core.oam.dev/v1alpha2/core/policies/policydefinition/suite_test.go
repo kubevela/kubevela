@@ -18,6 +18,7 @@
 package policydefinition
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var controllerDone chan struct{}
+var controllerDone context.CancelFunc
 var r Reconciler
 var defRevisionLimit = 5
 
@@ -54,6 +55,8 @@ var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	useExistCluster := false
 	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 		},
@@ -95,10 +98,11 @@ var _ = BeforeSuite(func(done Done) {
 		defRevLimit: defRevisionLimit,
 	}
 	Expect(r.SetupWithManager(mgr)).ToNot(HaveOccurred())
-	controllerDone = make(chan struct{}, 1)
+	var ctx context.Context
+	ctx, controllerDone = context.WithCancel(context.Background())
 	go func() {
 		defer GinkgoRecover()
-		Expect(mgr.Start(controllerDone)).ToNot(HaveOccurred())
+		Expect(mgr.Start(ctx)).ToNot(HaveOccurred())
 	}()
 
 	close(done)
@@ -106,16 +110,16 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = AfterSuite(func() {
 	By("Stop the controller")
-	close(controllerDone)
+	controllerDone()
 
 	By("Tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
 
-func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
+func ReconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 	Eventually(func() error {
-		_, err := r.Reconcile(req)
+		_, err := r.Reconcile(context.TODO(), req)
 		return err
 	}, 15*time.Second, time.Second).Should(BeNil())
 }

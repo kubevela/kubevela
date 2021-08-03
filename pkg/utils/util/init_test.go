@@ -27,8 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	//lint:ignore SA1019 We will use pkg/envtest before upgrading controller-runtime to v1.0.0
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -42,7 +40,7 @@ func initScheme() *runtime.Scheme {
 
 func TestDoesNamespaceExist(t *testing.T) {
 	scheme := initScheme()
-	fakeClient := fake.NewFakeClientWithScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 	//test exist namespace
 	mockNamespaceName := "test-ns"
 	mockNamespaceObject := &corev1.Namespace{
@@ -64,7 +62,7 @@ func TestDoesNamespaceExist(t *testing.T) {
 
 func TestDoesCRDExist(t *testing.T) {
 	scheme := initScheme()
-	fakeClient := fake.NewFakeClientWithScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 	//test crd exist
 	mockCRD := &apiextensions.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{

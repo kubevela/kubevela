@@ -22,8 +22,7 @@ import (
 	"strconv"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/stretchr/testify/assert"
@@ -39,30 +38,24 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("utils", func() {
-	Context("GetEnabledCapabilities", func() {
-		It("disable all", func() {
-			disableCaps := "all"
-			err := CheckDisabledCapabilities(disableCaps)
-			Expect(err).NotTo(HaveOccurred())
-		})
-		It("disable none", func() {
-			disableCaps := ""
-			err := CheckDisabledCapabilities(disableCaps)
-			Expect(err).NotTo(HaveOccurred())
-		})
-		It("disable some capabilities", func() {
-			disableCaps := "manualscaler,healthscope"
-			err := CheckDisabledCapabilities(disableCaps)
-			Expect(err).NotTo(HaveOccurred())
-		})
-		It("disable some bad capabilities", func() {
-			disableCaps := "abc,def"
-			err := CheckDisabledCapabilities(disableCaps)
-			Expect(err).To(HaveOccurred())
-		})
-	})
-})
+func TestCheckDisabledCapabilities(t *testing.T) {
+	disableCaps := "all"
+	err := CheckDisabledCapabilities(disableCaps)
+	assert.NoError(t, err)
+
+	disableCaps = ""
+	err = CheckDisabledCapabilities(disableCaps)
+	assert.NoError(t, err)
+
+	disableCaps = "manualscaler,healthscope"
+	err = CheckDisabledCapabilities(disableCaps)
+	assert.NoError(t, err)
+
+	disableCaps = "abc,def"
+	err = CheckDisabledCapabilities(disableCaps)
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "abc in disable caps list is not built-in")
+}
 
 func TestConstructExtract(t *testing.T) {
 	tests := []string{"tam1", "test-comp", "xx", "tt-x-x-c"}
@@ -164,7 +157,7 @@ func TestCompareWithRevision(t *testing.T) {
 		expectedErr    error
 	}{
 		"compare object": {
-			getFunc: func(obj runtime.Object) error {
+			getFunc: func(obj client.Object) error {
 				o, ok := obj.(*v12.ControllerRevision)
 				if !ok {
 					t.Errorf("the object %+v is not of type controller revision", o)

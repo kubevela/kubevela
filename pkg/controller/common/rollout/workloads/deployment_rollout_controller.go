@@ -106,7 +106,6 @@ func (c *DeploymentRolloutController) VerifySpec(ctx context.Context) (bool, err
 	if verifyErr = c.verifyRolloutBatchReplicaValue(targetTotalReplicas); verifyErr != nil {
 		return false, verifyErr
 	}
-
 	if !c.sourceDeploy.Spec.Paused && getDeploymentReplicas(&c.sourceDeploy) != c.sourceDeploy.Status.Replicas {
 		return false, fmt.Errorf("the source deployment %s is still being reconciled, need to be paused or stable",
 			c.sourceDeploy.GetName())

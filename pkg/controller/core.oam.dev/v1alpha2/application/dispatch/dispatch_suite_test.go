@@ -64,8 +64,10 @@ var _ = BeforeSuite(func(done Done) {
 		yamlPath = filepath.Join("../../../../../..", "charts", "vela-core", "crds")
 	}
 	testEnv = &envtest.Environment{
-		UseExistingCluster: pointer.BoolPtr(false),
-		CRDDirectoryPaths:  []string{yamlPath},
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		UseExistingCluster:       pointer.BoolPtr(false),
+		CRDDirectoryPaths:        []string{yamlPath},
 	}
 
 	cfg, err := testEnv.Start()
@@ -82,7 +84,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 	close(done)
-}, 30)
+}, 60)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

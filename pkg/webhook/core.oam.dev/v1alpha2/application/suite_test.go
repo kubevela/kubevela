@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -77,7 +78,9 @@ var _ = BeforeSuite(func(done Done) {
 		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
 	}
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{yamlPath},
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths:        []string{yamlPath},
 	}
 
 	var err error

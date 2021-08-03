@@ -35,10 +35,14 @@ spec:
       description: EnvBinding is the Schema for the EnvBinding API
       properties:
         apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
           type: string
         kind:
-          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
@@ -51,7 +55,8 @@ spec:
               
               
             engine:
-              description: ClusterManagementEngine represents a multi-cluster management solution
+              description: ClusterManagementEngine represents a multi-cluster management
+                solution
               type: string
             envs:
               items:
@@ -60,11 +65,13 @@ spec:
                   name:
                     type: string
                   patch:
-                    description: EnvPatch specify the parameter configuration for different environments
+                    description: EnvPatch specify the parameter configuration for
+                      different environments
                     properties:
                       components:
                         items:
-                          description: ApplicationComponent describe the component of application
+                          description: ApplicationComponent describe the component
+                            of application
                           properties:
                             name:
                               type: string
@@ -74,13 +81,18 @@ spec:
                             scopes:
                               additionalProperties:
                                 type: string
-                              description: scopes in ApplicationComponent defines the component-level scopes the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
+                              description: scopes in ApplicationComponent defines
+                                the component-level scopes the format is <scope-type:scope-instance-name>
+                                pairs, the key represents type of `ScopeDefinition`
+                                while the value represent the name of scope instance.
                               type: object
                               
                             traits:
-                              description: Traits define the trait of one component, the type must be array to keep the order.
+                              description: Traits define the trait of one component,
+                                the type must be array to keep the order.
                               items:
-                                description: ApplicationTrait defines the trait of application
+                                description: ApplicationTrait defines the trait of
+                                  application
                                 properties:
                                   properties:
                                     type: object
@@ -102,22 +114,27 @@ spec:
                     - components
                     type: object
                   placement:
-                    description: ClusterPlacement defines the cluster placement rules for an app revision.
+                    description: ClusterPlacement defines the cluster placement rules
+                      for an app revision.
                     properties:
                       clusterSelector:
-                        description: ClusterSelector selects the cluster to  deploy apps to. If not specified, it indicates the host cluster per se.
+                        description: ClusterSelector selects the cluster to  deploy
+                          apps to. If not specified, it indicates the host cluster
+                          per se.
                         properties:
                           labels:
                             additionalProperties:
                               type: string
-                            description: Labels defines the label selector to select the cluster.
+                            description: Labels defines the label selector to select
+                              the cluster.
                             type: object
                           name:
                             description: Name is the name of the cluster.
                             type: string
                         type: object
                       distribution:
-                        description: Distribution defines the replica distribution of an AppRevision to a cluster.
+                        description: Distribution defines the replica distribution
+                          of an AppRevision to a cluster.
                         properties:
                           replicas:
                             description: Replicas is the replica number.
@@ -139,7 +156,8 @@ spec:
           properties:
             cluster_decisions:
               items:
-                description: ClusterDecision recorded the mapping of environment and cluster
+                description: ClusterDecision recorded the mapping of environment and
+                  cluster
                 properties:
                   cluster_name:
                     type: string
@@ -156,20 +174,25 @@ spec:
                 description: A Condition that may apply to a resource.
                 properties:
                   lastTransitionTime:
-                    description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                    description: LastTransitionTime is the last time this condition
+                      transitioned from one status to another.
                     format: date-time
                     type: string
                   message:
-                    description: A Message containing details about this condition's last transition from one status to another, if any.
+                    description: A Message containing details about this condition's
+                      last transition from one status to another, if any.
                     type: string
                   reason:
-                    description: A Reason for this condition's last transition from one status to another.
+                    description: A Reason for this condition's last transition from
+                      one status to another.
                     type: string
                   status:
-                    description: Status of this condition; is it currently True, False, or Unknown?
+                    description: Status of this condition; is it currently True, False,
+                      or Unknown?
                     type: string
                   type:
-                    description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                    description: Type of this condition. At most one of each condition
+                      type may apply to a resource at any point in time.
                     type: string
                 required:
                 - lastTransitionTime
@@ -179,7 +202,8 @@ spec:
                 type: object
               type: array
             phase:
-              description: EnvBindingPhase is a label for the condition of a EnvBinding at the current time
+              description: EnvBindingPhase is a label for the condition of a EnvBinding
+                at the current time
               type: string
           type: object
       type: object

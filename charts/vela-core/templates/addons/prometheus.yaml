@@ -5,7 +5,8 @@ data:
     kind: Initializer
     metadata:
       annotations:
-        addons.oam.dev/description: Prometheus is an open-source systems monitoring and alerting toolkit
+        addons.oam.dev/description: Prometheus is an open-source systems monitoring and
+          alerting toolkit
       name: prometheus
       namespace: vela-system
     spec:
@@ -37,7 +38,8 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
-    addons.oam.dev/description: Prometheus is an open-source systems monitoring and alerting toolkit
+    addons.oam.dev/description: Prometheus is an open-source systems monitoring and
+      alerting toolkit
   labels:
     addons.oam.dev/type: prometheus
   name: prometheus

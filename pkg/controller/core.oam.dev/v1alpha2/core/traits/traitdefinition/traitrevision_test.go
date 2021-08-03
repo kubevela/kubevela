@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -60,7 +61,7 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 			td1.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, "test-v1")
 			By("create traitDefinition")
 			Expect(k8sClient.Create(ctx, td1)).Should(SatisfyAll(BeNil()))
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("check whether definitionRevision is created")
 			tdRevName1 := fmt.Sprintf("%s-v1", tdName)
@@ -81,7 +82,7 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 				return k8sClient.Update(ctx, td)
 			}, 10*time.Second, time.Second).Should(BeNil())
 
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("check whether a new definitionRevision is created")
 			tdRevName2 := fmt.Sprintf("%s-v2", tdName)
@@ -99,7 +100,7 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 			req := reconcile.Request{NamespacedName: defKey}
 			td.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, "test")
 			Expect(k8sClient.Create(ctx, td)).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			By("Check revision create by TraitDefinition")
 			defRevName := fmt.Sprintf("%s-v1", tdName)
@@ -121,7 +122,7 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 				})
 				return k8sClient.Update(ctx, &checkRev)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			newDefRevName := fmt.Sprintf("%s-v2", tdName)
 			newRevKey := client.ObjectKey{Namespace: namespace, Name: newDefRevName}
@@ -155,7 +156,7 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 					checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 					return k8sClient.Update(ctx, checkComp)
 				}, 10*time.Second, time.Second).Should(BeNil())
-				reconcileRetry(&r, req)
+				testutil.ReconcileRetry(&r, req)
 
 				revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
 				revisionNum++
@@ -174,7 +175,7 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 				checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
 			revisionNum++
@@ -215,7 +216,7 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 				checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			reconcileRetry(&r, req)
+			testutil.ReconcileRetry(&r, req)
 
 			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
 			Eventually(func() error {

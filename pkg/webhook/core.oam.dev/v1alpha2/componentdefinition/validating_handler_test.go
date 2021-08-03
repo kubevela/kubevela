@@ -22,10 +22,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -62,9 +63,10 @@ var _ = BeforeSuite(func(done Done) {
 		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
 	}
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{yamlPath},
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths:        []string{yamlPath},
 	}
-	testEnv = &envtest.Environment{}
 
 	err := core.AddToScheme(testScheme)
 	Expect(err).Should(BeNil())
@@ -107,8 +109,8 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			Version:  v1beta1.Version,
 			Resource: "foos"}
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  wrongReqResource,
 				Object:    runtime.RawExtension{Raw: []byte("")},
 			},
@@ -119,8 +121,8 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 
 	It("Test bad admission request", func() {
 		req = admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  reqResource,
 				Object:    runtime.RawExtension{Raw: []byte("bad request")},
 			},
@@ -136,8 +138,8 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			wrongCd.SetName("wrongCd")
 			wrongCdRaw, _ := json.Marshal(wrongCd)
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: wrongCdRaw},
 				},
@@ -158,8 +160,8 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			wrongCdRaw, _ := json.Marshal(wrongCd)
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: wrongCdRaw},
 				},
@@ -179,8 +181,8 @@ var _ = Describe("Test ComponentDefinition validating handler", func() {
 			}
 			helmCdRaw, _ := json.Marshal(helmCd)
 			req := admission.Request{
-				AdmissionRequest: admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource:  reqResource,
 					Object:    runtime.RawExtension{Raw: helmCdRaw},
 				},
