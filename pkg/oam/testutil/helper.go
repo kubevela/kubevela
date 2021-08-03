@@ -27,27 +27,31 @@ import (
 // ReconcileRetry will reconcile with retry
 func ReconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 	gomega.Eventually(func() error {
-		_, err := r.Reconcile(context.TODO(), req)
-		return err
+		if _, err := r.Reconcile(context.TODO(), req); err != nil {
+			return err
+		}
+		return nil
 	}, 15*time.Second, time.Second).Should(gomega.BeNil())
 }
 
 // ReconcileRetryAndExpectErr will reconcile and get error
 func ReconcileRetryAndExpectErr(r reconcile.Reconciler, req reconcile.Request) {
 	gomega.Eventually(func() error {
-		_, err := r.Reconcile(context.TODO(), req)
-		return err
+		if _, err := r.Reconcile(context.TODO(), req); err != nil {
+			return err
+		}
+		return nil
 	}, 3*time.Second, time.Second).ShouldNot(gomega.BeNil())
 }
 
 // ReconcileOnce will just reconcile once
 func ReconcileOnce(r reconcile.Reconciler, req reconcile.Request) {
-	//nolint(errcheck)
+	//nolint:errcheck
 	r.Reconcile(context.TODO(), req)
 }
 
-// ReconcileOnceAfterFinalizer will reconcile for finializer
-//nolint(errcheck)
+// ReconcileOnceAfterFinalizer will reconcile for finalizer
+//nolint:errcheck
 func ReconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) (reconcile.Result, error) {
 	// 1st and 2nd time reconcile to add finalizer
 	r.Reconcile(context.TODO(), req)
