@@ -216,18 +216,18 @@ if step4.value > 100 {
 	value: 100
 } @step(1)
 step2: {
-	prefix: 100 @step(3)
+	prefix: 100
 	value:  101
 } @step(2)
 step3: {
-	prefix: 101 @step(5)
+	prefix: 101
 	value:  102
-} @step(4)
+} @step(3)
 step4: {
-	prefix: 102 @step(7)
+	prefix: 102
 	value:  103
-} @step(6)
-step5: "end" @step(8)
+} @step(4)
+step5: "end" @step(5)
 `}, {base: `
 step1: {}
 step2: {prefix: step1.value}
@@ -244,22 +244,22 @@ if step4.value > 100 {
 	value: 100
 } @step(1)
 step2: {
-	prefix: 100 @step(3)
+	prefix: 100
 	value:  101
 } @step(2)
 step2_3: {
-	prefix: 101 @step(5)
+	prefix: 101
 	value:  102
-} @step(4)
+} @step(3)
 step3: {
-	prefix: 101 @step(7)
+	prefix: 101
 	value:  103
-} @step(6)
+} @step(4)
 step4: {
-	prefix: 103 @step(9)
+	prefix: 103
 	value:  104
-} @step(8)
-step5: "end" @step(10)
+} @step(5)
+step5: "end" @step(6)
 `}, {base: `
 step2: {prefix: step1.value} @step(2)
 step1: {} @step(1)
@@ -269,18 +269,18 @@ if step2.value > 100 {
 }
 `,
 			expected: `step2: {
-	prefix: 100 @step(1)
+	prefix: 100
 	value:  101
 } @step(2)
 step1: {
 	value: 100
 } @step(1)
 step3: {
-	prefix: 101 @step(2)
+	prefix: 101
 	value:  103
 } @step(4)
 step2_3: {
-	prefix: 101 @step(3)
+	prefix: 101
 	value:  102
 } @step(3)
 `},
@@ -294,20 +294,20 @@ if step2.value > 100 {
 step3: {prefix: step2.value}
 `,
 			expected: `step2: {
-	prefix: 100 @step(2)
+	prefix: 100
 	value:  101
 } @step(1)
 step1: {
 	value: 100
 } @step(-1)
 step2_3: {
-	prefix: 101 @step(4)
+	prefix: 101
 	value:  102
 } @step(3)
 step3: {
-	prefix: 101 @step(6)
+	prefix: 101
 	value:  103
-} @step(5)
+} @step(4)
 `}}
 
 	for _, tCase := range testCases {

@@ -71,7 +71,7 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 }
 
 // NewValue new a value
-func NewValue(s string, pd *packages.PackageDiscover, opts ...func(ast.Node)) (*Value, error) {
+func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File)) (*Value, error) {
 	builder := &build.Instance{}
 
 	file, err := parser.ParseFile("-", s, parser.ParseComments)
@@ -104,18 +104,29 @@ func NewValue(s string, pd *packages.PackageDiscover, opts ...func(ast.Node)) (*
 }
 
 // TagFieldOrder add step tag.
-func TagFieldOrder(root ast.Node) {
+func TagFieldOrder(root *ast.File) {
 	i := 0
-	ast.Walk(root, func(node ast.Node) bool {
-		field, ok := node.(*ast.Field)
-		if ok && field.Attrs == nil {
-			i++
-			field.Attrs = []*ast.Attribute{
-				{Text: fmt.Sprintf("@step(%d)", i)},
+	for _, decl := range root.Decls {
+		addAttrForExpr(decl, &i)
+
+	}
+}
+
+func addAttrForExpr(node ast.Node, index *int) {
+	switch v := node.(type) {
+	case *ast.Comprehension:
+		st := v.Value.(*ast.StructLit)
+		for _, elt := range st.Elts {
+			addAttrForExpr(elt, index)
+		}
+	case *ast.Field:
+		*index++
+		if v.Attrs == nil {
+			v.Attrs = []*ast.Attribute{
+				{Text: fmt.Sprintf("@step(%d)", *index)},
 			}
 		}
-		return true
-	}, nil)
+	}
 }
 
 // MakeValue generate an value with same runtime
