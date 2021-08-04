@@ -245,6 +245,10 @@ func (h *handler) recordeWorkloadInResourceTracker(ctx context.Context) error {
 			resourceTrackerName = reference.Name
 		}
 	}
+	if len(resourceTrackerName) == 0 {
+		// rollout isn't created by application
+		return nil
+	}
 	rt := v1beta1.ResourceTracker{}
 	if err := h.Get(ctx, types.NamespacedName{Name: resourceTrackerName}, &rt); err != nil {
 		klog.Errorf("rollout recordeWorkloadInResourceTracker error to get resourceTracker namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)

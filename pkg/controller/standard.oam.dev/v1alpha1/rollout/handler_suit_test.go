@@ -259,10 +259,6 @@ var _ = Describe("Test rollout related handler func", func() {
 			ctx := context.Background()
 			rtName := "resourcetracker-v1-test-namespace"
 			rt := v1beta1.ResourceTracker{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ResourceTrackerKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: rtName,
 				},
