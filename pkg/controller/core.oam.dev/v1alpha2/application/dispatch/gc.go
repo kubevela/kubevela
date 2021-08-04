@@ -22,11 +22,14 @@ import (
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // GarbageCollector do GC according two resource trackers
@@ -71,6 +74,12 @@ func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.Re
 			toBeDeleted.SetKind(oldRsc.Kind)
 			toBeDeleted.SetNamespace(oldRsc.Namespace)
 			toBeDeleted.SetName(oldRsc.Name)
+			if isSkip, err := h.handleResourceSkipGC(ctx, toBeDeleted, oldRT); err != nil {
+				return errors.Wrap(err, "cannot handle resource skipResourceGC")
+			} else if isSkip {
+				// the resource have skipGC annotation, will not delete the resource
+				continue
+			}
 			if err := h.c.Delete(ctx, toBeDeleted); err != nil && !kerrors.IsNotFound(err) {
 				klog.ErrorS(err, "Failed to delete a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
 				return errors.Wrapf(err, "cannot delete resource %q", oldRsc)
@@ -106,4 +115,35 @@ func (h *GCHandler) validate() error {
 		}
 	}
 	return errors.Errorf("two resource trackers must come from the same application")
+}
+
+// handleResourceSkipGC will check resource have skipGC annotation,if yes patch the resource to orphan the resource and return true
+func (h *GCHandler) handleResourceSkipGC(ctx context.Context, u *unstructured.Unstructured, oldRt *v1beta1.ResourceTracker) (bool, error) {
+	// deepCopy avoid modify origin resource
+	res := u.DeepCopy()
+	if err := h.c.Get(ctx, types.NamespacedName{Namespace: res.GetNamespace(), Name: res.GetName()}, res); err != nil {
+		if !kerrors.IsNotFound(err) {
+			klog.ErrorS(err, "handleResourceSkipGC faied cannot get res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
+			return false, err
+		}
+		// resource have gone, skip delete it
+		return true, nil
+	}
+	if _, exist := res.GetAnnotations()[oam.AnnotationSkipGC]; !exist {
+		return false, nil
+	}
+	var owners []metav1.OwnerReference
+	for _, ownerReference := range res.GetOwnerReferences() {
+		if ownerReference.UID == oldRt.GetUID() {
+			continue
+		}
+		owners = append(owners, ownerReference)
+	}
+	res.SetOwnerReferences(owners)
+	if err := h.c.Update(ctx, res); err != nil {
+		klog.ErrorS(err, "handleResourceSkipGC failed cannot orphan a res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
+		return false, err
+	}
+	klog.InfoS("succeed to handle a skipGC res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
+	return true, nil
 }

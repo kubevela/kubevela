@@ -19,6 +19,13 @@ package rollout
 import (
 	"testing"
 
+	"gotest.tools/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/utils/pointer"
 
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -301,4 +308,29 @@ func Test_isRolloutModified(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPassOwnerReference(t *testing.T) {
+	rollout := oamstandard.Rollout{
+		ObjectMeta: metav1.ObjectMeta{
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: v1beta1.SchemeGroupVersion.String(),
+					Kind:       v1beta1.ResourceTrackerKind,
+					UID:        "test-uid",
+					Controller: pointer.Bool(true),
+					Name:       "test-resouceTracker",
+				},
+			},
+		},
+	}
+	u := &unstructured.Unstructured{}
+	u.SetName("test-workload")
+	h := &handler{
+		rollout:        &rollout,
+		targetWorkload: u,
+	}
+	h.passOwnerToTargetWorkload()
+	assert.Assert(t, len(h.targetWorkload.GetOwnerReferences()) == 1)
+	assert.Assert(t, *h.targetWorkload.GetOwnerReferences()[0].Controller == false)
 }

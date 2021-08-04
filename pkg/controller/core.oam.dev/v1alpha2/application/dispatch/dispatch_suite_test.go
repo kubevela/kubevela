@@ -26,6 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -403,6 +407,52 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ConstructResourceTrackerName(appRevName1, namespace)},
 				&v1beta1.ResourceTracker{})).Should(Succeed())
 		})
+	})
+})
+
+var _ = Describe("Test handleSkipGC func", func() {
+	var namespaceName string
+	ctx := context.Background()
+	BeforeEach(func() {
+		namespaceName = fmt.Sprintf("%s-%s", "dispatch-gc-skip-test", strconv.FormatInt(rand.Int63(), 16))
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceName}}))
+	})
+
+	It("Test GC skip func ", func() {
+		handler := GCHandler{c: k8sClient}
+		wlName := "test-workload"
+		resourceTracker := v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: wlName,
+				UID:  "test-uid",
+			},
+		}
+		skipWorkload := &appsv1.Deployment{TypeMeta: metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"}}
+		skipWorkload.SetNamespace(namespaceName)
+		skipWorkload.SetName(wlName)
+		skipWorkload.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(
+			&resourceTracker, v1beta1.ResourceTrackerKindVersionKind),
+			metav1.OwnerReference{UID: "app-uid", Name: "test-app", APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ApplicationKind}})
+		skipWorkload.SetAnnotations(map[string]string{
+			oam.AnnotationSkipGC: "true",
+		})
+		skipWorkload.Spec.Selector = &metav1.LabelSelector{MatchLabels: map[string]string{"component": "mywebservice"}}
+		skipWorkload.Spec.Template = corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"component": "mywebservice"}},
+			Spec: corev1.PodSpec{Containers: []corev1.Container{{
+				Name:  "nginx",
+				Image: "nginx: 1.14.2",
+				Ports: []corev1.ContainerPort{{Name: "nginx", ContainerPort: int32(8080)}}}}}}
+		u, err := util.Object2Unstructured(skipWorkload)
+		Expect(err).Should(BeNil())
+		Expect(k8sClient.Create(ctx, skipWorkload)).Should(BeNil())
+		skipGC, err := handler.handleResourceSkipGC(ctx, u, &resourceTracker)
+		Expect(err).Should(BeNil())
+		Expect(skipGC).Should(BeTrue())
+
+		checkWl := skipWorkload.DeepCopy()
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: checkWl.GetNamespace(), Name: checkWl.GetName()}, checkWl)).Should(BeNil())
+		Expect(len(checkWl.GetOwnerReferences())).Should(BeEquivalentTo(1))
+		Expect(checkWl.GetOwnerReferences()[0].UID).Should(BeEquivalentTo("app-uid"))
 	})
 })
 
