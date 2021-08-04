@@ -62,7 +62,14 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	if err = def.FromCUEString(cueString + "abc"); err == nil {
 		t.Fatalf("should encounter invalid cue string but not found error")
 	}
-	if err = def.FromCUEString(cueString + "\nabc: {}\n"); err == nil {
+	parts := strings.Split(cueString, "template: ")
+	if err = def.FromCUEString(parts[0]); err == nil {
+		t.Fatalf("should encounter no template found error but not found error")
+	}
+	if err = def.FromCUEString("import \"strconv\"\n" + cueString); err == nil {
+		t.Fatalf("should encounter cue compile error due to useless import but not found error")
+	}
+	if err = def.FromCUEString("abc: {}\n" + cueString); err == nil {
 		t.Fatalf("should encounter duplicated object name error but not found error")
 	}
 	if err = def.FromCUEString(strings.Replace(cueString, "\"trait\"", "\"tr\"", 1)); err == nil {
@@ -70,6 +77,13 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	}
 	if err = def.FromCUEString(cueString); err != nil {
 		t.Fatalf("unexpected error when setting from cue: %v", err)
+	}
+	templateString, _, _ := unstructured.NestedString(def.Object, DefinitionTemplateKeys...)
+	_ = unstructured.SetNestedField(def.Object, "import \"strconv\"\n"+templateString, DefinitionTemplateKeys...)
+	if s, err := def.ToCUEString(); err != nil {
+		t.Fatalf("failed to generate cue string: %v", err)
+	} else if !strings.Contains(s, "import \"strconv\"\n") {
+		t.Fatalf("definition ToCUEString missed import, val: %v", s)
 	}
 	def = &Definition{}
 	if err = def.FromCUEString(cueString); err != nil {

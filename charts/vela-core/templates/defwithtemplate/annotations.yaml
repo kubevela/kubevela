@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Add annotations for your Workload."
+    definition.oam.dev/description: Add annotations for your Workload.
   name: annotations
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
@@ -12,7 +12,7 @@ spec:
   podDisruptive: true
   schematic:
     cue:
-      template: |-
+      template: |
         patch: {
         	spec: template: metadata: annotations: {
         		for k, v in parameter {
@@ -21,4 +21,4 @@ spec:
         	}
         }
         parameter: [string]: string
-        
+

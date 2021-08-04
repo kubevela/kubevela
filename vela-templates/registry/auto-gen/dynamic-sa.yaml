@@ -3,14 +3,15 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "dynamically specify service account"
+    definition.oam.dev/description: dynamically specify service account
   name: dynamic-sa
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - deployments.apps
   schematic:
     cue:
-      template: |-
+      template: |
         processing: {
         	output: {
         		credentials?: string
@@ -32,4 +33,4 @@ spec:
         	uidtoken:   string
         	serviceURL: string
         }
-        
+

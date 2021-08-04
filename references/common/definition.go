@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -149,7 +150,16 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s + fmt.Sprintf("template: {\n\t%s\n}\n", strings.ReplaceAll(templateString, "\n", "\n\t")), nil
+
+	importSentences := regexp.MustCompile("import [^\n]+\n")
+	sentences := importSentences.FindAllString(templateString, -1)
+	templateString = strings.ReplaceAll(importSentences.ReplaceAllString(templateString, ""), "\n\n", "\n")
+	sPrefix := strings.Join(sentences, "")
+	if sPrefix != "" {
+		sPrefix += "\n"
+	}
+	s = sPrefix + s
+	return s + fmt.Sprintf("template: {\n%s\n}\n", strings.ReplaceAll(templateString, "\n", "\n\t")), nil
 }
 
 // FromCUE converts CUE value (predefined Definition's cue format) to Definition
@@ -249,13 +259,22 @@ func (def *Definition) FromCUEString(cueString string) error {
 	if len(cueStringParts) != 2 {
 		return fmt.Errorf("invalid cue string, should contain definition metadata and template")
 	}
+
 	metadataString := cueStringParts[0]
+	importSentences := regexp.MustCompile(`import [^\n]+\n`)
+	sentences := importSentences.FindAllString(metadataString, -1)
+	metadataString = importSentences.ReplaceAllString(metadataString, "")
+	templateStringPrefix := strings.Join(sentences, "")
+	if templateStringPrefix != "" {
+		templateStringPrefix += "\n"
+	}
+
 	inst, err := r.Compile("-", metadataString)
 	if err != nil {
 		return err
 	}
 	templateString := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(cueStringParts[1]), "{"), "}")
-	templateString, err = formatCUEString(templateString)
+	templateString, err = formatCUEString(templateStringPrefix + templateString)
 	if err != nil {
 		return err
 	}
@@ -320,7 +339,7 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 	case v1beta1.ComponentDefinitionKind:
 		return map[string]interface{}{
 			"workload": map[string]interface{}{
-				"definitions": map[string]interface{}{
+				"definition": map[string]interface{}{
 					"apiVersion": "<change me> apps/v1",
 					"kind":       "<change me> Deployment",
 				},

@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Binding secrets of cloud resources to component env"
+    definition.oam.dev/description: Binding secrets of cloud resources to component env
   name: service-binding
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
@@ -38,9 +38,9 @@ spec:
         		}]
         	}
         }
-        
+
         parameter: {
         	// +usage=The mapping of environment variables to secret
         	envMappings: [string]: [string]: string
         }
-        
+

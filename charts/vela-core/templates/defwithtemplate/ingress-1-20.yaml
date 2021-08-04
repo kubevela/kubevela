@@ -3,26 +3,10 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Enable public web traffic for the component, the ingress API matches K8s v1.20+."
+    definition.oam.dev/description: Enable public web traffic for the component, the ingress API matches K8s v1.20+.
   name: ingress-1-20
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
-  status:
-    customStatus: |-
-      let igs = context.outputs.ingress.status.loadBalancer.ingress
-      if igs == _|_ {
-        message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
-      }
-      if len(igs) > 0 {
-        if igs[0].ip != _|_ {
-          message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
-        }
-        if igs[0].ip == _|_ {
-          message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
-        }
-      }
-    healthPolicy: |
-      isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
     - deployments.apps
   podDisruptive: false
@@ -47,7 +31,7 @@ spec:
         		]
         	}
         }
-        
+
         outputs: ingress: {
         	apiVersion: "networking.k8s.io/v1"
         	kind:       "Ingress"
@@ -75,12 +59,27 @@ spec:
         		}]
         	}
         }
-        
+
         parameter: {
         	// +usage=Specify the domain you want to expose
         	domain: string
-        
+
         	// +usage=Specify the mapping relationship between the http path and the workload port
         	http: [string]: int
         }
-        
+  status:
+    customStatus: |-
+      let igs = context.outputs.ingress.status.loadBalancer.ingress
+      if igs == _|_ {
+        message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
+      }
+      if len(igs) > 0 {
+        if igs[0].ip != _|_ {
+      	  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+        }
+        if igs[0].ip == _|_ {
+      	  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+        }
+      }
+    healthPolicy: 'isHealth: len(context.outputs.service.spec.clusterIP) > 0'
+

@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Add volumes for your Workload."
+    definition.oam.dev/description: Add volumes for your Workload.
   name: volumes
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
@@ -12,7 +12,7 @@ spec:
   podDisruptive: true
   schematic:
     cue:
-      template: |-
+      template: |
         patch: {
         	spec: template: spec: volumes: [
         		for v in parameter.volumes {
@@ -50,7 +50,7 @@ spec:
         		},
         	]
         }
-        
+
         parameter: {
         	// +usage=Declare volumes and volumeMounts
         	volumes?: [...{
@@ -83,4 +83,4 @@ spec:
         		}
         	}]
         }
-        
+

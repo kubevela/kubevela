@@ -3,33 +3,26 @@
 set -e
 
 SCRIPT_DIR=$(dirname "$0")
-pushd $SCRIPT_DIR
+pushd "$SCRIPT_DIR"
 
+INTERNAL_DEFINITION_DIR="definitions/internal"
+REGISTRY_DEFINITION_DIR="definitions/registry"
 INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
 REGISTRY_TEMPLATE_DIR="registry/auto-gen"
 
-rm ${INTERNAL_TEMPLATE_DIR}/* 2>/dev/null || true
-rm ${REGISTRY_TEMPLATE_DIR}/* 2>/dev/null || true
+function render {
+  inputDir=$1
+  outputDir=$2
+  rm "$outputDir"/* 2>/dev/null || true
+  mkdir -p "$outputDir"
+  go run ../references/cmd/cli/main.go def render "$inputDir" -o "$outputDir"
+}
 
-
-for filename in internal/cue/*; do
-  filename=$(basename "${filename}")
-  nameonly="${filename%.*}"
-
-  source ./mergedef.sh "internal/definitions/${nameonly}.yaml" "internal/cue/${nameonly}.cue" > "${INTERNAL_TEMPLATE_DIR}/${nameonly}.yaml"
-done
-
+export AS_HELM_CHART=true
+render $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
 echo "done generate internal definitions"
-
-for filename in registry/cue/*; do
-  filename=$(basename "${filename}")
-  nameonly="${filename%.*}"
-
-  source ./mergedef.sh "registry/definitions/${nameonly}.yaml" "registry/cue/${nameonly}.cue" > "${REGISTRY_TEMPLATE_DIR}/${nameonly}.yaml"
-done
-
+export AS_HELM_CHART=system
+render $REGISTRY_DEFINITION_DIR $REGISTRY_TEMPLATE_DIR
 echo "done generate registry definitions"
-
 echo "all done"
-
 popd

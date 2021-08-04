@@ -2,14 +2,11 @@
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
-  name: webserver
   annotations:
-    definition.oam.dev/description: "webserver was composed by deployment and service"
+    definition.oam.dev/description: webserver was composed by deployment and service
+  name: webserver
+  namespace: vela-system
 spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
   schematic:
     cue:
       template: |
@@ -28,23 +25,23 @@ spec:
         				containers: [{
         					name:  context.name
         					image: parameter.image
-        
+
         					if parameter["cmd"] != _|_ {
         						command: parameter.cmd
         					}
-        
+
         					if parameter["env"] != _|_ {
         						env: parameter.env
         					}
-        
+
         					if context["config"] != _|_ {
         						env: context.config
         					}
-        
+
         					ports: [{
         						containerPort: parameter.port
         					}]
-        
+
         					if parameter["cpu"] != _|_ {
         						resources: {
         							limits:
@@ -90,4 +87,8 @@ spec:
         	}]
         	cpu?: string
         }
-        
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+

@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Specify auto scale by annotation"
+    definition.oam.dev/description: Specify auto scale by annotation
   name: kautoscale
   namespace: vela-system
 spec:
@@ -12,9 +12,9 @@ spec:
   podDisruptive: true
   schematic:
     cue:
-      template: |-
+      template: |
         import "encoding/json"
-        
+
         patch: {
         	metadata: annotations: {
         		"my.autoscale.ann": json.Marshal({
@@ -27,4 +27,4 @@ spec:
         	min: *1 | int
         	max: *3 | int
         }
-        
+
