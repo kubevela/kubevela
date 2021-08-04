@@ -152,7 +152,7 @@ func TestErrCases(t *testing.T) {
 close({
    x: 100
 })
-`, nil)
+`, nil, value.TagFieldOrder)
 	assert.NilError(t, err)
 	err = wfCtx.SetVar(closeVar, "score")
 	assert.NilError(t, err)
@@ -238,7 +238,7 @@ close({
 	}
 }
 
-func TestNestedSteps(t *testing.T) {
+func TestSteps(t *testing.T) {
 
 	var (
 		echo    string
@@ -318,7 +318,7 @@ process: {
     #provider: "test"
 	#do: "error"
   }
-  #up_1: [{},process]
+  #up: [{},process]
 }]
 `,
 			expected: "okok",
@@ -332,11 +332,36 @@ process: {
 `,
 			expected: "ok",
 		},
+		{
+			base: `
+process: {
+	#provider: "test"
+	#do: "ok"
+    err: true
+}
+
+if process.err {
+  err: {
+     #provider: "test"
+	 #do: "error"
+  }
+}
+
+apply: {
+	#provider: "test"
+	#do: "ok"
+}
+
+#up: [process,{}]
+`,
+			expected: "ok",
+			hasErr:   true,
+		},
 	}
 
 	for _, tc := range testCases {
 		echo = ""
-		v, err := value.NewValue(tc.base, nil)
+		v, err := value.NewValue(tc.base, nil, value.TagFieldOrder)
 		assert.NilError(t, err)
 		err = exec.doSteps(wfCtx, v)
 		assert.Equal(t, err != nil, tc.hasErr)

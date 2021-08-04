@@ -81,7 +81,7 @@ func NewValue(s string, pd *packages.PackageDiscover, opts ...func(ast.Node)) (*
 	for _, opt := range opts {
 		opt(file)
 	}
-	if err := builder.AddFile("-", s); err != nil {
+	if err := builder.AddSyntax(file); err != nil {
 		return nil, err
 	}
 
@@ -109,6 +109,7 @@ func TagFieldOrder(root ast.Node) {
 	ast.Walk(root, func(node ast.Node) bool {
 		field, ok := node.(*ast.Field)
 		if ok && field.Attrs == nil {
+			i++
 			field.Attrs = []*ast.Attribute{
 				{Text: fmt.Sprintf("@step(%d)", i)},
 			}
