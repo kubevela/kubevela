@@ -1,0 +1,37 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  name: managed-cluster
+  namespace: vela-system
+spec:
+  appTemplate:
+    spec:
+      components:
+        - name: ack-worker
+          type: alibaba-ack
+          properties:
+            writeConnectionSecretToRef:
+              name: ack-conn
+              namespace: vela-system
+      workflow:
+        steps:
+          - name: terraform-ack
+            type: create-ack
+            properties:
+              component: ack-worker
+            outputs:
+              - name: connInfo
+                exportKey: connInfo
+
+          - name: register-ack
+            type: register-cluster
+            inputs:
+              - from: connInfo
+                parameterKey: connInfo
+            properties:
+              # user should set public network address of APIServer
+              hubAPIServer: {{ public network address of APIServer }}
+              env: prod
+              initNameSpace: default
+              patchLabels:
+                purpose: test

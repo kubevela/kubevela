@@ -1,0 +1,23 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: deploy2cluster
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        import ("vela/op")
+
+        component: op.#ApplyEnvBindComponent & {
+        	env:       parameter.env
+        	policy:    parameter.policy
+        	component: parameter.component
+        	namespace: context.namespace
+        }
+        parameter: {
+        	env:       string
+        	policy:    string
+        	component: string
+        }
+

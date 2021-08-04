@@ -1,0 +1,49 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: env-binding
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "core.oam.dev/v1alpha1"
+        	kind:       "EnvBinding"
+        	spec: {
+        		engine: parameter.engine
+        		appTemplate: {
+        			apiVersion: "core.oam.dev/v1beta1"
+        			kind:       "Application"
+        			metadata: {
+        				name:      context.appName
+        				namespace: context.namespace
+        			}
+        			spec: {
+        				components: context.components
+        			}
+        		}
+        		envs: parameter.envs
+        	}
+        }
+
+        #Env: {
+        	name: string
+        	patch: components: [...{
+        		name: string
+        		type: string
+        		properties: {...}
+        	}]
+        	placement: clusterSelector: {
+        		labels?: [string]: string
+        		name?: string
+        	}
+        }
+
+        parameter: {
+        	engine: *"ocm" | string
+        	envs: [...#Env]
+        }
+
+
+

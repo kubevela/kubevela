@@ -1,0 +1,39 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: workflow-demo
+  namespace: default
+spec:
+  components:
+    - name: nginx-server
+      type: webservice
+      properties:
+        image: nginx:1.21
+        port: 80
+
+  policies:
+    - name: patch
+      type: env-binding
+      properties:
+        envs:
+          - name: prod
+            patch:
+              components:
+                - name: nginx-server
+                  type: webservice
+                  properties:
+                    image: nginx:1.20
+                    port: 80
+            placement:
+              clusterSelector:
+                labels:
+                  purpose: test
+
+  workflow:
+    steps:
+      - name: deploy-server
+        type: deploy2cluster
+        properties:
+          env:       prod
+          policy:    patch
+          component: nginx-server
