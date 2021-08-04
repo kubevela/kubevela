@@ -67,11 +67,20 @@ image: "myserver"
 		ContextName: "conn1",
 		Data:        map[string]interface{}{"password": "123"},
 	}}
+	targetParams := map[string]interface{}{
+		"parameter1": "string",
+		"parameter2": map[string]string{
+			"key1": "value1",
+			"key2": "value2",
+		},
+		"parameter3": []string{"item1", "item2"},
+	}
 
 	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1")
 	ctx.InsertSecrets("db-conn", targetRequiredSecrets)
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
+	ctx.SetParameters(targetParams)
 
 	ctxInst, err := r.Compile("-", ctx.ExtendedContextFile())
 	if err != nil {
@@ -110,4 +119,8 @@ image: "myserver"
 	requiredSecrets, err := ctxInst.Lookup("context", "conn1").MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"password\":\"123\"}", string(requiredSecrets))
+
+	params, err := ctxInst.Lookup("context", ParametersFieldName).MarshalJSON()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "{\"parameter1\":\"string\",\"parameter2\":{\"key1\":\"value1\",\"key2\":\"value2\"},\"parameter3\":[\"item1\",\"item2\"]}", string(params))
 }
