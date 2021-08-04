@@ -175,8 +175,8 @@ var _ = Describe("Test Application Validator", func() {
 		})).Should(BeNil())
 
 		req := admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
@@ -194,6 +194,10 @@ var _ = Describe("Test Application Validator", func() {
 
 	It("Test Application Validator external revision name [error]", func() {
 		Expect(k8sClient.Update(ctx, &appsv1.ControllerRevision{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "apps/v1",
+				Kind:       "ControllerRevision",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "default",
 				Name:      "external-comp1",
@@ -211,8 +215,8 @@ var _ = Describe("Test Application Validator", func() {
 		})).Should(BeNil())
 
 		req := admission.Request{
-			AdmissionRequest: admissionv1beta1.AdmissionRequest{
-				Operation: admissionv1beta1.Create,
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
@@ -226,5 +230,45 @@ var _ = Describe("Test Application Validator", func() {
 		}
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Validator external revision name specificy helm repo in component [allow]", func() {
+		Expect(k8sClient.Create(ctx, &appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp2",
+				Labels: map[string]string{
+					oam.LabelControllerRevisionComponent: "myworker",
+					oam.LabelComponentRevisionHash:       "9be6f6ab47eadbf9",
+				},
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1alpha2",
+"kind":"Component","metadata":{"name":"myweb"},
+"spec":{"workload":{"apiVersion":"apps/v1","kind":"Deployment",
+"spec":{"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}},
+"helm":{"release":{"chart":{"spec":{"chart":"podinfo","version":"1.0.0"}}},
+"repository":{"url":"test.com","secretRef":{"name":"testSecret"}}}}}
+`)},
+			Revision: 1,
+		})).Should(BeNil())
+
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp2"}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
 	})
 })

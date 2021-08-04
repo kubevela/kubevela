@@ -73,7 +73,8 @@ spec:
                             of application
                           properties:
                             externalRevision:
-                              description: ExternalRevision specified the component revisionName
+                              description: ExternalRevision specified the component
+                                revisionName
                               type: string
                             name:
                               type: string
