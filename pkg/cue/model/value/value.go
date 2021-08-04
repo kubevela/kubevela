@@ -18,10 +18,14 @@ package value
 
 import (
 	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/parser"
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
@@ -67,9 +71,17 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 }
 
 // NewValue new a value
-func NewValue(s string, pd *packages.PackageDiscover) (*Value, error) {
+func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File)) (*Value, error) {
 	builder := &build.Instance{}
-	if err := builder.AddFile("-", s); err != nil {
+
+	file, err := parser.ParseFile("-", s, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+	for _, opt := range opts {
+		opt(file)
+	}
+	if err := builder.AddSyntax(file); err != nil {
 		return nil, err
 	}
 
@@ -89,6 +101,54 @@ func NewValue(s string, pd *packages.PackageDiscover) (*Value, error) {
 	val.v = inst.Value()
 	val.pd = pd
 	return val, nil
+}
+
+// TagFieldOrder add step tag.
+func TagFieldOrder(root *ast.File) {
+	i := 0
+	vs := &visitor{
+		r: map[string]struct{}{},
+	}
+	for _, decl := range root.Decls {
+		vs.addAttrForExpr(decl, &i)
+	}
+}
+
+type visitor struct {
+	r map[string]struct{}
+}
+
+func (vs *visitor) done(name string) {
+	vs.r[name] = struct{}{}
+}
+
+func (vs *visitor) shouldDo(name string) bool {
+	_, ok := vs.r[name]
+	return !ok
+}
+func (vs *visitor) addAttrForExpr(node ast.Node, index *int) {
+	switch v := node.(type) {
+	case *ast.Comprehension:
+		st := v.Value.(*ast.StructLit)
+		for _, elt := range st.Elts {
+			vs.addAttrForExpr(elt, index)
+		}
+	case *ast.Field:
+		basic, ok := v.Label.(*ast.Ident)
+		if !ok {
+			return
+		}
+		if !vs.shouldDo(basic.Name) {
+			return
+		}
+		if v.Attrs == nil {
+			*index++
+			vs.done(basic.Name)
+			v.Attrs = []*ast.Attribute{
+				{Text: fmt.Sprintf("@step(%d)", *index)},
+			}
+		}
+	}
 }
 
 // MakeValue generate an value with same runtime
@@ -164,6 +224,7 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 type field struct {
 	Name  string
 	Value *Value
+	no    int64
 }
 
 // StepByList process item in list.
@@ -195,6 +256,10 @@ func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)
 		if err != nil {
 			return err
 		}
+
+		if end {
+			return nil
+		}
 		stop, err := handle(field.Name, field.Value)
 		if err != nil {
 			return errors.WithMessagef(err, "step %s", field.Name)
@@ -217,24 +282,52 @@ func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)
 }
 
 func (val *Value) fieldIndex(index int) (*field, bool, error) {
-	st, err := val.v.Struct()
+	fields, err := val.fields()
 	if err != nil {
 		return nil, false, err
 	}
-	if index >= st.Len() {
-		return nil, false, errors.New("get value field by index overhead")
+	if index >= len(fields) {
+		return nil, true, nil
 	}
-	end := false
-	if index == (st.Len() - 1) {
-		end = true
+	return fields[index], false, nil
+}
+
+func (val *Value) fields() ([]*field, error) {
+	st, err := val.v.Struct()
+	if err != nil {
+		return nil, err
 	}
-	v := st.Field(index)
-	return &field{
-		Name: v.Name,
-		Value: &Value{
-			r: val.r,
-			v: v.Value,
-		}}, end, nil
+	var fields []*field
+	for i := 0; i < st.Len(); i++ {
+		v := st.Field(i)
+		attr := v.Value.Attribute("step")
+		no, err := attr.Int(0)
+		if err != nil {
+			no = 100
+		}
+		fields = append(fields, &field{
+			no:   no,
+			Name: v.Name,
+			Value: &Value{
+				r: val.r,
+				v: v.Value,
+			}})
+	}
+	sort.Sort(sortFields(fields))
+	return fields, nil
+}
+
+type sortFields []*field
+
+func (sf sortFields) Len() int {
+	return len(sf)
+}
+func (sf sortFields) Less(i, j int) bool {
+	return sf[i].no < sf[j].no
+}
+
+func (sf sortFields) Swap(i, j int) {
+	sf[i], sf[j] = sf[j], sf[i]
 }
 
 // Field return the cue value corresponding to the specified field

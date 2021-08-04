@@ -85,7 +85,7 @@ step2: {prefix: step1.value}
 step3: {prefix: step2.value}
 step4: {prefix: step3.value}
 if step4.value > 100 {
-        step5: "end"
+        step5: {prefix: step4.value}
 } 
 `,
 			expected: `step1: {
@@ -103,7 +103,10 @@ step4: {
 	prefix: 102
 	value:  103
 }
-step5: "end"
+step5: {
+	prefix: 103
+	value:  104
+}
 `},
 
 		{base: `
@@ -196,6 +199,136 @@ step3: "3"
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, inc, 2)
 
+}
+
+func TestStepWithTag(t *testing.T) {
+	testCases := []struct {
+		base     string
+		expected string
+	}{
+		{base: `
+step1: {}
+step2: {prefix: step1.value}
+step3: {prefix: step2.value}
+step4: {prefix: step3.value}
+if step4.value > 100 {
+        step5: {}
+}
+step5: {
+	value:  *100|int
+}
+`,
+			expected: `step1: {
+	value: 100
+} @step(1)
+step2: {
+	prefix: 100
+	value:  101
+} @step(2)
+step3: {
+	prefix: 101
+	value:  102
+} @step(3)
+step4: {
+	prefix: 102
+	value:  103
+} @step(4)
+step5: {
+	value: 104
+} @step(5)
+`}, {base: `
+step1: {}
+step2: {prefix: step1.value}
+if step2.value > 100 {
+        step2_3: {prefix: step2.value}
+}
+step3: {prefix: step2.value}
+step4: {prefix: step3.value}
+`,
+			expected: `step1: {
+	value: 100
+} @step(1)
+step2: {
+	prefix: 100
+	value:  101
+} @step(2)
+step2_3: {
+	prefix: 101
+	value:  102
+} @step(3)
+step3: {
+	prefix: 101
+	value:  103
+} @step(4)
+step4: {
+	prefix: 103
+	value:  104
+} @step(5)
+`}, {base: `
+step2: {prefix: step1.value} @step(2)
+step1: {} @step(1)
+step3: {prefix: step2.value} @step(4)
+if step2.value > 100 {
+        step2_3: {prefix: step2.value} @step(3)
+}
+`,
+			expected: `step2: {
+	prefix: 100
+	value:  101
+} @step(2)
+step1: {
+	value: 100
+} @step(1)
+step3: {
+	prefix: 101
+	value:  103
+} @step(4)
+step2_3: {
+	prefix: 101
+	value:  102
+} @step(3)
+`},
+
+		{base: `
+step2: {prefix: step1.value} 
+step1: {} @step(-1)
+if step2.value > 100 {
+        step2_3: {prefix: step2.value}
+}
+step3: {prefix: step2.value}
+`,
+			expected: `step2: {
+	prefix: 100
+	value:  101
+} @step(1)
+step1: {
+	value: 100
+} @step(-1)
+step2_3: {
+	prefix: 101
+	value:  102
+} @step(2)
+step3: {
+	prefix: 101
+	value:  103
+} @step(3)
+`}}
+
+	for _, tCase := range testCases {
+		val, err := NewValue(tCase.base, nil, TagFieldOrder)
+		assert.NilError(t, err)
+		number := 99
+		err = val.StepByFields(func(name string, in *Value) (bool, error) {
+			number++
+			return false, in.FillObject(map[string]interface{}{
+				"value": number,
+			})
+		})
+		assert.NilError(t, err)
+		str, err := val.String()
+		assert.NilError(t, err)
+		assert.Equal(t, str, tCase.expected)
+	}
 }
 
 func TestUnmarshal(t *testing.T) {

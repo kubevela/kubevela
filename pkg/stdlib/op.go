@@ -44,13 +44,13 @@ var (
    _componentName: component
    load: ws.#Load & {
       component: _componentName
-   }
+   } @step(1)
    
    workload: workload__.value
    workload__: kube.#Apply & {
       value: load.value.workload
       ...
-   }
+   } @step(2)
     
    applyTraits__: #Steps & {
       for index,o in load.value.auxiliaries {
@@ -58,7 +58,7 @@ var (
                value: o
           }
       }
-   }
+   } @step(3)
 }
 
 #ApplyRemaining: #Steps & {
@@ -77,7 +77,7 @@ var (
       skipApplyTraits: [...string]
   }
 
-  components: ws.#Load
+  components: ws.#Load @step(1)
   #up__: [for name,c in components.value {
         #Steps 
         if exceptions[name] != _|_ {
@@ -102,7 +102,7 @@ var (
 				
         }
      }
-  ]
+  ] @step(2)
 }
 
 #Load: ws.#Load
