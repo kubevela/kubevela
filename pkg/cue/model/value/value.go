@@ -74,7 +74,7 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 func NewValue(s string, pd *packages.PackageDiscover, opts ...func(ast.Node)) (*Value, error) {
 	builder := &build.Instance{}
 
-	file, err := parser.ParseFile("-", s)
+	file, err := parser.ParseFile("-", s, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
