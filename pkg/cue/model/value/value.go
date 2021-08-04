@@ -106,22 +106,44 @@ func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File)) (
 // TagFieldOrder add step tag.
 func TagFieldOrder(root *ast.File) {
 	i := 0
+	vs := &visitor{
+		r: map[string]struct{}{},
+	}
 	for _, decl := range root.Decls {
-		addAttrForExpr(decl, &i)
-
+		vs.addAttrForExpr(decl, &i)
 	}
 }
 
-func addAttrForExpr(node ast.Node, index *int) {
+type visitor struct {
+	r map[string]struct{}
+}
+
+func (vs *visitor) done(name string) {
+	vs.r[name] = struct{}{}
+}
+
+func (vs *visitor) shouldDo(name string) bool {
+	_, ok := vs.r[name]
+	return !ok
+}
+func (vs *visitor) addAttrForExpr(node ast.Node, index *int) {
 	switch v := node.(type) {
 	case *ast.Comprehension:
 		st := v.Value.(*ast.StructLit)
 		for _, elt := range st.Elts {
-			addAttrForExpr(elt, index)
+			vs.addAttrForExpr(elt, index)
 		}
 	case *ast.Field:
-		*index++
+		basic, ok := v.Label.(*ast.Ident)
+		if !ok {
+			return
+		}
+		if !vs.shouldDo(basic.Name) {
+			return
+		}
 		if v.Attrs == nil {
+			*index++
+			vs.done(basic.Name)
 			v.Attrs = []*ast.Attribute{
 				{Text: fmt.Sprintf("@step(%d)", *index)},
 			}
@@ -234,6 +256,10 @@ func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)
 		if err != nil {
 			return err
 		}
+
+		if end {
+			return nil
+		}
 		stop, err := handle(field.Name, field.Value)
 		if err != nil {
 			return errors.WithMessagef(err, "step %s", field.Name)
@@ -261,13 +287,9 @@ func (val *Value) fieldIndex(index int) (*field, bool, error) {
 		return nil, false, err
 	}
 	if index >= len(fields) {
-		return nil, false, errors.New("get value field by index overhead")
+		return nil, true, nil
 	}
-	end := false
-	if index == (len(fields) - 1) {
-		end = true
-	}
-	return fields[index], end, nil
+	return fields[index], false, nil
 }
 
 func (val *Value) fields() ([]*field, error) {

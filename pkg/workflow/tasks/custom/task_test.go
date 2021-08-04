@@ -317,8 +317,8 @@ process: {
   err: {
     #provider: "test"
 	#do: "error"
-  }
-  #up: [{},process]
+  } @step(1)
+  #up: [{},process] @step(2)
 }]
 `,
 			expected: "okok",
