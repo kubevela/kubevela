@@ -27,6 +27,7 @@ var (
 		name: "op.cue",
 		path: "vela/op",
 		content: `
+import ("encoding/yaml")
 #ConditionalWait: {
   #do: "wait"
   continue: bool
@@ -103,6 +104,48 @@ var (
         }
      }
   ] @step(2)
+}
+
+#ApplyEnvBindComponent: #Steps & {
+	env:       string
+	policy:    string
+	component: string
+	namespace: string
+	_namespace: namespace
+	
+	envBinding: kube.#Read & {
+		value: {
+			apiVersion: "core.oam.dev/v1alpha1"
+			kind:       "EnvBinding"
+			metadata: {
+				name:      policy
+				namespace: _namespace
+			}
+		}
+	} @step(1)
+
+	// wait until envBinding.value.status equal "finished"
+	wait: #ConditionalWait & {
+		continue: envBinding.value.status.phase == "finished"
+	} @step(2)
+	
+	configMap: kube.#Read & {
+		value: {
+			apiVersion: "v1"
+			kind:       "ConfigMap"
+			metadata: {
+				name:      policy
+				namespace: _namespace
+			}
+		}
+	} @step(3)
+
+	target: "\(env)-\(component)"
+	apply: kube.#Apply & {
+		value: {
+			yaml.Unmarshal(configMap.value.data[target])
+		}
+	} @step(4)
 }
 
 #Load: ws.#Load

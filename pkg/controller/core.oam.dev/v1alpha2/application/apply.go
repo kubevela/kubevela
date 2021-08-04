@@ -97,17 +97,15 @@ func (h *AppHandler) initDispatcher() {
 func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	appRev := h.currentAppRev
 	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+		if err := h.Dispatch(ctx, policies...); err != nil {
+			return errors.WithMessage(err, "cannot dispatch policies before workflow")
+		}
 		return h.createResourcesConfigMap(ctx, appRev, comps, policies)
 	}
 	if appWillRollout(h.app) {
 		return nil
 	}
 
-	var latestTracker *v1beta1.ResourceTracker
-	if h.app.Status.LatestRevision != nil {
-		latestTracker = &v1beta1.ResourceTracker{}
-		latestTracker.SetName(dispatch.ConstructResourceTrackerName(h.app.Status.LatestRevision.Name, h.app.Namespace))
-	}
 	// dispatch packaged workload resources before dispatching assembled manifests
 	for _, comp := range comps {
 		if len(comp.PackagedWorkloadResources) != 0 {

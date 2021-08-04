@@ -110,6 +110,9 @@ func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) 
 	if err = w.setMetadataToContext(wfCtx); err != nil {
 		return
 	}
+	if err = wfCtx.Commit(); err != nil {
+		return
+	}
 	wfStatus.ContextBackend = wfCtx.StoreRef()
 	return
 }

@@ -94,24 +94,27 @@ func (o *OCMEngine) Prepare(ctx context.Context, configs []v1alpha1.EnvConfig) e
 func (o *OCMEngine) Schedule(ctx context.Context, apps []*EnvBindApp) error {
 	for i := range apps {
 		app := apps[i]
+		app.ManifestWork = make(map[string]*unstructured.Unstructured, len(app.assembledManifests))
 		clusterName := o.clusterDecisions[app.envConfig.Name]
-		manifestWork := new(ocmapi.ManifestWork)
-		manifestWorkName := fmt.Sprintf("%s-%s", o.appName, app.envConfig.Name)
-		unstructuredManifestWork := common.GenerateUnstructuredObj(manifestWorkName, clusterName, ocmapi.ManifestWorkGVK)
+		for componentName, manifest := range app.assembledManifests {
+			manifestWork := new(ocmapi.ManifestWork)
+			manifestWorkName := fmt.Sprintf("%s-%s-%s", app.envConfig.Name, o.appName, componentName)
+			unstructuredManifestWork := common.GenerateUnstructuredObj(manifestWorkName, clusterName, ocmapi.ManifestWorkGVK)
 
-		workloads := make([]ocmapi.Manifest, len(app.assembledManifests))
-		for j, manifest := range app.assembledManifests {
-			workloads[j] = ocmapi.Manifest{
-				RawExtension: util.Object2RawExtension(manifest),
+			workloads := make([]ocmapi.Manifest, len(manifest))
+			for j, workload := range manifest {
+				workloads[j] = ocmapi.Manifest{
+					RawExtension: util.Object2RawExtension(workload),
+				}
 			}
-		}
 
-		manifestWork.Spec.Workload.Manifests = workloads
-		err := common.SetSpecObjIntoUnstructuredObj(manifestWork.Spec, unstructuredManifestWork)
-		if err != nil {
-			return err
+			manifestWork.Spec.Workload.Manifests = workloads
+			err := common.SetSpecObjIntoUnstructuredObj(manifestWork.Spec, unstructuredManifestWork)
+			if err != nil {
+				return err
+			}
+			app.ManifestWork[componentName] = unstructuredManifestWork
 		}
-		app.ManifestWork = unstructuredManifestWork
 	}
 	return nil
 }
