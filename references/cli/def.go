@@ -73,9 +73,6 @@ func DefinitionCommandGroup(c common.Args) *cobra.Command {
 		Use:   "def",
 		Short: "Manage Definitions",
 		Long:  "Manage Definitions",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},

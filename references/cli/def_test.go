@@ -164,9 +164,6 @@ func TestNewDefinitionCommandGroup(t *testing.T) {
 	cmd := DefinitionCommandGroup(common2.Args{})
 	initCommand(cmd)
 	cmd.SetArgs([]string{"-h"})
-	if err := cmd.PersistentPreRunE(cmd, []string{}); err != nil {
-		t.Fatalf("failed to execute PersistentPreRunE: %v", err)
-	}
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("failed to execute definition command: %v", err)
 	}
