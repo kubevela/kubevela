@@ -148,6 +148,14 @@ import ("encoding/yaml")
 	} @step(4)
 }
 
+#HTTPGet: http.#Do & { method: "GET"}
+
+#HTTPPost: http.#Do & { method: "POST"}
+
+#HTTPPut: http.#Do & { method: "PUT"}
+
+#HTTPDelete: http.#Do & { method: "DELETE"}
+
 #Load: ws.#Load
 
 #Read: kube.#Read

@@ -64,6 +64,7 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		}
 	}
 	if header == nil {
+		header = map[string][]string{}
 		header.Set("Content-Type", "application/json")
 	}
 	if meta.Err != nil {

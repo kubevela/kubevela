@@ -72,4 +72,28 @@ ws: {
 
 `,
 	}
+
+	httpFile = file{
+		name: "http.cue",
+		path: "vela/op",
+		content: `
+http: #Do: {
+		#do: "do"
+		#provider: "http"
+
+		url: string
+		request?: {
+			body:    string
+			header:  [string]: string
+			trailer: [string]: string
+		}
+		response: {
+			body: string
+			header?:  [string]: [...string]
+			trailer?: [string]: [...string]
+		}
+		...
+}
+`,
+	}
 )
