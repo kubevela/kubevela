@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/test"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -451,6 +453,15 @@ var _ = Describe("Test handleSkipGC func", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: checkWl.GetNamespace(), Name: checkWl.GetName()}, checkWl)).Should(BeNil())
 		Expect(len(checkWl.GetOwnerReferences())).Should(BeEquivalentTo(1))
 		Expect(checkWl.GetOwnerReferences()[0].UID).Should(BeEquivalentTo("app-uid"))
+	})
+
+	It("Test GC skip func, mock client return error", func() {
+		handler := GCHandler{c: &test.MockClient{
+			MockGet: test.NewMockGetFn(fmt.Errorf("this isn't a not found error")),
+		}}
+		isSkip, err := handler.handleResourceSkipGC(ctx, &unstructured.Unstructured{}, &v1beta1.ResourceTracker{})
+		Expect(err).ShouldNot(BeNil())
+		Expect(isSkip).Should(BeEquivalentTo(false))
 	})
 })
 
