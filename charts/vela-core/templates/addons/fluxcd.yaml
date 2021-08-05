@@ -5927,20 +5927,26 @@ data:
                       release: {\n\tapiVersion: \"helm.toolkit.fluxcd.io/v2beta1\"\n\tkind:
                       \      \"HelmRelease\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec:
                       {\n\t\tinterval: parameter.pullInterval\n\t\tchart: {\n\t\t\tspec:
-                      {\n\t\t\t\tchart: parameter.chart\n\t\t\t\tsourceRef: {\n\t\t\t\t\tif
-                      parameter.repoType == \"git\" {\n\t\t\t\t\t\tkind: \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif
-                      parameter.repoType == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tname:
+                      {\n\t\t\t\tchart:   parameter.chart\n\t\t\t\tversion: parameter.version\n\t\t\t\tsourceRef:
+                      {\n\t\t\t\t\tif parameter.repoType == \"git\" {\n\t\t\t\t\t\tkind:
+                      \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.repoType
+                      == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tname:
                       \     context.name\n\t\t\t\t\tnamespace: context.namespace\n\t\t\t\t}\n\t\t\t\tinterval:
-                      parameter.pullInterval\n\t\t\t}\n\t\t}\n\t}\n}\n\nparameter: {\n\trepoType:
-                      \"git\" | \"helm\"\n\t// +usage=The Git or Helm repository URL,
-                      accept HTTP/S or SSH address as git url.\n\trepoUrl: string\n\t//
+                      parameter.pullInterval\n\t\t\t}\n\t\t}\n\t\tif parameter.targetNamespace
+                      != _|_ {\n\t\t\ttargetNamespace: parameter.targetNamespace\n\t\t}\n\t\tif
+                      parameter.values != _|_ {\n\t\t\tvalues: parameter.values\n\t\t}\n\t}\n}\n\nparameter:
+                      {\n\trepoType: \"git\" | \"helm\"\n\t// +usage=The Git or Helm repository
+                      URL, accept HTTP/S or SSH address as git url.\n\trepoUrl: string\n\t//
                       +usage=The interval at which to check for repository and relese
                       updates.\n\tpullInterval: *\"5m\" | string\n\t// +usage=1.The relative
                       path to helm chart for git source. 2. chart name for helm resource\n\tchart:
-                      string\n    // +usage=The Git reference to checkout and monitor
-                      for changes, defaults to master branch.\n    branch: *\"master\"
-                      | string\n    // +usage=The name of the secret containing authentication
-                      credentials for the Helm repository.\n\tsecretRef?: string\n}\n"
+                      string\n\t// +usage=Chart version\n\tversion?: string\n\t// +usage=The
+                      Git reference to checkout and monitor for changes, defaults to master
+                      branch.\n\tbranch: *\"master\" | string\n\t// +usage=The name of
+                      the secret containing authentication credentials for the Helm repository.\n\tsecretRef?:
+                      string\n\t// +usage=The namespace for helm chart\n\ttargetNamespace?:
+                      string\n\t// +usage=Chart version\n\tvalue?: #nestedmap\n}\n\n#nestedmap:
+                      {\n\t...\n}\n"
                 workload:
                   type: autodetects.core.oam.dev
             type: raw
