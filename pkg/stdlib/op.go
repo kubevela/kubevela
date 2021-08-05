@@ -53,12 +53,14 @@ import ("encoding/yaml")
       ...
    } @step(2)
    
-   traits: #up
-   #up: [for index,o in load.value.auxiliaries {
-          kube.#Apply & {
-               value: o
-          }
-   }] @step(3)
+   if load.value.auxiliaries!=_|_{
+      _key: "trait.oam.dev/resource"
+      traits: #Steps & {
+      	for index,o in load.value.auxiliaries {
+          "\(o.metadata.labels[_key])": kube.#Apply & { value: o }
+        } 
+      } @step(3)
+   } 
 }
 
 #ApplyRemaining: #Steps & {

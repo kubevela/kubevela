@@ -17,11 +17,11 @@ limitations under the License.
 package http
 
 import (
+	"gotest.tools/assert"
 	"io/ioutil"
 	"net/http"
 	"testing"
-
-	"gotest.tools/assert"
+	"time"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
@@ -116,4 +116,16 @@ func runMockServer(t *testing.T, shutdown chan struct{}) {
 		srv.Close()
 		t.Log("mock http server shutdown")
 	}()
+
+	client := &http.Client{}
+	// wait server started.
+	for {
+		time.Sleep(time.Millisecond * 300)
+		req, _ := http.NewRequest("GET", "http://127.0.0.1:1229/hello", nil)
+		_, err := client.Do(req)
+		if err == nil {
+			break
+		}
+	}
+
 }
