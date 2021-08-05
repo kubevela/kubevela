@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test Application Validator", func() {
@@ -153,7 +154,7 @@ var _ = Describe("Test Application Validator", func() {
 	})
 
 	It("Test Application Validator external revision name [allow]", func() {
-		Expect(k8sClient.Create(ctx, &appsv1.ControllerRevision{
+		externalComp1 := appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "default",
 				Name:      "external-comp1",
@@ -164,7 +165,7 @@ var _ = Describe("Test Application Validator", func() {
 			},
 			Data: runtime.RawExtension{
 				Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Component",
 "metadata":{"name":"myweb"},
 "spec":{"workload":{"apiVersion":"apps/v1",
@@ -172,12 +173,13 @@ var _ = Describe("Test Application Validator", func() {
 "spec": {"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}}}}
 `)},
 			Revision: 1,
-		})).Should(BeNil())
+		}
+		Expect(k8sClient.Create(ctx, &externalComp1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
-				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
 {"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
@@ -193,18 +195,14 @@ var _ = Describe("Test Application Validator", func() {
 	})
 
 	It("Test Application Validator external revision name [error]", func() {
-		Expect(k8sClient.Update(ctx, &appsv1.ControllerRevision{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "apps/v1",
-				Kind:       "ControllerRevision",
-			},
+		externalComp2 := appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "default",
-				Name:      "external-comp1",
+				Name:      "external-comp2",
 			},
 			Data: runtime.RawExtension{
 				Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Component",
 "metadata":{"name":"myweb"},
 "spec":{"workload":{"apiVersion":"apps/v1",
@@ -212,18 +210,19 @@ var _ = Describe("Test Application Validator", func() {
 "spec": {"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}}}}
 `)},
 			Revision: 1,
-		})).Should(BeNil())
+		}
+		Expect(k8sClient.Create(ctx, &externalComp2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
-				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
 {"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
 "spec":{"components":[{"name":"myworker","type":"worker",
 "properties":{"image":"stefanprodan/podinfo:4.0.6"},
-"externalRevision":"external-comp1"}]}}
+"externalRevision":"external-comp2"}]}}
 `),
 				},
 			},
@@ -233,10 +232,10 @@ var _ = Describe("Test Application Validator", func() {
 	})
 
 	It("Test Application Validator external revision name specificy helm repo in component [allow]", func() {
-		Expect(k8sClient.Create(ctx, &appsv1.ControllerRevision{
+		externalComp3 := appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "default",
-				Name:      "external-comp2",
+				Name:      "external-comp3",
 				Labels: map[string]string{
 					oam.LabelControllerRevisionComponent: "myworker",
 					oam.LabelComponentRevisionHash:       "9be6f6ab47eadbf9",
@@ -244,7 +243,7 @@ var _ = Describe("Test Application Validator", func() {
 			},
 			Data: runtime.RawExtension{
 				Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Component","metadata":{"name":"myweb"},
 "spec":{"workload":{"apiVersion":"apps/v1","kind":"Deployment",
 "spec":{"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}},
@@ -252,18 +251,19 @@ var _ = Describe("Test Application Validator", func() {
 "repository":{"url":"test.com","secretRef":{"name":"testSecret"}}}}}
 `)},
 			Revision: 1,
-		})).Should(BeNil())
+		}
+		Expect(k8sClient.Create(ctx, &externalComp3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
-				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
 {"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
 "spec":{"components":[{"name":"myworker","type":"worker",
 "properties":{"image":"stefanprodan/podinfo:4.0.6"},
-"externalRevision":"external-comp2"}]}}
+"externalRevision":"external-comp3"}]}}
 `),
 				},
 			},
