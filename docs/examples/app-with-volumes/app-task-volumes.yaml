@@ -1,11 +1,11 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: app-webservice
+  name: app-task
 spec:
   components:
-    - name: mywebsvc
-      type: webservice
+    - name: mytask
+      type: task
       properties:
         image: "busybox"
         cmd:
