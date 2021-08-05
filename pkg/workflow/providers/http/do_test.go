@@ -27,11 +27,7 @@ import (
 )
 
 func TestHttpDo(t *testing.T) {
-	closeCh := runMockServer(t)
-	defer func() {
-		close(closeCh)
-	}()
-
+    runMockServer(t)
 	baseTemplate := `
 		url: string
 		request?: close({
@@ -98,7 +94,7 @@ request:{
 	}
 }
 
-func runMockServer(t *testing.T) chan struct{} {
+func runMockServer(t *testing.T)  {
 	http.HandleFunc("/hello", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("hello"))
 	})
@@ -107,15 +103,5 @@ func runMockServer(t *testing.T) chan struct{} {
 		assert.NilError(t, err)
 		w.Write(bt)
 	})
-	srv := &http.Server{Addr: ":1229"}
-	close := make(chan struct{})
-	go func() {
-		err := srv.ListenAndServe()
-		assert.NilError(t, err)
-	}()
-	go func() {
-		<-close
-		srv.Close()
-	}()
-	return close
+	go http.ListenAndServe(":1229",nil)
 }
