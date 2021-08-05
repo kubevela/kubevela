@@ -49,7 +49,8 @@ spec:
         		interval: parameter.pullInterval
         		chart: {
         			spec: {
-        				chart: parameter.chart
+        				chart:   parameter.chart
+        				version: parameter.version
         				sourceRef: {
         					if parameter.repoType == "git" {
         						kind: "GitRepository"
@@ -63,6 +64,12 @@ spec:
         				interval: parameter.pullInterval
         			}
         		}
+        		if parameter.targetNamespace != _|_ {
+        			targetNamespace: parameter.targetNamespace
+        		}
+        		if parameter.values != _|_ {
+        			values: parameter.values
+        		}
         	}
         }
 
@@ -74,8 +81,18 @@ spec:
         	pullInterval: *"5m" | string
         	// +usage=1.The relative path to helm chart for git source. 2. chart name for helm resource
         	chart: string
-            // +usage=The Git reference to checkout and monitor for changes, defaults to master branch.
-            branch: *"master" | string
-            // +usage=The name of the secret containing authentication credentials for the Helm repository.
+        	// +usage=Chart version
+        	version?: string
+        	// +usage=The Git reference to checkout and monitor for changes, defaults to master branch.
+        	branch: *"master" | string
+        	// +usage=The name of the secret containing authentication credentials for the Helm repository.
         	secretRef?: string
+        	// +usage=The namespace for helm chart
+        	targetNamespace?: string
+        	// +usage=Chart version
+        	value?: #nestedmap
+        }
+
+        #nestedmap: {
+        	...
         }
