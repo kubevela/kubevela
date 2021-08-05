@@ -12,11 +12,9 @@ template: {
 	outputs: service: {
 		apiVersion: "v1"
 		kind:       "Service"
-		metadata:
-			name: context.name
+		metadata: name: context.name
 		spec: {
-			selector:
-				"app.oam.dev/component": context.name
+			selector: "app.oam.dev/component": context.name
 			ports: [
 				for p in parameter.port {
 					port:       p

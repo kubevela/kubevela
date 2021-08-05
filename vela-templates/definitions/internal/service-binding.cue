@@ -3,35 +3,29 @@
 	annotations: {}
 	labels: {}
 	description: "Binding secrets of cloud resources to component env"
-	attributes: {
-		appliesToWorkloads: ["webservice", "worker"]
-	}
+	attributes: appliesToWorkloads: ["webservice", "worker"]
 }
 template: {
-	patch: {
-		spec: template: spec: {
+	patch: spec: template: spec: {
+		// +patchKey=name
+		containers: [{
+			name: context.name
 			// +patchKey=name
-			containers: [{
-				name: context.name
-				// +patchKey=name
-				env: [
-					for envName, v in parameter.envMappings {
-						name: envName
-						valueFrom: {
-							secretKeyRef: {
-								name: v.secret
-								if v["key"] != _|_ {
-									key: v.key
-								}
-								if v["key"] == _|_ {
-									key: envName
-								}
-							}
+			env: [
+				for envName, v in parameter.envMappings {
+					name: envName
+					valueFrom: secretKeyRef: {
+						name: v.secret
+						if v["key"] != _|_ {
+							key: v.key
 						}
-					},
-				]
-			}]
-		}
+						if v["key"] == _|_ {
+							key: envName
+						}
+					}
+				},
+			]
+		}]
 	}
 
 	parameter: {

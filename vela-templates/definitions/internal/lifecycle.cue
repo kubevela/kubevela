@@ -9,18 +9,16 @@ lifecycle: {
 	}
 }
 template: {
-	patch: {
-		spec: template: spec: containers: [{
-			lifecycle: {
-				if parameter.postStart != _|_ {
-					postStart: parameter.postStart
-				}
-				if parameter.preStop != _|_ {
-					preStop: parameter.preStop
-				}
+	patch: spec: template: spec: containers: [{
+		lifecycle: {
+			if parameter.postStart != _|_ {
+				postStart: parameter.postStart
 			}
-		}, ...]
-	}
+			if parameter.preStop != _|_ {
+				preStop: parameter.preStop
+			}
+		}
+	}, ...]
 	parameter: {
 		postStart?: #LifeCycleHandler
 		preStop?:   #LifeCycleHandler

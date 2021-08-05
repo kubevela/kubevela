@@ -21,8 +21,7 @@ spec:
         			apiVersion: "v1"
         			kind:       "Service"
         			spec: {
-        				selector:
-        					app: context.name
+        				selector: app: context.name
         				ports: [{
         					port:       v
         					targetPort: v

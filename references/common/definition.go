@@ -159,7 +159,11 @@ func (def *Definition) ToCUEString() (string, error) {
 		sPrefix += "\n"
 	}
 	s = sPrefix + s
-	return s + fmt.Sprintf("template: {\n%s\n}\n", strings.ReplaceAll(templateString, "\n", "\n\t")), nil
+	completeCUEString := s + fmt.Sprintf("template: {\n%s\n}\n", strings.ReplaceAll(templateString, "\n", "\n\t"))
+	if completeCUEString, err = formatCUEString(completeCUEString); err != nil {
+		return "", errors.Wrapf(err, "failed to format cue format string")
+	}
+	return completeCUEString, nil
 }
 
 // FromCUE converts CUE value (predefined Definition's cue format) to Definition
@@ -273,7 +277,10 @@ func (def *Definition) FromCUEString(cueString string) error {
 	if err != nil {
 		return err
 	}
-	templateString := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(cueStringParts[1]), "{"), "}")
+	templateString := strings.TrimSpace(cueStringParts[1])
+	if strings.HasPrefix(templateString, "{") {
+		templateString = strings.TrimSuffix(strings.TrimPrefix(templateString, "{"), "}")
+	}
 	templateString, err = formatCUEString(templateStringPrefix + templateString)
 	if err != nil {
 		return err
@@ -373,7 +380,7 @@ func formatCUEString(cueString string) (string, error) {
 		return "", errors.Wrapf(err, "failed to parse file during format cue string")
 	}
 	n := fix.File(f)
-	b, err := format.Node(n)
+	b, err := format.Node(n, format.Simplify())
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to format node during formating cue string")
 	}

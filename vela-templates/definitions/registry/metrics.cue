@@ -20,9 +20,7 @@ template: {
 	outputs: metrics: {
 		apiVersion: "standard.oam.dev/v1alpha1"
 		kind:       "MetricsTrait"
-		spec: {
-			scrapeService: parameter
-		}
+		spec: scrapeService: parameter
 	}
 	parameter: {
 		// +usage=Format of the metrics, default as prometheus

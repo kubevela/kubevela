@@ -35,8 +35,6 @@ spec:
         	rolloutBatches: [...rolloutBatch]
         }
 
-        rolloutBatch: {
-        	replicas: int
-        }
+        rolloutBatch: replicas: int
   skipRevisionAffect: true
 

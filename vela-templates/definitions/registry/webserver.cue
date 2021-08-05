@@ -3,11 +3,9 @@ webserver: {
 	annotations: {}
 	labels: {}
 	description: "webserver was composed by deployment and service"
-	attributes: {
-		workload: definition: {
-			apiVersion: "apps/v1"
-			kind:       "Deployment"
-		}
+	attributes: workload: definition: {
+		apiVersion: "apps/v1"
+		kind:       "Deployment"
 	}
 }
 template: {
@@ -15,44 +13,36 @@ template: {
 		apiVersion: "apps/v1"
 		kind:       "Deployment"
 		spec: {
-			selector: matchLabels: {
-				"app.oam.dev/component": context.name
-			}
+			selector: matchLabels: "app.oam.dev/component": context.name
 			template: {
-				metadata: labels: {
-					"app.oam.dev/component": context.name
-				}
-				spec: {
-					containers: [{
-						name:  context.name
-						image: parameter.image
+				metadata: labels: "app.oam.dev/component": context.name
+				spec: containers: [{
+					name:  context.name
+					image: parameter.image
 
-						if parameter["cmd"] != _|_ {
-							command: parameter.cmd
-						}
+					if parameter["cmd"] != _|_ {
+						command: parameter.cmd
+					}
 
-						if parameter["env"] != _|_ {
-							env: parameter.env
-						}
+					if parameter["env"] != _|_ {
+						env: parameter.env
+					}
 
-						if context["config"] != _|_ {
-							env: context.config
-						}
+					if context["config"] != _|_ {
+						env: context.config
+					}
 
-						ports: [{
-							containerPort: parameter.port
-						}]
-
-						if parameter["cpu"] != _|_ {
-							resources: {
-								limits:
-									cpu: parameter.cpu
-								requests:
-									cpu: parameter.cpu
-							}
-						}
+					ports: [{
+						containerPort: parameter.port
 					}]
-			}
+
+					if parameter["cpu"] != _|_ {
+						resources: {
+							limits: cpu:   parameter.cpu
+							requests: cpu: parameter.cpu
+						}
+					}
+				}]
 			}
 		}
 	}
@@ -61,9 +51,7 @@ template: {
 		apiVersion: "v1"
 		kind:       "Service"
 		spec: {
-			selector: {
-				"app.oam.dev/component": context.name
-			}
+			selector: "app.oam.dev/component": context.name
 			ports: [
 				{
 					port:       parameter.port
@@ -79,11 +67,9 @@ template: {
 		env?: [...{
 			name:   string
 			value?: string
-			valueFrom?: {
-				secretKeyRef: {
-					name: string
-					key:  string
-				}
+			valueFrom?: secretKeyRef: {
+				name: string
+				key:  string
 			}
 		}]
 		cpu?: string

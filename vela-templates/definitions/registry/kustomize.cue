@@ -3,17 +3,13 @@ kustomize: {
 	annotations: {}
 	labels: {}
 	description: "kustomize can fetching, building, updating and applying Kustomize manifests from git repo."
-	attributes: {
-		workload: type: "autodetects.core.oam.dev"
-	}
+	attributes: workload: type: "autodetects.core.oam.dev"
 }
 template: {
 	output: {
 		apiVersion: "source.toolkit.fluxcd.io/v1beta1"
 		kind:       "GitRepository"
-		metadata: {
-			name: context.name
-		}
+		metadata: name: context.name
 		spec: {
 			interval: parameter.pullInterval
 			url:      parameter.repoUrl
@@ -23,9 +19,7 @@ template: {
 	outputs: kustomize: {
 		apiVersion: "kustomize.toolkit.fluxcd.io/v1beta1"
 		kind:       "Kustomization"
-		metadata: {
-			name: context.name
-		}
+		metadata: name: context.name
 		spec: {
 			interval: parameter.pullInterval
 			sourceRef: {

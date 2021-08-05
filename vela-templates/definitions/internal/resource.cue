@@ -9,15 +9,13 @@ resource: {
 	}
 }
 template: {
-	patch: {
-		spec: template: spec: containers: [{
-			metadata: annotations: "customized-resource": "cpu:\(parameter.cpu) memory:\(parameter.memory)"
-			resources: {
-				requests: parameter
-				limits:   parameter
-			}
-		}, ...]
-	}
+	patch: spec: template: spec: containers: [{
+		metadata: annotations: "customized-resource": "cpu:\(parameter.cpu) memory:\(parameter.memory)"
+		resources: {
+			requests: parameter
+			limits:   parameter
+		}
+	}, ...]
 	parameter: {
 		// +usage=Specify the amount of cpu to limit
 		cpu: *1 | number

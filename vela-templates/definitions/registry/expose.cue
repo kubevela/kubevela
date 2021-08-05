@@ -3,9 +3,7 @@ expose: {
 	annotations: {}
 	labels: {}
 	description: "Expose a service."
-	attributes: {
-		podDisruptive: false
-	}
+	attributes: podDisruptive: false
 }
 template: {
 	parameter: {
@@ -18,8 +16,7 @@ template: {
 				apiVersion: "v1"
 				kind:       "Service"
 				spec: {
-					selector:
-						app: context.name
+					selector: app: context.name
 					ports: [{
 						port:       v
 						targetPort: v

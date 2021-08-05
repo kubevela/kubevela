@@ -3,9 +3,7 @@ cpuscaler: {
 	annotations: {}
 	labels: {}
 	description: "Automatically scale the component based on CPU usage."
-	attributes: {
-		appliesToWorkloads: ["deployments.apps"]
-	}
+	attributes: appliesToWorkloads: ["deployments.apps"]
 }
 template: {
 	outputs: cpuscaler: {

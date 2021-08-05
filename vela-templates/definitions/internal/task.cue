@@ -3,11 +3,9 @@ task: {
 	annotations: {}
 	labels: {}
 	description: "Describes jobs that run code or a script to completion."
-	attributes: {
-		workload: definition: {
-			apiVersion: "batch/v1"
-			kind:       "Job"
-		}
+	attributes: workload: definition: {
+		apiVersion: "batch/v1"
+		kind:       "Job"
 	}
 }
 template: {
@@ -33,19 +31,15 @@ template: {
 
 					if parameter["cpu"] != _|_ {
 						resources: {
-							limits:
-								cpu: parameter.cpu
-							requests:
-								cpu: parameter.cpu
+							limits: cpu:   parameter.cpu
+							requests: cpu: parameter.cpu
 						}
 					}
 
 					if parameter["memory"] != _|_ {
 						resources: {
-							limits:
-								memory: parameter.memory
-							requests:
-								memory: parameter.memory
+							limits: memory:   parameter.memory
+							requests: memory: parameter.memory
 						}
 					}
 
@@ -58,44 +52,40 @@ template: {
 					}
 				}]
 
-			if parameter["volumes"] != _|_ {
-				volumes: [ for v in parameter.volumes {
-					{
-						name: v.name
-						if v.type == "pvc" {
-							persistentVolumeClaim: {
-								claimName: v.claimName
+				if parameter["volumes"] != _|_ {
+					volumes: [ for v in parameter.volumes {
+						{
+							name: v.name
+							if v.type == "pvc" {
+								persistentVolumeClaim: claimName: v.claimName
 							}
-						}
-						if v.type == "configMap" {
-							configMap: {
-								defaultMode: v.defaultMode
-								name:        v.cmName
-								if v.items != _|_ {
-									items: v.items
+							if v.type == "configMap" {
+								configMap: {
+									defaultMode: v.defaultMode
+									name:        v.cmName
+									if v.items != _|_ {
+										items: v.items
+									}
 								}
 							}
-						}
-						if v.type == "secret" {
-							secret: {
-								defaultMode: v.defaultMode
-								secretName:  v.secretName
-								if v.items != _|_ {
-									items: v.items
+							if v.type == "secret" {
+								secret: {
+									defaultMode: v.defaultMode
+									secretName:  v.secretName
+									if v.items != _|_ {
+										items: v.items
+									}
 								}
 							}
-						}
-						if v.type == "emptyDir" {
-							emptyDir: {
-								medium: v.medium
+							if v.type == "emptyDir" {
+								emptyDir: medium: v.medium
 							}
-						}
-					}}]
-			}
+						}}]
+				}
 
+			}
 		}
 	}
-}
 
 	parameter: {
 		// +usage=Specify number of tasks to run in parallel

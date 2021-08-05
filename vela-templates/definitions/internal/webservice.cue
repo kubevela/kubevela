@@ -3,11 +3,9 @@ webservice: {
 	annotations: {}
 	labels: {}
 	description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers."
-	attributes: {
-		workload: definition: {
-			apiVersion: "apps/v1"
-			kind:       "Deployment"
-		}
+	attributes: workload: definition: {
+		apiVersion: "apps/v1"
+		kind:       "Deployment"
 	}
 }
 template: {
@@ -15,9 +13,7 @@ template: {
 		apiVersion: "apps/v1"
 		kind:       "Deployment"
 		spec: {
-			selector: matchLabels: {
-				"app.oam.dev/component": context.name
-			}
+			selector: matchLabels: "app.oam.dev/component": context.name
 
 			template: {
 				metadata: labels: {
@@ -53,19 +49,15 @@ template: {
 
 						if parameter["cpu"] != _|_ {
 							resources: {
-								limits:
-									cpu: parameter.cpu
-								requests:
-									cpu: parameter.cpu
+								limits: cpu:   parameter.cpu
+								requests: cpu: parameter.cpu
 							}
 						}
 
 						if parameter["memory"] != _|_ {
 							resources: {
-								limits:
-									memory: parameter.memory
-								requests:
-									memory: parameter.memory
+								limits: memory:   parameter.memory
+								requests: memory: parameter.memory
 							}
 						}
 
@@ -87,50 +79,46 @@ template: {
 
 					}]
 
-				if parameter["imagePullSecrets"] != _|_ {
-					imagePullSecrets: [ for v in parameter.imagePullSecrets {
-						name: v
-					},
-					]
-				}
+					if parameter["imagePullSecrets"] != _|_ {
+						imagePullSecrets: [ for v in parameter.imagePullSecrets {
+							name: v
+						},
+						]
+					}
 
-				if parameter["volumes"] != _|_ {
-					volumes: [ for v in parameter.volumes {
-						{
-							name: v.name
-							if v.type == "pvc" {
-								persistentVolumeClaim: {
-									claimName: v.claimName
+					if parameter["volumes"] != _|_ {
+						volumes: [ for v in parameter.volumes {
+							{
+								name: v.name
+								if v.type == "pvc" {
+									persistentVolumeClaim: claimName: v.claimName
 								}
-							}
-							if v.type == "configMap" {
-								configMap: {
-									defaultMode: v.defaultMode
-									name:        v.cmName
-									if v.items != _|_ {
-										items: v.items
+								if v.type == "configMap" {
+									configMap: {
+										defaultMode: v.defaultMode
+										name:        v.cmName
+										if v.items != _|_ {
+											items: v.items
+										}
 									}
 								}
-							}
-							if v.type == "secret" {
-								secret: {
-									defaultMode: v.defaultMode
-									secretName:  v.secretName
-									if v.items != _|_ {
-										items: v.items
+								if v.type == "secret" {
+									secret: {
+										defaultMode: v.defaultMode
+										secretName:  v.secretName
+										if v.items != _|_ {
+											items: v.items
+										}
 									}
 								}
-							}
-							if v.type == "emptyDir" {
-								emptyDir: {
-									medium: v.medium
+								if v.type == "emptyDir" {
+									emptyDir: medium: v.medium
 								}
-							}
-						}}]
+							}}]
+					}
 				}
 			}
 		}
-	}
 	}
 	parameter: {
 		// +usage=Which image would you like to use for your service

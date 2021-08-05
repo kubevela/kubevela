@@ -33,7 +33,5 @@ template: {
 		rolloutBatches: [...rolloutBatch]
 	}
 
-	rolloutBatch: {
-		replicas: int
-	}
+	rolloutBatch: replicas: int
 }

@@ -23,9 +23,7 @@ template: {
 			host: parameter.domain
 
 			if parameter.issuer != "" {
-				tls: {
-					issuerName: parameter.issuer
-				}
+				tls: issuerName: parameter.issuer
 			}
 
 			if parameter["rules"] != _|_ {

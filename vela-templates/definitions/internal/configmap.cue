@@ -9,30 +9,28 @@ configmap: {
 	}
 }
 template: {
-	patch: {
-		spec: template: spec: {
-			containers: [{
-				volumeMounts: [
-					// +patchKey=name
-					for v in parameter.volumes {
-						{
-							name:      "volume-\(v.name)"
-							mountPath: v.mountPath
-							readOnly:  v.readOnly
-						}
-					},
-				]
-			}, ...]
-			volumes: [
+	patch: spec: template: spec: {
+		containers: [{
+			volumeMounts: [
 				// +patchKey=name
 				for v in parameter.volumes {
 					{
-						name: "volume-\(v.name)"
-						configMap: name: v.name
+						name:      "volume-\(v.name)"
+						mountPath: v.mountPath
+						readOnly:  v.readOnly
 					}
 				},
 			]
-		}
+		}, ...]
+		volumes: [
+			// +patchKey=name
+			for v in parameter.volumes {
+				{
+					name: "volume-\(v.name)"
+					configMap: name: v.name
+				}
+			},
+		]
 	}
 	outputs: {
 		for v in parameter.volumes {

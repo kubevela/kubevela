@@ -54,6 +54,7 @@ func initCommand(cmd *cobra.Command) {
 	cmd.SilenceUsage = true
 	cmd.Flags().StringP("env", "", "", "")
 	cmd.SetOut(ioutil.Discard)
+	cmd.SetErr(ioutil.Discard)
 }
 
 func createTrait(c common2.Args, t *testing.T) string {
@@ -77,8 +78,7 @@ func createNamespacedTrait(c common2.Args, name string, ns string, t *testing.T)
 	}
 }
 
-func createLocalTrait(t *testing.T) (string, string) {
-	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
+func createLocalTraitAt(traitName string, localPath string, t *testing.T) string {
 	s := fmt.Sprintf(`// k8s metadata
 "%s": {
         type:   "trait"
@@ -102,12 +102,28 @@ template: {
         }
 }
 `, traitName, traitName)
-	//fmt.Println(s)
-	filename := filepath.Join(os.TempDir(), traitName+".cue")
+	filename := filepath.Join(localPath, traitName+".cue")
 	if err := os.WriteFile(filename, []byte(s), 0600); err != nil {
 		t.Fatalf("failed to write temp trait file %s: %v", filename, err)
 	}
+	return filename
+}
+
+func createLocalTrait(t *testing.T) (string, string) {
+	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
+	filename := createLocalTraitAt(traitName, os.TempDir(), t)
 	return traitName, filename
+}
+
+func createLocalTraits(t *testing.T) string {
+	dirname, err := ioutil.TempDir(os.TempDir(), "vela-def-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temporary directory: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		createLocalTraitAt(fmt.Sprintf("trait-%d", i), dirname, t)
+	}
+	return dirname
 }
 
 func createLocalDeploymentYAML(t *testing.T) string {
@@ -135,6 +151,12 @@ Spec:
 func removeFile(filename string, t *testing.T) {
 	if err := os.Remove(filename); err != nil {
 		t.Fatalf("failed to remove file %s: %v", filename, err)
+	}
+}
+
+func removeDir(dirname string, t *testing.T) {
+	if err := os.RemoveAll(dirname); err != nil {
+		t.Fatalf("failed to remove dir %s: %v", dirname, err)
 	}
 }
 
@@ -248,6 +270,44 @@ func TestNewDefinitionEditCommand(t *testing.T) {
 	}
 }
 
+func TestNewDefinitionRenderCommand(t *testing.T) {
+	c := initArgs()
+	// normal test
+	cmd := NewDefinitionRenderCommand(c)
+	initCommand(cmd)
+	_ = os.Setenv(HelmChartFormatEnvName, "true")
+	_, traitFilename := createLocalTrait(t)
+	defer removeFile(traitFilename, t)
+	cmd.SetArgs([]string{traitFilename})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing redner command: %v", err)
+	}
+	// directory read/write test
+	_ = os.Setenv(HelmChartFormatEnvName, "system")
+	dirname := createLocalTraits(t)
+	defer removeDir(dirname, t)
+	outputDir, err := ioutil.TempDir(os.TempDir(), "vela-def-tests-output-*")
+	if err != nil {
+		t.Fatalf("failed to create temporary output dir: %v", err)
+	}
+	defer removeDir(outputDir, t)
+	cmd = NewDefinitionRenderCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{dirname, "-o", outputDir})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing render command: %v", err)
+	}
+	// directory read/print test
+	_ = os.WriteFile(filepath.Join(dirname, "temp.json"), []byte("hello"), 0600)
+	_ = os.WriteFile(filepath.Join(dirname, "temp.cue"), []byte("hello"), 0600)
+	cmd = NewDefinitionRenderCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{dirname})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing render command: %v", err)
+	}
+}
+
 func TestNewDefinitionApplyCommand(t *testing.T) {
 	c := initArgs()
 	// dry-run test
@@ -257,7 +317,7 @@ func TestNewDefinitionApplyCommand(t *testing.T) {
 	defer removeFile(traitFilename, t)
 	cmd.SetArgs([]string{traitFilename, "--dry-run"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing edit command: %v", err)
+		t.Fatalf("unexpeced error when executing apply command: %v", err)
 	}
 	// normal test and reapply
 	cmd = NewDefinitionApplyCommand(c)
@@ -265,7 +325,7 @@ func TestNewDefinitionApplyCommand(t *testing.T) {
 	cmd.SetArgs([]string{traitFilename})
 	for i := 0; i < 2; i++ {
 		if err := cmd.Execute(); err != nil {
-			t.Fatalf("unexpeced error when executing edit command: %v", err)
+			t.Fatalf("unexpeced error when executing apply command: %v", err)
 		}
 	}
 }
@@ -279,7 +339,7 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 	cmd.SetIn(reader)
 	cmd.SetArgs([]string{traitName})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing edit command: %v", err)
+		t.Fatalf("unexpeced error when executing del command: %v", err)
 	}
 	obj := &v1beta1.TraitDefinition{}
 	if err := c.Client.Get(context.Background(), types.NamespacedName{
@@ -301,7 +361,7 @@ func TestNewDefinitionVetCommand(t *testing.T) {
 	defer removeFile(traitFilename, t)
 	cmd.SetArgs([]string{traitFilename})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing edit command: %v", err)
+		t.Fatalf("unexpeced error when executing vet command: %v", err)
 	}
 	bs, err := os.ReadFile(traitFilename)
 	if err != nil {
