@@ -59,7 +59,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("bootstrapping test environment")
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
-		yamlPath = "../../../../../../test/compatibility-test/testdata"
+		yamlPath = "../../../../../test/compatibility-test/testdata"
 	} else {
 		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
 	}
