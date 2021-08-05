@@ -74,12 +74,17 @@ func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.Re
 			toBeDeleted.SetKind(oldRsc.Kind)
 			toBeDeleted.SetNamespace(oldRsc.Namespace)
 			toBeDeleted.SetName(oldRsc.Name)
-			if isSkip, err := h.handleResourceSkipGC(ctx, toBeDeleted, oldRT); err != nil {
+
+			isSkip := false
+			var err error
+			if isSkip, err = h.handleResourceSkipGC(ctx, toBeDeleted, oldRT); err != nil {
 				return errors.Wrap(err, "cannot handle resource skipResourceGC")
-			} else if isSkip {
+			}
+			if isSkip {
 				// the resource have skipGC annotation, will not delete the resource
 				continue
 			}
+
 			if err := h.c.Delete(ctx, toBeDeleted); err != nil && !kerrors.IsNotFound(err) {
 				klog.ErrorS(err, "Failed to delete a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
 				return errors.Wrapf(err, "cannot delete resource %q", oldRsc)

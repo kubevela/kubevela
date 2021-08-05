@@ -123,8 +123,8 @@ func (h *handler) applyTargetWorkload(ctx context.Context) error {
 		return err
 	}
 
-	if err := h.recordeWorkloadInResourceTracker(ctx); err != nil {
-		return errors.Wrap(err, "error to recorde workload to resourceTracker")
+	if err := h.recordWorkloadInResourceTracker(ctx); err != nil {
+		return errors.Wrap(err, "fail to add resourceTracker as owner for workload")
 	}
 
 	klog.InfoS("template rollout target workload", "namespace", h.rollout.Namespace,
@@ -238,7 +238,7 @@ func (h *handler) isRolloutModified(rollout v1alpha1.Rollout) bool {
 				rollout.Status.RolloutTargetSize != *rollout.Spec.RolloutPlan.TargetSize))
 }
 
-func (h *handler) recordeWorkloadInResourceTracker(ctx context.Context) error {
+func (h *handler) recordWorkloadInResourceTracker(ctx context.Context) error {
 	var resourceTrackerName string
 	for _, reference := range h.rollout.OwnerReferences {
 		if reference.Kind == v1beta1.ResourceTrackerKind && reference.APIVersion == v1beta1.SchemeGroupVersion.String() {
@@ -251,7 +251,7 @@ func (h *handler) recordeWorkloadInResourceTracker(ctx context.Context) error {
 	}
 	rt := v1beta1.ResourceTracker{}
 	if err := h.Get(ctx, types.NamespacedName{Name: resourceTrackerName}, &rt); err != nil {
-		klog.Errorf("rollout recordeWorkloadInResourceTracker error to get resourceTracker namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
+		klog.Errorf("fail to get resourceTracker to record workload rollout: namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
 		return err
 	}
 	recordedWorkload := corev1.ObjectReference{
@@ -263,10 +263,10 @@ func (h *handler) recordeWorkloadInResourceTracker(ctx context.Context) error {
 	}
 	rt.Status.TrackedResources = append(rt.Status.TrackedResources, recordedWorkload)
 	if err := h.Status().Update(ctx, &rt); err != nil {
-		klog.Errorf("rollout recordeWorkloadInResourceTracker error recorde workload rollout namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
+		klog.Errorf("fail to update resourceTracker for rollout record workload namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
 		return err
 	}
-	klog.InfoS("recordeWorkloadInResourceTracker succeed to record resource workload rollout namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
+	klog.InfoS("succeed to record workload in resourceTracker rollout: namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
 	return nil
 }
 

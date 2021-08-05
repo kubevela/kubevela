@@ -285,7 +285,7 @@ var _ = Describe("Test rollout related handler func", func() {
 				rollout:        &rollout,
 				targetWorkload: u,
 			}
-			Expect(h.recordeWorkloadInResourceTracker(ctx)).Should(BeNil())
+			Expect(h.recordWorkloadInResourceTracker(ctx)).Should(BeNil())
 			checkRt := v1beta1.ResourceTracker{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: rtName}, &checkRt)).Should(BeNil())
 			Expect(len(checkRt.Status.TrackedResources)).Should(BeEquivalentTo(1))
