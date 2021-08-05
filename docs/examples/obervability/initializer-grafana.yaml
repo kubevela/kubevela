@@ -14,6 +14,7 @@ spec:
   appTemplate:
     spec:
       components:
+        # install grafana datasource registration chart
         - name: grafana-datasource-registration-release
           properties:
             apiVersion: helm.toolkit.fluxcd.io/v2beta1
@@ -47,6 +48,8 @@ spec:
                 branch: master
               url: https://github.com/zzxwill/grafana-datasource-registration
           type: raw
+
+        # install Grafana
         - name: grafana
           properties:
             chart: grafana
@@ -61,6 +64,7 @@ spec:
                 domain: grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
                 http:
                   "/": 80
+        # install loki
         - name: loki
           type: helm
           properties:
@@ -70,12 +74,12 @@ spec:
             repoUrl: https://grafana.github.io/helm-charts
             targetNamespace: loki
           traits:
-            - type: pure-ingress
+            - type: pure-ingress # add ingress for loki service
               properties:
                 domain: loki.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
                 http:
                   "/": 3100
-            - type: register-grafana-datasource
+            - type: register-grafana-datasource # register loki datasource to Grafana
               properties:
                 grafanaUrl: "http://grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
                 credentialSecret: grafana

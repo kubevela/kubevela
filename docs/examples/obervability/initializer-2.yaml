@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grafana
+spec: { }
+
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  name: grafana-2
+  namespace: grafana
+spec:
+  appTemplate:
+    spec:
+      components:
+        # install Prometheus
+        - name: prometheus-monitor-server
+          type: helm
+          properties:
+            chart: prometheus
+            version: 14.4.1
+            repoType: helm
+            repoUrl: https://prometheus-community.github.io/helm-charts
+            targetNamespace: prometheus
+          traits:
+            - type: pure-ingress # add ingress for loki service
+              properties:
+                domain: prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
+                http:
+                  "/": 80
+            - type: register-grafana-datasource # register loki datasource to Grafana
+              properties:
+                grafanaUrl: "http://grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+                credentialSecret: grafana
+                credentialSecretNamespace: grafana
+                name: prometheus
+                url: "http://prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+                type: prometheus
+                access: proxy
+        - name: kube-state-metrics
+          type: helm
+          properties:
+            chart: kube-state-metrics
+            version: 3.4.1
+            repoType: helm
+            repoUrl: https://prometheus-community.github.io/helm-charts
+            targetNamespace: prometheus
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: fluxcd
+        namespace: vela-system
