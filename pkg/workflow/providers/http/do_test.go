@@ -117,6 +117,7 @@ func runMockServer(t *testing.T, shutdown chan struct{}) chan struct{} {
 	go func() {
 		<-shutdown
 		srv.Close()
+		t.Log("mock http server shutdown")
 		close(closed)
 	}()
 	return closed
