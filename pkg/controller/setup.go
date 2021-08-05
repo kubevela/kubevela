@@ -19,15 +19,14 @@ package controller
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/rollout"
-
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workloads/containerizedworkload"
-
-	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/envbinding"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/rollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
@@ -42,6 +41,7 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 			containerizedworkload.Setup,
 			healthscope.Setup,
 			rollout.Setup,
+			envbinding.Setup,
 		}
 	case common.DisableAllCaps:
 	default:
@@ -60,6 +60,9 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 		}
 		if !disableCapsSet.Contains(common.RolloutControllerName) {
 			functions = append(functions, rollout.Setup)
+		}
+		if !disableCapsSet.Contains(common.EnvBindingControllerName) {
+			functions = append(functions, envbinding.Setup)
 		}
 	}
 
