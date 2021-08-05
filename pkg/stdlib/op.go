@@ -52,14 +52,13 @@ import ("encoding/yaml")
       value: load.value.workload
       ...
    } @step(2)
-    
-   applyTraits__: #Steps & {
-      for index,o in load.value.auxiliaries {
-          "zz_\(index)": kube.#Apply & {
+   
+   traits: #up
+   #up: [for index,o in load.value.auxiliaries {
+          kube.#Apply & {
                value: o
           }
-      }
-   } @step(3)
+   }] @step(3)
 }
 
 #ApplyRemaining: #Steps & {
