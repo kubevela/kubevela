@@ -17,11 +17,12 @@ limitations under the License.
 package http
 
 import (
-	"gotest.tools/assert"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
+
+	"gotest.tools/assert"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
@@ -108,9 +109,7 @@ func runMockServer(t *testing.T, shutdown chan struct{}) {
 		w.Write(bt)
 	})
 	srv := &http.Server{Addr: ":1229"}
-	go func() {
-		srv.ListenAndServe()
-	}()
+	go srv.ListenAndServe()
 	go func() {
 		<-shutdown
 		srv.Close()
@@ -127,5 +126,5 @@ func runMockServer(t *testing.T, shutdown chan struct{}) {
 			break
 		}
 	}
-
+	t.Log("mock server started...")
 }
