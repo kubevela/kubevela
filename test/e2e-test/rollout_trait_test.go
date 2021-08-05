@@ -123,6 +123,13 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if targerDeploy.Status.UpdatedReplicas != *targerDeploy.Spec.Replicas {
 				return fmt.Errorf("update not finish")
 			}
+			if len(targerDeploy.OwnerReferences) != 1 {
+				return fmt.Errorf("workload ownerReference missMatch")
+			}
+			if targerDeploy.OwnerReferences[0].Kind != rollout.OwnerReferences[0].Kind ||
+				targerDeploy.OwnerReferences[0].Name != rollout.OwnerReferences[0].Name {
+				return fmt.Errorf("workload ownerReference missMatch")
+			}
 			if rollout.Status.LastSourceRevision == "" {
 				return nil
 			}
@@ -229,6 +236,21 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			return nil
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 		verifySuccess("express-server-v4")
+		By("delete the application, check workload have been removed")
+		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
+		listOptions := []client.ListOption{
+			client.InNamespace(namespaceName),
+		}
+		deployList := &v1.DeploymentList{}
+		Eventually(func() error {
+			if err := k8sClient.List(ctx, deployList, listOptions...); err != nil {
+				return err
+			}
+			if len(deployList.Items) != 0 {
+				return fmt.Errorf("workload have not been removed")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 	})
 })
 

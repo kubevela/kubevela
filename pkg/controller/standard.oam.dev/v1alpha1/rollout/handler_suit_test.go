@@ -30,6 +30,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/ghodss/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -38,6 +39,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var _ = Describe("Test rollout related handler func", func() {
@@ -251,6 +253,44 @@ var _ = Describe("Test rollout related handler func", func() {
 			Expect(done).Should(BeFalse())
 			Expect(len(rollout.Finalizers)).Should(BeEquivalentTo(1))
 			Expect(rollout.Status.RollingState).Should(BeEquivalentTo(v1alpha1.RolloutDeletingState))
+		})
+
+		It("Test recordeWorkloadInResourceTracker func", func() {
+			ctx := context.Background()
+			rtName := "resourcetracker-v1-test-namespace"
+			rt := v1beta1.ResourceTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: rtName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, &rt)).Should(BeNil())
+			rollout := v1alpha1.Rollout{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						*metav1.NewControllerRef(&rt, v1beta1.ResourceTrackerKindVersionKind),
+					},
+				},
+			}
+			u := &unstructured.Unstructured{}
+			u.SetAPIVersion("apps/v1")
+			u.SetNamespace("test-namespace")
+			u.SetName("test-workload")
+			u.SetUID("test-uid")
+			u.SetKind("Deployment")
+			h := &handler{
+				reconciler: &reconciler{
+					Client: k8sClient,
+					record: event.NewNopRecorder(),
+				},
+				rollout:        &rollout,
+				targetWorkload: u,
+			}
+			Expect(h.recordWorkloadInResourceTracker(ctx)).Should(BeNil())
+			checkRt := v1beta1.ResourceTracker{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: rtName}, &checkRt)).Should(BeNil())
+			Expect(len(checkRt.Status.TrackedResources)).Should(BeEquivalentTo(1))
+			Expect(checkRt.Status.TrackedResources[0].Name).Should(BeEquivalentTo("test-workload"))
+			Expect(checkRt.Status.TrackedResources[0].UID).Should(BeEquivalentTo("test-uid"))
 		})
 	})
 })
