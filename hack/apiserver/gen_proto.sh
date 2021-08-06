@@ -4,7 +4,7 @@ PROTOCMD="protoc -I . \
 		--go_out=. --go_opt=paths=source_relative \
 		"
 
-for entry in "pkg/proto/model"/*
+for entry in "pkg/apiserver/proto/model"/*
 do
   if [ "${entry##*.}" = "proto" ]; then
     eval $PROTOCMD "${entry}"

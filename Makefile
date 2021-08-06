@@ -331,3 +331,6 @@ check-license-header:
 
 check-install-def:
 	./hack/utils/installdefinition.sh
+
+gen-proto:
+	./hack/apiserver/gen_proto.sh

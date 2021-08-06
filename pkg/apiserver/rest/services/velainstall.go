@@ -247,16 +247,16 @@ func InstallHelmChart(name, repo, chart, version string, kubeConfig string, sett
 
 	velaNamespace := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	if err := cli.Create(context.TODO(), velaNamespace); err != nil && !apiErrors.IsAlreadyExists(err) {
-		return 0, fmt.Errorf("create vela namespace error: %v", err)
+		return 0, fmt.Errorf("create vela namespace error: %w", err)
 	}
 
 	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeConfig))
 	if err != nil {
-		return 0, fmt.Errorf("get restconfig from kubeconfig bytes failed : %v", err)
+		return 0, fmt.Errorf("get restconfig from kubeconfig bytes failed : %w", err)
 	}
 	actionConfig, err := getActionConfig("vela-system", config)
 	if err != nil {
-		return 0, fmt.Errorf("get action config failed : %v", err)
+		return 0, fmt.Errorf("get action config failed : %w", err)
 	}
 
 	client := action.NewInstall(actionConfig)
@@ -352,7 +352,7 @@ func CheckVelaHelmChartExist(kubeConfig string, namespace string, name string) (
 func GetHelmChartRelease(kubeConfig string, namespace string, name string) (*release.Release, error) {
 	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeConfig))
 	if err != nil {
-		return nil, fmt.Errorf("build restConfig error: %v", err)
+		return nil, fmt.Errorf("build restConfig error: %w", err)
 	}
 
 	actionConfig, err := getActionConfig(namespace, config)
