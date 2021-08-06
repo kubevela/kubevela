@@ -76,7 +76,7 @@ func init() {
 // InitBaseRestConfig will return reset config for create controller runtime client
 func InitBaseRestConfig() (Args, error) {
 	restConf, err := config.GetConfig()
-	if err != nil {
+	if err != nil && os.Getenv("IGNORE_KUBE_CONFIG") != "true" {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
 	}

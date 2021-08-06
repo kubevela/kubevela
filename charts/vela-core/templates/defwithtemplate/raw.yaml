@@ -3,15 +3,15 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "raw allow users to specify raw K8s object in properties"
+    definition.oam.dev/description: raw allow users to specify raw K8s object in properties
   name: raw
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
-  workload:
-    type: autodetects.core.oam.dev
   schematic:
     cue:
       template: |
         output: parameter
         parameter: {}
-        
+  workload:
+    type: autodetects.core.oam.dev
+

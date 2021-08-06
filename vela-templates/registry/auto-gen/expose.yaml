@@ -2,13 +2,15 @@
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
+  annotations:
+    definition.oam.dev/description: Expose a service.
   name: expose
   namespace: vela-system
 spec:
   podDisruptive: false
   schematic:
     cue:
-      template: |-
+      template: |
         parameter: {
         	domain: string
         	http: [string]: int
@@ -19,8 +21,7 @@ spec:
         			apiVersion: "v1"
         			kind:       "Service"
         			spec: {
-        				selector:
-        					app: context.name
+        				selector: app: context.name
         				ports: [{
         					port:       v
         					targetPort: v
@@ -29,4 +30,4 @@ spec:
         		}
         	}
         }
-        
+

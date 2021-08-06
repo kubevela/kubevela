@@ -2,29 +2,28 @@
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
+  annotations:
+    definition.oam.dev/description: Automatically scales workloads by resource utilization metrics or cron triggers.
   name: autoscale
   namespace: vela-system
-  annotations:
-    definition.oam.dev/description: "Automatically scales workloads by resource utilization metrics or cron triggers."
 spec:
   appliesToWorkloads:
     - deployments.apps
-  workloadRefPath: spec.workloadRef
   definitionRef:
     name: autoscalers.standard.oam.dev
-  podDisruptive: true
   extension:
     install:
       helm:
-        repo: kedacore
         name: keda
+        repo: kedacore
         url: https://kedacore.github.io/charts
         version: 2.0.0-rc3
+  podDisruptive: true
   schematic:
     cue:
       template: |
         import "strconv"
-        
+
         outputs: autoscaler: {{
         	apiVersion: "standard.oam.dev/v1alpha1"
         	kind:       "Autoscaler"
@@ -86,4 +85,5 @@ spec:
         		timezone: string
         	}
         }
-        
+  workloadRefPath: spec.workloadRef
+

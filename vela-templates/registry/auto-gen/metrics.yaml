@@ -2,34 +2,31 @@
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
+  annotations:
+    definition.oam.dev/description: Configures monitoring metrics for your service.
   name: metrics
   namespace: vela-system
-  annotations:
-    definition.oam.dev/description: "Configures monitoring metrics for your service."
 spec:
   appliesToWorkloads:
     - deployments.apps
     - jobs.batch
   definitionRef:
     name: metricstraits.standard.oam.dev
-  workloadRefPath: spec.workloadRef
   extension:
     install:
       helm:
-        repo: prometheus-community
         name: kube-prometheus-stack
         namespace: monitoring
+        repo: prometheus-community
         url: https://prometheus-community.github.io/helm-charts
         version: 9.4.4
   schematic:
     cue:
-      template: |-
+      template: |
         outputs: metrics: {
         	apiVersion: "standard.oam.dev/v1alpha1"
         	kind:       "MetricsTrait"
-        	spec: {
-        		scrapeService: parameter
-        	}
+        	spec: scrapeService: parameter
         }
         parameter: {
         	// +usage=Format of the metrics, default as prometheus
@@ -45,4 +42,5 @@ spec:
         	// +usage=The label selector for the pods, will discovery automatically by default
         	selector?: [string]: string
         }
-        
+  workloadRefPath: spec.workloadRef
+

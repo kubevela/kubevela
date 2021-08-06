@@ -2,14 +2,11 @@
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
-  name: webserver
   annotations:
-    definition.oam.dev/description: "webserver was composed by deployment and service"
+    definition.oam.dev/description: webserver was composed by deployment and service
+  name: webserver
+  namespace: vela-system
 spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
   schematic:
     cue:
       template: |
@@ -17,44 +14,36 @@ spec:
         	apiVersion: "apps/v1"
         	kind:       "Deployment"
         	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
+        		selector: matchLabels: "app.oam.dev/component": context.name
         		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-        
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
-        
-        					if parameter["env"] != _|_ {
-        						env: parameter.env
-        					}
-        
-        					if context["config"] != _|_ {
-        						env: context.config
-        					}
-        
-        					ports: [{
-        						containerPort: parameter.port
-        					}]
-        
-        					if parameter["cpu"] != _|_ {
-        						resources: {
-        							limits:
-        								cpu: parameter.cpu
-        							requests:
-        								cpu: parameter.cpu
-        						}
-        					}
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: containers: [{
+        				name:  context.name
+        				image: parameter.image
+
+        				if parameter["cmd"] != _|_ {
+        					command: parameter.cmd
+        				}
+
+        				if parameter["env"] != _|_ {
+        					env: parameter.env
+        				}
+
+        				if context["config"] != _|_ {
+        					env: context.config
+        				}
+
+        				ports: [{
+        					containerPort: parameter.port
         				}]
-        		}
+
+        				if parameter["cpu"] != _|_ {
+        					resources: {
+        						limits: cpu:   parameter.cpu
+        						requests: cpu: parameter.cpu
+        					}
+        				}
+        			}]
         		}
         	}
         }
@@ -63,9 +52,7 @@ spec:
         	apiVersion: "v1"
         	kind:       "Service"
         	spec: {
-        		selector: {
-        			"app.oam.dev/component": context.name
-        		}
+        		selector: "app.oam.dev/component": context.name
         		ports: [
         			{
         				port:       parameter.port
@@ -81,13 +68,15 @@ spec:
         	env?: [...{
         		name:   string
         		value?: string
-        		valueFrom?: {
-        			secretKeyRef: {
-        				name: string
-        				key:  string
-        			}
+        		valueFrom?: secretKeyRef: {
+        			name: string
+        			key:  string
         		}
         	}]
         	cpu?: string
         }
-        
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+

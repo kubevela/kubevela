@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Add volumes for your Workload."
+    definition.oam.dev/description: Add volumes for your Workload.
   name: volumes
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
@@ -12,45 +12,39 @@ spec:
   podDisruptive: true
   schematic:
     cue:
-      template: |-
-        patch: {
-        	spec: template: spec: volumes: [
-        		for v in parameter.volumes {
-        			{
-        				name: v.name
-        				if v.type == "pvc" {
-        					persistentVolumeClaim: {
-        						claimName: v.claimName
-        					}
-        				}
-        				if v.type == "configMap" {
-        					configMap: {
-        						defaultMode: v.defaultMode
-        						name:        v.cmName
-        						if v.items != _|_ {
-        							items: v.items
-        						}
-        					}
-        				}
-        				if v.type == "secret" {
-        					secret: {
-        						defaultMode: v.defaultMode
-        						secretName:  v.secretName
-        						if v.items != _|_ {
-        							items: v.items
-        						}
-        					}
-        				}
-        				if v.type == "emptyDir" {
-        					emptyDir: {
-        						medium: v.medium
+      template: |
+        patch: spec: template: spec: volumes: [
+        	for v in parameter.volumes {
+        		{
+        			name: v.name
+        			if v.type == "pvc" {
+        				persistentVolumeClaim: claimName: v.claimName
+        			}
+        			if v.type == "configMap" {
+        				configMap: {
+        					defaultMode: v.defaultMode
+        					name:        v.cmName
+        					if v.items != _|_ {
+        						items: v.items
         					}
         				}
         			}
-        		},
-        	]
-        }
-        
+        			if v.type == "secret" {
+        				secret: {
+        					defaultMode: v.defaultMode
+        					secretName:  v.secretName
+        					if v.items != _|_ {
+        						items: v.items
+        					}
+        				}
+        			}
+        			if v.type == "emptyDir" {
+        				emptyDir: medium: v.medium
+        			}
+        		}
+        	},
+        ]
+
         parameter: {
         	// +usage=Declare volumes and volumeMounts
         	volumes?: [...{
@@ -83,4 +77,4 @@ spec:
         		}
         	}]
         }
-        
+
