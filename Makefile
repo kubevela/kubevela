@@ -89,6 +89,7 @@ cross-build:
 	go get github.com/mitchellh/gox@v0.4.0
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/vela/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./references/cmd/cli
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/kubectl-vela/{{.OS}}-{{.Arch}}/kubectl-vela" -osarch='$(TARGETS)' ./cmd/plugin
+	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/apiserver/{{.OS}}-{{.Arch}}/apiserver" -osarch="$(TARGETS)" ./cmd/apiserver
 
 compress:
 	( \
@@ -104,8 +105,13 @@ compress:
 		$(DIST_DIRS) cp ../../README.md {} \; && \
 		$(DIST_DIRS) tar -zcf kubectl-vela-{}.tar.gz {} \; && \
 		$(DIST_DIRS) zip -r kubectl-vela-{}.zip {} \; && \
+		cd ../apiserver && \
+		$(DIST_DIRS) cp ../../LICENSE {} \; && \
+		$(DIST_DIRS) cp ../../README.md {} \; && \
+		$(DIST_DIRS) tar -zcf apiserver-{}.tar.gz {} \; && \
+		$(DIST_DIRS) zip -r apiserver-{}.zip {} \; && \
 		cd .. && \
-		sha256sum vela/vela-* kubectl-vela/kubectl-vela-* > sha256sums.txt \
+		sha256sum vela/vela-* kubectl-vela/kubectl-vela-* apiserver/apiserver-* > sha256sums.txt \
 	)
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
@@ -212,9 +218,10 @@ kind-load:
 core-test: fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
 
-# Build vela core manager binary
+# Build vela core manager and apiserver binary
 manager: fmt vet lint manifests
 	$(GOBUILD_ENV) go build -o bin/manager -a -ldflags $(LDFLAGS) ./cmd/core/main.go
+	$(GOBUILD_ENV) go build -o bin/apiserver -a -ldflags $(LDFLAGS) ./cmd/apiserver/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 core-run: fmt vet manifests
@@ -332,5 +339,5 @@ check-license-header:
 check-install-def:
 	./hack/utils/installdefinition.sh
 
-gen-proto:
+proto-gen:
 	./hack/apiserver/gen_proto.sh
