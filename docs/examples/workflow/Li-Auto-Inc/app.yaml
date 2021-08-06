@@ -1,0 +1,58 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: lixiang-app
+spec:
+  components:
+    - name: base-service
+      type: base-service
+      properties:
+        image: nginx:1.14.2
+        # 用于区分appollo环境
+        cluster: default
+      traits:
+      - type: ingress
+        properties:
+            domain: base-service.dev.example.com
+            http:
+              "/": 11001
+    # redis无依赖，启动后service的endpionts 需要通过http接口写入信息写入到apollo
+    - name: "redis"
+      type: helm
+      properties:
+        chart: "redis-cluster"
+        version: "6.2.7"
+        repoUrl: "https://charts.bitnami.com/bitnami"
+        repoType: helm
+    - name: proxy-service
+      type: proxy-service
+      properties:
+          image: nginx:1.14.2
+          # 用于区分appollo环境
+          cluster: default
+      traits:
+      - type: ingress
+        properties:
+            domain: proxy-service.dev.example.com
+            http:
+              "/": 11002
+  workflow:
+    steps:
+      - name: apply-base-service
+        type: apply-base
+        outputs:
+        - name: baseIP
+          exportKey: clusterIP
+        properties:
+          component: base-service
+      - name: apply-redis
+        type: apply-helm
+        properties:
+          component: redis
+      - name: apply-proxy-service
+        type: apply-proxy
+        inputs:
+        - from: baseIP
+          parameterKey: backendIP
+        properties:
+          component: proxy-service
