@@ -30,7 +30,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
-const Req = `
+const (
+	Req = `
 {
   method: *"GET" | string
   url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
@@ -46,6 +47,20 @@ const Req = `
   }
 }
 `
+	ReqWithoutHeader = `
+{
+  method: *"GET" | string
+  url: "http://127.0.0.1:8090/api/v1/token?val=test-token-no-header"
+  request: {
+    body ?: bytes
+    trailer: {
+      "Accept-Language": "en,nl"
+      User: "foo"
+    }
+  }
+}
+`
+)
 
 func TestHTTPCmdRun(t *testing.T) {
 	s := NewMock()
@@ -65,6 +80,19 @@ func TestHTTPCmdRun(t *testing.T) {
 	body := (got.(map[string]interface{}))["body"].(string)
 
 	assert.Equal(t, "{\"token\":\"test-token\"}", body)
+
+	reqNoHeaderInst, err := r.Compile("", ReqWithoutHeader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err = runner.Run(&registry.Meta{Obj: reqNoHeaderInst.Value()})
+	if err != nil {
+		t.Error(err)
+	}
+	body = (got.(map[string]interface{}))["body"].(string)
+
+	assert.Equal(t, "{\"token\":\"test-token-no-header\"}", body)
 
 }
 

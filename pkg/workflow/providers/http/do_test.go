@@ -25,6 +25,7 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 func TestHttpDo(t *testing.T) {
@@ -97,6 +98,14 @@ request:{
 		assert.NilError(t, err, tName)
 		assert.Equal(t, ret, tCase.expectedBody, tName)
 	}
+}
+
+func TestInstall(t *testing.T) {
+	p := providers.NewProviders()
+	Install(p)
+	h, ok := p.GetHandler("http", "do")
+	assert.Equal(t, ok, true)
+	assert.Equal(t, h != nil, true)
 }
 
 func runMockServer(t *testing.T, shutdown chan struct{}) {
