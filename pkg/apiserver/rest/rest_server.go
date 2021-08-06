@@ -157,11 +157,6 @@ func (s *restServer) registerServices() error {
 	s.server.PUT("/clusters/:cluster/applications", applicationService.UpdateApplications)
 	s.server.DELETE("/clusters/:cluster/applications/:application", applicationService.RemoveApplications)
 
-	// install KubeVela in helm way
-	velaInstallService := services.NewVelaInstallService(commonClient)
-	s.server.GET("/clusters/:cluster/installvela", velaInstallService.InstallVela)
-	s.server.GET("/clusters/:cluster/isvelainstalled", velaInstallService.IsVelaInstalled)
-
 	// show Definition schema
 	schemaService := services.NewSchemaService(commonClient)
 	s.server.GET("/clusters/:cluster/schema", schemaService.GetWorkloadSchema)
