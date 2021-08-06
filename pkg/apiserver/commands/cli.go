@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/version"
+	"github.com/oam-dev/kubevela/version"
 )
 
 // CLI for apiserver
@@ -42,7 +42,7 @@ func NewCLI(name, desc string) *CLI {
 		Use:   "version",
 		Short: "Print the information of current binary.",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(version.Get())
+			fmt.Println("KubeVela information:", "version", version.VelaVersion, ", gitRevision", version.GitRevision)
 		},
 	}
 	a.rootCmd.AddCommand(versionCmd)
