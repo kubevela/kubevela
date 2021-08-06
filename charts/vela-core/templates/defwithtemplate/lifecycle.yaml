@@ -27,11 +27,10 @@ spec:
         	postStart?: #LifeCycleHandler
         	preStop?:   #LifeCycleHandler
         }
-        #Port:             int & >=1 & <=65535
+        #Port: int & >=1 & <=65535
         #LifeCycleHandler: {
-        	exec: command: [...string]
-        } | {
-        	httpGet: {
+        	exec?: command: [...string]
+        	httpGet?: {
         		path?:  string
         		port:   #Port
         		host?:  string
@@ -41,8 +40,7 @@ spec:
         			value: string
         		}]
         	}
-        } | {
-        	tcpSocket: {
+        	tcpSocket?: {
         		port:  #Port
         		host?: string
         	}

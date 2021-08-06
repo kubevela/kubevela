@@ -25,9 +25,8 @@ template: {
 	}
 	#Port:             int & >=1 & <=65535
 	#LifeCycleHandler: {
-		exec: command: [...string]
-	} | {
-		httpGet: {
+		exec?: command: [...string]
+		httpGet?: {
 			path?:  string
 			port:   #Port
 			host?:  string
@@ -37,8 +36,7 @@ template: {
 				value: string
 			}]
 		}
-	} | {
-		tcpSocket: {
+		tcpSocket?: {
 			port:  #Port
 			host?: string
 		}

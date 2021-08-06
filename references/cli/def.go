@@ -482,7 +482,7 @@ func prettyYAMLMarshal(obj map[string]interface{}) (string, error) {
 	return b.String(), nil
 }
 
-// NewDefinitionRenderCommand create the `vela def render` command to help user render definition cue file into k8s YAML file
+// NewDefinitionRenderCommand create the `vela def render` command to help user render definition cue file into k8s YAML file, if used without kubernetes environment, set IGNORE_KUBE_CONFIG=true
 func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "render DEFINITION.cue",
