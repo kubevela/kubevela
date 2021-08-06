@@ -144,7 +144,7 @@ func AddHelmRepo(name, url string, settings *cli.EnvSettings) error {
 
 	err := os.MkdirAll(filepath.Dir(repoFile), os.ModePerm)
 	if err != nil && !os.IsExist(err) {
-		return fmt.Errorf("%s, make repo dir err: %s", f, err.Error())
+		return fmt.Errorf("%s, make repo dir err: %w", f, err)
 	}
 
 	// Acquire a file lock for process synchronization
@@ -157,17 +157,17 @@ func AddHelmRepo(name, url string, settings *cli.EnvSettings) error {
 		defer fileLock.Unlock()
 	}
 	if err != nil {
-		return fmt.Errorf("%s, lock file err: %s", f, err.Error())
+		return fmt.Errorf("%s, lock file err: %w", f, err)
 	}
 
 	b, err := ioutil.ReadFile(filepath.Clean(repoFile))
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("%s, read file err: %s", f, err.Error())
+		return fmt.Errorf("%s, read file err: %w", f, err)
 	}
 
 	var file repo.File
 	if err := yaml.Unmarshal(b, &file); err != nil {
-		return fmt.Errorf("%s, unmarshal err: %s", f, err.Error())
+		return fmt.Errorf("%s, unmarshal err: %w", f, err)
 	}
 
 	if file.Has(name) {
@@ -182,17 +182,17 @@ func AddHelmRepo(name, url string, settings *cli.EnvSettings) error {
 
 	r, err := repo.NewChartRepository(&c, getter.All(settings))
 	if err != nil {
-		return fmt.Errorf("%s, new chart repo err: %s", f, err.Error())
+		return fmt.Errorf("%s, new chart repo err: %w", f, err)
 	}
 
 	if _, err := r.DownloadIndexFile(); err != nil {
-		return fmt.Errorf("looks like %q is not a valid chart repository or cannot be reached, err: %s", url, err.Error())
+		return fmt.Errorf("looks like %q is not a valid chart repository or cannot be reached, err: %w", url, err)
 	}
 
 	file.Update(&c)
 
 	if err := file.WriteFile(repoFile, 0644); err != nil {
-		return fmt.Errorf("%s, write file err: %s", f, err.Error())
+		return fmt.Errorf("%s, write file err: %w", f, err)
 	}
 
 	log.Logger.Infof("%q has been added to repositories\n", name)
@@ -212,7 +212,7 @@ func UpdateHelmRepo(settings *cli.EnvSettings) error {
 	for _, cfg := range file.Repositories {
 		r, err := repo.NewChartRepository(cfg, getter.All(settings))
 		if err != nil {
-			return fmt.Errorf("%s, new chart repo err: %s", f, err.Error())
+			return fmt.Errorf("%s, new chart repo err: %w", f, err)
 		}
 		repos = append(repos, r)
 	}
@@ -268,20 +268,20 @@ func InstallHelmChart(name, repo, chart, version string, kubeConfig string, sett
 	client.ReleaseName = name
 	cp, err := client.ChartPathOptions.LocateChart(fmt.Sprintf("%s/%s", repo, chart), settings)
 	if err != nil {
-		return 0, fmt.Errorf("%s, locate chart err: %s", f, err.Error())
+		return 0, fmt.Errorf("%s, locate chart err: %w", f, err)
 	}
 
 	p := getter.All(settings)
 	valueOpts := &values.Options{}
 	vals, err := valueOpts.MergeValues(p)
 	if err != nil {
-		return 0, fmt.Errorf("%s, merge values err: %s", f, err.Error())
+		return 0, fmt.Errorf("%s, merge values err: %w", f, err)
 	}
 
 	// Check chart dependencies to make sure all are present in /charts
 	chartRequested, err := loader.Load(cp)
 	if err != nil {
-		return 0, fmt.Errorf("%s, locate chart err: %s", f, err.Error())
+		return 0, fmt.Errorf("%s, locate chart err: %w", f, err)
 	}
 
 	validInstallableChart, err := isChartInstallable(chartRequested)
@@ -303,7 +303,7 @@ func InstallHelmChart(name, repo, chart, version string, kubeConfig string, sett
 					RepositoryCache:  settings.RepositoryCache,
 				}
 				if err := man.Update(); err != nil {
-					return 0, fmt.Errorf("%s, dependency update err: %s", f, err.Error())
+					return 0, fmt.Errorf("%s, dependency update err: %w", f, err)
 				}
 			}
 		}
@@ -312,7 +312,7 @@ func InstallHelmChart(name, repo, chart, version string, kubeConfig string, sett
 	client.Namespace = settings.Namespace()
 	release, err := client.Run(chartRequested, vals)
 	if err != nil {
-		return 0, fmt.Errorf("%s, exec err: %s", f, err.Error())
+		return 0, fmt.Errorf("%s, exec err: %w", f, err)
 	}
 
 	log.Logger.Infof("install complete")

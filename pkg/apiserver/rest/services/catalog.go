@@ -95,7 +95,7 @@ func (s *CatalogService) GetCatalog(c echo.Context) error {
 	}
 	UpdatedInt, err := strconv.ParseInt(cm.Data["UpdatedAt"], 10, 64)
 	if err != nil {
-		return fmt.Errorf("unable to resolve update parameter in %s:%s ", catalogName, err.Error())
+		return fmt.Errorf("unable to resolve update parameter in %s:%w ", catalogName, err)
 	}
 	var catalog = model.Catalog{
 		Name:      catalogName,
@@ -134,11 +134,11 @@ func (s *CatalogService) AddCatalog(c echo.Context) error {
 	}
 	cm, err = ToConfigMap(catalogReq.Name, DefaultUINamespace, label, configdata)
 	if err != nil {
-		return fmt.Errorf("convert config map failed %s ", err.Error())
+		return fmt.Errorf("convert config map failed %w ", err)
 	}
 	err = s.k8sClient.Create(context.Background(), cm)
 	if err != nil {
-		return fmt.Errorf("unable to create configmap for %s : %s ", catalogReq.Name, err.Error())
+		return fmt.Errorf("unable to create configmap for %s : %w ", catalogReq.Name, err)
 	}
 	catalog := convertToCatalog(catalogReq)
 	return c.JSON(http.StatusCreated, apis.CatalogMeta{Catalog: &catalog})
@@ -163,11 +163,11 @@ func (s *CatalogService) UpdateCatalog(c echo.Context) error {
 	}
 	cm, err := ToConfigMap(catalogReq.Name, DefaultUINamespace, label, configdata)
 	if err != nil {
-		return fmt.Errorf("convert config map failed %s ", err.Error())
+		return fmt.Errorf("convert config map failed %w ", err)
 	}
 	err = s.k8sClient.Update(context.Background(), cm)
 	if err != nil {
-		return fmt.Errorf("unable to update configmap for %s : %s ", catalogReq.Name, err.Error())
+		return fmt.Errorf("unable to update configmap for %s : %w ", catalogReq.Name, err)
 	}
 
 	return c.JSON(http.StatusOK, apis.CatalogMeta{Catalog: &catalog})

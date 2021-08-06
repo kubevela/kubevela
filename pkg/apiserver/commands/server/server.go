@@ -52,7 +52,7 @@ func (s *server) run() error {
 
 	server, err := rest.New(s.restCfg)
 	if err != nil {
-		return fmt.Errorf("create apiserver failed : %s ", err.Error())
+		return fmt.Errorf("create apiserver failed : %w ", err)
 	}
 	return server.Run(ctx)
 }

@@ -103,7 +103,7 @@ func (s *SchemaService) getClientByClusterName(clusterName string) (client.Clien
 	// k8sClient is a common client for getting configmap info in current cluster.
 	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: DefaultUINamespace, Name: clusterName}, &cm) // cluster configmap info
 	if err != nil {
-		return nil, fmt.Errorf("unable to find configmap parameters in %s:%s ", clusterName, err.Error())
+		return nil, fmt.Errorf("unable to find configmap parameters in %s:%w ", clusterName, err)
 	}
 
 	// cli is the client running in specific cluster to get specific k8s cr resource.
