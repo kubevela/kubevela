@@ -21,7 +21,7 @@ import (
 
 	"github.com/containerd/containerd/log"
 	"github.com/sirupsen/logrus"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 var _flagSet *flag.FlagSet
