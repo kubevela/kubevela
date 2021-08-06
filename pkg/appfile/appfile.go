@@ -310,6 +310,9 @@ func NewBasicContext(wl *Workload, applicationName, revision, namespace string) 
 	if len(wl.UserConfigs) > 0 {
 		pCtx.SetConfigs(wl.UserConfigs)
 	}
+	if wl.Params != nil {
+		pCtx.SetParameters(wl.Params)
+	}
 	return pCtx
 }
 
