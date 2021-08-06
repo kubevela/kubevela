@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package vela.api.model;
+option go_package = "github.com/oam-dev/velacp/pkg/proto/model";
+
+message Cluster {
+
+  string name = 1;
+
+  string desc = 2;
+
+  // Unix time of the last time when the cluster is updated.
+  int64 updated_at = 3;
+
+  string kubeconfig = 4;
+}
+
+message ClusterListResponse {
+  repeated Cluster clusters = 1;
+}
+
+message ClusterResponse {
+  Cluster cluster = 1;
+}
