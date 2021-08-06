@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: grafana
+  name: observability
 spec: { }
 
 ---
@@ -9,7 +9,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
   name: grafana
-  namespace: grafana
+  namespace: observability
 spec:
   appTemplate:
     spec:
@@ -21,7 +21,7 @@ spec:
             kind: HelmRelease
             metadata:
               name: grafana-datasource-registration-release
-              namespace: grafana
+              namespace: observability
             spec:
               chart:
                 spec:
@@ -30,7 +30,7 @@ spec:
                   sourceRef:
                     kind: GitRepository
                     name: grafana-datasource-registration-repo
-                    namespace: grafana
+                    namespace: observability
               interval: 5m
               values:
                 replicaCount: 1
@@ -41,7 +41,7 @@ spec:
             kind: GitRepository
             metadata:
               name: grafana-datasource-registration-repo
-              namespace: grafana
+              namespace: observability
             spec:
               interval: 5m
               ref:
@@ -56,7 +56,8 @@ spec:
             version: 6.14.1
             repoType: helm
             repoUrl: https://grafana.github.io/helm-charts
-            targetNamespace: grafana
+            targetNamespace: observability
+            releaseName: grafana
           type: helm
           traits:
             - type: pure-ingress
@@ -64,6 +65,7 @@ spec:
                 domain: grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
                 http:
                   "/": 80
+
         # install loki
         - name: loki
           type: helm
@@ -72,7 +74,8 @@ spec:
             version: 2.4.1
             repoType: helm
             repoUrl: https://grafana.github.io/helm-charts
-            targetNamespace: loki
+            targetNamespace: observability
+            releaseName: loki
           traits:
             - type: pure-ingress # add ingress for loki service
               properties:
@@ -83,11 +86,56 @@ spec:
               properties:
                 grafanaUrl: "http://grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
                 credentialSecret: grafana
-                credentialSecretNamespace: grafana
+                credentialSecretNamespace: observability
                 name: loki
                 url: "http://loki.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
                 type: loki
                 access: proxy
+
+        # install Prometheus
+        - name: prometheus-server
+          type: helm
+          properties:
+            chart: prometheus
+            version: 14.4.1
+            repoType: helm
+            repoUrl: https://prometheus-community.github.io/helm-charts
+            targetNamespace: observability
+            releaseName: prometheus-server
+            values:
+              alertmanager:
+                persistentVolume:
+                  storageClass: "alicloud-disk-available"
+                  size: "20Gi"
+              server:
+                persistentVolume:
+                  storageClass: "alicloud-disk-available"
+                  size: "20Gi"
+          traits:
+            - type: pure-ingress # add ingress for Prometheus service
+              properties:
+                domain: prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
+                http:
+                  "/": 80
+            - type: register-grafana-datasource # register Prometheus datasource to Grafana
+              properties:
+                grafanaUrl: "http://grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+                credentialSecret: grafana
+                credentialSecretNamespace: observability
+                name: prometheus
+                url: "http://prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+                type: prometheus
+                access: proxy
+
+        # install kube-state-metrics
+        - name: kube-state-metrics
+          type: helm
+          properties:
+            chart: kube-state-metrics
+            version: 3.4.1
+            repoType: helm
+            repoUrl: https://prometheus-community.github.io/helm-charts
+            targetNamespace: observability
 
   dependsOn:
     - ref:
