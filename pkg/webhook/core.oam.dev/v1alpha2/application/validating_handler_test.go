@@ -67,7 +67,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeTrue())
 	})
 
-	It("Test Application Validater [Error]", func() {
+	It("Test Application Validator [Error]", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
@@ -164,8 +164,7 @@ var _ = Describe("Test Application Validator", func() {
 				},
 			},
 			Data: runtime.RawExtension{
-				Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1beta1",
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Component",
 "metadata":{"name":"myweb"},
 "spec":{"workload":{"apiVersion":"apps/v1",
@@ -201,8 +200,7 @@ var _ = Describe("Test Application Validator", func() {
 				Name:      "external-comp2",
 			},
 			Data: runtime.RawExtension{
-				Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1beta1",
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Component",
 "metadata":{"name":"myweb"},
 "spec":{"workload":{"apiVersion":"apps/v1",
@@ -231,7 +229,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	It("Test Application Validator external revision name specificy helm repo in component [allow]", func() {
+	It("Test Application Validator external revision name specify helm repo in component [allow]", func() {
 		externalComp3 := appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "default",
@@ -242,8 +240,7 @@ var _ = Describe("Test Application Validator", func() {
 				},
 			},
 			Data: runtime.RawExtension{
-				Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1beta1",
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Component","metadata":{"name":"myweb"},
 "spec":{"workload":{"apiVersion":"apps/v1","kind":"Deployment",
 "spec":{"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}},
@@ -271,4 +268,5 @@ var _ = Describe("Test Application Validator", func() {
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeTrue())
 	})
+
 })
