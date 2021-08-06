@@ -93,6 +93,7 @@ func (e *EnvBindApp) render(ctx context.Context, appParser *appfile.Parser) erro
 	if e.patchedApp == nil {
 		return errors.New("EnvBindApp must has been generated a configured Application")
 	}
+	ctx = util.SetNamespaceInCtx(ctx, e.patchedApp.Namespace)
 	appFile, err := appParser.GenerateAppFile(ctx, e.patchedApp)
 	if err != nil {
 		return err

@@ -19,18 +19,19 @@ package envbinding
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
+	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	ocmapi "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/envbinding/api"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // ClusterManagerEngine defines Cluster Manage interface
@@ -43,7 +44,6 @@ type ClusterManagerEngine interface {
 // OCMEngine represents Open-Cluster-Management multi-cluster management solution
 type OCMEngine struct {
 	cli              client.Client
-	applicator       apply.Applicator
 	clusterDecisions map[string]string
 	appNs            string
 	appName          string
@@ -52,10 +52,9 @@ type OCMEngine struct {
 // NewOCMEngine create Open-Cluster-Management ClusterManagerEngine
 func NewOCMEngine(cli client.Client, appName, appNs string) ClusterManagerEngine {
 	return &OCMEngine{
-		cli:        cli,
-		applicator: apply.NewAPIApplicator(cli),
-		appNs:      appNs,
-		appName:    appName,
+		cli:     cli,
+		appNs:   appNs,
+		appName: appName,
 	}
 }
 
@@ -97,22 +96,27 @@ func (o *OCMEngine) Schedule(ctx context.Context, apps []*EnvBindApp) error {
 		app.ManifestWork = make(map[string]*unstructured.Unstructured, len(app.assembledManifests))
 		clusterName := o.clusterDecisions[app.envConfig.Name]
 		for componentName, manifest := range app.assembledManifests {
-			manifestWork := new(ocmapi.ManifestWork)
+			manifestWork := new(ocmworkv1.ManifestWork)
 			manifestWorkName := fmt.Sprintf("%s-%s-%s", app.envConfig.Name, o.appName, componentName)
-			unstructuredManifestWork := common.GenerateUnstructuredObj(manifestWorkName, clusterName, ocmapi.ManifestWorkGVK)
+			manifestWork.SetName(manifestWorkName)
+			manifestWork.SetNamespace(clusterName)
 
-			workloads := make([]ocmapi.Manifest, len(manifest))
+			workloads := make([]ocmworkv1.Manifest, len(manifest))
 			for j, workload := range manifest {
-				workloads[j] = ocmapi.Manifest{
+				workloads[j] = ocmworkv1.Manifest{
 					RawExtension: util.Object2RawExtension(workload),
 				}
 			}
 
 			manifestWork.Spec.Workload.Manifests = workloads
-			err := common.SetSpecObjIntoUnstructuredObj(manifestWork.Spec, unstructuredManifestWork)
+			obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(manifestWork)
 			if err != nil {
 				return err
 			}
+			unstructuredManifestWork := &unstructured.Unstructured{
+				Object: obj,
+			}
+			unstructuredManifestWork.SetGroupVersionKind(ocmworkv1.GroupVersion.WithKind(reflect.TypeOf(ocmworkv1.ManifestWork{}).Name()))
 			app.ManifestWork[componentName] = unstructuredManifestWork
 		}
 	}
@@ -133,25 +137,29 @@ func (o *OCMEngine) GetClusterDecisions() []v1alpha1.ClusterDecision {
 
 // DispatchPlacement dispatch Placement Object of OCM for cluster selected
 func (o *OCMEngine) DispatchPlacement(ctx context.Context, config v1alpha1.EnvConfig) error {
-	placement := new(ocmapi.Placement)
+	placement := new(ocmclusterv1alpha1.Placement)
 	placementName := generatePlacementName(o.appName, config.Name)
+	placement.SetName(placementName)
+	placement.SetNamespace(o.appNs)
 
-	unstructuredPlacement := common.GenerateUnstructuredObj(placementName, o.appNs, ocmapi.PlacementGVK)
 	clusterNum := int32(1)
 	placement.Spec.NumberOfClusters = &clusterNum
-	placement.Spec.Predicates = []ocmapi.ClusterPredicate{{
-		RequiredClusterSelector: ocmapi.ClusterSelector{
+	placement.Spec.Predicates = []ocmclusterv1alpha1.ClusterPredicate{{
+		RequiredClusterSelector: ocmclusterv1alpha1.ClusterSelector{
 			LabelSelector: metav1.LabelSelector{
 				MatchLabels: config.Placement.ClusterSelector.Labels,
 			},
 		},
 	}}
 
-	err := common.SetSpecObjIntoUnstructuredObj(placement.Spec, unstructuredPlacement)
-	if err != nil {
+	oldPd := new(ocmclusterv1alpha1.Placement)
+	if err := o.cli.Get(ctx, client.ObjectKey{Namespace: placement.Namespace, Name: placement.Name}, oldPd); err != nil {
+		if kerrors.IsNotFound(err) {
+			return o.cli.Create(ctx, placement)
+		}
 		return err
 	}
-	return o.applicator.Apply(ctx, unstructuredPlacement)
+	return o.cli.Patch(ctx, placement, client.Merge)
 }
 
 // GetSelectedCluster get selected cluster from PlacementDecision
@@ -163,9 +171,8 @@ func (o *OCMEngine) GetSelectedCluster(ctx context.Context, name, namespace stri
 		},
 		client.InNamespace(namespace),
 	}
-	pdList := &unstructured.UnstructuredList{}
-	pdList.SetGroupVersionKind(ocmapi.PlacementDecisionListGVK)
 
+	pdList := new(ocmclusterv1alpha1.PlacementDecisionList)
 	err := o.cli.List(ctx, pdList, listOpts...)
 	if err != nil {
 		return clusterName, err
@@ -174,15 +181,10 @@ func (o *OCMEngine) GetSelectedCluster(ctx context.Context, name, namespace stri
 		return clusterName, errors.New("fail to get PlacementDecision")
 	}
 
-	pd := new(ocmapi.PlacementDecision)
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(pdList.Items[0].UnstructuredContent(), pd)
-	if err != nil {
-		return clusterName, err
-	}
-	if len(pd.Status.Decisions) < 1 {
+	if len(pdList.Items[0].Status.Decisions) < 1 {
 		return clusterName, errors.New("no matched cluster")
 	}
-	clusterName = pd.Status.Decisions[0].ClusterName
+	clusterName = pdList.Items[0].Status.Decisions[0].ClusterName
 	return clusterName, nil
 }
 
