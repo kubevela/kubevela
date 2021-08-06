@@ -24,11 +24,9 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -97,25 +95,41 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, traitdefinition.Name, err)))
 	}
-	if !isNewRevision {
-		if err = r.createOrUpdateTraitDefRevision(ctx, req.Namespace, &traitdefinition, defRev); err != nil {
-			klog.InfoS("Could not update DefinitionRevision", "err", err)
-			r.record.Event(&(traitdefinition), event.Warning("cannot update DefinitionRevision", err))
-			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(traitdefinition),
-				condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
-		}
-		klog.InfoS("Successfully update definitionRevision", "definitionRevision", klog.KObj(defRev))
 
-		if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
-			klog.InfoS("Failed to collect garbage", "err", err)
-			r.record.Event(&traitdefinition, event.Warning("failed to garbage collect DefinitionRevision of type TraitDefinition", err))
+	if isNewRevision {
+		if err := r.createTraitDefRevision(ctx, &traitdefinition, defRev); err != nil {
+			klog.InfoS("Could not create DefinitionRevision", "err", err)
+			r.record.Event(&traitdefinition, event.Warning("Could not create definitionRevision", err))
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
+				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
 		}
+		klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
+	}
+
+	traitdefinition.Status.LatestRevision = &common.Revision{
+		Name:         defRev.Name,
+		Revision:     defRev.Spec.Revision,
+		RevisionHash: defRev.Spec.RevisionHash,
+	}
+
+	if err := r.UpdateStatus(ctx, &traitdefinition); err != nil {
+		klog.InfoS("Could not update TraitDefinition Status", "err", err)
+		r.record.Event(&traitdefinition, event.Warning("Could not update TraitDefinition Status", err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
+			condition.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
+	}
+
+	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
+		klog.InfoS("Failed to collect garbage", "err", err)
+		r.record.Event(&traitdefinition, event.Warning("Failed to garbage collect DefinitionRevision of type TraitDefinition", err))
+	}
+
+	if !isNewRevision && traitdefinition.Status.ConfigMapRef == defRev.Name {
 		return ctrl.Result{}, nil
 	}
 
 	def := utils.NewCapabilityTraitDef(&traitdefinition)
 	def.Name = req.NamespacedName.Name
-
 	// Store the parameter of traitDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
@@ -127,66 +141,30 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	traitdefinition.Status.ConfigMapRef = cmName
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 
-	if err = r.createOrUpdateTraitDefRevision(ctx, req.Namespace, &traitdefinition, defRev); err != nil {
-		klog.InfoS("Could not create DefinitionRevision", "err", err)
-		r.record.Event(&(traitdefinition), event.Warning("Could not create definitionRevision", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(traitdefinition),
-			condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
-	}
-	klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
-
-	traitdefinition.Status.LatestRevision = &common.Revision{
-		Name:         defRev.Name,
-		Revision:     defRev.Spec.Revision,
-		RevisionHash: defRev.Spec.RevisionHash,
-	}
-
 	if err := r.UpdateStatus(ctx, &traitdefinition); err != nil {
 		klog.InfoS("Could not update TraitDefinition Status", "err", err)
-		r.record.Event(&(traitdefinition), event.Warning("Could not update TraitDefinition Status", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(traitdefinition),
+		r.record.Event(&traitdefinition, event.Warning("Could not update TraitDefinition Status", err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
 	}
-
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
-		klog.InfoS("Failed to collect garbage", "err", err)
-		r.record.Event(&traitdefinition, event.Warning("Failed to garbage collect DefinitionRevision of type TraitDefinition", err))
-	}
-
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) createOrUpdateTraitDefRevision(ctx context.Context, namespace string,
-	traitDef *v1beta1.TraitDefinition, defRev *v1beta1.DefinitionRevision) error {
-
-	ownerReference := []metav1.OwnerReference{{
-		APIVersion:         traitDef.APIVersion,
-		Kind:               traitDef.Kind,
-		Name:               traitDef.Name,
-		UID:                traitDef.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
-	}}
+func (r *Reconciler) createTraitDefRevision(ctx context.Context, traitDef *v1beta1.TraitDefinition, defRev *v1beta1.DefinitionRevision) error {
+	namespace := traitDef.GetNamespace()
 
 	defRev.SetLabels(traitDef.GetLabels())
 	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
 		map[string]string{oam.LabelTraitDefinitionName: traitDef.Name}))
 	defRev.SetNamespace(namespace)
 	defRev.SetAnnotations(traitDef.GetAnnotations())
-	defRev.SetOwnerReferences(ownerReference)
 
 	rev := &v1beta1.DefinitionRevision{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev); err != nil {
-		if apierrors.IsNotFound(err) {
-			return r.Create(ctx, defRev)
-		}
-		return err
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
+	if apierrors.IsNotFound(err) {
+		return r.Create(ctx, defRev)
 	}
-
-	rev.SetAnnotations(defRev.GetAnnotations())
-	rev.SetLabels(defRev.GetLabels())
-	rev.SetOwnerReferences(ownerReference)
-	return r.Update(ctx, rev)
+	return err
 }
 
 // UpdateStatus updates v1beta1.TraitDefinition's Status with retry.RetryOnConflict

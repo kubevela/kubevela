@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -113,7 +112,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 		})
 	})
 
-	Context("Test DefiFnitionRevision created by ComponentDefinition", func() {
+	Context("Test DefinitionRevision created by ComponentDefinition", func() {
 
 		It("Test different ComponentDefinition with same Spec, Should have the same hash value", func() {
 			cd1 := cdWithNoTemplate.DeepCopy()
@@ -167,6 +166,33 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			Expect(k8sClient.Get(ctx, newRevKey, &defRev)).Should(HaveOccurred())
 		})
 
+	})
+
+	Context("Test create DefinitionRevision with the specified name", func() {
+		It("Test specified DefinitionRevision name in annotation", func() {
+			cdName := "test-specified-defrev-name"
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: cdName, Namespace: namespace}}
+
+			cd := cdWithNoTemplate.DeepCopy()
+			cd.Name = cdName
+			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test")
+			cd.SetAnnotations(map[string]string{
+				oam.AnnotationDefinitionRevisionName: "1.1.3",
+			})
+			By("create componentDefinition")
+			Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAll(BeNil()))
+			testutil.ReconcileRetry(&r, req)
+
+			By("check whether DefinitionRevision is created")
+			cdRevName := fmt.Sprintf("%s-v1.1.3", cdName)
+			var cdRev v1beta1.DefinitionRevision
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdRevName}, &cdRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			By("check the DefinitionRevision's RevisionNum")
+			Expect(cdRev.Spec.Revision).Should(Equal(int64(1)))
+		})
 	})
 
 	Context("Test ComponentDefinition Controller clean up", func() {

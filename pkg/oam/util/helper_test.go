@@ -2227,38 +2227,29 @@ func TestExtractDefinitionRevName(t *testing.T) {
 	testcases := []struct {
 		defName     string
 		wantRevName string
-		hasError    bool
 	}{{
 		defName:     "worker@v2",
 		wantRevName: "worker-v2",
-		hasError:    false,
 	}, {
 		defName:     "worker@v10",
 		wantRevName: "worker-v10",
-		hasError:    false,
 	}, {
 		defName:     "worker",
 		wantRevName: "",
-		hasError:    true,
 	}, {
 		defName:     "webservice@@v2",
 		wantRevName: "webservice@-v2",
-		hasError:    false,
 	}, {
 		defName:     "webservice@v10@v3",
 		wantRevName: "webservice@v10-v3",
-		hasError:    false,
 	}, {
 		defName:     "@v10",
 		wantRevName: "",
-		hasError:    true,
 	}}
 
 	for _, tt := range testcases {
-		revName, err := util.ConvertDefinitionRevName(tt.defName)
-		hasError := err != nil
+		revName := util.ConvertDefinitionRevName(tt.defName)
 		assert.Equal(t, tt.wantRevName, revName)
-		assert.Equal(t, tt.hasError, hasError)
 	}
 }
 
