@@ -1,6 +1,6 @@
 This is the stole place for
 
-1. Hold built-in CUE templates for Vela Core and Registry. `registry` and `internal` store these templates
+1. Hold built-in CUE templates for Vela Core and Registry. `definitions/registry` and `definitions/internal` store these templates
    
    To update definitions in charts and registry, run:
    
