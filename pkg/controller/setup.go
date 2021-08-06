@@ -49,9 +49,6 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 		if !disableCapsSet.Contains(common.PodspecWorkloadControllerName) {
 			functions = append(functions, podspecworkload.Setup)
 		}
-		if !disableCapsSet.Contains(common.ManualScalerTraitControllerName) {
-			functions = append(functions, manualscalertrait.Setup)
-		}
 		if !disableCapsSet.Contains(common.ContainerizedWorkloadControllerName) {
 			functions = append(functions, containerizedworkload.Setup)
 		}

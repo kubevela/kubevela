@@ -47,7 +47,7 @@ func TestCheckDisabledCapabilities(t *testing.T) {
 	err = CheckDisabledCapabilities(disableCaps)
 	assert.NoError(t, err)
 
-	disableCaps = "manualscaler,healthscope"
+	disableCaps = "rollout,healthscope"
 	err = CheckDisabledCapabilities(disableCaps)
 	assert.NoError(t, err)
 

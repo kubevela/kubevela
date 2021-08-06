@@ -68,7 +68,7 @@ const LabelPodSpecable = "workload.oam.dev/podspecable"
 
 // allBuiltinCapabilities includes all builtin controllers
 // TODO(zzxwill) needs to automatically discovery all controllers
-var allBuiltinCapabilities = mapset.NewSet(common.ManualScalerTraitControllerName, common.PodspecWorkloadControllerName,
+var allBuiltinCapabilities = mapset.NewSet(common.RolloutControllerName, common.PodspecWorkloadControllerName,
 	common.ContainerizedWorkloadControllerName, common.HealthScopeControllerName)
 
 // GetPodSpecPath get podSpec field and label
