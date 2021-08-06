@@ -67,6 +67,10 @@ spec:
         		if parameter.targetNamespace != _|_ {
         			targetNamespace: parameter.targetNamespace
         		}
+                if parameter.releaseName != _|_ {
+        			releaseName: parameter.releaseName
+        		}
+
         		if parameter.values != _|_ {
         			values: parameter.values
         		}
@@ -91,6 +95,8 @@ spec:
         	targetNamespace?: string
         	// +usage=Chart version
         	value?: #nestedmap
+            // +usage=The release name
+            releaseName?: string
         }
 
         #nestedmap: {
