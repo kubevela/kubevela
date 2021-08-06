@@ -151,8 +151,8 @@ type ConditionedObject interface {
 	oam.Conditioned
 }
 
-// ErrBadRevisionName represents an error when the revision name is not standardized
-var ErrBadRevisionName = fmt.Errorf("bad revision name")
+// ErrBadRevision represents an error when the revision name is not standardized
+const ErrBadRevision = "bad revision name"
 
 // LocateParentAppConfig locate the parent application configuration object
 func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject oam.Object) (oam.Object, error) {
@@ -369,7 +369,7 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string) (bool, *v1beta1.DefinitionRevision, error) {
 	defRevName, err := ConvertDefinitionRevName(definitionName)
 	if err != nil {
-		if errors.As(err, &ErrBadRevisionName) {
+		if err.Error() == ErrBadRevision {
 			return true, nil, nil
 		}
 		return false, nil, err
@@ -959,11 +959,11 @@ func ExtractRevisionNum(appRevision string, delimiter string) (int, error) {
 	splits := strings.Split(appRevision, delimiter)
 	// check some bad appRevision name, eg:v1, appv2
 	if len(splits) == 1 {
-		return 0, ErrBadRevisionName
+		return 0, errors.New(ErrBadRevision)
 	}
 	// check some bad appRevision name, eg:myapp-a1
 	if !strings.HasPrefix(splits[len(splits)-1], "v") {
-		return 0, ErrBadRevisionName
+		return 0, errors.New(ErrBadRevision)
 	}
 	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
 }
