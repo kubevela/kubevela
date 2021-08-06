@@ -36,6 +36,7 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/klauspost/compress v1.10.5 // indirect
 	github.com/kyokomi/emoji v2.2.4+incompatible
+	github.com/labstack/echo/v4 v4.5.0
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
@@ -61,6 +62,7 @@ require (
 	go.uber.org/zap v1.18.1
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	google.golang.org/protobuf v1.26.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools v2.2.0+incompatible
@@ -77,7 +79,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kubectl v0.21.0
 	k8s.io/utils v0.0.0-20210722164352-7f3ee0f31471
-	open-cluster-management.io/api v0.0.0-20210610125115-f57c747b84aa
+	open-cluster-management.io/api v0.0.0-20210804091127-340467ff6239
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.9.5
 	sigs.k8s.io/controller-tools v0.2.4
