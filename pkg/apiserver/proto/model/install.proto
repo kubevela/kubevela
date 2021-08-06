@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package vela.api.model;
+option go_package = "github.com/oam-dev/velacp/pkg/proto/model";
+
+message InstallVela {
+
+  string cluster = 1;
+
+  string helmrepo = 2;
+	
+  string version = 3;
+}
+
+message InstallVelaResponse {
+  string version = 1;
+}
+
