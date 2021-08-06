@@ -30,7 +30,7 @@ import (
 
 func TestHttpDo(t *testing.T) {
 	shutdown := make(chan struct{})
-	runMockServer(t, shutdown)
+	runMockServer(shutdown)
 	defer func() {
 		close(shutdown)
 	}()
@@ -108,13 +108,12 @@ func TestInstall(t *testing.T) {
 	assert.Equal(t, h != nil, true)
 }
 
-func runMockServer(t *testing.T, shutdown chan struct{}) {
+func runMockServer(shutdown chan struct{}) {
 	http.HandleFunc("/hello", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("hello"))
 	})
 	http.HandleFunc("/echo", func(w http.ResponseWriter, req *http.Request) {
-		bt, err := ioutil.ReadAll(req.Body)
-		assert.NilError(t, err)
+		bt, _ := ioutil.ReadAll(req.Body)
 		w.Write(bt)
 	})
 	srv := &http.Server{Addr: ":1229"}
@@ -122,7 +121,6 @@ func runMockServer(t *testing.T, shutdown chan struct{}) {
 	go func() {
 		<-shutdown
 		srv.Close()
-		t.Log("mock http server shutdown")
 	}()
 
 	client := &http.Client{}
@@ -135,5 +133,4 @@ func runMockServer(t *testing.T, shutdown chan struct{}) {
 			break
 		}
 	}
-	t.Log("mock server started...")
 }
