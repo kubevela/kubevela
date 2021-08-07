@@ -25,8 +25,8 @@ import (
 
 func main() {
 	app := commands.NewCLI(
-		"velacp",
-		"KubeVela control plane",
+		"apiserver",
+		"KubeVela API Server",
 	)
 	app.AddCommands(
 		server.NewServerCommand(),
