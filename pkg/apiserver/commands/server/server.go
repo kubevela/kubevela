@@ -34,14 +34,13 @@ func NewServerCommand() *cobra.Command {
 	s := &server{}
 
 	cmd := &cobra.Command{
-		Use:   "apiserver",
+		Use:   "start",
 		Short: "Start running apiserver.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return s.run()
 		},
 	}
 
-	// rest
 	cmd.Flags().IntVar(&s.restCfg.Port, "port", 8000, "The port number used to serve the http APIs.")
 
 	return cmd
