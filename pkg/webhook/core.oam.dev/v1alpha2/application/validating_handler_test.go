@@ -277,7 +277,11 @@ var _ = Describe("Test Application Validator", func() {
 				Name:      "external-comp4",
 			},
 			Data: runtime.RawExtension{
-				Raw: []byte(`invalid component`)},
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component",
+"metadata":{"name":"myweb"},
+"spec":"invalid-component"}
+`)},
 			Revision: 1,
 		}
 		Expect(k8sClient.Create(ctx, &externalComp4)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -422,7 +426,7 @@ var _ = Describe("Test Application Validator", func() {
 				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Component",
 "metadata":{"name":"myweb"},
-"spec":{"workload": "invalid-workload}}
+"spec":{"workload": "invalid-workload"}}
 `)},
 			Revision: 1,
 		}
