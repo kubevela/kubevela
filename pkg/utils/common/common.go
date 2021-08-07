@@ -45,6 +45,8 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
+	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
@@ -66,13 +68,15 @@ func init() {
 	_ = certmanager.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
 	_ = terraformv1beta1.AddToScheme(Scheme)
+	_ = ocmclusterv1alpha1.Install(Scheme)
+	_ = ocmworkv1.Install(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
 func InitBaseRestConfig() (Args, error) {
 	restConf, err := config.GetConfig()
-	if err != nil {
+	if err != nil && os.Getenv("IGNORE_KUBE_CONFIG") != "true" {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
 	}

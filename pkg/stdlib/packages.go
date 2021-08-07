@@ -41,5 +41,6 @@ func GetPackages() Pkgs {
 	d.addFile(opFile)
 	d.addFile(kubeFile)
 	d.addFile(workspaceFile)
+	d.addFile(httpFile)
 	return d.packages()
 }

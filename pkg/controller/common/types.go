@@ -39,4 +39,6 @@ const (
 	HealthScopeControllerName = "healthscope"
 	// RolloutControllerName is the controller name of rollout controller
 	RolloutControllerName = "rollout"
+	// EnvBindingControllerName is the controller name of envbinding
+	EnvBindingControllerName = "envbinding"
 )

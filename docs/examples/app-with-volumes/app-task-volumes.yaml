@@ -1,0 +1,47 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-task
+spec:
+  components:
+    - name: mytask
+      type: task
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        volumes:
+          - name: "my-pvc"
+            mountPath: "/var/www/html1"
+          - name: "my-cm"
+            mountPath: "/var/www/html2"
+          - name: "my-cm-noitems"
+            mountPath: "/var/www/html22"
+          - name: "mysecret"
+            mountPath: "/var/www/html3"
+          - name: "my-empty-dir"
+            mountPath: "/var/www/html4"
+      traits:
+        - type: volumes
+          properties:
+            volumes:
+              - name: "my-pvc"
+                type: "pvc"
+                claimName: "myclaim"
+              - name: "my-cm"
+                type: "configMap"
+                cmName: "myCmName"
+                items:
+                  - key: "k1"
+                    path: "./a1"
+                  - key: "k2"
+                    path: "./a2"
+              - name: "my-cm-noitems"
+                type: "configMap"
+                cmName: "myCmName2"
+              - name: "mysecret"
+                type: "secret"
+                secretName: "mysecret"
+              - name: "my-empty-dir"
+                type: "emptyDir"

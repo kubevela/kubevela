@@ -3,8 +3,9 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "configure k8s HPA for Deployment"
+    definition.oam.dev/description: configure k8s HPA for Deployment
   name: hpa
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - deployments.apps
@@ -41,4 +42,4 @@ spec:
         	max:     *10 | int
         	cpuUtil: *50 | int
         }
-        
+

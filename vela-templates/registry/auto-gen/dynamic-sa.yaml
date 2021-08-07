@@ -3,33 +3,26 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "dynamically specify service account"
+    definition.oam.dev/description: dynamically specify service account
   name: dynamic-sa
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - deployments.apps
   schematic:
     cue:
-      template: |-
+      template: |
         processing: {
-        	output: {
-        		credentials?: string
-        	}
+        	output: credentials?: string
         	http: {
         		method: *"GET" | string
         		url:    parameter.serviceURL
-        		request: {
-        			header: {
-        				"authorization.token": parameter.uidtoken
-        			}
-        		}
+        		request: header: "authorization.token": parameter.uidtoken
         	}
         }
-        patch: {
-        	spec: template: spec: serviceAccountName: processing.output.credentials
-        }
+        patch: spec: template: spec: serviceAccountName: processing.output.credentials
         parameter: {
         	uidtoken:   string
         	serviceURL: string
         }
-        
+

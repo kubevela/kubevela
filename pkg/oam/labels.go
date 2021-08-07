@@ -108,4 +108,7 @@ const (
 
 	// AnnotationFilterLabelKeys is used to filter labels passed to workload and trait, split by comma
 	AnnotationFilterLabelKeys = "filter.oam.dev/label-keys"
+
+	// AnnotationSkipGC is used to tell application to skip gc workload/trait
+	AnnotationSkipGC = "app.oam.dev/skipGC"
 )

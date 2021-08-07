@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Inject a sidecar container to the component."
+    definition.oam.dev/description: Inject a sidecar container to the component.
   name: sidecar
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
@@ -12,7 +12,7 @@ spec:
   podDisruptive: true
   schematic:
     cue:
-      template: |-
+      template: |
         patch: {
         	// +patchKey=name
         	spec: template: spec: containers: [{
@@ -34,17 +34,17 @@ spec:
         parameter: {
         	// +usage=Specify the name of sidecar container
         	name: string
-        
+
         	// +usage=Specify the image of sidecar container
         	image: string
-        
+
         	// +usage=Specify the commands run in the sidecar
         	cmd?: [...string]
-        
+
         	// +usage=Specify the shared volume path
         	volumes?: [...{
         		name: string
         		path: string
         	}]
         }
-        
+

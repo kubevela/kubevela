@@ -20,14 +20,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
@@ -106,6 +112,7 @@ func (h *handler) extractWorkload(ctx context.Context, namespace, revisionName s
 }
 
 // applyTargetWorkload check the target workload whether exist. if not create it.
+// and recode workload in resourceTracker
 func (h *handler) applyTargetWorkload(ctx context.Context) error {
 	if h.targetWorkload == nil {
 		return fmt.Errorf("cannot find target workload to template")
@@ -115,6 +122,11 @@ func (h *handler) applyTargetWorkload(ctx context.Context) error {
 			"rollout", h.rollout.Name, "targetWorkload", h.targetWorkload.GetName())
 		return err
 	}
+
+	if err := h.recordWorkloadInResourceTracker(ctx); err != nil {
+		return errors.Wrap(err, "fail to add resourceTracker as owner for workload")
+	}
+
 	klog.InfoS("template rollout target workload", "namespace", h.rollout.Namespace,
 		"rollout", h.rollout.Name, "targetWorkload", h.targetWorkload.GetName())
 	return nil
@@ -166,8 +178,14 @@ func (h *handler) setWorkloadBaseInfo() {
 	if h.sourceWorkload != nil && len(h.sourceWorkload.GetNamespace()) == 0 {
 		h.sourceWorkload.SetNamespace(h.rollout.Namespace)
 	}
+
 	h.targetWorkload.SetName(h.compName)
 	util.AddLabels(h.targetWorkload, map[string]string{oam.LabelAppComponentRevision: h.targetRevName})
+	util.AddAnnotations(h.targetWorkload, map[string]string{oam.AnnotationSkipGC: "true"})
+
+	// pass rollout's ownerReference to workload
+	h.passOwnerToTargetWorkload()
+
 	if h.sourceWorkload != nil {
 		h.sourceWorkload.SetName(h.compName)
 		util.AddLabels(h.sourceWorkload, map[string]string{oam.LabelAppComponentRevision: h.sourceRevName})
@@ -218,4 +236,45 @@ func (h *handler) isRolloutModified(rollout v1alpha1.Rollout) bool {
 			rollout.Status.LastUpgradedTargetRevision != rollout.Spec.TargetRevisionName) ||
 			(rollout.Spec.RolloutPlan.TargetSize != nil && rollout.Status.RolloutTargetSize != -1 &&
 				rollout.Status.RolloutTargetSize != *rollout.Spec.RolloutPlan.TargetSize))
+}
+
+func (h *handler) recordWorkloadInResourceTracker(ctx context.Context) error {
+	var resourceTrackerName string
+	for _, reference := range h.rollout.OwnerReferences {
+		if reference.Kind == v1beta1.ResourceTrackerKind && reference.APIVersion == v1beta1.SchemeGroupVersion.String() {
+			resourceTrackerName = reference.Name
+		}
+	}
+	if len(resourceTrackerName) == 0 {
+		// rollout isn't created by application
+		return nil
+	}
+	rt := v1beta1.ResourceTracker{}
+	if err := h.Get(ctx, types.NamespacedName{Name: resourceTrackerName}, &rt); err != nil {
+		klog.Errorf("fail to get resourceTracker to record workload rollout: namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
+		return err
+	}
+	recordedWorkload := corev1.ObjectReference{
+		APIVersion: h.targetWorkload.GetAPIVersion(),
+		Kind:       h.targetWorkload.GetKind(),
+		UID:        h.targetWorkload.GetUID(),
+		Namespace:  h.targetWorkload.GetNamespace(),
+		Name:       h.targetWorkload.GetName(),
+	}
+	rt.Status.TrackedResources = append(rt.Status.TrackedResources, recordedWorkload)
+	if err := h.Status().Update(ctx, &rt); err != nil {
+		klog.Errorf("fail to update resourceTracker for rollout record workload namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
+		return err
+	}
+	klog.InfoS("succeed to record workload in resourceTracker rollout: namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
+	return nil
+}
+
+func (h *handler) passOwnerToTargetWorkload() {
+	var owners []metav1.OwnerReference
+	for _, reference := range h.rollout.OwnerReferences {
+		reference.Controller = pointer.Bool(false)
+		owners = append(owners, reference)
+	}
+	h.targetWorkload.SetOwnerReferences(owners)
 }

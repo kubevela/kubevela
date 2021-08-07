@@ -2,29 +2,28 @@
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
+  annotations:
+    definition.oam.dev/description: Configures Canary deployment strategy for your application.
   name: rollout
   namespace: vela-system
-  annotations:
-    definition.oam.dev/description: "Configures Canary deployment strategy for your application."
 spec:
   appliesToWorkloads:
     - deployments.apps
   definitionRef:
     name: canaries.flagger.app
-  workloadRefPath: spec.targetRef
-  revisionEnabled: true
-  podDisruptive: true
   extension:
     install:
       helm:
-        repo: oam-flagger
         name: flagger
         namespace: vela-system
+        repo: oam-flagger
         url: https://oam.dev/flagger/archives/
         version: 1.1.0
+  podDisruptive: true
+  revisionEnabled: true
   schematic:
     cue:
-      template: |-
+      template: |
         outputs: rollout: {{
         	apiVersion: "flagger.app/v1beta1"
         	kind:       "Canary"
@@ -61,4 +60,5 @@ spec:
         	// +usage=Schedule interval time
         	interval: *"30s" | string
         }
-        
+  workloadRefPath: spec.targetRef
+

@@ -52,13 +52,14 @@ import ("encoding/yaml")
       value: load.value.workload
       ...
    } @step(2)
-    
-   applyTraits__: #Steps & {
-      for index,o in load.value.auxiliaries {
-          "zz_\(index)": kube.#Apply & {
-               value: o
-          }
-      }
+
+   traits: #Steps & {
+        _key: "trait.oam.dev/resource"
+        if load.value.auxiliaries != _|_ {
+      		for o in load.value.auxiliaries {
+          		"\(o.metadata.labels[_key])": kube.#Apply & { value: o }
+        	} 
+        }
    } @step(3)
 }
 
@@ -147,6 +148,14 @@ import ("encoding/yaml")
 		}
 	} @step(4)
 }
+
+#HTTPGet: http.#Do & { method: "GET"}
+
+#HTTPPost: http.#Do & { method: "POST"}
+
+#HTTPPut: http.#Do & { method: "PUT"}
+
+#HTTPDelete: http.#Do & { method: "DELETE"}
 
 #Load: ws.#Load
 

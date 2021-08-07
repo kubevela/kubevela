@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Add virtual group labels"
+    definition.oam.dev/description: Add virtual group labels
   name: virtualgroup
   namespace: vela-system
 spec:
@@ -12,21 +12,17 @@ spec:
   podDisruptive: false
   schematic:
     cue:
-      template: |-
-        patch: {
-        	spec: template: {
-        		metadata: labels: {
-        			if parameter.type == "namespace" {
-        				"app.namespace.virtual.group": parameter.group
-        			}
-        			if parameter.type == "cluster" {
-        				"app.cluster.virtual.group": parameter.group
-        			}
-        		}
+      template: |
+        patch: spec: template: metadata: labels: {
+        	if parameter.type == "namespace" {
+        		"app.namespace.virtual.group": parameter.group
+        	}
+        	if parameter.type == "cluster" {
+        		"app.cluster.virtual.group": parameter.group
         	}
         }
         parameter: {
         	group: *"default" | string
         	type:  *"namespace" | string
         }
-        
+
