@@ -20,9 +20,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	admissionv1 "k8s.io/api/admission/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test Application Validator", func() {
@@ -63,7 +67,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeTrue())
 	})
 
-	It("Test Application Validater [Error]", func() {
+	It("Test Application Validator [Error]", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
@@ -146,6 +150,320 @@ var _ = Describe("Test Application Validator", func() {
 			},
 		}
 		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Validator external revision name [allow]", func() {
+		externalComp1 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp1",
+				Labels: map[string]string{
+					oam.LabelControllerRevisionComponent: "myworker",
+					oam.LabelComponentRevisionHash:       "81796829364afe1",
+				},
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component",
+"metadata":{"name":"myweb"},
+"spec":{"workload":{"apiVersion":"apps/v1",
+"kind":"Deployment",
+"spec": {"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}}}}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp1"}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
+
+	It("Test Application Validator external revision name specify helm repo in component [allow]", func() {
+		externalComp2 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp2",
+				Labels: map[string]string{
+					oam.LabelControllerRevisionComponent: "myworker",
+					oam.LabelComponentRevisionHash:       "9be6f6ab47eadbf9",
+				},
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component","metadata":{"name":"myweb"},
+"spec":{"workload":{"apiVersion":"apps/v1","kind":"Deployment",
+"spec":{"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}},
+"helm":{"release":{"chart":{"spec":{"chart":"podinfo","version":"1.0.0"}}},
+"repository":{"url":"test.com","secretRef":{"name":"testSecret"}}}}}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp2"}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
+
+	It("Test Application Validator external revision name [error]", func() {
+		By("ControllerRevision component label not exist")
+		externalComp3 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp3",
+				Labels:    map[string]string{oam.LabelControllerRevisionComponent: "myworker"},
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component",
+"metadata":{"name":"myweb"},
+"spec":{"workload":{"apiVersion":"apps/v1",
+"kind":"Deployment",
+"spec": {"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}}}}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp3"}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("Parse component error")
+		externalComp4 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp4",
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component",
+"metadata":{"name":"myweb"},
+"spec":"invalid-component"}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp4)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp4"}]}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("Parse helm repository error")
+		externalComp5 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp5",
+				Labels: map[string]string{
+					oam.LabelControllerRevisionComponent: "myworker",
+					oam.LabelComponentRevisionHash:       "9be6f6ab47eadbf9",
+				},
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component","metadata":{"name":"myweb"},
+"spec":{"workload":{"apiVersion":"apps/v1","kind":"Deployment",
+"spec":{"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}},
+"helm":{"release":{"chart":{"spec":{"chart":"podinfo","version":"1.0.0"}}},
+"repository":"invlid-repostitory"}}}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp5)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp5"}]}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("Hash label not equal")
+		externalComp6 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp6",
+				Labels: map[string]string{
+					oam.LabelControllerRevisionComponent: "myworker",
+					oam.LabelComponentRevisionHash:       "81796829364afx2",
+				},
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component",
+"metadata":{"name":"myweb"},
+"spec":{"workload":{"apiVersion":"apps/v1",
+"kind":"Deployment",
+"spec": {"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}}}}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp6)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp6"}]}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("Parse helm release error")
+		externalComp7 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp7",
+				Labels: map[string]string{
+					oam.LabelControllerRevisionComponent: "myworker",
+					oam.LabelComponentRevisionHash:       "9be6f6ab47eadbf9",
+				},
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component","metadata":{"name":"myweb"},
+"spec":{"workload":{"apiVersion":"apps/v1","kind":"Deployment",
+"spec":{"containers":[{"image":"stefanprodan/podinfo:4.0.6"}]}},
+"helm":{"release":"invalid-release",
+"repository":{"url":"test.com","secretRef":{"name":"testSecret"}}}}}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp7)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp7"}]}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("Parse workload error")
+		externalComp8 := appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "external-comp8",
+			},
+			Data: runtime.RawExtension{
+				Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
+"kind":"Component",
+"metadata":{"name":"myweb"},
+"spec":{"workload": "invalid-workload"}}
+`)},
+			Revision: 1,
+		}
+		Expect(k8sClient.Create(ctx, &externalComp8)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp8"}]}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("application metadata invalid")
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application",
+"spec":{"components":[{"name":"myworker","type":"worker",
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp"}]}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 })

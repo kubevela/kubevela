@@ -652,6 +652,64 @@ var _ = Describe("test generate revision ", func() {
 		Expect(curAppRevision.GetAnnotations()[annoKey1]).Should(BeEmpty())
 		Expect(curAppRevision.GetAnnotations()[annoKey2]).Should(Equal("true"))
 	})
+
+	It("Test specified component revision name", func() {
+		By("Specify component revision name but revision does not exist")
+		externalRevisionName1 := "specified-revision-v1"
+		app.Spec.Components[0].ExternalRevision = externalRevisionName1
+		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
+		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
+		Expect(err).Should(Succeed())
+		comps, err = generatedAppfile.GenerateComponentManifests()
+		Expect(err).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+
+		curApp := &v1beta1.Application{}
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx,
+					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
+					curApp)
+			},
+			time.Second*10, time.Millisecond*500).Should(BeNil())
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+		Expect(comps[0].RevisionName).Should(Equal(externalRevisionName1))
+		gotCR := &appsv1.ControllerRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: externalRevisionName1, Namespace: namespaceName}, gotCR)).Should(Succeed())
+		Expect(gotCR.Revision).Should(Equal(int64(1)))
+		gotComp, err := util.RawExtension2Component(gotCR.Data)
+		Expect(err).Should(BeNil())
+		expectWorkload := comps[0].StandardWorkload.DeepCopy()
+		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision})
+		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
+
+		By("Specify component revision name and revision already exist")
+		externalRevisionName2 := "specified-revision-v2"
+		newCR := gotCR.DeepCopy()
+		newCR.Name = externalRevisionName2
+		newCR.ResourceVersion = ""
+		Expect(k8sClient.Create(ctx, newCR)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		app.Spec.Components[0].ExternalRevision = externalRevisionName2
+		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app)
+		Expect(err).Should(Succeed())
+		comps, err = generatedAppfile.GenerateComponentManifests()
+		Expect(err).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+
+		Expect(comps[0].RevisionName).Should(Equal(externalRevisionName2))
+		Expect(comps[0].RevisionHash).Should(Equal(gotCR.Labels[oam.LabelComponentRevisionHash]))
+	})
 })
 
 var _ = Describe("Test ReplaceComponentRevisionContext func", func() {

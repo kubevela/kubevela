@@ -26,6 +26,7 @@ type ComponentManifest struct {
 	Name             string
 	RevisionName     string
 	RevisionHash     string
+	ExternalRevision string
 	StandardWorkload *unstructured.Unstructured
 	Traits           []*unstructured.Unstructured
 	Scopes           []*corev1.ObjectReference

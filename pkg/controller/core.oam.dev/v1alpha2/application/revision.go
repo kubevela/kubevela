@@ -345,58 +345,107 @@ func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests
 		if cm.InsertConfigNotReady {
 			continue
 		}
-		hash, err := computeComponentRevisionHash(cm)
-		if err != nil {
-			return err
-		}
-		cm.RevisionHash = hash
 
-		crList := &appsv1.ControllerRevisionList{}
-		listOpts := []client.ListOption{client.MatchingLabels{
-			oam.LabelControllerRevisionComponent: cm.Name,
-		}, client.InNamespace(h.app.Namespace)}
-		if err := h.r.List(ctx, crList, listOpts...); err != nil {
-			return err
-		}
-
-		var maxRevisionNum int64
-		needNewRevision := true
-		for _, existingCR := range crList.Items {
-			if existingCR.Revision > maxRevisionNum {
-				maxRevisionNum = existingCR.Revision
-			}
-			if existingCR.GetLabels()[oam.LabelComponentRevisionHash] == cm.RevisionHash {
-				existingComp, err := util.RawExtension2Component(existingCR.Data)
-				if err != nil {
-					return err
-				}
-				currentComp := componentManifest2Component(cm)
-				// further check whether it's truly identical, even hash value is equal
-				if reflect.DeepEqual(existingComp, currentComp) {
-					cm.RevisionName = existingCR.GetName()
-					// found identical revision already exisits
-					// skip creating new one
-					needNewRevision = false
-					break
-				}
-			}
-		}
-		if needNewRevision {
-			cm.RevisionName = utils.ConstructRevisionName(cm.Name, maxRevisionNum+1)
-			if err := h.createControllerRevision(ctx, cm); err != nil {
+		// external revision specified
+		if len(cm.ExternalRevision) != 0 {
+			if err := h.handleComponentRevisionNameSpecified(ctx, cm); err != nil {
 				return err
 			}
+			continue
 		}
-		for _, trait := range cm.Traits {
-			if err := replaceComponentRevisionContext(trait, cm.RevisionName); err != nil {
-				return err
-			}
+
+		if err := h.handleComponentRevisionNameUnspecified(ctx, cm); err != nil {
+			return err
 		}
+
 	}
 	return nil
 }
 
-func computeComponentRevisionHash(comp *types.ComponentManifest) (string, error) {
+// handleComponentRevisionNameSpecified create controllerRevision which use specified revisionName.
+// If the controllerRevision already exist, we just return
+func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, comp *types.ComponentManifest) error {
+	revisionName := comp.ExternalRevision
+	cr := &appsv1.ControllerRevision{}
+
+	if err := h.r.Client.Get(ctx, client.ObjectKey{Namespace: h.app.Namespace, Name: revisionName}, cr); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to get controllerRevision:%s", revisionName)
+		}
+
+		// we should create one
+		hash, err := ComputeComponentRevisionHash(comp)
+		if err != nil {
+			return err
+		}
+		comp.RevisionHash = hash
+		comp.RevisionName = revisionName
+		if err := h.createControllerRevision(ctx, comp); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	comp.RevisionHash = cr.GetLabels()[oam.LabelComponentRevisionHash]
+	comp.RevisionName = revisionName
+	return nil
+}
+
+// handleComponentRevisionNameUnspecified create new controllerRevision when external revision name unspecified
+func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context, comp *types.ComponentManifest) error {
+	hash, err := ComputeComponentRevisionHash(comp)
+	if err != nil {
+		return err
+	}
+	comp.RevisionHash = hash
+
+	crList := &appsv1.ControllerRevisionList{}
+	listOpts := []client.ListOption{client.MatchingLabels{
+		oam.LabelControllerRevisionComponent: comp.Name,
+	}, client.InNamespace(h.app.Namespace)}
+	if err := h.r.List(ctx, crList, listOpts...); err != nil {
+		return err
+	}
+
+	var maxRevisionNum int64
+	needNewRevision := true
+	for _, existingCR := range crList.Items {
+		if existingCR.Revision > maxRevisionNum {
+			maxRevisionNum = existingCR.Revision
+		}
+		if existingCR.GetLabels()[oam.LabelComponentRevisionHash] == comp.RevisionHash {
+			existingComp, err := util.RawExtension2Component(existingCR.Data)
+			if err != nil {
+				return err
+			}
+			currentComp := componentManifest2Component(comp)
+			// further check whether it's truly identical, even hash value is equal
+			if reflect.DeepEqual(existingComp, currentComp) {
+				comp.RevisionName = existingCR.GetName()
+				// found identical revision already exisits
+				// skip creating new one
+				needNewRevision = false
+				break
+			}
+		}
+	}
+	if needNewRevision {
+		comp.RevisionName = utils.ConstructRevisionName(comp.Name, maxRevisionNum+1)
+		if err := h.createControllerRevision(ctx, comp); err != nil {
+			return err
+		}
+	}
+	for _, trait := range comp.Traits {
+		if err := replaceComponentRevisionContext(trait, comp.RevisionName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ComputeComponentRevisionHash to compute component hash
+func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error) {
 	compRevisionHash := struct {
 		WorkloadHash          string
 		PackagedResourcesHash []string

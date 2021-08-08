@@ -167,6 +167,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationCompo
 	if err != nil {
 		return nil, err
 	}
+	workload.ExternalRevision = comp.ExternalRevision
 
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
