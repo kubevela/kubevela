@@ -448,7 +448,7 @@ var _ = Describe("Test Application Validator", func() {
 		resp = handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeFalse())
 
-		By("application metadata does not exist")
+		By("application metadata invalid")
 		req = admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
 				Operation: admissionv1.Create,
