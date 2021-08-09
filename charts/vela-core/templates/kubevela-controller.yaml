@@ -165,7 +165,6 @@ spec:
           command:
             - "apiserver"
           args:
-            - "start"
             - "--port={{ .Values.apiserver.port }}"
           ports:
             - containerPort: {{ .Values.apiserver.port }}

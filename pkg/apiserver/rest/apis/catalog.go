@@ -16,10 +16,13 @@ limitations under the License.
 
 package apis
 
-import "github.com/oam-dev/kubevela/pkg/apiserver/proto/model"
+import (
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+)
 
-// CatalogType catalog for list capability
-type CatalogType struct {
+// CatalogRequest defines the body of catalog request
+type CatalogRequest struct {
+	Method   string `json:"method"`
 	Name     string `json:"name"`
 	Desc     string `json:"desc,omitempty"`
 	UpdateAt int64  `json:"updateAt,omitempty"`
@@ -28,13 +31,12 @@ type CatalogType struct {
 	Token    string `json:"token,omitempty"`
 }
 
-// CatalogMeta catalog meta
-type CatalogMeta struct {
+// CatalogResponse defines the body of catalog response
+type CatalogResponse struct {
 	Catalog *model.Catalog `json:"catalog"`
 }
 
-// CatalogRequest catalog request
-type CatalogRequest struct {
-	CatalogType
-	Method Action `json:"method"`
+// CatalogListResponse defines the body of catalog list response
+type CatalogListResponse struct {
+	Catalogs []*model.Catalog `json:"catalogs,omitempty"`
 }

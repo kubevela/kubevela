@@ -105,13 +105,8 @@ compress:
 		$(DIST_DIRS) cp ../../README.md {} \; && \
 		$(DIST_DIRS) tar -zcf kubectl-vela-{}.tar.gz {} \; && \
 		$(DIST_DIRS) zip -r kubectl-vela-{}.zip {} \; && \
-		cd ../apiserver && \
-		$(DIST_DIRS) cp ../../LICENSE {} \; && \
-		$(DIST_DIRS) cp ../../README.md {} \; && \
-		$(DIST_DIRS) tar -zcf apiserver-{}.tar.gz {} \; && \
-		$(DIST_DIRS) zip -r apiserver-{}.zip {} \; && \
 		cd .. && \
-		sha256sum vela/vela-* kubectl-vela/kubectl-vela-* apiserver/apiserver-* > sha256sums.txt \
+		sha256sum vela/vela-* kubectl-vela/kubectl-vela-* > sha256sums.txt \
 	)
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
@@ -338,6 +333,3 @@ check-license-header:
 
 check-install-def:
 	./hack/utils/installdefinition.sh
-
-proto-gen:
-	./hack/apiserver/gen_proto.sh
