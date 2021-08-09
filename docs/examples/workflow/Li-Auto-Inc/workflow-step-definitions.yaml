@@ -1,0 +1,91 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: apply-base
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |-
+        import ("vela/op")
+        parameter: {
+           component: string
+        }
+        apply: op.#ApplyComponent & {
+           component: parameter.component
+        }
+
+        // wait until deployment ready
+        wait: op.#ConditionalWait & {
+           continue: apply.workload.status.readyReplicas == apply.workload.status.replicas && apply.workload.status.observedGeneration == apply.workload.metadata.generation
+        }
+
+        // export service ClusterIP
+        clusterIP: apply.traits["service"].value.spec.clusterIP
+---
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: apply-helm
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |-
+        import ("vela/op")
+        parameter: {
+           component: string
+        }
+        apply: op.#ApplyComponent & {
+           component: parameter.component
+        }
+
+        // wait redis ready
+        wait: op.#ConditionalWait & {
+           // todo
+           continue: true
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: apply-proxy
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |-
+        import (
+           "vela/op"
+           "encoding/json"
+        )
+        parameter: {
+           component: string
+           backendIP: string
+        }
+
+        // 往三方配置中心apollo读取配置
+        // config: op.#HTTPGet
+
+        apply: op.#ApplyComponent & {
+           component: parameter.component
+           // 给环境变量中注入BackendIP
+           workload: patch: spec: template: spec: {
+             containers: [{
+                // patchKey=name
+                env: [{name: "BackendIP",value: parameter.backendIP}]
+             },...]
+           }
+        }
+
+        // wait until argo.rollout ready
+        wait: op.#ConditionalWait & {
+           continue: apply.workload.status.readyReplicas == apply.workload.status.replicas && apply.workload.status.observedGeneration == apply.workload.metadata.generation
+        }
+
+        message: {...}
+        // 往三方配置中心apollo写配置
+        notify: op.#HTTPPost & {
+           url: "appolo-address"
+           request: body: json.Marshal(message)
+        }

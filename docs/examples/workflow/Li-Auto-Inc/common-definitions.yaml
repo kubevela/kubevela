@@ -1,0 +1,332 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: base-service
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    kube:
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          labels:
+            appId: BASE-SERVICE
+            appName: base-service
+            version: 0.0.1
+          name: base-service
+        spec:
+          replicas: 2
+          revisionHistoryLimit: 5
+          selector:
+            matchLabels:
+              app: base-service
+          template:
+            metadata:
+              labels:
+                antiAffinity: none
+                app: base-service
+                appId: BASE-SERVICE
+                version: 0.0.1
+            spec:
+              affinity:
+                podAntiAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                    - podAffinityTerm:
+                        labelSelector:
+                          matchExpressions:
+                            - key: app
+                              operator: In
+                              values:
+                                - base-service
+                            - key: antiAffinity
+                              operator: In
+                              values:
+                                - none
+                        topologyKey: kubernetes.io/hostname
+                      weight: 100
+              containers:
+                - env:
+                    - name: NODE_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.hostIP
+                    - name: POD_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                    - name: POD_NAME
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.name
+                    - name: POD_NAMESPACE
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.namespace
+                    - name: APP_NAME
+                      value: base-service
+                    - name: LOG_BASE
+                      value: /data/log
+                    - name: RUNTIME_CLUSTER
+                      value: default
+                  image: base-service
+                  imagePullPolicy: Always
+                  name: base-service
+                  ports:
+                    - containerPort: 11223
+                      protocol: TCP
+                    - containerPort: 11224
+                      protocol: TCP
+                  volumeMounts:
+                    - mountPath: /tmp/data/log/base-service
+                      name: log-volume
+                    - mountPath: /data
+                      name: sidecar-sre
+                    - mountPath: /app/skywalking
+                      name: skywalking
+              initContainers:
+                - args:
+                    - 'echo "do something" '
+                  command:
+                    - /bin/sh
+                    - -c
+                  env:
+                    - name: NODE_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.hostIP
+                    - name: POD_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                    - name: APP_NAME
+                      value: base-service
+                  image: busybox
+                  imagePullPolicy: Always
+                  name: sidecar-sre
+                  resources:
+                    limits:
+                      cpu: 100m
+                      memory: 100Mi
+                  volumeMounts:
+                    - mountPath: /tmp/data/log/base-service
+                      name: log-volume
+                    - mountPath: /scratch
+                      name: sidecar-sre
+              terminationGracePeriodSeconds: 120
+              volumes:
+                - hostPath:
+                    path: /logs/dev/base-service
+                    type: DirectoryOrCreate
+                  name: log-volume
+                - emptyDir: {}
+                  name: sidecar-sre
+                - emptyDir: {}
+                  name: skywalking
+      parameters:
+        - name: image
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].image"
+        - name: cluster
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].env[6].value"
+            - "spec.template.metadata.labels.cluster"
+---
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: proxy-service
+spec:
+  workload:
+    definition:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
+  schematic:
+    kube:
+      template:
+        apiVersion: argoproj.io/v1alpha1
+        kind: Rollout
+        metadata:
+          labels:
+            appId: PROXY-SERVICE
+            appName: proxy-service
+            version: 0.0.0
+          name: proxy-service
+        spec:
+          replicas: 1
+          revisionHistoryLimit: 1
+          selector:
+            matchLabels:
+              app: proxy-service
+          strategy:
+            canary:
+              steps:
+                - setWeight: 50
+                - pause: {}
+          template:
+            metadata:
+              labels:
+                app: proxy-service
+                appId: PROXY-SERVICE
+                cluster: default
+                version: 0.0.1
+            spec:
+              affinity:
+                podAntiAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                    - podAffinityTerm:
+                        labelSelector:
+                          matchExpressions:
+                            - key: app
+                              operator: In
+                              values:
+                                - proxy-service
+                        topologyKey: kubernetes.io/hostname
+                      weight: 100
+              containers:
+                - env:
+                    - name: NODE_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.hostIP
+                    - name: POD_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                    - name: POD_NAME
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.name
+                    - name: POD_NAMESPACE
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.namespace
+                    - name: APP_NAME
+                      value: proxy-service
+                    - name: LOG_BASE
+                      value: /app/data/log
+                    - name: RUNTIME_CLUSTER
+                      value: default
+                  image: proxy-service:0.1
+                  imagePullPolicy: Always
+                  name: proxy-service
+                  ports:
+                    - containerPort: 11024
+                      protocol: TCP
+                    - containerPort: 11025
+                      protocol: TCP
+                  volumeMounts:
+                    - mountPath: /tmp/data/log/proxy-service
+                      name: log-volume
+                    - mountPath: /app/data
+                      name: sidecar-sre
+                    - mountPath: /app/skywalking
+                      name: skywalking
+              initContainers:
+                - args:
+                    - 'echo "do something" '
+                  command:
+                    - /bin/sh
+                    - -c
+                  env:
+                    - name: NODE_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.hostIP
+                    - name: POD_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                    - name: APP_NAME
+                      value: proxy-service
+                  image: busybox
+                  imagePullPolicy: Always
+                  name: sidecar-sre
+                  resources:
+                    limits:
+                      cpu: 100m
+                      memory: 100Mi
+                  volumeMounts:
+                    - mountPath: /tmp/data/log/proxy-service
+                      name: log-volume
+                    - mountPath: /scratch
+                      name: sidecar-sre
+              terminationGracePeriodSeconds: 120
+              volumes:
+                - hostPath:
+                    path: /app/logs/dev/proxy-service
+                    type: DirectoryOrCreate
+                  name: log-volume
+                - emptyDir: {}
+                  name: sidecar-sre
+                - emptyDir: {}
+                  name: skywalking
+      parameters:
+        - name: image
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].image"
+        - name: cluster
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].env[5].value"
+            - "spec.template.metadata.labels.cluster"
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: ingress
+spec:
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          domain: string
+          http: [string]: int
+        }
+        outputs: {
+          "service": {
+            apiVersion: "v1"
+            kind: "Service"
+            metadata: {
+              name: context.name
+              namespace: context.namespace
+            }
+            spec: {
+              selector: app: context.name
+              ports: [for ph, pt in parameter.http{
+                protocol: "TCP"
+                port: pt
+                targetPort: pt
+              }]
+            }
+          }
+          "ingress": {
+            apiVersion: "networking.k8s.io/v1"
+            kind: "Ingress"
+            metadata: {
+              name: "\(context.name)-ingress"
+              namespace: context.namespace
+            }
+            spec: rules: [{
+              host: parameter.domain
+              http: paths: [for ph, pt in parameter.http {
+                  path: ph
+                  pathType: "Prefix"
+                  backend: service: {
+                      name: context.name
+                      port: number: pt
+                  }
+              }]
+            }]
+           }
+        }
