@@ -21,9 +21,6 @@ spec:
         		"app.oam.dev/component": context.name
         	}
         	spec: {
-        		if parameter["replicas"] != _|_ {
-        			replicas: parameter.replicas
-        		}
         		selector: matchLabels: {
         			"app.oam.dev/component": context.name
         		}
@@ -52,45 +49,39 @@ spec:
         						env: context.config
         					}
 
+        					if parameter["imagePullPolicy"] != _|_ {
+        						imagePullPolicy: parameter.imagePullPolicy
+        					}
+
         					ports: [{
         						containerPort: parameter.port
         					}]
 
-        					resources: {
-        						limits:
-        							cpu: parameter.cpu
-        						memory: parameter.memory
-        						requests:
-        							cpu: parameter.cpu
-        						memory: parameter.memory
+        					if parameter["cpu"] != _|_ {
+        						resources: {
+        							limits: cpu:   parameter.cpu
+        							requests: cpu: parameter.cpu
+        						}
+        					}
+        					if parameter["memory"] != _|_ {
+        						resources: {
+        							limits: memory:   parameter.memory
+        							requests: memory: parameter.memory
+        						}
         					}
 
-        					if parameter.readinessProbe != _|_ {
-        						readinessProbe: {
-        							initialDelaySeconds: parameter.readinessProbe.waitServiceStartUpSeconds
-        							periodSeconds:       parameter.readinessProbe.periodSeconds
-        							exec: command: parameter.readinessProbe.cmd
-        						}
+        					if parameter["livenessProbe"] != _|_ {
+        						livenessProbe: parameter.livenessProbe
         					}
-        					if parameter.livenessProbe != _|_ {
-        						livenessProbe: {
-        							initialDelaySeconds: parameter.livenessProbe.waitServiceStartUpSeconds
-        							periodSeconds:       parameter.livenessProbe.periodSeconds
-        							exec: command: parameter.livenessProbe.cmd
-        						}
+
+        					if parameter["readinessProbe"] != _|_ {
+        						readinessProbe: parameter.readinessProbe
         					}
-        					if parameter.volumes != _|_ {
-        						volumeMounts: [ for v in parameter.volumes {
-        							mountPath: v.mountPath
-        							name:      v.name
-        							if v.readOnly != _|_ {
-        								readOnly: v.readOnly
-        							}
-        							if v.subPath != _|_ {
-        								subPath: v.subPath
-        							}
-        						}]
+
+        					if parameter["imagePullSecrets"] != _|_ {
+        						imagePullSecrets: [ for v in parameter.imagePullSecrets {name: v}]
         					}
+
         					lifecycle: {
         						if parameter.postStart != _|_ {
         							postStart: exec: command: parameter.postStart
@@ -99,48 +90,11 @@ spec:
         							preStop: exec: command: parameter.preStop
         						}
         					}
-
         				}]
-        			if parameter.volumes != _|_ {
-        				volumes: [ for v in parameter.volumes {
-        					name: v.name
-        					if v.type == "pvc" {
-        						persistentVolumeClaim: {
-        							claimName: v.claimName
-        						}
-        					}
-        					if v.type == "configMap" {
-        						configMap: {
-        							defaultMode: v.defaultMode
-        							name:        v.cmName
-        							if v.items != _|_ {
-        								items: v.items
-        							}
-        						}
-        					}
-        					if v.type == "secret" {
-        						secret: {
-        							defaultMode: v.defaultMode
-        							secretName:  v.secretName
-        							if v.items != _|_ {
-        								items: v.items
-        							}
-        						}
-        					}
-        					if v.type == "emptyDir" {
-        						emptyDir: {
-        							if v.sizeLimit != _|_ {
-        								sizeLimit: v.sizeLimit
-        							}
-        							medium: v.medium
-        						}
-        					}
-        				}]
+        				if parameter.hostAliases != _|_ {
+        					hostAliases: parameter.hostAliases
+        				}
         			}
-        			if parameter.hostAliases != _|_ {
-        				hostAliases: parameter.hostAliases
-        			}
-        		}
         		}
         		if parameter.updateStrategyType != _|_ {
         			updateStrategy: {
@@ -149,17 +103,22 @@ spec:
         		}
         	}
         }
-
         parameter: {
         	// +usage=Which image would you like to use for your service
         	// +short=i
         	image: string
 
+        	// +usage=Specify image pull policy for your service
+        	imagePullPolicy?: string
+
+        	// +usage=Specify image pull secrets for your service
+        	imagePullSecrets?: [...string]
+
         	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
-        	cpu: string
+        	cpu?: string
 
         	// +usage=Specify the amount of memory to limit
-        	memory: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+        	memory?: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
 
         	// +usage=Commands to run in the container
         	cmd?: [...string]
@@ -183,87 +142,15 @@ spec:
         	// +usage=Cloneset updateStrategy, candidates are `ReCreate`/`InPlaceIfPossible`/`InPlaceOnly`
         	updateStrategyType?: string
 
-        	// +usage=Number of pods in the cloneset
-        	replicas?: int
-
-        	// +usage=Volumes to be mount
-        	volumes?: [...#Volume]
-
         	// +usage=HostAliases is a list of hosts and IPs that will be write into the pod's hosts file
         	hostAliases?: [...{
         		hostnames: [...string]
         		ip: string
         	}]
 
-        }
+        	// +usage=Instructions for assessing whether the container is alive.
+        	livenessProbe?: #HealthProbe
 
-        #ENV: {
-        	// +usage=Environment variable name
-        	name: string
-        	// +usage=The key of the secret to select from. Must be a valid secret key
-        	value?: string
-        	// +usage=The value of the environment variable
-        	valueFrom?: {
-        		// +usage=Selects a key of a secret in the pod's namespace
-        		secretKeyRef?: {
-        			// +usage=The name of the secret in the pod's namespace to select from
-        			name: string
-        			// +usage=The key of the secret to select from. Must be a valid secret key
-        			key: string
-        		}
-        		// +usage=Select a pod filed as env source
-        		fieldRef?: {
-        			// +usage=Version of the schema the fieldPath is written in terms of, defaults to "v1".
-        			apiVersion: *"v1" | string
-        			// Path of the field to select
-        			fieldPath: string
-        		}
-        	}
-
-        	readinessProbe?: #ProbeAction
-        	livenessProbe?:  #ProbeAction
-        }
-
-        #ProbeAction: {
-        	// +usage=Number of seconds after the container has started before liveness probes are initiated
-        	waitServiceStartUpSeconds: *20 | int
-
-        	// +usage=How often (in seconds) to perform the probe
-        	periodSeconds: *10 | int
-
-        	// +usage=Command is the command line to execute inside the container
-        	cmd: [...string]
-        }
-
-        #Volume: {
-        	name:      string
-        	mountPath: string
-        	readOnly?: bool
-        	subPath?:  string
-        	type:      "pvc" | "configMap" | "secret" | "emptyDir"
-        	if type == "pvc" {
-        		claimName: string
-        	}
-        	if type == "configMap" {
-        		defaultMode: *420 | int
-        		cmName:      string
-        		items?: [...{
-        			key:  string
-        			path: string
-        			mode: *511 | int
-        		}]
-        	}
-        	if type == "secret" {
-        		defaultMode: *420 | int
-        		secretName:  string
-        		items?: [...{
-        			key:  string
-        			path: string
-        			mode: *511 | int
-        		}]
-        	}
-        	if type == "emptyDir" {
-        		medium:     *"" | "Memory"
-        		sizeLimit?: string
-        	}
+        	// +usage=Instructions for assessing whether the container is in a suitable state to serve traffic.
+        	readinessProbe?: #HealthProbe
         }
