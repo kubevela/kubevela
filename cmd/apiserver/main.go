@@ -17,21 +17,40 @@ limitations under the License.
 package main
 
 import (
-	"log"
+	"context"
+	"flag"
+	"fmt"
+	"os"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/commands"
-	"github.com/oam-dev/kubevela/pkg/apiserver/commands/server"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
+	"github.com/oam-dev/kubevela/version"
 )
 
 func main() {
-	app := commands.NewCLI(
-		"apiserver",
-		"KubeVela API Server",
-	)
-	app.AddCommands(
-		server.NewServerCommand(),
-	)
-	if err := app.Run(); err != nil {
-		log.Fatal(err)
+	s := &server{}
+
+	flag.IntVar(&s.restCfg.Port, "port", 8000, "The port number used to serve the http APIs.")
+	flag.Parse()
+
+	if err := s.run(); err != nil {
+		log.Logger.Errorf("failed to run apiserver: %v", err)
+		os.Exit(1)
 	}
+}
+
+type server struct {
+	restCfg rest.Config
+}
+
+func (s *server) run() error {
+	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
+
+	ctx := context.Background()
+
+	server, err := rest.New(s.restCfg)
+	if err != nil {
+		return fmt.Errorf("create apiserver failed : %w ", err)
+	}
+	return server.Run(ctx)
 }

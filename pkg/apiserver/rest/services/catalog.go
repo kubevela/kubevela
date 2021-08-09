@@ -24,12 +24,14 @@ import (
 	"time"
 
 	echo "github.com/labstack/echo/v4"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/proto/model"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis"
 )
 
@@ -39,10 +41,10 @@ type CatalogService struct {
 }
 
 // NewCatalogService new catalog service
-func NewCatalogService(client client.Client) *CatalogService {
+func NewCatalogService(kc client.Client) *CatalogService {
 
 	return &CatalogService{
-		k8sClient: client,
+		k8sClient: kc,
 	}
 }
 
@@ -81,7 +83,7 @@ func (s *CatalogService) ListCatalogs(c echo.Context) error {
 		catalogList = append(catalogList, &catalog)
 	}
 
-	return c.JSON(http.StatusOK, model.CatalogListResponse{Catalogs: catalogList})
+	return c.JSON(http.StatusOK, apis.CatalogListResponse{Catalogs: catalogList})
 }
 
 // GetCatalog get method for catalog configmap
@@ -89,7 +91,7 @@ func (s *CatalogService) GetCatalog(c echo.Context) error {
 	catalogName := c.Param("catalogName")
 
 	var cm v1.ConfigMap
-	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: DefaultVelaNamespace, Name: catalogName}, &cm)
+	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: catalogName}, &cm)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("get config for %s failed %s", catalogName, err.Error()))
 	}
@@ -105,7 +107,7 @@ func (s *CatalogService) GetCatalog(c echo.Context) error {
 		Url:       cm.Data["Url"],
 		Token:     cm.Data["Token"],
 	}
-	return c.JSON(http.StatusOK, model.CatalogResponse{Catalog: &catalog})
+	return c.JSON(http.StatusOK, apis.CatalogResponse{Catalog: &catalog})
 }
 
 // AddCatalog add method for catalog configmap
@@ -132,7 +134,7 @@ func (s *CatalogService) AddCatalog(c echo.Context) error {
 	label := map[string]string{
 		"catalog": "configdata",
 	}
-	cm, err = ToConfigMap(catalogReq.Name, DefaultUINamespace, label, configdata)
+	cm, err = toConfigMap(catalogReq.Name, types.DefaultKubeVelaNS, label, configdata)
 	if err != nil {
 		return fmt.Errorf("convert config map failed %w ", err)
 	}
@@ -141,7 +143,7 @@ func (s *CatalogService) AddCatalog(c echo.Context) error {
 		return fmt.Errorf("unable to create configmap for %s : %w ", catalogReq.Name, err)
 	}
 	catalog := convertToCatalog(catalogReq)
-	return c.JSON(http.StatusCreated, apis.CatalogMeta{Catalog: &catalog})
+	return c.JSON(http.StatusCreated, apis.CatalogResponse{Catalog: &catalog})
 }
 
 // UpdateCatalog update method for catalog configmap
@@ -161,7 +163,7 @@ func (s *CatalogService) UpdateCatalog(c echo.Context) error {
 	label := map[string]string{
 		"catalog": "configdata",
 	}
-	cm, err := ToConfigMap(catalogReq.Name, DefaultUINamespace, label, configdata)
+	cm, err := toConfigMap(catalogReq.Name, types.DefaultKubeVelaNS, label, configdata)
 	if err != nil {
 		return fmt.Errorf("convert config map failed %w ", err)
 	}
@@ -170,7 +172,7 @@ func (s *CatalogService) UpdateCatalog(c echo.Context) error {
 		return fmt.Errorf("unable to update configmap for %s : %w ", catalogReq.Name, err)
 	}
 
-	return c.JSON(http.StatusOK, apis.CatalogMeta{Catalog: &catalog})
+	return c.JSON(http.StatusOK, apis.CatalogResponse{Catalog: &catalog})
 }
 
 // DelCatalog delete method for catalog configmap
@@ -179,7 +181,7 @@ func (s *CatalogService) DelCatalog(c echo.Context) error {
 
 	var cm v1.ConfigMap
 	cm.SetName(catalogName)
-	cm.SetNamespace(DefaultUINamespace)
+	cm.SetNamespace(types.DefaultKubeVelaNS)
 	if err := s.k8sClient.Delete(context.Background(), &cm); err != nil {
 		return c.JSON(http.StatusInternalServerError, false)
 	}
@@ -190,7 +192,7 @@ func (s *CatalogService) DelCatalog(c echo.Context) error {
 // checkCatalogExist check whether catalog exist with name
 func (s *CatalogService) checkCatalogExist(catalogName string) (bool, error) {
 	var cm v1.ConfigMap
-	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: DefaultUINamespace, Name: catalogName}, &cm)
+	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: catalogName}, &cm)
 	if err != nil {
 		if apierrors.IsNotFound(err) { // not found
 			return false, nil
@@ -212,4 +214,18 @@ func convertToCatalog(catalogReq *apis.CatalogRequest) model.Catalog {
 		Url:       catalogReq.URL,
 		Token:     catalogReq.Token,
 	}
+}
+
+func toConfigMap(name, namespace string, label map[string]string, configData map[string]string) (*corev1.ConfigMap, error) {
+	var cm = corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+	}
+	cm.SetName(name)
+	cm.SetNamespace(namespace)
+	cm.SetLabels(label)
+	cm.Data = configData
+	return &cm, nil
 }
