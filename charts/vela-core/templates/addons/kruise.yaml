@@ -35,48 +35,108 @@ data:
               spec:
                 schematic:
                   cue:
-                    template: "output: {\n    apiVersion: \"apps.kruise.io/v1alpha1\"\n
-                      \   kind:       \"CloneSet\"\n    metadata: labels: {\n      \"app.oam.dev/component\":
-                      context.name\n    }\n    spec: {\n        if parameter[\"replicas\"]
-                      != _|_ {\n            replicas: parameter.replicas\n        }\n
-                      \       selector: matchLabels: {\n            \"app.oam.dev/component\":
-                      context.name\n        }\n\n        template: {\n            metadata:
-                      labels: {\n              \"app.oam.dev/component\": context.name\n
-                      \           }\n\n            spec: {\n                containers:
-                      [{\n                  name:  context.name\n                  image:
-                      parameter.image\n\n                  if parameter[\"cmd\"] != _|_
-                      {\n                      command: parameter.cmd\n                  }\n\n
-                      \                 if parameter[\"env\"] != _|_ {\n                      env:
-                      parameter.env\n                  }\n\n                  if context[\"config\"]
-                      != _|_ {\n                      env: context.config\n                  }\n\n
-                      \                 ports: [{\n                      containerPort:
-                      parameter.port\n                  }]\n\n                  if parameter[\"cpu\"]
-                      != _|_ {\n                      resources: {\n                          limits:\n
-                      \                             cpu: parameter.cpu\n                          requests:\n
-                      \                             cpu: parameter.cpu\n                      }\n
-                      \                 }\n              }]\n            }\n        }\n
-                      \       if parameter[\"updateStrategyType\"] != _|_ {\n            updateStrategy:
-                      {\n              type: parameter.updateStrategyType\n            }\n
-                      \       }\n    }\n}\nparameter: {\n    // +usage=Which image would
-                      you like to use for your service\n    // +short=i\n    image: string\n\n
-                      \   // +usage=Commands to run in the container\n    cmd?: [...string]\n\n
-                      \   // +usage=Which port do you want customer traffic sent to\n
-                      \   // +short=p\n    port: *80 | int\n    // +usage=Define arguments
-                      by using environment variables\n    env?: [...{\n        // +usage=Environment
-                      variable name\n        name: string\n        // +usage=The value
-                      of the environment variable\n        value?: string\n        //
-                      +usage=Specifies a source the value of this var should come from\n
-                      \       valueFrom?: {\n            // +usage=Selects a key of a
-                      secret in the pod's namespace\n            secretKeyRef: {\n                //
-                      +usage=The name of the secret in the pod's namespace to select from\n
-                      \               name: string\n                // +usage=The key
-                      of the secret to select from. Must be a valid secret key\n                key:
-                      string\n            }\n        }\n    }]\n    // +usage=Number of
-                      CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU
-                      core)\n    cpu?: string\n    // +usage=Cloneset updateStrategy,
-                      candidates are `ReCreate`/`InPlaceIfPossible`/`InPlaceOnly`\n    updateStrategyType?:
-                      string\n    // +usage=Number of pods in the cloneset\n    replicas?:
-                      int\n} \n"
+                    template: "output: {\n\tapiVersion: \"apps.kruise.io/v1alpha1\"\n\tkind:
+                      \      \"CloneSet\"\n\tmetadata: labels: {\n\t\t\"app.oam.dev/component\":
+                      context.name\n\t}\n\tspec: {\n\t\tif parameter[\"replicas\"] !=
+                      _|_ {\n\t\t\treplicas: parameter.replicas\n\t\t}\n\t\tselector:
+                      matchLabels: {\n\t\t\t\"app.oam.dev/component\": context.name\n\t\t}\n\n\t\ttemplate:
+                      {\n\t\t\tmetadata: labels: {\n\t\t\t\t\"app.oam.dev/component\":
+                      context.name\n\t\t\t}\n\n\t\t\tspec: {\n\t\t\t\tcontainers: [{\n\t\t\t\t\tname:
+                      \ context.name\n\t\t\t\t\timage: parameter.image\n\n\t\t\t\t\tif
+                      parameter.cmd != _|_ {\n\t\t\t\t\t\tcommand: parameter.cmd\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      parameter.args != _|_ {\n\t\t\t\t\t\targs: parameter.args\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      parameter.env != _|_ {\n\t\t\t\t\t\tenv: parameter.env\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+                      context.config != _|_ {\n\t\t\t\t\t\tenv: context.config\n\t\t\t\t\t}\n\n\t\t\t\t\tports:
+                      [{\n\t\t\t\t\t\tcontainerPort: parameter.port\n\t\t\t\t\t}]\n\n\t\t\t\t\tresources:
+                      {\n\t\t\t\t\t\tlimits:\n\t\t\t\t\t\t\tcpu: parameter.cpu\n\t\t\t\t\t\tmemory:
+                      parameter.memory\n\t\t\t\t\t\trequests:\n\t\t\t\t\t\t\tcpu: parameter.cpu\n\t\t\t\t\t\tmemory:
+                      parameter.memory\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter.readinessProbe
+                      != _|_ {\n\t\t\t\t\t\treadinessProbe: {\n\t\t\t\t\t\t\tinitialDelaySeconds:
+                      parameter.readinessProbe.waitServiceStartUpSeconds\n\t\t\t\t\t\t\tperiodSeconds:
+                      \      parameter.readinessProbe.periodSeconds\n\t\t\t\t\t\t\texec:
+                      command: parameter.readinessProbe.cmd\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      parameter.livenessProbe != _|_ {\n\t\t\t\t\t\tlivenessProbe: {\n\t\t\t\t\t\t\tinitialDelaySeconds:
+                      parameter.livenessProbe.waitServiceStartUpSeconds\n\t\t\t\t\t\t\tperiodSeconds:
+                      \      parameter.livenessProbe.periodSeconds\n\t\t\t\t\t\t\texec:
+                      command: parameter.livenessProbe.cmd\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      parameter.volumes != _|_ {\n\t\t\t\t\t\tvolumeMounts: [ for v in
+                      parameter.volumes {\n\t\t\t\t\t\t\tmountPath: v.mountPath\n\t\t\t\t\t\t\tname:
+                      \     v.name\n\t\t\t\t\t\t\tif v.readOnly != _|_ {\n\t\t\t\t\t\t\t\treadOnly:
+                      v.readOnly\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif v.subPath != _|_ {\n\t\t\t\t\t\t\t\tsubPath:
+                      v.subPath\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}]\n\t\t\t\t\t}\n\t\t\t\t\tlifecycle:
+                      {\n\t\t\t\t\t\tif parameter.postStart != _|_ {\n\t\t\t\t\t\t\tpostStart:
+                      exec: command: parameter.postStart\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif
+                      parameter.preStop != _|_ {\n\t\t\t\t\t\t\tpreStop: exec: command:
+                      parameter.preStop\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\n\t\t\t\t}]\n\t\t\tif
+                      parameter.volumes != _|_ {\n\t\t\t\tvolumes: [ for v in parameter.volumes
+                      {\n\t\t\t\t\tname: v.name\n\t\t\t\t\tif v.type == \"pvc\" {\n\t\t\t\t\t\tpersistentVolumeClaim:
+                      {\n\t\t\t\t\t\t\tclaimName: v.claimName\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      v.type == \"configMap\" {\n\t\t\t\t\t\tconfigMap: {\n\t\t\t\t\t\t\tdefaultMode:
+                      v.defaultMode\n\t\t\t\t\t\t\tname:        v.cmName\n\t\t\t\t\t\t\tif
+                      v.items != _|_ {\n\t\t\t\t\t\t\t\titems: v.items\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      v.type == \"secret\" {\n\t\t\t\t\t\tsecret: {\n\t\t\t\t\t\t\tdefaultMode:
+                      v.defaultMode\n\t\t\t\t\t\t\tsecretName:  v.secretName\n\t\t\t\t\t\t\tif
+                      v.items != _|_ {\n\t\t\t\t\t\t\t\titems: v.items\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      v.type == \"emptyDir\" {\n\t\t\t\t\t\temptyDir: {\n\t\t\t\t\t\t\tif
+                      v.sizeLimit != _|_ {\n\t\t\t\t\t\t\t\tsizeLimit: v.sizeLimit\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tmedium:
+                      v.medium\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}]\n\t\t\t}\n\t\t\tif
+                      parameter.hostAliases != _|_ {\n\t\t\t\thostAliases: parameter.hostAliases\n\t\t\t}\n\t\t}\n\t\t}\n\t\tif
+                      parameter.updateStrategyType != _|_ {\n\t\t\tupdateStrategy: {\n\t\t\t\ttype:
+                      parameter.updateStrategyType\n\t\t\t}\n\t\t}\n\t}\n}\n\nparameter:
+                      {\n\t// +usage=Which image would you like to use for your service\n\t//
+                      +short=i\n\timage: string\n\n\t// +usage=Number of CPU units for
+                      the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)\n\tcpu:
+                      string\n\n\t// +usage=Specify the amount of memory to limit\n\tmemory:
+                      *\"2048Mi\" | =~\"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$\"\n\n\t//
+                      +usage=Commands to run in the container\n\tcmd?: [...string]\n\n\t//
+                      +usage=Arguments to the command.\n\targs?: [...string]\n\n\t// +usage=postStart
+                      commands will be called immediately after a container is created.\n\tpostStart?:
+                      [...string]\n\n\t// +usage=PreStop is called immediately before
+                      a container is terminated due to an API request or management event
+                      such as liveness/startup probe failure, preemption, resource contention,
+                      etc. The handler is not called if the container crashes or exits.
+                      The reason for termination is passed to the handler. The Pod's termination
+                      grace period countdown begins before the PreStop hooked is executed.
+                      Regardless of the outcome of the handler, the container will eventually
+                      terminate within the Pod's termination grace period. Other management
+                      of the container blocks until the hook completes or until the termination
+                      grace period is reached. More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks\n\tpreStop?:
+                      [...string]\n\n\t// +usage=Which port do you want customer traffic
+                      sent to\n\t// +short=p\n\tport: *80 | int\n\n\t// +usage=Define
+                      arguments by using environment variables\n\tenv?: [...#ENV]\n\n\t//
+                      +usage=Cloneset updateStrategy, candidates are `ReCreate`/`InPlaceIfPossible`/`InPlaceOnly`\n\tupdateStrategyType?:
+                      string\n\n\t// +usage=Number of pods in the cloneset\n\treplicas?:
+                      int\n\n\t// +usage=Volumes to be mount\n\tvolumes?: [...#Volume]\n\n\t//
+                      +usage=HostAliases is a list of hosts and IPs that will be write
+                      into the pod's hosts file\n\thostAliases?: [...{\n\t\thostnames:
+                      [...string]\n\t\tip: string\n\t}]\n\n}\n\n#ENV: {\n\t// +usage=Environment
+                      variable name\n\tname: string\n\t// +usage=The key of the secret
+                      to select from. Must be a valid secret key\n\tvalue?: string\n\t//
+                      +usage=The value of the environment variable\n\tvalueFrom?: {\n\t\t//
+                      +usage=Selects a key of a secret in the pod's namespace\n\t\tsecretKeyRef?:
+                      {\n\t\t\t// +usage=The name of the secret in the pod's namespace
+                      to select from\n\t\t\tname: string\n\t\t\t// +usage=The key of the
+                      secret to select from. Must be a valid secret key\n\t\t\tkey: string\n\t\t}\n\t\t//
+                      +usage=Select a pod filed as env source\n\t\tfieldRef?: {\n\t\t\t//
+                      +usage=Version of the schema the fieldPath is written in terms of,
+                      defaults to \"v1\".\n\t\t\tapiVersion: *\"v1\" | string\n\t\t\t//
+                      Path of the field to select\n\t\t\tfieldPath: string\n\t\t}\n\t}\n\n\treadinessProbe?:
+                      #ProbeAction\n\tlivenessProbe?:  #ProbeAction\n}\n\n#ProbeAction:
+                      {\n\t// +usage=Number of seconds after the container has started
+                      before liveness probes are initiated\n\twaitServiceStartUpSeconds:
+                      *20 | int\n\n\t// +usage=How often (in seconds) to perform the probe\n\tperiodSeconds:
+                      *10 | int\n\n\t// +usage=Command is the command line to execute
+                      inside the container\n\tcmd: [...string]\n}\n\n#Volume: {\n\tname:
+                      \     string\n\tmountPath: string\n\treadOnly?: bool\n\tsubPath?:
+                      \ string\n\ttype:      \"pvc\" | \"configMap\" | \"secret\" | \"emptyDir\"\n\tif
+                      type == \"pvc\" {\n\t\tclaimName: string\n\t}\n\tif type == \"configMap\"
+                      {\n\t\tdefaultMode: *420 | int\n\t\tcmName:      string\n\t\titems?:
+                      [...{\n\t\t\tkey:  string\n\t\t\tpath: string\n\t\t\tmode: *511
+                      | int\n\t\t}]\n\t}\n\tif type == \"secret\" {\n\t\tdefaultMode:
+                      *420 | int\n\t\tsecretName:  string\n\t\titems?: [...{\n\t\t\tkey:
+                      \ string\n\t\t\tpath: string\n\t\t\tmode: *511 | int\n\t\t}]\n\t}\n\tif
+                      type == \"emptyDir\" {\n\t\tmedium:     *\"\" | \"Memory\"\n\t\tsizeLimit?:
+                      string\n\t}\n} \n"
                 workload:
                   definition:
                     apiVersion: apps.kruise.io/v1alpha1
