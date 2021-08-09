@@ -30,8 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
-	initClient "github.com/oam-dev/kubevela/pkg/apiserver/rest/client"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/services"
+	"github.com/oam-dev/kubevela/pkg/utils/k8sutil"
 )
 
 var _ APIServer = &restServer{}
@@ -59,7 +59,7 @@ const (
 
 // New create restserver with config data
 func New(cfg Config) (APIServer, error) {
-	client, err := initClient.NewK8sClient()
+	client, err := k8sutil.NewK8sClient()
 	if err != nil {
 		return nil, fmt.Errorf("create client for clusterService failed")
 	}
@@ -115,51 +115,14 @@ func (s *restServer) registerServices() error {
 			return err
 		}
 	}
-	// init common client for all service
-	commonClient, err := initClient.NewK8sClient()
-	if err != nil {
-		return err
-	}
-
-	// capability
-	capabilityService := services.NewCapabilityService(commonClient)
-	s.server.GET("/capabilities", capabilityService.ListCapabilities)
-	s.server.GET("/capabilities/:capabilityName", capabilityService.GetCapability)
-	s.server.POST("/capabilities/:capabilityName/install", capabilityService.InstallCapability)
 
 	// catalog
-	catalogService := services.NewCatalogService(commonClient)
+	catalogService := services.NewCatalogService(s.k8sClient)
 	s.server.GET("/catalogs", catalogService.ListCatalogs)
 	s.server.POST("/catalogs", catalogService.AddCatalog)
 	s.server.PUT("/catalogs", catalogService.UpdateCatalog)
 	s.server.GET("/catalogs/:catalogName", catalogService.GetCatalog)
 	s.server.DELETE("/catalogs/:catalogName", catalogService.DelCatalog)
-
-	// cluster
-	clusterService := services.NewClusterService(commonClient)
-	s.server.GET("/cluster", clusterService.GetCluster)
-	s.server.GET("/clusters", clusterService.ListClusters)
-	s.server.GET("/clusternames", clusterService.GetClusterNames)
-	s.server.POST("/clusters", clusterService.AddCluster)
-	s.server.PUT("/clusters", clusterService.UpdateCluster)
-	s.server.DELETE("/clusters/:clusterName", clusterService.DelCluster)
-
-	// definition
-	s.server.GET("/clusters/:clusterName/componentdefinitions", clusterService.ListComponentDef)
-	s.server.GET("/clusters/:clusterName/traitdefinitions", clusterService.ListTraitDef)
-
-	// application
-	applicationService := services.NewApplicationService(commonClient)
-	s.server.GET("/clusters/:cluster/applications", applicationService.GetApplications)
-	s.server.GET("/clusters/:cluster/applications/:application", applicationService.GetApplicationDetail)
-	s.server.POST("/clusters/:cluster/applications", applicationService.AddApplications)
-	s.server.POST("/clusters/:cluster/appYaml", applicationService.AddApplicationYaml)
-	s.server.PUT("/clusters/:cluster/applications", applicationService.UpdateApplications)
-	s.server.DELETE("/clusters/:cluster/applications/:application", applicationService.RemoveApplications)
-
-	// show Definition schema
-	schemaService := services.NewSchemaService(commonClient)
-	s.server.GET("/clusters/:cluster/schema", schemaService.GetWorkloadSchema)
 
 	return nil
 }

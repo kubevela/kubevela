@@ -14,24 +14,34 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package runtime
+package k8sutil
 
 import (
-	"k8s.io/client-go/tools/clientcmd"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
+	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 )
 
-// GetClient returns a kube client for given kubeConfigData
-func GetClient(kubeConfigData []byte) (client.Client, error) {
-	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeConfigData)
+// NewK8sClient init a local k8s client which add oamcore scheme
+func NewK8sClient() (client.Client, error) {
+	conf, err := config.GetConfig()
 	if err != nil {
 		return nil, err
 	}
-	restConfig, err := clientConfig.ClientConfig()
+	scheme := k8sruntime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := oamcore.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+
+	k8sClient, err := client.New(conf, client.Options{Scheme: scheme})
 	if err != nil {
 		return nil, err
 	}
-	return client.New(restConfig, client.Options{Scheme: common.Scheme})
+	return k8sClient, nil
 }
