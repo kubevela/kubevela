@@ -27,7 +27,7 @@ To resolve the aforementioned problems, we propose to add app-level policies and
 ```yaml
 kind: Application
 spec:
-  componnets: ...
+  components: ...
 
   # Policies are rendered after components are rendered but before workflow are started
   policies:
@@ -71,7 +71,7 @@ spec:
 
     # promote/rollback
     - type: rollout-promotion
-      propertie:
+      properties:
         manualApproval: true
         rollbackIfNotApproved: true
 ```
@@ -122,7 +122,7 @@ spec:
           resource: context.workload
         }
 
-        wait: op.#CondtionalWait & {
+        wait: op.#ConditionalWait & {
           continue: apply.status.ready == true
         }
 
@@ -364,7 +364,7 @@ status:
 ```yaml
 kind: Application
 spec:
-  componnets: ...
+  components: ...
 workflow:
   steps:
   - name: manual-approve
@@ -408,7 +408,7 @@ status:
 
 2. The application spec changes
 
-The spec change also means that the application needs to be re-executed, and the application controller will clear the staus of application includes workflow status.
+The spec change also means that the application needs to be re-executed, and the application controller will clear the status of application includes workflow status.
 
 
 ## Operator Best Practice
@@ -486,7 +486,7 @@ workflow:
 
   # promote/rollback
   - type: rollout-promotion
-    propertie:
+    properties:
       manualApproval: true
       rollbackIfNotApproved: true
 ```
@@ -579,7 +579,7 @@ workflow:
 
 The process goes as:
 
-- Everytime an Appliation event is triggered, the GitOps workflow controller will push the rendered resources to a Git repo. This will trigger ArgoCD/Flux to do continuous deployment.
+- Everytime an Application event is triggered, the GitOps workflow controller will push the rendered resources to a Git repo. This will trigger ArgoCD/Flux to do continuous deployment.
 
 ### Case 5: Template-based rollout
 

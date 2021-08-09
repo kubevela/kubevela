@@ -27,7 +27,7 @@ Meanwhile, Apply should have no impact on changes made by others, namely, not el
 ## Implementation
 
 We employed the same mechanism as `kubectl apply`, that is, computing a 3-way diff based on target object's current state, modified state, and last-appied state. 
-Specifically, a new annotaion, `app.oam.dev/last-applied-configuration`, is introduced to record workload/trait's last-applied state.
+Specifically, a new annotation, `app.oam.dev/last-applied-configuration`, is introduced to record workload/trait's last-applied state.
 
 Once there's a conflict on field, both changed by AppConfig and others, AppConfig's value will always override others' assignment. 
 
@@ -44,7 +44,7 @@ The reason why abandon json-merge patch is that, it cannot remove a field throug
 
 #### Before
 
-For example, apply below deployment as a workload. json-merge patch cannot remove `minReadySeconds` field through applying a modifiied manifest with `minReadySeconds` omitted .
+For example, apply below deployment as a workload. json-merge patch cannot remove `minReadySeconds` field through applying a modified manifest with `minReadySeconds` omitted .
 ```yaml
 # original workload manifest
 apiVersion: apps/v1
