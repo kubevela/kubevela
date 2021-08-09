@@ -17,6 +17,68 @@ spec:
           repoType: git
           repoUrl: https://github.com/openkruise/kruise
         type: helm
+      - name: cloneset-service
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: Describes long-running, scalable, containerized
+                services that have a stable network endpoint to receive external network
+                traffic from customers. If workload type is skipped for any service
+                defined in Appfile, it will be defaulted to `webservice` type.
+            name: cloneset-service
+            namespace: vela-system
+          spec:
+            schematic:
+              cue:
+                template: "output: {\n    apiVersion: \"apps.kruise.io/v1alpha1\"\n
+                  \   kind:       \"CloneSet\"\n    metadata: labels: {\n      \"app.oam.dev/component\":
+                  context.name\n    }\n    spec: {\n        if parameter[\"replicas\"]
+                  != _|_ {\n            replicas: parameter.replicas\n        }\n
+                  \       selector: matchLabels: {\n            \"app.oam.dev/component\":
+                  context.name\n        }\n\n        template: {\n            metadata:
+                  labels: {\n              \"app.oam.dev/component\": context.name\n
+                  \           }\n\n            spec: {\n                containers:
+                  [{\n                  name:  context.name\n                  image:
+                  parameter.image\n\n                  if parameter[\"cmd\"] != _|_
+                  {\n                      command: parameter.cmd\n                  }\n\n
+                  \                 if parameter[\"env\"] != _|_ {\n                      env:
+                  parameter.env\n                  }\n\n                  if context[\"config\"]
+                  != _|_ {\n                      env: context.config\n                  }\n\n
+                  \                 ports: [{\n                      containerPort:
+                  parameter.port\n                  }]\n\n                  if parameter[\"cpu\"]
+                  != _|_ {\n                      resources: {\n                          limits:\n
+                  \                             cpu: parameter.cpu\n                          requests:\n
+                  \                             cpu: parameter.cpu\n                      }\n
+                  \                 }\n              }]\n            }\n        }\n
+                  \       if parameter[\"updateStrategyType\"] != _|_ {\n            updateStrategy:
+                  {\n              type: parameter.updateStrategyType\n            }\n
+                  \       }\n    }\n}\nparameter: {\n    // +usage=Which image would
+                  you like to use for your service\n    // +short=i\n    image: string\n\n
+                  \   // +usage=Commands to run in the container\n    cmd?: [...string]\n\n
+                  \   // +usage=Which port do you want customer traffic sent to\n
+                  \   // +short=p\n    port: *80 | int\n    // +usage=Define arguments
+                  by using environment variables\n    env?: [...{\n        // +usage=Environment
+                  variable name\n        name: string\n        // +usage=The value
+                  of the environment variable\n        value?: string\n        //
+                  +usage=Specifies a source the value of this var should come from\n
+                  \       valueFrom?: {\n            // +usage=Selects a key of a
+                  secret in the pod's namespace\n            secretKeyRef: {\n                //
+                  +usage=The name of the secret in the pod's namespace to select from\n
+                  \               name: string\n                // +usage=The key
+                  of the secret to select from. Must be a valid secret key\n                key:
+                  string\n            }\n        }\n    }]\n    // +usage=Number of
+                  CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU
+                  core)\n    cpu?: string\n    // +usage=Cloneset updateStrategy,
+                  candidates are `ReCreate`/`InPlaceIfPossible`/`InPlaceOnly`\n    updateStrategyType?:
+                  string\n    // +usage=Number of pods in the cloneset\n    replicas?:
+                  int\n} \n"
+            workload:
+              definition:
+                apiVersion: apps.kruise.io/v1alpha1
+                kind: CloneSet
+        type: raw
     status:
       rollout:
         batchRollingState: ""
