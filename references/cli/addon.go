@@ -17,8 +17,11 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gosuri/uitable"
@@ -111,13 +114,33 @@ func NewAddonEnableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 				}
 			}
 			name := args[0]
-			err := enableAddon(name)
+			addonArgs, err := parseToMap(args[1:])
+			if err != nil {
+				return err
+			}
+			err = enableAddon(name, addonArgs)
 			if err != nil {
 				return err
 			}
 			return nil
 		},
 	}
+}
+
+func parseToMap(args []string) (map[string]string, error) {
+	res := map[string]string{}
+	for _, pair := range args {
+		line := strings.Split(pair, "=")
+		if len(line) != 2 {
+			return nil, fmt.Errorf("parameter format should be foo=bar, %s not match", pair)
+		}
+		k := strings.TrimSpace(line[0])
+		v := strings.TrimSpace(line[1])
+		if k != "" && v != "" {
+			res[k] = v
+		}
+	}
+	return res, nil
 }
 
 // NewAddonDisableCommand create addon disable command
@@ -159,7 +182,7 @@ func listAddons() error {
 	return nil
 }
 
-func enableAddon(name string) error {
+func enableAddon(name string, args map[string]string) error {
 	repo, err := NewAddonRepo()
 	if err != nil {
 		return err
@@ -168,6 +191,7 @@ func enableAddon(name string) error {
 	if err != nil {
 		return err
 	}
+	addon.setArgs(args)
 	err = addon.enable()
 	if err != nil {
 		return err
@@ -199,7 +223,7 @@ func disableAddon(name string) error {
 func newAddon(data *v1.ConfigMap) *Addon {
 	description := data.ObjectMeta.Annotations[DescAnnotation]
 	a := Addon{name: data.Name, description: description, initYaml: data.Data["initializer"]}
-	init, _ := a.getInitializer()
+	init, _ := a.renderInitializer()
 	a.addonNamespace = init.GetNamespace()
 	return &a
 }
@@ -258,14 +282,16 @@ type Addon struct {
 	addonNamespace string // addonNamespace is where Initializer will be apply
 	description    string
 	initYaml       string
-	initializer    *unstructured.Unstructured
-	gvk            *schema.GroupVersionKind
+	// Args is map for renderInitializer
+	Args        map[string]string
+	initializer *unstructured.Unstructured
+	gvk         *schema.GroupVersionKind
 }
 
 func (a *Addon) getGVK() (*schema.GroupVersionKind, error) {
 	if a.gvk == nil {
 		if a.initializer == nil {
-			_, err := a.getInitializer()
+			_, err := a.renderInitializer()
 			if err != nil {
 				return nil, err
 			}
@@ -276,25 +302,31 @@ func (a *Addon) getGVK() (*schema.GroupVersionKind, error) {
 	return a.gvk, nil
 }
 
-func (a *Addon) getInitializer() (*unstructured.Unstructured, error) {
-	if a.initializer == nil {
-		res := a.initYaml
-		obj := &unstructured.Unstructured{}
-		dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-		_, gvk, err := dec.Decode([]byte(res), nil, obj)
-		if err != nil {
-			return nil, err
-		}
-		a.initializer = obj
-		a.gvk = gvk
+func (a *Addon) renderInitializer() (*unstructured.Unstructured, error) {
+	t, err := template.New("_").Parse(a.initYaml)
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing addon initializer template error")
 	}
+	buf := bytes.Buffer{}
+	err = t.Execute(&buf, a)
+	if err != nil {
+		return nil, errors.Wrap(err, "initializer template render fail")
+	}
+	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	obj := &unstructured.Unstructured{}
+	_, gvk, err := dec.Decode(buf.Bytes(), nil, obj)
+	if err != nil {
+		return nil, err
+	}
+	a.initializer = obj
+	a.gvk = gvk
 	return a.initializer, nil
 }
 
 func (a *Addon) enable() error {
 	applicator := apply.NewAPIApplicator(clt)
 	ctx := context.Background()
-	obj, err := a.getInitializer()
+	obj, err := a.renderInitializer()
 	if err != nil {
 		return err
 	}
@@ -349,7 +381,7 @@ func (a *Addon) disable() error {
 	if err != nil {
 		return err
 	}
-	obj, err := a.getInitializer()
+	obj, err := a.renderInitializer()
 	if err != nil {
 		return err
 	}
@@ -391,4 +423,8 @@ func (a *Addon) getStatus() string {
 		return statusUninstalled
 	}
 	return statusInstalled
+}
+
+func (a *Addon) setArgs(args map[string]string) {
+	a.Args = args
 }
