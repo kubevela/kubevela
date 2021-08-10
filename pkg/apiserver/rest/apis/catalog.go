@@ -22,7 +22,6 @@ import (
 
 // CatalogRequest defines the body of catalog request
 type CatalogRequest struct {
-	Method   string `json:"method"`
 	Name     string `json:"name"`
 	Desc     string `json:"desc,omitempty"`
 	UpdateAt int64  `json:"updateAt,omitempty"`
