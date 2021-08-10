@@ -239,6 +239,176 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 				return nil
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())
 		})
+
+		It("Test clean up definitionRevision contains definitionRevision with custom name", func() {
+			var revKey client.ObjectKey
+			var defRev v1beta1.DefinitionRevision
+			revisionNames := []string{"1.3.1", "", "1.3.3", "", "prod"}
+			tdName := "test-td-with-specify-revision"
+			revisionNum := 1
+			defKey := client.ObjectKey{Namespace: namespace, Name: tdName}
+			req := reconcile.Request{NamespacedName: defKey}
+
+			By("create a new traitDefinition")
+			td := tdWithNoTemplate.DeepCopy()
+			td.Name = tdName
+			td.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
+			Expect(k8sClient.Create(ctx, td)).Should(BeNil())
+			testutil.ReconcileRetry(&r, req)
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+			Expect(defRev.Spec.Revision).Should(Equal(int64(revisionNum)))
+
+			By("update traitDefinition")
+			checkTrait := new(v1beta1.TraitDefinition)
+			for _, revisionName := range revisionNames {
+				revisionNum++
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, defKey, checkTrait)
+					if err != nil {
+						return err
+					}
+					checkTrait.SetAnnotations(map[string]string{
+						oam.AnnotationDefinitionRevisionName: revisionName,
+					})
+					checkTrait.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
+					return k8sClient.Update(ctx, checkTrait)
+				}, 10*time.Second, time.Second).Should(BeNil())
+
+				Eventually(func() error {
+					testutil.ReconcileOnce(&r, req)
+					newTd := new(v1beta1.TraitDefinition)
+					err := k8sClient.Get(ctx, req.NamespacedName, newTd)
+					if err != nil {
+						return err
+					}
+					if newTd.Status.LatestRevision.Revision != int64(revisionNum) {
+						return fmt.Errorf("fail to update status")
+					}
+					return nil
+				}, 15*time.Second, time.Second)
+
+				if len(revisionName) == 0 {
+					revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
+				} else {
+					revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%s", tdName, revisionName)}
+				}
+
+				By("check the definitionRevision is created by controller")
+				var defRev v1beta1.DefinitionRevision
+				Eventually(func() error {
+					return k8sClient.Get(ctx, revKey, &defRev)
+				}, 10*time.Second, time.Second).Should(BeNil())
+
+				Expect(defRev.Spec.Revision).Should(Equal(int64(revisionNum)))
+			}
+
+			By("create new TraitDefinition will remove oldest definitionRevision")
+			revisionNum++
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, defKey, checkTrait)
+				if err != nil {
+					return err
+				}
+				checkTrait.SetAnnotations(map[string]string{
+					oam.AnnotationDefinitionRevisionName: "test",
+				})
+				checkTrait.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, "test-vtest")
+				return k8sClient.Update(ctx, checkTrait)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			Eventually(func() error {
+				testutil.ReconcileOnce(&r, req)
+				newTd := new(v1beta1.TraitDefinition)
+				err := k8sClient.Get(ctx, req.NamespacedName, newTd)
+				if err != nil {
+					return err
+				}
+				if newTd.Status.LatestRevision.Revision != int64(revisionNum) {
+					return fmt.Errorf("fail to update status")
+				}
+				return nil
+			}, 15*time.Second, time.Second)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%s", tdName, "test")}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			deletedRevision := new(v1beta1.DefinitionRevision)
+			deleteRevKey := types.NamespacedName{Namespace: namespace, Name: tdName + "-v1"}
+			listOpts := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					oam.LabelTraitDefinitionName: tdName,
+				},
+			}
+			defRevList := new(v1beta1.DefinitionRevisionList)
+			Eventually(func() error {
+				err := k8sClient.List(ctx, defRevList, listOpts...)
+				if err != nil {
+					return err
+				}
+				if len(defRevList.Items) != defRevisionLimit+1 {
+					return fmt.Errorf("error defRevison number wants %d, actually %d", defRevisionLimit+1, len(defRevList.Items))
+				}
+				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				return nil
+			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+
+			By("update app again will continue to delete the oldest revision")
+			revisionNum++
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, defKey, checkTrait)
+				if err != nil {
+					return err
+				}
+				checkTrait.SetAnnotations(map[string]string{
+					oam.AnnotationDefinitionRevisionName: "",
+				})
+				checkTrait.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
+				return k8sClient.Update(ctx, checkTrait)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			Eventually(func() error {
+				testutil.ReconcileOnce(&r, req)
+				newTd := new(v1beta1.TraitDefinition)
+				err := k8sClient.Get(ctx, req.NamespacedName, newTd)
+				if err != nil {
+					return err
+				}
+				if newTd.Status.LatestRevision.Revision != int64(revisionNum) {
+					return fmt.Errorf("fail to update status")
+				}
+				return nil
+			}, 15*time.Second, time.Second)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			deleteRevKey = types.NamespacedName{Namespace: namespace, Name: tdName + "-v1.3.1"}
+			Eventually(func() error {
+				err := k8sClient.List(ctx, defRevList, listOpts...)
+				if err != nil {
+					return err
+				}
+				if len(defRevList.Items) != defRevisionLimit+1 {
+					return fmt.Errorf("error defRevison number wants %d, actually %d", defRevisionLimit+1, len(defRevList.Items))
+				}
+				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				return nil
+			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		})
 	})
 })
 

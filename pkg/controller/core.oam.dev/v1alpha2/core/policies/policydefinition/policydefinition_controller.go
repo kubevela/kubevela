@@ -133,12 +133,14 @@ func (r *Reconciler) createPolicyDefRevision(ctx context.Context, def *v1beta1.P
 	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
 		map[string]string{oam.LabelPolicyDefinitionName: def.Name}))
 	defRev.SetNamespace(namespace)
-	defRev.SetAnnotations(def.GetAnnotations())
 
 	rev := &v1beta1.DefinitionRevision{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
 	if apierrors.IsNotFound(err) {
-		return r.Create(ctx, defRev)
+		err = r.Create(ctx, defRev)
+		if apierrors.IsAlreadyExists(err) {
+			return nil
+		}
 	}
 	return err
 }

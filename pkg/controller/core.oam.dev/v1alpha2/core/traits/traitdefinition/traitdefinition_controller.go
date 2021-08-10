@@ -124,10 +124,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.record.Event(&traitdefinition, event.Warning("Failed to garbage collect DefinitionRevision of type TraitDefinition", err))
 	}
 
-	if !isNewRevision && traitdefinition.Status.ConfigMapRef == defRev.Name {
-		return ctrl.Result{}, nil
-	}
-
 	def := utils.NewCapabilityTraitDef(&traitdefinition)
 	def.Name = req.NamespacedName.Name
 	// Store the parameter of traitDefinition to configMap
@@ -157,12 +153,14 @@ func (r *Reconciler) createTraitDefRevision(ctx context.Context, traitDef *v1bet
 	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
 		map[string]string{oam.LabelTraitDefinitionName: traitDef.Name}))
 	defRev.SetNamespace(namespace)
-	defRev.SetAnnotations(traitDef.GetAnnotations())
 
 	rev := &v1beta1.DefinitionRevision{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
 	if apierrors.IsNotFound(err) {
-		return r.Create(ctx, defRev)
+		err = r.Create(ctx, defRev)
+		if apierrors.IsAlreadyExists(err) {
+			return nil
+		}
 	}
 	return err
 }

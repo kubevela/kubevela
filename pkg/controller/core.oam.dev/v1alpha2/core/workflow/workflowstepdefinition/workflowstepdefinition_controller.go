@@ -136,7 +136,10 @@ func (r *Reconciler) createWFStepDefRevision(ctx context.Context, def *v1beta1.W
 	rev := &v1beta1.DefinitionRevision{}
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
 	if apierrors.IsNotFound(err) {
-		return r.Create(ctx, defRev)
+		err = r.Create(ctx, defRev)
+		if apierrors.IsAlreadyExists(err) {
+			return nil
+		}
 	}
 	return err
 }

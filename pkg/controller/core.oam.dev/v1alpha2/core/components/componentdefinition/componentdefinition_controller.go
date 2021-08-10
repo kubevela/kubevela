@@ -62,8 +62,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
 
-	componentDefinition := new(v1beta1.ComponentDefinition)
-	if err := r.Get(ctx, req.NamespacedName, componentDefinition); err != nil {
+	var componentDefinition v1beta1.ComponentDefinition
+	if err := r.Get(ctx, req.NamespacedName, &componentDefinition); err != nil {
 		if apierrors.IsNotFound(err) {
 			err = nil
 		}
@@ -77,29 +77,29 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// refresh package discover when componentDefinition is registered
 	if componentDefinition.Spec.Workload.Type != types.AutoDetectWorkloadDefinition {
-		err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, componentDefinition)
+		err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &componentDefinition)
 		if err != nil {
 			klog.InfoS("Could not discover the open api of the CRD", "err", err)
-			r.record.Event(componentDefinition, event.Warning("Could not discover the open api of the CRD", err))
-			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, componentDefinition,
+			r.record.Event(&componentDefinition, event.Warning("Could not discover the open api of the CRD", err))
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
 
 	// generate DefinitionRevision from componentDefinition
-	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, componentDefinition)
+	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &componentDefinition)
 	if err != nil {
-		klog.InfoS("Could not generate DefinitionRevision", "componentDefinition", klog.KObj(componentDefinition), "err", err)
-		r.record.Event(componentDefinition, event.Warning("Could not generate DefinitionRevision", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, componentDefinition,
+		klog.InfoS("Could not generate DefinitionRevision", "componentDefinition", klog.KObj(&componentDefinition), "err", err)
+		r.record.Event(&componentDefinition, event.Warning("Could not generate DefinitionRevision", err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, componentDefinition.Name, err)))
 	}
 
 	if isNewRevision {
-		if err := r.createComponentDefRevision(ctx, componentDefinition, defRev.DeepCopy()); err != nil {
+		if err := r.createComponentDefRevision(ctx, &componentDefinition, defRev.DeepCopy()); err != nil {
 			klog.InfoS("Could not create DefinitionRevision", "err", err)
-			r.record.Event(componentDefinition, event.Warning("cannot create DefinitionRevision", err))
-			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, componentDefinition,
+			r.record.Event(&componentDefinition, event.Warning("cannot create DefinitionRevision", err))
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
 		}
 		klog.InfoS("Successfully create definitionRevision", "definitionRevision", klog.KObj(defRev))
@@ -111,37 +111,33 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		RevisionHash: defRev.Spec.RevisionHash,
 	}
 
-	if err := r.UpdateStatus(ctx, componentDefinition); err != nil {
+	if err := r.UpdateStatus(ctx, &componentDefinition); err != nil {
 		klog.InfoS("Could not update componentDefinition Status", "err", err)
-		r.record.Event(componentDefinition, event.Warning("cannot update ComponentDefinition Status", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, componentDefinition,
+		r.record.Event(&componentDefinition, event.Warning("cannot update ComponentDefinition Status", err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, componentDefinition.Name, err)))
 	}
 
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, componentDefinition, r.defRevLimit); err != nil {
+	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &componentDefinition, r.defRevLimit); err != nil {
 		klog.InfoS("Failed to collect garbage", "err", err)
-		r.record.Event(componentDefinition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
+		r.record.Event(&componentDefinition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
 	}
 
-	if !isNewRevision && componentDefinition.Status.ConfigMapRef == defRev.Name {
-		return ctrl.Result{}, nil
-	}
-
-	def := utils.NewCapabilityComponentDef(componentDefinition)
+	def := utils.NewCapabilityComponentDef(&componentDefinition)
 	// Store the parameter of componentDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
 		klog.InfoS("Could not capability in ConfigMap", "err", err)
-		r.record.Event(componentDefinition, event.Warning("Could not store capability in ConfigMap", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, componentDefinition,
+		r.record.Event(&(componentDefinition), event.Warning("Could not store capability in ConfigMap", err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(componentDefinition),
 			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
 
 	componentDefinition.Status.ConfigMapRef = cmName
-	if err := r.UpdateStatus(ctx, componentDefinition); err != nil {
+	if err := r.UpdateStatus(ctx, &componentDefinition); err != nil {
 		klog.InfoS("Could not update componentDefinition Status", "err", err)
-		r.record.Event(componentDefinition, event.Warning("cannot update ComponentDefinition Status", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, componentDefinition,
+		r.record.Event(&componentDefinition, event.Warning("cannot update ComponentDefinition Status", err))
+		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, componentDefinition.Name, err)))
 	}
 	klog.Info("Successfully stored Capability Schema in ConfigMap", "configMap", klog.KRef(componentDefinition.Namespace, cmName))
