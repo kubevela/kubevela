@@ -18,11 +18,9 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -110,10 +108,3 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
-
-// randomNamespaceName generates a random name based on the basic name.
-// Running each ginkgo case in a new namespace with a random name can avoid
-// waiting a long time to GC namesapce.
-func randomNamespaceName(basic string) string {
-	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
-}
