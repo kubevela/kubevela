@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
@@ -151,6 +152,22 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
+	opts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
+	node := inst.Value().Syntax(opts...)
+	if fileNode, ok := node.(*ast.File); ok {
+		for _, decl := range fileNode.Decls {
+			if field, ok := decl.(*ast.Field); ok {
+				if label, ok := field.Label.(*ast.Ident); ok && label.Name == "#"+velacue.ParameterTag {
+					return decl.(*ast.Field).Value
+				}
+			}
+		}
+	}
+	paramVal := inst.LookupDef(velacue.ParameterTag)
+	return paramVal.Syntax(opts...)
+}
+
 // RefineParameterInstance refines cue instance to merely include `parameter` identifier
 func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
 	r := cue.Runtime{}
@@ -158,8 +175,7 @@ func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
 	var paramOnlyStr string
 	switch k := paramVal.IncompleteKind(); k {
 	case cue.StructKind, cue.ListKind:
-		sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
-		paramSyntax, _ := format.Node(paramVal.Syntax(sysopts...))
+		paramSyntax, _ := format.Node(extractParameterDefinitionNodeFromInstance(inst))
 		paramOnlyStr = fmt.Sprintf("#%s: %s\n", velacue.ParameterTag, string(paramSyntax))
 	case cue.IntKind, cue.StringKind, cue.FloatKind, cue.BoolKind:
 		paramOnlyStr = fmt.Sprintf("#%s: %v", velacue.ParameterTag, paramVal)
