@@ -71,7 +71,7 @@ kind: ComponentDefinition
 metadata:
   name: singleton-server
   annotations:
-    definition.oam.dev/description: "singletonServer is Pod"
+    definition.oam.dev/description: "singleton-server is Pod"
 spec:
   workload:
     definition:
