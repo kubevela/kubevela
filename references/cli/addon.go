@@ -303,7 +303,10 @@ func (a *Addon) getGVK() (*schema.GroupVersionKind, error) {
 }
 
 func (a *Addon) renderInitializer() (*unstructured.Unstructured, error) {
-	t, err := template.New("_").Parse(a.initYaml)
+	if a.Args == nil {
+		a.Args = map[string]string{}
+	}
+	t, err := template.New("addon-template").Parse(a.initYaml)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing addon initializer template error")
 	}
