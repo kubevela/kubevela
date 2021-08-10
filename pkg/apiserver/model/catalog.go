@@ -1,6 +1,6 @@
 package model
 
-// Catalog defines
+// Catalog defines the data model of a Catalog
 type Catalog struct {
 	Name string `json:"name,omitempty"`
 	Desc string `json:"desc,omitempty"`
