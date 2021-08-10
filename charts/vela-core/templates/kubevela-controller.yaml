@@ -158,16 +158,16 @@ spec:
               name: tls-cert-vol
               readOnly: true
           {{ end }}
-        {{- if .Values.apiserver.enabled -}}
+        {{ if .Values.apiserver.enabled }}
         - name: {{ .Release.Name }}-api
           securityContext:
           {{- toYaml .Values.securityContext | nindent 12 }}
           command:
             - "apiserver"
           args:
-            - "--port={{ .Values.apiserver.port }}"
+            - "--port={{ .Values.apiserver.service.port }}"
           ports:
-            - containerPort: {{ .Values.apiserver.port }}
+            - containerPort: {{ .Values.apiserver.service.port }}
               name: api
               protocol: TCP
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
