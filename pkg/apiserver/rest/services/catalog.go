@@ -25,7 +25,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,7 +49,7 @@ func NewCatalogService(kc client.Client) *CatalogService {
 
 // ListCatalogs list method for catalog configmap
 func (s *CatalogService) ListCatalogs(c echo.Context) error {
-	var cmList v1.ConfigMapList
+	var cmList corev1.ConfigMapList
 	labels := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"catalog": "configdata",
@@ -77,7 +76,7 @@ func (s *CatalogService) ListCatalogs(c echo.Context) error {
 			UpdatedAt: UpdateInt,
 			Desc:      cmList.Items[i].Data["Desc"],
 			Type:      cmList.Items[i].Data["Type"],
-			Url:       cmList.Items[i].Data["Url"],
+			URL:       cmList.Items[i].Data["Url"],
 			Token:     cmList.Items[i].Data["Token"],
 		}
 		catalogList = append(catalogList, &catalog)
@@ -90,7 +89,7 @@ func (s *CatalogService) ListCatalogs(c echo.Context) error {
 func (s *CatalogService) GetCatalog(c echo.Context) error {
 	catalogName := c.Param("catalogName")
 
-	var cm v1.ConfigMap
+	var cm corev1.ConfigMap
 	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: catalogName}, &cm)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("get configMap for %s failed %s", catalogName, err.Error()))
@@ -104,7 +103,7 @@ func (s *CatalogService) GetCatalog(c echo.Context) error {
 		Desc:      cm.Data["Desc"],
 		UpdatedAt: UpdatedInt,
 		Type:      cm.Data["Type"],
-		Url:       cm.Data["Url"],
+		URL:       cm.Data["Url"],
 		Token:     cm.Data["Token"],
 	}
 	return c.JSON(http.StatusOK, apis.CatalogResponse{Catalog: &catalog})
@@ -124,7 +123,7 @@ func (s *CatalogService) AddCatalog(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("catalog %s exist", catalogReq.Name))
 	}
 
-	var cm *v1.ConfigMap
+	var cm *corev1.ConfigMap
 	configdata := map[string]string{
 		"Name":      catalogReq.Name,
 		"Desc":      catalogReq.Desc,
@@ -134,10 +133,7 @@ func (s *CatalogService) AddCatalog(c echo.Context) error {
 	label := map[string]string{
 		"catalog": "configdata",
 	}
-	cm, err = toConfigMap(catalogReq.Name, types.DefaultKubeVelaNS, label, configdata)
-	if err != nil {
-		return fmt.Errorf("convert config map failed %w ", err)
-	}
+	cm = toConfigMap(catalogReq.Name, types.DefaultKubeVelaNS, label, configdata)
 	err = s.k8sClient.Create(context.Background(), cm)
 	if err != nil {
 		return fmt.Errorf("unable to create configmap for %s : %w ", catalogReq.Name, err)
@@ -153,7 +149,6 @@ func (s *CatalogService) UpdateCatalog(c echo.Context) error {
 		return err
 	}
 	catalog := convertToCatalog(catalogReq)
-	var cm *v1.ConfigMap
 	configdata := map[string]string{
 		"Name":      catalogReq.Name,
 		"Desc":      catalogReq.Desc,
@@ -163,11 +158,8 @@ func (s *CatalogService) UpdateCatalog(c echo.Context) error {
 	label := map[string]string{
 		"catalog": "configdata",
 	}
-	cm, err := toConfigMap(catalogReq.Name, types.DefaultKubeVelaNS, label, configdata)
-	if err != nil {
-		return fmt.Errorf("convert config map failed %w ", err)
-	}
-	err = s.k8sClient.Update(context.Background(), cm)
+	cm := toConfigMap(catalogReq.Name, types.DefaultKubeVelaNS, label, configdata)
+	err := s.k8sClient.Update(context.Background(), cm)
 	if err != nil {
 		return fmt.Errorf("unable to update configmap for %s : %w ", catalogReq.Name, err)
 	}
@@ -179,7 +171,7 @@ func (s *CatalogService) UpdateCatalog(c echo.Context) error {
 func (s *CatalogService) DelCatalog(c echo.Context) error {
 	catalogName := c.Param("catalogName")
 
-	var cm v1.ConfigMap
+	var cm corev1.ConfigMap
 	cm.SetName(catalogName)
 	cm.SetNamespace(types.DefaultKubeVelaNS)
 	if err := s.k8sClient.Delete(context.Background(), &cm); err != nil {
@@ -191,7 +183,7 @@ func (s *CatalogService) DelCatalog(c echo.Context) error {
 
 // checkCatalogExist check whether catalog exist with name
 func (s *CatalogService) checkCatalogExist(catalogName string) (bool, error) {
-	var cm v1.ConfigMap
+	var cm corev1.ConfigMap
 	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: catalogName}, &cm)
 	if err != nil {
 		if apierrors.IsNotFound(err) { // not found
@@ -211,12 +203,12 @@ func convertToCatalog(catalogReq *apis.CatalogRequest) model.Catalog {
 		Desc:      catalogReq.Desc,
 		UpdatedAt: time.Now().Unix(),
 		Type:      catalogReq.Type,
-		Url:       catalogReq.URL,
+		URL:       catalogReq.URL,
 		Token:     catalogReq.Token,
 	}
 }
 
-func toConfigMap(name, namespace string, label map[string]string, configData map[string]string) (*corev1.ConfigMap, error) {
+func toConfigMap(name, namespace string, label map[string]string, configData map[string]string) *corev1.ConfigMap {
 	var cm = corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -227,5 +219,5 @@ func toConfigMap(name, namespace string, label map[string]string, configData map
 	cm.SetNamespace(namespace)
 	cm.SetLabels(label)
 	cm.Data = configData
-	return &cm, nil
+	return &cm
 }

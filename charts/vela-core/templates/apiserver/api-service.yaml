@@ -8,13 +8,13 @@ metadata:
   labels:
     {{- include "kubevela.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
+  type: {{ .Values.apiserver.service.type }}
   ports:
-    - port: {{ .Values.apiserver.port }}
-      targetPort: {{ .Values.apiserver.port }}
+    - port: {{ .Values.apiserver.service.port }}
+      targetPort: {{ .Values.apiserver.service.port }}
       protocol: TCP
       name: api
   selector:
     {{- include "kubevela.selectorLabels" . | nindent 6 }}
 
-{{- end }}
+{{- end -}}
