@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"time"
 
-	echo "github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -93,11 +93,11 @@ func (s *CatalogService) GetCatalog(c echo.Context) error {
 	var cm v1.ConfigMap
 	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: catalogName}, &cm)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("get config for %s failed %s", catalogName, err.Error()))
+		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("get configMap for %s failed %s", catalogName, err.Error()))
 	}
 	UpdatedInt, err := strconv.ParseInt(cm.Data["UpdatedAt"], 10, 64)
 	if err != nil {
-		return fmt.Errorf("unable to resolve update parameter in %s:%w ", catalogName, err)
+		return c.JSON(http.StatusInternalServerError, fmt.Errorf("unable to resolve update parameter in %s: %w ", catalogName, err))
 	}
 	var catalog = model.Catalog{
 		Name:      catalogName,
@@ -128,7 +128,7 @@ func (s *CatalogService) AddCatalog(c echo.Context) error {
 	configdata := map[string]string{
 		"Name":      catalogReq.Name,
 		"Desc":      catalogReq.Desc,
-		"UpdatedAt": time.Now().String(),
+		"UpdatedAt": fmt.Sprintf("%d", time.Now().UnixNano()),
 	}
 
 	label := map[string]string{
