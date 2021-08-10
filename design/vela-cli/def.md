@@ -96,7 +96,10 @@ The first part `labels: {...}` expresses the basic information of the definition
         labels: {}
         type: "trait"
 }
-template: patch: {}
+template: {
+        patch: {}
+        parameter: {}
+}
 ```
 
 Or you can use `vela def init my-comp --interactive` to initiate definitions interactively.
@@ -203,7 +206,7 @@ template: {
                 apiVersion: "v1"
                 kind:       "Service"
         }
-        parameters: {}
+        parameter: {}
 
 }
 ```
@@ -272,7 +275,7 @@ spec:
                 apiVersion: "v1"
                 kind:       "Service"
         }
-        parameters: {}
+        parameter: {}
   workload:
     definition:
       apiVersion: apps/v1

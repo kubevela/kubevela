@@ -22,3 +22,8 @@ spec:
             repoUrl: https://github.com/openkruise/kruise
             chart: ./charts/kruise/v0.9.0
             branch: master
+{{  range .DefinitionFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}

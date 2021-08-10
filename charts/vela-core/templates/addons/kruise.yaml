@@ -20,6 +20,87 @@ data:
               repoType: git
               repoUrl: https://github.com/openkruise/kruise
             type: helm
+          - name: cloneset-service
+            properties:
+              apiVersion: core.oam.dev/v1beta1
+              kind: ComponentDefinition
+              metadata:
+                annotations:
+                  definition.oam.dev/description: Describes long-running, scalable, containerized
+                    services that have a stable network endpoint to receive external network
+                    traffic from customers. If workload type is skipped for any service
+                    defined in Appfile, it will be defaulted to `webservice` type.
+                name: cloneset-service
+                namespace: vela-system
+              spec:
+                schematic:
+                  cue:
+                    template: "output: {\n\tapiVersion: \"apps.kruise.io/v1alpha1\"\n\tkind:
+                      \      \"CloneSet\"\n\tmetadata: labels: {\n\t\t\"app.oam.dev/component\":
+                      context.name\n\t}\n\tspec: {\n\t\tselector: matchLabels: {\n\t\t\t\"app.oam.dev/component\":
+                      context.name\n\t\t}\n\n\t\ttemplate: {\n\t\t\tmetadata: labels:
+                      {\n\t\t\t\t\"app.oam.dev/component\": context.name\n\t\t\t}\n\n\t\t\tspec:
+                      {\n\t\t\t\tcontainers: [{\n\t\t\t\t\tname:  context.name\n\t\t\t\t\timage:
+                      parameter.image\n\n\t\t\t\t\tif parameter.cmd != _|_ {\n\t\t\t\t\t\tcommand:
+                      parameter.cmd\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.args != _|_ {\n\t\t\t\t\t\targs:
+                      parameter.args\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.env != _|_ {\n\t\t\t\t\t\tenv:
+                      parameter.env\n\t\t\t\t\t}\n\n\t\t\t\t\tif context.config != _|_
+                      {\n\t\t\t\t\t\tenv: context.config\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+                      parameter[\"imagePullPolicy\"] != _|_ {\n\t\t\t\t\t\timagePullPolicy:
+                      parameter.imagePullPolicy\n\t\t\t\t\t}\n\n\t\t\t\t\tports: [{\n\t\t\t\t\t\tcontainerPort:
+                      parameter.port\n\t\t\t\t\t}]\n\n\t\t\t\t\tif parameter[\"cpu\"]
+                      != _|_ {\n\t\t\t\t\t\tresources: {\n\t\t\t\t\t\t\tlimits: cpu:   parameter.cpu\n\t\t\t\t\t\t\trequests:
+                      cpu: parameter.cpu\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif parameter[\"memory\"]
+                      != _|_ {\n\t\t\t\t\t\tresources: {\n\t\t\t\t\t\t\tlimits: memory:
+                      \  parameter.memory\n\t\t\t\t\t\t\trequests: memory: parameter.memory\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+                      parameter[\"livenessProbe\"] != _|_ {\n\t\t\t\t\t\tlivenessProbe:
+                      parameter.livenessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter[\"readinessProbe\"]
+                      != _|_ {\n\t\t\t\t\t\treadinessProbe: parameter.readinessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+                      parameter[\"imagePullSecrets\"] != _|_ {\n\t\t\t\t\t\timagePullSecrets:
+                      [ for v in parameter.imagePullSecrets {name: v}]\n\t\t\t\t\t}\n\n\t\t\t\t\tlifecycle:
+                      {\n\t\t\t\t\t\tif parameter.postStart != _|_ {\n\t\t\t\t\t\t\tpostStart:
+                      exec: command: parameter.postStart\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif
+                      parameter.preStop != _|_ {\n\t\t\t\t\t\t\tpreStop: exec: command:
+                      parameter.preStop\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}]\n\t\t\t\tif
+                      parameter.hostAliases != _|_ {\n\t\t\t\t\thostAliases: parameter.hostAliases\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif
+                      parameter.updateStrategyType != _|_ {\n\t\t\tupdateStrategy: {\n\t\t\t\ttype:
+                      parameter.updateStrategyType\n\t\t\t}\n\t\t}\n\t}\n}\nparameter:
+                      {\n\t// +usage=Which image would you like to use for your service\n\t//
+                      +short=i\n\timage: string\n\n\t// +usage=Specify image pull policy
+                      for your service\n\timagePullPolicy?: string\n\n\t// +usage=Specify
+                      image pull secrets for your service\n\timagePullSecrets?: [...string]\n\n\t//
+                      +usage=Number of CPU units for the service, like `0.5` (0.5 CPU
+                      core), `1` (1 CPU core)\n\tcpu?: string\n\n\t// +usage=Specify the
+                      amount of memory to limit\n\tmemory?: *\"2048Mi\" | =~\"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$\"\n\n\t//
+                      +usage=Commands to run in the container\n\tcmd?: [...string]\n\n\t//
+                      +usage=Arguments to the command.\n\targs?: [...string]\n\n\t// +usage=postStart
+                      commands will be called immediately after a container is created.\n\tpostStart?:
+                      [...string]\n\n\t// +usage=PreStop is called immediately before
+                      a container is terminated due to an API request or management event
+                      such as liveness/startup probe failure, preemption, resource contention,
+                      etc. The handler is not called if the container crashes or exits.
+                      The reason for termination is passed to the handler. The Pod's termination
+                      grace period countdown begins before the PreStop hooked is executed.
+                      Regardless of the outcome of the handler, the container will eventually
+                      terminate within the Pod's termination grace period. Other management
+                      of the container blocks until the hook completes or until the termination
+                      grace period is reached. More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks\n\tpreStop?:
+                      [...string]\n\n\t// +usage=Which port do you want customer traffic
+                      sent to\n\t// +short=p\n\tport: *80 | int\n\n\t// +usage=Define
+                      arguments by using environment variables\n\tenv?: [...#ENV]\n\n\t//
+                      +usage=Cloneset updateStrategy, candidates are `ReCreate`/`InPlaceIfPossible`/`InPlaceOnly`\n\tupdateStrategyType?:
+                      string\n\n\t// +usage=HostAliases is a list of hosts and IPs that
+                      will be write into the pod's hosts file\n\thostAliases?: [...{\n\t\thostnames:
+                      [...string]\n\t\tip: string\n\t}]\n\n\t// +usage=Instructions for
+                      assessing whether the container is alive.\n\tlivenessProbe?: #HealthProbe\n\n\t//
+                      +usage=Instructions for assessing whether the container is in a
+                      suitable state to serve traffic.\n\treadinessProbe?: #HealthProbe\n}
+                      \n"
+                workload:
+                  definition:
+                    apiVersion: apps.kruise.io/v1alpha1
+                    kind: CloneSet
+            type: raw
         status:
           rollout:
             batchRollingState: ""

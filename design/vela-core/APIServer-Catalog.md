@@ -51,7 +51,7 @@ There are two distinguished layers:
 - **API layer**: It defines the API discovery and serving endpoints that Vela APIServer implementation must follow. This is the integration point for external system components (e.g. UI) to contact.
 - **Storage layer**: It describes the storage systems and objects that Vela APIServer syncs data with behind the scene. There are three types of storage:
   - **K8s cluster**: Vela APIServer manages multiple k8s clusters with regard to the applications and definitions custom resources.
-  - **Catalog server**: Vela APIServer manages multiple catalogs which contain COTS application pacakges. Currently in our use case the catalogs resides in Git repos. In the future we can extend this to other catalog storage like file server, object storage.
+  - **Catalog server**: Vela APIServer manages multiple catalogs which contain COTS application packages. Currently in our use case the catalogs resides in Git repos. In the future we can extend this to other catalog storage like file server, object storage.
   - **MySQL database**: Vela APIServer stores global, cross-cluster, cross catalog information in a MySQL database. These data do not exist in k8s or catalog and thus need to be managed by APIServer in a separate database. The database is usually hosted on cloud.
 
 #### Environment API
@@ -134,7 +134,7 @@ Application is a global unit to manage cross-cluster, cross-namespace applicatio
     {
       "id": "cluster-1",
 
-      // The definitions indicate the capabilties enabled in this cluster
+      // The definitions indicate the capabilities enabled in this cluster
       "definitions": [
         {
           "id": "def-1"
@@ -301,7 +301,7 @@ The structure of one package version contains:
 
 Please refer to `/catalogs/<catalog>` API endpoint above.
 
-Under the hood, APIServer will scan the catalog repo based on the predefined structure to parse each packag and versions.
+Under the hood, APIServer will scan the catalog repo based on the predefined structure to parse each packages and versions.
 
 #### Sync a catalog in APIServer
 

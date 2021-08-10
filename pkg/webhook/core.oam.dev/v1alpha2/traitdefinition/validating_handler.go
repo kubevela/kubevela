@@ -33,7 +33,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
 const (
@@ -86,6 +88,14 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		for _, validator := range h.Validators {
 			if err := validator.Validate(ctx, *obj); err != nil {
 				klog.Info("validation failed ", " name: ", obj.Name, " errMsgi: ", err.Error())
+				return admission.Denied(err.Error())
+			}
+		}
+		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
+		if len(revisionName) != 0 {
+			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
+			err = webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName})
+			if err != nil {
 				return admission.Denied(err.Error())
 			}
 		}

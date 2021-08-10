@@ -276,7 +276,7 @@ type oamDefinition struct {
 **Responses Body** : 
 ```go
 type definition struct {
-    definition runtime.RawExtension `json:"definition"` // either the full definition or the cueTempalte
+    definition runtime.RawExtension `json:"definition"` // either the full definition or the cueTemplate
 }
 ```
 
@@ -349,7 +349,7 @@ type oamDefinition struct {
 **Responses Body** : 
 ```go
 type definition struct {
-    definition runtime.RawExtension `json:"definition"` // either the full definition or the cueTempalte
+    definition runtime.RawExtension `json:"definition"` // either the full definition or the cueTemplate
 }
 ```
 

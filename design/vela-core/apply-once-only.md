@@ -78,7 +78,7 @@ By default, the mechanism is disabled, vela-core will always reconcile and apply
 
 In each round of reconciliation, vela-core compares below Labels & Annotations of existing workload/trait with newly rendered ones before applying.
 
-After deploying the ApplicationConfiguration in the motivational example, the Deployment created by vela-core will have such lables and annotations.
+After deploying the ApplicationConfiguration in the motivational example, the Deployment created by vela-core will have such labels and annotations.
 
 
 ```yaml
@@ -102,7 +102,7 @@ metadata:
 
 These crucial two are propogated from AppConfig and Component during reconciliation.
 Any change applied to the Deployment directly has no impact on these labels and annotations, e.g., change the Deployment spec just like what we do in the [motivational example](#a-motivational-example).
-If `--apply-once-only` is enabled, since no discrepancy is found on lables and annotations, 
+If `--apply-once-only` is enabled, since no discrepancy is found on labels and annotations, 
 vela-core controller will ignore applying the Deployment and leave it as what it is at that moment.
 
 By contrast, changes on AppConfig (changing `spec` creates new generation) and Component (updating Component creates new revision) will change the value of these labels and annotations.

@@ -96,7 +96,10 @@ template: {
         labels: {}
         type: "trait"
 }
-template: patch: {}
+template: {
+        patch: {}
+        parameter: {}
+}
 ```
 
 或者是采用 `vela def init my-comp --interactive` 来交互式地创建新的 Definition 。
@@ -203,7 +206,7 @@ template: {
                 apiVersion: "v1"
                 kind:       "Service"
         }
-        parameters: {}
+        parameter: {}
 
 }
 ```
@@ -272,7 +275,7 @@ spec:
                 apiVersion: "v1"
                 kind:       "Service"
         }
-        parameters: {}
+        parameter: {}
   workload:
     definition:
       apiVersion: apps/v1

@@ -34,7 +34,7 @@ const (
 	// LabelAppRevisionHash records the Hash value of the application revision
 	LabelAppRevisionHash = "app.oam.dev/app-revision-hash"
 	// LabelAppNamespace records the namespace of Application
-	LabelAppNamespace = "app.oam.dev/namesapce"
+	LabelAppNamespace = "app.oam.dev/namespace"
 
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
@@ -111,4 +111,7 @@ const (
 
 	// AnnotationSkipGC is used to tell application to skip gc workload/trait
 	AnnotationSkipGC = "app.oam.dev/skipGC"
+
+	// AnnotationDefinitionRevisionName is used to specify the name of DefinitionRevision in component/trait definition
+	AnnotationDefinitionRevisionName = "definitionrevision.oam.dev/name"
 )

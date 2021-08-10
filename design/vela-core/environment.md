@@ -1,4 +1,4 @@
-# Initilizing Environments For Application Deployment
+# Initializing Environments For Application Deployment
 
 ## Background
 
@@ -23,7 +23,7 @@ With the introduction of environment, the user workflow on Vela works like:
 - Platform team defines system Components for Environments.
 - Platform team initializes Environments using system Components.
 - Platform team defines user Components for Applications.
-- Developers choose user Components and Environments to deploy Applicatons.
+- Developers choose user Components and Environments to deploy Applications.
 
 When initializing environments, there are additional requirements:
 
@@ -32,7 +32,7 @@ When initializing environments, there are additional requirements:
 
 In the following we propose solutions to implement environment concept for application delivery.
 
-## Initialzer CRD
+## Initializer CRD
 
 We propose to add an Initializer CRD:
 
@@ -174,7 +174,7 @@ spec:
       properties:
         # This app will be checked against the policies in the given target
         target: prod-env
-        # If policy checks failed, send alerts to spcified channels
+        # If policy checks failed, send alerts to specified channels
         notifications:
           slack: slack_url
           dingding: dingding_url
