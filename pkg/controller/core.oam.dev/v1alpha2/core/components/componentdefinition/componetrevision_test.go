@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam/testutil"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -36,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -113,7 +112,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 		})
 	})
 
-	Context("Test DefiFnitionRevision created by ComponentDefinition", func() {
+	Context("Test DefinitionRevision created by ComponentDefinition", func() {
 
 		It("Test different ComponentDefinition with same Spec, Should have the same hash value", func() {
 			cd1 := cdWithNoTemplate.DeepCopy()
@@ -167,6 +166,33 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			Expect(k8sClient.Get(ctx, newRevKey, &defRev)).Should(HaveOccurred())
 		})
 
+	})
+
+	Context("Test create DefinitionRevision with the specified name", func() {
+		It("Test specified DefinitionRevision name in annotation", func() {
+			cdName := "test-specified-defrev-name"
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: cdName, Namespace: namespace}}
+
+			cd := cdWithNoTemplate.DeepCopy()
+			cd.Name = cdName
+			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test")
+			cd.SetAnnotations(map[string]string{
+				oam.AnnotationDefinitionRevisionName: "1.1.3",
+			})
+			By("create componentDefinition")
+			Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAll(BeNil()))
+			testutil.ReconcileRetry(&r, req)
+
+			By("check whether DefinitionRevision is created")
+			cdRevName := fmt.Sprintf("%s-v1.1.3", cdName)
+			var cdRev v1beta1.DefinitionRevision
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdRevName}, &cdRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			By("check the DefinitionRevision's RevisionNum")
+			Expect(cdRev.Spec.Revision).Should(Equal(int64(1)))
+		})
 	})
 
 	Context("Test ComponentDefinition Controller clean up", func() {
@@ -263,6 +289,178 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deleteRevKey = types.NamespacedName{Namespace: namespace, Name: cdName + "-v2"}
+			Eventually(func() error {
+				err := k8sClient.List(ctx, defRevList, listOpts...)
+				if err != nil {
+					return err
+				}
+				if len(defRevList.Items) != defRevisionLimit+1 {
+					return fmt.Errorf("error defRevison number wants %d, actually %d", defRevisionLimit+1, len(defRevList.Items))
+				}
+				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				return nil
+			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		})
+
+		It("Test clean up definitionRevision contains definitionRevision with custom name", func() {
+			var revKey client.ObjectKey
+			var defRev v1beta1.DefinitionRevision
+			revisionNames := []string{"1.3.1", "", "1.3.3", "", "prod"}
+			cdName := "test-cd-with-specify-revision"
+			revisionNum := 1
+			defKey := client.ObjectKey{Namespace: namespace, Name: cdName}
+			req := reconcile.Request{NamespacedName: defKey}
+
+			By("create a new componentDefinition")
+			cd := cdWithNoTemplate.DeepCopy()
+			cd.Name = cdName
+			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
+			Expect(k8sClient.Create(ctx, cd)).Should(BeNil())
+			testutil.ReconcileRetry(&r, req)
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+			Expect(defRev.Spec.Revision).Should(Equal(int64(revisionNum)))
+
+			By("update componentDefinition")
+			for _, revisionName := range revisionNames {
+				revisionNum++
+				Eventually(func() error {
+					oldComp := cd.DeepCopy()
+					err := k8sClient.Get(ctx, defKey, oldComp)
+					if err != nil {
+						return err
+					}
+					oldComp.SetAnnotations(map[string]string{
+						oam.AnnotationDefinitionRevisionName: revisionName,
+					})
+					oldComp.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
+					return k8sClient.Update(ctx, oldComp)
+				}, 10*time.Second, time.Second).Should(BeNil())
+
+				Eventually(func() error {
+					testutil.ReconcileOnce(&r, req)
+					newCd := new(v1beta1.ComponentDefinition)
+					err := k8sClient.Get(ctx, req.NamespacedName, newCd)
+					if err != nil {
+						return err
+					}
+					if newCd.Status.LatestRevision.Revision != int64(revisionNum) {
+						return fmt.Errorf("fail to update status")
+					}
+					return nil
+				}, 15*time.Second, time.Second)
+
+				if len(revisionName) == 0 {
+					revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
+				} else {
+					revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%s", cdName, revisionName)}
+				}
+
+				By("check the definitionRevision is created by controller")
+				var defRev v1beta1.DefinitionRevision
+				Eventually(func() error {
+					return k8sClient.Get(ctx, revKey, &defRev)
+				}, 10*time.Second, time.Second).Should(BeNil())
+
+				Expect(defRev.Spec.Revision).Should(Equal(int64(revisionNum)))
+			}
+
+			By("create new componentDefinition will remove oldest definitionRevision")
+			revisionNum++
+			Eventually(func() error {
+				oldComp := cd.DeepCopy()
+				err := k8sClient.Get(ctx, defKey, oldComp)
+				if err != nil {
+					return err
+				}
+				oldComp.SetAnnotations(map[string]string{
+					oam.AnnotationDefinitionRevisionName: "test",
+				})
+				oldComp.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, "test-vtest")
+				return k8sClient.Update(ctx, oldComp)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			Eventually(func() error {
+				testutil.ReconcileOnce(&r, req)
+				newCd := new(v1beta1.ComponentDefinition)
+				err := k8sClient.Get(ctx, req.NamespacedName, newCd)
+				if err != nil {
+					return err
+				}
+				if newCd.Status.LatestRevision.Revision != int64(revisionNum) {
+					return fmt.Errorf("fail to update status")
+				}
+				return nil
+			}, 15*time.Second, time.Second)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%s", cdName, "test")}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			deletedRevision := new(v1beta1.DefinitionRevision)
+			deleteRevKey := types.NamespacedName{Namespace: namespace, Name: cdName + "-v1"}
+			listOpts := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					oam.LabelComponentDefinitionName: cdName,
+				},
+			}
+			defRevList := new(v1beta1.DefinitionRevisionList)
+			Eventually(func() error {
+				err := k8sClient.List(ctx, defRevList, listOpts...)
+				if err != nil {
+					return err
+				}
+				if len(defRevList.Items) != defRevisionLimit+1 {
+					return fmt.Errorf("error defRevison number wants %d, actually %d", defRevisionLimit+1, len(defRevList.Items))
+				}
+				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				return nil
+			}, time.Second*30, time.Microsecond*300).Should(BeNil())
+
+			By("update app again will continue to delete the oldest revision")
+			revisionNum++
+			Eventually(func() error {
+				oldComp := cd.DeepCopy()
+				err := k8sClient.Get(ctx, defKey, oldComp)
+				if err != nil {
+					return err
+				}
+				oldComp.SetAnnotations(map[string]string{
+					oam.AnnotationDefinitionRevisionName: "",
+				})
+				oldComp.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
+				return k8sClient.Update(ctx, oldComp)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			Eventually(func() error {
+				testutil.ReconcileOnce(&r, req)
+				newCd := new(v1beta1.ComponentDefinition)
+				err := k8sClient.Get(ctx, req.NamespacedName, newCd)
+				if err != nil {
+					return err
+				}
+				if newCd.Status.LatestRevision.Revision != int64(revisionNum) {
+					return fmt.Errorf("fail to update status")
+				}
+				return nil
+			}, 15*time.Second, time.Second)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
+
+			deleteRevKey = types.NamespacedName{Namespace: namespace, Name: cdName + "-v1.3.1"}
 			Eventually(func() error {
 				err := k8sClient.List(ctx, defRevList, listOpts...)
 				if err != nil {

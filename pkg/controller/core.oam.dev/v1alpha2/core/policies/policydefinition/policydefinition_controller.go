@@ -24,11 +24,9 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -97,29 +95,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, policydefinition.Name, err)))
 	}
-	if !isNewRevision {
-		if err = r.createOrUpdatePolicyDefRevision(ctx, req.Namespace, &policydefinition, defRev); err != nil {
-			klog.ErrorS(err, "cannot update DefinitionRevision")
-			r.record.Event(&(policydefinition), event.Warning("cannot update DefinitionRevision", err))
+
+	if isNewRevision {
+		if err = r.createPolicyDefRevision(ctx, &policydefinition, defRev); err != nil {
+			klog.ErrorS(err, "cannot create DefinitionRevision")
+			r.record.Event(&(policydefinition), event.Warning("cannot create DefinitionRevision", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
-				condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
-
-		if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &policydefinition, r.defRevLimit); err != nil {
-			klog.Error("[Garbage collection]")
-			r.record.Event(&policydefinition, event.Warning("failed to garbage collect DefinitionRevision of type PolicyDefinition", err))
-		}
-		return ctrl.Result{}, nil
+		klog.InfoS("Successfully create PolicyDefRevision", "name", defRev.Name)
 	}
-
-	if err = r.createOrUpdatePolicyDefRevision(ctx, req.Namespace, &policydefinition, defRev); err != nil {
-		klog.ErrorS(err, "cannot create DefinitionRevision")
-		r.record.Event(&(policydefinition), event.Warning("cannot create DefinitionRevision", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
-			condition.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
-	}
-	klog.InfoS("Successfully createOrUpdatePolicyDefRevision", "name", defRev.Name)
 
 	policydefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,
@@ -142,37 +127,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) createOrUpdatePolicyDefRevision(ctx context.Context, ns string,
-	def *v1beta1.PolicyDefinition, defRev *v1beta1.DefinitionRevision) error {
-
-	ownerReference := []metav1.OwnerReference{{
-		APIVersion:         def.APIVersion,
-		Kind:               def.Kind,
-		Name:               def.Name,
-		UID:                def.GetUID(),
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
-	}}
-
+func (r *Reconciler) createPolicyDefRevision(ctx context.Context, def *v1beta1.PolicyDefinition, defRev *v1beta1.DefinitionRevision) error {
+	namespace := def.GetNamespace()
 	defRev.SetLabels(def.GetLabels())
 	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
 		map[string]string{oam.LabelPolicyDefinitionName: def.Name}))
-	defRev.SetNamespace(ns)
-	defRev.SetAnnotations(def.GetAnnotations())
-	defRev.SetOwnerReferences(ownerReference)
+	defRev.SetNamespace(namespace)
 
 	rev := &v1beta1.DefinitionRevision{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: ns, Name: defRev.Name}, rev); err != nil {
-		if apierrors.IsNotFound(err) {
-			return r.Create(ctx, defRev)
+	err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev)
+	if apierrors.IsNotFound(err) {
+		err = r.Create(ctx, defRev)
+		if apierrors.IsAlreadyExists(err) {
+			return nil
 		}
-		return err
 	}
-
-	rev.SetAnnotations(defRev.GetAnnotations())
-	rev.SetLabels(defRev.GetLabels())
-	rev.SetOwnerReferences(ownerReference)
-	return r.Update(ctx, rev)
+	return err
 }
 
 // UpdateStatus updates v1beta1.PolicyDefinition's Status with retry.RetryOnConflict

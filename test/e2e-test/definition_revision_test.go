@@ -102,6 +102,15 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "webservice-v2", Namespace: namespace}, webserviceV2DefRev)
 		}, 15*time.Second, time.Second).Should(BeNil())
+
+		jobV1 := jobComponentDef.DeepCopy()
+		jobV1.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, jobV1)).Should(Succeed())
+
+		jobV1Rev := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "job-v1.2.1", Namespace: namespace}, jobV1Rev)
+		}, 15*time.Second, time.Second).Should(BeNil())
 	})
 
 	AfterEach(func() {
@@ -304,12 +313,43 @@ var _ = Describe("Test application of the specified definition version", func() 
 						Type: "webservice@v10",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": "nginx",
+							"cmd":   []string{"sleep", "1000"},
 						}),
 					},
 				},
 			},
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(HaveOccurred())
+	})
+
+	It("Test deploy application which specify the name of component", func() {
+		compName := "job"
+		app := v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-defrevision-app-with-job",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name: compName,
+						Type: "job@v1.2.1",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+							"cmd":   []string{"sleep", "1000"},
+						}),
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+
+		By("Verify the workload(job) is created successfully")
+		busyBoxJob := &batchv1.Job{}
+		jobName := compName
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, busyBoxJob)
+		}, 30*time.Second, 3*time.Second).Should(Succeed())
 	})
 
 	It("Test deploy application which containing helm module", func() {
@@ -767,6 +807,32 @@ var workerWithNoTemplate = &v1beta1.ComponentDefinition{
 		Schematic: &common.Schematic{
 			CUE: &common.CUE{
 				Template: "",
+			},
+		},
+	},
+}
+
+var jobComponentDef = &v1beta1.ComponentDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ComponentDefinition",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "job",
+		Annotations: map[string]string{
+			oam.AnnotationDefinitionRevisionName: "1.2.1",
+		},
+	},
+	Spec: v1beta1.ComponentDefinitionSpec{
+		Workload: common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{
+				APIVersion: "batch/v1",
+				Kind:       "Job",
+			},
+		},
+		Schematic: &common.Schematic{
+			CUE: &common.CUE{
+				Template: workerV1Template,
 			},
 		},
 	},

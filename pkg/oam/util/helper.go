@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -113,8 +114,8 @@ const (
 
 	// ErrGenerateDefinitionRevision is the error while generate DefinitionRevision
 	ErrGenerateDefinitionRevision = "cannot generate DefinitionRevision of %s: %v"
-	// ErrCreateOrUpdateDefinitionRevision is the error while create or update DefinitionRevision
-	ErrCreateOrUpdateDefinitionRevision = "cannot create or update DefinitionRevision %s: %v"
+	// ErrCreateDefinitionRevision is the error while create or update DefinitionRevision
+	ErrCreateDefinitionRevision = "cannot create DefinitionRevision %s: %v"
 )
 
 // WorkloadType describe the workload type of ComponentDefinition
@@ -367,32 +368,42 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 }
 
 func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string) (bool, *v1beta1.DefinitionRevision, error) {
+	// if the component's type doesn't contain '@' means user want to use the latest Definition.
+	if !strings.Contains(definitionName, "@") {
+		return true, nil, nil
+	}
+
 	defRevName, err := ConvertDefinitionRevName(definitionName)
 	if err != nil {
-		if err.Error() == ErrBadRevision {
-			return true, nil, nil
-		}
 		return false, nil, err
 	}
 	defRev := new(v1beta1.DefinitionRevision)
-	if err = GetDefinition(ctx, cli, defRev, defRevName); err != nil {
+	if err := GetDefinition(ctx, cli, defRev, defRevName); err != nil {
 		return false, nil, err
 	}
-	return false, defRev, err
+	return false, defRev, nil
 }
 
 // ConvertDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name
-// e.g., worker@v2 will be convert to worker-v2
+// e.g., worker@v1.3.1 will be convert to worker-v1.3.1
 func ConvertDefinitionRevName(definitionName string) (string, error) {
-	revNum, err := ExtractRevisionNum(definitionName, "@")
-	if err != nil {
-		return "", err
+	splits := strings.Split(definitionName, "@v")
+	if len(splits) == 1 || len(splits[0]) == 0 {
+		errs := validation.IsQualifiedName(definitionName)
+		if len(errs) != 0 {
+			return definitionName, errors.Errorf("invalid definitionRevision name %s:%s", definitionName, strings.Join(errs, ","))
+		}
+		return definitionName, nil
 	}
-	defName := strings.TrimSuffix(definitionName, fmt.Sprintf("@v%d", revNum))
-	if defName == "" {
-		return "", fmt.Errorf("invalid definition defName %s", definitionName)
+
+	defName := splits[0]
+	revisionName := strings.TrimPrefix(definitionName, fmt.Sprintf("%s@v", defName))
+	defRevName := fmt.Sprintf("%s-v%s", defName, revisionName)
+	errs := validation.IsQualifiedName(defRevName)
+	if len(errs) != 0 {
+		return defRevName, errors.Errorf("invalid definitionRevision name %s:%s", defName, strings.Join(errs, ","))
 	}
-	return fmt.Sprintf("%s-v%d", defName, revNum), nil
+	return defRevName, nil
 }
 
 // when get a  namespaced scope object without namespace, would get an error request namespace

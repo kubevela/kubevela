@@ -2223,7 +2223,7 @@ func TestExtractRevisionNum(t *testing.T) {
 	}
 }
 
-func TestExtractDefinitionRevName(t *testing.T) {
+func TestConvertDefinitionRevName(t *testing.T) {
 	testcases := []struct {
 		defName     string
 		wantRevName string
@@ -2238,27 +2238,25 @@ func TestExtractDefinitionRevName(t *testing.T) {
 		hasError:    false,
 	}, {
 		defName:     "worker",
-		wantRevName: "",
-		hasError:    true,
-	}, {
-		defName:     "webservice@@v2",
-		wantRevName: "webservice@-v2",
+		wantRevName: "worker",
 		hasError:    false,
 	}, {
-		defName:     "webservice@v10@v3",
-		wantRevName: "webservice@v10-v3",
-		hasError:    false,
+		defName:  "webservice@@v2",
+		hasError: true,
 	}, {
-		defName:     "@v10",
-		wantRevName: "",
-		hasError:    true,
+		defName:  "webservice@v10@v3",
+		hasError: true,
+	}, {
+		defName:  "@v10",
+		hasError: true,
 	}}
 
 	for _, tt := range testcases {
 		revName, err := util.ConvertDefinitionRevName(tt.defName)
-		hasError := err != nil
-		assert.Equal(t, tt.wantRevName, revName)
-		assert.Equal(t, tt.hasError, hasError)
+		assert.Equal(t, tt.hasError, err != nil)
+		if !tt.hasError {
+			assert.Equal(t, tt.wantRevName, revName)
+		}
 	}
 }
 

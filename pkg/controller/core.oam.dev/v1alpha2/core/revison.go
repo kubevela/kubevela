@@ -25,7 +25,9 @@ import (
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,13 +40,21 @@ import (
 // GenerateDefinitionRevision will generate a definition revision the generated revision
 // will be compare with the last revision to see if there's any difference.
 func GenerateDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object) (*v1beta1.DefinitionRevision, bool, error) {
-	defRev, lastRevision, err := gatherRevisionInfo(def)
+	isNamedRev, defRevNamespacedName, err := isNamedRevision(def)
+	if err != nil {
+		return nil, false, err
+	}
+	if isNamedRev {
+		return generateNamedDefinitionRevision(ctx, cli, def, defRevNamespacedName)
+	}
+
+	defRev, lastRevision, err := GatherRevisionInfo(def)
 	if err != nil {
 		return defRev, false, err
 	}
 	isNewRev, err := compareWithLastDefRevisionSpec(ctx, cli, defRev, lastRevision)
 	if err != nil {
-		return defRev, false, err
+		return defRev, isNewRev, err
 	}
 	if isNewRev {
 		defRevName, revNum := getDefNextRevision(defRev, lastRevision)
@@ -54,7 +64,48 @@ func GenerateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 	return defRev, isNewRev, nil
 }
 
-func gatherRevisionInfo(def runtime.Object) (*v1beta1.DefinitionRevision, *common.Revision, error) {
+func isNamedRevision(def runtime.Object) (bool, types.NamespacedName, error) {
+	defMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(def)
+	if err != nil {
+		return false, types.NamespacedName{}, err
+	}
+	unstructuredDef := unstructured.Unstructured{
+		Object: defMap,
+	}
+	revisionName := unstructuredDef.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
+	if len(revisionName) == 0 {
+		return false, types.NamespacedName{}, nil
+	}
+	defNs := unstructuredDef.GetNamespace()
+	defName := unstructuredDef.GetName()
+	defRevName := ConstructDefinitionRevisionName(defName, revisionName)
+	return true, types.NamespacedName{Name: defRevName, Namespace: defNs}, nil
+}
+
+func generateNamedDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object, defRevNamespacedName types.NamespacedName) (*v1beta1.DefinitionRevision, bool, error) {
+	oldDefRev := new(v1beta1.DefinitionRevision)
+
+	// definitionRevision is immutable, if the requested definitionRevision already exists, return directly.
+	err := cli.Get(ctx, defRevNamespacedName, oldDefRev)
+	if err == nil {
+		return oldDefRev, false, nil
+	}
+
+	if apierrors.IsNotFound(err) {
+		newDefRev, lastRevision, err := GatherRevisionInfo(def)
+		if err != nil {
+			return newDefRev, false, err
+		}
+		_, revNum := getDefNextRevision(newDefRev, lastRevision)
+		newDefRev.Name = defRevNamespacedName.Name
+		newDefRev.Spec.Revision = revNum
+		return newDefRev, true, nil
+	}
+	return nil, false, err
+}
+
+// GatherRevisionInfo gather revision information from definition
+func GatherRevisionInfo(def runtime.Object) (*v1beta1.DefinitionRevision, *common.Revision, error) {
 	defRev := &v1beta1.DefinitionRevision{}
 	var LastRevision *common.Revision
 	switch definition := def.(type) {
@@ -81,6 +132,7 @@ func gatherRevisionInfo(def runtime.Object) (*v1beta1.DefinitionRevision, *commo
 	default:
 		return nil, nil, fmt.Errorf("unsupported type %v", definition)
 	}
+
 	defHash, err := computeDefinitionRevisionHash(defRev)
 	if err != nil {
 		return nil, nil, err
@@ -144,10 +196,12 @@ func compareWithLastDefRevisionSpec(ctx context.Context, cli client.Client,
 		Namespace: namespace}, defRev); err != nil {
 		return false, errors.Wrapf(err, "get the definitionRevision %s", lastRevision.Name)
 	}
-	if deepEqualDefRevision(defRev, newDefRev) {
+
+	if DeepEqualDefRevision(defRev, newDefRev) {
 		// No difference on spec, will not create a new revision
 		// align the name and resourceVersion
 		newDefRev.Name = defRev.Name
+		newDefRev.Spec.Revision = defRev.Spec.Revision
 		newDefRev.ResourceVersion = defRev.ResourceVersion
 		return false, nil
 	}
@@ -155,7 +209,8 @@ func compareWithLastDefRevisionSpec(ctx context.Context, cli client.Client,
 	return true, nil
 }
 
-func deepEqualDefRevision(old, new *v1beta1.DefinitionRevision) bool {
+// DeepEqualDefRevision deep compare the spec of definitionRevisions
+func DeepEqualDefRevision(old, new *v1beta1.DefinitionRevision) bool {
 	if !apiequality.Semantic.DeepEqual(old.Spec.ComponentDefinition.Spec, new.Spec.ComponentDefinition.Spec) {
 		return false
 	}
@@ -191,10 +246,15 @@ func getDefNextRevision(defRev *v1beta1.DefinitionRevision, lastRevision *common
 	return defRevName, nextRevision
 }
 
+// ConstructDefinitionRevisionName construct the name of DefinitionRevision.
+func ConstructDefinitionRevisionName(definitionName, revision string) string {
+	return strings.Join([]string{definitionName, fmt.Sprintf("v%s", revision)}, "-")
+}
+
 // CleanUpDefinitionRevision check all definitionRevisions, remove them if the number of them exceed the limit
 func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object, revisionLimit int) error {
 	var listOpts []client.ListOption
-	var usingRevision string
+	var usingRevision *common.Revision
 
 	switch definition := def.(type) {
 	case *v1beta1.ComponentDefinition:
@@ -202,25 +262,28 @@ func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runti
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelComponentDefinitionName: definition.Name},
 		}
-		usingRevision = definition.Status.LatestRevision.Name
+		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.TraitDefinition:
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelTraitDefinitionName: definition.Name},
 		}
-		usingRevision = definition.Status.LatestRevision.Name
+		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.PolicyDefinition:
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelPolicyDefinitionName: definition.Name},
 		}
-		usingRevision = definition.Status.LatestRevision.Name
+		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.WorkflowStepDefinition:
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: definition.Name}}
-		usingRevision = definition.Status.LatestRevision.Name
+		usingRevision = definition.Status.LatestRevision
+	}
 
+	if usingRevision == nil {
+		return nil
 	}
 
 	defRevList := new(v1beta1.DefinitionRevisionList)
@@ -240,7 +303,7 @@ func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runti
 		if needKill <= 0 {
 			break
 		}
-		if rev.Name == usingRevision {
+		if rev.Name == usingRevision.Name {
 			continue
 		}
 		if err := cli.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {

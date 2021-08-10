@@ -22,15 +22,19 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
 var componentDefGVR = v1beta1.SchemeGroupVersion.WithResource("componentdefinitions")
@@ -41,6 +45,18 @@ type ValidatingHandler struct {
 
 	// Decoder decodes object
 	Decoder *admission.Decoder
+	Client  client.Client
+}
+
+var _ inject.Client = &ValidatingHandler{}
+
+// InjectClient injects the client into the ApplicationValidateHandler
+func (h *ValidatingHandler) InjectClient(c client.Client) error {
+	if h.Client != nil {
+		return nil
+	}
+	h.Client = c
+	return nil
 }
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -60,6 +76,15 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		err = ValidateWorkload(h.Mapper, obj)
 		if err != nil {
 			return admission.Denied(err.Error())
+		}
+
+		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
+		if len(revisionName) != 0 {
+			defRevName := fmt.Sprintf("%s-v%s", obj.Name, revisionName)
+			err = webhookutils.ValidateDefinitionRevision(ctx, h.Client, obj, client.ObjectKey{Namespace: obj.Namespace, Name: defRevName})
+			if err != nil {
+				return admission.Denied(err.Error())
+			}
 		}
 	}
 	return admission.ValidationResponse(true, "")
