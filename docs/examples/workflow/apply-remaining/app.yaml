@@ -6,9 +6,9 @@ metadata:
 spec:
   components:
     - name: "server1"
-      type: "singletonServer"
+      type: "singleton-server"
     - name: "server2"
-      type: "singletonServer"
+      type: "singleton-server"
   workflow:
     steps:
       - name: deploy-server1
