@@ -27,7 +27,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/services"
-	"github.com/oam-dev/kubevela/pkg/utils/k8sutil"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ APIServer = &restServer{}
@@ -50,7 +50,7 @@ type restServer struct {
 
 // New create restserver with config data
 func New(cfg Config) (APIServer, error) {
-	client, err := k8sutil.NewK8sClient()
+	client, err := common.NewK8sClient()
 	if err != nil {
 		return nil, fmt.Errorf("create client for clusterService failed")
 	}
