@@ -73,7 +73,7 @@ var _ = Describe("Addon Test", func() {
 
 	Context("Test addon receive input", func() {
 		It("Enable addon with input", func() {
-			output, err := e2e.Exec("vela addon enable test-input-addon repoUrl=https://charts.bitnami.com/bitnami chart=redis\n")
+			output, err := e2e.LongTimeExec("vela addon enable test-input-addon repoUrl=https://charts.bitnami.com/bitnami chart=redis", 300*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully enable addon"))
 		})
