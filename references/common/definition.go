@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 )
 
@@ -285,7 +286,7 @@ func (def *Definition) FromCUEString(cueString string) error {
 	if err != nil {
 		return err
 	}
-	if _, err = r.Compile("-", templateString+"\ncontext: [string]: string"); err != nil {
+	if _, err = r.Compile("-", templateString+"\n"+velacue.BaseTemplate); err != nil {
 		return err
 	}
 	val := inst.Value()
@@ -353,7 +354,7 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 			},
 			"schematic": map[string]interface{}{
 				"cue": map[string]interface{}{
-					"template": "output: {}\nparameters: {}\n",
+					"template": "output: {}\nparameter: {}\n",
 				},
 			},
 		}
@@ -366,7 +367,7 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 			"podDisruptive":      false,
 			"schematic": map[string]interface{}{
 				"cue": map[string]interface{}{
-					"template": "patch: {}\n",
+					"template": "patch: {}\nparameter: {}\n",
 				},
 			},
 		}
