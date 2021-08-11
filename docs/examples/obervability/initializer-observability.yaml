@@ -62,9 +62,16 @@ spec:
           traits:
             - type: pure-ingress
               properties:
-                domain: grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
+                domain: grafana.c276f4dac730c47b8b8988905e3c68fcf.cn-hongkong.alicontainer.com
                 http:
                   "/": 80
+            - type: import-grafana-dashboard
+              properties:
+                grafanaServiceName: grafana
+                grafanaServiceNamespace: observability
+                credentialSecret: grafana
+                credentialSecretNamespace: observability
+                url: "https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/Kubernetes_for_Prometheus_Dashboard_CN_20201209_1628671317889.json"
 
         # install loki
         - name: loki
@@ -77,11 +84,6 @@ spec:
             targetNamespace: observability
             releaseName: loki
           traits:
-            #            - type: pure-ingress # add ingress for loki service
-            #              properties:
-            #                domain: loki.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
-            #                http:
-            #                  "/": 3100
             - type: register-grafana-datasource # register loki datasource to Grafana
               properties:
                 grafanaServiceName: grafana
@@ -114,11 +116,6 @@ spec:
                   storageClass: "alicloud-disk-available"
                   size: "20Gi"
           traits:
-            #            - type: pure-ingress # add ingress for Prometheus service
-            #              properties:
-            #                domain: prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
-            #                http:
-            #                  "/": 80
             - type: register-grafana-datasource # register Prometheus datasource to Grafana
               properties:
                 grafanaServiceName: grafana
