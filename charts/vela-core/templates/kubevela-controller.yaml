@@ -158,23 +158,6 @@ spec:
               name: tls-cert-vol
               readOnly: true
           {{ end }}
-        {{ if .Values.apiserver.enabled }}
-        - name: {{ .Release.Name }}-api
-          securityContext:
-          {{- toYaml .Values.securityContext | nindent 12 }}
-          command:
-            - "apiserver"
-          args:
-            - "--port={{ .Values.apiserver.service.port }}"
-          ports:
-            - containerPort: {{ .Values.apiserver.service.port }}
-              name: api
-              protocol: TCP
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{ quote .Values.image.pullPolicy }}
-          resources:
-          {{- toYaml .Values.resources | nindent 12 }}
-        {{ end }}
       {{ if .Values.admissionWebhooks.enabled }}
       volumes:
         - name: tls-cert-vol
