@@ -8,7 +8,7 @@ applyOnceOnly: "off"
 
 disableCaps: ""
 image:
-  repository: oamdev/vela-core
+  repository: 249401644/vela-core
   tag: latest
   pullPolicy: Always
 
