@@ -7,8 +7,12 @@ spec:
   components:
     - name: "server1"
       type: "singleton-server"
+      properties:
+        version: 1.14.2
     - name: "server2"
       type: "singleton-server"
+      properties:
+        version: 1.14.2
   workflow:
     steps:
       - name: deploy-server1
