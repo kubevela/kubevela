@@ -28,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/e2e"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var (
@@ -76,7 +77,7 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 	return ginkgo.Context(context, func() {
 		ginkgo.It("should get status of the service", func() {
 			ginkgo.By("init new k8s client")
-			k8sclient, err := e2e.NewK8sClient()
+			k8sclient, err := common.NewK8sClient()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			ginkgo.By("check Application reconciled ready")
