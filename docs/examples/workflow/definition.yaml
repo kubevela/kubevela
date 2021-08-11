@@ -23,8 +23,8 @@ spec:
            value: {
               component.value.workload
               metadata: name: parameter.component
-              if parameter.prefixIP!=_|_{
-                 spec: containers: [{env: [{name: "ServerIP",value: parameter.serverIP}]}]
+              if parameter.serverIP!=_|_{
+                 spec: containers: [{env: [{name: "PrefixIP",value: parameter.serverIP}]}]
               }
            }
         }
@@ -60,7 +60,7 @@ spec:
 
         // wait until workload.status equal "Running"
         wait: op.#ConditionalWait & {
-           continue: apply.status.phase =="Running"
+           continue: apply.workload.status.phase =="Running"
         }
 
         // export podIP
