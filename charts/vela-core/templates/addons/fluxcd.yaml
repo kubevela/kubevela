@@ -5940,13 +5940,13 @@ data:
                       +usage=The interval at which to check for repository and relese
                       updates.\n\tpullInterval: *\"5m\" | string\n\t// +usage=1.The relative
                       path to helm chart for git source. 2. chart name for helm resource\n\tchart:
-                      string\n\t// +usage=Chart version\n\tversion?: string\n\t// +usage=The
-                      Git reference to checkout and monitor for changes, defaults to master
-                      branch.\n\tbranch: *\"master\" | string\n\t// +usage=The name of
-                      the secret containing authentication credentials for the Helm repository.\n\tsecretRef?:
-                      string\n\t// +usage=The namespace for helm chart\n\ttargetNamespace?:
-                      string\n\t// +usage=Chart version\n\tvalue?: #nestedmap\n}\n\n#nestedmap:
-                      {\n\t...\n}\n"
+                      string\n\t// +usage=Chart version\n\tversion: *\"*\" | string\n\t//
+                      +usage=The Git reference to checkout and monitor for changes, defaults
+                      to master branch.\n\tbranch: *\"master\" | string\n\t// +usage=The
+                      name of the secret containing authentication credentials for the
+                      Helm repository.\n\tsecretRef?: string\n\t// +usage=The namespace
+                      for helm chart\n\ttargetNamespace?: string\n\t// +usage=Chart version\n\tvalue?:
+                      #nestedmap\n}\n\n#nestedmap: {\n\t...\n} \n"
                 workload:
                   type: autodetects.core.oam.dev
             type: raw
