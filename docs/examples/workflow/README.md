@@ -13,7 +13,7 @@
  Output:
    ```
     NAME              AGE
-    singletonServer   49s
+    singleton-server   49s
 
     NAME              AGE
     apply-component   49s

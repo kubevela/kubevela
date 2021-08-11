@@ -82,7 +82,7 @@ spec:
         	// +usage=1.The relative path to helm chart for git source. 2. chart name for helm resource
         	chart: string
         	// +usage=Chart version
-        	version?: string
+        	version: *"*" | string
         	// +usage=The Git reference to checkout and monitor for changes, defaults to master branch.
         	branch: *"master" | string
         	// +usage=The name of the secret containing authentication credentials for the Helm repository.
