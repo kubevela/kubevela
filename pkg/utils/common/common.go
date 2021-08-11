@@ -152,7 +152,7 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// extractParameterDefinitionNodeFromInstance extracts the `#parameter` ast.Node from root instance, if failed fall back to `parameter`
+// extractParameterDefinitionNodeFromInstance extracts the `#parameter` ast.Node from root instance, if failed fall back to `parameter` by LookUpDef
 func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
 	opts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
 	node := inst.Value().Syntax(opts...)
