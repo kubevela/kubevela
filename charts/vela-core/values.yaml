@@ -78,6 +78,20 @@ admissionWebhooks:
   # If autoGenWorkloadDefinition is true, webhook will auto generated workloadDefinition which componentDefinition refers to
   autoGenWorkloadDefinition: true
 
+apiserver:
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 50m
+      memory: 20Mi
+
+
 #Enable debug logs for development purpose
 logDebug: false
 
