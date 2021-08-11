@@ -2,22 +2,30 @@ outputs: registerdatasource: {
 	apiVersion: "grafana.extension.oam.dev/v1alpha1"
 	kind:       "DatasourceRegistration"
 	spec: {
-		grafanaUrl:    parameter.grafanaUrl
-		credentialSecret:     parameter.credentialSecret
-		credentialSecretNamespace: parameter.credentialSecretNamespace
-		name:          parameter.name
-		url:           parameter.url
-		type:          parameter.type
-		access:        parameter.access
+		grafana: {
+			service:                   parameter.grafanaServiceName
+			namespace:                 parameter.grafanaServiceNamespace
+			credentialSecret:          parameter.credentialSecret
+			credentialSecretNamespace: parameter.credentialSecretNamespace
+		}
+		datasource: {
+			name:      parameter.name
+			type:      parameter.type
+			access:    parameter.access
+			service:   parameter.service
+			namespace: parameter.namespace
+		}
 	}
 }
 
 parameter: {
-	grafanaUrl:    string
-	credentialSecret:     string
+	grafanaServiceName:        string
+	grafanaServiceNamespace:   *"default" | string
+	credentialSecret:          string
 	credentialSecretNamespace: string
-	name:          string
-	url:           string
-	type:          string
-	access:        *"proxy" | string
+	name:                      string
+	type:                      string
+	access:                    *"proxy" | string
+	service:                   string
+	namespace:                 *"default" | string
 }

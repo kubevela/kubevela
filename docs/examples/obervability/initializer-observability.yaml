@@ -77,22 +77,24 @@ spec:
             targetNamespace: observability
             releaseName: loki
           traits:
-            - type: pure-ingress # add ingress for loki service
-              properties:
-                domain: loki.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
-                http:
-                  "/": 3100
+            #            - type: pure-ingress # add ingress for loki service
+            #              properties:
+            #                domain: loki.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
+            #                http:
+            #                  "/": 3100
             - type: register-grafana-datasource # register loki datasource to Grafana
               properties:
-                grafanaUrl: "http://grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+                grafanaServiceName: grafana
+                grafanaServiceNamespace: observability
                 credentialSecret: grafana
                 credentialSecretNamespace: observability
                 name: loki
-                url: "http://loki.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+                service: loki
+                namespace: observability
                 type: loki
                 access: proxy
 
-        # install Prometheus
+          # install Prometheus
         - name: prometheus-server
           type: helm
           properties:
@@ -111,21 +113,21 @@ spec:
                 persistentVolume:
                   storageClass: "alicloud-disk-available"
                   size: "20Gi"
-          traits:
-            - type: pure-ingress # add ingress for Prometheus service
-              properties:
-                domain: prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
-                http:
-                  "/": 80
-            - type: register-grafana-datasource # register Prometheus datasource to Grafana
-              properties:
-                grafanaUrl: "http://grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
-                credentialSecret: grafana
-                credentialSecretNamespace: observability
-                name: prometheus
-                url: "http://prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
-                type: prometheus
-                access: proxy
+#            traits:
+#              #            - type: pure-ingress # add ingress for Prometheus service
+#              #              properties:
+#              #                domain: prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com
+#              #                http:
+#              #                  "/": 80
+#              - type: register-grafana-datasource # register Prometheus datasource to Grafana
+#                properties:
+#                  grafanaUrl: "http://grafana.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+#                  credentialSecret: grafana
+#                  credentialSecretNamespace: observability
+#                  name: prometheus
+#                  url: "http://prometheus.c4c85a750c53a44a38b3902978f85d8e7.cn-hongkong.alicontainer.com"
+#                  type: prometheus
+#                  access: proxy
 
         # install kube-state-metrics
         - name: kube-state-metrics
