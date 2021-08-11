@@ -308,3 +308,50 @@ variable "mapVar" {
 	_, intVarExisted := variables["password"]
 	assert.True(t, intVarExisted)
 }
+
+func TestRefineParameterInstance(t *testing.T) {
+	// test #parameter exists: mock issues in #1939 & #2062
+	s := `parameter: #parameter
+#parameter: {
+	x?: string
+	if x != _|_ {
+	y: string
+	}
+}
+patch: {
+	if parameter.x != _|_ {
+	label: parameter.x
+	}
+}`
+	r := cue.Runtime{}
+	inst, err := r.Compile("-", s)
+	assert.NoError(t, err)
+	_, err = RefineParameterInstance(inst)
+	assert.NoError(t, err)
+	// test #parameter not exist but parameter exists
+	s = `parameter: {
+	x?: string
+	if x != _|_ {
+	y: string
+	}
+}`
+	inst, err = r.Compile("-", s)
+	assert.NoError(t, err)
+	_ = extractParameterDefinitionNodeFromInstance(inst)
+	_, err = RefineParameterInstance(inst)
+	assert.NoError(t, err)
+	// test #parameter as int
+	s = `parameter: #parameter
+#parameter: int`
+	inst, err = r.Compile("-", s)
+	assert.NoError(t, err)
+	_, err = RefineParameterInstance(inst)
+	assert.NoError(t, err)
+	// test invalid parameter kind
+	s = `parameter: #parameter
+#parameter: '\x03abc'`
+	inst, err = r.Compile("-", s)
+	assert.NoError(t, err)
+	_, err = RefineParameterInstance(inst)
+	assert.NotNil(t, err)
+}

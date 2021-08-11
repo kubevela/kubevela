@@ -32,44 +32,68 @@ import (
 
 var _ = Describe("Addon Test", func() {
 	args := common.Args{}
-	var cm v1.ConfigMap
+	var cmSimpleAddon v1.ConfigMap
+	var cmInputAddon v1.ConfigMap
 	Context("Prepare test addon", func() {
-		It("apply test addon", func() {
-			Expect(yaml.Unmarshal([]byte(test_addon), &cm)).Should(BeNil())
-			k8sClient, err := args.GetClient()
-			Expect(err).Should(BeNil())
-			err = k8sClient.Create(context.Background(), &cm)
+		k8sClient, err := args.GetClient()
+		Expect(err).Should(BeNil())
+		It("Apply test addon", func() {
+			Expect(yaml.Unmarshal([]byte(test_addon), &cmSimpleAddon)).Should(BeNil())
+			err = k8sClient.Create(context.Background(), &cmSimpleAddon)
+			Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		})
+		It("Apply test input addon", func() {
+			Expect(yaml.Unmarshal([]byte(test_input_addon), &cmInputAddon)).Should(BeNil())
+			err = k8sClient.Create(context.Background(), &cmInputAddon)
 			Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		})
 	})
 
-	Context("list addons", func() {
-		It("list all addon", func() {
+	Context("List addons", func() {
+		It("List all addon", func() {
 			output, err := e2e.Exec("vela addon list")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("test-addon"))
 		})
 	})
-	Context("enable addon", func() {
-		It("enable addon fluxcd", func() {
+	Context("Enable addon", func() {
+		It("Enable addon fluxcd", func() {
 			output, err := e2e.Exec("vela addon enable test-addon")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully enable addon"))
 		})
 	})
-	Context("disable addon", func() {
-		It("disable addon fluxcd", func() {
+	Context("Disable addon", func() {
+		It("Disable addon fluxcd", func() {
 			output, err := e2e.LongTimeExec("vela addon disable test-addon", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully disable addon"))
 		})
 	})
 
+	Context("Test addon receive input", func() {
+		It("Enable addon with input", func() {
+			output, err := e2e.LongTimeExec("vela addon enable test-input-addon repoUrl=https://charts.bitnami.com/bitnami chart=redis", 300*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully enable addon"))
+		})
+	})
+
+	Context("Disable addon", func() {
+		It("Disable addon fluxcd", func() {
+			output, err := e2e.LongTimeExec("vela addon disable test-input-addon", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully disable addon"))
+		})
+	})
+
 	Context("Clean test environment", func() {
-		It("Delete test addon", func() {
+		It("Delete test addon and test-input addon", func() {
 			k8sClient, err := args.GetClient()
 			Expect(err).Should(BeNil())
-			err = k8sClient.Delete(context.Background(), &cm)
+			err = k8sClient.Delete(context.Background(), &cmSimpleAddon)
+			Expect(err).Should(BeNil())
+			err = k8sClient.Delete(context.Background(), &cmInputAddon)
 			Expect(err).Should(BeNil())
 		})
 	})
@@ -111,4 +135,51 @@ data:
                   containers:
                     - name: test-addon-pod-container
                       image: nginx
+`
+
+var test_input_addon = `
+kind: ConfigMap
+metadata:
+  annotations:
+    addons.oam.dev/description: This is a test addon for test addon input
+  labels:
+    addons.oam.dev/type: test
+  name: test-input-addon
+  namespace: vela-system
+apiVersion: v1
+data:
+  initializer: |
+    apiVersion: core.oam.dev/v1beta1
+    kind: Initializer
+    metadata:
+      annotations:
+        addons.oam.dev/description: This is a test addon for test addon input
+      name: test-input-addon
+      namespace: vela-system
+    spec:
+      appTemplate:
+        spec:
+          components:
+          - name: test-chart
+            properties:
+              chart: {{ index .Args "chart" }}
+              repoType: helm
+              repoUrl: {{ index .Args "repoUrl" }}
+            type: helm
+        status:
+          rollout:
+            batchRollingState: ""
+            currentBatch: 0
+            lastTargetAppRevision: ""
+            rollingState: ""
+            upgradedReadyReplicas: 0
+            upgradedReplicas: 0
+      dependsOn:
+      - ref:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Initializer
+          name: fluxcd
+          namespace: vela-system
+    status:
+      observedGeneration: 0
 `

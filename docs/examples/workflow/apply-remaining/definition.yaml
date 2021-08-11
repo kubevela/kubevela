@@ -12,14 +12,9 @@ spec:
            prefixIP?: string
         }
 
-        // load component from application
-        component: op.#Load & {
-           component: parameter.component
-        }
-
         // apply workload to kubernetes cluster
         apply: op.#ApplyComponent & {
-           component: parameter.name
+           component: parameter.component
         }
 
         // wait until workload.status equal "Running"
