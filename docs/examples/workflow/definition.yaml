@@ -22,9 +22,9 @@ spec:
         apply: op.#Apply & {
            value: {
               component.value.workload
-              metadata: name: parameter.name
+              metadata: name: parameter.component
               if parameter.prefixIP!=_|_{
-                 spec: containers: [{env: [{name: "ServerIP",value: parameter.ServerIP}]}]
+                 spec: containers: [{env: [{name: "ServerIP",value: parameter.serverIP}]}]
               }
            }
         }
@@ -55,7 +55,7 @@ spec:
 
         // apply workload to kubernetes cluster
         apply: op.#ApplyComponent & {
-           component: parameter.name
+           component: parameter.component
         }
 
         // wait until workload.status equal "Running"
