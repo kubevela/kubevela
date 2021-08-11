@@ -16,6 +16,8 @@ spec:
           chart: ./charts/kruise/v0.9.0
           repoType: git
           repoUrl: https://github.com/openkruise/kruise
+          values:
+            featureGates: PreDownloadImageForInPlaceUpdate=true
         type: helm
       - name: cloneset-service
         properties:
@@ -97,6 +99,32 @@ spec:
               definition:
                 apiVersion: apps.kruise.io/v1alpha1
                 kind: CloneSet
+        type: raw
+      - name: predownloadimage
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: WorkflowStepDefinition
+          metadata:
+            name: predownloadimage
+          spec:
+            schematic:
+              cue:
+                template: "import (\"vela/op\")\nparameter: {\n  image: string\n  parallel:
+                  int\n  kvs: [string]: string\n  type: *\"Always\" | string\n  activeDeadlineSeconds:
+                  *1200 | int\n  ttlSecondsAfterFinished: *300 | int\n  backoffLimit?:
+                  int\n  timeoutSeconds?: int\n  arr: [...string]\n}\n\npullImageJob:
+                  op.#Apply & {\n  value:{\n    apiVersion: \"apps.kruise.io/v1alpha1\"\n
+                  \   kind:       \"ImagePullJob\"\n    metadata: {\n      name: \"pull-image-job\"\n
+                  \   }\n    spec: {\n      image: parameter.image\n      parallelism:
+                  parameter.parallel\n      selector: matchLabels: parameter.kvs\n
+                  \     completionPolicy: {\n        type: parameter.type\n        activeDeadlineSeconds:
+                  parameter.activeDeadlineSeconds\n        ttlSecondsAfterFinished:
+                  parameter.ttlSecondsAfterFinished\n      }\n      pullPolicy: {\n
+                  \       if parameter.backoffLimit != _|_ {\n          backoffLimit:
+                  parameter.backoffLimit\n        }\n        if parameter.timeoutSeconds
+                  != _|_ {\n          timeoutSeconds: parameter.timeoutSeconds\n        }\n
+                  \     }\n      pullSecrets: parameter.arr\n    }            \n  }
+                  \         \n} \n"
         type: raw
     status:
       rollout:
