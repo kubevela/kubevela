@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"io/fs"
 	"io/ioutil"
@@ -174,14 +175,14 @@ func WriteToFile(filename string, data string) error {
 func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
 	templatePath := strings.Split(addon.TemplatePath, "/")
 	templateName := templatePath[len(templatePath)-1]
-	t, err := template.New(templateName).Funcs(sprig.TxtFuncMap()).ParseFiles(addon.TemplatePath)
+	t, err := template.New(templateName).Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).ParseFiles(addon.TemplatePath)
 	if err != nil {
 		return nil, err
 	}
 	var buf bytes.Buffer
 	err = t.Execute(&buf, addon)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "generate Initializer %s fail", addon.Name)
 	}
 
 	init := new(v1beta1.Initializer)

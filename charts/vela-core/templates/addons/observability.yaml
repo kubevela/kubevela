@@ -31,7 +31,7 @@ data:
               version: 6.14.1
             traits:
             - properties:
-                domain: grafana.c276f4dac730c47b8b8988905e3c68fcf.cn-hongkong.alicontainer.com
+                domain: '{{ index .Args "ingress-domain" }}'
                 http:
                   /: 80
               type: pure-ingress
@@ -74,12 +74,14 @@ data:
               values:
                 alertmanager:
                   persistentVolume:
-                    size: 20Gi
-                    storageClass: alicloud-disk-available
+                    enable: '{{ index .Args "alertmanager-pvc-enable" }}'
+                    size: '{{ index .Args "alertmanager-pvc-size" }}'
+                    storageClass: '{{ index .Args "alertmanager-pvc-class" }}'
                 server:
                   persistentVolume:
-                    size: 20Gi
-                    storageClass: alicloud-disk-available
+                    enable: '{{ index .Args "server-pvc-enable" }}'
+                    size: '{{ index .Args "server-pvc-size" }}'
+                    storageClass: '{{ index .Args "server-pvc-size" }}'
               version: 14.4.1
             traits:
             - properties:

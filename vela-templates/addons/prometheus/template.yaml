@@ -21,8 +21,8 @@ spec:
             repoType: helm
             repoUrl: https://prometheus-community.github.io/helm-charts
             chart: premetheus
-{{  range .DefinitionFiles  }}
-        - name: {{ .Name }}
+[[ range .DefinitionFiles ]]
+        - name: [[ .Name ]]
           type: raw
           properties:
-{{ .Content | indent 12 }} {{ end }}
+[[ .Content | indent 12 ]] [[ end ]]

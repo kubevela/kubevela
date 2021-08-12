@@ -9,13 +9,13 @@ spec:
   appTemplate:
     spec:
       components:
-{{  range .ResourceFiles  }}
-        - name: {{ .Name }}
+[[ range .ResourceFiles ]]
+        - name: [[ .Name ]]
           type: raw
           properties:
-{{ .Content | indent 12 }} {{ end }}
-{{  range .DefinitionFiles  }}
-        - name: {{ .Name }}
+[[ .Content | indent 12 ]] [[ end ]]
+[[ range .DefinitionFiles ]]
+        - name: [[ .Name ]]
           type: raw
           properties:
-{{ .Content | indent 12 }} {{ end }}
+[[ .Content | indent 12 ]] [[ end ]]

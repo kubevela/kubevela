@@ -41,7 +41,7 @@ spec:
           traits:
             - type: pure-ingress
               properties:
-                domain: grafana.c276f4dac730c47b8b8988905e3c68fcf.cn-hongkong.alicontainer.com
+                domain: '{{ index .Args "ingress-domain" }}'
                 http:
                   "/": 80
             - type: import-grafana-dashboard
@@ -84,12 +84,14 @@ spec:
             values:
               alertmanager:
                 persistentVolume:
-                  storageClass: "alicloud-disk-available"
-                  size: "20Gi"
+                  enable: '{{ index .Args "alertmanager-pvc-enable" }}'
+                  storageClass: '{{ index .Args "alertmanager-pvc-class" }}'
+                  size: '{{ index .Args "alertmanager-pvc-size" }}'
               server:
                 persistentVolume:
-                  storageClass: "alicloud-disk-available"
-                  size: "20Gi"
+                  enable: '{{ index .Args "server-pvc-enable" }}'
+                  storageClass: '{{ index .Args "server-pvc-size" }}'
+                  size: '{{ index .Args "server-pvc-size" }}'
           traits:
             - type: register-grafana-datasource # register Prometheus datasource to Grafana
               properties:
@@ -111,13 +113,13 @@ spec:
             repoUrl: https://prometheus-community.github.io/helm-charts
             targetNamespace: observability
 
-{{ range .ResourceFiles }}
-        - name: {{ .Name }}
+[[ range .ResourceFiles ]]
+        - name: [[ .Name ]]
           type: raw
           properties:
-{{ .Content | indent 12 }} {{ end }}
-{{ range .DefinitionFiles }}
-        - name: {{ .Name }}
+[[ .Content | indent 12 ]] [[ end ]]
+[[ range .DefinitionFiles ]]
+        - name: [[ .Name ]]
           type: raw
           properties:
-{{ .Content | indent 12 }} {{ end }}
+[[ .Content | indent 12 ]] [[ end ]]
