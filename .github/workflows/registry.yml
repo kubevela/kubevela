@@ -32,36 +32,36 @@ jobs:
         shell: bash
         run: |
           echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
-      - name: Login ghcr.io
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Login docker.io
-        uses: docker/login-action@v1
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+#      - name: Login ghcr.io
+#        uses: docker/login-action@v1
+#        with:
+#          registry: ghcr.io
+#          username: ${{ github.repository_owner }}
+#          password: ${{ secrets.GITHUB_TOKEN }}
+#      - name: Login docker.io
+#        uses: docker/login-action@v1
+#        with:
+#          registry: docker.io
+#          username: ${{ secrets.DOCKER_USERNAME }}
+#          password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/setup-qemu-action@v1
       - uses: docker/setup-buildx-action@v1
-      - uses: docker/build-push-action@v2
-        name: Build & Pushing
-        with:
-          context: .
-          file: Dockerfile
-          labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
-            VERSION=${{ steps.get_version.outputs.VERSION }}
-          tags: |-
-            ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
-            docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
+#      - uses: docker/build-push-action@v2
+#        name: Build & Pushing
+#        with:
+#          context: .
+#          file: Dockerfile
+#          labels: |-
+#            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+#            org.opencontainers.image.revision=${{ github.sha }}
+#          platforms: linux/amd64,linux/arm64
+#          push: ${{ github.event_name != 'pull_request' }}
+#          build-args: |
+#            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
+#            VERSION=${{ steps.get_version.outputs.VERSION }}
+#          tags: |-
+#            ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
+#            docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
         name: Build & Pushing runtime rollout
         with:
@@ -136,10 +136,10 @@ jobs:
           sed -i "s/0.1.0/$chart_smever/g" $VELA_RUNTIME_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
-      - name: Configure Alibaba Cloud OSSUTIL
-        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
-      - name: sync cloud to local
-        run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core $LOCAL_OSS_DIRECTORY
+#      - name: Configure Alibaba Cloud OSSUTIL
+#        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
+#      - name: sync cloud to local
+#        run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core $LOCAL_OSS_DIRECTORY
       - name: add artifacthub stuff to the repo
         run: |
           rsync README.md $HELM_CHART/README.md
@@ -155,6 +155,8 @@ jobs:
           helm package $OAM_RUNTIME_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $VELA_RUNTIME_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
+          ls -R $LOCAL_OSS_DIRECTORY
+          cat index.yaml
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync $LOCAL_OSS_DIRECTORY oss://$BUCKET/core -f
 
