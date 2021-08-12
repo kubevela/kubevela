@@ -79,9 +79,10 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads/status,verbs=get;
 // +kubebuilder:rbac:groups=core.oam.dev,resources=workloaddefinition,verbs=get;list;
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch;delete
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common.NewReconcileContext(ctx)
-	defer cancel()
+func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx := common.NewReconcileContext(_ctx, req)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 
 	klog.InfoS("Reconcile manualscalar trait", "trait", klog.KRef(req.Namespace, req.Name))
 
@@ -89,8 +90,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.Get(ctx, req.NamespacedName, &manualScalar); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
-	ctx = util.SetNamespaceInCtx(ctx, manualScalar.Namespace)
 
 	klog.InfoS("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
 		"Annotations", manualScalar.GetAnnotations())

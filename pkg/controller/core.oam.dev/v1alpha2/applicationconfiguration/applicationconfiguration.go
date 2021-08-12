@@ -218,18 +218,16 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...Reco
 
 // Reconcile an OAM ApplicationConfigurations by rendering and instantiating its
 // Components and Traits.
-func (r *OAMApplicationReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	ctx, cancel := common.NewReconcileContext(ctx)
-	defer cancel()
-
-	klog.InfoS("Reconcile applicationConfiguration", "applicationConfiguration", klog.KRef(req.Namespace, req.Name))
+func (r *OAMApplicationReconciler) Reconcile(_ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	ctx := common.NewReconcileContext(_ctx, req)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 
 	ac := &v1alpha2.ApplicationConfiguration{}
 	if err := r.client.Get(ctx, req.NamespacedName, ac); err != nil {
 		return reconcile.Result{}, errors.Wrap(client.IgnoreNotFound(err), errGetAppConfig)
 	}
 
-	ctx = util.SetNamespaceInCtx(ctx, ac.Namespace)
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(ac) {
 			klog.V(common.LogDebug).InfoS("Register new finalizers", "finalizers", ac.ObjectMeta.Finalizers)
