@@ -120,10 +120,12 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 func createOrGetExisting(ctx context.Context, c client.Client, desired client.Object, ao ...ApplyOption) (client.Object, error) {
 	var create = func() (client.Object, error) {
 		// execute ApplyOptions even the object doesn't exist
-		if err := executeApplyOptions(ctx, nil, desired, ao); err != nil {
+		err := executeApplyOptions(ctx, nil, desired, ao)
+		if err != nil {
 			return nil, err
 		}
-		if err := addLastAppliedConfigAnnotation(desired); err != nil {
+		err = addLastAppliedConfigAnnotation(desired)
+		if err != nil {
 			return nil, err
 		}
 		loggingApply("creating object", desired)
@@ -134,7 +136,6 @@ func createOrGetExisting(ctx context.Context, c client.Client, desired client.Ob
 	if desired.GetName() == "" && desired.GetGenerateName() != "" {
 		return create()
 	}
-
 	existing := &unstructured.Unstructured{}
 	existing.GetObjectKind().SetGroupVersionKind(desired.GetObjectKind().GroupVersionKind())
 	err := c.Get(ctx, types.NamespacedName{Name: desired.GetName(), Namespace: desired.GetNamespace()}, existing)

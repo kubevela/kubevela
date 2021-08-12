@@ -64,7 +64,8 @@ func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Un
 // DispatchAndGC apply manifests and do GC.
 func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
 	h.initDispatcher()
-	tracker, err := h.dispatcher.EndAndGC(h.latestTracker).Dispatch(ctx, manifests)
+	dispatcher := h.dispatcher.EndAndGC(h.latestTracker)
+	tracker, err := dispatcher.Dispatch(ctx, manifests)
 	if err != nil {
 		return nil, errors.WithMessage(err, "cannot dispatch application manifests")
 	}
@@ -109,7 +110,6 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 	if appWillRollout(h.app) {
 		return nil
 	}
-
 	// dispatch packaged workload resources before dispatching assembled manifests
 	for _, comp := range comps {
 		if len(comp.PackagedWorkloadResources) != 0 {

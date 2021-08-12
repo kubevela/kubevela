@@ -60,10 +60,11 @@ type Reconciler struct {
 }
 
 // Reconcile reconcile an application context
-func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+func (r *Reconciler) Reconcile(_ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 
-	ctx, cancel := common2.NewReconcileContext(ctx)
-	defer cancel()
 	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
 	// fetch the app context
 	appContext := &v1alpha2.ApplicationContext{}

@@ -34,7 +34,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -52,12 +51,12 @@ type reconciler struct {
 	concurrentReconciles int
 }
 
-func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext(ctx)
-	defer cancel()
+func (r *reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 
 	rollout := new(v1alpha1.Rollout)
-	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
 	if err := r.Get(ctx, req.NamespacedName, rollout); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

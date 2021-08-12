@@ -41,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -66,11 +65,11 @@ type Reconciler struct {
 
 // Reconcile is the main logic of appRollout controller
 // nolint:gocyclo
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res reconcile.Result, retErr error) {
-	ctx, cancel := common2.NewReconcileContext(ctx)
-	defer cancel()
+func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (res reconcile.Result, retErr error) {
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 
-	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
 	var appRollout v1beta1.AppRollout
 
 	startTime := time.Now()

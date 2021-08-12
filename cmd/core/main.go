@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -47,6 +48,8 @@ import (
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
 	"github.com/oam-dev/kubevela/version"
+
+	_ "net/http/pprof"
 )
 
 const (
@@ -118,6 +121,12 @@ func main() {
 	klog.InitFlags(nil)
 	if logDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+	klog.InfoS("configs", "syncPeriod", syncPeriod.Seconds(), "qps", qps, "burst", burst, "concurrent-reconciles", controllerArgs.ConcurrentReconciles)
+	if pprofAddr != "" {
+		go func() {
+			log.Println(http.ListenAndServe(pprofAddr, nil))
+		}()
 	}
 
 	if pprofAddr != "" {

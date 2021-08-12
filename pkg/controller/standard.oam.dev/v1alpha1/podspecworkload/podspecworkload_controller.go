@@ -77,9 +77,11 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=podspecworkloads/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext(ctx)
-	defer cancel()
+func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
+
 	log := r.log.WithValues("podspecworkload", req.NamespacedName)
 	log.Info("Reconcile podspecworkload workload")
 

@@ -60,10 +60,10 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for EnvBinding controller
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext(ctx)
-	defer cancel()
-	klog.InfoS("Reconcile EnvBinding", "envbinding", klog.KRef(req.Namespace, req.Name))
+func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 
 	envBinding := new(v1alpha1.EnvBinding)
 	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, envBinding); err != nil {

@@ -57,9 +57,10 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for ComponentDefinition controller
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, cancel := common2.NewReconcileContext(ctx)
-	defer cancel()
+func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 
 	klog.InfoS("Reconcile componentDefinition", "componentDefinition", klog.KRef(req.Namespace, req.Name))
 

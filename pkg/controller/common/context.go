@@ -18,7 +18,21 @@ package common
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
+
+	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2/klogr"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+)
+
+var (
+	PerfEnabled = os.Getenv("PERF") == "1"
 )
 
 var (
@@ -30,7 +44,96 @@ const (
 	reconcileTimeout = time.Minute
 )
 
-// NewReconcileContext create context with default timeout (60s)
-func NewReconcileContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, reconcileTimeout)
+type ReconcileEvent struct {
+	Name string
+	Time time.Time
+}
+
+type ReconcileContext struct {
+	context.Context
+	logr.Logger
+	callerName string
+	obj types.NamespacedName
+	cancel context.CancelFunc
+	begin time.Time
+	events []*ReconcileEvent
+	timestamps map[string]time.Time
+	timers map[string]time.Duration
+}
+
+func getCallerName() string {
+	if _, file, _, ok := runtime.Caller(2); ok {
+		s := filepath.Base(file)
+		if strings.Contains(file, "handler") {
+			s = filepath.Base(filepath.Dir(file)) + "_" + s
+		}
+		if strings.HasSuffix(s, ".go") {
+			return strings.TrimSuffix(s, ".go")
+		} else {
+			return s
+		}
+	}
+	return "-"
+}
+
+func NewReconcileContext(ctx context.Context, obj types.NamespacedName) *ReconcileContext {
+	callerName := getCallerName()
+	logger := klogr.New().WithValues("namespace", obj.Namespace, "name", obj.Name, "caller", callerName)
+	ctx = util.SetNamespaceInCtx(ctx, obj.Namespace)
+	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
+	return &ReconcileContext{
+		Context: ctx,
+		Logger: logger,
+		callerName: callerName,
+		obj: obj,
+		cancel: cancel,
+		events: []*ReconcileEvent{},
+		timestamps: map[string]time.Time{},
+		timers: map[string]time.Duration{},
+	}
+}
+
+func (ctx *ReconcileContext) BeginReconcile() {
+	ctx.begin = time.Now()
+	logr.WithCallDepth(ctx.Logger, 1).Info("Begin reconcile")
+}
+
+func (ctx *ReconcileContext) EndReconcile() {
+	ctx.cancel()
+	t0 := time.Now()
+	logger := logr.WithCallDepth(ctx.Logger, 1)
+	logger.Info("End reconcile", "elapsed", t0.Sub(ctx.begin))
+	t := ctx.begin
+	if PerfEnabled {
+		for _, event := range ctx.events {
+			logger.Info("Performance", "event", event.Name, "elapsed", event.Time.Sub(t))
+			t = event.Time
+		}
+		logger.Info("Performance", "event", "end_reconcile", "elapsed", time.Since(t0))
+		for name, _t := range ctx.timers {
+			logger.Info("Performance", "event", "timer::" + name, "elapsed", _t)
+		}
+	}
+}
+
+func (ctx *ReconcileContext) AddEvent(name string) {
+	if PerfEnabled {
+		ctx.events = append(ctx.events, &ReconcileEvent{
+			Name: name,
+			Time: time.Now(),
+		})
+	}
+}
+
+func (ctx *ReconcileContext) BeginTimer(name string) {
+	ctx.timestamps[name] = time.Now()
+}
+
+func (ctx *ReconcileContext) EndTimer(name string) {
+	if t, ok := ctx.timestamps[name]; ok {
+		if _, _ok := ctx.timers[name]; !_ok {
+			ctx.timers[name] = time.Duration(0)
+		}
+		ctx.timers[name] += time.Now().Sub(t)
+	}
 }
