@@ -3,17 +3,17 @@ FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.16-alpine as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
-COPY ../go.mod go.mod
-COPY ../go.sum go.sum
+COPY ../../go.mod go.mod
+COPY ../../go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
 
 # Copy the go source
-COPY ../runtime/cmd/main.go main.go
-COPY ../apis/ apis/
-COPY ../pkg/ pkg/
-COPY ../version/ version/
+COPY ../../runtime/rollout/cmd/main.go main.go
+COPY ../../apis apis/
+COPY ../../pkg pkg/
+COPY ../../version version/
 
 # Build
 ARG TARGETARCH
@@ -37,7 +37,7 @@ WORKDIR /
 ARG TARGETARCH
 COPY --from=builder /workspace/manager-${TARGETARCH} /usr/local/bin/manager
 
-COPY ../entrypoint.sh /usr/local/bin/
+COPY ../../entrypoint.sh /usr/local/bin/
 
 ENTRYPOINT ["entrypoint.sh"]
 

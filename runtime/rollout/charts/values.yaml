@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: oamdev/vela-runtime
+  repository: oamdev/vela-runtime-rollout
   tag: latest
   pullPolicy: Always
 
