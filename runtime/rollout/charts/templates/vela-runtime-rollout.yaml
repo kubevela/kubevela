@@ -4,9 +4,9 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "vela-runtime-rollout.serviceAccountName" . }}
+  name: {{ include "vela-rollout.serviceAccountName" . }}
   labels:
-    {{- include "vela-runtime-rollout.labels" . | nindent 4 }}
+    {{- include "vela-rollout.labels" . | nindent 4 }}
   {{- with .Values.serviceAccount.annotations }}
   annotations:
   {{- toYaml . | nindent 4 }}
@@ -18,7 +18,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "vela-runtime-rollout.fullname" . }}:rollout-role
+  name: {{ include "vela-rollout.fullname" . }}:rollout-role
 rules:
   - apiGroups:
       - "core.oam.dev"
@@ -78,14 +78,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "vela-runtime-rollout.fullname" . }}:rollout-rolebinding
+  name: {{ include "vela-rollout.fullname" . }}:rollout-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "vela-runtime-rollout.fullname" . }}:rollout-role
+  name: {{ include "vela-rollout.fullname" . }}:rollout-role
 subjects:
   - kind: ServiceAccount
-    name: {{ include "vela-runtime-rollout.serviceAccountName" . }}
+    name: {{ include "vela-rollout.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 
 ---
@@ -93,7 +93,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "vela-runtime-rollout.fullname" . }}:leader-election-role
+  name: {{ include "vela-rollout.fullname" . }}:leader-election-role
 rules:
   - apiGroups:
       - ""
@@ -126,38 +126,38 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "vela-runtime-rollout.fullname" . }}:leader-election-rolebinding
+  name: {{ include "vela-rollout.fullname" . }}:leader-election-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ include "vela-runtime-rollout.fullname" . }}:leader-election-role
+  name: {{ include "vela-rollout.fullname" . }}:leader-election-role
 subjects:
   - kind: ServiceAccount
-    name: {{ include "vela-runtime-rollout.serviceAccountName" . }}
+    name: {{ include "vela-rollout.serviceAccountName" . }}
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "vela-runtime-rollout.fullname" . }}
+  name: {{ include "vela-rollout.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-  {{- include "vela-runtime-rollout.labels" . | nindent 4 }}
+  {{- include "vela-rollout.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-  {{- include "vela-runtime-rollout.selectorLabels" . | nindent 6 }}
+  {{- include "vela-rollout.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-    {{- include "vela-runtime-rollout.selectorLabels" . | nindent 8 }}
+    {{- include "vela-rollout.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "vela-runtime-rollout.serviceAccountName" . }}
+      serviceAccountName: {{ include "vela-rollout.serviceAccountName" . }}
       securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:

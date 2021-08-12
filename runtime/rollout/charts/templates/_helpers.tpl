@@ -2,7 +2,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "vela-runtime-rollout.name" -}}
+{{- define "vela-rollout.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
@@ -11,7 +11,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "vela-runtime-rollout.fullname" -}}
+{{- define "vela-rollout.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -27,16 +27,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "vela-runtime-rollout.chart" -}}
+{{- define "vela-rollout.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
 Common labels
 */}}
-{{- define "vela-runtime-rollout.labels" -}}
-helm.sh/chart: {{ include "vela-runtime-rollout.chart" . }}
-{{ include "vela-runtime-rollout.selectorLabels" . }}
+{{- define "vela-rollout.labels" -}}
+helm.sh/chart: {{ include "vela-rollout.chart" . }}
+{{ include "vela-rollout.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -46,17 +46,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "vela-runtime-rollout.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "vela-runtime-rollout.name" . }}
+{{- define "vela-rollout.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "vela-rollout.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "vela-runtime-rollout.serviceAccountName" -}}
+{{- define "vela-rollout.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-    {{ default (include "vela-runtime-rollout.fullname" .) .Values.serviceAccount.name }}
+    {{ default (include "vela-rollout.fullname" .) .Values.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.serviceAccount.name }}
 {{- end -}}
