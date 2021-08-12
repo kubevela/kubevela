@@ -8,7 +8,7 @@ outputs: registerdatasource: {
 			credentialSecret:          parameter.credentialSecret
 			credentialSecretNamespace: parameter.credentialSecretNamespace
 		}
-		url: parameter.url
+		urls: parameter.urls
 	}
 }
 
@@ -17,5 +17,5 @@ parameter: {
 	grafanaServiceNamespace:   *"default" | string
 	credentialSecret:          string
 	credentialSecretNamespace: *"default" | string
-	url:                       string
+	urls: [...string]
 }

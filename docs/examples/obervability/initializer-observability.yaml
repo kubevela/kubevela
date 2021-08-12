@@ -71,7 +71,9 @@ spec:
                 grafanaServiceNamespace: observability
                 credentialSecret: grafana
                 credentialSecretNamespace: observability
-                url: "https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/Kubernetes_for_Prometheus_Dashboard_CN_20201209_1628671317889.json"
+                urls:
+                  - "https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/kubevela_core_logging.json"
+                  - "https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/kubevela_core_monitoring.json"
 
         # install loki
         - name: loki
