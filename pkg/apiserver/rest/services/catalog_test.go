@@ -59,7 +59,7 @@ var _ = Describe("Test Catalog Service", func() {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec = httptest.NewRecorder()
 		c = e.NewContext(req, rec)
-		c.SetPath("/catalogs/:catalogName")
+		c.SetPath("/dashboard/catalogs/:catalogName")
 		c.SetParamNames("catalogName")
 		c.SetParamValues(cr.Name)
 

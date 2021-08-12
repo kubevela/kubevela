@@ -91,13 +91,26 @@ func (s *restServer) Run(ctx context.Context) error {
 
 func (s *restServer) registerServices() error {
 
+	/* **************************************************************  */
+	/* ************   Dashboard API Route Group     *****************  */
+	/* **************************************************************  */
+
+	dashboard := s.server.Group("/dashboard")
 	// catalog
 	catalogService := services.NewCatalogService(s.k8sClient)
-	s.server.GET("/catalogs", catalogService.ListCatalogs)
-	s.server.POST("/catalogs", catalogService.AddCatalog)
-	s.server.PUT("/catalogs", catalogService.UpdateCatalog)
-	s.server.GET("/catalogs/:catalogName", catalogService.GetCatalog)
-	s.server.DELETE("/catalogs/:catalogName", catalogService.DelCatalog)
+	dashboard.GET("/catalogs", catalogService.ListCatalogs)
+	dashboard.POST("/catalogs", catalogService.AddCatalog)
+	dashboard.PUT("/catalogs", catalogService.UpdateCatalog)
+	dashboard.GET("/catalogs/:catalogName", catalogService.GetCatalog)
+	dashboard.DELETE("/catalogs/:catalogName", catalogService.DelCatalog)
+
+	/* **************************************************************  */
+	/* *************       Open API Route Group     *****************  */
+	/* **************************************************************  */
+
+	openapi := s.server.Group("/v1")
+	applicationService := services.NewApplicationService(s.k8sClient)
+	openapi.POST("/namespaces/:namespace/applications/:appname", applicationService.CreateOrUpdateApplication)
 
 	return nil
 }
