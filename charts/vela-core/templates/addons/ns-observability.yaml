@@ -1,0 +1,39 @@
+apiVersion: v1
+data:
+  initializer: |
+    apiVersion: core.oam.dev/v1beta1
+    kind: Initializer
+    metadata:
+      annotations:
+        addons.oam.dev/description: Create namespace for Observability
+      name: ns-observability
+      namespace: vela-system
+    spec:
+      appTemplate:
+        spec:
+          components:
+          - name: observability
+            properties:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: observability
+            type: raw
+        status:
+          rollout:
+            batchRollingState: ""
+            currentBatch: 0
+            lastTargetAppRevision: ""
+            rollingState: ""
+            upgradedReadyReplicas: 0
+            upgradedReplicas: 0
+    status:
+      observedGeneration: 0
+kind: ConfigMap
+metadata:
+  annotations:
+    addons.oam.dev/description: Create namespace for Observability
+  labels:
+    addons.oam.dev/type: ns-observability
+  name: ns-observability
+  namespace: {{.Values.systemDefinitionNamespace}}

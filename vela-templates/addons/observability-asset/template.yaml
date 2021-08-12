@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  annotations:
+    addons.oam.dev/description: "Preparations that observability need"
+  name: observability-asset
+  namespace: vela-system
+spec:
+  appTemplate:
+    spec:
+      components:
+{{  range .ResourceFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}
+{{  range .DefinitionFiles  }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}
