@@ -334,6 +334,7 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 	if metadataString, err = encodeDeclsToString(metadataDecls); err != nil {
 		return errors.Wrapf(err, "failed to encode metadata decls to string")
 	}
+	// notice that current template decls are concatenated without any blank lines which might be inconsistent with original cue file, but it would not affect the syntax
 	if templateString, err = encodeDeclsToString(templateDecls); err != nil {
 		return errors.Wrapf(err, "failed to encode template decls to string")
 	}
