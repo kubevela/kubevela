@@ -33,6 +33,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/common"
@@ -72,6 +73,9 @@ func createNamespacedTrait(c common2.Args, name string, ns string, t *testing.T)
 			Annotations: map[string]string{
 				common.DefinitionDescriptionKey: "My test-trait " + traitName,
 			},
+		},
+		Spec: v1beta1.TraitDefinitionSpec{
+			Schematic: &common3.Schematic{CUE: &common3.CUE{Template: "parameter: {}"}},
 		},
 	}); err != nil {
 		t.Fatalf("failed to create trait: %v", err)
@@ -364,7 +368,7 @@ func TestNewDefinitionVetCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read trait file %s: %v", traitFilename, err)
 	}
-	bs = []byte(string(bs) + "abc")
+	bs = []byte(string(bs) + "abc:{xa}")
 	if err = os.WriteFile(traitFilename, bs, 0600); err != nil {
 		t.Fatalf("failed to modify trait file %s: %v", traitFilename, err)
 	}
