@@ -1,0 +1,27 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: pullimage-sample
+  namespace: default
+spec:
+  components:
+    - name: nginx
+      type: webservice
+      properties:
+        image: nginx:1.9.1
+        port: 80
+  workflow:
+    steps:
+      - name: pullimage
+        type: predownloadimage
+        properties:
+          image: nginx:1.9.1
+          parallel: 3
+          kvs:
+            kubernetes.io/os: linux
+      - name: deploy-remaining
+        type: apply
+        properties:
+          component: nginx
+
+          

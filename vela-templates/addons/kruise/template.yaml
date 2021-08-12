@@ -22,6 +22,8 @@ spec:
             repoUrl: https://github.com/openkruise/kruise
             chart: ./charts/kruise/v0.9.0
             branch: master
+            values: 
+              featureGates: PreDownloadImageForInPlaceUpdate=true
 {{  range .DefinitionFiles  }}
         - name: {{ .Name }}
           type: raw

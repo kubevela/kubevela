@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: apply
+spec:
+  schematic:
+    cue:
+      template: |
+        import ("vela/op")
+        parameter: {
+          component: string
+        }
+
+        // apply workload to kubernetes cluster
+        job: op.#Load & {
+          component: parameter.component
+        }
+
+        apply: op.#Apply & {
+          value: {
+            job.value.workload
+            metadata: {
+              name: parameter.component
+            }
+          }
+        }
