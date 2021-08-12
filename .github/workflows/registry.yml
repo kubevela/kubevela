@@ -63,10 +63,10 @@ jobs:
             ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
-        name: Build & Pushing runtime
+        name: Build & Pushing runtime rollout
         with:
           context: .
-          file: runtime/Dockerfile
+          file: runtime/rollout/Dockerfile
           labels: |-
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -76,8 +76,8 @@ jobs:
             GITVERSION=git-${{ steps.vars.outputs.git_revision }}
             VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: |-
-            ghcr.io/${{ github.repository }}/vela-runtime:${{ steps.get_version.outputs.VERSION }}
-            docker.io/oamdev/vela-runtime:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository }}/vela-runtime-rollout:${{ steps.get_version.outputs.VERSION }}
+            docker.io/oamdev/vela-runtime-rollout:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:
@@ -85,7 +85,7 @@ jobs:
       HELM_CHART: charts/vela-core
       LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
       OAM_RUNTIME_HELM_CHART: charts/oam-runtime
-      VELA_RUNTIME_HELM_CHART: runtime/charts
+      VELA_RUNTIME_ROLLOUT_HELM_CHART: runtime/rollout/charts
       LOCAL_OSS_DIRECTORY: .oss/
     runs-on: ubuntu-20.04
     steps:
@@ -105,7 +105,7 @@ jobs:
           rsync -r $HELM_CHART/* $LEGACY_HELM_CHART --exclude=Chart.yaml --exclude=crds
       - name: Prepare vela-runtime chart
         run: |
-          rsync -r $VELA_RUNTIME_HELM_CHART $HELM_CHARTS_DIR
+          rsync -r $VELA_RUNTIME_ROLLOUT_HELM_CHART $HELM_CHARTS_DIR
       - uses: oprypin/find-latest-tag@v1
         with:
           repository: oam-dev/kubevela
@@ -128,12 +128,12 @@ jobs:
           sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $LEGACY_HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $OAM_RUNTIME_HELM_CHART/values.yaml
-          sed -i "s/latest/${image_tag}/g" $VELA_RUNTIME_HELM_CHART/values.yaml
+          sed -i "s/latest/${image_tag}/g" $VELA_RUNTIME_ROLLOUT_HELM_CHART/values.yaml
           chart_smever=${chart_version#"v"}
           sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $LEGACY_HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $OAM_RUNTIME_HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$chart_smever/g" $VELA_RUNTIME_HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$chart_smever/g" $VELA_RUNTIME_ROLLOUT_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
@@ -145,7 +145,7 @@ jobs:
           rsync README.md $HELM_CHART/README.md
           rsync README.md $LEGACY_HELM_CHART/README.md
           rsync README.md $OAM_RUNTIME_HELM_CHART/README.md
-          rsync README.md $VELA_RUNTIME_HELM_CHART/README.md
+          rsync README.md $VELA_RUNTIME_ROLLOUT_HELM_CHART/README.md
           sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
           rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
       - name: Package helm charts
@@ -153,7 +153,7 @@ jobs:
           helm package $HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $LEGACY_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $OAM_RUNTIME_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
-          helm package $VELA_RUNTIME_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
+          helm package $VELA_RUNTIME_ROLLOUT_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync $LOCAL_OSS_DIRECTORY oss://$BUCKET/core -f

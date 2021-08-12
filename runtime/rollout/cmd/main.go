@@ -40,7 +40,7 @@ var (
 )
 
 const (
-	kubevelaRuntimeName = "kubevela-runtime"
+	kubevelaRuntimeRolloutName = "kubevela-runtime-rollout"
 )
 
 func init() {
@@ -73,12 +73,12 @@ func main() {
 	klog.InitFlags(nil)
 
 	restConfig := ctrl.GetConfigOrDie()
-	restConfig.UserAgent = kubevelaRuntimeName + "/" + version.GitRevision
+	restConfig.UserAgent = kubevelaRuntimeRolloutName + "/" + version.GitRevision
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                  scheme,
 		LeaderElectionNamespace: leaderElectionNamespace,
-		LeaderElectionID:        kubevelaRuntimeName,
+		LeaderElectionID:        kubevelaRuntimeRolloutName,
 		HealthProbeBindAddress:  healthAddr,
 	})
 	if err != nil {

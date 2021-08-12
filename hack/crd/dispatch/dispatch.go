@@ -29,8 +29,8 @@ var (
 	common = map[string]bool{"workloaddefinitions": true, "traitdefinitions": true, "scopedefinitions": true, "healthscopes": true,
 		"manualscalertraits": true, "containerizedworkloads": true}
 	oldCRD = map[string]bool{"components": true, "applicationconfigurations": true}
-	// when controller need to run in runtime cluster, just add them in this map
-	runtimeCRD = map[string]bool{"rollouts": true}
+	// when controller need to run in runtime cluster, just add them in this map, key=crdName, value=subPath
+	runtimeCRD = map[string]string{"rollouts": "rollout"}
 )
 
 func main() {
@@ -63,8 +63,8 @@ func main() {
 		}
 	}
 
-	writeRuntime := func(fileName string, data []byte) {
-		pathRuntime := fmt.Sprintf("%s/%s", runtimeDir, fileName)
+	writeRuntime := func(subPath, fileName string, data []byte) {
+		pathRuntime := fmt.Sprintf("%s/%s/charts/crds/%s", runtimeDir, subPath, fileName)
 		/* #nosec */
 		if err := ioutil.WriteFile(pathRuntime, data, 0644); err != nil {
 			log.Fatal(err)
@@ -89,8 +89,8 @@ func main() {
 		if common[resourceName] {
 			writeOld(info.Name(), data)
 		}
-		if runtimeCRD[resourceName] {
-			writeRuntime(info.Name(), data)
+		if subPath, exist := runtimeCRD[resourceName]; exist {
+			writeRuntime(subPath, info.Name(), data)
 		}
 		writeNew(info.Name(), data)
 		return nil

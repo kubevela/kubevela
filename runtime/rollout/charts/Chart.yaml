@@ -1,6 +1,6 @@
 apiVersion: v2
-name: vela-runtime
-description: A Helm chart for KubeVela runtime cluster controller.
+name: vela-runtime-rollout
+description: A Helm chart for KubeVela runtime cluster rollout controller.
 
 # A chart can be either an 'application' or a 'library' chart.
 #

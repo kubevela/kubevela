@@ -38,7 +38,7 @@ endif
 # Image URL to use all building/pushing image targets
 VELA_CORE_IMAGE      ?= vela-core:latest
 VELA_CORE_TEST_IMAGE ?= vela-core-test:$(GIT_COMMIT)
-VELA_RUNTIME_IMAGE       ?= vela-runtime:latest
+VELA_RUNTIME_ROLLOUT_IMAGE       ?= vela-runtime-rollout:latest
 
 all: build
 
@@ -144,8 +144,8 @@ docker-build:
 	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_CORE_IMAGE) .
 
 # Build the runtime docker image
-docker-build-runtime:
-	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_RUNTIME_IMAGE) -f runtime/Dockerfile .
+docker-build-runtime-rollout:
+	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_RUNTIME_ROLLOUT_IMAGE) -f runtime/rollout/Dockerfile .
 
 # Push the docker image
 docker-push:
@@ -221,8 +221,8 @@ core-test: fmt vet manifests
 manager: fmt vet lint manifests
 	$(GOBUILD_ENV) go build -o bin/manager -a -ldflags $(LDFLAGS) ./cmd/core/main.go
 
-vela-runtime-manager: fmt vet lint manifests
-	$(GOBUILD_ENV) go build -o ./runtime/bin/manager -a -ldflags $(LDFLAGS) ./runtime/cmd/main.go
+vela-runtime-rollout-manager: fmt vet lint manifests
+	$(GOBUILD_ENV) go build -o ./runtime/rollout/bin/manager -a -ldflags $(LDFLAGS) ./runtime/rollout/cmd/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 core-run: fmt vet manifests
@@ -248,7 +248,7 @@ manifests: installcue kustomize
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	./hack/crd/cleanup.sh
-	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/charts/crds
+	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/
 	go run hack/crd/update.go charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
