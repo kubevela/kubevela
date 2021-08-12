@@ -1058,8 +1058,8 @@ github.com/opencontainers/runc v0.0.0-20190115041553-12f6a991201f/go.mod h1:qT5X
 github.com/opencontainers/runc v0.1.1 h1:GlxAyO6x8rfZYN9Tt0Kti5a/cP41iuiO2yYT0IJGY8Y=
 github.com/opencontainers/runc v0.1.1/go.mod h1:qT5XzbpPznkRYVz/mWwUaVBUv2rmF59PVA73FjuZG0U=
 github.com/opencontainers/runtime-spec v1.0.2/go.mod h1:jwyrGlmzljRJv/Fgzds9SsS/C5hL+LL3ko9hs6T5lQ0=
-github.com/openkruise/kruise-api v0.7.0 h1:BBQotEfeZ2l1+R0uvlsVK2FN8C4RTlG+JT86ba2hOR4=
-github.com/openkruise/kruise-api v0.7.0/go.mod h1:nCf5vVOjQJX5OaV7Qi0Z51/Rn9cd7s5kVrg8YLgFp1I=
+github.com/openkruise/kruise-api v0.9.0 h1:Puzn+UTgA2Zp+Q6agGEWO+GzsvGzUVPVy44gkgsFAl0=
+github.com/openkruise/kruise-api v0.9.0/go.mod h1:nCf5vVOjQJX5OaV7Qi0Z51/Rn9cd7s5kVrg8YLgFp1I=
 github.com/openshift/build-machinery-go v0.0.0-20210115170933-e575b44a7a94/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
 github.com/opentracing-contrib/go-observer v0.0.0-20170622124052-a52f23424492/go.mod h1:Ngi6UdF0k5OKD5t5wlmGhe/EDKPoUM3BXZSSfIuJbis=
 github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9/go.mod h1:PLldrQSroqzH70Xl+1DQcGnefIbqsKR7UDaiux3zV+w=
