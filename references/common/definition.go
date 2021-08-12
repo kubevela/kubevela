@@ -19,10 +19,10 @@ package common
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/encoding/gocode/gocodec"
@@ -30,11 +30,14 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 )
 
 const (
@@ -147,20 +150,35 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	s, err := sets.ToString(*val)
+	metadataString, err := sets.ToString(*val)
 	if err != nil {
 		return "", err
 	}
 
-	importSentences := regexp.MustCompile("import [^\n]+\n")
-	sentences := importSentences.FindAllString(templateString, -1)
-	templateString = strings.ReplaceAll(importSentences.ReplaceAllString(templateString, ""), "\n\n", "\n")
-	sPrefix := strings.Join(sentences, "")
-	if sPrefix != "" {
-		sPrefix += "\n"
+	f, err := parser.ParseFile("-", templateString, parser.ParseComments)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to parse template cue string")
 	}
-	s = sPrefix + s
-	completeCUEString := s + fmt.Sprintf("template: {\n%s\n}\n", strings.ReplaceAll(templateString, "\n", "\n\t"))
+	f = fix.File(f)
+	var importDecls, templateDecls []ast.Decl
+	for _, decl := range f.Decls {
+		if importDecl, ok := decl.(*ast.ImportDecl); ok {
+			importDecls = append(importDecls, importDecl)
+		} else {
+			templateDecls = append(templateDecls, decl)
+		}
+	}
+	importString, err := encodeDeclsToString(importDecls)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to encode import decls")
+	}
+	templateString, err = encodeDeclsToString(templateDecls)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to encode template decls")
+	}
+	templateString = fmt.Sprintf("template: {\n%s}", templateString)
+
+	completeCUEString := importString + "\n" + metadataString + "\n" + templateString
 	if completeCUEString, err = formatCUEString(completeCUEString); err != nil {
 		return "", errors.Wrapf(err, "failed to format cue format string")
 	}
@@ -257,36 +275,87 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	return nil
 }
 
-// FromCUEString converts cue string into Definition
-func (def *Definition) FromCUEString(cueString string) error {
-	r := &cue.Runtime{}
-	cueStringParts := strings.SplitN(cueString, "\ntemplate:", 2)
-	if len(cueStringParts) != 2 {
-		return fmt.Errorf("invalid cue string, should contain definition metadata and template")
+func encodeDeclsToString(decls []ast.Decl) (string, error) {
+	s := ""
+	for _, decl := range decls {
+		bs, err := format.Node(decl, format.Simplify())
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to encode decl to string: %v", decl)
+		}
+		s += string(bs) + "\n"
 	}
+	return s, nil
+}
 
-	metadataString := cueStringParts[0]
-	importSentences := regexp.MustCompile(`import [^\n]+\n`)
-	sentences := importSentences.FindAllString(metadataString, -1)
-	metadataString = importSentences.ReplaceAllString(metadataString, "")
-	templateStringPrefix := strings.Join(sentences, "")
-	if templateStringPrefix != "" {
-		templateStringPrefix += "\n"
+// FromCUEString converts cue string into Definition
+func (def *Definition) FromCUEString(cueString string, config *rest.Config) error {
+	r := &cue.Runtime{}
+	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
+	if err != nil {
+		return err
+	}
+	n := fix.File(f)
+	var importDecls, metadataDecls, templateDecls []ast.Decl
+	for _, decl := range n.Decls {
+		if importDecl, ok := decl.(*ast.ImportDecl); ok {
+			importDecls = append(importDecls, importDecl)
+		} else if field, ok := decl.(*ast.Field); ok {
+			label := ""
+			switch l := field.Label.(type) {
+			case *ast.Ident:
+				label = l.Name
+			case *ast.BasicLit:
+				label = l.Value
+			}
+			if label == "" {
+				return errors.Errorf("found unexpected decl when parsing cue: %v", label)
+			}
+			if label == "template" {
+				if v, ok := field.Value.(*ast.StructLit); ok {
+					templateDecls = append(templateDecls, v.Elts...)
+				} else {
+					return errors.Errorf("unexpected decl found in template: %v", decl)
+				}
+			} else {
+				metadataDecls = append(metadataDecls, field)
+			}
+		}
+	}
+	if len(metadataDecls) == 0 {
+		return errors.Errorf("no metadata found, invalid")
+	}
+	if len(templateDecls) == 0 {
+		return errors.Errorf("no template found, invalid")
+	}
+	var importString, metadataString, templateString string
+	if importString, err = encodeDeclsToString(importDecls); err != nil {
+		return errors.Wrapf(err, "failed to encode import decls to string")
+	}
+	if metadataString, err = encodeDeclsToString(metadataDecls); err != nil {
+		return errors.Wrapf(err, "failed to encode metadata decls to string")
+	}
+	if templateString, err = encodeDeclsToString(templateDecls); err != nil {
+		return errors.Wrapf(err, "failed to encode template decls to string")
 	}
 
 	inst, err := r.Compile("-", metadataString)
 	if err != nil {
 		return err
 	}
-	templateString := strings.TrimSpace(cueStringParts[1])
-	if strings.HasPrefix(templateString, "{") {
-		templateString = strings.TrimSuffix(strings.TrimPrefix(templateString, "{"), "}")
-	}
-	templateString, err = formatCUEString(templateStringPrefix + templateString)
+	templateString, err = formatCUEString(importString + templateString)
 	if err != nil {
 		return err
 	}
-	if _, err = r.Compile("-", templateString+"\n"+velacue.BaseTemplate); err != nil {
+	// validate template
+	if config != nil {
+		pd, err := packages.NewPackageDiscover(config)
+		if err != nil {
+			return err
+		}
+		if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd); err != nil {
+			return err
+		}
+	} else if _, err = r.Compile("-", templateString+"\n"+velacue.BaseTemplate); err != nil {
 		return err
 	}
 	val := inst.Value()

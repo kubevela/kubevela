@@ -45,7 +45,6 @@ spec:
         		}
         	},
         ]
-
         parameter: {
         	// +usage=Declare volumes and volumeMounts
         	volumes?: [...{

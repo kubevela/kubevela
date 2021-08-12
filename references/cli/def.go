@@ -79,6 +79,7 @@ func DefinitionCommandGroup(c common.Args) *cobra.Command {
 			types.TagCommandType: types.TypeCap,
 		},
 	}
+	_ = c.SetConfig() // set config if possible
 	cmd.AddCommand(
 		NewDefinitionGetCommand(c),
 		NewDefinitionListCommand(c),
@@ -458,7 +459,7 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 				cmd.Printf("definition unchanged\n")
 				return nil
 			}
-			if err := def.FromCUEString(string(newBuf)); err != nil {
+			if err := def.FromCUEString(string(newBuf), c.Config); err != nil {
 				return errors.Wrapf(err, "failed to load edited cue string")
 			}
 			if err := k8sClient.Update(context.Background(), def); err != nil {
@@ -512,7 +513,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					return errors.Wrapf(err, "failed to get %s", args[0])
 				}
 				def := common2.Definition{Unstructured: unstructured.Unstructured{}}
-				if err := def.FromCUEString(string(cueBytes)); err != nil {
+				if err := def.FromCUEString(string(cueBytes), c.Config); err != nil {
 					return errors.Wrapf(err, "failed to parse CUE")
 				}
 
@@ -617,7 +618,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to get %s", args[0])
 			}
 			def := common2.Definition{Unstructured: unstructured.Unstructured{}}
-			if err := def.FromCUEString(string(cueBytes)); err != nil {
+			if err := def.FromCUEString(string(cueBytes), c.Config); err != nil {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}
 			def.SetNamespace(namespace)
@@ -648,7 +649,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 				}
 				return errors.Wrapf(err, "failed to check existence of target definition in kubernetes")
 			}
-			if err := oldDef.FromCUEString(string(cueBytes)); err != nil {
+			if err := oldDef.FromCUEString(string(cueBytes), c.Config); err != nil {
 				return errors.Wrapf(err, "failed to merge with existing definition")
 			}
 			if err = k8sClient.Update(ctx, &oldDef); err != nil {
@@ -744,7 +745,7 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to read %s", args[0])
 			}
 			def := common2.Definition{Unstructured: unstructured.Unstructured{}}
-			if err := def.FromCUEString(string(cueBytes)); err != nil {
+			if err := def.FromCUEString(string(cueBytes), c.Config); err != nil {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}
 			cmd.Println("Validation succeed.")

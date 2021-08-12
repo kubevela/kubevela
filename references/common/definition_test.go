@@ -59,23 +59,29 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	if err = c.Create(context.Background(), trait); err != nil {
 		t.Fatalf("unexpected error when creating new definition with fake client: %v", err)
 	}
-	if err = def.FromCUEString(cueString + "abc"); err == nil {
+	if err = def.FromCUEString("abc:]{xa}", nil); err == nil {
+		t.Fatalf("should encounter invalid cue string but not found error")
+	}
+	if err = def.FromCUEString(cueString+"abc: {xa}", nil); err == nil {
 		t.Fatalf("should encounter invalid cue string but not found error")
 	}
 	parts := strings.Split(cueString, "template: ")
-	if err = def.FromCUEString(parts[0]); err == nil {
+	if err = def.FromCUEString(parts[0], nil); err == nil {
 		t.Fatalf("should encounter no template found error but not found error")
 	}
-	if err = def.FromCUEString("import \"strconv\"\n" + cueString); err == nil {
+	if err = def.FromCUEString("template:"+parts[1], nil); err == nil {
+		t.Fatalf("should encounter no metadata found error but not found error")
+	}
+	if err = def.FromCUEString("import \"strconv\"\n"+cueString, nil); err == nil {
 		t.Fatalf("should encounter cue compile error due to useless import but not found error")
 	}
-	if err = def.FromCUEString("abc: {}\n" + cueString); err == nil {
+	if err = def.FromCUEString("abc: {}\n"+cueString, nil); err == nil {
 		t.Fatalf("should encounter duplicated object name error but not found error")
 	}
-	if err = def.FromCUEString(strings.Replace(cueString, "\"trait\"", "\"tr\"", 1)); err == nil {
+	if err = def.FromCUEString(strings.Replace(cueString, "\"trait\"", "\"tr\"", 1), nil); err == nil {
 		t.Fatalf("should encounter invalid type error but not found error")
 	}
-	if err = def.FromCUEString(cueString); err != nil {
+	if err = def.FromCUEString(cueString, nil); err != nil {
 		t.Fatalf("unexpected error when setting from cue: %v", err)
 	}
 	templateString, _, _ := unstructured.NestedString(def.Object, DefinitionTemplateKeys...)
@@ -86,7 +92,7 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 		t.Fatalf("definition ToCUEString missed import, val: %v", s)
 	}
 	def = &Definition{}
-	if err = def.FromCUEString(cueString); err != nil {
+	if err = def.FromCUEString(cueString, nil); err != nil {
 		t.Fatalf("unexpected error when setting from cue for empty def: %v", err)
 	}
 
