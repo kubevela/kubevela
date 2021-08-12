@@ -11,8 +11,8 @@ configmap: {
 template: {
 	patch: spec: template: spec: {
 		containers: [{
+			// +patchKey=name
 			volumeMounts: [
-				// +patchKey=name
 				for v in parameter.volumes {
 					{
 						name:      "volume-\(v.name)"
@@ -22,8 +22,8 @@ template: {
 				},
 			]
 		}, ...]
+		// +patchKey=name
 		volumes: [
-			// +patchKey=name
 			for v in parameter.volumes {
 				{
 					name: "volume-\(v.name)"

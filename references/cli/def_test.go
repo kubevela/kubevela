@@ -290,7 +290,7 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 	defer removeDir(outputDir, t)
 	cmd = NewDefinitionRenderCommand(c)
 	initCommand(cmd)
-	cmd.SetArgs([]string{dirname, "-o", outputDir})
+	cmd.SetArgs([]string{dirname, "-o", outputDir, "--message", "Author: KubeVela"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing render command: %v", err)
 	}

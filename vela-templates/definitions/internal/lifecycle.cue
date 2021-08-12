@@ -23,7 +23,7 @@ template: {
 		postStart?: #LifeCycleHandler
 		preStop?:   #LifeCycleHandler
 	}
-	#Port:             int & >=1 & <=65535
+	#Port: int & >=1 & <=65535
 	#LifeCycleHandler: {
 		exec?: command: [...string]
 		httpGet?: {
