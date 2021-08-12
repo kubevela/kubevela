@@ -15,7 +15,7 @@ spec:
       template: |
         patch: spec: template: spec: {
         	containers: [{
-                // +patchKey=name
+        		// +patchKey=name
         		volumeMounts: [
         			for v in parameter.volumes {
         				{
@@ -26,7 +26,7 @@ spec:
         			},
         		]
         	}, ...]
-            // +patchKey=name
+        	// +patchKey=name
         	volumes: [
         		for v in parameter.volumes {
         			{
