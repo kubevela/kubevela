@@ -22,7 +22,7 @@ function render {
   outputDir=$2
   rm "$outputDir"/* 2>/dev/null || true
   mkdir -p "$outputDir"
-  go run ../references/cmd/cli/main.go def render "$inputDir" -o "$outputDir"
+  go run ../references/cmd/cli/main.go def render "$inputDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$inputDir/{{INPUT_FILENAME}}"
 }
 
 echo -e "${HEAD_PROMPT}Start generating definitions at ${LIGHTGRAY}${SCRIPT_DIR}${NC} ..."
