@@ -34,8 +34,6 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -49,8 +47,6 @@ const (
 type reconciler struct {
 	client.Client
 	applicator           apply.Applicator
-	dm                   discoverymapper.DiscoveryMapper
-	pd                   *packages.PackageDiscover
 	Scheme               *runtime.Scheme
 	record               event.Recorder
 	concurrentReconciles int
@@ -180,8 +176,6 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	r := reconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
-		dm:                   args.DiscoveryMapper,
-		pd:                   args.PackageDiscover,
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
 	r.applicator = apply.NewAPIApplicator(r.Client)
