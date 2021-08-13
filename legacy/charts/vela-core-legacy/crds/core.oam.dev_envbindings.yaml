@@ -151,6 +151,20 @@ spec:
                 - placement
                 type: object
               type: array
+            outputResourcesTo:
+              description: OutputResourcesTo specifies the namespace and name of a
+                ConfigMap which store the resources rendered after differentiated
+                configuration
+              properties:
+                name:
+                  description: Name of the secret.
+                  type: string
+                namespace:
+                  description: Namespace of the secret.
+                  type: string
+              required:
+              - name
+              type: object
           required:
           - appTemplate
           - envs
