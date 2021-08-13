@@ -29,13 +29,11 @@ spec:
         		}
         	}
         }
-
         parameter: {
         	targetRevision: *context.revision | string
         	targetSize:     int
         	rolloutBatches: [...rolloutBatch]
         }
-
         rolloutBatch: replicas: int
   skipRevisionAffect: true
 
