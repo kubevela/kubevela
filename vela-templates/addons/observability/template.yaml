@@ -50,7 +50,7 @@ spec:
                 grafanaServiceNamespace: observability
                 credentialSecret: grafana
                 credentialSecretNamespace: observability
-                url: https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/Kubernetes_for_Prometheus_Dashboard_CN_20201209_1628671317889.json
+                urls: [ "https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/Kubernetes_for_Prometheus_Dashboard_CN_20201209_1628671317889.json" ]
         - name: loki
           type: helm
           properties:
@@ -84,14 +84,15 @@ spec:
             values:
               alertmanager:
                 persistentVolume:
-                  enable: '[[ index .Args "alertmanager-pvc-enable" | default "true" ]]'
+                  enabled: '[[ index .Args "alertmanager-pvc-enabled" | default "true" ]]'
+
                   storageClass: '[[ index .Args "alertmanager-pvc-class" ]]'
-                  size: '[[ index .Args "alertmanager-pvc-size" ]]'
+                  size: '[[ index .Args "alertmanager-pvc-size" | default "20Gi" ]]'
               server:
                 persistentVolume:
-                  enable: '[[ index .Args "server-pvc-enable" | default "true" ]]'
+                  enabled: '[[ index .Args "server-pvc-enabled" | default "true" ]]'
                   storageClass: '[[ index .Args "server-pvc-size" ]]'
-                  size: '[[ index .Args "server-pvc-size" ]]'
+                  size: '[[ index .Args "server-pvc-size" | default "20Gi" ]]'
           traits:
             - type: register-grafana-datasource # register Prometheus datasource to Grafana
               properties:
