@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ghodss/yaml"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/system"

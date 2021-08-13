@@ -22,12 +22,12 @@ import (
 	"io/ioutil"
 	"reflect"
 
-	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/yaml"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/openkruise/kruise-api/apps/v1alpha1"

@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -38,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/yaml"
 
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"

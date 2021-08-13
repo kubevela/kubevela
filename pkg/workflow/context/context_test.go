@@ -22,12 +22,12 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	yamlUtil "github.com/ghodss/yaml"
 	"gopkg.in/yaml.v3"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	yamlUtil "sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )

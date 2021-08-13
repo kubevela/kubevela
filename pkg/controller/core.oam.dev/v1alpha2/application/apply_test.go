@@ -24,7 +24,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
-	"github.com/ghodss/yaml"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
@@ -35,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"

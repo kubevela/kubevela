@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -37,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"

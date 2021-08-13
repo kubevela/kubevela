@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ghodss/yaml"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"

@@ -26,10 +26,10 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
-	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"

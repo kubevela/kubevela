@@ -22,11 +22,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"

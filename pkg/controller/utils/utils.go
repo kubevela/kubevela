@@ -27,7 +27,6 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ghodss/yaml"
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -42,6 +41,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
