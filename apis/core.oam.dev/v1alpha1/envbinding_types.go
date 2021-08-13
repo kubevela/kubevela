@@ -74,6 +74,15 @@ type ClusterDecision struct {
 	ClusterName string `json:"cluster_name"`
 }
 
+// A ConfigMapReference is a reference to a configMap in an arbitrary namespace.
+type ConfigMapReference struct {
+	// Name of the secret.
+	Name string `json:"name"`
+
+	// Namespace of the secret.
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // A EnvBindingSpec defines the desired state of a EnvBinding.
 type EnvBindingSpec struct {
 	Engine ClusterManagementEngine `json:"engine,omitempty"`
@@ -82,6 +91,11 @@ type EnvBindingSpec struct {
 	AppTemplate AppTemplate `json:"appTemplate"`
 
 	Envs []EnvConfig `json:"envs"`
+
+	// OutputResourcesTo specifies the namespace and name of a ConfigMap
+	// which store the resources rendered after differentiated configuration
+	// +optional
+	OutputResourcesTo *ConfigMapReference `json:"outputResourcesTo,omitempty"`
 }
 
 // A EnvBindingStatus is the status of EnvBinding

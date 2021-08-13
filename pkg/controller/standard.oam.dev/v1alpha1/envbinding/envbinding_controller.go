@@ -75,58 +75,53 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case v1alpha1.OCMEngine:
 		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace)
 	default:
-		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace)
+		engine = NewSingleClusterEngine(r.Client, baseApp.Name, baseApp.Namespace)
 	}
 
-	// 1. prepare the pre-work for cluster scheduling
+	// prepare the pre-work for cluster scheduling
 	envBinding.Status.Phase = v1alpha1.EnvBindingPrepare
-	if err = engine.Prepare(ctx, envBinding.Spec.Envs); err != nil {
+	if err = engine.prepare(ctx, envBinding.Spec.Envs); err != nil {
 		klog.ErrorS(err, "Failed to prepare the pre-work for cluster scheduling")
 		r.record.Event(envBinding, event.Warning("Failed to prepare the pre-work for cluster scheduling", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
-	// 2. patch the component parameters for application in different envs
+	// patch the component parameters for application in different envs
 	envBinding.Status.Phase = v1alpha1.EnvBindingRendering
-	envBindApps, err := CreateEnvBindApps(envBinding, baseApp)
+	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
+	envBindApps, err := engine.initEnvBindApps(ctx, envBinding, baseApp, appParser)
 	if err != nil {
 		klog.ErrorS(err, "Failed to patch the parameters for application in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to patch the parameters for application in different envs", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
-	// 3. render applications for different envs
-	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
-	if err = RenderEnvBindApps(ctx, envBindApps, appParser); err != nil {
-		klog.ErrorS(err, "Failed to render the application for different envs")
-		r.record.Event(envBinding, event.Warning("Failed to render the application for different envs", err))
-		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
-	}
-
-	// 4. assemble resources for applications in different envs
-	if err = AssembleEnvBindApps(envBindApps); err != nil {
-		klog.ErrorS(err, "Failed to assemble resources for application in different envs")
-		r.record.Event(envBinding, event.Warning("Failed to assemble resources for application in different envs", err))
-		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
-	}
-
-	// 5. schedule resource of applications in different envs
+	// schedule resource of applications in different envs
 	envBinding.Status.Phase = v1alpha1.EnvBindingScheduling
-	if err = engine.Schedule(ctx, envBindApps); err != nil {
+	clusterDecisions, err := engine.schedule(envBindApps)
+	if err != nil {
 		klog.ErrorS(err, "Failed to schedule resource of applications in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to schedule resource of applications in different envs", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
-	// 6. store manifest of different envs to configmap
-	if err = StoreManifest2ConfigMap(ctx, r.Client, envBinding, envBindApps); err != nil {
-		klog.ErrorS(err, "Failed to store manifest of different envs to configmap")
-		r.record.Event(envBinding, event.Warning("Failed to store manifest of different envs to configmap", err))
-		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
+	// store manifest of different envs to configmap
+	if envBinding.Spec.OutputResourcesTo != nil && len(envBinding.Spec.OutputResourcesTo.Name) != 0 {
+		if err = StoreManifest2ConfigMap(ctx, r.Client, envBinding, envBindApps); err != nil {
+			klog.ErrorS(err, "Failed to store manifest of different envs to configmap")
+			r.record.Event(envBinding, event.Warning("Failed to store manifest of different envs to configmap", err))
+			return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
+		}
+	} else {
+		if err = engine.dispatch(ctx, envBinding, envBindApps); err != nil {
+			klog.ErrorS(err, "Failed to dispatch resources of different envs to cluster")
+			r.record.Event(envBinding, event.Warning("Failed to dispatch resources of different envs to cluster", err))
+			return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
+		}
 	}
 
 	envBinding.Status.Phase = v1alpha1.EnvBindingFinished
-	envBinding.Status.ClusterDecisions = engine.GetClusterDecisions()
+	envBinding.Status.ClusterDecisions = clusterDecisions
 	if err = r.Client.Status().Patch(ctx, envBinding, client.Merge); err != nil {
 		klog.ErrorS(err, "Failed to update status")
 		r.record.Event(envBinding, event.Warning("Failed to update status", err))
