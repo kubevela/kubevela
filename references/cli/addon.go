@@ -20,11 +20,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/Masterminds/sprig"
 	"strings"
 	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig"
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -307,7 +307,7 @@ func (a *Addon) renderInitializer() (*unstructured.Unstructured, error) {
 	if a.Args == nil {
 		a.Args = map[string]string{}
 	}
-	t, err := template.New("addon-template").Delims("[[","]]").Funcs(sprig.TxtFuncMap()).Parse(a.initYaml)
+	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(a.initYaml)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing addon initializer template error")
 	}

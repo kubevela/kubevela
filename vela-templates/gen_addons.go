@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"io/fs"
 	"io/ioutil"
@@ -32,6 +31,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -267,9 +267,9 @@ func main() {
 	flag.Parse()
 
 	addons, err := walkAllAddons(addonsPath)
-	dealErr := func(addonName string,err error) {
+	dealErr := func(addonName string, err error) {
 		if err != nil {
-			fmt.Printf("%s gen_addon err:%e",addonName,err)
+			fmt.Printf("%s gen_addon err:%e", addonName, err)
 			os.Exit(1)
 		}
 	}
