@@ -79,7 +79,7 @@ func DefinitionCommandGroup(c common.Args) *cobra.Command {
 			types.TagCommandType: types.TypeCap,
 		},
 	}
-	_ = c.SetConfig() // set config if possible
+	_ = c.SetConfig() // set kubeConfig if possible, otherwise ignore it
 	cmd.AddCommand(
 		NewDefinitionGetCommand(c),
 		NewDefinitionListCommand(c),

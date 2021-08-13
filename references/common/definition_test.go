@@ -49,6 +49,7 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 		t.Fatalf("set type should failed due to invalid type, but got no error")
 	}
 	def.Object["spec"] = GetDefinitionDefaultSpec("TraitDefinition")
+	_ = unstructured.SetNestedField(def.Object, "patch: metadata: labels: \"KubeVela-test\": parameter.tag\nparameter: tag: string\n", "spec", "schematic", "cue", "template")
 	cueString, err := def.ToCUEString()
 	if err != nil {
 		t.Fatalf("unexpected error when getting to cue: %v", err)
@@ -83,6 +84,11 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	}
 	if err = def.FromCUEString(cueString, nil); err != nil {
 		t.Fatalf("unexpected error when setting from cue: %v", err)
+	}
+	if _cueString, err := def.ToCUEString(); err != nil {
+		t.Fatalf("failed to generate cue string: %v", err)
+	} else if _cueString != cueString {
+		t.Fatalf("the bidirectional conversion of cue string is not idempotent")
 	}
 	templateString, _, _ := unstructured.NestedString(def.Object, DefinitionTemplateKeys...)
 	_ = unstructured.SetNestedField(def.Object, "import \"strconv\"\n"+templateString, DefinitionTemplateKeys...)
