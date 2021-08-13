@@ -21,8 +21,13 @@ spec:
             repoType: helm
             repoUrl: https://kedacore.github.io/charts
             chart: keda
-[[ range .DefinitionFiles ]]
-        - name: [[ .Name ]]
+{{ range .ResourceFiles }}
+        - name: {{ .Name }}
           type: raw
           properties:
-[[ .Content | indent 12 ]] [[ end ]]
+{{ .Content | indent 12 }} {{ end }}
+{{ range .DefinitionFiles }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}

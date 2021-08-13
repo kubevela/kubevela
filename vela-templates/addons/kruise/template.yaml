@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1beta1
+aaiVersion: core.oam.dev/v1beta1
 kind: Initializer
 metadata:
   annotations:
@@ -24,8 +24,13 @@ spec:
             branch: master
             values:
               featureGates: PreDownloadImageForInPlaceUpdate=true
-[[ range .DefinitionFiles ]]
-        - name: [[ .Name ]]
+{{ range .ResourceFiles }}
+        - name: {{ .Name }}
           type: raw
           properties:
-[[ .Content | indent 12 ]] [[ end ]]
+{{ .Content | indent 12 }} {{ end }}
+{{ range .DefinitionFiles }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}

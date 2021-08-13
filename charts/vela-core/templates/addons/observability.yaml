@@ -31,7 +31,7 @@ data:
               version: 6.14.1
             traits:
             - properties:
-                domain: '{{ index .Args "ingress-domain" }}'
+                domain: '[[ index .Args "ingress-domain" ]]'
                 http:
                   /: 80
               type: pure-ingress
@@ -74,14 +74,15 @@ data:
               values:
                 alertmanager:
                   persistentVolume:
-                    enable: '{{ index .Args "alertmanager-pvc-enable" }}'
-                    size: '{{ index .Args "alertmanager-pvc-size" }}'
-                    storageClass: '{{ index .Args "alertmanager-pvc-class" }}'
+                    enable: '[[ index .Args "alertmanager-pvc-enable" | default "true"
+                      ]]'
+                    size: '[[ index .Args "alertmanager-pvc-size" ]]'
+                    storageClass: '[[ index .Args "alertmanager-pvc-class" ]]'
                 server:
                   persistentVolume:
-                    enable: '{{ index .Args "server-pvc-enable" }}'
-                    size: '{{ index .Args "server-pvc-size" }}'
-                    storageClass: '{{ index .Args "server-pvc-size" }}'
+                    enable: '[[ index .Args "server-pvc-enable" | default "true" ]]'
+                    size: '[[ index .Args "server-pvc-size" ]]'
+                    storageClass: '[[ index .Args "server-pvc-size" ]]'
               version: 14.4.1
             traits:
             - properties:

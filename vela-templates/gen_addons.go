@@ -175,7 +175,7 @@ func WriteToFile(filename string, data string) error {
 func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
 	templatePath := strings.Split(addon.TemplatePath, "/")
 	templateName := templatePath[len(templatePath)-1]
-	t, err := template.New(templateName).Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).ParseFiles(addon.TemplatePath)
+	t, err := template.New(templateName).Funcs(sprig.TxtFuncMap()).ParseFiles(addon.TemplatePath)
 	if err != nil {
 		return nil, err
 	}
@@ -267,9 +267,9 @@ func main() {
 	flag.Parse()
 
 	addons, err := walkAllAddons(addonsPath)
-	dealErr := func(err error) {
+	dealErr := func(addonName string,err error) {
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("%s gen_addon err:%e",addonName,err)
 			os.Exit(1)
 		}
 	}
@@ -279,12 +279,12 @@ func main() {
 	}
 	for _, addon := range addons {
 		addInfo, err := getAddonInfo(addon, addonsPath)
-		dealErr(err)
+		dealErr(addon, err)
 		init, err := generateInitializer(addInfo)
-		dealErr(err)
+		dealErr(addon, err)
 		err = storeInitializer(init, addonsPath, addInfo.Name)
-		dealErr(err)
+		dealErr(addon, err)
 		err = storeConfigMap(addInfo, init, storePath)
-		dealErr(err)
+		dealErr(addon, err)
 	}
 }
