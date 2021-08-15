@@ -21,7 +21,6 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.34.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
 	github.com/gin-gonic/gin v1.7.0
 	github.com/go-logr/logr v0.4.0
@@ -56,7 +55,6 @@ require (
 	github.com/swaggo/gin-swagger v1.3.0
 	github.com/swaggo/swag v1.6.7
 	github.com/tidwall/gjson v1.6.8
-	github.com/ugorji/go v1.2.1 // indirect
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.uber.org/zap v1.18.1
