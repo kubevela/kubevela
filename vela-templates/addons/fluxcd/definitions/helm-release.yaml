@@ -37,6 +37,25 @@ spec:
         			}
         		}
         	}
+        	if parameter.repoType == "bucket" {
+        		kind: "Bucket"
+        		spec: {
+        			interval: parameter.pullInterval
+        			provider: parameter.provider
+        			endpoint: parameter.endpoint
+        			if parameter.region != _|_ {
+        				region: parameter.region
+        			}
+        			if parameter.timeout != _|_ {
+        				timeout: parameter.timeout
+        			}
+        			if parameter.secretRef != _|_ {
+        				secretRef: {
+        					name: parameter.secretRef
+        				}
+        			}
+        		}
+        	}
         }
 
         outputs: release: {
@@ -58,6 +77,9 @@ spec:
         					if parameter.repoType == "helm" {
         						kind: "HelmRepository"
         					}
+        					if parameter.repoType == "bucket" {
+        						kind: "Bucket"
+        					}
         					name:      context.name
         					namespace: context.namespace
         				}
@@ -78,18 +100,29 @@ spec:
         }
 
         parameter: {
-        	repoType: "git" | "helm"
-        	// +usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url.
+        	// +usage=The type of source of chart. Enum of git/helm/bucket
+        	repoType: "git" | "helm" | "bucket"
+        	// +usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url
         	repoUrl: string
-        	// +usage=The interval at which to check for repository and relese updates.
+        	// +usage=The interval at which to check for repository/bucket and relese updates
         	pullInterval: *"5m" | string
-        	// +usage=1.The relative path to helm chart for git source. 2. chart name for helm resource
+        	// +usage=The bucket's name, required if repoType is bucket
+        	bucketName?: string
+        	// +usage="generic" for Minio, Amazon S3, Google Cloud Storage, Alibaba Cloud OSS, "aws" for retrieve credentials from the EC2 service when credentials not specified, default "generic"
+        	provider?: *"generic" | "aws"
+        	// +usage=Bucket endpoint address, required if repoType is bucket
+        	endpoint?: string
+        	// +usage=The bucket region, optional
+        	region?: string
+        	// +usage=The timeout for download operations
+        	timeout?: string
+        	// +usage=1.The relative path to helm chart for git/bucket source. 2. chart name for helm resource 3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)
         	chart: string
         	// +usage=Chart version
         	version: *"*" | string
-        	// +usage=The Git reference to checkout and monitor for changes, defaults to master branch.
+        	// +usage=The Git reference to checkout and monitor for changes, defaults to master branch
         	branch: *"master" | string
-        	// +usage=The name of the secret containing authentication credentials for the Helm repository.
+        	// +usage=The name of the secret containing authentication credentials for Helm repository or bucket
         	secretRef?: string
         	// +usage=The namespace for helm chart
         	targetNamespace?: string
