@@ -81,7 +81,7 @@ spec:
               persistentVolume:
                 enabled: '[[ index .Args "server-pvc-enabled" | default "true" ]]'
                 size: '[[ index .Args "server-pvc-size" | default "20Gi" ]]'
-                storageClass: '[[ index .Args "server-pvc-size" ]]'
+                storageClass: '[[ index .Args "server-pvc-class" ]]'
           version: 14.4.1
         traits:
         - properties:
