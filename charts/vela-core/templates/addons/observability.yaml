@@ -17,7 +17,7 @@ data:
               branch: master
               chart: ./chart
               repoType: git
-              repoUrl: https://github.com/zzxwill/grafana-datasource-registration
+              repoUrl: https://github.com/oam-dev/grafana-registration
               values:
                 replicaCount: 1
             type: helm
@@ -41,8 +41,8 @@ data:
                 grafanaServiceName: grafana
                 grafanaServiceNamespace: observability
                 urls:
-                - https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/kubevela_core_logging.json
-                - https://raw.githubusercontent.com/zzxwill/grafana-dashboards/master/kubevela_core_monitoring.json
+                - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
+                - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
               type: import-grafana-dashboard
             type: helm
           - name: loki
