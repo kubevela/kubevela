@@ -292,6 +292,75 @@ var _ = Describe("Test rollout related handler func", func() {
 			Expect(checkRt.Status.TrackedResources[0].Name).Should(BeEquivalentTo("test-workload"))
 			Expect(checkRt.Status.TrackedResources[0].UID).Should(BeEquivalentTo("test-uid"))
 		})
+
+		It("Test handle succeed func", func() {
+			ctx := context.Background()
+			namespaceName := "default"
+			rtName := "resourcetracker-v1-test-default"
+			rt := v1beta1.ResourceTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: rtName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, &rt)).Should(BeNil())
+			rollout := v1alpha1.Rollout{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						*metav1.NewControllerRef(&rt, v1beta1.ResourceTrackerKindVersionKind),
+					},
+				},
+			}
+			deploy := &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"workload.oam.dev/type": "worker",
+					},
+					Name:      "test-workload",
+					Namespace: namespaceName,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Selector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						"workload.oam.dev/type": "worker",
+					}},
+					Template: v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+							"workload.oam.dev/type": "worker",
+						}},
+						Spec: v1.PodSpec{Containers: []v1.Container{{
+							Image:   "busybox",
+							Name:    "comp-name",
+							Command: []string{"sleep", "1000"},
+						},
+						}}},
+				},
+			}
+			u, err := util.Object2Unstructured(deploy)
+			Expect(err).Should(BeNil())
+			Expect(k8sClient.Create(ctx, u)).Should(BeNil())
+			h := &handler{
+				reconciler: &reconciler{
+					Client: k8sClient,
+					record: event.NewNopRecorder(),
+				},
+				rollout:        &rollout,
+				targetWorkload: u,
+			}
+			Expect(h.handleFinalizeSucceed(ctx)).Should(BeNil())
+			checkDeploy := new(appsv1.Deployment)
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: u.GetNamespace(), Name: u.GetName()}, checkDeploy)).Should(BeNil())
+			Expect(len(checkDeploy.OwnerReferences)).Should(BeEquivalentTo(1))
+			Expect(checkDeploy.OwnerReferences[0].Kind).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
+			Expect(checkDeploy.OwnerReferences[0].Name).Should(BeEquivalentTo(rtName))
+			checkRt := v1beta1.ResourceTracker{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: rtName}, &checkRt)).Should(BeNil())
+			Expect(len(checkRt.Status.TrackedResources)).Should(BeEquivalentTo(1))
+			Expect(checkRt.Status.TrackedResources[0].Name).Should(BeEquivalentTo("test-workload"))
+			Expect(checkRt.Status.TrackedResources[0].UID).Should(BeEquivalentTo(u.GetUID()))
+		})
 	})
 })
 

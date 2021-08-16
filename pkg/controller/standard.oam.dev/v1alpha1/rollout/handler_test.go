@@ -324,10 +324,9 @@ func TestPassOwnerReference(t *testing.T) {
 	u := &unstructured.Unstructured{}
 	u.SetName("test-workload")
 	h := &handler{
-		rollout:        &rollout,
-		targetWorkload: u,
+		rollout: &rollout,
 	}
-	h.passOwnerToTargetWorkload()
-	assert.Assert(t, len(h.targetWorkload.GetOwnerReferences()) == 1)
-	assert.Assert(t, *h.targetWorkload.GetOwnerReferences()[0].Controller == false)
+	h.passOwnerToTargetWorkload(u)
+	assert.Assert(t, len(u.GetOwnerReferences()) == 1)
+	assert.Assert(t, *u.GetOwnerReferences()[0].Controller == false)
 }

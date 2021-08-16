@@ -26,7 +26,9 @@ spec:
         			rolloutStrategy: "IncreaseFirst"
         			rolloutBatches:  parameter.rolloutBatches
         			targetSize:      parameter.targetSize
-        			batchPartition:  parameter.batchPartition
+        			if parameter["batchPartition"] != _|_ {
+        				batchPartition: parameter.batchPartition
+        			}
         		}
         	}
         }
@@ -37,5 +39,4 @@ spec:
         	batchPartition?: int
         }
         rolloutBatch: replicas: int
-  skipRevisionAffect: true
 
