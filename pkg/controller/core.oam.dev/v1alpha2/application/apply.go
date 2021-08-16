@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
@@ -63,8 +64,13 @@ func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Un
 
 // DispatchAndGC apply manifests and do GC.
 func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
+	_ctx := ctx.(*common2.ReconcileContext)
 	h.initDispatcher()
-	tracker, err := h.dispatcher.EndAndGC(h.latestTracker).Dispatch(ctx, manifests)
+	_ctx.AddEvent("apply-app-manifest.dispatch-gc.init-dispatcher")
+	dispatcher := h.dispatcher.EndAndGC(h.latestTracker)
+	_ctx.AddEvent("apply-app-manifest.dispatch-gc.end-and-gc")
+	tracker, err := dispatcher.Dispatch(ctx, manifests)
+	_ctx.AddEvent("apply-app-manifest.dispatch-gc.dispatch")
 	if err != nil {
 		return nil, errors.WithMessage(err, "cannot dispatch application manifests")
 	}
@@ -95,6 +101,9 @@ func (h *AppHandler) initDispatcher() {
 
 // ApplyAppManifests will dispatch Application manifests
 func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
+	_ctx := ctx.(*common2.ReconcileContext)
+	_ctx.AddEvent("apply-app-manifest.begin")
+	defer _ctx.AddEvent("apply-app-manifest.end")
 	appRev := h.currentAppRev
 	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" || len(h.app.Spec.Policies) != 0 {
 		if err := h.Dispatch(ctx, policies...); err != nil {
@@ -102,10 +111,11 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 		}
 		return h.createResourcesConfigMap(ctx, appRev, comps, policies)
 	}
+	_ctx.AddEvent("apply-app-manifest.dispatch-policies")
 	if appWillRollout(h.app) {
 		return nil
 	}
-
+	_ctx.AddEvent("apply-app-manifest.rollout")
 	// dispatch packaged workload resources before dispatching assembled manifests
 	for _, comp := range comps {
 		if len(comp.PackagedWorkloadResources) != 0 {
@@ -117,12 +127,16 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 			continue
 		}
 	}
+	_ctx.AddEvent("apply-app-manifest.dispatch-comps")
 	a := assemble.NewAppManifests(h.currentAppRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
+	_ctx.AddEvent("apply-app-manifest.new-manifest")
 	manifests, err := a.AssembledManifests()
+	_ctx.AddEvent("apply-app-manifest.assemble-manifest")
 	if err != nil {
 		return errors.WithMessage(err, "cannot assemble application manifests")
 	}
 	_, err = h.DispatchAndGC(ctx, manifests...)
+	_ctx.AddEvent("apply-app-manifest.dispatch-gc")
 	return err
 }
 
