@@ -9,11 +9,9 @@ import (
 	description: "Apply components and traits for your workflow steps"
 }
 template: {
-	patch: {
-		// apply components and traits
-		apply: op.#ApplyComponent & {
-			component: parameter.component
-		}
+	// apply components and traits
+	apply: op.#ApplyComponent & {
+		component: parameter.component
 	}
 
 	parameter: {
