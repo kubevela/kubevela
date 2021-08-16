@@ -4,17 +4,18 @@ metadata:
   annotations:
     addons.oam.dev/description: An out of the box solution for KubeVela observability
   name: observability
-  namespace: vela-system
+  namespace: observability
 spec:
   appTemplate:
     spec:
       components:
-      - name: grafana-datasource-registration
+      - name: grafana-registration
         properties:
           branch: master
           chart: ./chart
           repoType: git
           repoUrl: https://github.com/oam-dev/grafana-registration
+          targetNamespace: observability
           values:
             replicaCount: 1
         type: helm
