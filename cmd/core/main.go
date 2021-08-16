@@ -21,6 +21,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -44,6 +46,8 @@ import (
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
 	"github.com/oam-dev/kubevela/version"
+
+	_ "net/http/pprof"
 )
 
 const (
@@ -57,6 +61,10 @@ var (
 )
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe(":6666", nil))
+	}()
+
 	var metricsAddr, logFilePath, leaderElectionNamespace string
 	var enableLeaderElection, logDebug bool
 	var logFileMaxSize uint64

@@ -52,6 +52,8 @@ type ReconcileContext struct {
 	cancel context.CancelFunc
 	begin time.Time
 	events []*ReconcileEvent
+	timestamps map[string]time.Time
+	timers map[string]time.Duration
 }
 
 func getControllerName() string {
@@ -78,6 +80,8 @@ func NewReconcileContext(ctx context.Context, req ctrl.Request) *ReconcileContex
 		req: req,
 		cancel: cancel,
 		events: []*ReconcileEvent{},
+		timestamps: map[string]time.Time{},
+		timers: map[string]time.Duration{},
 	}
 }
 
@@ -98,6 +102,9 @@ func (ctx *ReconcileContext) EndReconcile() {
 			t = event.Time
 		}
 		logger.Info("Performance", "event", "end_reconcile", "elapsed", time.Since(t0))
+		for name, _t := range ctx.timers {
+			logger.Info("Performance", "event", "timer::" + name, "elapsed", _t)
+		}
 	}
 }
 
@@ -107,5 +114,18 @@ func (ctx *ReconcileContext) AddEvent(name string) {
 			Name: name,
 			Time: time.Now(),
 		})
+	}
+}
+
+func (ctx *ReconcileContext) BeginTimer(name string) {
+	ctx.timestamps[name] = time.Now()
+}
+
+func (ctx *ReconcileContext) EndTimer(name string) {
+	if t, ok := ctx.timestamps[name]; ok {
+		if _, _ok := ctx.timers[name]; !_ok {
+			ctx.timers[name] = time.Duration(0)
+		}
+		ctx.timers[name] += time.Now().Sub(t)
 	}
 }
