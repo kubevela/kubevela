@@ -15,11 +15,9 @@ spec:
         	"vela/op"
         )
 
-        patch: {
-        	// apply remaining components and traits
-        	apply: op.#ApplyRemaining & {
-        		parameter
-        	}
+        // apply remaining components and traits
+        apply: op.#ApplyRemaining & {
+        	parameter
         }
         parameter: {
         	// +usage=Declare the name of the component

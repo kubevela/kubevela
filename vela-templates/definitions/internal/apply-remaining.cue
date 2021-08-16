@@ -9,11 +9,9 @@ import (
 	description: "Apply remaining components and traits"
 }
 template: {
-	patch: {
-		// apply remaining components and traits
-		apply: op.#ApplyRemaining & {
-			parameter
-		}
+	// apply remaining components and traits
+	apply: op.#ApplyRemaining & {
+		parameter
 	}
 
 	parameter: {

@@ -15,9 +15,9 @@ spec:
         	"vela/op"
         )
 
-        patch: component: op.#ApplyEnvBindComponent & {
+        component: op.#ApplyEnvBindComponent & {
         	env:       parameter.env
-        	policy:    parameter.policy
+        	policy:    context.name + "-" + parameter.policy
         	component: parameter.component
         	// context.namespace indicates the namespace of the app
         	namespace: context.namespace

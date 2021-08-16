@@ -9,14 +9,12 @@ import (
 	description: "Apply env binding component"
 }
 template: {
-	patch: {
-		component: op.#ApplyEnvBindComponent & {
-			env:       parameter.env
-			policy:    parameter.policy
-			component: parameter.component
-			// context.namespace indicates the namespace of the app
-			namespace: context.namespace
-		}
+	component: op.#ApplyEnvBindComponent & {
+		env:       parameter.env
+		policy:    context.name + "-" + parameter.policy
+		component: parameter.component
+		// context.namespace indicates the namespace of the app
+		namespace: context.namespace
 	}
 
 	parameter: {
