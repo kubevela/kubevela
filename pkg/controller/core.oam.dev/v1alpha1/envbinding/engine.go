@@ -51,15 +51,17 @@ type OCMEngine struct {
 	cli              client.Client
 	clusterDecisions map[string]string
 	appNs            string
+	envBindingName   string
 	appName          string
 }
 
 // NewOCMEngine create Open-Cluster-Management ClusterManagerEngine
-func NewOCMEngine(cli client.Client, appName, appNs string) ClusterManagerEngine {
+func NewOCMEngine(cli client.Client, appName, appNs, envBindingName string) ClusterManagerEngine {
 	return &OCMEngine{
-		cli:     cli,
-		appNs:   appNs,
-		appName: appName,
+		cli:            cli,
+		appNs:          appNs,
+		appName:        appName,
+		envBindingName: envBindingName,
 	}
 }
 
@@ -118,8 +120,6 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 		clusterName := o.clusterDecisions[app.envConfig.Name]
 		for componentName, manifest := range app.assembledManifests {
 			manifestWork := new(ocmworkv1.ManifestWork)
-			manifestWorkName := fmt.Sprintf("%s-%s-%s", app.envConfig.Name, o.appName, componentName)
-			manifestWork.SetName(manifestWorkName)
 			manifestWork.SetNamespace(clusterName)
 
 			workloads := make([]ocmworkv1.Manifest, len(manifest))
@@ -138,7 +138,7 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 				Object: obj,
 			}
 			unstructuredManifestWork.SetGroupVersionKind(ocmworkv1.GroupVersion.WithKind(reflect.TypeOf(ocmworkv1.ManifestWork{}).Name()))
-			envBindComponentName := fmt.Sprintf("%s-%s", app.envConfig.Name, componentName)
+			envBindComponentName := fmt.Sprintf("%s-%s-%s", o.envBindingName, app.envConfig.Name, componentName)
 			unstructuredManifestWork.SetName(envBindComponentName)
 			app.ScheduledManifests[envBindComponentName] = unstructuredManifestWork
 		}
@@ -228,23 +228,25 @@ type SingleClusterEngine struct {
 	cli                client.Client
 	appNs              string
 	appName            string
+	envBindingName     string
 	clusterDecisions   map[string]string
 	namespaceDecisions map[string]string
 }
 
 // NewSingleClusterEngine create a single cluster ClusterManagerEngine
-func NewSingleClusterEngine(cli client.Client, appName, appNs string) ClusterManagerEngine {
+func NewSingleClusterEngine(cli client.Client, appName, appNs, envBindingName string) ClusterManagerEngine {
 	return &SingleClusterEngine{
-		cli:     cli,
-		appNs:   appNs,
-		appName: appName,
+		cli:            cli,
+		appNs:          appNs,
+		appName:        appName,
+		envBindingName: envBindingName,
 	}
 }
 
 func (s *SingleClusterEngine) prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error {
 	clusterDecisions := make(map[string]string)
 	for _, config := range configs {
-		clusterDecisions[config.Name] = "local"
+		clusterDecisions[config.Name] = string(v1alpha1.LocalEngine)
 	}
 	s.clusterDecisions = clusterDecisions
 	return nil
@@ -271,7 +273,7 @@ func (s *SingleClusterEngine) schedule(ctx context.Context, apps []*EnvBindApp) 
 		if err != nil {
 			return nil, err
 		}
-		envBindAppName := fmt.Sprintf("%s-%s", app.envConfig.Name, app.patchedApp.Name)
+		envBindAppName := fmt.Sprintf("%s-%s-%s", s.envBindingName, app.envConfig.Name, s.appName)
 		unstructuredApp.SetName(envBindAppName)
 		unstructuredApp.SetNamespace(selectedNamespace)
 		app.ScheduledManifests[envBindAppName] = unstructuredApp
@@ -323,7 +325,7 @@ func (s *SingleClusterEngine) getSelectedNamespace(ctx context.Context, envbindA
 }
 
 func validatePlacement(envBinding *v1alpha1.EnvBinding) error {
-	if len(envBinding.Spec.Engine) != 0 {
+	if envBinding.Spec.Engine == v1alpha1.OCMEngine || len(envBinding.Spec.Engine) == 0 {
 		for _, config := range envBinding.Spec.Envs {
 			if config.Placement.ClusterSelector == nil {
 				return errors.New("the cluster selector of placement shouldn't be empty")

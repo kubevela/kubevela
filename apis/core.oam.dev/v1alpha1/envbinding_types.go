@@ -30,6 +30,9 @@ type ClusterManagementEngine string
 const (
 	// OCMEngine represents Open-Cluster-Management multi-cluster management solution
 	OCMEngine ClusterManagementEngine = "ocm"
+
+	// LocalEngine represents single cluster ClusterManagerEngine
+	LocalEngine ClusterManagementEngine = "local"
 )
 
 // EnvBindingPhase is a label for the condition of a EnvBinding at the current time

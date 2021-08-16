@@ -141,7 +141,7 @@ import ("encoding/yaml")
 		}
 	} @step(3)
 
-	target: "\(env)-\(component)"
+	target: "\(policy)-\(env)-\(component)"
 	apply: kube.#Apply & {
 		value: {
 			yaml.Unmarshal(configMap.value.data[target])
