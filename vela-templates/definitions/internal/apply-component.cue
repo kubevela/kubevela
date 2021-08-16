@@ -6,9 +6,6 @@ import (
   annotations: {}
   labels: {}
   description: "Apply components and traits for your workflow steps"
-  attributes: {
-    podDisruptive: false
-  }
 }
 template: {
   patch: {

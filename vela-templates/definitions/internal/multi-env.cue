@@ -6,9 +6,6 @@ import (
   annotations: {}
   labels: {}
   description: "Apply env binding component"
-  attributes: {
-    podDisruptive: false
-  }
 }
 template: {
   patch: {

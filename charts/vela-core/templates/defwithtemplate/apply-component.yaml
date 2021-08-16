@@ -8,7 +8,6 @@ metadata:
   name: apply-component
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
-  podDisruptive: false
   schematic:
     cue:
       template: |

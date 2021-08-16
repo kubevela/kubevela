@@ -6,9 +6,6 @@ import (
   annotations: {}
   labels: {}
   description: "Apply remaining components and traits"
-  attributes: {
-    podDisruptive: false
-  }
 }
 template: {
   patch: {
