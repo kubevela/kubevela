@@ -117,7 +117,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 						}),
 					}},
 				},
-				Placement: commontype.ClusterPlacement{
+				Placement: v1alpha1.EnvPlacement{
 					ClusterSelector: &commontype.ClusterSelector{},
 				},
 			}},
@@ -131,6 +131,10 @@ var _ = Describe("EnvBinding Normal tests", func() {
 
 		Eventually(func() error {
 			return k8sClient.Create(ctx, &ns)
+		}, time.Second*3, time.Microsecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		Eventually(func() error {
+			return k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: spokeClusterName}})
 		}, time.Second*3, time.Microsecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		webServiceDef := webService.DeepCopy()
@@ -159,6 +163,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &ocmclusterv1alpha1.Placement{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &ocmclusterv1alpha1.PlacementDecision{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &ocmworkv1.ManifestWork{}, client.InNamespace(namespace))
 
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
@@ -177,6 +182,10 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				RawExtension: util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
+			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
+				Namespace: envBinding.Namespace,
+				Name:      envBinding.Name,
+			}
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -224,8 +233,12 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Labels = map[string]string{
 				"purpose": "test",
 			}
-			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
+			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
+				Namespace: envBinding.Namespace,
+				Name:      envBinding.Name,
+			}
 
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			plName := fmt.Sprintf("%s-%s", appTemplate.Name, envBinding.Spec.Envs[0].Name)
 			Expect(fakePlacementDecision(ctx, plName, appTemplate.Namespace, spokeClusterName)).Should(BeNil())
 
@@ -284,12 +297,16 @@ var _ = Describe("EnvBinding Normal tests", func() {
 						},
 					}},
 				},
-				Placement: commontype.ClusterPlacement{
+				Placement: v1alpha1.EnvPlacement{
 					ClusterSelector: &commontype.ClusterSelector{
 						Name: spokeClusterName,
 					},
 				},
 			})
+			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
+				Namespace: envBinding.Namespace,
+				Name:      envBinding.Name,
+			}
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -320,7 +337,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			Expect(workload2.Spec.Template.Spec.Containers[0].Image).Should(Equal("nginx:1.20"))
 		})
 
-		It("Test Application contains helm type component", func() {
+		It("Test Application in EnvBinding contains helm type component", func() {
 			appTemplate := AppTemplate.DeepCopy()
 			appTemplate.SetName("app-with-helm")
 			appTemplate.SetNamespace(namespace)
@@ -354,12 +371,16 @@ var _ = Describe("EnvBinding Normal tests", func() {
 						}),
 					}},
 				},
-				Placement: commontype.ClusterPlacement{
+				Placement: v1alpha1.EnvPlacement{
 					ClusterSelector: &commontype.ClusterSelector{
 						Name: spokeClusterName,
 					},
 				},
 			}}
+			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
+				Namespace: envBinding.Namespace,
+				Name:      envBinding.Name,
+			}
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -377,8 +398,136 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
 			Expect(len(mw.Spec.Workload.Manifests)).Should(Equal(3))
 		})
+
+		It("Test EnvBinding apply resources to cluster", func() {
+			envBinding := BaseEnvBinding.DeepCopy()
+			appTemplate := AppTemplate.DeepCopy()
+			appTemplate.SetName("app-with-ocm")
+			appTemplate.SetNamespace(namespace)
+
+			envBinding.SetNamespace(namespace)
+			envBinding.SetName("envbinding-apply-resources-with-ocm")
+			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
+				RawExtension: util.Object2RawExtension(appTemplate),
+			}
+			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
+
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
+			By("Create envBinding")
+			Expect(k8sClient.Create(ctx, envBinding)).Should(BeNil())
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check whether create manifestWork")
+			mw1 := new(ocmworkv1.ManifestWork)
+			mw1Name := fmt.Sprintf("%s-%s", envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: mw1Name, Namespace: spokeClusterName}, mw1)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			mw2 := new(ocmworkv1.ManifestWork)
+			mw2Name := fmt.Sprintf("%s-%s", envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[1].Name)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: mw2Name, Namespace: spokeClusterName}, mw2)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			By("Check whether the parameter is patched")
+			workload1 := new(v1.Deployment)
+			Expect(yaml.Unmarshal(mw1.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
+			Expect(workload1.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
+			Expect(workload1.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
+
+			workload2 := new(v1.Deployment)
+			Expect(yaml.Unmarshal(mw2.Spec.Workload.Manifests[0].Raw, workload2)).Should(BeNil())
+			Expect(workload2.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort).Should(Equal(int32(8080)))
+
+			By("Check whether the cluster is selected correctly")
+			Expect(mw1.GetNamespace()).Should(Equal(spokeClusterName))
+			Expect(mw2.GetNamespace()).Should(Equal(spokeClusterName))
+		})
 	})
 
+	Context("Test EnvBinding with SingleCluster Engine", func() {
+		It("Test EnvBinding which will apply resources to cluster", func() {
+			envBinding := BaseEnvBinding.DeepCopy()
+			appTemplate := AppTemplate.DeepCopy()
+			appTemplate.SetName("test-app-apply2cluster")
+			appTemplate.SetNamespace(namespace)
+
+			envBinding.SetNamespace(namespace)
+			envBinding.SetName("envbinding-apply-resources")
+			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
+				RawExtension: util.Object2RawExtension(appTemplate),
+			}
+			envBinding.Spec.Engine = ""
+
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
+			By("Create envBinding")
+			Expect(k8sClient.Create(ctx, envBinding)).Should(BeNil())
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check the Application created by EnvBinding Controller")
+			appName := fmt.Sprintf("%s-%s", "prod", appTemplate.Name)
+			appReq := client.ObjectKey{Name: appName, Namespace: namespace}
+			envBindApp := new(v1beta1.Application)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, appReq, envBindApp)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			By("Check whether the parameter is patched")
+			componentParameter := make(map[string]string)
+			Expect(json.Unmarshal(envBindApp.Spec.Components[0].Properties.Raw, &componentParameter)).Should(BeNil())
+			Expect(componentParameter["image"]).Should(Equal("busybox"))
+
+			traitParameter := make(map[string]string)
+			Expect(json.Unmarshal(envBindApp.Spec.Components[0].Traits[0].Properties.Raw, &traitParameter)).Should(BeNil())
+			Expect(traitParameter["hello"]).Should(Equal("patch"))
+		})
+
+		It("Test EnvBinding which will store resources to configMap", func() {
+			envBinding := BaseEnvBinding.DeepCopy()
+			appTemplate := AppTemplate.DeepCopy()
+			appTemplate.SetName("test-app-store2configmap")
+			appTemplate.SetNamespace(namespace)
+
+			envBinding.SetNamespace(namespace)
+			envBinding.SetName("envbinding-store2configmap")
+			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
+				RawExtension: util.Object2RawExtension(appTemplate),
+			}
+			envBinding.Spec.Engine = ""
+			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
+				Namespace: namespace,
+				Name:      envBinding.Name,
+			}
+
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
+			By("Create envBinding")
+			Expect(k8sClient.Create(ctx, envBinding)).Should(BeNil())
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check whether create configmap")
+			cmKey := client.ObjectKey{Name: envBinding.Spec.OutputResourcesTo.Name, Namespace: envBinding.Spec.OutputResourcesTo.Namespace}
+			cm := new(corev1.ConfigMap)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, cmKey, cm)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			appName := fmt.Sprintf("%s-%s", "prod", appTemplate.Name)
+			appYaml := cm.Data[appName]
+
+			By("Check whether the parameter is patched")
+			app := new(v1beta1.Application)
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(BeNil())
+
+			componentParameter := make(map[string]string)
+			Expect(json.Unmarshal(app.Spec.Components[0].Properties.Raw, &componentParameter)).Should(BeNil())
+			Expect(componentParameter["image"]).Should(Equal("busybox"))
+
+			traitParameter := make(map[string]string)
+			Expect(json.Unmarshal(app.Spec.Components[0].Traits[0].Properties.Raw, &traitParameter)).Should(BeNil())
+			Expect(traitParameter["hello"]).Should(Equal("patch"))
+		})
+	})
 })
 
 func fakePlacementDecision(ctx context.Context, plName, namespace, clusterName string) error {

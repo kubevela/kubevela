@@ -96,7 +96,7 @@ func (h *AppHandler) initDispatcher() {
 // ApplyAppManifests will dispatch Application manifests
 func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	appRev := h.currentAppRev
-	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" || len(h.app.Spec.Policies) != 0 {
 		if err := h.Dispatch(ctx, policies...); err != nil {
 			return errors.WithMessage(err, "cannot dispatch policies before workflow")
 		}

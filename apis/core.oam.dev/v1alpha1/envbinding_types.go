@@ -54,11 +54,26 @@ type EnvPatch struct {
 	Components []common.ApplicationComponent `json:"components"`
 }
 
+// NamespaceSelector defines the rules to select a Namespace resource.
+// Either name or labels is needed.
+type NamespaceSelector struct {
+	// Name is the name of the namespace.
+	Name string `json:"name,omitempty"`
+	// Labels defines the label selector to select the namespace.
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+// EnvPlacement defines the placement rules for an app.
+type EnvPlacement struct {
+	ClusterSelector   *common.ClusterSelector `json:"clusterSelector,omitempty"`
+	NamespaceSelector *NamespaceSelector      `json:"namespaceSelector,omitempty"`
+}
+
 // EnvConfig is the configuration for different environments.
 type EnvConfig struct {
-	Name      string                  `json:"name"`
-	Placement common.ClusterPlacement `json:"placement"`
-	Patch     EnvPatch                `json:"patch"`
+	Name      string       `json:"name"`
+	Placement EnvPlacement `json:"placement,omitempty"`
+	Patch     EnvPatch     `json:"patch"`
 }
 
 // AppTemplate represents a application to be configured.
@@ -70,8 +85,18 @@ type AppTemplate struct {
 
 // ClusterDecision recorded the mapping of environment and cluster
 type ClusterDecision struct {
-	EnvName     string `json:"env_name"`
-	ClusterName string `json:"cluster_name"`
+	Env       string `json:"env"`
+	Cluster   string `json:"cluster,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// A ConfigMapReference is a reference to a configMap in an arbitrary namespace.
+type ConfigMapReference struct {
+	// Name of the secret.
+	Name string `json:"name"`
+
+	// Namespace of the secret.
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // A EnvBindingSpec defines the desired state of a EnvBinding.
@@ -82,6 +107,11 @@ type EnvBindingSpec struct {
 	AppTemplate AppTemplate `json:"appTemplate"`
 
 	Envs []EnvConfig `json:"envs"`
+
+	// OutputResourcesTo specifies the namespace and name of a ConfigMap
+	// which store the resources rendered after differentiated configuration
+	// +optional
+	OutputResourcesTo *ConfigMapReference `json:"outputResourcesTo,omitempty"`
 }
 
 // A EnvBindingStatus is the status of EnvBinding

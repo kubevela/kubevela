@@ -18,7 +18,6 @@ package envbinding
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
@@ -49,7 +48,7 @@ type EnvBindApp struct {
 	componentManifests []*types.ComponentManifest
 	assembledManifests map[string][]*unstructured.Unstructured
 
-	ManifestWork map[string]*unstructured.Unstructured
+	ScheduledManifests map[string]*unstructured.Unstructured
 }
 
 // NewEnvBindApp create EnvBindApp
@@ -256,17 +255,21 @@ func StoreManifest2ConfigMap(ctx context.Context, cli client.Client, envBinding 
 	cm := new(corev1.ConfigMap)
 	data := make(map[string]string)
 	for _, app := range apps {
-		for componentName, manifest := range app.ManifestWork {
+		for name, manifest := range app.ScheduledManifests {
 			objYaml, err := yaml.Marshal(manifest.UnstructuredContent())
 			if err != nil {
 				return err
 			}
-			data[fmt.Sprintf("%s-%s", app.envConfig.Name, componentName)] = string(objYaml)
+			data[name] = string(objYaml)
 		}
 	}
 	cm.Data = data
-	cm.SetName(envBinding.Name)
-	cm.SetNamespace(envBinding.Namespace)
+	cm.SetName(envBinding.Spec.OutputResourcesTo.Name)
+	if len(envBinding.Spec.OutputResourcesTo.Namespace) == 0 {
+		cm.SetNamespace("default")
+	} else {
+		cm.SetNamespace(envBinding.Spec.OutputResourcesTo.Namespace)
+	}
 
 	ownerReference := []metav1.OwnerReference{{
 		APIVersion:         envBinding.APIVersion,
