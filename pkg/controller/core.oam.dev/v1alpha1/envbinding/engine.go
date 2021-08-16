@@ -22,6 +22,7 @@ import (
 	"reflect"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -41,7 +42,7 @@ import (
 type ClusterManagerEngine interface {
 	prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error
 	initEnvBindApps(ctx context.Context, envBinding *v1alpha1.EnvBinding, baseApp *v1beta1.Application, appParser *appfile.Parser) ([]*EnvBindApp, error)
-	schedule(apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error)
+	schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error)
 	dispatch(ctx context.Context, envBinding *v1alpha1.EnvBinding, apps []*EnvBindApp) error
 }
 
@@ -108,7 +109,7 @@ func (o *OCMEngine) initEnvBindApps(ctx context.Context, envBinding *v1alpha1.En
 }
 
 // Schedule decides which cluster the apps is scheduled to
-func (o *OCMEngine) schedule(apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error) {
+func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error) {
 	var clusterDecisions []v1alpha1.ClusterDecision
 
 	for i := range apps {
@@ -145,8 +146,8 @@ func (o *OCMEngine) schedule(apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, er
 
 	for env, cluster := range o.clusterDecisions {
 		clusterDecisions = append(clusterDecisions, v1alpha1.ClusterDecision{
-			EnvName:     env,
-			ClusterName: cluster,
+			Env:     env,
+			Cluster: cluster,
 		})
 	}
 	return clusterDecisions, nil
@@ -224,10 +225,11 @@ func generatePlacementName(appName, envName string) string {
 
 // SingleClusterEngine represents deploy resources to the local cluster
 type SingleClusterEngine struct {
-	cli              client.Client
-	appNs            string
-	appName          string
-	clusterDecisions map[string]string
+	cli                client.Client
+	appNs              string
+	appName            string
+	clusterDecisions   map[string]string
+	namespaceDecisions map[string]string
 }
 
 // NewSingleClusterEngine create a single cluster ClusterManagerEngine
@@ -252,11 +254,18 @@ func (s *SingleClusterEngine) initEnvBindApps(ctx context.Context, envBinding *v
 	return CreateEnvBindApps(envBinding, baseApp)
 }
 
-func (s *SingleClusterEngine) schedule(apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error) {
+func (s *SingleClusterEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error) {
 	var clusterDecisions []v1alpha1.ClusterDecision
-
+	namespaceDecisions := make(map[string]string)
 	for i := range apps {
 		app := apps[i]
+
+		selectedNamespace, err := s.getSelectedNamespace(ctx, app)
+		namespaceDecisions[app.envConfig.Name] = selectedNamespace
+		if err != nil {
+			return nil, err
+		}
+
 		app.ScheduledManifests = make(map[string]*unstructured.Unstructured, len(app.assembledManifests))
 		unstructuredApp, err := util.Object2Unstructured(app.patchedApp)
 		if err != nil {
@@ -264,33 +273,60 @@ func (s *SingleClusterEngine) schedule(apps []*EnvBindApp) ([]v1alpha1.ClusterDe
 		}
 		envBindAppName := fmt.Sprintf("%s-%s", app.envConfig.Name, app.patchedApp.Name)
 		unstructuredApp.SetName(envBindAppName)
+		unstructuredApp.SetNamespace(selectedNamespace)
 		app.ScheduledManifests[envBindAppName] = unstructuredApp
 	}
 
+	s.namespaceDecisions = namespaceDecisions
 	for env, cluster := range s.clusterDecisions {
 		clusterDecisions = append(clusterDecisions, v1alpha1.ClusterDecision{
-			EnvName:     env,
-			ClusterName: cluster,
+			Env:       env,
+			Cluster:   cluster,
+			Namespace: s.namespaceDecisions[env],
 		})
 	}
 	return clusterDecisions, nil
 }
 
 func (s *SingleClusterEngine) dispatch(ctx context.Context, envBinding *v1alpha1.EnvBinding, apps []*EnvBindApp) error {
-	ownerReferences := []metav1.OwnerReference{{
-		APIVersion: envBinding.APIVersion,
-		Kind:       envBinding.Kind,
-		Name:       envBinding.Name,
-		UID:        envBinding.GetUID(),
-	}}
-
 	applicator := apply.NewAPIApplicator(s.cli)
 	for _, app := range apps {
 		for _, obj := range app.ScheduledManifests {
-			obj.SetOwnerReferences(ownerReferences)
 			err := applicator.Apply(ctx, obj)
 			if err != nil {
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *SingleClusterEngine) getSelectedNamespace(ctx context.Context, envbindApp *EnvBindApp) (string, error) {
+	if envbindApp.envConfig.Placement.NamespaceSelector != nil {
+		selector := envbindApp.envConfig.Placement.NamespaceSelector
+		if len(selector.Name) != 0 {
+			return selector.Name, nil
+		}
+		if len(selector.Labels) != 0 {
+			namespaceList := new(corev1.NamespaceList)
+			listOpts := []client.ListOption{
+				client.MatchingLabels(selector.Labels),
+			}
+			err := s.cli.List(ctx, namespaceList, listOpts...)
+			if err != nil || len(namespaceList.Items) == 0 {
+				return "", errors.Wrapf(err, "fail to list selected namespace for env %s", envbindApp.envConfig.Name)
+			}
+			return namespaceList.Items[0].Name, nil
+		}
+	}
+	return envbindApp.patchedApp.Namespace, nil
+}
+
+func validatePlacement(envBinding *v1alpha1.EnvBinding) error {
+	if len(envBinding.Spec.Engine) != 0 {
+		for _, config := range envBinding.Spec.Envs {
+			if config.Placement.ClusterSelector == nil {
+				return errors.New("the cluster selector of placement shouldn't be empty")
 			}
 		}
 	}

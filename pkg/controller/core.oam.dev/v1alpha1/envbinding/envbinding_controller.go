@@ -63,6 +63,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	if err := validatePlacement(envBinding); err != nil {
+		klog.ErrorS(err, "The placement is not compliant")
+		r.record.Event(envBinding, event.Warning("The placement is not compliant", err))
+		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
+	}
+
 	baseApp, err := util.RawExtension2Application(envBinding.Spec.AppTemplate.RawExtension)
 	if err != nil {
 		klog.ErrorS(err, "Failed to parse AppTemplate of EnvBinding")
@@ -98,7 +104,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// schedule resource of applications in different envs
 	envBinding.Status.Phase = v1alpha1.EnvBindingScheduling
-	clusterDecisions, err := engine.schedule(envBindApps)
+	clusterDecisions, err := engine.schedule(ctx, envBindApps)
 	if err != nil {
 		klog.ErrorS(err, "Failed to schedule resource of applications in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to schedule resource of applications in different envs", err))

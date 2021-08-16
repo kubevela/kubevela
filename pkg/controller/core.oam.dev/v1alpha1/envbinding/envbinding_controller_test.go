@@ -117,7 +117,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 						}),
 					}},
 				},
-				Placement: commontype.ClusterPlacement{
+				Placement: v1alpha1.EnvPlacement{
 					ClusterSelector: &commontype.ClusterSelector{},
 				},
 			}},
@@ -297,7 +297,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 						},
 					}},
 				},
-				Placement: commontype.ClusterPlacement{
+				Placement: v1alpha1.EnvPlacement{
 					ClusterSelector: &commontype.ClusterSelector{
 						Name: spokeClusterName,
 					},
@@ -371,7 +371,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 						}),
 					}},
 				},
-				Placement: commontype.ClusterPlacement{
+				Placement: v1alpha1.EnvPlacement{
 					ClusterSelector: &commontype.ClusterSelector{
 						Name: spokeClusterName,
 					},
