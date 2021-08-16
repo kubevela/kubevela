@@ -148,7 +148,6 @@ spec:
                 required:
                 - name
                 - patch
-                - placement
                 type: object
               type: array
             outputResourcesTo:

@@ -57,7 +57,7 @@ type EnvPatch struct {
 // EnvConfig is the configuration for different environments.
 type EnvConfig struct {
 	Name      string                  `json:"name"`
-	Placement common.ClusterPlacement `json:"placement"`
+	Placement common.ClusterPlacement `json:"placement,omitempty"`
 	Patch     EnvPatch                `json:"patch"`
 }
 
