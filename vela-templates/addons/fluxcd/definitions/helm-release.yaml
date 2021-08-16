@@ -43,6 +43,7 @@ spec:
         			interval: parameter.pullInterval
         			provider: parameter.provider
         			endpoint: parameter.endpoint
+        			bucketName: parameter.bucketName
         			if parameter.region != _|_ {
         				region: parameter.region
         			}

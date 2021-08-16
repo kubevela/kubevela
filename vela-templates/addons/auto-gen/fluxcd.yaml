@@ -5923,10 +5923,11 @@ spec:
                   parameter.secretRef\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n\tif parameter.repoType
                   == \"bucket\" {\n\t\tkind: \"Bucket\"\n\t\tspec: {\n\t\t\tinterval:
                   parameter.pullInterval\n\t\t\tprovider: parameter.provider\n\t\t\tendpoint:
-                  parameter.endpoint\n\t\t\tif parameter.region != _|_ {\n\t\t\t\tregion:
-                  parameter.region\n\t\t\t}\n\t\t\tif parameter.timeout != _|_ {\n\t\t\t\ttimeout:
-                  parameter.timeout\n\t\t\t}\n\t\t\tif parameter.secretRef != _|_
-                  {\n\t\t\t\tsecretRef: {\n\t\t\t\t\tname: parameter.secretRef\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n\noutputs:
+                  parameter.endpoint\n\t\t\tbucketName: parameter.bucketName\n\t\t\tif
+                  parameter.region != _|_ {\n\t\t\t\tregion: parameter.region\n\t\t\t}\n\t\t\tif
+                  parameter.timeout != _|_ {\n\t\t\t\ttimeout: parameter.timeout\n\t\t\t}\n\t\t\tif
+                  parameter.secretRef != _|_ {\n\t\t\t\tsecretRef: {\n\t\t\t\t\tname:
+                  parameter.secretRef\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n\noutputs:
                   release: {\n\tapiVersion: \"helm.toolkit.fluxcd.io/v2beta1\"\n\tkind:
                   \      \"HelmRelease\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec:
                   {\n\t\tinterval: parameter.pullInterval\n\t\tchart: {\n\t\t\tspec:
