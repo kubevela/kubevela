@@ -1,6 +1,7 @@
 apiVersion: v1
 data:
   initializer: |
+    apiVersion: core.oam.dev/v1beta1
     kind: Initializer
     metadata:
       annotations:
