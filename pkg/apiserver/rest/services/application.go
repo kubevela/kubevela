@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -48,31 +47,30 @@ func (s *ApplicationService) CreateOrUpdateApplication(c echo.Context) error {
 	name := c.Param("appname")
 	appReq := new(apis.ApplicationRequest)
 	if err := c.Bind(appReq); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body: " + err.Error()})
 	}
 	ctx := context.TODO()
-	var app v1beta1.Application
+	var app, existApp v1beta1.Application
 	app.Namespace = namespace
 	app.Name = name
 	app.Spec.Components = appReq.Components
 	app.Spec.Policies = appReq.Policies
 	app.Spec.Workflow = appReq.Workflow
-	err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &v1beta1.Application{})
+	err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &existApp)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			return c.JSON(http.StatusInternalServerError, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fail to get application: " + err.Error()})
 		}
 		err = s.k8sClient.Create(ctx, &app)
 		if err != nil {
-			fmt.Println("XXXX", err)
-
-			return c.JSON(http.StatusInternalServerError, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fail to create application: " + err.Error()})
 		}
 		return c.JSON(http.StatusOK, struct{}{})
 	}
-	err = s.k8sClient.Update(ctx, &app)
+	existApp.Spec = app.Spec
+	err = s.k8sClient.Update(ctx, &existApp)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fail to update application: " + err.Error()})
 	}
 	return c.JSON(http.StatusOK, struct{}{})
 }
