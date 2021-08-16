@@ -23,6 +23,7 @@ template: {
 				rolloutStrategy: "IncreaseFirst"
 				rolloutBatches:  parameter.rolloutBatches
 				targetSize:      parameter.targetSize
+				batchPartition:  parameter.batchPartition
 			}
 		}
 	}
@@ -31,6 +32,7 @@ template: {
 		targetRevision: *context.revision | string
 		targetSize:     int
 		rolloutBatches: [...rolloutBatch]
+		batchPartition?: int
 	}
 
 	rolloutBatch: replicas: int
