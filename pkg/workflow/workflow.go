@@ -77,6 +77,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	if wfStatus.Suspend {
 		pause = true
+		w.app.Status.Phase = common.ApplicationWorkflowSuspending
 		return
 	}
 

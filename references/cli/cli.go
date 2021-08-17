@@ -85,6 +85,9 @@ func NewCommand() *cobra.Command {
 		NewEnvCommand(commandArgs, ioStream),
 		NewConfigCommand(ioStream),
 
+		// Workflows
+		NewWorkflowCommand(commandArgs, ioStream),
+
 		// Capabilities
 		CapabilityCommandGroup(commandArgs, ioStream),
 		NewTemplateCommand(ioStream),

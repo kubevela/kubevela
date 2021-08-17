@@ -207,7 +207,7 @@ var _ = Describe("Test Workflow", func() {
 		}, appObj)).Should(BeNil())
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
-		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 
 		// resume
 		appObj.Status.Workflow.Suspend = false
