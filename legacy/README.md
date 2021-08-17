@@ -12,7 +12,7 @@ Runtime helm repo.
 
 ```
 $ kubectl create namespace vela-system
-$ helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core
+$ helm repo add kubevela https://charts.kubevela.net/core
 ```
 
 Run the following command to install a KubeVela core legacy chart.
