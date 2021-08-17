@@ -79,9 +79,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var engine ClusterManagerEngine
 	switch envBinding.Spec.Engine {
 	case v1alpha1.OCMEngine:
-		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace)
+		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
+	case v1alpha1.LocalEngine:
+		engine = NewSingleClusterEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
 	default:
-		engine = NewSingleClusterEngine(r.Client, baseApp.Name, baseApp.Namespace)
+		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
 	}
 
 	// prepare the pre-work for cluster scheduling
