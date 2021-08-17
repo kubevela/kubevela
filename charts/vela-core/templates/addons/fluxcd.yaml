@@ -5964,7 +5964,7 @@ data:
                       to master branch\n\tbranch: *\"master\" | string\n\t// +usage=The
                       name of the secret containing authentication credentials for Helm
                       repository or bucket\n\tsecretRef?: string\n\t// +usage=The namespace
-                      for helm chart\n\ttargetNamespace?: string\n\t// +usage=Chart version\n\tvalue?:
+                      for helm chart\n\ttargetNamespace?: string\n\t// +usage=Chart value\n\tvalue?:
                       #nestedmap\n    // +usage=The release name\n    releaseName?: string\n}\n\n#nestedmap:
                       {\n\t...\n} \n"
                 workload:

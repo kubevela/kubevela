@@ -127,7 +127,7 @@ spec:
         	secretRef?: string
         	// +usage=The namespace for helm chart
         	targetNamespace?: string
-        	// +usage=Chart version
+        	// +usage=Chart value
         	value?: #nestedmap
             // +usage=The release name
             releaseName?: string
