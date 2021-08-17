@@ -172,3 +172,7 @@ jobs:
 
       - name: Run compress binary
         run: make compress
+              
+      - name: Cleanup image
+        if: ${{ always() }}
+        run: make image-cleanup
