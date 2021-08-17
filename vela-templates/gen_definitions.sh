@@ -17,12 +17,20 @@ REGISTRY_DEFINITION_DIR="definitions/registry"
 INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
 REGISTRY_TEMPLATE_DIR="registry/auto-gen"
 
+VELA_CMD="../bin/vela"
+if [ ! -f "$VELA_CMD" ]; then
+  echo -e "${HEAD_PROMPT}${YELLOW}Failed to get vela command, fallback to use \`go run\`."
+  VELA_CMD="go run ../references/cmd/cli/main.go"
+else
+  echo -e "${HEAD_PROMPT}${GREEN}Got vela command binary."
+fi
+
 function render {
   inputDir=$1
   outputDir=$2
   rm "$outputDir"/* 2>/dev/null || true
   mkdir -p "$outputDir"
-  go run ../references/cmd/cli/main.go def render "$inputDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$inputDir/{{INPUT_FILENAME}}"
+  $VELA_CMD def render "$inputDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$inputDir/{{INPUT_FILENAME}}"
 }
 
 echo -e "${HEAD_PROMPT}Start generating definitions at ${LIGHTGRAY}${SCRIPT_DIR}${NC} ..."
