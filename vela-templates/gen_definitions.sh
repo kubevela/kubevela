@@ -23,6 +23,7 @@ if [ ! -f "$VELA_CMD" ]; then
   VELA_CMD="go run ../references/cmd/cli/main.go"
 else
   echo -e "${HEAD_PROMPT}${GREEN}Got vela command binary."
+  vela version
 fi
 
 function render {
