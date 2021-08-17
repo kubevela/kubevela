@@ -21,7 +21,7 @@ spec:
             repoType: helm
             repoUrl: https://prometheus-community.github.io/helm-charts
             chart: premetheus
-{{  range .DefinitionFiles  }}
+{{ range .DefinitionFiles }}
         - name: {{ .Name }}
           type: raw
           properties:

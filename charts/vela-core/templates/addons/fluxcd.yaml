@@ -5933,7 +5933,8 @@ data:
                       == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tname:
                       \     context.name\n\t\t\t\t\tnamespace: context.namespace\n\t\t\t\t}\n\t\t\t\tinterval:
                       parameter.pullInterval\n\t\t\t}\n\t\t}\n\t\tif parameter.targetNamespace
-                      != _|_ {\n\t\t\ttargetNamespace: parameter.targetNamespace\n\t\t}\n\t\tif
+                      != _|_ {\n\t\t\ttargetNamespace: parameter.targetNamespace\n\t\t}\n
+                      \       if parameter.releaseName != _|_ {\n\t\t\treleaseName: parameter.releaseName\n\t\t}\n\n\t\tif
                       parameter.values != _|_ {\n\t\t\tvalues: parameter.values\n\t\t}\n\t}\n}\n\nparameter:
                       {\n\trepoType: \"git\" | \"helm\"\n\t// +usage=The Git or Helm repository
                       URL, accept HTTP/S or SSH address as git url.\n\trepoUrl: string\n\t//
@@ -5946,7 +5947,8 @@ data:
                       name of the secret containing authentication credentials for the
                       Helm repository.\n\tsecretRef?: string\n\t// +usage=The namespace
                       for helm chart\n\ttargetNamespace?: string\n\t// +usage=Chart version\n\tvalue?:
-                      #nestedmap\n}\n\n#nestedmap: {\n\t...\n} \n"
+                      #nestedmap\n    // +usage=The release name\n    releaseName?: string\n}\n\n#nestedmap:
+                      {\n\t...\n} \n"
                 workload:
                   type: autodetects.core.oam.dev
             type: raw

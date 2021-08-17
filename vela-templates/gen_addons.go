@@ -31,6 +31,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -181,7 +182,7 @@ func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
 	var buf bytes.Buffer
 	err = t.Execute(&buf, addon)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "generate Initializer %s fail", addon.Name)
 	}
 
 	init := new(v1beta1.Initializer)
@@ -266,9 +267,9 @@ func main() {
 	flag.Parse()
 
 	addons, err := walkAllAddons(addonsPath)
-	dealErr := func(err error) {
+	dealErr := func(addonName string, err error) {
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("%s gen_addon err:%e", addonName, err)
 			os.Exit(1)
 		}
 	}
@@ -278,12 +279,12 @@ func main() {
 	}
 	for _, addon := range addons {
 		addInfo, err := getAddonInfo(addon, addonsPath)
-		dealErr(err)
+		dealErr(addon, err)
 		init, err := generateInitializer(addInfo)
-		dealErr(err)
+		dealErr(addon, err)
 		err = storeInitializer(init, addonsPath, addInfo.Name)
-		dealErr(err)
+		dealErr(addon, err)
 		err = storeConfigMap(addInfo, init, storePath)
-		dealErr(err)
+		dealErr(addon, err)
 	}
 }

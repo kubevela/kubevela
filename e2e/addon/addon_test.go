@@ -57,7 +57,7 @@ var _ = Describe("Addon Test", func() {
 		})
 	})
 	Context("Enable addon", func() {
-		It("Enable addon fluxcd", func() {
+		It("Enable addon test-addon", func() {
 			output, err := e2e.Exec("vela addon enable test-addon")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully enable addon"))
@@ -80,7 +80,7 @@ var _ = Describe("Addon Test", func() {
 	})
 
 	Context("Disable addon", func() {
-		It("Disable addon fluxcd", func() {
+		It("Disable addon test-addon", func() {
 			output, err := e2e.LongTimeExec("vela addon disable test-input-addon", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully disable addon"))
@@ -162,9 +162,9 @@ data:
           components:
           - name: test-chart
             properties:
-              chart: {{ index .Args "chart" }}
+              chart: [[ index .Args "chart" ]]
               repoType: helm
-              repoUrl: {{ index .Args "repoUrl" }}
+              repoUrl: [[ index .Args "repoUrl" ]]
             type: helm
         status:
           rollout:

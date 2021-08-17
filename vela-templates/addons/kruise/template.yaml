@@ -22,9 +22,14 @@ spec:
             repoUrl: https://github.com/openkruise/kruise
             chart: ./charts/kruise/v0.9.0
             branch: master
-            values: 
+            values:
               featureGates: PreDownloadImageForInPlaceUpdate=true
-{{  range .DefinitionFiles  }}
+{{ range .ResourceFiles }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}
+{{ range .DefinitionFiles }}
         - name: {{ .Name }}
           type: raw
           properties:

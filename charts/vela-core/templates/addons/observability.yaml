@@ -1,0 +1,139 @@
+apiVersion: v1
+data:
+  initializer: |
+    apiVersion: core.oam.dev/v1beta1
+    kind: Initializer
+    metadata:
+      annotations:
+        addons.oam.dev/description: An out of the box solution for KubeVela observability
+      name: observability
+      namespace: observability
+    spec:
+      appTemplate:
+        spec:
+          components:
+          - name: grafana-registration
+            properties:
+              branch: master
+              chart: ./chart
+              repoType: git
+              repoUrl: https://github.com/oam-dev/grafana-registration
+              targetNamespace: observability
+              values:
+                replicaCount: 1
+            type: helm
+          - name: grafana
+            properties:
+              chart: grafana
+              releaseName: grafana
+              repoType: helm
+              repoUrl: https://grafana.github.io/helm-charts
+              targetNamespace: observability
+              version: 6.14.1
+            traits:
+            - properties:
+                domain: '[[ index .Args "grafana-domain" ]]'
+                http:
+                  /: 80
+              type: pure-ingress
+            - properties:
+                credentialSecret: grafana
+                credentialSecretNamespace: observability
+                grafanaServiceName: grafana
+                grafanaServiceNamespace: observability
+                urls:
+                - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
+                - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
+              type: import-grafana-dashboard
+            type: helm
+          - name: loki
+            properties:
+              chart: loki-stack
+              releaseName: loki
+              repoType: helm
+              repoUrl: https://grafana.github.io/helm-charts
+              targetNamespace: observability
+              version: 2.4.1
+            traits:
+            - properties:
+                access: proxy
+                credentialSecret: grafana
+                credentialSecretNamespace: observability
+                grafanaServiceName: grafana
+                grafanaServiceNamespace: observability
+                name: loki
+                namespace: observability
+                service: loki
+                type: loki
+              type: register-grafana-datasource
+            type: helm
+          - name: prometheus-server
+            properties:
+              chart: prometheus
+              releaseName: prometheus
+              repoType: helm
+              repoUrl: https://prometheus-community.github.io/helm-charts
+              targetNamespace: observability
+              values:
+                alertmanager:
+                  persistentVolume:
+                    enabled: '[[ index .Args "alertmanager-pvc-enabled" | default "true"
+                      ]]'
+                    size: '[[ index .Args "alertmanager-pvc-size" | default "20Gi" ]]'
+                    storageClass: '[[ index .Args "alertmanager-pvc-class" ]]'
+                server:
+                  persistentVolume:
+                    enabled: '[[ index .Args "server-pvc-enabled" | default "true" ]]'
+                    size: '[[ index .Args "server-pvc-size" | default "20Gi" ]]'
+                    storageClass: '[[ index .Args "server-pvc-class" ]]'
+              version: 14.4.1
+            traits:
+            - properties:
+                access: proxy
+                credentialSecret: grafana
+                credentialSecretNamespace: observability
+                grafanaServiceName: grafana
+                grafanaServiceNamespace: observability
+                name: prometheus
+                namespace: observability
+                service: prometheus-server
+                type: prometheus
+              type: register-grafana-datasource
+            type: helm
+          - name: kube-state-metrics
+            properties:
+              chart: kube-state-metrics
+              repoType: helm
+              repoUrl: https://prometheus-community.github.io/helm-charts
+              targetNamespace: observability
+              version: 3.4.1
+            type: helm
+        status:
+          rollout:
+            batchRollingState: ""
+            currentBatch: 0
+            lastTargetAppRevision: ""
+            rollingState: ""
+            upgradedReadyReplicas: 0
+            upgradedReplicas: 0
+      dependsOn:
+      - ref:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Initializer
+          name: fluxcd
+          namespace: vela-system
+      - ref:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Initializer
+          name: observability-asset
+          namespace: vela-system
+    status:
+      observedGeneration: 0
+kind: ConfigMap
+metadata:
+  annotations:
+    addons.oam.dev/description: An out of the box solution for KubeVela observability
+  labels:
+    addons.oam.dev/type: observability
+  name: observability
+  namespace: {{.Values.systemDefinitionNamespace}}

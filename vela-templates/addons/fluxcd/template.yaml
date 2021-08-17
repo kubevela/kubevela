@@ -15,12 +15,12 @@ spec:
   appTemplate:
     spec:
       components:
-{{  range .ResourceFiles  }}
+{{ range .ResourceFiles }}
         - name: {{ .Name }}
           type: raw
           properties:
 {{ .Content | indent 12 }} {{ end }}
-{{  range .DefinitionFiles  }}
+{{ range .DefinitionFiles }}
         - name: {{ .Name }}
           type: raw
           properties:
