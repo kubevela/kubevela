@@ -8,8 +8,8 @@ on:
   workflow_dispatch: {}
 
 env:
-  BUCKET: kubevelacharts
-  ENDPOINT: oss-cn-hangzhou.aliyuncs.com
+  BUCKET: ${{ secrets.OSS_BUCKET }}
+  ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
   ACCESS_KEY: ${{ secrets.OSS_ACCESS_KEY }}
   ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
   ARTIFACT_HUB_REPOSITORY_ID: ${{ secrets.ARTIFACT_HUB_REPOSITORY_ID }}
