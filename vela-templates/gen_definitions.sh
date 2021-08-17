@@ -19,10 +19,23 @@ REGISTRY_DEFINITION_DIR="definitions/registry"
 INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
 REGISTRY_TEMPLATE_DIR="registry/auto-gen"
 
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=""
+case $(uname -m) in
+    i386)   ARCH="386" ;;
+    i686)   ARCH="386" ;;
+    x86_64) ARCH="amd64" ;;
+    arm)    ARCH="arm64" ;;
+esac
+
 VELA_CMD="../bin/vela"
 if [ ! -f "$VELA_CMD" ]; then
-  echo -e "${HEAD_PROMPT}${YELLOW}Failed to get vela command, fallback to use \`go run\`."
-  VELA_CMD="go run ../references/cmd/cli/main.go"
+  VELA_CMD="../_bin/vela/$OS-$ARCH/vela"
+  echo -e "${HEAD_PROMPT}${LIGHTGRAY}Search cross build vela binary in ${VELA_CMD}.${NC}"
+fi
+if [ ! -f "$VELA_CMD" ]; then
+    echo -e "${HEAD_PROMPT}${YELLOW}Failed to get vela command, fallback to use \`go run\`.${NC}"
+    VELA_CMD="go run ../references/cmd/cli/main.go"
 else
   echo -e "${HEAD_PROMPT}${GREEN}Got vela command binary."
   $VELA_CMD version
