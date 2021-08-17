@@ -53,7 +53,7 @@ template: {
 		}
 	}
 	parameter: {
-		engine: *"local" | string
+		engine: *"ocm" | string
 		envs: [...#Env]
 		created: *true | bool
 	}
