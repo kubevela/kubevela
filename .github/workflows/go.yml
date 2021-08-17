@@ -139,7 +139,7 @@ jobs:
           version: ${{ env.GOLANGCI_VERSION }}
 
   check-diff:
-    runs-on: ubuntu-20.04
+    runs-on: aliyun
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 

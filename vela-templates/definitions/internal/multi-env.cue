@@ -11,7 +11,7 @@ import (
 template: {
 	component: op.#ApplyEnvBindComponent & {
 		env:       parameter.env
-		policy:    context.name + "-" + parameter.policy
+		policy:    parameter.policy
 		component: parameter.component
 		// context.namespace indicates the namespace of the app
 		namespace: context.namespace
