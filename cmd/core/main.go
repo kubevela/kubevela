@@ -130,6 +130,8 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
+	restConfig.QPS = 10000
+	restConfig.Burst = 10000
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                  scheme,
