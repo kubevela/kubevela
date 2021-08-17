@@ -110,7 +110,7 @@ spec:
         	// +usage=The bucket's name, required if repoType is bucket
         	bucketName?: string
         	// +usage="generic" for Minio, Amazon S3, Google Cloud Storage, Alibaba Cloud OSS, "aws" for retrieve credentials from the EC2 service when credentials not specified, default "generic"
-        	provider?: *"generic" | "aws"
+        	provider: *"generic" | "aws"
         	// +usage=Bucket endpoint address, required if repoType is bucket
         	endpoint?: string
         	// +usage=The bucket region, optional

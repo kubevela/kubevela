@@ -5949,7 +5949,7 @@ spec:
                   bucket's name, required if repoType is bucket\n\tbucketName?: string\n\t//
                   +usage=\"generic\" for Minio, Amazon S3, Google Cloud Storage, Alibaba
                   Cloud OSS, \"aws\" for retrieve credentials from the EC2 service
-                  when credentials not specified, default \"generic\"\n\tprovider?:
+                  when credentials not specified, default \"generic\"\n\tprovider:
                   *\"generic\" | \"aws\"\n\t// +usage=Bucket endpoint address, required
                   if repoType is bucket\n\tendpoint?: string\n\t// +usage=The bucket
                   region, optional\n\tregion?: string\n\t// +usage=The timeout for
