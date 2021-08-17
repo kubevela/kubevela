@@ -42,7 +42,7 @@ spec:
           traits:
             - type: pure-ingress
               properties:
-                domain: '[[ index .Args "ingress-domain" ]]'
+                domain: '[[ index .Args "grafana-domain" ]]'
                 http:
                   "/": 80
             - type: import-grafana-dashboard

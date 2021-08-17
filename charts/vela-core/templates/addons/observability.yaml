@@ -32,7 +32,7 @@ data:
               version: 6.14.1
             traits:
             - properties:
-                domain: '[[ index .Args "ingress-domain" ]]'
+                domain: '[[ index .Args "grafana-domain" ]]'
                 http:
                   /: 80
               type: pure-ingress
