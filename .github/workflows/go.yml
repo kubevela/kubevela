@@ -167,8 +167,8 @@ jobs:
       - name: Run cross-build
         run: make cross-build
 
-      - name: Run compress binary
-        run: make compress
-
       - name: Check Diff
         run: make check-diff
+
+      - name: Run compress binary
+        run: make compress
