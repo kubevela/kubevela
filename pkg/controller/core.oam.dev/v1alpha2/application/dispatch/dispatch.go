@@ -18,7 +18,6 @@ package dispatch
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -237,7 +236,6 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}
-	_ctx := ctx.(*common.ReconcileContext)
 	//errorChan := make(chan error, 1)
 	//defer close(errorChan)
 	//handleManifest := func(idx int, rsc *unstructured.Unstructured) error {
@@ -271,11 +269,8 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 	//		errorChan <- handleManifest(_idx, _rsc)
 	//	}(idx, rsc)
 	//}
-	_ctx.AddEvent("dispatch.apply.start-range")
-	for idx, rsc := range manifests {
-
+	for _, rsc := range manifests {
 		immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, ownerRef, applyOpts)
-		_ctx.AddEvent(fmt.Sprintf("dispatch.apply.range-%d.ImmutableResourcesUpdate", idx))
 		if immutable {
 			if err != nil {
 				klog.ErrorS(err, "Failed to apply immutable resource with new ownerReference", "object",
@@ -288,19 +283,15 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 
 		// each resource applied by dispatcher MUST be controlled by resource tracker
 		setOrOverrideOAMControllerOwner(rsc, ownerRef)
-		_ctx.AddEvent(fmt.Sprintf("dispatch.apply.range-%d.setOrOverrideOAMControllerOwner", idx))
 		if err := a.applicator.Apply(ctx, rsc, applyOpts...); err != nil {
 			klog.ErrorS(err, "Failed to apply a resource", "object",
 				klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
 			return errors.Wrapf(err, "cannot apply manifest, name: %q apiVersion: %q kind: %q",
 				rsc.GetName(), rsc.GetAPIVersion(), rsc.GetKind())
 		}
-		_ctx.AddEvent(fmt.Sprintf("dispatch.apply.range-%d.Apply", idx))
 		klog.InfoS("Successfully apply a resource", "object",
 			klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
 	}
-	_ctx.AddEvent("dispatch.apply.end-range")
-	defer _ctx.AddEvent("dispatch.apply.update-tracker-status")
 	return a.updateResourceTrackerStatus(ctx, manifests)
 }
 
