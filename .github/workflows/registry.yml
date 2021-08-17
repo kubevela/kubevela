@@ -115,15 +115,11 @@ jobs:
         run:  |
           latest_repo_tag=${{ steps.latest_tag.outputs.tag }}
           sub="."
-          major="$(cut -d"$sub" -f1 <<<"$latest_repo_tag")"
-          minor="$(cut -d"$sub" -f2 <<<"$latest_repo_tag")"
-          patch="0"
-          next_repo_tag="$major.$(($minor + 1)).$patch"
           image_tag=${GITHUB_REF#refs/tags/}
           chart_version=$latest_repo_tag
           if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
             image_tag=latest
-            chart_version=${next_repo_tag}-rc-master
+            chart_version=${$latest_repo_tag}-nightly-build
           fi
           sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $LEGACY_HELM_CHART/values.yaml
