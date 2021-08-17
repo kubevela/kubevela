@@ -164,25 +164,11 @@ jobs:
       - name: Check code formatting
         run: go install golang.org/x/tools/cmd/goimports && make fmt
 
-      - name: Check Diff
-        run: make check-diff
-
-  build-cli:
-    runs-on: ubuntu-latest
-    needs: detect-noop
-    if: needs.detect-noop.outputs.noop != 'true'
-
-    steps:
-      - name: Set up Go 1.16
-        uses: actions/setup-go@v2
-        with:
-          go-version: ${{ env.GO_VERSION }}
-        id: go
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
       - name: Run cross-build
         run: make cross-build
+
       - name: Run compress binary
         run: make compress
-      - name: Run make reviewable
-        run: make reviewable
+
+      - name: Check Diff
+        run: make check-diff
