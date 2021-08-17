@@ -61,10 +61,6 @@ var (
 )
 
 func main() {
-	go func() {
-		log.Println(http.ListenAndServe(":6666", nil))
-	}()
-
 	var metricsAddr, logFilePath, leaderElectionNamespace string
 	var enableLeaderElection, logDebug bool
 	var logFileMaxSize uint64
@@ -77,6 +73,9 @@ func main() {
 	var storageDriver string
 	var syncPeriod time.Duration
 	var applyOnceOnly string
+	var qps float64
+	var burst int
+	var pprofAddr string
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
@@ -107,15 +106,24 @@ func main() {
 		"controller shared informer lister full re-sync period")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.IntVar(&controllerArgs.ConcurrentReconciles, "concurrent-reconciles", 4, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
+	flag.Float64Var(&qps, "qps", 50, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
+	flag.IntVar(&burst, "burst", 100, "the burst for reconcile clients. Recommend setting it qps*2.")
 	flag.DurationVar(&controllerArgs.DependCheckWait, "depend-check-wait", 30*time.Second, "depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready."+
 		"The default value is 30s, which means if dependent resources were not prepared, the ApplicationConfiguration would be reconciled after 30s.")
 	flag.StringVar(&controllerArgs.OAMSpecVer, "oam-spec-ver", "v0.3", "oam-spec-ver is the oam spec version controller want to setup, available options: v0.2, v0.3, all")
+	flag.StringVar(&pprofAddr, "pprof-addr", "", "The address for pprof to use while exporting profiling results. The default value is empty which means do not expose it. Set it to address like :6666 to expose it.")
 
 	flag.Parse()
 	// setup logging
 	klog.InitFlags(nil)
 	if logDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+
+	if pprofAddr != "" {
+		go func() {
+			log.Println(http.ListenAndServe(pprofAddr, nil))
+		}()
 	}
 
 	if logFilePath != "" {
@@ -130,8 +138,8 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
-	restConfig.QPS = 10000
-	restConfig.Burst = 10000
+	restConfig.QPS = float32(qps)
+	restConfig.Burst = burst
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                  scheme,
