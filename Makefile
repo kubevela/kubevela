@@ -91,6 +91,9 @@ cross-build:
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/kubectl-vela/{{.OS}}-{{.Arch}}/kubectl-vela" -osarch='$(TARGETS)' ./cmd/plugin
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/apiserver/{{.OS}}-{{.Arch}}/apiserver" -osarch="$(TARGETS)" ./cmd/apiserver
 
+build-cleanup:
+	rm -rf _bin
+
 compress:
 	( \
 		echo "\n## Release Info\nVERSION: $(VELA_VERSION)" >> README.md && \

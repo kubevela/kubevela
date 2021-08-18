@@ -169,10 +169,6 @@ jobs:
 
       - name: Check Diff
         run: make check-diff
-
-      - name: Run compress binary
-        run: make compress
               
-      - name: Cleanup image
-        if: ${{ always() }}
-        run: make image-cleanup
+      - name: Cleanup binary
+        run: make build-cleanup
