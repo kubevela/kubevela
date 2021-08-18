@@ -107,23 +107,23 @@ spec:
         	repoUrl: string
         	// +usage=The interval at which to check for repository/bucket and relese updates
         	pullInterval: *"5m" | string
-        	// +usage=The bucket's name, required if repoType is bucket
+        	// +usage=The bucket's name, required if repoType is oss
         	bucketName?: string
         	// +usage="generic" for Minio, Amazon S3, Google Cloud Storage, Alibaba Cloud OSS, "aws" for retrieve credentials from the EC2 service when credentials not specified, default "generic"
         	provider: *"generic" | "aws"
-        	// +usage=Bucket endpoint address, required if repoType is bucket
+        	// +usage=Bucket endpoint address, required if repoType is oss
         	endpoint?: string
         	// +usage=The bucket region, optional
         	region?: string
         	// +usage=The timeout for download operations
         	timeout?: string
-        	// +usage=1.The relative path to helm chart for git/bucket source. 2. chart name for helm resource 3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)
+        	// +usage=1.The relative path to helm chart for git/oss source. 2. chart name for helm resource 3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)
         	chart: string
         	// +usage=Chart version
         	version: *"*" | string
         	// +usage=The Git reference to checkout and monitor for changes, defaults to master branch
         	branch: *"master" | string
-        	// +usage=The name of the secret containing authentication credentials for Helm repository or bucket
+        	// +usage=The name of the secret containing authentication credentials for Helm repository or oss bucket
         	secretRef?: string
         	// +usage=The namespace for helm chart
         	targetNamespace?: string
