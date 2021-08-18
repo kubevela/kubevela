@@ -19,9 +19,10 @@ spec:
           type: helm
           properties:
             repoType: git
-            repoUrl: https://github.com/openkruise/kruise
+            url: https://github.com/openkruise/kruise
             chart: ./charts/kruise/v0.9.0
-            branch: master
+            git:
+              branch: master
             values:
               featureGates: PreDownloadImageForInPlaceUpdate=true
 {{ range .ResourceFiles }}

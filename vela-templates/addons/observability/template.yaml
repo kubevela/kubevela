@@ -24,8 +24,9 @@ spec:
           type: helm
           properties:
             repoType: git
-            repoUrl: https://github.com/oam-dev/grafana-registration
-            branch: master
+            url: https://github.com/oam-dev/grafana-registration
+            git:
+              branch: master
             chart: ./chart
             targetNamespace: observability
             values:
@@ -35,7 +36,7 @@ spec:
             chart: grafana
             version: 6.14.1
             repoType: helm
-            repoUrl: https://grafana.github.io/helm-charts
+            url: https://grafana.github.io/helm-charts
             targetNamespace: observability
             releaseName: grafana
           type: helm
@@ -60,7 +61,7 @@ spec:
             chart: loki-stack
             version: 2.4.1
             repoType: helm
-            repoUrl: https://grafana.github.io/helm-charts
+            url: https://grafana.github.io/helm-charts
             targetNamespace: observability
             releaseName: loki
           traits:
@@ -81,7 +82,7 @@ spec:
             chart: prometheus
             version: 14.4.1
             repoType: helm
-            repoUrl: https://prometheus-community.github.io/helm-charts
+            url: https://prometheus-community.github.io/helm-charts
             targetNamespace: observability
             releaseName: prometheus
             values:
@@ -113,7 +114,7 @@ spec:
             chart: kube-state-metrics
             version: 3.4.1
             repoType: helm
-            repoUrl: https://prometheus-community.github.io/helm-charts
+            url: https://prometheus-community.github.io/helm-charts
             targetNamespace: observability
             values:
               image:

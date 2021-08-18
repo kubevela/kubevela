@@ -19,7 +19,7 @@ spec:
           type: helm
           properties:
             repoType: git
-            repoUrl: https://github.com/oam-dev/terraform-controller
+            url: https://github.com/oam-dev/terraform-controller
             chart: ./chart
 {{ range .ResourceFiles }}
         - name: {{ .Name }}

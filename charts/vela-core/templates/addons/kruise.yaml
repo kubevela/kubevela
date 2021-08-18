@@ -15,10 +15,11 @@ data:
           components:
           - name: kruise
             properties:
-              branch: master
               chart: ./charts/kruise/v0.9.0
+              git:
+                branch: master
               repoType: git
-              repoUrl: https://github.com/openkruise/kruise
+              url: https://github.com/openkruise/kruise
               values:
                 featureGates: PreDownloadImageForInPlaceUpdate=true
             type: helm

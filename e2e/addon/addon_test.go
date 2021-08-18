@@ -73,7 +73,7 @@ var _ = Describe("Addon Test", func() {
 
 	Context("Test addon receive input", func() {
 		It("Enable addon with input", func() {
-			output, err := e2e.LongTimeExec("vela addon enable test-input-addon repoUrl=https://charts.bitnami.com/bitnami chart=redis", 300*time.Second)
+			output, err := e2e.LongTimeExec("vela addon enable test-input-addon url=https://charts.bitnami.com/bitnami chart=redis", 300*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully enable addon"))
 		})
@@ -164,7 +164,7 @@ data:
             properties:
               chart: [[ index .Args "chart" ]]
               repoType: helm
-              repoUrl: [[ index .Args "repoUrl" ]]
+              url: [[ index .Args "url" ]]
             type: helm
         status:
           rollout:
