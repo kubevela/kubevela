@@ -16,45 +16,36 @@ spec:
         	metadata: {
         		name: context.name
         	}
-        	if parameter.git != _|_ {
+        	if parameter.repoType == "git" {
         		kind: "GitRepository"
         		spec: {
-        			interval: parameter.pullInterval
-        			url:      parameter.url
-        			ref:
-        				branch: parameter.git.branch
-        		}
-        	}
-        	if parameter.helm != _|_ {
-        		kind: "HelmRepository"
-        		spec: {
-        			interval: parameter.pullInterval
-        			url:      parameter.url
-        			if parameter.helm.secretRef != _|_ {
-        				secretRef: {
-        					name: parameter.helm.secretRef
-        				}
+        			url: parameter.url
+        			if parameter.git.branch != _|_ {
+        				ref: branch: parameter.git.branch
         			}
+        			_secret
+        			_sourceCommonArgs
         		}
         	}
-        	if parameter.oss != _|_ {
+        	if parameter.repoType == "oss" {
         		kind: "Bucket"
         		spec: {
         			endpoint:   parameter.url
-        			interval:   parameter.pullInterval
         			bucketName: parameter.oss.bucketName
         			provider:   parameter.oss.provider
         			if parameter.oss.region != _|_ {
         				region: parameter.oss.region
         			}
-        			if parameter.oss.timeout != _|_ {
-        				timeout: parameter.oss.timeout
-        			}
-        			if parameter.oss.secretRef != _|_ {
-        				secretRef: {
-        					name: parameter.oss.secretRef
-        				}
-        			}
+        			_secret
+        			_sourceCommonArgs
+        		}
+        	}
+        	if parameter.repoType == "helm" {
+        		kind: "HelmRepository"
+        		spec: {
+        			url: parameter.url
+        			_secret
+        			_sourceCommonArgs
         		}
         	}
         }
@@ -72,13 +63,13 @@ spec:
         				chart:   parameter.chart
         				version: parameter.version
         				sourceRef: {
-        					if parameter.git != _|_ {
+        					if parameter.repoType == "git" {
         						kind: "GitRepository"
         					}
-        					if parameter.helm != _|_ {
+        					if parameter.repoType == "helm" {
         						kind: "HelmRepository"
         					}
-        					if parameter.oss != _|_ {
+        					if parameter.repoType == "oss" {
         						kind: "Bucket"
         					}
         					name:      context.name
@@ -99,19 +90,35 @@ spec:
         	}
         }
 
+        _secret: {
+        	if parameter.secretRef != _|_ {
+        		secretRef: {
+        			name: parameter.secretRef
+        		}
+        	}
+        }
+
+        _sourceCommonArgs: {
+        	interval: parameter.pullInterval
+        	if parameter.timeout != _|_ {
+        		timeout: parameter.timeout
+        	}
+        }
+
         parameter: {
+        	repoType: *"helm" | "git" | "oss"
         	// +usage=The interval at which to check for repository/bucket and relese updates, default to 5m
         	pullInterval: *"5m" | string
         	// +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S or SSH address as git url,
         	url: string
+        	// +usage=The name of the secret containing authentication credentials
+        	secretRef?: string
+        	// +usage=The timeout for operations like download index/clone repository, optional
+        	timeout?: string
 
         	git?: {
         		// +usage=The Git reference to checkout and monitor for changes, defaults to master branch
-        		branch: *"master" | string
-        	}
-        	helm?: {
-        		// +usage=The name of the secret containing authentication credentials for Helm repository or oss bucket
-        		secretRef?: string
+        		branch: string
         	}
         	oss?: {
         		// +usage=The bucket's name, required if repoType is oss
@@ -120,10 +127,6 @@ spec:
         		provider: *"generic" | "aws"
         		// +usage=The bucket region, optional
         		region?: string
-        		// +usage=The timeout for download operations, optional
-        		timeout?: string
-        		// +usage=The name of the secret containing authentication credentials for Helm repository or oss bucket
-        		secrietRef?: string
         	}
 
         	// +usage=1.The relative path to helm chart for git/oss source. 2. chart name for helm resource 3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)
