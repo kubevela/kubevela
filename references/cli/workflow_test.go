@@ -35,8 +35,6 @@ import (
 func TestWorkflowSuspend(t *testing.T) {
 	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	cmd := NewWorkflowSuspendCommand(c, ioStream)
-	initCommand(cmd)
 	ctx := context.TODO()
 
 	testCases := map[string]struct {
@@ -87,6 +85,8 @@ func TestWorkflowSuspend(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
+			cmd := NewWorkflowSuspendCommand(c, ioStream)
+			initCommand(cmd)
 
 			if tc.app != nil {
 				err := c.Client.Create(ctx, tc.app)
@@ -115,8 +115,6 @@ func TestWorkflowSuspend(t *testing.T) {
 func TestWorkflowResume(t *testing.T) {
 	c := initArgs()
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	cmd := NewWorkflowResumeCommand(c, ioStream)
-	initCommand(cmd)
 	ctx := context.TODO()
 
 	testCases := map[string]struct {
@@ -194,6 +192,8 @@ func TestWorkflowResume(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
+			cmd := NewWorkflowResumeCommand(c, ioStream)
+			initCommand(cmd)
 
 			if tc.app != nil {
 				err := c.Client.Create(ctx, tc.app)
