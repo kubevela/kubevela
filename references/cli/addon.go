@@ -109,10 +109,7 @@ func NewAddonEnableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 		Example: "vela addon enable <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				_, err := ioStream.Out.Write([]byte("Must specify addon name"))
-				if err != nil {
-					return err
-				}
+				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
 			addonArgs, err := parseToMap(args[1:])
@@ -153,10 +150,7 @@ func NewAddonDisableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 		Example: "vela addon disable <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				_, err := ioStream.Out.Write([]byte("Must specify addon name"))
-				if err != nil {
-					return err
-				}
+				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
 			err := disableAddon(name)
