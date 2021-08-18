@@ -54,8 +54,6 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 		Long:    "Suspend an application workflow in cluster",
 		Example: "vela workflow suspend <application-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// nolint:errcheck
-			ioStream.Out.Write([]byte(fmt.Sprintf("len: %v", len(args))))
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
