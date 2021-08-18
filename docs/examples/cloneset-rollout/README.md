@@ -5,7 +5,7 @@ Here is an example of how to rollout an application with a component of type Clo
 ## Install Kruise
 
 ```shell 
-helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
+helm install kruise https://github.com/openkruise/kruise/releases/download/v0.9.0/kruise-chart.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
 ```
 
 ## Rollout steps
