@@ -14,11 +14,12 @@ data:
           components:
           - name: grafana-registration
             properties:
-              branch: master
               chart: ./chart
+              git:
+                branch: master
               repoType: git
-              repoUrl: https://github.com/oam-dev/grafana-registration
               targetNamespace: observability
+              url: https://github.com/oam-dev/grafana-registration
               values:
                 replicaCount: 1
             type: helm
@@ -27,8 +28,8 @@ data:
               chart: grafana
               releaseName: grafana
               repoType: helm
-              repoUrl: https://grafana.github.io/helm-charts
               targetNamespace: observability
+              url: https://grafana.github.io/helm-charts
               version: 6.14.1
             traits:
             - properties:
@@ -51,8 +52,8 @@ data:
               chart: loki-stack
               releaseName: loki
               repoType: helm
-              repoUrl: https://grafana.github.io/helm-charts
               targetNamespace: observability
+              url: https://grafana.github.io/helm-charts
               version: 2.4.1
             traits:
             - properties:
@@ -72,8 +73,8 @@ data:
               chart: prometheus
               releaseName: prometheus
               repoType: helm
-              repoUrl: https://prometheus-community.github.io/helm-charts
               targetNamespace: observability
+              url: https://prometheus-community.github.io/helm-charts
               values:
                 alertmanager:
                   persistentVolume:
@@ -104,8 +105,8 @@ data:
             properties:
               chart: kube-state-metrics
               repoType: helm
-              repoUrl: https://prometheus-community.github.io/helm-charts
               targetNamespace: observability
+              url: https://prometheus-community.github.io/helm-charts
               values:
                 image:
                   repository: oamdev/kube-state-metrics

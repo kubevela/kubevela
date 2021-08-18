@@ -17,7 +17,7 @@ data:
             properties:
               chart: ./chart
               repoType: git
-              repoUrl: https://github.com/oam-dev/terraform-controller
+              url: https://github.com/oam-dev/terraform-controller
             type: helm
           - name: terraform-system
             properties:

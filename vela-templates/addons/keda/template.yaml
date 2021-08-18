@@ -19,7 +19,7 @@ spec:
           type: helm
           properties:
             repoType: helm
-            repoUrl: https://kedacore.github.io/charts
+            url: https://kedacore.github.io/charts
             chart: keda
 {{ range .ResourceFiles }}
         - name: {{ .Name }}
