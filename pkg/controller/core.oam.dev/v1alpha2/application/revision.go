@@ -100,6 +100,9 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 
 // SprintComponentManifest formats and returns the resulting string.
 func SprintComponentManifest(cm *types.ComponentManifest) string {
+	if cm.StandardWorkload.GetName() == "" {
+		cm.StandardWorkload.SetName(cm.Name)
+	}
 	cl := map[string]interface{}{
 		ManifestKeyWorkload: string(util.MustJSONMarshal(cm.StandardWorkload)),
 	}
