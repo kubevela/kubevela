@@ -19,7 +19,7 @@ spec:
         	if parameter.repoType == "git" {
         		kind: "GitRepository"
         		spec: {
-        			url: parameter.repoUrl
+        			url: parameter.url
         			ref:
         				branch: parameter.branch
         			interval: parameter.pullInterval
@@ -29,7 +29,7 @@ spec:
         		kind: "HelmRepository"
         		spec: {
         			interval: parameter.pullInterval
-        			url:      parameter.repoUrl
+        			url:      parameter.url
         			if parameter.secretRef != _|_ {
         				secretRef: {
         					name: parameter.secretRef
@@ -103,9 +103,9 @@ spec:
         parameter: {
         	// +usage=The type of source of chart. Enum of git/helm/oss
         	repoType: "git" | "helm" | "oss"
-        	// +usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url
-        	repoUrl: string
-        	// +usage=The interval at which to check for repository/bucket and relese updates
+        	// +usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url, required if repoType is git/helm
+        	url: string
+        	// +usage=The interval at which to check for repository/bucket and relese updates, optional
         	pullInterval: *"5m" | string
         	// +usage=The bucket's name, required if repoType is oss
         	bucketName?: string
@@ -115,7 +115,7 @@ spec:
         	endpoint?: string
         	// +usage=The bucket region, optional
         	region?: string
-        	// +usage=The timeout for download operations
+        	// +usage=The timeout for download operations, optional
         	timeout?: string
         	// +usage=1.The relative path to helm chart for git/oss source. 2. chart name for helm resource 3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)
         	chart: string

@@ -5918,10 +5918,10 @@ data:
                   cue:
                     template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata:
                       {\n\t\tname: context.name\n\t}\n\tif parameter.repoType == \"git\"
-                      {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.repoUrl\n\t\t\tref:\n\t\t\t\tbranch:
+                      {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.url\n\t\t\tref:\n\t\t\t\tbranch:
                       parameter.branch\n\t\t\tinterval: parameter.pullInterval\n\t\t}\n\t}\n\tif
                       parameter.repoType == \"helm\" {\n\t\tkind: \"HelmRepository\"\n\t\tspec:
-                      {\n\t\t\tinterval: parameter.pullInterval\n\t\t\turl:      parameter.repoUrl\n\t\t\tif
+                      {\n\t\t\tinterval: parameter.pullInterval\n\t\t\turl:      parameter.url\n\t\t\tif
                       parameter.secretRef != _|_ {\n\t\t\t\tsecretRef: {\n\t\t\t\t\tname:
                       parameter.secretRef\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n\tif parameter.repoType
                       == \"oss\" {\n\t\tkind: \"Bucket\"\n\t\tspec: {\n\t\t\tinterval:
@@ -5946,27 +5946,28 @@ data:
                       parameter.values != _|_ {\n\t\t\tvalues: parameter.values\n\t\t}\n\t}\n}\n\nparameter:
                       {\n\t// +usage=The type of source of chart. Enum of git/helm/oss\n\trepoType:
                       \"git\" | \"helm\" | \"oss\"\n\t// +usage=The Git or Helm repository
-                      URL, accept HTTP/S or SSH address as git url\n\trepoUrl: string\n\t//
-                      +usage=The interval at which to check for repository/bucket and
-                      relese updates\n\tpullInterval: *\"5m\" | string\n\t// +usage=The
-                      bucket's name, required if repoType is oss\n\tbucketName?: string\n\t//
-                      +usage=\"generic\" for Minio, Amazon S3, Google Cloud Storage, Alibaba
-                      Cloud OSS, \"aws\" for retrieve credentials from the EC2 service
-                      when credentials not specified, default \"generic\"\n\tprovider:
-                      *\"generic\" | \"aws\"\n\t// +usage=Bucket endpoint address, required
-                      if repoType is oss\n\tendpoint?: string\n\t// +usage=The bucket
-                      region, optional\n\tregion?: string\n\t// +usage=The timeout for
-                      download operations\n\ttimeout?: string\n\t// +usage=1.The relative
-                      path to helm chart for git/oss source. 2. chart name for helm resource
-                      3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)\n\tchart:
-                      string\n\t// +usage=Chart version\n\tversion: *\"*\" | string\n\t//
-                      +usage=The Git reference to checkout and monitor for changes, defaults
-                      to master branch\n\tbranch: *\"master\" | string\n\t// +usage=The
-                      name of the secret containing authentication credentials for Helm
-                      repository or oss bucket\n\tsecretRef?: string\n\t// +usage=The
-                      namespace for helm chart\n\ttargetNamespace?: string\n\t// +usage=Chart
-                      value\n\tvalue?: #nestedmap\n    // +usage=The release name\n    releaseName?:
-                      string\n}\n\n#nestedmap: {\n\t...\n} \n"
+                      URL, accept HTTP/S or SSH address as git url, required if repoType
+                      is git/helm\n\turl: string\n\t// +usage=The interval at which to
+                      check for repository/bucket and relese updates, optional\n\tpullInterval:
+                      *\"5m\" | string\n\t// +usage=The bucket's name, required if repoType
+                      is oss\n\tbucketName?: string\n\t// +usage=\"generic\" for Minio,
+                      Amazon S3, Google Cloud Storage, Alibaba Cloud OSS, \"aws\" for
+                      retrieve credentials from the EC2 service when credentials not specified,
+                      default \"generic\"\n\tprovider: *\"generic\" | \"aws\"\n\t// +usage=Bucket
+                      endpoint address, required if repoType is oss\n\tendpoint?: string\n\t//
+                      +usage=The bucket region, optional\n\tregion?: string\n\t// +usage=The
+                      timeout for download operations, optional\n\ttimeout?: string\n\t//
+                      +usage=1.The relative path to helm chart for git/oss source. 2.
+                      chart name for helm resource 3. relative path for chart package(e.g.
+                      ./charts/podinfo-1.2.3.tgz)\n\tchart: string\n\t// +usage=Chart
+                      version\n\tversion: *\"*\" | string\n\t// +usage=The Git reference
+                      to checkout and monitor for changes, defaults to master branch\n\tbranch:
+                      *\"master\" | string\n\t// +usage=The name of the secret containing
+                      authentication credentials for Helm repository or oss bucket\n\tsecretRef?:
+                      string\n\t// +usage=The namespace for helm chart\n\ttargetNamespace?:
+                      string\n\t// +usage=Chart value\n\tvalue?: #nestedmap\n    // +usage=The
+                      release name\n    releaseName?: string\n}\n\n#nestedmap: {\n\t...\n}
+                      \n"
                 workload:
                   type: autodetects.core.oam.dev
             type: raw
