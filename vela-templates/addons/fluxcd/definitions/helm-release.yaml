@@ -16,43 +16,43 @@ spec:
         	metadata: {
         		name: context.name
         	}
-        	if parameter.repoType == "git" {
+        	if parameter.git != _|_ {
         		kind: "GitRepository"
         		spec: {
-        			url: parameter.url
-        			ref:
-        				branch: parameter.branch
         			interval: parameter.pullInterval
+        			url:      parameter.url
+        			ref:
+        				branch: parameter.git.branch
         		}
         	}
-        	if parameter.repoType == "helm" {
+        	if parameter.helm != _|_ {
         		kind: "HelmRepository"
         		spec: {
         			interval: parameter.pullInterval
         			url:      parameter.url
-        			if parameter.secretRef != _|_ {
+        			if parameter.helm.secretRef != _|_ {
         				secretRef: {
-        					name: parameter.secretRef
+        					name: parameter.helm.secretRef
         				}
         			}
         		}
         	}
-        	if parameter.repoType == "oss" {
+        	if parameter.oss != _|_ {
         		kind: "Bucket"
         		spec: {
-        			interval: parameter.pullInterval
-        			provider: parameter.provider
-        			endpoint: parameter.endpoint
-        			bucketName: parameter.bucketName
-        			if parameter.region != _|_ {
-        				region: parameter.region
+        			endpoint:   parameter.url
+        			interval:   parameter.pullInterval
+        			bucketName: parameter.oss.bucketName
+        			provider:   parameter.oss.provider
+        			if parameter.oss.region != _|_ {
+        				region: parameter.oss.region
         			}
-        			if parameter.timeout != _|_ {
-        				timeout: parameter.timeout
+        			if parameter.oss.timeout != _|_ {
+        				timeout: parameter.oss.timeout
         			}
-        			if parameter.secretRef != _|_ {
+        			if parameter.oss.secretRef != _|_ {
         				secretRef: {
-        					name: parameter.secretRef
+        					name: parameter.oss.secretRef
         				}
         			}
         		}
@@ -72,13 +72,13 @@ spec:
         				chart:   parameter.chart
         				version: parameter.version
         				sourceRef: {
-        					if parameter.repoType == "git" {
+        					if parameter.git != _|_ {
         						kind: "GitRepository"
         					}
-        					if parameter.repoType == "helm" {
+        					if parameter.helm != _|_ {
         						kind: "HelmRepository"
         					}
-        					if parameter.repoType == "oss" {
+        					if parameter.oss != _|_ {
         						kind: "Bucket"
         					}
         					name:      context.name
@@ -90,10 +90,9 @@ spec:
         		if parameter.targetNamespace != _|_ {
         			targetNamespace: parameter.targetNamespace
         		}
-                if parameter.releaseName != _|_ {
+        		if parameter.releaseName != _|_ {
         			releaseName: parameter.releaseName
         		}
-
         		if parameter.values != _|_ {
         			values: parameter.values
         		}
@@ -101,36 +100,42 @@ spec:
         }
 
         parameter: {
-        	// +usage=The type of source of chart. Enum of git/helm/oss
-        	repoType: "git" | "helm" | "oss"
-        	// +usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url, required if repoType is git/helm
-        	url: string
-        	// +usage=The interval at which to check for repository/bucket and relese updates, optional
+        	// +usage=The interval at which to check for repository/bucket and relese updates, default to 5m
         	pullInterval: *"5m" | string
-        	// +usage=The bucket's name, required if repoType is oss
-        	bucketName?: string
-        	// +usage="generic" for Minio, Amazon S3, Google Cloud Storage, Alibaba Cloud OSS, "aws" for retrieve credentials from the EC2 service when credentials not specified, default "generic"
-        	provider: *"generic" | "aws"
-        	// +usage=Bucket endpoint address, required if repoType is oss
-        	endpoint?: string
-        	// +usage=The bucket region, optional
-        	region?: string
-        	// +usage=The timeout for download operations, optional
-        	timeout?: string
+        	// +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S or SSH address as git url,
+        	url: string
+
+        	git?: {
+        		// +usage=The Git reference to checkout and monitor for changes, defaults to master branch
+        		branch: *"master" | string
+        	}
+        	helm?: {
+        		// +usage=The name of the secret containing authentication credentials for Helm repository or oss bucket
+        		secretRef?: string
+        	}
+        	oss?: {
+        		// +usage=The bucket's name, required if repoType is oss
+        		bucketName: string
+        		// +usage="generic" for Minio, Amazon S3, Google Cloud Storage, Alibaba Cloud OSS, "aws" for retrieve credentials from the EC2 service when credentials not specified, default "generic"
+        		provider: *"generic" | "aws"
+        		// +usage=The bucket region, optional
+        		region?: string
+        		// +usage=The timeout for download operations, optional
+        		timeout?: string
+        		// +usage=The name of the secret containing authentication credentials for Helm repository or oss bucket
+        		secrietRef?: string
+        	}
+
         	// +usage=1.The relative path to helm chart for git/oss source. 2. chart name for helm resource 3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)
         	chart: string
         	// +usage=Chart version
         	version: *"*" | string
-        	// +usage=The Git reference to checkout and monitor for changes, defaults to master branch
-        	branch: *"master" | string
-        	// +usage=The name of the secret containing authentication credentials for Helm repository or oss bucket
-        	secretRef?: string
-        	// +usage=The namespace for helm chart
+        	// +usage=The namespace for helm chart, optional
         	targetNamespace?: string
-        	// +usage=Chart value
-        	value?: #nestedmap
-            // +usage=The release name
-            releaseName?: string
+        	// +usage=The release name
+        	releaseName?: string
+        	// +usage=Chart values
+        	values?: #nestedmap
         }
 
         #nestedmap: {
