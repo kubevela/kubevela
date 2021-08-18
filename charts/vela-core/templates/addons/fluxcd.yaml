@@ -5924,7 +5924,7 @@ data:
                       {\n\t\t\tinterval: parameter.pullInterval\n\t\t\turl:      parameter.repoUrl\n\t\t\tif
                       parameter.secretRef != _|_ {\n\t\t\t\tsecretRef: {\n\t\t\t\t\tname:
                       parameter.secretRef\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n\tif parameter.repoType
-                      == \"bucket\" {\n\t\tkind: \"Bucket\"\n\t\tspec: {\n\t\t\tinterval:
+                      == \"oss\" {\n\t\tkind: \"Bucket\"\n\t\tspec: {\n\t\t\tinterval:
                       parameter.pullInterval\n\t\t\tprovider: parameter.provider\n\t\t\tendpoint:
                       parameter.endpoint\n\t\t\tbucketName: parameter.bucketName\n\t\t\tif
                       parameter.region != _|_ {\n\t\t\t\tregion: parameter.region\n\t\t\t}\n\t\t\tif
@@ -5938,14 +5938,14 @@ data:
                       {\n\t\t\t\t\tif parameter.repoType == \"git\" {\n\t\t\t\t\t\tkind:
                       \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.repoType
                       == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif
-                      parameter.repoType == \"bucket\" {\n\t\t\t\t\t\tkind: \"Bucket\"\n\t\t\t\t\t}\n\t\t\t\t\tname:
+                      parameter.repoType == \"oss\" {\n\t\t\t\t\t\tkind: \"Bucket\"\n\t\t\t\t\t}\n\t\t\t\t\tname:
                       \     context.name\n\t\t\t\t\tnamespace: context.namespace\n\t\t\t\t}\n\t\t\t\tinterval:
                       parameter.pullInterval\n\t\t\t}\n\t\t}\n\t\tif parameter.targetNamespace
                       != _|_ {\n\t\t\ttargetNamespace: parameter.targetNamespace\n\t\t}\n
                       \       if parameter.releaseName != _|_ {\n\t\t\treleaseName: parameter.releaseName\n\t\t}\n\n\t\tif
                       parameter.values != _|_ {\n\t\t\tvalues: parameter.values\n\t\t}\n\t}\n}\n\nparameter:
-                      {\n\t// +usage=The type of source of chart. Enum of git/helm/bucket\n\trepoType:
-                      \"git\" | \"helm\" | \"bucket\"\n\t// +usage=The Git or Helm repository
+                      {\n\t// +usage=The type of source of chart. Enum of git/helm/oss\n\trepoType:
+                      \"git\" | \"helm\" | \"oss\"\n\t// +usage=The Git or Helm repository
                       URL, accept HTTP/S or SSH address as git url\n\trepoUrl: string\n\t//
                       +usage=The interval at which to check for repository/bucket and
                       relese updates\n\tpullInterval: *\"5m\" | string\n\t// +usage=The

@@ -37,7 +37,7 @@ spec:
         			}
         		}
         	}
-        	if parameter.repoType == "bucket" {
+        	if parameter.repoType == "oss" {
         		kind: "Bucket"
         		spec: {
         			interval: parameter.pullInterval
@@ -78,7 +78,7 @@ spec:
         					if parameter.repoType == "helm" {
         						kind: "HelmRepository"
         					}
-        					if parameter.repoType == "bucket" {
+        					if parameter.repoType == "oss" {
         						kind: "Bucket"
         					}
         					name:      context.name
@@ -101,8 +101,8 @@ spec:
         }
 
         parameter: {
-        	// +usage=The type of source of chart. Enum of git/helm/bucket
-        	repoType: "git" | "helm" | "bucket"
+        	// +usage=The type of source of chart. Enum of git/helm/oss
+        	repoType: "git" | "helm" | "oss"
         	// +usage=The Git or Helm repository URL, accept HTTP/S or SSH address as git url
         	repoUrl: string
         	// +usage=The interval at which to check for repository/bucket and relese updates
