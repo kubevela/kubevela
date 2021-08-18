@@ -58,12 +58,15 @@ template: {
 					targetPort: parameter.port
 				},
 			]
+			type: parameter.serviceType
 		}
 	}
 	parameter: {
 		image: string
 		cmd?: [...string]
-		port: *80 | int
+		// +usage=Specify what kind of Service you want. options: "ClusterIP","NodePort","LoadBalancer","ExternalName"
+		serviceType: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
+		port:        *80 | int
 		env?: [...{
 			name:   string
 			value?: string
