@@ -19,7 +19,6 @@ package apply
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/pkg/errors"
@@ -96,10 +95,7 @@ func loggingApply(msg string, desired client.Object) {
 
 // Apply applies new state to an object or create it if not exist
 func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...ApplyOption) error {
-	_ctx := ctx.(*common.ReconcileContext)
-	_ctx.BeginTimer("Apply.createOrGetExisting")
 	existing, err := a.createOrGetExisting(ctx, a.c, desired, ao...)
-	_ctx.EndTimer("Apply.createOrGetExisting")
 	if err != nil {
 		return err
 	}
@@ -108,48 +104,31 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 
 	// the object already exists, apply new state
-	_ctx.BeginTimer("Apply.executeApplyOptions")
 	if err := executeApplyOptions(ctx, existing, desired, ao); err != nil {
 		return err
 	}
-	_ctx.EndTimer("Apply.executeApplyOptions")
 	loggingApply("patching object", desired)
-	_ctx.BeginTimer("Apply.patcher.patch")
 	patch, err := a.patcher.patch(existing, desired)
-	_ctx.EndTimer("Apply.patcher.patch")
 	if err != nil {
 		return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
 	}
-	_ctx.BeginTimer("Apply.Patch")
-	defer _ctx.EndTimer("Apply.Patch")
 	return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 }
 
 // createOrGetExisting will create the object if it does not exist
 // or get and return the existing object
 func createOrGetExisting(ctx context.Context, c client.Client, desired client.Object, ao ...ApplyOption) (client.Object, error) {
-	_ctx := ctx.(*common.ReconcileContext)
 	var create = func() (client.Object, error) {
-		_ctx.BeginTimer("createOrGetExisting.create")
-		defer _ctx.EndTimer("createOrGetExisting.create")
 		// execute ApplyOptions even the object doesn't exist
-		_ctx.BeginTimer("createOrGetExisting.executeApplyOptions")
 		err := executeApplyOptions(ctx, nil, desired, ao)
-		_ctx.EndTimer("createOrGetExisting.executeApplyOptions")
 		if err != nil {
 			return nil, err
 		}
-		_ctx.BeginTimer("createOrGetExisting.addLastAppliedConfigAnnotation")
 		err = addLastAppliedConfigAnnotation(desired)
-		_ctx.EndTimer("createOrGetExisting.addLastAppliedConfigAnnotation")
 		if err != nil {
 			return nil, err
 		}
-		_ctx.BeginTimer("createOrGetExisting.loggingApply")
 		loggingApply("creating object", desired)
-		_ctx.EndTimer("createOrGetExisting.loggingApply")
-		_ctx.BeginTimer("createOrGetExisting.ClientCreate")
-		defer _ctx.EndTimer("createOrGetExisting.ClientCreate")
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
 	}
 
@@ -157,11 +136,9 @@ func createOrGetExisting(ctx context.Context, c client.Client, desired client.Ob
 	if desired.GetName() == "" && desired.GetGenerateName() != "" {
 		return create()
 	}
-	_ctx.BeginTimer("createOrGetExisting.Get")
 	existing := &unstructured.Unstructured{}
 	existing.GetObjectKind().SetGroupVersionKind(desired.GetObjectKind().GroupVersionKind())
 	err := c.Get(ctx, types.NamespacedName{Name: desired.GetName(), Namespace: desired.GetNamespace()}, existing)
-	_ctx.EndTimer("createOrGetExisting.Get")
 	if kerrors.IsNotFound(err) {
 		return create()
 	}

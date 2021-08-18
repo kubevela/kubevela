@@ -15,6 +15,9 @@ spec:
           properties:
             name: example-sidecar
             image: busybox
+            cmd:
+              - sleep
+              - '1000000'
         - type: scaler
           properties:
             replicas: 3

@@ -33,7 +33,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -97,31 +96,24 @@ func (a *AppManifestsDispatcher) StartAndSkipGC(previousRT *v1beta1.ResourceTrac
 // - update unchanged resources' owner from the previous resource tracker to the new one
 // - skip deleting(GC) any resources
 func (a *AppManifestsDispatcher) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured) (*v1beta1.ResourceTracker, error) {
-	_ctx := ctx.(*common.ReconcileContext)
 	if err := a.validateAndComplete(ctx); err != nil {
 		return nil, err
 	}
-	_ctx.AddEvent("dispatch.validate-and-complete")
 	if err := a.createOrGetResourceTracker(ctx); err != nil {
 		return nil, err
 	}
-	_ctx.AddEvent("dispatch.create-or-get-resource-tracker")
 	if err := a.retrieveLegacyResourceTrackers(ctx); err != nil {
 		return nil, err
 	}
-	_ctx.AddEvent("dispatch.retrieve-legacy-resource-trackers")
 	if err := a.applyAndRecordManifests(ctx, manifests); err != nil {
 		return nil, err
 	}
-	_ctx.AddEvent("dispatch.apply-and-record-manifest")
 	if !a.skipGC && a.previousRT != nil && a.previousRT.Name != a.currentRTName {
 		err := a.gcHandler.GarbageCollect(ctx, a.previousRT, a.currentRT, a.legacyRTs)
-		_ctx.AddEvent("dispatch.garbage-collect")
 		if err != nil {
 			return nil, errors.WithMessagef(err, "cannot do GC based on resource trackers %q and %q", a.previousRT.Name, a.currentRTName)
 		}
 	}
-	defer _ctx.AddEvent("dispatch.deepcopy")
 	return a.currentRT.DeepCopy(), nil
 }
 
