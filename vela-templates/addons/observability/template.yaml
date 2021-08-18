@@ -115,6 +115,10 @@ spec:
             repoType: helm
             repoUrl: https://prometheus-community.github.io/helm-charts
             targetNamespace: observability
+            values:
+              image:
+                repository: oamdev/kube-state-metrics
+                tag: v2.1.0
 
 {{ range .ResourceFiles }}
         - name: {{ .Name }}
