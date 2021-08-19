@@ -25,6 +25,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/parser"
 	"github.com/pkg/errors"
 
@@ -71,7 +72,7 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 }
 
 // NewValue new a value
-func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File)) (*Value, error) {
+func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File) error) (*Value, error) {
 	builder := &build.Instance{}
 
 	file, err := parser.ParseFile("-", s, parser.ParseComments)
@@ -79,7 +80,9 @@ func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File)) (
 		return nil, err
 	}
 	for _, opt := range opts {
-		opt(file)
+		if err := opt(file); err != nil {
+			return nil, err
+		}
 	}
 	if err := builder.AddSyntax(file); err != nil {
 		return nil, err
@@ -104,7 +107,7 @@ func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File)) (
 }
 
 // TagFieldOrder add step tag.
-func TagFieldOrder(root *ast.File) {
+func TagFieldOrder(root *ast.File) error {
 	i := 0
 	vs := &visitor{
 		r: map[string]struct{}{},
@@ -112,6 +115,27 @@ func TagFieldOrder(root *ast.File) {
 	for _, decl := range root.Decls {
 		vs.addAttrForExpr(decl, &i)
 	}
+	return nil
+}
+
+func ProcessScript(root *ast.File) error {
+	return sets.PreprocessBuiltinFunc(root, "script", func(values []ast.Node) (ast.Expr, error) {
+		for _, v := range values {
+			lit, ok := v.(*ast.BasicLit)
+			if ok {
+				src, err := literal.Unquote(lit.Value)
+				if err != nil {
+					return nil, errors.WithMessage(err, "unquote script value")
+				}
+				expr, err := parser.ParseExpr("-", src)
+				if err != nil {
+					return nil, errors.Errorf("script value(%s) is invalid CueLang", src)
+				}
+				return expr, nil
+			}
+		}
+		return nil, errors.New("script parameter error")
+	})
 }
 
 type visitor struct {

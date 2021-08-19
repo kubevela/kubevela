@@ -511,3 +511,66 @@ bottom: _|_
 	_, err = val.Field("bottom")
 	assert.Equal(t, err != nil, true)
 }
+
+func TestProcessScript(t *testing.T) {
+	testCases := []struct {
+		src    string
+		expect string
+		err    string
+	}{
+		{
+			src: `parameter: {
+ check: "status==\"ready\""
+}
+
+wait: {
+ status: "ready"
+ continue: script(parameter.check)
+}`,
+			expect: `parameter: {
+	check: "status==\"ready\""
+}
+wait: {
+	status:   "ready"
+	continue: true
+}
+`,
+		},
+		{
+			src: `parameter: {
+ check: "status==\"ready\""
+}
+
+wait: {
+ status: "ready"
+ continue: script("")
+}`,
+			expect: ``,
+			err:    "script parameter error",
+		},
+		{
+			src: `parameter: {
+ check: "status=\"ready\""
+}
+
+wait: {
+ status: "ready"
+ continue: script(parameter.check)
+}`,
+			expect: ``,
+			err:    "script value(status=\"ready\") is invalid CueLang",
+		},
+	}
+
+	for _, tCase := range testCases {
+		v, err := NewValue(tCase.src, nil, ProcessScript)
+		if tCase.err != "" {
+			assert.Equal(t, err.Error(), tCase.err)
+			continue
+		}
+		assert.NilError(t, err)
+		s, err := v.String()
+		assert.NilError(t, err)
+		assert.Equal(t, s, tCase.expect)
+	}
+}

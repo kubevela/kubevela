@@ -19,6 +19,10 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/literal"
+	"cuelang.org/go/cue/parser"
+	"github.com/pkg/errors"
 	"gotest.tools/assert"
 )
 
@@ -129,5 +133,107 @@ lacy: """
 		str, err := ToString(inst.Value(), OptBytesToString)
 		assert.NilError(t, err)
 		assert.Equal(t, str, tcase.expected)
+	}
+}
+
+func TestPreprocessBuiltinFunc(t *testing.T) {
+
+	doScript := func(values []ast.Node) (ast.Expr, error) {
+		for _, v := range values {
+			lit, ok := v.(*ast.BasicLit)
+			if ok {
+				src, _ := literal.Unquote(lit.Value)
+				expr, err := parser.ParseExpr("-", src)
+				if err != nil {
+					return nil, errors.Errorf("script value(%s) format err", src)
+				}
+				return expr, nil
+			}
+		}
+		return nil, errors.New("script parameter")
+	}
+
+	testCases := []struct {
+		src        string
+		expectJson string
+	}{
+		{
+			src: `
+a: "a"
+b: "b"
+c: script(a)
+`,
+			expectJson: `{"a":"a","b":"b","c":"a"}`,
+		},
+		{
+			src: `
+parameter: {
+ continue: "true"
+}
+
+wait: {
+ continue: script(parameter.continue)
+}
+
+`,
+			expectJson: `{"parameter":{"continue":"true"},"wait":{"continue":true}}`,
+		},
+		{
+			src: `
+parameter: {
+ continue: "_status"
+}
+
+wait: {
+ _status: true 
+ continue: script(parameter.continue)
+}
+
+`,
+			expectJson: `{"parameter":{"continue":"_status"},"wait":{"continue":true}}`,
+		},
+		{
+			src: `
+parameter: {
+ continue: "_status"
+}
+
+wait: {
+ _status: true 
+ if parameter.continue!=_|_{
+	continue: script(parameter["continue"])
+ }
+}
+
+`,
+			expectJson: `{"parameter":{"continue":"_status"},"wait":{"continue":true}}`,
+		},
+		{
+			src: `
+parameter: {
+ continue: "_status"
+}
+
+wait: {
+ _status: {
+   x: "abc"
+ }
+ script(parameter["continue"])
+}
+`,
+			expectJson: `{"parameter":{"continue":"_status"},"wait":{"x":"abc"}}`,
+		},
+	}
+
+	var r cue.Runtime
+	for _, tCase := range testCases {
+		f, err := parser.ParseFile("-", tCase.src)
+		assert.NilError(t, err)
+		err = PreprocessBuiltinFunc(f, "script", doScript)
+		assert.NilError(t, err)
+		inst, err := r.CompileFile(f)
+		assert.NilError(t, err)
+		bt, _ := inst.Value().MarshalJSON()
+		assert.Equal(t, string(bt), tCase.expectJson)
 	}
 }
