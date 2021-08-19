@@ -16,12 +16,14 @@ spec:
           properties:
             targetRevision: nginx-server-v2
             targetSize: 2
+            # Upgrade the replicas in two batches. Each batch will upgrade only one.
             rolloutBatches:
               - replicas: 1
               - replicas: 1
 
   workflow:
     steps:
+      # If we delete this, the ManifestWork will also be removed in managed cluster, which would prohibits us to do rollback later.
       - name: dispatch-comp-rev-v1
         type: dispatch-comp-rev
         properties:

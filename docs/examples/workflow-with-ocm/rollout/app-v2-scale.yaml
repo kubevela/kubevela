@@ -16,6 +16,7 @@ spec:
           properties:
             targetRevision: nginx-server-v2
             targetSize: 4
+            # This means to rollout two more replicas in two batches.
             rolloutBatches:
               - replicas: 1
               - replicas: 1
