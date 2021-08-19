@@ -5,7 +5,6 @@ ingress: {
 	description: "Enable public web traffic for the component."
 	attributes: {
 		podDisruptive: false
-		appliesToWorkloads: ["deployments.apps"]
 		status: {
 			customStatus: #"""
 				let igs = context.outputs.ingress.status.loadBalancer.ingress

@@ -8,8 +8,6 @@ metadata:
   name: ingress-1-20
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
-  appliesToWorkloads:
-    - deployments.apps
   podDisruptive: false
   schematic:
     cue:

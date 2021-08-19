@@ -8,8 +8,6 @@ metadata:
   name: expose
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
-  appliesToWorkloads:
-    - deployments.apps
   podDisruptive: false
   schematic:
     cue:
@@ -26,10 +24,13 @@ spec:
         				targetPort: p
         			},
         		]
+        		type: parameter.type
         	}
         }
         parameter: {
         	// +usage=Specify the exposion ports
         	port: [...int]
+        	// +usage=Specify what kind of Service you want. options: "ClusterIP","NodePort","LoadBalancer","ExternalName"
+        	type: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
         }
 
