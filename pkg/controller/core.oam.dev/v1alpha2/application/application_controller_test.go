@@ -1796,6 +1796,58 @@ spec:
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v3"))
 	})
+
+	It("Test context revision can be supported by specify externalRevision ", func() {
+		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
+		Expect(err).Should(BeNil())
+		rolloutTrait := &v1beta1.TraitDefinition{}
+		externalRevision := "my-test-revision-v1"
+		Expect(json.Unmarshal([]byte(rolloutTdDef), rolloutTrait)).Should(BeNil())
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-specify-external-revision",
+			},
+		}
+		rolloutTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, rolloutTrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-rollout",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:             "myweb1",
+						Type:             "worker",
+						ExternalRevision: externalRevision,
+						Properties:       runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Traits: []common.ApplicationTrait{
+							{
+								Type:       "rollout",
+								Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+							},
+						},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		checkRollout := &stdv1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		By("verify targetRevision will be filled with real compRev by context.Revision")
+		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo(externalRevision))
+	})
 })
 
 const (
