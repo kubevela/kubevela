@@ -103,12 +103,21 @@ func SprintComponentManifest(cm *types.ComponentManifest) string {
 	if cm.StandardWorkload.GetName() == "" {
 		cm.StandardWorkload.SetName(cm.Name)
 	}
+	if cm.StandardWorkload.GetNamespace() == "" {
+		cm.StandardWorkload.SetNamespace(cm.Namespace)
+	}
 	cl := map[string]interface{}{
 		ManifestKeyWorkload: string(util.MustJSONMarshal(cm.StandardWorkload)),
 	}
 
 	trs := []string{}
 	for _, tr := range cm.Traits {
+		if tr.GetName() == "" {
+			tr.SetName(cm.Name)
+		}
+		if tr.GetNamespace() == "" {
+			tr.SetNamespace(cm.Namespace)
+		}
 		trs = append(trs, string(util.MustJSONMarshal(tr)))
 	}
 	cl[ManifestKeyTraits] = trs
