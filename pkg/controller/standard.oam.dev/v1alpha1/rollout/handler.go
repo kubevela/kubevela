@@ -135,12 +135,12 @@ func (h *handler) handleFinalizeSucceed(ctx context.Context) error {
 	// patch target workload to pass rollout owner to workload
 	targetWl := h.targetWorkload.DeepCopy()
 	if err := h.Get(ctx, types.NamespacedName{Namespace: targetWl.GetNamespace(), Name: targetWl.GetName()}, targetWl); err != nil {
-		return err
+		return errors.Wrap(err, "fail to get targetWorkload")
 	}
 	wlPatch := client.MergeFrom(targetWl.DeepCopy())
 	h.passOwnerToTargetWorkload(targetWl)
 	if err := h.Patch(ctx, targetWl, wlPatch); err != nil {
-		return err
+		return errors.Wrap(err, "fail to patch workload to pass rollout owners to workload")
 	}
 
 	// recode targetWorkload

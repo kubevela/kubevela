@@ -17,7 +17,13 @@ limitations under the License.
 package rollout
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -329,4 +335,67 @@ func TestPassOwnerReference(t *testing.T) {
 	h.passOwnerToTargetWorkload(u)
 	assert.Assert(t, len(u.GetOwnerReferences()) == 1)
 	assert.Assert(t, *u.GetOwnerReferences()[0].Controller == false)
+}
+
+func TestHandleSucceedError(t *testing.T) {
+	getErr := fmt.Errorf("got error")
+	patchErr := fmt.Errorf("patch error")
+	object := &unstructured.Unstructured{}
+	object.SetName("name")
+	object.SetNamespace("namespace")
+	getClient := test.NewMockGetFn(getErr)
+	rollout := oamstandard.Rollout{
+		ObjectMeta: metav1.ObjectMeta{
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					UID:  "test-UID",
+					Kind: v1beta1.ResourceTrackerKind,
+				},
+			},
+		}}
+	ctx := context.Background()
+	patchClient := test.MockClient{
+		MockGet: func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
+			if obj != nil {
+				obj = object
+			}
+			return nil
+		},
+		MockPatch: test.NewMockPatchFn(patchErr),
+	}
+	testCase := map[string]struct {
+		h   handler
+		err error
+	}{
+		"Test get error": {
+			h: handler{
+				targetWorkload: object,
+				reconciler: &reconciler{
+					Client: &test.MockClient{
+						MockGet: getClient,
+					},
+				},
+			},
+			err: getErr,
+		},
+		"Test patch error": {
+			h: handler{
+				targetWorkload: object,
+				reconciler: &reconciler{
+					Client: &patchClient,
+				},
+				rollout: &rollout,
+			},
+			err: patchErr,
+		},
+	}
+
+	for testName, oneCase := range testCase {
+		t.Run(testName, func(t *testing.T) {
+			got := oneCase.h.handleFinalizeSucceed(ctx)
+			if got == nil || !strings.Contains(oneCase.err.Error(), oneCase.err.Error()) {
+				t.Errorf("handleSucceed () got %v, want %v", got, oneCase.err)
+			}
+		})
+	}
 }

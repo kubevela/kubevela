@@ -271,10 +271,10 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 				return err
 			}
 			if *targerDeploy.Spec.Replicas != 2 {
-				return fmt.Errorf("targetDeploy replicas missMatch %d", targerDeploy.Spec.Replicas)
+				return fmt.Errorf("targetDeploy replicas missMatch %d", *targerDeploy.Spec.Replicas)
 			}
 			return nil
-		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 60*time.Second, 300*time.Millisecond).Should(BeNil())
 		By("continue rollout upgrade legacy batches")
 		Eventually(func() error {
 			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
