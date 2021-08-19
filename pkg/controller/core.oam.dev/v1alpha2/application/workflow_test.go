@@ -227,6 +227,54 @@ var _ = Describe("Test Workflow", func() {
 		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
 	})
 
+	It("test workflow terminate a suspend workflow", func() {
+		suspendApp := appWithWorkflow.DeepCopy()
+		suspendApp.Name = "test-terminate-suspend-app"
+		suspendApp.Spec.Workflow.Steps = []oamcore.WorkflowStep{
+			{
+				Name:       "suspend",
+				Type:       "suspend",
+				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+			},
+			{
+				Name:       "suspend",
+				Type:       "suspend",
+				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+			}}
+		Expect(k8sClient.Create(ctx, suspendApp)).Should(BeNil())
+
+		// first try to add finalizer
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+
+		appObj := &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      suspendApp.Name,
+			Namespace: suspendApp.Namespace,
+		}, appObj)).Should(BeNil())
+
+		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
+		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
+
+		// terminate
+		appObj.Status.Workflow.Terminated = true
+		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
+
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+
+		appObj = &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      suspendApp.Name,
+			Namespace: suspendApp.Namespace,
+		}, appObj)).Should(BeNil())
+
+		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
+		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
+		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
+		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
+	})
+
 })
 
 func triggerWorkflowStepToSucceed(obj *unstructured.Unstructured) {

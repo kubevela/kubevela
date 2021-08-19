@@ -65,6 +65,9 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	if wfStatus.Terminated {
 		done = true
+		if len(taskRunners) > wfStatus.StepIndex {
+			w.app.Status.Phase = common.ApplicationWorkflowTerminated
+		}
 		return
 	}
 
