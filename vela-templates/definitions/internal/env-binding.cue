@@ -36,10 +36,10 @@ template: {
 			name: string
 			type: string
 			properties: {...}
-			traits?: {
+			traits?: [...{
 				type: string
 				properties: {...}
-			}
+			}]
 		}]
 		placement: {
 			clusterSelector?: {

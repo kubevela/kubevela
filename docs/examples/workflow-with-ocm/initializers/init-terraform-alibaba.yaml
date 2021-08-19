@@ -29,8 +29,3 @@ spec:
         kind: Initializer
         name: terraform
         namespace: vela-system
-    - ref:
-        apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: ocm-cluster-manager
-        namespace: vela-system

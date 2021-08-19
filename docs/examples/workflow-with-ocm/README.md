@@ -98,8 +98,8 @@ check the app `workflow-demo` was created successfully
 
 ```shell
 $ kubectl get app workflow-demo
-NAME            COMPONENT      TYPE         PHASE     HEALTHY   STATUS   AGE
-workflow-demo   nginx-server   webservice   running   true               7s
+NAME            COMPONENT         TYPE         PHASE     HEALTHY   STATUS   AGE
+workflow-demo   podinfo-server    webservice   running   true               7s
 ```
 
 use kubectl connect to the managed-cluster `poc-01` and check the resources in the app 
@@ -107,6 +107,6 @@ are successfully deployed to the cluster `poc-01`.
 
 ```shell
 $ kubectl get deployments
-NAME           READY   UP-TO-DATE   AVAILABLE   AGE
-nginx-server   1/1     1            1           40s
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+podinfo-server   1/1     1            1           40s
 ```
