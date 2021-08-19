@@ -147,12 +147,14 @@ var _ = Describe("test GetCapabilityByName", func() {
 		cd1        corev1beta1.ComponentDefinition
 		cd2        corev1beta1.ComponentDefinition
 		cd3        corev1beta1.ComponentDefinition
+		cd4        corev1beta1.ComponentDefinition
 		td1        corev1beta1.TraitDefinition
 		td2        corev1beta1.TraitDefinition
 		td3        corev1beta1.TraitDefinition
 		component1 string
 		component2 string
 		component3 string
+		component4 string
 		trait1     string
 		trait2     string
 		trait3     string
@@ -169,6 +171,7 @@ var _ = Describe("test GetCapabilityByName", func() {
 		component1 = "cd1"
 		component2 = "cd2"
 		component3 = "cd3"
+		component4 = "cd4"
 
 		trait1 = "td1"
 		trait2 = "td2"
@@ -184,6 +187,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		yaml.Unmarshal(data, &cd2)
 		data2, _ := ioutil.ReadFile("testdata/kube-worker.yaml")
 		yaml.Unmarshal(data2, &cd3)
+
+		helmYaml, _ := ioutil.ReadFile("testdata/helm.yaml")
+		yaml.Unmarshal(helmYaml, &cd4)
+
 		cd1.Namespace = ns
 		cd1.Name = component1
 		Expect(k8sClient.Create(ctx, &cd1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -195,6 +202,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		cd3.Namespace = ns
 		cd3.Name = component3
 		Expect(k8sClient.Create(ctx, &cd3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		cd4.Namespace = ns
+		cd4.Name = component4
+		Expect(k8sClient.Create(ctx, &cd4)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create TraitDefinition")
 		data, _ = ioutil.ReadFile("testdata/manualscalars.yaml")
@@ -234,6 +245,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 			Expect(string(jsontmp)).Should(ContainSubstring("spec.template.spec.containers[0].image"))
 			Expect(string(jsontmp)).Should(ContainSubstring("port"))
 			Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
+		})
+		Context("ComponentDefinition's workload type is AutoDetectWorkloadDefinition", func() {
+			_, err := GetCapabilityByName(ctx, c, component4, ns)
+			Expect(err).Should(BeNil())
 		})
 
 		Context("TraitDefinition is in the current namespace", func() {

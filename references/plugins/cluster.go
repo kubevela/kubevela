@@ -304,15 +304,25 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 	}
 
 	if foundCapability {
-		dm, err := c.GetDiscoveryMapper()
-		if err != nil {
-			return nil, err
+		var refName string
+
+		// if workload type of ComponentDefinition is unclear,
+		// set the DefinitionReference's Name to AutoDetectWorkloadDefinition
+		if componentDef.Spec.Workload.Type == types.AutoDetectWorkloadDefinition {
+			refName = types.AutoDetectWorkloadDefinition
+		} else {
+			dm, err := c.GetDiscoveryMapper()
+			if err != nil {
+				return nil, err
+			}
+			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
+			if err != nil {
+				return nil, err
+			}
+			refName = ref.Name
 		}
-		ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
-		if err != nil {
-			return nil, err
-		}
-		capability, err = GetCapabilityByComponentDefinitionObject(componentDef, ref.Name)
+
+		capability, err = GetCapabilityByComponentDefinitionObject(componentDef, refName)
 		if err != nil {
 			return nil, err
 		}
