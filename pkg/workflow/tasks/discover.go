@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -69,7 +70,7 @@ func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
 func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, loadTemplate custom.LoadTaskTemplate) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
-
+	http.Install(providerHandlers)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,

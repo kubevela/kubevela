@@ -43,7 +43,7 @@ func TestTaskLoader(t *testing.T) {
 	discover.Register("test", map[string]providers.Handler{
 		"output": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
 			ip, _ := v.MakeValue(`
-myIP: "1.1.1.1"            
+myIP: value: "1.1.1.1"            
 `)
 			return v.FillObject(ip)
 		},
@@ -78,7 +78,7 @@ myIP: "1.1.1.1"
 			Name: "output",
 			Type: "output",
 			Outputs: v1beta1.StepOutputs{{
-				ExportKey: "myIP",
+				ExportKey: "myIP.value",
 				Name:      "podIP",
 			}},
 		},

@@ -105,7 +105,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			for _, input := range inputs {
-				inputValue, err := ctx.GetVar(input.From)
+				inputValue, err := ctx.GetVar(strings.Split(input.From, ".")...)
 				if err != nil {
 					return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
 				}
@@ -141,7 +141,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 			if exec.status().Phase == common.WorkflowStepPhaseSucceeded {
 				for _, output := range outputs {
-					v, err := taskv.LookupValue(output.ExportKey)
+					v, err := taskv.LookupValue(strings.Split(output.ExportKey, ".")...)
 					if err != nil {
 						exec.err(err, StatusReasonOutput)
 						return exec.status(), exec.operation(), nil
@@ -168,7 +168,7 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string) (*value.Valu
 		}
 		templ += fmt.Sprintf("\ncontext: {%s}", ms)
 	}
-	return value.NewValue(templ, t.pd, value.TagFieldOrder)
+	return value.NewValue(templ, t.pd, value.ProcessScript, value.TagFieldOrder)
 }
 
 type executor struct {
