@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -185,9 +186,11 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 		// target manifest haven't template yet, call dispatch template target manifest firstly
 		err = h.templateTargetManifest(ctx)
 		if err != nil {
+			r.record.Event(appRollout, event.Warning(velatypes.ReasonFailedTemplateTargetMenifest, err))
 			h.appRollout.Status.SetConditions(condition.ErrorCondition("template", err))
 			return reconcile.Result{}, err
 		}
+		r.record.Event(appRollout, event.Normal(velatypes.ReasonTemplateTargetMenifest, velatypes.MessageTemplatedTargetManifest))
 		h.appRollout.Status.SetConditions(condition.ReadyCondition("template"))
 		// this ensures that we template workload only once
 		h.appRollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
@@ -200,8 +203,10 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 
 	sourceWorkload, targetWorkload, err = h.fetchSourceAndTargetWorkload(ctx)
 	if err != nil {
+		r.record.Event(appRollout, event.Warning(velatypes.ReasonFailedStartRolloutPlanReconcile, err))
 		return reconcile.Result{}, err
 	}
+	r.record.Event(appRollout, event.Normal(velatypes.ReasonStartRolloutPlanReconcile, velatypes.MessageStartRolloutPlanReconcile))
 
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
 	if sourceWorkload != nil {

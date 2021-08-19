@@ -36,6 +36,15 @@ const (
 	ReasonFailedRollout     = "FailedRollout"
 )
 
+// reason for ApplicationRollout
+const (
+	ReasonTemplateTargetMenifest    = "TargetManifestTemplated"
+	ReasonStartRolloutPlanReconcile = "RolloutPlanReconcileStarted"
+
+	ReasonFailedTemplateTargetMenifest    = "FailedTargetMenifestTemplate"
+	ReasonFailedStartRolloutPlanReconcile = "FailedRolloutPlanReconcileStart"
+)
+
 // event message for Application
 const (
 	MessageParsed      = "Parsed successfully"
@@ -52,4 +61,13 @@ const (
 	MessageFailedApply       = "fail to apply component, err: %v"
 	MessageFailedHealthCheck = "fail to health check, err: %v"
 	MessageFailedGC          = "fail to garbage collection, err: %v"
+)
+
+// event message for ApplicationRollout
+const (
+	MessageTemplatedTargetManifest   = "Target manifest templated successfully"
+	MessageStartRolloutPlanReconcile = "RolloutPlan reconcile started successfully"
+
+	MessageFailedTemplateTargetManifest    = "fail to template target manifest, err: %v"
+	MessageFailedStartRolloutPlanReconcile = "fail to start RolloutPlan reconcile, err: %v"
 )
