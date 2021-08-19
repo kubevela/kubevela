@@ -118,6 +118,7 @@ func TagFieldOrder(root *ast.File) error {
 	return nil
 }
 
+// ProcessScript preprocess the script builtin function.
 func ProcessScript(root *ast.File) error {
 	return sets.PreprocessBuiltinFunc(root, "script", func(values []ast.Node) (ast.Expr, error) {
 		for _, v := range values {
