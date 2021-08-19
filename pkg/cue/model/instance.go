@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue/format"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 )
@@ -67,7 +68,7 @@ func (inst *instance) Compile() ([]byte, error) {
 	}
 	// compiled object should be final and concrete value
 	if err := it.Value().Validate(cue.Concrete(true), cue.Final()); err != nil {
-		return nil, it.Err
+		return nil, err
 	}
 	return it.Value().MarshalJSON()
 }
@@ -77,14 +78,14 @@ func (inst *instance) Compile() ([]byte, error) {
 func (inst *instance) Unstructured() (*unstructured.Unstructured, error) {
 	jsonv, err := inst.Compile()
 	if err != nil {
-		return nil, err
+		klog.ErrorS(err, "failed to have the workload/trait unstructured", "Definition", inst.String())
+		return nil, errors.Wrap(err, "failed to have the workload/trait unstructured")
 	}
 	o := &unstructured.Unstructured{}
 	if err := o.UnmarshalJSON(jsonv); err != nil {
 		return nil, err
 	}
 	return o, nil
-
 }
 
 // Unify implement unity operations between instances
