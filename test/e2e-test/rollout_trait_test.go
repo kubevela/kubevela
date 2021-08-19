@@ -126,6 +126,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if len(targerDeploy.OwnerReferences) != 1 {
 				return fmt.Errorf("workload ownerReference missMatch")
 			}
+			// guarantee rollout's owners and  workload's owners are same
 			if targerDeploy.OwnerReferences[0].Kind != rollout.OwnerReferences[0].Kind ||
 				targerDeploy.OwnerReferences[0].Name != rollout.OwnerReferences[0].Name {
 				return fmt.Errorf("workload ownerReference missMatch")
@@ -236,6 +237,57 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			return nil
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 		verifySuccess("express-server-v4")
+		By("update application batch upgrade to v5")
+		Eventually(func() error {
+			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image":"stefanprodan/podinfo:4.0.3","cpu":"0.5"}`)
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
+				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4,"batchPartition":0}`)
+			if err = k8sClient.Update(ctx, checkApp); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		// check rollout paused in partition 0
+		time.Sleep(5 * time.Second)
+		Eventually(func() error {
+			rolloutKey := types.NamespacedName{Namespace: namespaceName, Name: componentName}
+			if err := k8sClient.Get(ctx, rolloutKey, &rollout); err != nil {
+				return err
+			}
+			if rollout.Spec.TargetRevisionName != "express-server-v5" {
+				return fmt.Errorf("rollout have not point to right targetRevision")
+			}
+			if rollout.Status.RollingState != v1alpha1.RollingInBatchesState {
+				return fmt.Errorf("error rollout status state %s", rollout.Status.RollingState)
+			}
+			if rollout.Status.CurrentBatch != 0 {
+				return fmt.Errorf("current batchPartition missmatch accutally %d", rollout.Status.CurrentBatch)
+			}
+			deployKey := types.NamespacedName{Namespace: namespaceName, Name: compRevName}
+			if err := k8sClient.Get(ctx, deployKey, &targerDeploy); err != nil {
+				return err
+			}
+			if *targerDeploy.Spec.Replicas != 2 {
+				return fmt.Errorf("targetDeploy replicas missMatch %d", *targerDeploy.Spec.Replicas)
+			}
+			return nil
+		}, 60*time.Second, 300*time.Millisecond).Should(BeNil())
+		By("continue rollout upgrade legacy batches")
+		Eventually(func() error {
+			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
+				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4,"batchPartition":1}`)
+			if err = k8sClient.Update(ctx, checkApp); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		verifySuccess("express-server-v5")
 		By("delete the application, check workload have been removed")
 		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
 		listOptions := []client.ListOption{
@@ -312,7 +364,6 @@ metadata:
   name: rollout
 spec:
   manageWorkload: true
-  skipRevisionAffect: true
   schematic:
     cue:
       template: |
@@ -332,7 +383,10 @@ spec:
                             	{ replicas: parameter.firstBatchReplicas},
                             	{ replicas: parameter.secondBatchReplicas}]
                             targetSize: parameter.targetSize
-                           }
+                             if parameter["batchPartition"] != _|_ {
+                                 batchPartition:  parameter.batchPartition
+                              }
+                            }
                 		 }
                 	}
 
@@ -341,5 +395,6 @@ spec:
                      targetSize: *2|int
                      firstBatchReplicas: *1|int
                      secondBatchReplicas: *1|int
+                     batchPartition?: int
                  }`
 )

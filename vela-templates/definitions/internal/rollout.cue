@@ -4,8 +4,7 @@ rollout: {
 	labels: {}
 	description: "rollout the component"
 	attributes: {
-		manageWorkload:     true
-		skipRevisionAffect: true
+		manageWorkload: true
 	}
 }
 template: {
@@ -23,7 +22,9 @@ template: {
 				rolloutStrategy: "IncreaseFirst"
 				rolloutBatches:  parameter.rolloutBatches
 				targetSize:      parameter.targetSize
-				batchPartition:  parameter.batchPartition
+				if parameter["batchPartition"] != _|_ {
+					batchPartition: parameter.batchPartition
+				}
 			}
 		}
 	}

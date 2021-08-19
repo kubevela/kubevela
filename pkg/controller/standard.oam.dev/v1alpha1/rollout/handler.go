@@ -22,6 +22,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -123,10 +125,6 @@ func (h *handler) applyTargetWorkload(ctx context.Context) error {
 		return err
 	}
 
-	if err := h.recordWorkloadInResourceTracker(ctx); err != nil {
-		return errors.Wrap(err, "fail to add resourceTracker as owner for workload")
-	}
-
 	klog.InfoS("template rollout target workload", "namespace", h.rollout.Namespace,
 		"rollout", h.rollout.Name, "targetWorkload", h.targetWorkload.GetName())
 	return nil
@@ -134,7 +132,22 @@ func (h *handler) applyTargetWorkload(ctx context.Context) error {
 
 // handleFinalizeSucceed gc source workload if target and source are not same one
 func (h *handler) handleFinalizeSucceed(ctx context.Context) error {
-	// this is a scale operation
+	// patch target workload to pass rollout owner to workload
+	targetWl := h.targetWorkload.DeepCopy()
+	if err := h.Get(ctx, types.NamespacedName{Namespace: targetWl.GetNamespace(), Name: targetWl.GetName()}, targetWl); err != nil {
+		return errors.Wrap(err, "fail to get targetWorkload")
+	}
+	wlPatch := client.MergeFrom(targetWl.DeepCopy())
+	h.passOwnerToTargetWorkload(targetWl)
+	if err := h.Patch(ctx, targetWl, wlPatch); err != nil {
+		return errors.Wrap(err, "fail to patch workload to pass rollout owners to workload")
+	}
+
+	// recode targetWorkload
+	if err := h.recordWorkloadInResourceTracker(ctx); err != nil {
+		return errors.Wrap(err, "fail to add resourceTracker as owner for workload")
+	}
+
 	if h.sourceWorkload != nil && (h.sourceWorkload.GetName() != h.targetWorkload.GetName()) {
 		if err := h.Delete(ctx, h.sourceWorkload); err != nil {
 			return err
@@ -182,9 +195,6 @@ func (h *handler) setWorkloadBaseInfo() {
 	h.targetWorkload.SetName(h.compName)
 	util.AddLabels(h.targetWorkload, map[string]string{oam.LabelAppComponentRevision: h.targetRevName})
 	util.AddAnnotations(h.targetWorkload, map[string]string{oam.AnnotationSkipGC: "true"})
-
-	// pass rollout's ownerReference to workload
-	h.passOwnerToTargetWorkload()
 
 	if h.sourceWorkload != nil {
 		h.sourceWorkload.SetName(h.compName)
@@ -270,11 +280,11 @@ func (h *handler) recordWorkloadInResourceTracker(ctx context.Context) error {
 	return nil
 }
 
-func (h *handler) passOwnerToTargetWorkload() {
+func (h *handler) passOwnerToTargetWorkload(wl *unstructured.Unstructured) {
 	var owners []metav1.OwnerReference
 	for _, reference := range h.rollout.OwnerReferences {
 		reference.Controller = pointer.Bool(false)
 		owners = append(owners, reference)
 	}
-	h.targetWorkload.SetOwnerReferences(owners)
+	wl.SetOwnerReferences(owners)
 }
