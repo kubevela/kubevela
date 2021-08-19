@@ -16,6 +16,7 @@ spec:
           properties:
             targetRevision: nginx-server-v1
             targetSize: 2
+            # Rollout the two replicas in two batches
             rolloutBatches:
               - replicas: 1
               - replicas: 1

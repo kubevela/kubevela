@@ -55,6 +55,6 @@ spec:
         }
 
         parameter: {
-        	compRev: string
-            cluster: string
+          compRev: string
+          cluster: string
         }

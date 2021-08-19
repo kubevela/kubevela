@@ -4,9 +4,9 @@ In this tutorial, you will use rollout in runtime cluster with OCM.
 
 ## Prerequisites
 
-- Have a multi-cluster environment witch have installed OCM by following this [guid](../README.md). The name of  managed cluster generally is `poc-01`.
+- Have a multi-cluster environment witch have installed OCM by following this [guide](../README.md). The name of  managed cluster generally is `poc-01`.
 
-- install vela-rollout chart in managed-cluster with Helm.
+- Install vela-rollout chart in managed-cluster with Helm.
 ```shell
 $ helm repo add kubevela https://charts.kubevela.net/core
 ```
