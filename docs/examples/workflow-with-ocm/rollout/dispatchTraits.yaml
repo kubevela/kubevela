@@ -29,6 +29,6 @@ spec:
 
 
         parameter: {
-        	component: string
-            cluster: string
+          component: string
+          cluster: string
         }
