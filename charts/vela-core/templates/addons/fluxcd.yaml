@@ -6024,7 +6024,14 @@ data:
               spec:
                 schematic:
                   cue:
-                    template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata:
+                    template: "output: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:
+                      \      \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec:
+                      {\n\t\tinterval: parameter.pullInterval\n\t\tsourceRef: {\n\t\t\tif
+                      parameter.repoType == \"git\" {\n\t\t\t\tkind: \"GitRepository\"\n\t\t\t}\n\t\t\tif
+                      parameter.repoType == \"oss\" {\n\t\t\t\tkind: \"Bucket\"\n\t\t\t}\n\t\t\tname:
+                      \     context.name\n\t\t\tnamespace: context.namespace\n\t\t}\n\t\tpath:
+                      \      parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\n\noutputs:
+                      repo:{\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata:
                       {\n\t\tname: context.name\n\t}\n\tif parameter.repoType == \"git\"
                       {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.url\n\t\t\tif
                       parameter.git.branch != _|_ {\n\t\t\t\tref: branch: parameter.git.branch\n\t\t\t}\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n\tif
@@ -6035,18 +6042,12 @@ data:
                       {\n\tif parameter.secretRef != _|_ {\n\t\tsecretRef: {\n\t\t\tname:
                       parameter.secretRef\n\t\t}\n\t}\n}\n\n_sourceCommonArgs: {\n\tinterval:
                       parameter.pullInterval\n\tif parameter.timeout != _|_ {\n\t\ttimeout:
-                      parameter.timeout\n\t}\n}\n\noutputs: kustomize: {\n\tapiVersion:
-                      \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"Kustomization\"\n\tmetadata:
-                      {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pullInterval\n\t\tsourceRef:
-                      {\n\t\t\tif parameter.repoType == \"git\" {\n\t\t\t\tkind: \"GitRepository\"\n\t\t\t}\n\t\t\tif
-                      parameter.repoType == \"oss\" {\n\t\t\t\tkind: \"Bucket\"\n\t\t\t}\n\t\t\tname:
-                      \     context.name\n\t\t\tnamespace: context.namespace\n\t\t}\n\t\tpath:
-                      \      parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\nparameter:
-                      {\n\trepoType: *\"git\" | \"oss\"\n\t// +usage=The interval at which
-                      to check for repository/bucket and relese updates, default to 5m\n\tpullInterval:
-                      *\"5m\" | string\n\t// +usage=The Git or Helm repository URL, OSS
-                      endpoint, accept HTTP/S or SSH address as git url,\n\turl: string\n\t//
-                      +usage=The name of the secret containing authentication credentials\n\tsecretRef?:
+                      parameter.timeout\n\t}\n}\n\nparameter: {\n\trepoType: *\"git\"
+                      | \"oss\"\n\t// +usage=The interval at which to check for repository/bucket
+                      and relese updates, default to 5m\n\tpullInterval: *\"5m\" | string\n\t//
+                      +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S
+                      or SSH address as git url,\n\turl: string\n\t// +usage=The name
+                      of the secret containing authentication credentials\n\tsecretRef?:
                       string\n\t// +usage=The timeout for operations like download index/clone
                       repository, optional\n\ttimeout?: string\n\tgit?: {\n\t\t// +usage=The
                       Git reference to checkout and monitor for changes, defaults to master
@@ -6058,20 +6059,7 @@ data:
                       *\"generic\" | \"aws\"\n\t\t// +usage=The bucket region, optional\n\t\tregion?:
                       string\n\t}\n\t//+usage=Path to the directory containing the kustomization.yaml
                       file, or the set of plain YAMLs a kustomization.yaml should be generated
-                      for.\n\tpath: string\n\t// +usage=a list of StrategicMerge or JSON6902
-                      patch to selected target\n\tpatches?: [...#patchItem]\n\t// +usage=A
-                      list of strategicMerge, defined as inline YAML objects.\n\tpatchesStrategicMerge?:
-                      [...#nestedmap]\n\t// +usage=A list of JSON6902 patch.\n\tpatchesJson?:
-                      [...#jsonPatchItem]\n}\n\n#nestedmap: {\n\t...\n}\n\n// +usage=Contains
-                      a strategicMerge or JSON6902 patch\n#patchItem: {\n\t// +usage=Inline
-                      patch string, in yaml style\n\tpatch: string\n\t// +usage=Specify
-                      the target the patch should be applied to\n\ttarget: #selector\n}\n\n//
-                      +usage=Contains a JSON6902 patch\n#jsonPatchItem: {\n\ttarget: #selector\n\tpatch:
-                      {\n\t\top:     string\n\t\tpath:   string\n\t\tvalue?: string\n\t}\n}\n\n//
-                      +usage=Selector specifies a set of resources\n#selector: {\n\tgroup?:
-                      \             string\n\tversion?:            string\n\tkind?:               string\n\tnamespace?:
-                      \         string\n\tname?:               string\n\tannotationSelector?:
-                      string\n\tlabelSelector?:      string\n}\n"
+                      for.\n\tpath: string\n} \n"
                 workload:
                   type: autodetects.core.oam.dev
             type: raw

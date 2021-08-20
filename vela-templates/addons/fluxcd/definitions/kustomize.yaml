@@ -12,6 +12,30 @@ spec:
     cue:
       template: |
         output: {
+        	apiVersion: "kustomize.toolkit.fluxcd.io/v1beta1"
+        	kind:       "Kustomization"
+        	metadata: {
+        		name: context.name
+        	}
+        	spec: {
+        		interval: parameter.pullInterval
+        		sourceRef: {
+        			if parameter.repoType == "git" {
+        				kind: "GitRepository"
+        			}
+        			if parameter.repoType == "oss" {
+        				kind: "Bucket"
+        			}
+        			name:      context.name
+        			namespace: context.namespace
+        		}
+        		path:       parameter.path
+        		prune:      true
+        		validation: "client"
+        	}
+        }
+
+        outputs: repo:{
         	apiVersion: "source.toolkit.fluxcd.io/v1beta1"
         	metadata: {
         		name: context.name
@@ -57,29 +81,6 @@ spec:
         	}
         }
 
-        outputs: kustomize: {
-        	apiVersion: "kustomize.toolkit.fluxcd.io/v1beta1"
-        	kind:       "Kustomization"
-        	metadata: {
-        		name: context.name
-        	}
-        	spec: {
-        		interval: parameter.pullInterval
-        		sourceRef: {
-        			if parameter.repoType == "git" {
-        				kind: "GitRepository"
-        			}
-        			if parameter.repoType == "oss" {
-        				kind: "Bucket"
-        			}
-        			name:      context.name
-        			namespace: context.namespace
-        		}
-        		path:       parameter.path
-        		prune:      true
-        		validation: "client"
-        	}
-        }
         parameter: {
         	repoType: *"git" | "oss"
         	// +usage=The interval at which to check for repository/bucket and relese updates, default to 5m
@@ -104,43 +105,4 @@ spec:
         	}
         	//+usage=Path to the directory containing the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml should be generated for.
         	path: string
-        	// +usage=a list of StrategicMerge or JSON6902 patch to selected target
-        	patches?: [...#patchItem]
-        	// +usage=A list of strategicMerge, defined as inline YAML objects.
-        	patchesStrategicMerge?: [...#nestedmap]
-        	// +usage=A list of JSON6902 patch.
-        	patchesJson?: [...#jsonPatchItem]
-        }
-
-        #nestedmap: {
-        	...
-        }
-
-        // +usage=Contains a strategicMerge or JSON6902 patch
-        #patchItem: {
-        	// +usage=Inline patch string, in yaml style
-        	patch: string
-        	// +usage=Specify the target the patch should be applied to
-        	target: #selector
-        }
-
-        // +usage=Contains a JSON6902 patch
-        #jsonPatchItem: {
-        	target: #selector
-        	patch: {
-        		op:     string
-        		path:   string
-        		value?: string
-        	}
-        }
-
-        // +usage=Selector specifies a set of resources
-        #selector: {
-        	group?:              string
-        	version?:            string
-        	kind?:               string
-        	namespace?:          string
-        	name?:               string
-        	annotationSelector?: string
-        	labelSelector?:      string
         }
