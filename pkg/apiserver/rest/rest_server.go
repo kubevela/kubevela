@@ -110,6 +110,11 @@ func (s *restServer) registerServices() error {
 	openapi.POST("/namespaces/:namespace/applications/:appname", applicationService.CreateOrUpdateApplication)
 	openapi.DELETE("/namespaces/:namespace/applications/:appname", applicationService.DeleteApplication)
 
+	// definition
+	definitionService := services.NewDefinitionService(s.k8sClient)
+	openapi.GET("/definitions/:defname", definitionService.GetDefinition)
+	openapi.POST("/definitions/:defname", definitionService.CreateDefinition)
+
 	return nil
 }
 

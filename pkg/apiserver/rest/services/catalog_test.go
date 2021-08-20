@@ -21,60 +21,74 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 
 	"github.com/labstack/echo/v4"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = Describe("Test Catalog Service", func() {
+func TestCatalogGet(t *testing.T) {
+	cw := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	catalogService := NewCatalogService(cw)
 
-	var catalogService *CatalogService
+	tests := map[string]struct {
+		rawReq      []byte
+		name        string
+		namespace   string
+		expHttpCode int
+		expErr      string
+		expApp      *v1beta1.Application
+	}{
+		"normal get test for catalog": {
+			expHttpCode: 200,
+			name:        "testName",
+			namespace:   "testNamespace",
+		},
+	}
 
-	BeforeEach(func() {
-		catalogService = NewCatalogService(k8sClient)
-	})
+	// create an catalog for get
+	cr := &apis.CatalogRequest{
+		Name: "test",
+	}
+	rawReq, err := json.Marshal(cr)
+	assert.NoError(t, err, "marshal request for create catalog. ")
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer(rawReq))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	echoCtx := echo.New().NewContext(req, rec)
 
-	AfterEach(func() {
-	})
+	err = catalogService.AddCatalog(echoCtx)
+	assert.NoError(t, err, "create catalog for get test")
+	checkCatalogResponse(t, rec, cr, http.StatusCreated)
 
-	It("should add catalog successfully", func() {
-		e := echo.New()
-		cr := &apis.CatalogRequest{
-			Name: "test",
-		}
-		b, err := json.Marshal(cr)
-		Expect(err).To(BeNil())
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer(b))
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-
-		Expect(catalogService.AddCatalog(c)).To(BeNil())
-		checkCatalogResponse(rec, cr, http.StatusCreated)
-
+	// get and check for catalog details
+	for caseName, c := range tests {
 		req = httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec = httptest.NewRecorder()
-		c = e.NewContext(req, rec)
-		c.SetPath("/v1/catalogs/:catalogName")
-		c.SetParamNames("catalogName")
-		c.SetParamValues(cr.Name)
+		echoCtx = echo.New().NewContext(req, rec)
+		echoCtx.SetPath("/v1/catalogs/:catalogName")
+		echoCtx.SetParamNames("catalogName")
+		echoCtx.SetParamValues(cr.Name)
 
-		Expect(catalogService.GetCatalog(c)).To(BeNil())
-		checkCatalogResponse(rec, cr, http.StatusOK)
-	})
-})
+		err = catalogService.GetCatalog(echoCtx)
+		assert.NoError(t, err, caseName)
+		checkCatalogResponse(t, rec, cr, c.expHttpCode)
+	}
+}
 
-func checkCatalogResponse(rec *httptest.ResponseRecorder, cr *apis.CatalogRequest, httpcode int) {
-	Expect(rec.Code).To(Equal(httpcode))
+func checkCatalogResponse(t *testing.T, rec *httptest.ResponseRecorder, cr *apis.CatalogRequest, httpcode int) {
+	assert.Equal(t, rec.Code, httpcode)
 
 	get := &apis.CatalogResponse{}
 	err := json.Unmarshal(rec.Body.Bytes(), get)
-	Expect(err).To(BeNil())
+	assert.NoError(t, err, "unmarshal rec body")
 
-	Expect(get.Catalog.Name).To(Equal(cr.Name))
-	Expect(get.Catalog.UpdatedAt).NotTo(BeZero())
+	assert.Equal(t, get.Catalog.Name, cr.Name)
+	assert.NotEqualValues(t, get.Catalog.UpdatedAt, 0)
 }

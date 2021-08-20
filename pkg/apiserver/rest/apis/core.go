@@ -35,3 +35,18 @@ type ApplicationResponse struct {
 	Spec       v1beta1.ApplicationSpec `json:"spec"`
 	Status     common.AppStatus        `json:"status"`
 }
+
+// DefinitionRequest represents definition request for APIServer
+type DefinitionRequest struct {
+	APIVersion string `json:"apiVersion,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	Spec       string `json:"spec,omitempty"`
+	CUEString  string `json:"cueString,omitempty"`
+}
+
+// DefinitionResponse represents definition response for APIServer
+type DefinitionResponse struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Spec       string `json:"spec"`
+}
