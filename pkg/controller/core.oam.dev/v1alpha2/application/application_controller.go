@@ -82,7 +82,7 @@ type Reconciler struct {
 // Reconcile process app event
 // nolint:gocyclo
 func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx := common2.NewReconcileContext(_ctx, req)
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 

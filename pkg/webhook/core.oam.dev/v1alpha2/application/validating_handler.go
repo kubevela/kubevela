@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -28,10 +29,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -68,27 +69,33 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // Handle validate Application Spec here
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	app := &v1beta1.Application{}
 	if err := h.Decoder.Decode(req, app); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+	ctx.AddEvent("Decode app")
 	switch req.Operation {
 	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
+		ctx.AddEvent("Validate create")
 	case admissionv1.Update:
 		oldApp := &v1beta1.Application{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
+		ctx.AddEvent("Decode old app")
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
 			if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
 				return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 			}
 		}
+		ctx.AddEvent("Validate update")
 	default:
 		// Do nothing for DELETE and CONNECT
 	}

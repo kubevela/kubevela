@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2/klogr"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -47,8 +47,8 @@ type ReconcileEvent struct {
 type ReconcileContext struct {
 	context.Context
 	logr.Logger
-	controllerName string
-	req ctrl.Request
+	callerName string
+	obj types.NamespacedName
 	cancel context.CancelFunc
 	begin time.Time
 	events []*ReconcileEvent
@@ -56,9 +56,12 @@ type ReconcileContext struct {
 	timers map[string]time.Duration
 }
 
-func getControllerName() string {
+func getCallerName() string {
 	if _, file, _, ok := runtime.Caller(2); ok {
 		s := filepath.Base(file)
+		if strings.Contains(file, "handler") {
+			s = filepath.Base(filepath.Dir(file)) + "_" + s
+		}
 		if strings.HasSuffix(s, ".go") {
 			return strings.TrimSuffix(s, ".go")
 		} else {
@@ -68,16 +71,16 @@ func getControllerName() string {
 	return "-"
 }
 
-func NewReconcileContext(ctx context.Context, req ctrl.Request) *ReconcileContext {
-	controllerName := getControllerName()
-	logger := klogr.New().WithValues("namespace", req.Namespace, "name", req.Name, "controller", controllerName)
-	ctx = util.SetNamespaceInCtx(ctx, req.Namespace)
+func NewReconcileContext(ctx context.Context, obj types.NamespacedName) *ReconcileContext {
+	callerName := getCallerName()
+	logger := klogr.New().WithValues("namespace", obj.Namespace, "name", obj.Name, "caller", callerName)
+	ctx = util.SetNamespaceInCtx(ctx, obj.Namespace)
 	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
 	return &ReconcileContext{
 		Context: ctx,
 		Logger: logger,
-		controllerName: controllerName,
-		req: req,
+		callerName: callerName,
+		obj: obj,
 		cancel: cancel,
 		events: []*ReconcileEvent{},
 		timestamps: map[string]time.Time{},

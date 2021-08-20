@@ -52,7 +52,7 @@ type reconciler struct {
 }
 
 func (r *reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx := common2.NewReconcileContext(_ctx, req)
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 

@@ -119,7 +119,7 @@ func main() {
 	if logDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
 	}
-
+	klog.InfoS("configs", "syncPeriod", syncPeriod.Seconds(), "qps", qps, "burst", burst, "concurrent-reconciles", controllerArgs.ConcurrentReconciles)
 	if pprofAddr != "" {
 		go func() {
 			log.Println(http.ListenAndServe(pprofAddr, nil))
@@ -138,10 +138,8 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
-	//restConfig.QPS = float32(qps)
-	//restConfig.Burst = burst
-	restConfig.QPS = 200000
-	restConfig.Burst = 200000
+	restConfig.QPS = float32(qps)
+	restConfig.Burst = burst
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                  scheme,

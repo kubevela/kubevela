@@ -78,7 +78,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx := common2.NewReconcileContext(_ctx, req)
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 

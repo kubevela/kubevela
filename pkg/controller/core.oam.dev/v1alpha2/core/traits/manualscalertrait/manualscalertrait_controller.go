@@ -80,7 +80,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=workloaddefinition,verbs=get;list;
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch;delete
 func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx := common.NewReconcileContext(_ctx, req)
+	ctx := common.NewReconcileContext(_ctx, req.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 

@@ -66,7 +66,7 @@ type Reconciler struct {
 // Reconcile is the main logic of appRollout controller
 // nolint:gocyclo
 func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (res reconcile.Result, retErr error) {
-	ctx := common2.NewReconcileContext(_ctx, req)
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 

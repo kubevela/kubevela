@@ -61,7 +61,7 @@ type Reconciler struct {
 
 // Reconcile reconcile an application context
 func (r *Reconciler) Reconcile(_ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	ctx := common2.NewReconcileContext(_ctx, req)
+	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 

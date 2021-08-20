@@ -137,7 +137,7 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 
 // Reconcile an OAM HealthScope by keeping track of its health status.
 func (r *Reconciler) Reconcile(_ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	ctx := common.NewReconcileContext(_ctx, req)
+	ctx := common.NewReconcileContext(_ctx, req.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 
