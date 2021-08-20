@@ -23,7 +23,6 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -254,17 +253,9 @@ func terminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 
 func restartWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	// reset the workflow status to restart the workflow
-	info := app.Status.Workflow.DeepCopy()
-	app.Status.Workflow = &commontypes.WorkflowStatus{
-		ContextBackend: info.ContextBackend,
-		AppRevision:    info.AppRevision,
-		Terminated:     false,
-		Suspend:        false,
-		Steps:          nil,
-		StepIndex:      1,
-	}
+	app.Status.Workflow = nil
 
-	if err := kubecli.Status().Patch(context.TODO(), app, client.Merge); err != nil {
+	if err := kubecli.Status().Update(context.TODO(), app); err != nil {
 		return err
 	}
 

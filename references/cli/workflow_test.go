@@ -383,8 +383,8 @@ func TestWorkflowRestart(t *testing.T) {
 				Name:      tc.app.Name,
 			}, wf)
 			r.NoError(err)
-			r.Equal(false, wf.Status.Workflow.Terminated)
-			r.Equal(1, wf.Status.Workflow.StepIndex)
+			var nilStatus *common.WorkflowStatus = nil
+			r.Equal(nilStatus, wf.Status.Workflow)
 		})
 	}
 }
