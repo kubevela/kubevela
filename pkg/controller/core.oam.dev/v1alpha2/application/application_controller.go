@@ -79,6 +79,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
 // Reconcile process app event
+// nolint:gocyclo
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	ctx, cancel := common2.NewReconcileContext(ctx)
 	defer cancel()
@@ -194,17 +195,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.patchStatus(ctx, app)
 	}
 
-	if wfStatus := app.Status.Workflow; wfStatus != nil && !wfStatus.Terminated {
-		ref, err := handler.DispatchAndGC(ctx)
-		if err != nil {
-			klog.ErrorS(err, "Failed to gc after workflow",
-				"application", klog.KObj(app))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
-			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("GCAfterWorkflow", err))
+	wfStatus := app.Status.Workflow
+	if wfStatus != nil {
+		if wfStatus.Terminated && app.Status.Phase == common.ApplicationWorkflowTerminated {
+			if err := r.patchStatus(ctx, app); err != nil {
+				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+			}
+			return ctrl.Result{}, nil
 		}
-		wfStatus.Terminated = true
-		app.Status.ResourceTracker = ref
-		return r.endWithNegativeCondition(ctx, app, condition.ReadyCondition("GCAfterWorkflow"))
+
+		if !wfStatus.Terminated {
+			ref, err := handler.DispatchAndGC(ctx)
+			if err != nil {
+				klog.ErrorS(err, "Failed to gc after workflow",
+					"application", klog.KObj(app))
+				r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("GCAfterWorkflow", err))
+			}
+			wfStatus.Terminated = true
+			app.Status.ResourceTracker = ref
+			return r.endWithNegativeCondition(ctx, app, condition.ReadyCondition("GCAfterWorkflow"))
+		}
 	}
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
