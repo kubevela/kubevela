@@ -6024,14 +6024,7 @@ spec:
                   +usage=Selector specifies a set of resources\n#selector: {\n\tgroup?:
                   \             string\n\tversion?:            string\n\tkind?:               string\n\tnamespace?:
                   \         string\n\tname?:               string\n\tannotationSelector?:
-                  string\n\tlabelSelector?:      string\n}\n\n//test\npatches: [...#patchItem]\npatches:
-                  [\n\t{\n\t\tpatch: \"hello\"\n\t\ttarget: {\n\t\t\tversion: \"v1\"\n\t\t\tkind:
-                  \   \"Dep\"\n\t\t\tname:    \"podinfo\"\n\t\t}\n\t},\n\t{\n\t\tpatch:
-                  \"hello\"\n\t\ttarget: {\n\t\t\tversion: \"v1\"\n\t\t\tkind:    \"Dep\"\n\t\t\tname:
-                  \   \"podinfo\"\n\t\t}\n\t},\n]\ncontext: {\n\tname:      \"a\"\n\tnamespace:
-                  \"b\"\n}\n\njp: #jsonPatchItem & {\n\ttarget: {\n\t\tversion: \"v1\"\n\t\tkind:
-                  \   \"Dep\"\n\t\tname:    \"podinfo\"\n\t}\n\tpatch: {\n\t\top:
-                  \   \"add\"\n\t\tpath:  \"hsdhas/asdad\"\n\t\tvalue: \"value\"\n\t}\n}\n"
+                  string\n\tlabelSelector?:      string\n}\n"
             workload:
               type: autodetects.core.oam.dev
         type: raw
