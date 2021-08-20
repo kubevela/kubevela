@@ -5964,6 +5964,50 @@ spec:
             workload:
               type: autodetects.core.oam.dev
         type: raw
+      - name: kustomize-json-patch
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: TraitDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: A list of JSON6902 patch to selected
+                target
+            name: kustomize-json-patch
+          spec:
+            schematic:
+              cue:
+                template: "patch: {\n\tspec: {\n\t\tpatchesJson6902: parameter.patchesJson\n\t}\n}\n\nparameter:
+                  {\n\t// +usage=A list of JSON6902 patch.\n\tpatchesJson: [...#jsonPatchItem]\n}\n\n//
+                  +usage=Contains a JSON6902 patch\n#jsonPatchItem: {\n\ttarget: #selector\n\tpatch:
+                  {\n\t\top:     string\n\t\tpath:   string\n\t\tvalue?: string\n\t}\n}\n\n//
+                  +usage=Selector specifies a set of resources\n#selector: {\n\tgroup?:
+                  \             string\n\tversion?:            string\n\tkind?:               string\n\tnamespace?:
+                  \         string\n\tname?:               string\n\tannotationSelector?:
+                  string\n\tlabelSelector?:      string\n}\n"
+        type: raw
+      - name: kustomize-patch
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: TraitDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: A list of StrategicMerge or JSON6902
+                patch to selected target
+            name: kustomize-patch
+          spec:
+            schematic:
+              cue:
+                template: "patch: {\n\tspec: {\n\t\tpatches: parameter.patches\n\t}\n}\nparameter:
+                  {\n\t// +usage=a list of StrategicMerge or JSON6902 patch to selected
+                  target\n\tpatches: [...#patchItem]\n}\n\n// +usage=Contains a strategicMerge
+                  or JSON6902 patch\n#patchItem: {\n\t// +usage=Inline patch string,
+                  in yaml style\n\tpatch: string\n\t// +usage=Specify the target the
+                  patch should be applied to\n\ttarget: #selector\n}\n\n// +usage=Selector
+                  specifies a set of resources\n#selector: {\n\tgroup?:              string\n\tversion?:
+                  \           string\n\tkind?:               string\n\tnamespace?:
+                  \         string\n\tname?:               string\n\tannotationSelector?:
+                  string\n\tlabelSelector?:      string\n}\n"
+        type: raw
       - name: kustomize
         properties:
           apiVersion: core.oam.dev/v1beta1
@@ -5977,23 +6021,61 @@ spec:
           spec:
             schematic:
               cue:
-                template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tkind:
-                  \      \"GitRepository\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec:
-                  {\n\t\tinterval: parameter.pullInterval\n\t\turl:      parameter.repoUrl\n\t\tref:
-                  branch: parameter.branch\n\t}\n}\noutputs: kustomize: {\n\tapiVersion:
-                  \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:       \"Kustomization\"\n\tmetadata:
-                  {\n\t\tname: context.name\n\t}\n\tspec: {\n\t\tinterval: parameter.pullInterval\n\t\tsourceRef:
-                  {\n\t\t\tkind: \"GitRepository\"\n\t\t\tname: context.name\n\t\t}\n\t\tpath:
-                  \      parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\nparameter:
-                  {\n\t//+usage=The repository URL, can be a HTTP/S or SSH address.\n\trepoUrl:
-                  string\n\t//+usage=The interval at which to check for repository
-                  updates.\n\tpullInterval: *\"1m\" | string\n\t//+usage=The Git reference
-                  to checkout and monitor for changes, defaults to master branch.\n\tbranch:
-                  *\"master\" | string\n\t//+usage=Path to the directory containing
-                  the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml
-                  should be generated for.\n\tpath: string\n}\n"
+                template: "output: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:
+                  \      \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec:
+                  {\n\t\tinterval: parameter.pullInterval\n\t\tsourceRef: {\n\t\t\tif
+                  parameter.repoType == \"git\" {\n\t\t\t\tkind: \"GitRepository\"\n\t\t\t}\n\t\t\tif
+                  parameter.repoType == \"oss\" {\n\t\t\t\tkind: \"Bucket\"\n\t\t\t}\n\t\t\tname:
+                  \     context.name\n\t\t\tnamespace: context.namespace\n\t\t}\n\t\tpath:
+                  \      parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\n\noutputs:
+                  repo:{\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata:
+                  {\n\t\tname: context.name\n\t}\n\tif parameter.repoType == \"git\"
+                  {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.url\n\t\t\tif
+                  parameter.git.branch != _|_ {\n\t\t\t\tref: branch: parameter.git.branch\n\t\t\t}\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n\tif
+                  parameter.repoType == \"oss\" {\n\t\tkind: \"Bucket\"\n\t\tspec:
+                  {\n\t\t\tendpoint:   parameter.url\n\t\t\tbucketName: parameter.oss.bucketName\n\t\t\tprovider:
+                  \  parameter.oss.provider\n\t\t\tif parameter.oss.region != _|_
+                  {\n\t\t\t\tregion: parameter.oss.region\n\t\t\t}\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n}\n\n_secret:
+                  {\n\tif parameter.secretRef != _|_ {\n\t\tsecretRef: {\n\t\t\tname:
+                  parameter.secretRef\n\t\t}\n\t}\n}\n\n_sourceCommonArgs: {\n\tinterval:
+                  parameter.pullInterval\n\tif parameter.timeout != _|_ {\n\t\ttimeout:
+                  parameter.timeout\n\t}\n}\n\nparameter: {\n\trepoType: *\"git\"
+                  | \"oss\"\n\t// +usage=The interval at which to check for repository/bucket
+                  and relese updates, default to 5m\n\tpullInterval: *\"5m\" | string\n\t//
+                  +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S
+                  or SSH address as git url,\n\turl: string\n\t// +usage=The name
+                  of the secret containing authentication credentials\n\tsecretRef?:
+                  string\n\t// +usage=The timeout for operations like download index/clone
+                  repository, optional\n\ttimeout?: string\n\tgit?: {\n\t\t// +usage=The
+                  Git reference to checkout and monitor for changes, defaults to master
+                  branch\n\t\tbranch: string\n\t}\n\toss?: {\n\t\t// +usage=The bucket's
+                  name, required if repoType is oss\n\t\tbucketName: string\n\t\t//
+                  +usage=\"generic\" for Minio, Amazon S3, Google Cloud Storage, Alibaba
+                  Cloud OSS, \"aws\" for retrieve credentials from the EC2 service
+                  when credentials not specified, default \"generic\"\n\t\tprovider:
+                  *\"generic\" | \"aws\"\n\t\t// +usage=The bucket region, optional\n\t\tregion?:
+                  string\n\t}\n\t//+usage=Path to the directory containing the kustomization.yaml
+                  file, or the set of plain YAMLs a kustomization.yaml should be generated
+                  for.\n\tpath: string\n} \n"
             workload:
               type: autodetects.core.oam.dev
+        type: raw
+      - name: kustomize-strategy-merge
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: TraitDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: A list of strategic merge to kustomize
+                config
+            name: kustomize-strategy-merge
+          spec:
+            schematic:
+              cue:
+                template: "patch: {\n\tspec: {\n\t\tpatchesStrategicMerge: parameter.patchesStrategicMerge\n\t}\n}\n\nparameter:
+                  {\n\t// +usage=a list of strategicmerge, defined as inline yaml
+                  objects.\n\tpatchesStrategicMerge: [...#nestedmap]\n}\n\n#nestedmap:
+                  {\n\t...\n}\n"
         type: raw
     status:
       rollout:
