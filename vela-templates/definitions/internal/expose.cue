@@ -5,7 +5,6 @@ expose: {
 	description: "Expose port to enable web traffic for your component."
 	attributes: {
 		podDisruptive: false
-		appliesToWorkloads: ["deployments.apps"]
 	}
 }
 template: {
@@ -21,10 +20,13 @@ template: {
 					targetPort: p
 				},
 			]
+			type: parameter.type
 		}
 	}
 	parameter: {
 		// +usage=Specify the exposion ports
 		port: [...int]
+		// +usage=Specify what kind of Service you want. options: "ClusterIP","NodePort","LoadBalancer","ExternalName"
+		type: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
 	}
 }

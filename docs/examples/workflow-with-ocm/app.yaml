@@ -5,14 +5,18 @@ metadata:
   namespace: default
 spec:
   components:
-    - name: nginx-server
+    - name: podinfo-server
       type: webservice
       properties:
-        image: nginx:1.21
-        port: 80
+        image: stefanprodan/podinfo:5.2.1
+        port: 9898
+      traits:
+        - type: expose
+          properties:
+            port: [9898]
 
   policies:
-    - name: patch
+    - name: prod-env
       type: env-binding
       properties:
         engine: ocm
@@ -21,11 +25,16 @@ spec:
           - name: prod
             patch:
               components:
-                - name: nginx-server
+                - name: podinfo-server
                   type: webservice
                   properties:
-                    image: nginx:1.20
-                    port: 80
+                    image: stefanprodan/podinfo:6.0.0
+                    port: 9898
+                  traits:
+                    - type: expose
+                      properties:
+                        port: [9898]
+                        type: LoadBalancer
             placement:
               clusterSelector:
                 labels:
@@ -37,5 +46,5 @@ spec:
         type: deploy2cluster
         properties:
           env:       prod
-          policy:    patch
-          component: nginx-server
+          policy:    prod-env
+          component: podinfo-server

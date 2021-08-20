@@ -35,3 +35,14 @@ spec:
               initNameSpace: default
               patchLabels:
                 purpose: test
+  dependsOn:
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: terraform-alibaba
+        namespace: vela-system
+    - ref:
+        apiVersion: core.oam.dev/v1beta1
+        kind: Initializer
+        name: ocm-cluster-manager
+        namespace: vela-system
