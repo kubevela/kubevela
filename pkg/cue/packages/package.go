@@ -97,7 +97,10 @@ func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
 		return pd, err
 	}
 
-	stdPkgs := stdlib.GetPackages()
+	stdPkgs, err := stdlib.GetPackages()
+	if err != nil {
+		return nil, err
+	}
 	for path, content := range stdPkgs {
 		p := newPackage(path)
 		if err := p.AddFile("-", content); err != nil {
