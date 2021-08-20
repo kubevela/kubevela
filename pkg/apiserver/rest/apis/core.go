@@ -27,3 +27,11 @@ type ApplicationRequest struct {
 	Policies   []v1beta1.AppPolicy           `json:"policies,omitempty"`
 	Workflow   *v1beta1.Workflow             `json:"workflow,omitempty"`
 }
+
+// ApplicationResponse represents application response for APIServer
+type ApplicationResponse struct {
+	APIVersion string                  `json:"apiVersion"`
+	Kind       string                  `json:"kind"`
+	Spec       v1beta1.ApplicationSpec `json:"spec"`
+	Status     common.AppStatus        `json:"status"`
+}

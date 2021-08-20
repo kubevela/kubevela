@@ -106,7 +106,9 @@ func (s *restServer) registerServices() error {
 
 	// application
 	applicationService := services.NewApplicationService(s.k8sClient)
+	openapi.GET("/namespaces/:namespace/applications/:appname", applicationService.GetApplication)
 	openapi.POST("/namespaces/:namespace/applications/:appname", applicationService.CreateOrUpdateApplication)
+	openapi.DELETE("/namespaces/:namespace/applications/:appname", applicationService.DeleteApplication)
 
 	return nil
 }

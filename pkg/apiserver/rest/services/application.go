@@ -40,8 +40,34 @@ func NewApplicationService(kc client.Client) *ApplicationService {
 	}
 }
 
+// GetApplication will get application status
+// GET  /namespaces/<namespace>/applications/<appname>
+func (s *ApplicationService) GetApplication(c echo.Context) error {
+	namespace := c.Param("namespace")
+	appName := c.Param("appname")
+
+	ctx := context.TODO()
+	var existApp v1beta1.Application
+	err := s.k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appName}, &existApp)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "application does not exist: " + err.Error()})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fail to get application: " + err.Error()})
+	}
+
+	var appResp = &apis.ApplicationResponse{
+		APIVersion: existApp.APIVersion,
+		Kind:       existApp.Kind,
+		Spec:       existApp.Spec,
+		Status:     existApp.Status,
+	}
+
+	return c.JSON(http.StatusOK, appResp)
+}
+
 // CreateOrUpdateApplication will create or update application
-// POST /v1/namespaces/<namespace>/applications/<appname>
+// POST /namespaces/<namespace>/applications/<appname>
 func (s *ApplicationService) CreateOrUpdateApplication(c echo.Context) error {
 	namespace := c.Param("namespace")
 	name := c.Param("appname")
@@ -71,6 +97,26 @@ func (s *ApplicationService) CreateOrUpdateApplication(c echo.Context) error {
 	err = s.k8sClient.Update(ctx, &existApp)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fail to update application: " + err.Error()})
+	}
+	return c.JSON(http.StatusOK, struct{}{})
+}
+
+// DeleteApplication will delete application
+// delete /v1/namespaces/<namespace>/applications/<appname>
+func (s *ApplicationService) DeleteApplication(c echo.Context) error {
+	namespace := c.Param("namespace")
+	appName := c.Param("appname")
+
+	ctx := context.TODO()
+	var existApp v1beta1.Application
+	existApp.Namespace = namespace
+	existApp.Name = appName
+	err := s.k8sClient.Delete(ctx, &existApp)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "application does not exist: " + err.Error()})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fail to delete application: " + err.Error()})
 	}
 	return c.JSON(http.StatusOK, struct{}{})
 }

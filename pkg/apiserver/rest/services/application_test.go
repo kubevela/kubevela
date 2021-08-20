@@ -27,6 +27,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -112,19 +113,160 @@ func TestApplicationCreateOrUpdate(t *testing.T) {
 
 		// check response
 		assert.Equal(t, c.expHttpCode, rec.Code, casename)
-		gotResp := map[string]string{}
-		err = json.Unmarshal(rec.Body.Bytes(), &gotResp)
-		assert.NoError(t, err, casename)
-		if c.expErr != "" {
+		if c.expErr != "" { // compare return error with map type
+			gotResp := map[string]string{}
+			err = json.Unmarshal(rec.Body.Bytes(), &gotResp)
+			assert.NoError(t, err, casename)
 			assert.True(t, strings.Contains(gotResp["error"], c.expErr), casename)
+		} else { // check app spec in fake cluster
+			var appObj v1beta1.Application
+			err = cw.Get(context.TODO(), client.ObjectKey{Namespace: c.namespace, Name: c.name}, &appObj)
+			assert.NoError(t, err, casename)
+			assert.Equal(t, c.expApp.Spec, appObj.Spec, casename)
+		}
+	}
+}
+
+func TestApplicationGet(t *testing.T) {
+	cw := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	appSvc := NewApplicationService(cw)
+
+	tests := map[string]struct {
+		rawReq      []byte
+		name        string
+		namespace   string
+		expHttpCode int
+		expErr      string
+		expApp      *v1beta1.Application
+	}{
+		"normal get method for application": {
+			expHttpCode: 200,
+			name:        "commonName",
+			namespace:   "commonNamespace",
+		},
+		"get app failed with resource not found": {
+			expHttpCode: 404,
+			name:        "notExistName",
+			namespace:   "commonNamespace",
+			expErr:      "application does not exist",
+		},
+	}
+	// create an application for get
+	createAppForTest(t, appSvc)
+
+	for casename, c := range tests {
+		var err error
+		req := httptest.NewRequest(http.MethodGet, "/", bytes.NewBuffer(c.rawReq))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		echoCtx := echo.New().NewContext(req, rec)
+		echoCtx.SetParamNames("namespace", "appname")
+		echoCtx.SetParamValues(c.namespace, c.name)
+
+		err = appSvc.GetApplication(echoCtx)
+		assert.NoError(t, err, casename)
+
+		// check response
+		assert.Equal(t, c.expHttpCode, rec.Code, casename)
+		if c.expErr != "" { // compare return error with map type
+			gotResp := map[string]string{}
+			err = json.Unmarshal(rec.Body.Bytes(), &gotResp)
+			assert.NoError(t, err, casename)
+			assert.True(t, strings.Contains(gotResp["error"], c.expErr), casename)
+		} else { // check app spec in fake cluster
+			var gotResp apis.ApplicationResponse
+			err = json.Unmarshal(rec.Body.Bytes(), &gotResp)
+			assert.NoError(t, err, casename)
+
+			var appObj v1beta1.Application
+			err = cw.Get(context.TODO(), client.ObjectKey{Namespace: c.namespace, Name: c.name}, &appObj)
+			assert.NoError(t, err, casename)
+			assert.Equal(t, gotResp.APIVersion, appObj.APIVersion, casename)
+			assert.Equal(t, gotResp.Kind, appObj.Kind, casename)
+			assert.Equal(t, gotResp.Spec, appObj.Spec, casename)
+			assert.Equal(t, gotResp.Status, appObj.Status, casename)
 		}
 
-		if len(c.expErr) > 0 {
-			continue
-		}
-		var appObj v1beta1.Application
-		err = cw.Get(context.TODO(), client.ObjectKey{Namespace: c.namespace, Name: c.name}, &appObj)
-		assert.NoError(t, err, casename)
-		assert.Equal(t, c.expApp.Spec, appObj.Spec, casename)
 	}
+}
+
+func TestApplicationDelete(t *testing.T) {
+	cw := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	appSvc := NewApplicationService(cw)
+
+	tests := map[string]struct {
+		rawReq      []byte
+		name        string
+		namespace   string
+		expHttpCode int
+		expErr      string
+	}{
+		"normal delete method for application": {
+			expHttpCode: 200,
+			name:        "commonName",
+			namespace:   "commonNamespace",
+		},
+		"delete app failed with resource not found": {
+			expHttpCode: 404,
+			name:        "notExistName",
+			namespace:   "commonNamespace",
+			expErr:      "application does not exist",
+		},
+	}
+	for casename, c := range tests {
+		// create common app
+		createAppForTest(t, appSvc)
+		var err error
+		req := httptest.NewRequest(http.MethodDelete, "/", bytes.NewBuffer(c.rawReq))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		echoCtx := echo.New().NewContext(req, rec)
+		echoCtx.SetParamNames("namespace", "appname")
+		echoCtx.SetParamValues(c.namespace, c.name)
+
+		err = appSvc.DeleteApplication(echoCtx)
+		assert.NoError(t, err, casename)
+
+		// check response
+		assert.Equal(t, c.expHttpCode, rec.Code, casename)
+		if c.expErr != "" {
+			gotResp := map[string]string{}
+			err = json.Unmarshal(rec.Body.Bytes(), &gotResp)
+			assert.NoError(t, err, casename)
+			assert.True(t, strings.Contains(gotResp["error"], c.expErr), casename)
+		} else {
+			// checkout app status in fake cluster
+			var appObj v1beta1.Application
+			err = cw.Get(context.TODO(), client.ObjectKey{Namespace: c.namespace, Name: c.name}, &appObj)
+			assert.Equal(t, apierrors.IsNotFound(err), true)
+		}
+	}
+}
+
+func createAppForTest(t *testing.T, appSvc *ApplicationService) {
+	appComp := common2.ApplicationComponent{
+		Name:       "mycomp",
+		Type:       "webservice",
+		Properties: runtime.RawExtension{Raw: []byte(`{"image":"nginx:v1"}`)},
+	}
+
+	var appReq = &apis.ApplicationRequest{
+		Components: []common2.ApplicationComponent{appComp},
+	}
+
+	var rawReq []byte
+	var err error
+	if appReq != nil {
+		rawReq, err = json.Marshal(appReq)
+		assert.NoError(t, err, "marshal request for create app")
+	}
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBuffer(rawReq))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	echoCtx := echo.New().NewContext(req, rec)
+	echoCtx.SetParamNames("namespace", "appname")
+	echoCtx.SetParamValues("commonNamespace", "commonName")
+
+	err = appSvc.CreateOrUpdateApplication(echoCtx)
+	assert.NoError(t, err, "craete application in service")
 }
