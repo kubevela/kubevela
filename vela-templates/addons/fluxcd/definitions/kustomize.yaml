@@ -40,14 +40,6 @@ spec:
         			_sourceCommonArgs
         		}
         	}
-        	if parameter.repoType == "helm" {
-        		kind: "HelmRepository"
-        		spec: {
-        			url: parameter.url
-        			_secret
-        			_sourceCommonArgs
-        		}
-        	}
         }
 
         _secret: {
@@ -77,9 +69,6 @@ spec:
         			if parameter.repoType == "git" {
         				kind: "GitRepository"
         			}
-        			if parameter.repoType == "helm" {
-        				kind: "HelmRepository"
-        			}
         			if parameter.repoType == "oss" {
         				kind: "Bucket"
         			}
@@ -92,7 +81,7 @@ spec:
         	}
         }
         parameter: {
-        	repoType: *"helm" | "git" | "oss"
+        	repoType: *"git" | "oss"
         	// +usage=The interval at which to check for repository/bucket and relese updates, default to 5m
         	pullInterval: *"5m" | string
         	// +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S or SSH address as git url,
@@ -115,4 +104,81 @@ spec:
         	}
         	//+usage=Path to the directory containing the kustomization.yaml file, or the set of plain YAMLs a kustomization.yaml should be generated for.
         	path: string
+        	// +usage=a list of StrategicMerge or JSON6902 patch to selected target
+        	patches?: [...#patchItem]
+        	// +usage=A list of strategicMerge, defined as inline YAML objects.
+        	patchesStrategicMerge?: [...#nestedmap]
+        	// +usage=A list of JSON6902 patch.
+        	patchesJson?: [...#jsonPatchItem]
+        }
+
+        #nestedmap: {
+        	...
+        }
+
+        // +usage=Contains a strategicMerge or JSON6902 patch
+        #patchItem: {
+        	// +usage=Inline patch string, in yaml style
+        	patch: string
+        	// +usage=Specify the target the patch should be applied to
+        	target: #selector
+        }
+
+        // +usage=Contains a JSON6902 patch
+        #jsonPatchItem: {
+        	target: #selector
+        	patch: {
+        		op:     string
+        		path:   string
+        		value?: string
+        	}
+        }
+
+        // +usage=Selector specifies a set of resources
+        #selector: {
+        	group?:              string
+        	version?:            string
+        	kind?:               string
+        	namespace?:          string
+        	name?:               string
+        	annotationSelector?: string
+        	labelSelector?:      string
+        }
+
+        //test
+        patches: [...#patchItem]
+        patches: [
+        	{
+        		patch: "hello"
+        		target: {
+        			version: "v1"
+        			kind:    "Dep"
+        			name:    "podinfo"
+        		}
+        	},
+        	{
+        		patch: "hello"
+        		target: {
+        			version: "v1"
+        			kind:    "Dep"
+        			name:    "podinfo"
+        		}
+        	},
+        ]
+        context: {
+        	name:      "a"
+        	namespace: "b"
+        }
+
+        jp: #jsonPatchItem & {
+        	target: {
+        		version: "v1"
+        		kind:    "Dep"
+        		name:    "podinfo"
+        	}
+        	patch: {
+        		op:    "add"
+        		path:  "hsdhas/asdad"
+        		value: "value"
+        	}
         }
