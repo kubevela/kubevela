@@ -42,5 +42,6 @@ func GetPackages() Pkgs {
 	d.addFile(kubeFile)
 	d.addFile(workspaceFile)
 	d.addFile(httpFile)
+	d.addFile(dingTalkFile)
 	return d.packages()
 }

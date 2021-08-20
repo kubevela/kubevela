@@ -27,7 +27,10 @@ var (
 		name: "op.cue",
 		path: "vela/op",
 		content: `
-import ("encoding/yaml")
+import (
+   "encoding/yaml"
+   "encoding/json"
+)
 #ConditionalWait: {
   #do: "wait"
   continue: bool
@@ -105,6 +108,20 @@ import ("encoding/yaml")
         }
      }
   ] @step(2)
+}
+
+#DingDing: #Steps & {
+    message: dingDing.#Message
+    _message: json.Marshal(message)
+	token: string
+    do: http.#Do & {
+       method: "POST"
+       url: "https://oapi.dingtalk.com/robot/send?access_token=\(token)"
+       request: {
+         body: _message
+         header: "Content-Type": "application/json"
+       }
+    }
 }
 
 #ApplyEnvBindComponent: #Steps & {
