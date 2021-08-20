@@ -18,6 +18,7 @@ package http
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -37,7 +38,13 @@ type HTTPCmd struct {
 }
 
 func newHTTPCmd(v cue.Value) (registry.Runner, error) {
-	client := http.DefaultClient
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
 	return &HTTPCmd{client}, nil
 }
 
@@ -77,7 +84,6 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	}
 	req.Header = header
 	req.Trailer = trailer
-
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err

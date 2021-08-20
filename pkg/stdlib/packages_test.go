@@ -19,73 +19,16 @@ package stdlib
 import (
 	"testing"
 
-	"github.com/bmizerany/assert"
+	"cuelang.org/go/cue"
+	"gotest.tools/assert"
 )
 
 func TestGetPackages(t *testing.T) {
-	d := &discover{}
-	f1 := file{
-		name: "network.cue",
-		path: "kube/core",
-		content: `
-service: {
-    apiVersion: "v1"
-    kind: "Service"
-}
-`,
-	}
-
-	f2 := file{
-		name: "security.cue",
-		path: "kube/core",
-		content: `
-secret: {
-    apiVersion: "v1"
-    kind: "Secret"
-}
-`,
-	}
-
-	f3 := file{
-		name: "apps.cue",
-		path: "kube/apps",
-		content: `
-deployment: {
-    apiVersion: "apps/v1"
-    kind: "Deployment"
-}
-`,
-	}
-	d.addFile(f1)
-	d.addFile(f2)
-	d.addFile(f3)
-	for path, pkg := range d.packages() {
-		switch path {
-		case "kube/core":
-			assert.Equal(t, pkg, `
-service: {
-    apiVersion: "v1"
-    kind: "Service"
-}
-
-
-secret: {
-    apiVersion: "v1"
-    kind: "Secret"
-}
-
-`)
-		case "kube/apps":
-			assert.Equal(t, pkg, `
-deployment: {
-    apiVersion: "apps/v1"
-    kind: "Deployment"
-}
-
-`)
-		default:
-			t.Error("package path invalid")
-		}
-
+	pkgs, err := GetPackages()
+	assert.NilError(t, err)
+	var r cue.Runtime
+	for path, content := range pkgs {
+		_, err := r.Compile(path, content)
+		assert.NilError(t, err)
 	}
 }

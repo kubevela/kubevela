@@ -16,31 +16,41 @@ limitations under the License.
 
 package stdlib
 
-type discover struct {
-	files []file
-}
+import (
+	"embed"
+	"fmt"
+	"strings"
+)
 
-// Pkgs is map[${path}]${package-content}
-type Pkgs map[string]string
-
-func (p *discover) packages() Pkgs {
-	pkgs := map[string]string{}
-	for _, f := range p.files {
-		pkgs[f.path] += f.content + "\n"
-	}
-	return pkgs
-}
-
-func (p *discover) addFile(f file) {
-	p.files = append(p.files, f)
-}
+var (
+	//go:embed pkgs op.cue
+	fs         embed.FS
+	pkgContent string
+)
 
 // GetPackages Get Stdlib packages
-func GetPackages() Pkgs {
-	d := &discover{}
-	d.addFile(opFile)
-	d.addFile(kubeFile)
-	d.addFile(workspaceFile)
-	d.addFile(httpFile)
-	return d.packages()
+func GetPackages() (map[string]string, error) {
+
+	files, err := fs.ReadDir("pkgs")
+	if err != nil {
+		return nil, err
+	}
+
+	opBytes, err := fs.ReadFile("op.cue")
+	if err != nil {
+		return nil, err
+	}
+
+	pkgContent = string(opBytes) + "\n"
+	for _, file := range files {
+		body, err := fs.ReadFile("pkgs/" + file.Name())
+		if err != nil {
+			return nil, err
+		}
+		pkgContent += fmt.Sprintf("%s: {\n%s\n}\n", strings.TrimSuffix(file.Name(), ".cue"), string(body))
+	}
+
+	return map[string]string{
+		"vela/op": pkgContent,
+	}, nil
 }
