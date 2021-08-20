@@ -5964,6 +5964,50 @@ spec:
             workload:
               type: autodetects.core.oam.dev
         type: raw
+      - name: kustomize-json-patch
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: TraitDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: A list of JSON6902 patch to selected
+                target
+            name: kustomize-json-patch
+          spec:
+            schematic:
+              cue:
+                template: "patch: {\n\tspec: {\n\t\tpatchesJson6902: parameter.patchesJson\n\t}\n}\n\nparameter:
+                  {\n\t// +usage=A list of JSON6902 patch.\n\tpatchesJson: [...#jsonPatchItem]\n}\n\n//
+                  +usage=Contains a JSON6902 patch\n#jsonPatchItem: {\n\ttarget: #selector\n\tpatch:
+                  {\n\t\top:     string\n\t\tpath:   string\n\t\tvalue?: string\n\t}\n}\n\n//
+                  +usage=Selector specifies a set of resources\n#selector: {\n\tgroup?:
+                  \             string\n\tversion?:            string\n\tkind?:               string\n\tnamespace?:
+                  \         string\n\tname?:               string\n\tannotationSelector?:
+                  string\n\tlabelSelector?:      string\n}\n"
+        type: raw
+      - name: kustomize-patch
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: TraitDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: A list of StrategicMerge or JSON6902
+                patch to selected target
+            name: kustomize-patch
+          spec:
+            schematic:
+              cue:
+                template: "patch: {\n\tspec: {\n\t\tpatches: parameter.patches\n\t}\n}\nparameter:
+                  {\n\t// +usage=a list of StrategicMerge or JSON6902 patch to selected
+                  target\n\tpatches: [...#patchItem]\n}\n\n// +usage=Contains a strategicMerge
+                  or JSON6902 patch\n#patchItem: {\n\t// +usage=Inline patch string,
+                  in yaml style\n\tpatch: string\n\t// +usage=Specify the target the
+                  patch should be applied to\n\ttarget: #selector\n}\n\n// +usage=Selector
+                  specifies a set of resources\n#selector: {\n\tgroup?:              string\n\tversion?:
+                  \           string\n\tkind?:               string\n\tnamespace?:
+                  \         string\n\tname?:               string\n\tannotationSelector?:
+                  string\n\tlabelSelector?:      string\n}\n"
+        type: raw
       - name: kustomize
         properties:
           apiVersion: core.oam.dev/v1beta1
@@ -6027,6 +6071,23 @@ spec:
                   string\n\tlabelSelector?:      string\n}\n"
             workload:
               type: autodetects.core.oam.dev
+        type: raw
+      - name: kustomize-strategy-merge
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: TraitDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: A list of strategic merge to kustomize
+                config
+            name: kustomize-strategy-merge
+          spec:
+            schematic:
+              cue:
+                template: "patch: {\n\tspec: {\n\t\tpatchesStrategicMerge: parameter.patchesStrategicMerge\n\t}\n}\n\nparameter:
+                  {\n\t// +usage=a list of strategicmerge, defined as inline yaml
+                  objects.\n\tpatchesStrategicMerge: [...#nestedmap]\n}\n\n#nestedmap:
+                  {\n\t...\n}\n"
         type: raw
     status:
       rollout:
