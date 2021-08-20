@@ -277,6 +277,9 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 
 // GenerateComponentManifest generate only one ComponentManifest
 func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentManifest, error) {
+	if af.Namespace == "" {
+		af.Namespace = corev1.NamespaceDefault
+	}
 	if wl.ConfigNotReady {
 		return &types.ComponentManifest{
 			Name:                 wl.Name,
