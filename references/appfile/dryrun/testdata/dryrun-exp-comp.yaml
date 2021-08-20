@@ -1,6 +1,7 @@
 ExternalRevision: ""
 InsertConfigNotReady: false
 Name: myweb
+Namespace: default
 PackagedTraitResources: null
 PackagedWorkloadResources: null
 RevisionHash: ""

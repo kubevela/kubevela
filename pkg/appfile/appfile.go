@@ -277,9 +277,13 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 
 // GenerateComponentManifest generate only one ComponentManifest
 func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentManifest, error) {
+	if af.Namespace == "" {
+		af.Namespace = corev1.NamespaceDefault
+	}
 	if wl.ConfigNotReady {
 		return &types.ComponentManifest{
 			Name:                 wl.Name,
+			Namespace:            af.Namespace,
 			InsertConfigNotReady: true,
 		}, nil
 	}
@@ -387,6 +391,7 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 		return nil, err
 	}
 	compManifest.Name = wl.Name
+	compManifest.Namespace = ns
 	// we record the external revision name in ExternalRevision field
 	compManifest.ExternalRevision = wl.ExternalRevision
 
@@ -666,6 +671,7 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 	// re-use the way CUE module generates comp & acComp
 	compManifest := &types.ComponentManifest{
 		Name:             wl.Name,
+		Namespace:        ns,
 		ExternalRevision: wl.ExternalRevision,
 	}
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
