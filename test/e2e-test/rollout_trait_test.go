@@ -252,6 +252,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 		// check rollout paused in partition 0
 		time.Sleep(5 * time.Second)
+		sourceDeploy := v1.Deployment{}
 		Eventually(func() error {
 			rolloutKey := types.NamespacedName{Namespace: namespaceName, Name: componentName}
 			if err := k8sClient.Get(ctx, rolloutKey, &rollout); err != nil {
@@ -267,14 +268,14 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 				return fmt.Errorf("current batchPartition missmatch accutally %d", rollout.Status.CurrentBatch)
 			}
 			deployKey := types.NamespacedName{Namespace: namespaceName, Name: compRevName}
-			if err := k8sClient.Get(ctx, deployKey, &targerDeploy); err != nil {
+			if err := k8sClient.Get(ctx, deployKey, &sourceDeploy); err != nil {
 				return err
 			}
-			if *targerDeploy.Spec.Replicas != 2 {
-				return fmt.Errorf("targetDeploy replicas missMatch %d", *targerDeploy.Spec.Replicas)
+			if *sourceDeploy.Spec.Replicas != 2 {
+				return fmt.Errorf("targetDeploy replicas missMatch %d", *sourceDeploy.Spec.Replicas)
 			}
 			return nil
-		}, 60*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 300*time.Second, 300*time.Millisecond).Should(BeNil())
 		By("continue rollout upgrade legacy batches")
 		Eventually(func() error {
 			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {

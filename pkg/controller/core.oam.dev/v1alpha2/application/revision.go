@@ -400,6 +400,13 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 
 	comp.RevisionHash = cr.GetLabels()[oam.LabelComponentRevisionHash]
 	comp.RevisionName = revisionName
+
+	for _, trait := range comp.Traits {
+		if err := replaceComponentRevisionContext(trait, comp.RevisionName); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
