@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2/klogr"
 
@@ -48,12 +49,12 @@ type ReconcileContext struct {
 	context.Context
 	logr.Logger
 	callerName string
-	obj types.NamespacedName
-	cancel context.CancelFunc
-	begin time.Time
-	events []*ReconcileEvent
+	obj        types.NamespacedName
+	cancel     context.CancelFunc
+	begin      time.Time
+	events     []*ReconcileEvent
 	timestamps map[string]time.Time
-	timers map[string]time.Duration
+	timers     map[string]time.Duration
 }
 
 func getCallerName() string {
@@ -77,14 +78,14 @@ func NewReconcileContext(ctx context.Context, obj types.NamespacedName) *Reconci
 	ctx = util.SetNamespaceInCtx(ctx, obj.Namespace)
 	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
 	return &ReconcileContext{
-		Context: ctx,
-		Logger: logger,
+		Context:    ctx,
+		Logger:     logger,
 		callerName: callerName,
-		obj: obj,
-		cancel: cancel,
-		events: []*ReconcileEvent{},
+		obj:        obj,
+		cancel:     cancel,
+		events:     []*ReconcileEvent{},
 		timestamps: map[string]time.Time{},
-		timers: map[string]time.Duration{},
+		timers:     map[string]time.Duration{},
 	}
 }
 
@@ -106,7 +107,7 @@ func (ctx *ReconcileContext) EndReconcile() {
 		}
 		logger.Info("Performance", "event", "end_reconcile", "elapsed", time.Since(t0))
 		for name, _t := range ctx.timers {
-			logger.Info("Performance", "event", "timer::" + name, "elapsed", _t)
+			logger.Info("Performance", "event", "timer::"+name, "elapsed", _t)
 		}
 	}
 }
@@ -129,6 +130,14 @@ func (ctx *ReconcileContext) EndTimer(name string) {
 		if _, _ok := ctx.timers[name]; !_ok {
 			ctx.timers[name] = time.Duration(0)
 		}
-		ctx.timers[name] += time.Now().Sub(t)
+		ctx.timers[name] += time.Since(t)
 	}
+}
+
+// GetLogger get logger from ReconcileContext
+func (ctx *ReconcileContext) GetLogger() (logr.Logger, error) {
+	if ctx.Logger == nil {
+		return nil, errors.New("logger is not ready")
+	}
+	return ctx.Logger, nil
 }

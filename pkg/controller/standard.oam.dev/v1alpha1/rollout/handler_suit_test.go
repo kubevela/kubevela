@@ -22,24 +22,23 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"sigs.k8s.io/yaml"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test rollout related handler func", func() {
@@ -87,7 +86,8 @@ var _ = Describe("Test rollout related handler func", func() {
 		Expect(len(srcLabel)).Should(BeEquivalentTo(2))
 		Expect(srcLabel[oam.LabelAppComponentRevision]).Should(BeEquivalentTo("comp-test-v1"))
 
-		Expect(h.assembleWorkload(ctx)).Should(BeNil())
+		rctx := common2.NewReconcileContext(ctx, types.NamespacedName{Namespace: namespace, Name: "assemble-test"})
+		Expect(h.assembleWorkload(rctx)).Should(BeNil())
 		Expect(h.targetWorkload.GetName()).Should(BeEquivalentTo("comp-test-v2"))
 		Expect(h.sourceWorkload.GetName()).Should(BeEquivalentTo("comp-test-v1"))
 		pv := fieldpath.Pave(h.targetWorkload.UnstructuredContent())

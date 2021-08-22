@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"k8s.io/klog/v2/klogr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -65,7 +66,7 @@ var _ = Describe("Test WorkloadOption", func() {
 				StandardWorkload: cs,
 			}
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout(compName))
+			ao := NewAppManifests(appRev, klogr.New()).WithWorkloadOption(PrepareWorkloadForRollout(compName, klogr.New()))
 			ao.componentManifests = []*types.ComponentManifest{&comp}
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
@@ -89,7 +90,7 @@ var _ = Describe("Test WorkloadOption", func() {
 				StandardWorkload: sts,
 			}
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout(compName))
+			ao := NewAppManifests(appRev, klogr.New()).WithWorkloadOption(PrepareWorkloadForRollout(compName, klogr.New()))
 			ao.componentManifests = []*types.ComponentManifest{&comp}
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
@@ -106,7 +107,7 @@ var _ = Describe("Test WorkloadOption", func() {
 
 		It("test rollout Deployment", func() {
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev).WithWorkloadOption(PrepareWorkloadForRollout(compName))
+			ao := NewAppManifests(appRev, klogr.New()).WithWorkloadOption(PrepareWorkloadForRollout(compName, klogr.New()))
 			workloads, _, _, err := ao.GroupAssembledManifests()
 			Expect(err).Should(BeNil())
 			Expect(len(workloads)).Should(Equal(1))

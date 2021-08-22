@@ -66,7 +66,7 @@ func (r *reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 		return res, retErr
 	}
 
-	klog.InfoS("start rollout reconcile", "rollout",
+	ctx.Info("start rollout reconcile", "rollout",
 		klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
 
 	if len(rollout.Status.RollingState) == 0 {
@@ -116,7 +116,7 @@ func (r *reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 			return ctrl.Result{}, err
 		}
 		if removed {
-			klog.InfoS(" the target workload is gone, no need do anything", "rollout",
+			ctx.Info(" the target workload is gone, no need do anything", "rollout",
 				klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
 			rollout.Status.StateTransition(v1alpha1.RollingFinalizedEvent)
 			// update the appRollout status
@@ -127,7 +127,7 @@ func (r *reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 			return ctrl.Result{}, err
 		}
 		rollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
-		klog.InfoS("finished  rollout apply targetWorkload, passed LocatingTargetApp phase", "rollout",
+		ctx.Info("finished  rollout apply targetWorkload, passed LocatingTargetApp phase", "rollout",
 			klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
 		return ctrl.Result{}, r.updateStatus(ctx, rollout)
 	default:
@@ -148,10 +148,10 @@ func (r *reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		klog.InfoS("rollout succeeded, record the source and target  revision", "source", rollout.Spec.SourceRevisionName,
+		ctx.Info("rollout succeeded, record the source and target  revision", "source", rollout.Spec.SourceRevisionName,
 			"target", rollout.Spec.TargetRevisionName)
 	} else if rolloutStatus.RollingState == v1alpha1.RolloutFailedState {
-		klog.InfoS("rollout failed, record the source and target app revision", "source", rollout.Spec.SourceRevisionName,
+		ctx.Info("rollout failed, record the source and target app revision", "source", rollout.Spec.SourceRevisionName,
 			"target", rollout.Spec.TargetRevisionName)
 	}
 	return result, r.updateStatus(ctx, rollout)

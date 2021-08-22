@@ -118,7 +118,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (res reco
 // 5.generate a rolloutPlan controller with source and target workload and call rolloutPlan's reconcile func
 // 6.handle output status
 // !!! Note the AppRollout object should not be updated in this function as it could be logically used in Application reconcile loop which does not have real AppRollout object.
-func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRollout) (reconcile.Result, error) {
+func (r *Reconciler) DoReconcile(ctx *common2.ReconcileContext, appRollout *v1beta1.AppRollout) (reconcile.Result, error) {
 	if len(appRollout.Status.RollingState) == 0 {
 		appRollout.Status.ResetStatus()
 	}

@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/cue/process"
-
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -41,6 +39,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -58,10 +58,14 @@ var _ = Describe("test generate revision ", func() {
 	var comps []*oamtypes.ComponentManifest
 	var namespaceName string
 	var ns corev1.Namespace
-	ctx := context.Background()
+	var ctx *common2.ReconcileContext
 
 	BeforeEach(func() {
 		namespaceName = randomNamespaceName("apply-app-test")
+		ctx = common2.NewReconcileContext(ctx, types.NamespacedName{
+			Namespace: namespaceName,
+			Name:      "revision-apply-test",
+		})
 		ns = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespaceName,
@@ -242,7 +246,7 @@ var _ = Describe("test generate revision ", func() {
 	It("Test apply success for none rollout case", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
-		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		// ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		annoKey1 := "testKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
@@ -252,7 +256,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -305,7 +309,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -357,7 +361,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -414,7 +418,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -466,7 +470,7 @@ var _ = Describe("test generate revision ", func() {
 	It("Test App with rollout template", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
-		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		// ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		// mark the app as rollout
 		app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
@@ -475,7 +479,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -511,7 +515,7 @@ var _ = Describe("test generate revision ", func() {
 		lastRevision := curApp.Status.LatestRevision.Name
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -553,7 +557,7 @@ var _ = Describe("test generate revision ", func() {
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -588,7 +592,7 @@ var _ = Describe("test generate revision ", func() {
 	It("Test apply passes all label and annotation from app to appRevision", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
-		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		// ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		labelKey1 := "labelKey1"
 		app.SetLabels(map[string]string{labelKey1: "true"})
 		annoKey1 := "annoKey1"
@@ -599,7 +603,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -630,7 +634,7 @@ var _ = Describe("test generate revision ", func() {
 		lastRevision := curApp.Status.LatestRevision.Name
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
@@ -659,7 +663,7 @@ var _ = Describe("test generate revision ", func() {
 		app.Spec.Components[0].ExternalRevision = externalRevisionName1
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
-		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		// ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
 		comps, err = generatedAppfile.GenerateComponentManifests()
@@ -667,7 +671,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -704,7 +708,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ApplyAppManifests(ctx, comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		Expect(comps[0].RevisionName).Should(Equal(externalRevisionName2))

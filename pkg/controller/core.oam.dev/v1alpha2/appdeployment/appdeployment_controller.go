@@ -80,22 +80,22 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (res reco
 	defer func() {
 		if retErr == nil {
 			if res.Requeue || res.RequeueAfter > 0 {
-				klog.InfoS("Finished reconciling appDeployment", "controller request", req, "time spent", time.Since(startTime), "result", res)
+				ctx.Info("Finished reconciling appDeployment", "controller request", req, "time spent", time.Since(startTime), "result", res)
 			} else {
-				klog.InfoS("Finished reconcile appDeployment", "controller  request", req, "time spent", time.Since(startTime))
+				ctx.Info("Finished reconcile appDeployment", "controller  request", req, "time spent", time.Since(startTime))
 			}
 		} else {
-			klog.Errorf("Failed to reconcile appDeployment %s: %v", req, retErr)
+			ctx.Error(retErr, "Failed to reconcile appDeployment", "controller  request", req)
 		}
 	}()
 
 	if err := r.Client.Get(ctx, req.NamespacedName, appDeployment); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.InfoS("appDeployment does not exist", "appDeployment", klog.KRef(req.Namespace, req.Name))
+			ctx.Info("appDeployment does not exist", "appDeployment", klog.KRef(req.Namespace, req.Name))
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	klog.InfoS("Start to reconcile", "appDeployment", klog.KObj(appDeployment))
+	ctx.Info("Start to reconcile", "appDeployment", klog.KObj(appDeployment))
 
 	if !appDeployment.DeletionTimestamp.IsZero() {
 		err := r.handleFinalizer(ctx, appDeployment)
@@ -147,7 +147,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (res reco
 	return ctrl.Result{}, r.updateStatus(ctx, appDeployment)
 }
 
-func (r *Reconciler) handleFinalizer(ctx context.Context, appd *oamcore.AppDeployment) error {
+func (r *Reconciler) handleFinalizer(ctx *common2.ReconcileContext, appd *oamcore.AppDeployment) error {
 	if !slice.ContainsString(appd.Finalizers, appDeploymentFinalizer, nil) {
 		return nil
 	}
@@ -162,7 +162,7 @@ func (r *Reconciler) handleFinalizer(ctx context.Context, appd *oamcore.AppDeplo
 	return errors.Wrap(r.Client.Update(ctx, appd), errUpdateFinalizer)
 }
 
-func (r *Reconciler) deleteExternalResources(ctx context.Context, appd *oamcore.AppDeployment) error {
+func (r *Reconciler) deleteExternalResources(ctx *common2.ReconcileContext, appd *oamcore.AppDeployment) error {
 	var revsDel []*revision
 	for _, p := range appd.Status.Placement {
 		for _, c := range p.Clusters {
@@ -193,9 +193,9 @@ func (r *Reconciler) getClientForCluster(ctx context.Context, cluster, ns string
 	return clustermanager.GetClient(secret.Data[secretKeyConfig])
 }
 
-func (r *Reconciler) deleteRevisions(ctx context.Context, appd *oamcore.AppDeployment, revisions []*revision) (err error) {
+func (r *Reconciler) deleteRevisions(ctx *common2.ReconcileContext, appd *oamcore.AppDeployment, revisions []*revision) (err error) {
 	for _, rev := range revisions {
-		klog.InfoS("delete revision", "revision", rev.RevisionName, "cluster", rev.ClusterName)
+		ctx.Info("delete revision", "revision", rev.RevisionName, "cluster", rev.ClusterName)
 
 		workloads, err := r.getWorkloadsFromRevision(ctx, rev.RevisionName, appd.Namespace)
 		if err != nil {
@@ -231,9 +231,9 @@ func isHostCluster(name string) bool {
 	return name == ""
 }
 
-func (r *Reconciler) applyRevisions(ctx context.Context, appd *oamcore.AppDeployment, revisions []*revision) (err error) {
+func (r *Reconciler) applyRevisions(ctx *common2.ReconcileContext, appd *oamcore.AppDeployment, revisions []*revision) (err error) {
 	for _, rev := range revisions {
-		klog.InfoS("apply revision", "revision", rev.RevisionName, "cluster", rev.ClusterName)
+		ctx.Info("apply revision", "revision", rev.RevisionName, "cluster", rev.ClusterName)
 
 		workloads, err := r.getWorkloadsFromRevision(ctx, rev.RevisionName, appd.Namespace)
 		if err != nil {

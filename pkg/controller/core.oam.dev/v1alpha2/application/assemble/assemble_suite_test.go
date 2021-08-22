@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2/klogr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -71,7 +72,7 @@ var _ = Describe("Test Assemble Options", func() {
 		err = yaml.Unmarshal(b, appRev)
 		Expect(err).Should(BeNil())
 
-		ao := NewAppManifests(appRev)
+		ao := NewAppManifests(appRev, klogr.New())
 		workloads, traits, _, err := ao.GroupAssembledManifests()
 		Expect(err).Should(BeNil())
 
@@ -190,7 +191,7 @@ var _ = Describe("Test Assemble Options", func() {
 		err = yaml.Unmarshal(b, appRev)
 		Expect(err).Should(BeNil())
 
-		ao := NewAppManifests(appRev)
+		ao := NewAppManifests(appRev, klogr.New())
 		workloads, _, _, err := ao.GroupAssembledManifests()
 		Expect(err).Should(BeNil())
 

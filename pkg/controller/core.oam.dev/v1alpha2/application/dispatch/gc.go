@@ -17,7 +17,6 @@ limitations under the License.
 package dispatch
 
 import (
-	"context"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -25,16 +24,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	types "k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // GarbageCollector do GC according two resource trackers
 type GarbageCollector interface {
-	GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error
+	GarbageCollect(ctx *common2.ReconcileContext, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error
 }
 
 // NewGCHandler create a GCHandler
@@ -52,13 +51,13 @@ type GCHandler struct {
 }
 
 // GarbageCollect delete the old resources that are no longer in the new resource tracker
-func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error {
+func (h *GCHandler) GarbageCollect(ctx *common2.ReconcileContext, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error {
 	h.oldRT = oldRT
 	h.newRT = newRT
 	if err := h.validate(); err != nil {
 		return err
 	}
-	klog.InfoS("Garbage collect for application", "old", h.oldRT.Name, "new", h.newRT.Name)
+	ctx.Info("Garbage collect for application", "old", h.oldRT.Name, "new", h.newRT.Name)
 	for _, oldRsc := range h.oldRT.Status.TrackedResources {
 		isRemoved := true
 		for _, newRsc := range h.newRT.Status.TrackedResources {
@@ -86,25 +85,25 @@ func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.Re
 			}
 
 			if err := h.c.Delete(ctx, toBeDeleted); err != nil && !kerrors.IsNotFound(err) {
-				klog.ErrorS(err, "Failed to delete a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
+				ctx.Error(err, "Failed to delete a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
 				return errors.Wrapf(err, "cannot delete resource %q", oldRsc)
 			}
-			klog.InfoS("Successfully GC a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
+			ctx.Info("Successfully GC a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
 		}
 	}
 	// delete the old resource tracker
 	if err := h.c.Delete(ctx, h.oldRT); err != nil && !kerrors.IsNotFound(err) {
-		klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
+		ctx.Error(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
 		return errors.Wrapf(err, "cannot delete resource tracker %q", h.oldRT.Name)
 	}
-	klog.InfoS("Successfully GC a resource tracker and its resources", "name", h.oldRT.Name)
+	ctx.Info("Successfully GC a resource tracker and its resources", "name", h.oldRT.Name)
 
 	for _, rt := range legacyRTs {
 		if err := h.c.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
-			klog.ErrorS(err, "Failed to delete a legacy resource tracker", "legacy", rt.Name)
+			ctx.Error(err, "Failed to delete a legacy resource tracker", "legacy", rt.Name)
 			return errors.Wrap(err, "cannot delete legacy resource tracker")
 		}
-		klog.InfoS("Successfully delete a legacy resource tracker", "legacy", rt.Name, "latest", h.newRT.Name)
+		ctx.Info("Successfully delete a legacy resource tracker", "legacy", rt.Name, "latest", h.newRT.Name)
 	}
 	return nil
 }
@@ -123,12 +122,12 @@ func (h *GCHandler) validate() error {
 }
 
 // handleResourceSkipGC will check resource have skipGC annotation,if yes patch the resource to orphan the resource and return true
-func (h *GCHandler) handleResourceSkipGC(ctx context.Context, u *unstructured.Unstructured, oldRt *v1beta1.ResourceTracker) (bool, error) {
+func (h *GCHandler) handleResourceSkipGC(ctx *common2.ReconcileContext, u *unstructured.Unstructured, oldRt *v1beta1.ResourceTracker) (bool, error) {
 	// deepCopy avoid modify origin resource
 	res := u.DeepCopy()
 	if err := h.c.Get(ctx, types.NamespacedName{Namespace: res.GetNamespace(), Name: res.GetName()}, res); err != nil {
 		if !kerrors.IsNotFound(err) {
-			klog.ErrorS(err, "handleResourceSkipGC faied cannot get res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
+			ctx.Error(err, "handleResourceSkipGC faied cannot get res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
 			return false, err
 		}
 		// resource have gone, skip delete it
@@ -146,9 +145,9 @@ func (h *GCHandler) handleResourceSkipGC(ctx context.Context, u *unstructured.Un
 	}
 	res.SetOwnerReferences(owners)
 	if err := h.c.Update(ctx, res); err != nil {
-		klog.ErrorS(err, "handleResourceSkipGC failed cannot orphan a res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
+		ctx.Error(err, "handleResourceSkipGC failed cannot orphan a res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
 		return false, err
 	}
-	klog.InfoS("succeed to handle a skipGC res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
+	ctx.Info("succeed to handle a skipGC res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
 	return true, nil
 }

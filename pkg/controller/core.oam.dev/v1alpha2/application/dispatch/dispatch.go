@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -95,7 +96,7 @@ func (a *AppManifestsDispatcher) StartAndSkipGC(previousRT *v1beta1.ResourceTrac
 // - create new resources if not exist before
 // - update unchanged resources' owner from the previous resource tracker to the new one
 // - skip deleting(GC) any resources
-func (a *AppManifestsDispatcher) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured) (*v1beta1.ResourceTracker, error) {
+func (a *AppManifestsDispatcher) Dispatch(ctx *common2.ReconcileContext, manifests []*unstructured.Unstructured) (*v1beta1.ResourceTracker, error) {
 	if err := a.validateAndComplete(ctx); err != nil {
 		return nil, err
 	}
@@ -129,7 +130,7 @@ func (a *AppManifestsDispatcher) DereferenceScopes(ctx context.Context, wlRef *v
 	return nil
 }
 
-func (a *AppManifestsDispatcher) validateAndComplete(ctx context.Context) error {
+func (a *AppManifestsDispatcher) validateAndComplete(ctx *common2.ReconcileContext) error {
 	if a.appRev == nil {
 		return errors.New("given application revision is nil")
 	}
@@ -142,22 +143,22 @@ func (a *AppManifestsDispatcher) validateAndComplete(ctx context.Context) error 
 
 	// if upgrade is enabled (no matter GC or skip GC), it requires a valid existing resource tracker
 	if a.previousRT != nil && a.previousRT.Name != a.currentRTName {
-		klog.InfoS("Validate previous resource tracker exists", "previous", klog.KObj(a.previousRT))
+		ctx.Info("Validate previous resource tracker exists", "previous", klog.KObj(a.previousRT))
 		gotPreviousRT := &v1beta1.ResourceTracker{}
 		if err := a.c.Get(ctx, client.ObjectKey{Name: a.previousRT.Name}, gotPreviousRT); err != nil {
 			return errors.Errorf("given resource tracker %q doesn't exist", a.previousRT.Name)
 		}
 		a.previousRT = gotPreviousRT
 	}
-	klog.InfoS("Given previous resource tracker is nil or same as current one, so skip GC", "appRevision", klog.KObj(a.appRev))
+	ctx.Info("Given previous resource tracker is nil or same as current one, so skip GC", "appRevision", klog.KObj(a.appRev))
 	return nil
 }
 
-func (a *AppManifestsDispatcher) createOrGetResourceTracker(ctx context.Context) error {
+func (a *AppManifestsDispatcher) createOrGetResourceTracker(ctx *common2.ReconcileContext) error {
 	rt := &v1beta1.ResourceTracker{}
 	err := a.c.Get(ctx, client.ObjectKey{Name: a.currentRTName}, rt)
 	if err == nil {
-		klog.InfoS("Found a resource tracker matching current app revision", "resourceTracker", rt.Name)
+		ctx.Info("Found a resource tracker matching current app revision", "resourceTracker", rt.Name)
 		// already exists, no need to update
 		// because we assume the manifests' references from a specific application revision never change
 		a.currentRT = rt
@@ -166,7 +167,7 @@ func (a *AppManifestsDispatcher) createOrGetResourceTracker(ctx context.Context)
 	if !kerrors.IsNotFound(err) {
 		return errors.Wrap(err, "cannot get resource tracker")
 	}
-	klog.InfoS("Going to create a resource tracker", "resourceTracker", a.currentRTName)
+	ctx.Info("Going to create a resource tracker", "resourceTracker", a.currentRTName)
 	rt.SetName(a.currentRTName)
 	// these labels can help to list resource trackers of a specific application
 	rt.SetLabels(map[string]string{
@@ -174,7 +175,7 @@ func (a *AppManifestsDispatcher) createOrGetResourceTracker(ctx context.Context)
 		oam.LabelAppNamespace: a.namespace,
 	})
 	if err := a.c.Create(ctx, rt); err != nil {
-		klog.ErrorS(err, "Failed to create a resource tracker", "resourceTracker", a.currentRTName)
+		ctx.Error(err, "Failed to create a resource tracker", "resourceTracker", a.currentRTName)
 		return errors.Wrap(err, "cannot create resource tracker")
 	}
 	a.currentRT = rt
@@ -203,10 +204,10 @@ func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Cont
 	return nil
 }
 
-func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, manifests []*unstructured.Unstructured) error {
+func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx *common2.ReconcileContext, manifests []*unstructured.Unstructured) error {
 	ctrlUIDs := []types.UID{a.currentRT.UID}
 	if a.previousRT != nil && a.previousRT.Name != a.currentRTName {
-		klog.InfoS("Going to apply or upgrade resources", "from", a.previousRT.Name, "to", a.currentRTName)
+		ctx.Info("Going to apply or upgrade resources", "from", a.previousRT.Name, "to", a.currentRTName)
 		// if two RT's names are different, it means dispatching operation happens in an upgrade or rollout scenario
 		// in such two scenarios, for those unchanged manifests, we will
 		// - make sure existing resources are controlled by any of these two resource trackers
@@ -265,7 +266,7 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, ownerRef, applyOpts)
 		if immutable {
 			if err != nil {
-				klog.ErrorS(err, "Failed to apply immutable resource with new ownerReference", "object",
+				ctx.Error(err, "Failed to apply immutable resource with new ownerReference", "object",
 					klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
 				return errors.Wrapf(err, "cannot apply immutable resource with new ownerReference, name: %q apiVersion: %q kind: %q",
 					rsc.GetName(), rsc.GetAPIVersion(), rsc.GetKind())
@@ -276,12 +277,12 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		// each resource applied by dispatcher MUST be controlled by resource tracker
 		setOrOverrideOAMControllerOwner(rsc, ownerRef)
 		if err := a.applicator.Apply(ctx, rsc, applyOpts...); err != nil {
-			klog.ErrorS(err, "Failed to apply a resource", "object",
+			ctx.Error(err, "Failed to apply a resource", "object",
 				klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
 			return errors.Wrapf(err, "cannot apply manifest, name: %q apiVersion: %q kind: %q",
 				rsc.GetName(), rsc.GetAPIVersion(), rsc.GetKind())
 		}
-		klog.InfoS("Successfully apply a resource", "object",
+		ctx.Info("Successfully apply a resource", "object",
 			klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
 	}
 	return a.updateResourceTrackerStatus(ctx, manifests)
@@ -311,7 +312,7 @@ func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, r
 	return false, nil
 }
 
-func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context, appliedManifests []*unstructured.Unstructured) error {
+func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx *common2.ReconcileContext, appliedManifests []*unstructured.Unstructured) error {
 	// merge applied resources and already tracked ones
 	if a.currentRT.Status.TrackedResources == nil {
 		a.currentRT.Status.TrackedResources = make([]v1.ObjectReference, 0)
@@ -347,10 +348,10 @@ func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context
 		copyRT.Status = sts
 		return a.c.Status().Update(ctx, copyRT)
 	}); err != nil {
-		klog.ErrorS(err, "Failed to update resource tracker status", "resourceTracker", a.currentRTName)
+		ctx.Error(err, "Failed to update resource tracker status", "resourceTracker", a.currentRTName)
 		return errors.Wrap(err, "cannot update resource tracker status")
 	}
-	klog.InfoS("Successfully update resource tracker status", "resourceTracker", a.currentRTName)
+	ctx.Info("Successfully update resource tracker status", "resourceTracker", a.currentRTName)
 	return nil
 }
 

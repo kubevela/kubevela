@@ -33,14 +33,14 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/pkg/errors"
 )
 
 type handler struct {
@@ -56,10 +56,15 @@ type handler struct {
 
 // assembleWorkload help to assemble worklad info, because rollout don't know AppRevision we cannot use assemble func directly.
 // but we do same thing with it in the func
-func (h *handler) assembleWorkload(ctx context.Context) error {
+func (h *handler) assembleWorkload(ctx *common2.ReconcileContext) error {
+	logger, err := ctx.GetLogger()
+	if err != nil {
+		return err
+	}
+
 	workloadOptions := []assemble.WorkloadOption{
 		applicationrollout.RolloutWorkloadName(h.compName),
-		assemble.PrepareWorkloadForRollout(h.compName),
+		assemble.PrepareWorkloadForRollout(h.compName, logger),
 		applicationrollout.HandleReplicas(ctx, h.compName, h.Client)}
 
 	for _, workloadOption := range workloadOptions {

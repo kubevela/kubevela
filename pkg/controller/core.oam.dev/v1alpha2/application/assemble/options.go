@@ -22,9 +22,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/go-logr/logr"
 	kruisev1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // WorkloadOptionFn implement interface WorkloadOption
@@ -118,7 +118,7 @@ func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledW
 // PrepareWorkloadForRollout prepare the workload before it is emit to the k8s. The current approach is to mark it
 // as disabled so that it's spec won't take effect immediately. The rollout controller can take over the resources
 // and enable it on its own since app controller here won't override their change
-func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
+func PrepareWorkloadForRollout(rolloutComp string, logger logr.Logger) WorkloadOption {
 	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 
 		compName := assembledWorkload.GetLabels()[oam.LabelAppComponent]
@@ -144,7 +144,7 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 				if err != nil {
 					return err
 				}
-				klog.InfoS("we render a CloneSet assembledWorkload.paused on the first time",
+				logger.Info("we render a CloneSet assembledWorkload.paused on the first time",
 					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 				return nil
 			case reflect.TypeOf(kruisev1alpha1.StatefulSet{}).Name():
@@ -152,7 +152,7 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 				if err != nil {
 					return err
 				}
-				klog.InfoS("we render an advanced statefulset assembledWorkload.paused on the first time",
+				logger.Info("we render an advanced statefulset assembledWorkload.paused on the first time",
 					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 				return nil
 			}
@@ -162,12 +162,12 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 			if err != nil {
 				return err
 			}
-			klog.InfoS("we render a deployment assembledWorkload.paused on the first time",
+			logger.Info("we render a deployment assembledWorkload.paused on the first time",
 				"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 			return nil
 		}
 
-		klog.InfoS("we encountered an unknown resource, we don't know how to prepare it",
+		logger.Info("we encountered an unknown resource, we don't know how to prepare it",
 			"GVK", assembledWorkload.GroupVersionKind().String(), "instance name", assembledWorkload.GetName())
 		return fmt.Errorf("we do not know how to prepare `%s` as it has an unknown type %s", assembledWorkload.GetName(),
 			assembledWorkload.GroupVersionKind().String())
