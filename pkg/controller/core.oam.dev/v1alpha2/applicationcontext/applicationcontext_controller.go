@@ -61,7 +61,7 @@ type Reconciler struct {
 
 // Reconcile reconcile an application context
 func (r *Reconciler) Reconcile(_ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	ctx := common2.NewReconcileContext(_ctx, req.NamespacedName)
+	ctx := common2.NewReconcileContext(_ctx, request.NamespacedName)
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 
@@ -76,7 +76,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, request reconcile.Request) 
 		return reconcile.Result{}, errors.Wrap(err, errGetAppContex)
 	}
 
-	ctx = util.SetNamespaceInCtx(ctx, appContext.Namespace)
+	// ctx = util.SetNamespaceInCtx(ctx, appContext.Namespace)
 	dm, err := discoverymapper.New(r.mgr.GetConfig())
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("create discovery dm fail %w", err)

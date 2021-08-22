@@ -5,7 +5,7 @@ metadata:
     addons.oam.dev/description: Kruise is a Kubernetes extended suite for application
       automations
   name: kruise
-  namespace: vela-system
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appTemplate:
     spec:
@@ -20,7 +20,7 @@ spec:
           values:
             featureGates: PreDownloadImageForInPlaceUpdate=true
         type: helm
-      - name: cloneset
+      - name: cloneset-service
         properties:
           apiVersion: core.oam.dev/v1beta1
           kind: ComponentDefinition
@@ -30,7 +30,7 @@ spec:
                 services that have a stable network endpoint to receive external network
                 traffic from customers. If workload type is skipped for any service
                 defined in Appfile, it will be defaulted to `webservice` type.
-            name: cloneset
+            name: cloneset-service
             namespace: vela-system
           spec:
             schematic:

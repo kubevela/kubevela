@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,8 +44,8 @@ var DefaultFilterAnnots = []string{
 }
 
 // NewAppManifests create a AppManifests
-func NewAppManifests(appRevision *v1beta1.ApplicationRevision) *AppManifests {
-	return &AppManifests{AppRevision: appRevision}
+func NewAppManifests(appRevision *v1beta1.ApplicationRevision, logger logr.Logger) *AppManifests {
+	return &AppManifests{AppRevision: appRevision, logger: logger}
 }
 
 // AppManifests contains configuration to assemble resources recorded in the ApplicationRevision.
@@ -69,6 +70,8 @@ type AppManifests struct {
 
 	finalized bool
 	err       error
+
+	logger logr.Logger
 }
 
 // WorkloadOption will be applied to each workloads AFTER it has been assembled by generic rules shown below:
@@ -121,7 +124,7 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 		if !skipApplyWorkload {
 			r = append(r, wl.DeepCopy())
 		} else {
-			klog.InfoS("assemble meet a managedByTrait workload, so skip apply it",
+			am.logger.Info("assemble meet a managedByTrait workload, so skip apply it",
 				"namespace", am.AppRevision.Namespace, "appRev", am.AppRevision.Name)
 		}
 	}
@@ -183,7 +186,7 @@ func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
 
 func (am *AppManifests) assemble() {
 	am.complete()
-	klog.InfoS("Assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
+	am.logger.Info("Assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
 	if err := am.validate(); err != nil {
 		am.finalizeAssemble(err)
 		return
@@ -193,13 +196,13 @@ func (am *AppManifests) assemble() {
 			continue
 		}
 		if checkAutoDetectComponent(comp.StandardWorkload) {
-			klog.Warningf("component without specify workloadDef can not attach traits currently")
+			am.logger.Info("component without specify workloadDef can not attach traits currently")
 			continue
 		}
 		compRevisionName := comp.RevisionName
 		compName := comp.Name
 		commonLabels := am.generateAndFilterCommonLabels(compName, compRevisionName)
-		klog.InfoS("Assemble manifests for component", "name", compName)
+		am.logger.Info("Assemble manifests for component", "name", compName)
 		wl, err := am.assembleWorkload(compName, comp.StandardWorkload, commonLabels, comp.PackagedWorkloadResources)
 		if err != nil {
 			am.finalizeAssemble(err)
@@ -249,10 +252,10 @@ func (am *AppManifests) complete() {
 func (am *AppManifests) finalizeAssemble(err error) {
 	am.finalized = true
 	if err == nil {
-		klog.InfoS("Successfully assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName(), "namespace", am.appNamespace)
+		am.logger.Info("Successfully assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName(), "namespace", am.appNamespace)
 		return
 	}
-	klog.ErrorS(err, "Failed assembling manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
+	am.logger.Error(err, "Failed assembling manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
 	am.err = errors.WithMessagef(err, "cannot assemble resources' manifests for application %q", am.appName)
 }
 
@@ -342,12 +345,12 @@ func (am *AppManifests) assembleWorkload(compName string, wl *unstructured.Unstr
 	}
 	for _, wo := range am.WorkloadOptions {
 		if err := wo.ApplyToWorkload(wl, compDefinition.DeepCopy(), copyPackagedResources); err != nil {
-			klog.ErrorS(err, "Failed applying a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
+			am.logger.Error(err, "Failed applying a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
 			return nil, errors.Wrapf(err, "cannot apply workload option for component %q", compName)
 		}
-		klog.InfoS("Successfully apply a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
+		am.logger.Info("Successfully apply a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
 	}
-	klog.InfoS("Successfully assemble a workload", "workload", klog.KObj(wl), "APIVersion", wl.GetAPIVersion(), "Kind", wl.GetKind())
+	am.logger.Info("Successfully assemble a workload", "workload", klog.KObj(wl), "APIVersion", wl.GetAPIVersion(), "Kind", wl.GetKind())
 	return wl, nil
 }
 
@@ -378,7 +381,7 @@ func (am *AppManifests) assembleTrait(trait *unstructured.Unstructured, compName
 	am.setTraitLabels(trait, labels)
 	am.filterAndSetAnnotations(trait)
 	am.setNamespace(trait)
-	klog.InfoS("Successfully assemble a trait", "trait", klog.KObj(trait), "APIVersion", trait.GetAPIVersion(), "Kind", trait.GetKind())
+	am.logger.Info("Successfully assemble a trait", "trait", klog.KObj(trait), "APIVersion", trait.GetAPIVersion(), "Kind", trait.GetKind())
 	return trait
 }
 

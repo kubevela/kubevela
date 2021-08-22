@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
@@ -57,12 +59,16 @@ type AppHandler struct {
 // Dispatch apply manifests into k8s.
 func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error {
 	h.initDispatcher()
-	_, err := h.dispatcher.Dispatch(ctx, manifests)
+	rctx := common2.NewReconcileContext(ctx, types2.NamespacedName{
+		Namespace: h.app.Namespace,
+		Name:      h.app.Name,
+	})
+	_, err := h.dispatcher.Dispatch(rctx, manifests)
 	return err
 }
 
 // DispatchAndGC apply manifests and do GC.
-func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
+func (h *AppHandler) DispatchAndGC(ctx *common2.ReconcileContext, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
 	h.initDispatcher()
 	dispatcher := h.dispatcher.EndAndGC(h.latestTracker)
 	tracker, err := dispatcher.Dispatch(ctx, manifests)
@@ -95,7 +101,7 @@ func (h *AppHandler) initDispatcher() {
 }
 
 // ApplyAppManifests will dispatch Application manifests
-func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
+func (h *AppHandler) ApplyAppManifests(ctx *common2.ReconcileContext, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	// dispatch workload in policy before workflow start
 	if len(policies) != 0 {
 		if err := h.Dispatch(ctx, policies...); err != nil {
@@ -121,7 +127,11 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 			continue
 		}
 	}
-	a := assemble.NewAppManifests(h.currentAppRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
+	logger, err := ctx.GetLogger()
+	if err != nil {
+		return err
+	}
+	a := assemble.NewAppManifests(h.currentAppRev, logger).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
 	manifests, err := a.AssembledManifests()
 	if err != nil {
 		return errors.WithMessage(err, "cannot assemble application manifests")
@@ -271,12 +281,12 @@ func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
 	return references
 }
 
-type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
+type garbageCollectFunc func(ctx *common2.ReconcileContext, h *AppHandler) error
 
 // execute garbage collection functions, including:
 // - clean up legacy app revisions
 // - clean up legacy component revisions
-func garbageCollection(ctx context.Context, h *AppHandler) error {
+func garbageCollection(ctx *common2.ReconcileContext, h *AppHandler) error {
 	collectFuncs := []garbageCollectFunc{
 		garbageCollectFunc(cleanUpApplicationRevision),
 		garbageCollectFunc(cleanUpComponentRevision),
@@ -289,7 +299,7 @@ func garbageCollection(ctx context.Context, h *AppHandler) error {
 	return nil
 }
 
-func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error) {
+func (h *AppHandler) handleRollout(ctx *common2.ReconcileContext) (reconcile.Result, error) {
 	var comps []string
 	for _, component := range h.app.Spec.Components {
 		comps = append(comps, component.Name)

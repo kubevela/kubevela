@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -39,11 +38,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/pointer"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -98,7 +97,7 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test AppManifestsDispatcher", func() {
 	var (
-		ctx                                             = context.Background()
+		ctx                                             *common2.ReconcileContext
 		namespace                                       string
 		deploy1, deploy2, deploy3, svc1, svc2, pv1, pv2 *unstructured.Unstructured
 		appRev1, appRev2, appRev3                       *v1beta1.ApplicationRevision
@@ -120,6 +119,10 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 	BeforeEach(func() {
 		By("Create test namespace")
 		namespace = fmt.Sprintf("%s-%s", "dispatch-test", strconv.FormatInt(rand.Int63(), 16))
+		ctx = common2.NewReconcileContext(context.Background(), types.NamespacedName{
+			Namespace: namespace,
+			Name:      "app",
+		})
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).Should(Succeed())
 
 		By("Init test data")
@@ -412,9 +415,13 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 
 var _ = Describe("Test handleSkipGC func", func() {
 	var namespaceName string
-	ctx := context.Background()
+	var ctx *common2.ReconcileContext
 	BeforeEach(func() {
 		namespaceName = fmt.Sprintf("%s-%s", "dispatch-gc-skip-test", strconv.FormatInt(rand.Int63(), 16))
+		ctx = common2.NewReconcileContext(context.Background(), types.NamespacedName{
+			Namespace: namespaceName,
+			Name:      "app",
+		})
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceName}}))
 	})
 

@@ -23,8 +23,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,12 +35,15 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -653,7 +654,7 @@ func componentManifests2AppConfig(cms []*types.ComponentManifest) (runtime.RawEx
 
 // UpdateAppLatestRevisionStatus only call to update app's latest revision status after applying manifests successfully
 // otherwise it will override previous revision which is used during applying to do GC jobs
-func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
+func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx *common2.ReconcileContext) error {
 	if !h.isNewRevision {
 		// skip update if app revision is not changed
 		return nil
@@ -666,17 +667,17 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 		RevisionHash: h.currentRevHash,
 	}
 	if err := h.r.patchStatus(ctx, h.app); err != nil {
-		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
+		ctx.Info("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err
 	}
-	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+	ctx.Info("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
 	return nil
 }
 
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
-func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
+func cleanUpApplicationRevision(ctx *common2.ReconcileContext, h *AppHandler) error {
 	listOpts := []client.ListOption{
 		client.InNamespace(h.app.Namespace),
 		client.MatchingLabels{oam.LabelAppName: h.app.Name},
@@ -694,7 +695,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	if needKill <= 0 {
 		return nil
 	}
-	klog.InfoS("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
+	ctx.Info("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
 		"total", len(appRevisionList.Items), "using", len(appRevisionInUse), "kill", needKill)
 	sortedRevision := appRevisionList.Items
 	sort.Sort(historiesByRevision(sortedRevision))
@@ -784,7 +785,7 @@ func (h historiesByRevision) Less(i, j int) bool {
 	return ir < ij
 }
 
-func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
+func cleanUpComponentRevision(ctx *common2.ReconcileContext, h *AppHandler) error {
 	appRevInUse, err := gatherUsingAppRevision(ctx, h)
 	if err != nil {
 		return err
