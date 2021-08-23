@@ -42,12 +42,12 @@ spec:
           echo "Waiting application is ready..."
 
           echo "waiting for application being Applied"
-          kubectl -n vela-system wait --for=condition=Applied application helm-test-vela-app --timeout=3m
+          kubectl -n vela-system wait --for=condition=Applied applications.core.oam.dev helm-test-vela-app --timeout=3m
           echo "application being Applied"
 
           # wait for deploy being created
           echo "waiting for deployment being available"
-          kubectl -n vela-system wait --for=condition=available deploy helm-test-express-server --timeout 3m
+          kubectl -n vela-system wait --for=condition=available deployments helm-test-express-server --timeout 3m
           echo "deployment being available"
 
           # wait for ingress being created
