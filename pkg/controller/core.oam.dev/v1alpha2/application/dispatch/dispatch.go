@@ -229,39 +229,6 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx *common2.ReconcileC
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}
-	//errorChan := make(chan error, 1)
-	//defer close(errorChan)
-	//handleManifest := func(idx int, rsc *unstructured.Unstructured) error {
-	//	_ctx.BeginTimer(fmt.Sprintf("dispatch.handle_manifest.%d", idx))
-	//	defer _ctx.EndTimer(fmt.Sprintf("dispatch.handle_manifest.%d", idx))
-	//	immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, ownerRef, applyOpts)
-	//	if immutable {
-	//		if err != nil {
-	//			klog.ErrorS(err, "Failed to apply immutable resource with new ownerReference", "object",
-	//				klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
-	//			return errors.Wrapf(err, "cannot apply immutable resource with new ownerReference, name: %q apiVersion: %q kind: %q",
-	//				rsc.GetName(), rsc.GetAPIVersion(), rsc.GetKind())
-	//		}
-	//		return nil
-	//	}
-	//
-	//	// each resource applied by dispatcher MUST be controlled by resource tracker
-	//	setOrOverrideOAMControllerOwner(rsc, ownerRef)
-	//	if err := a.applicator.Apply(ctx, rsc, applyOpts...); err != nil {
-	//		klog.ErrorS(err, "Failed to apply a resource", "object",
-	//			klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
-	//		return errors.Wrapf(err, "cannot apply manifest, name: %q apiVersion: %q kind: %q",
-	//			rsc.GetName(), rsc.GetAPIVersion(), rsc.GetKind())
-	//	}
-	//	klog.InfoS("Successfully apply a resource", "object",
-	//		klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
-	//	return nil
-	//}
-	//for idx, rsc := range manifests {
-	//	go func(_idx int, _rsc *unstructured.Unstructured) {
-	//		errorChan <- handleManifest(_idx, _rsc)
-	//	}(idx, rsc)
-	//}
 	for _, rsc := range manifests {
 		immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, ownerRef, applyOpts)
 		if immutable {

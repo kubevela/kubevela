@@ -33,6 +33,7 @@ import (
 )
 
 var (
+	// PerfEnabled identify whether to add performance log for controllers
 	PerfEnabled = os.Getenv("PERF") == "1"
 )
 
@@ -40,11 +41,13 @@ const (
 	reconcileTimeout = time.Minute
 )
 
+// ReconcileEvent record the event name and time that it happened
 type ReconcileEvent struct {
 	Name string
 	Time time.Time
 }
 
+// ReconcileContext keeps the context of one reconcile
 type ReconcileContext struct {
 	context.Context
 	logr.Logger
@@ -65,13 +68,13 @@ func getCallerName() string {
 		}
 		if strings.HasSuffix(s, ".go") {
 			return strings.TrimSuffix(s, ".go")
-		} else {
-			return s
 		}
+		return s
 	}
 	return "-"
 }
 
+// NewReconcileContext create new context for one reconcile
 func NewReconcileContext(ctx context.Context, obj types.NamespacedName) *ReconcileContext {
 	callerName := getCallerName()
 	logger := klogr.New().WithValues("namespace", obj.Namespace, "name", obj.Name, "caller", callerName)
@@ -89,11 +92,13 @@ func NewReconcileContext(ctx context.Context, obj types.NamespacedName) *Reconci
 	}
 }
 
+// BeginReconcile starts recording for new reconcile
 func (ctx *ReconcileContext) BeginReconcile() {
 	ctx.begin = time.Now()
 	logr.WithCallDepth(ctx.Logger, 1).Info("Begin reconcile")
 }
 
+// EndReconcile ends recording for current reconcile and print out all performance checkpoints if PerfEnabled
 func (ctx *ReconcileContext) EndReconcile() {
 	ctx.cancel()
 	t0 := time.Now()
@@ -112,6 +117,7 @@ func (ctx *ReconcileContext) EndReconcile() {
 	}
 }
 
+// AddEvent add event checkpoint during reconcile. The recorded event time cost will be recorded when calling EndReconcile
 func (ctx *ReconcileContext) AddEvent(name string) {
 	if PerfEnabled {
 		ctx.events = append(ctx.events, &ReconcileEvent{
@@ -121,10 +127,12 @@ func (ctx *ReconcileContext) AddEvent(name string) {
 	}
 }
 
+// BeginTimer add new timestamps
 func (ctx *ReconcileContext) BeginTimer(name string) {
 	ctx.timestamps[name] = time.Now()
 }
 
+// EndTimer calculate time cost since target name timestamp
 func (ctx *ReconcileContext) EndTimer(name string) {
 	if t, ok := ctx.timestamps[name]; ok {
 		if _, _ok := ctx.timers[name]; !_ok {

@@ -418,7 +418,7 @@ var _ = Describe("Test handleSkipGC func", func() {
 	var ctx *common2.ReconcileContext
 	BeforeEach(func() {
 		namespaceName = fmt.Sprintf("%s-%s", "dispatch-gc-skip-test", strconv.FormatInt(rand.Int63(), 16))
-		ctx := common2.NewReconcileContext(context.Background(), types.NamespacedName{
+		ctx = common2.NewReconcileContext(context.Background(), types.NamespacedName{
 			Namespace: namespaceName,
 			Name:      "app",
 		})

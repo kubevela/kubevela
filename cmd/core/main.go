@@ -17,12 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -46,8 +47,6 @@ import (
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
 	"github.com/oam-dev/kubevela/version"
-
-	_ "net/http/pprof"
 )
 
 const (
@@ -121,8 +120,36 @@ func main() {
 	}
 	klog.InfoS("configs", "syncPeriod", syncPeriod.Seconds(), "qps", qps, "burst", burst, "concurrent-reconciles", controllerArgs.ConcurrentReconciles)
 	if pprofAddr != "" {
+		// Start pprof server if enabled
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		pprofServer := http.Server{
+			Addr:    pprofAddr,
+			Handler: mux,
+		}
+		klog.Info("Starting debug HTTP server", "addr", pprofServer.Addr)
+
 		go func() {
-			log.Println(http.ListenAndServe(pprofAddr, nil))
+			go func() {
+				ctx := context.Background()
+				<-ctx.Done()
+
+				ctx, cancelFunc := context.WithTimeout(context.Background(), 60*time.Minute)
+				defer cancelFunc()
+
+				if err := pprofServer.Shutdown(ctx); err != nil {
+					klog.Error(err, "Failed to shutdown debug HTTP server")
+				}
+			}()
+
+			if err := pprofServer.ListenAndServe(); !errors.Is(http.ErrServerClosed, err) {
+				klog.Error(err, "Failed to start debug HTTP server")
+				panic(err)
+			}
 		}()
 	}
 

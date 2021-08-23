@@ -62,7 +62,7 @@ var _ = Describe("test generate revision ", func() {
 
 	BeforeEach(func() {
 		namespaceName = randomNamespaceName("apply-app-test")
-		ctx = common2.NewReconcileContext(ctx, types.NamespacedName{
+		ctx = common2.NewReconcileContext(context.Background(), types.NamespacedName{
 			Namespace: namespaceName,
 			Name:      "revision-apply-test",
 		})
