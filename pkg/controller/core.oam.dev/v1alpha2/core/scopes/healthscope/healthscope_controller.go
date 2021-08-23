@@ -157,10 +157,10 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req reconcile.Request) (rec
 
 	start := time.Now()
 
-	klog.InfoS("healthScope", "uid", hs.GetUID(), "version", hs.GetResourceVersion())
+	ctx.Info("healthScope", "uid", hs.GetUID(), "version", hs.GetResourceVersion())
 
 	scopeCondition, appConditions := r.GetScopeHealthStatus(ctx, hs)
-	klog.V(common.LogDebug).InfoS("Successfully ran health check", "scope", hs.Name)
+	ctx.V(common.LogDebug).Info("Successfully ran health check", "scope", hs.Name)
 	r.record.Event(hs, event.Normal(reasonHealthCheck, "Successfully ran health check"))
 
 	elapsed := time.Since(start)
@@ -171,7 +171,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req reconcile.Request) (rec
 }
 
 // GetScopeHealthStatus get the status of the healthscope based on workload resources.
-func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1alpha2.HealthScope) (ScopeHealthCondition, []*AppHealthCondition) {
+func (r *Reconciler) GetScopeHealthStatus(ctx *common.ReconcileContext, healthScope *v1alpha2.HealthScope) (ScopeHealthCondition, []*AppHealthCondition) {
 	klog.InfoS("Get scope health status", "name", healthScope.GetName())
 	scopeCondition := ScopeHealthCondition{
 		HealthStatus: StatusHealthy, // if no workload referenced, scope is healthy by default
@@ -222,7 +222,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 			if appfile, ok := appfiles[resRef]; ok {
 				wlHealthCondition, traitConditions = CUEBasedHealthCheck(ctx, r.client, resRef, healthScope.GetNamespace(), appfile)
 				if wlHealthCondition != nil {
-					klog.V(common.LogDebug).InfoS("Get health condition from CUE-based health check", "workload", resRef, "healthCondition", wlHealthCondition)
+					ctx.V(common.LogDebug).Info("Get health condition from CUE-based health check", "workload", resRef, "healthCondition", wlHealthCondition)
 					wlHealthCondition.Traits = traitConditions
 					wlHealthResultsC <- wlHealthResult{
 						name: appNames[resRef],
@@ -234,7 +234,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 
 			wlHealthCondition = r.traitChecker.Check(ctx, r.client, resRef, healthScope.GetNamespace())
 			if wlHealthCondition != nil {
-				klog.V(common.LogDebug).InfoS("Get health condition from health check trait ", "workload", resRef, "healthCondition", wlHealthCondition)
+				ctx.V(common.LogDebug).Info("Get health condition from health check trait ", "workload", resRef, "healthCondition", wlHealthCondition)
 				wlHealthCondition.Traits = traitConditions
 				wlHealthResultsC <- wlHealthResult{
 					name: appNames[resRef],
@@ -246,7 +246,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 			for _, checker := range r.checkers {
 				wlHealthCondition = checker.Check(ctxWithTimeout, r.client, resRef, healthScope.GetNamespace())
 				if wlHealthCondition != nil {
-					klog.V(common.LogDebug).InfoS("Get health condition from built-in checker", "workload", resRef, "healthCondition", wlHealthCondition)
+					ctx.V(common.LogDebug).Info("Get health condition from built-in checker", "workload", resRef, "healthCondition", wlHealthCondition)
 					// found matched checker and get health condition
 					wlHealthCondition.Traits = traitConditions
 					wlHealthResultsC <- wlHealthResult{
@@ -257,7 +257,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 				}
 			}
 			// handle unknown workload
-			klog.V(common.LogDebug).InfoS("Gpkg/controller/core.oam.dev/v1alpha2/setup.go:42:69et unknown workload", "workload", resRef)
+			ctx.V(common.LogDebug).Info("Gpkg/controller/core.oam.dev/v1alpha2/setup.go:42:69et unknown workload", "workload", resRef)
 			wlHealthCondition = r.unknownChecker.Check(ctx, r.client, resRef, healthScope.GetNamespace())
 			wlHealthCondition.Traits = traitConditions
 			wlHealthResultsC <- wlHealthResult{

@@ -62,7 +62,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 
-	klog.InfoS("Reconcile initializer", "initializer", klog.KRef(req.Namespace, req.Name))
+	ctx.Info("Reconcile initializer", "initializer", klog.KRef(req.Namespace, req.Name))
 	init := new(v1beta1.Initializer)
 	if err := r.Client.Get(ctx, req.NamespacedName, init); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -73,34 +73,34 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 		return ctrl.Result{}, nil
 	}
 
-	klog.Info("Check the status of the Initializers which you depend on")
+	ctx.Info("Check the status of the Initializers which you depend on")
 	init.Status.Phase = v1beta1.InitializerCheckingDependsOn
 	dependsOnInitReady, err := r.checkOrInstallDependsOn(ctx, init.Spec.DependsOn)
 	if err != nil {
-		klog.ErrorS(err, "Check initializer dependsOn error")
+		ctx.Error(err, "Check initializer dependsOn error")
 		r.record.Event(init, event.Warning("Checking Initializer dependsOn error", err))
 		return r.endWithNegativeCondition(ctx, init, condition.ReconcileError(err))
 	}
 	if !dependsOnInitReady {
-		klog.Info("Wait for dependent Initializer to be ready")
+		ctx.Info("Wait for dependent Initializer to be ready")
 		return r.endWithTryLater(ctx, init)
 	}
 
 	init.Status.Phase = v1beta1.InitializerInitializing
 	appReady, err := r.applyResources(ctx, init)
 	if err != nil {
-		klog.ErrorS(err, "Could not create resources via application to initialize the env")
+		ctx.Error(err, "Could not create resources via application to initialize the env")
 		r.record.Event(init, event.Warning("Could not create resources via application", err))
 		return r.endWithNegativeCondition(ctx, init, condition.ReconcileError(err))
 	}
 	if !appReady {
-		klog.Info("Wait for the Application created by Initializer to be ready")
+		ctx.Info("Wait for the Application created by Initializer to be ready")
 		return r.endWithTryLater(ctx, init)
 	}
 
 	init.Status.Phase = v1beta1.InitializerSuccess
 	if err = r.patchStatus(ctx, init); err != nil {
-		klog.ErrorS(err, "Could not update status")
+		ctx.Error(err, "Could not update status")
 		r.record.Event(init, event.Warning("Could not update status", err))
 		return ctrl.Result{}, oamutil.EndReconcileWithNegativeCondition(ctx, r, init, condition.ReconcileError(err))
 	}
@@ -111,7 +111,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 // If the dependOn Initializer is not found and the namespace is default or vela-system, we will try to find
 // and install the built-in Initializer from ConfigMap.
 // If all dependency are found(ready or not), err will be nil.
-func (r *Reconciler) checkOrInstallDependsOn(ctx context.Context, depends []v1beta1.DependsOn) (bool, error) {
+func (r *Reconciler) checkOrInstallDependsOn(ctx *common2.ReconcileContext, depends []v1beta1.DependsOn) (bool, error) {
 	for _, depend := range depends {
 		dependInit, err := utils.GetInitializer(ctx, r.Client, depend.Ref.Namespace, depend.Ref.Name)
 		if err != nil {
@@ -132,7 +132,7 @@ func (r *Reconciler) checkOrInstallDependsOn(ctx context.Context, depends []v1be
 		}
 
 		if dependInit.Status.Phase != v1beta1.InitializerSuccess {
-			klog.InfoS("Initializer you depend on is not ready",
+			ctx.Info("Initializer you depend on is not ready",
 				"initializer", klog.KObj(dependInit), "phase", dependInit.Status.Phase)
 			return false, nil
 		}
@@ -177,7 +177,7 @@ func updateObservedGeneration(init *v1beta1.Initializer) {
 	}
 }
 
-func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializer) (bool, error) {
+func (r *Reconciler) applyResources(ctx *common2.ReconcileContext, init *v1beta1.Initializer) (bool, error) {
 	// set ownerReference for system adddons(application)
 	ownerReference := []metav1.OwnerReference{{
 		APIVersion:         init.APIVersion,
@@ -213,8 +213,8 @@ func (r *Reconciler) applyResources(ctx context.Context, init *v1beta1.Initializ
 	return true, nil
 }
 
-func (r *Reconciler) createOrUpdateResource(ctx context.Context, app *v1beta1.Application) error {
-	klog.InfoS("Create or update resources", "app", klog.KObj(app))
+func (r *Reconciler) createOrUpdateResource(ctx *common2.ReconcileContext, app *v1beta1.Application) error {
+	ctx.Info("Create or update resources", "app", klog.KObj(app))
 	oldApp := new(v1beta1.Application)
 	err := r.Client.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, oldApp)
 	if err != nil {

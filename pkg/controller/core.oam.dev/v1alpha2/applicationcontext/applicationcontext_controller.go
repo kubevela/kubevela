@@ -65,7 +65,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, request reconcile.Request) 
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 
-	klog.InfoS("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
+	ctx.Info("Reconcile", "applicationContext", klog.KRef(request.Namespace, request.Name))
 	// fetch the app context
 	appContext := &v1alpha2.ApplicationContext{}
 	if err := r.client.Get(ctx, request.NamespacedName, appContext); err != nil {

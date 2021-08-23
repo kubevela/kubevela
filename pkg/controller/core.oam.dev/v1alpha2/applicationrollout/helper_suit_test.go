@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"k8s.io/apimachinery/pkg/types"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
@@ -37,7 +40,10 @@ import (
 )
 
 var _ = Describe("TestHandleReplicasFunc", func() {
-	ctx := context.Background()
+	ctx := common.NewReconcileContext(context.Background(), types.NamespacedName{
+		Name:      "test-app",
+		Namespace: "test-namespace",
+	})
 
 	It("Test exsit workload", func() {
 		ns := v1.Namespace{}

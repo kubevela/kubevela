@@ -17,9 +17,14 @@ limitations under the License.
 package applicationrollout
 
 import (
-	"context"
 	"fmt"
 	"reflect"
+
+	"github.com/pkg/errors"
+
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+
+	"github.com/go-logr/logr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,18 +33,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/openkruise/kruise-api/apps/v1alpha1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/klog/v2"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/openkruise/kruise-api/apps/v1alpha1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // RolloutWorkloadName generate workload name for when rollout
-func RolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
+func RolloutWorkloadName(rolloutComp string, logger logr.Logger) assemble.WorkloadOption {
 	return assemble.WorkloadOptionFn(func(w *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 
 		compName := w.GetLabels()[oam.LabelAppComponent]
@@ -53,7 +56,7 @@ func RolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 			if w.GetKind() == reflect.TypeOf(v1alpha1.CloneSet{}).Name() ||
 				w.GetKind() == reflect.TypeOf(v1alpha1.StatefulSet{}).Name() {
 				// we use the component name alone for those resources that do support in-place upgrade
-				klog.InfoS("we reuse the component name for resources that support in-place upgrade",
+				logger.Info("we reuse the component name for resources that support in-place upgrade",
 					"GVK", w.GroupVersionKind(), "instance name", w.GetName())
 				// assemble use component name as workload name by default
 				// so no need to re-set name
@@ -63,14 +66,14 @@ func RolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 		// we assume that the rest of the resources do not support in-place upgrade
 		compRevName := w.GetLabels()[oam.LabelAppComponentRevision]
 		w.SetName(compRevName)
-		klog.InfoS("we encountered an unknown resources, assume that it does not support in-place upgrade",
+		logger.Info("we encountered an unknown resources, assume that it does not support in-place upgrade",
 			"GVK", w.GroupVersionKind(), "instance name", compRevName)
 		return nil
 	})
 }
 
 // HandleReplicas override initial replicas of workload
-func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) assemble.WorkloadOption {
+func HandleReplicas(ctx *common.ReconcileContext, rolloutComp string, c client.Client) assemble.WorkloadOption {
 	return assemble.WorkloadOptionFn(func(u *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 		compName := u.GetLabels()[oam.LabelAppComponent]
 		if compName != rolloutComp {
@@ -85,7 +88,7 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 		case reflect.TypeOf(v1alpha1.CloneSet{}).Name(), reflect.TypeOf(appsv1.Deployment{}).Name():
 			replicasFieldPath = "spec.replicas"
 		default:
-			klog.Errorf("rollout meet a workload we cannot support yet", "Kind", u.GetKind(), "name", u.GetName())
+			ctx.Error(errors.New("rollout meet a workload we cannot support yet"), "Kind", u.GetKind(), "name", u.GetName())
 			return fmt.Errorf("rollout meet a workload we cannot support yet Kind  %s name %s", u.GetKind(), u.GetName())
 		}
 
@@ -97,7 +100,7 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 				if err != nil {
 					return err
 				}
-				klog.InfoS("assemble force set workload replicas to 0", "Kind", u.GetKind(), "name", u.GetName())
+				ctx.Info("assemble force set workload replicas to 0", "Kind", u.GetKind(), "name", u.GetName())
 				return nil
 			}
 			return err
@@ -113,7 +116,7 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 		if err = pv.SetNumber(replicasFieldPath, float64(replicas)); err != nil {
 			return err
 		}
-		klog.InfoS("assemble set existing workload replicas", "Kind", u.GetKind(), "name", u.GetName(), "replicas", replicas)
+		ctx.Info("assemble set existing workload replicas", "Kind", u.GetKind(), "name", u.GetName(), "replicas", replicas)
 		return nil
 	})
 }
@@ -143,7 +146,7 @@ func enableControllerOwner(workload *unstructured.Unstructured) {
 	workload.SetOwnerReferences(owners)
 }
 
-func handleRollingTerminated(appRollout v1beta1.AppRollout) bool {
+func handleRollingTerminated(ctx *common.ReconcileContext, appRollout v1beta1.AppRollout) bool {
 	// handle rollout completed
 	if appRollout.Status.RollingState == oamstd.RolloutSucceedState ||
 		appRollout.Status.RollingState == oamstd.RolloutFailedState {
@@ -153,13 +156,13 @@ func handleRollingTerminated(appRollout v1beta1.AppRollout) bool {
 			// means user have modified targetSize to restart an scale operation
 			if appRollout.Spec.RolloutPlan.TargetSize != nil {
 				if appRollout.Status.RolloutTargetSize == *appRollout.Spec.RolloutPlan.TargetSize {
-					klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
+					ctx.Info("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
 						"target", appRollout.Spec.TargetAppRevisionName)
 					return true
 				}
 				return false
 			}
-			klog.InfoS("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
+			ctx.Info("rollout completed, no need to reconcile", "source", appRollout.Spec.SourceAppRevisionName,
 				"target", appRollout.Spec.TargetAppRevisionName)
 			return true
 		}

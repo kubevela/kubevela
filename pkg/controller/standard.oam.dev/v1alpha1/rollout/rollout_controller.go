@@ -186,27 +186,27 @@ func (r *reconciler) updateStatus(ctx context.Context, rollout *v1alpha1.Rollout
 }
 
 // handle adding and handle finalizer logic, it turns if we should continue to reconcile
-func (r *reconciler) handleFinalizer(ctx context.Context, rollout *v1alpha1.Rollout) (bool, reconcile.Result, error) {
+func (r *reconciler) handleFinalizer(ctx *common2.ReconcileContext, rollout *v1alpha1.Rollout) (bool, reconcile.Result, error) {
 	if rollout.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(&rollout.ObjectMeta, rolloutFinalizer) {
 			meta.AddFinalizer(&rollout.ObjectMeta, rolloutFinalizer)
-			klog.InfoS("Register new app rollout finalizers", "rollout", rollout.Name,
+			ctx.Info("Register new app rollout finalizers", "rollout", rollout.Name,
 				"finalizers", rollout.ObjectMeta.Finalizers)
 			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, rollout), errUpdateRollout)
 		}
 	} else if meta.FinalizerExists(&rollout.ObjectMeta, rolloutFinalizer) {
 		if rollout.Status.RollingState == v1alpha1.RolloutSucceedState {
-			klog.InfoS("Safe to delete the succeeded rollout", "rollout", rollout.Name)
+			ctx.Info("Safe to delete the succeeded rollout", "rollout", rollout.Name)
 			meta.RemoveFinalizer(&rollout.ObjectMeta, rolloutFinalizer)
 			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, rollout), errUpdateRollout)
 		}
 		if rollout.Status.RollingState == v1alpha1.RolloutFailedState {
-			klog.InfoS("delete the rollout in failed state", "rollout", rollout.Name)
+			ctx.Info("delete the rollout in failed state", "rollout", rollout.Name)
 			meta.RemoveFinalizer(&rollout.ObjectMeta, rolloutFinalizer)
 			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, rollout), errUpdateRollout)
 		}
 		// still need to finalize
-		klog.Info("perform clean up", "app rollout", rollout.Name)
+		ctx.Info("perform clean up", "app rollout", rollout.Name)
 		r.record.Event(rollout, event.Normal("Rollout ", "rollout target deleted, release the resources"))
 		rollout.Status.StateTransition(v1alpha1.RollingDeletedEvent)
 	}

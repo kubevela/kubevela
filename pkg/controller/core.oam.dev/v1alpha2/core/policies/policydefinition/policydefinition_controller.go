@@ -26,7 +26,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -62,7 +61,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	defer ctx.EndReconcile()
 
 	definitionName := req.NamespacedName.Name
-	klog.InfoS("Reconciling PolicyDefinition...", "Name", definitionName, "Namespace", req.Namespace)
+	ctx.Info("Reconciling PolicyDefinition...", "Name", definitionName, "Namespace", req.Namespace)
 	var policydefinition v1beta1.PolicyDefinition
 	if err := r.Get(ctx, req.NamespacedName, &policydefinition); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -80,7 +79,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	if policydefinition.Spec.Reference.Name != "" {
 		err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &policydefinition)
 		if err != nil {
-			klog.ErrorS(err, "cannot refresh packageDiscover")
+			ctx.Error(err, "cannot refresh packageDiscover")
 			r.record.Event(&policydefinition, event.Warning("cannot refresh packageDiscover", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
@@ -90,7 +89,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// generate DefinitionRevision from policyDefinition
 	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &policydefinition)
 	if err != nil {
-		klog.ErrorS(err, "cannot generate DefinitionRevision", "PolicyDefinitionName", policydefinition.Name)
+		ctx.Error(err, "cannot generate DefinitionRevision", "PolicyDefinitionName", policydefinition.Name)
 		r.record.Event(&policydefinition, event.Warning("cannot generate DefinitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, policydefinition.Name, err)))
@@ -98,12 +97,12 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 
 	if isNewRevision {
 		if err = r.createPolicyDefRevision(ctx, &policydefinition, defRev); err != nil {
-			klog.ErrorS(err, "cannot create DefinitionRevision")
+			ctx.Error(err, "cannot create DefinitionRevision")
 			r.record.Event(&(policydefinition), event.Warning("cannot create DefinitionRevision", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
 				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully create PolicyDefRevision", "name", defRev.Name)
+		ctx.Info("Successfully create PolicyDefRevision", "name", defRev.Name)
 	}
 
 	policydefinition.Status.LatestRevision = &common.Revision{
@@ -113,14 +112,14 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 
 	if err := r.UpdateStatus(ctx, &policydefinition); err != nil {
-		klog.ErrorS(err, "cannot update PolicyDefinition Status")
+		ctx.Error(err, "cannot update PolicyDefinition Status")
 		r.record.Event(&(policydefinition), event.Warning("cannot update PolicyDefinition Status", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
 			condition.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policydefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &policydefinition, r.defRevLimit); err != nil {
-		klog.Error("[Garbage collection]")
+		ctx.Info("Failed to collect garbage", "err", err)
 		r.record.Event(&policydefinition, event.Warning("failed to garbage collect DefinitionRevision of type PolicyDefinition", err))
 	}
 

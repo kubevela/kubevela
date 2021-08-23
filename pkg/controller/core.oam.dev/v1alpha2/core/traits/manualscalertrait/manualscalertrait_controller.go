@@ -84,20 +84,20 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 
-	klog.InfoS("Reconcile manualscalar trait", "trait", klog.KRef(req.Namespace, req.Name))
+	ctx.Info("Reconcile manualscalar trait", "trait", klog.KRef(req.Namespace, req.Name))
 
 	var manualScalar oamv1alpha2.ManualScalerTrait
 	if err := r.Get(ctx, req.NamespacedName, &manualScalar); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	klog.InfoS("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
+	ctx.Info("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
 		"Annotations", manualScalar.GetAnnotations())
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &manualScalar)
 	if eventObj == nil {
 		// fallback to workload itself
-		klog.ErrorS(err, "Failed to find the parent resource", "manualScalar", manualScalar.Name)
+		ctx.Error(err, "Failed to find the parent resource", "manualScalar", manualScalar.Name)
 		eventObj = &manualScalar
 	}
 	// Fetch the workload instance this trait is referring to
@@ -111,7 +111,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// Fetch the child resources list from the corresponding workload
 	resources, err := util.FetchWorkloadChildResources(ctx, r.Client, r.dm, workload)
 	if err != nil {
-		klog.ErrorS(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
+		ctx.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &manualScalar,
 			condition.ReconcileError(errors.New(util.ErrFetchChildResources)))

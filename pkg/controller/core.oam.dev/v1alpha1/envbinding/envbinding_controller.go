@@ -22,7 +22,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -64,14 +63,14 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 
 	if err := validatePlacement(envBinding); err != nil {
-		klog.ErrorS(err, "The placement is not compliant")
+		ctx.Error(err, "The placement is not compliant")
 		r.record.Event(envBinding, event.Warning("The placement is not compliant", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	baseApp, err := util.RawExtension2Application(envBinding.Spec.AppTemplate.RawExtension)
 	if err != nil {
-		klog.ErrorS(err, "Failed to parse AppTemplate of EnvBinding")
+		ctx.Error(err, "Failed to parse AppTemplate of EnvBinding")
 		r.record.Event(envBinding, event.Warning("Failed to parse AppTemplate of EnvBinding", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -89,7 +88,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// prepare the pre-work for cluster scheduling
 	envBinding.Status.Phase = v1alpha1.EnvBindingPrepare
 	if err = engine.prepare(ctx, envBinding.Spec.Envs); err != nil {
-		klog.ErrorS(err, "Failed to prepare the pre-work for cluster scheduling")
+		ctx.Error(err, "Failed to prepare the pre-work for cluster scheduling")
 		r.record.Event(envBinding, event.Warning("Failed to prepare the pre-work for cluster scheduling", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -99,7 +98,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 	envBindApps, err := engine.initEnvBindApps(ctx, envBinding, baseApp, appParser)
 	if err != nil {
-		klog.ErrorS(err, "Failed to patch the parameters for application in different envs")
+		ctx.Error(err, "Failed to patch the parameters for application in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to patch the parameters for application in different envs", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -108,7 +107,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	envBinding.Status.Phase = v1alpha1.EnvBindingScheduling
 	clusterDecisions, err := engine.schedule(ctx, envBindApps)
 	if err != nil {
-		klog.ErrorS(err, "Failed to schedule resource of applications in different envs")
+		ctx.Error(err, "Failed to schedule resource of applications in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to schedule resource of applications in different envs", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -116,13 +115,13 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// store manifest of different envs to configmap
 	if envBinding.Spec.OutputResourcesTo != nil && len(envBinding.Spec.OutputResourcesTo.Name) != 0 {
 		if err = StoreManifest2ConfigMap(ctx, r.Client, envBinding, envBindApps); err != nil {
-			klog.ErrorS(err, "Failed to store manifest of different envs to configmap")
+			ctx.Error(err, "Failed to store manifest of different envs to configmap")
 			r.record.Event(envBinding, event.Warning("Failed to store manifest of different envs to configmap", err))
 			return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 		}
 	} else {
 		if err = engine.dispatch(ctx, envBinding, envBindApps); err != nil {
-			klog.ErrorS(err, "Failed to dispatch resources of different envs to cluster")
+			ctx.Error(err, "Failed to dispatch resources of different envs to cluster")
 			r.record.Event(envBinding, event.Warning("Failed to dispatch resources of different envs to cluster", err))
 			return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 		}
@@ -131,7 +130,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	envBinding.Status.Phase = v1alpha1.EnvBindingFinished
 	envBinding.Status.ClusterDecisions = clusterDecisions
 	if err = r.Client.Status().Patch(ctx, envBinding, client.Merge); err != nil {
-		klog.ErrorS(err, "Failed to update status")
+		ctx.Error(err, "Failed to update status")
 		r.record.Event(envBinding, event.Warning("Failed to update status", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, envBinding, condition.ReconcileError(err))
 	}

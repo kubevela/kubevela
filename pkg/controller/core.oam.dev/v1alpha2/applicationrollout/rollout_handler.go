@@ -82,7 +82,7 @@ func (h *rolloutHandler) prepareWorkloads(ctx *common2.ReconcileContext) error {
 
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision, logger).
-		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
+		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent, logger)).
 		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent, logger))
 
 	h.targetWorkloads, _, _, err = targetAssemble.GroupAssembledManifests()
@@ -99,7 +99,7 @@ func (h *rolloutHandler) prepareWorkloads(ctx *common2.ReconcileContext) error {
 		// construct a assemble manifest for sourceAppRevision
 		sourceAssemble := assemble.NewAppManifests(h.sourceAppRevision, logger).
 			WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent, logger)).
-			WithWorkloadOption(RolloutWorkloadName(h.needRollComponent))
+			WithWorkloadOption(RolloutWorkloadName(h.needRollComponent, logger))
 		h.sourceWorkloads, _, _, err = sourceAssemble.GroupAssembledManifests()
 		if err != nil {
 			klog.Error("appRollout sourceAppRevision failed to assemble workloads", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
@@ -332,7 +332,7 @@ func (h *rolloutHandler) assembleManifest(ctx *common2.ReconcileContext) error {
 
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision, logger).
-		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
+		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent, logger)).
 		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent, logger)).WithWorkloadOption(HandleReplicas(ctx, h.needRollComponent, h.Client))
 
 	// in template phase, we should use targetManifests including target workloads/traits to

@@ -63,7 +63,7 @@ func (h *handler) assembleWorkload(ctx *common2.ReconcileContext) error {
 	}
 
 	workloadOptions := []assemble.WorkloadOption{
-		applicationrollout.RolloutWorkloadName(h.compName),
+		applicationrollout.RolloutWorkloadName(h.compName, logger),
 		assemble.PrepareWorkloadForRollout(h.compName, logger),
 		applicationrollout.HandleReplicas(ctx, h.compName, h.Client)}
 

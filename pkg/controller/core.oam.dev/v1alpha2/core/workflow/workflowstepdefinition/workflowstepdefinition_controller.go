@@ -26,7 +26,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -62,7 +61,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	defer ctx.EndReconcile()
 
 	definitionName := req.NamespacedName.Name
-	klog.InfoS("Reconciling WorkflowStepDefinition...", "Name", definitionName, "Namespace", req.Namespace)
+	ctx.Info("Reconciling WorkflowStepDefinition...", "Name", definitionName, "Namespace", req.Namespace)
 
 	var wfstepdefinition v1beta1.WorkflowStepDefinition
 	if err := r.Get(ctx, req.NamespacedName, &wfstepdefinition); err != nil {
@@ -81,7 +80,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	if wfstepdefinition.Spec.Reference.Name != "" {
 		err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &wfstepdefinition)
 		if err != nil {
-			klog.ErrorS(err, "cannot refresh packageDiscover")
+			ctx.Error(err, "cannot refresh packageDiscover")
 			r.record.Event(&wfstepdefinition, event.Warning("cannot refresh packageDiscover", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &wfstepdefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
@@ -90,7 +89,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// generate DefinitionRevision from WorkflowStepDefinition
 	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &wfstepdefinition)
 	if err != nil {
-		klog.ErrorS(err, "cannot generate DefinitionRevision", "WorkflowStepDefinitionName", wfstepdefinition.Name)
+		ctx.Error(err, "cannot generate DefinitionRevision", "WorkflowStepDefinitionName", wfstepdefinition.Name)
 		r.record.Event(&wfstepdefinition, event.Warning("cannot generate DefinitionRevision", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &wfstepdefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, wfstepdefinition.Name, err)))
@@ -98,12 +97,12 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 
 	if isNewRevision {
 		if err = r.createWFStepDefRevision(ctx, &wfstepdefinition, defRev); err != nil {
-			klog.ErrorS(err, "cannot create DefinitionRevision")
+			ctx.Error(err, "cannot create DefinitionRevision")
 			r.record.Event(&(wfstepdefinition), event.Warning("cannot create DefinitionRevision", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
 				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully create WFStepDefRevision", "name", defRev.Name)
+		ctx.Info("Successfully create WFStepDefRevision", "name", defRev.Name)
 	}
 
 	wfstepdefinition.Status.LatestRevision = &common.Revision{
@@ -113,14 +112,14 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 
 	if err := r.UpdateStatus(ctx, &wfstepdefinition); err != nil {
-		klog.ErrorS(err, "cannot update WorkflowStepDefinition Status")
+		ctx.Error(err, "cannot update WorkflowStepDefinition Status")
 		r.record.Event(&(wfstepdefinition), event.Warning("cannot update WorkflowStepDefinition Status", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
 			condition.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfstepdefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &wfstepdefinition, r.defRevLimit); err != nil {
-		klog.Error("[Garbage collection]")
+		ctx.Info("Failed to collect garbage", "err", err)
 		r.record.Event(&wfstepdefinition, event.Warning("failed to garbage collect DefinitionRevision of type WorkflowStepDefinition", err))
 	}
 
