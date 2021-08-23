@@ -222,7 +222,7 @@ var _ = Describe("Test rollout related handler func", func() {
 				},
 				rollout: rollout,
 			}
-			done, _, _ := h.handleFinalizer(ctx, rollout)
+			done, _, _ := h.handleFinalizer(common2.NewReconcileContext(ctx, types.NamespacedName{}), rollout)
 			Expect(done).Should(BeTrue())
 			Expect(len(rollout.Finalizers)).Should(BeEquivalentTo(0))
 		})
@@ -249,7 +249,7 @@ var _ = Describe("Test rollout related handler func", func() {
 				},
 				rollout: rollout,
 			}
-			done, _, _ := h.handleFinalizer(ctx, rollout)
+			done, _, _ := h.handleFinalizer(common2.NewReconcileContext(ctx, types.NamespacedName{}), rollout)
 			Expect(done).Should(BeFalse())
 			Expect(len(rollout.Finalizers)).Should(BeEquivalentTo(1))
 			Expect(rollout.Status.RollingState).Should(BeEquivalentTo(v1alpha1.RolloutDeletingState))

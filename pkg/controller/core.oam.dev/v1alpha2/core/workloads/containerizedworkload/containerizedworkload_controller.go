@@ -79,25 +79,25 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 
-	klog.InfoS("Reconcile containerizedworkload", klog.KRef(req.Namespace, req.Name))
+	ctx.Info("Reconcile containerizedworkload", klog.KRef(req.Namespace, req.Name))
 	var workload v1alpha2.ContainerizedWorkload
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.Info("Container workload is deleted")
+			ctx.Info("Container workload is deleted")
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	klog.InfoS("Get the workload", "apiVersion", workload.APIVersion, "kind", workload.Kind)
+	ctx.Info("Get the workload", "apiVersion", workload.APIVersion, "kind", workload.Kind)
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &workload)
 	if eventObj == nil {
 		// fallback to workload itself
-		klog.ErrorS(err, "workload", "name", workload.Name)
+		ctx.Error(err, "workload", "name", workload.Name)
 		eventObj = &workload
 	}
 	deploy, err := r.renderDeployment(ctx, &workload)
 	if err != nil {
-		klog.ErrorS(err, "Failed to render a deployment")
+		ctx.Error(err, "Failed to render a deployment")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
 		return ctrl.Result{},
 			util.EndReconcileWithNegativeCondition(ctx, r, &workload, condition.ReconcileError(errors.Wrap(err, errRenderWorkload)))
@@ -105,7 +105,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// server side apply, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
 	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
-		klog.ErrorS(err, "Failed to apply to a deployment")
+		ctx.Error(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return ctrl.Result{},
 			util.EndReconcileWithNegativeCondition(ctx, r, &workload, condition.ReconcileError(errors.Wrap(err, errApplyDeployment)))
@@ -117,14 +117,14 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	configMapApplyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(deploy.GetUID())}
 	configmaps, err := r.renderConfigMaps(ctx, &workload, deploy)
 	if err != nil {
-		klog.ErrorS(err, "Failed to render configmaps")
+		ctx.Error(err, "Failed to render configmaps")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
 		return ctrl.Result{},
 			util.EndReconcileWithNegativeCondition(ctx, r, &workload, condition.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 	}
 	for _, cm := range configmaps {
 		if err := r.Patch(ctx, cm, client.Apply, configMapApplyOpts...); err != nil {
-			klog.ErrorS(err, "Failed to apply a configmap")
+			ctx.Error(err, "Failed to apply a configmap")
 			r.record.Event(eventObj, event.Warning(errApplyConfigMap, err))
 			return ctrl.Result{},
 				util.EndReconcileWithNegativeCondition(ctx, r, &workload, condition.ReconcileError(errors.Wrap(err, errApplyConfigMap)))
@@ -137,14 +137,14 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// TODO(rz): remove this after we have service trait
 	service, err := r.renderService(ctx, &workload, deploy)
 	if err != nil {
-		klog.ErrorS(err, "Failed to render a service")
+		ctx.Error(err, "Failed to render a service")
 		r.record.Event(eventObj, event.Warning(errRenderService, err))
 		return ctrl.Result{},
 			util.EndReconcileWithNegativeCondition(ctx, r, &workload, condition.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
 	// server side apply the service
 	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
-		klog.ErrorS(err, "Failed to apply a service")
+		ctx.Error(err, "Failed to apply a service")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return ctrl.Result{},
 			util.EndReconcileWithNegativeCondition(ctx, r, &workload, condition.ReconcileError(errors.Wrap(err, errApplyService)))
@@ -154,7 +154,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 			workload.Name, service.Name)))
 	// garbage collect the service/deployments that we created but not needed
 	if err := r.cleanupResources(ctx, &workload, &deploy.UID, &service.UID); err != nil {
-		klog.ErrorS(err, "Failed to clean up resources")
+		ctx.Error(err, "Failed to clean up resources")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 	}
 	workload.Status.Resources = nil

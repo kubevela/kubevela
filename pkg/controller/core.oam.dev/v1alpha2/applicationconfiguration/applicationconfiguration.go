@@ -230,12 +230,12 @@ func (r *OAMApplicationReconciler) Reconcile(_ctx context.Context, req reconcile
 
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(ac) {
-			klog.V(common.LogDebug).InfoS("Register new finalizers", "finalizers", ac.ObjectMeta.Finalizers)
+			ctx.V(common.LogDebug).Info("Register new finalizers", "finalizers", ac.ObjectMeta.Finalizers)
 			return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 		}
 	} else {
 		if err := r.workloads.Finalize(ctx, ac); err != nil {
-			klog.InfoS("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
+			ctx.Info("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
 				"err", err)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
 			ac.SetConditions(condition.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
@@ -256,7 +256,7 @@ func (r *OAMApplicationReconciler) Reconcile(_ctx context.Context, req reconcile
 }
 
 // ACReconcile contains all the reconcile logic of an AC, it can be used by other controller
-func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) (result reconcile.Result, resultErr error) {
+func (r *OAMApplicationReconciler) ACReconcile(ctx *common.ReconcileContext, ac *v1alpha2.ApplicationConfiguration) (result reconcile.Result, resultErr error) {
 
 	acPatch := ac.DeepCopy()
 	// execute the posthooks at the end no matter what
@@ -265,7 +265,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		for name, hook := range r.postHooks {
 			exeResult, err := hook.Exec(ctx, ac)
 			if err != nil {
-				klog.InfoS("Failed to execute post-hooks", "hook name", name, "err", err,
+				ctx.Info("Failed to execute post-hooks", "hook name", name, "err", err,
 					"requeue-after", exeResult.RequeueAfter)
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
 				result = exeResult
@@ -281,20 +281,20 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	for name, hook := range r.preHooks {
 		result, err := hook.Exec(ctx, ac)
 		if err != nil {
-			klog.InfoS("Failed to execute pre-hooks", "hook name", name, "requeue-after", result.RequeueAfter, "err", err)
+			ctx.Info("Failed to execute pre-hooks", "hook name", name, "requeue-after", result.RequeueAfter, "err", err)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
 			return result, errors.Wrap(err, errExecutePrehooks)
 		}
 		r.record.Event(ac, event.Normal(reasonExecutePrehook, "Successfully executed a prehook", "prehook name ", name))
 	}
 
-	klog.InfoS("ApplicationConfiguration", "uid", ac.GetUID(), "version", ac.GetResourceVersion())
+	ctx.Info("ApplicationConfiguration", "uid", ac.GetUID(), "version", ac.GetResourceVersion())
 
 	// we have special logics for application generated applicationConfiguration
 	if isControlledByApp(ac) {
 		if ac.GetAnnotations()[oam.AnnotationAppRevision] == strconv.FormatBool(true) {
 			msg := "Encounter an application revision, no need to reconcile"
-			klog.Info(msg)
+			ctx.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
 			ac.SetConditions(condition.Unavailable())
 			ac.Status.RollingStatus = oamtype.InactiveAfterRollingCompleted
@@ -305,27 +305,27 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 
 	workloads, depStatus, err := r.components.Render(ctx, ac)
 	if err != nil {
-		klog.InfoS("Cannot render components", "err", err)
+		ctx.Info("Cannot render components", "err", err)
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		return reconcile.Result{}, errors.Wrap(err, errRenderComponents)
 	}
-	klog.V(common.LogDebug).InfoS("Successfully rendered components", "workloads", len(workloads))
+	ctx.V(common.LogDebug).Info("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components",
 		"workloads", strconv.Itoa(len(workloads))))
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode)}
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
-		klog.InfoS("Cannot apply workload", "err", err)
+		ctx.Info("Cannot apply workload", "err", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		return reconcile.Result{}, errors.Wrap(err, errApplyComponents)
 	}
 	// only change the status after the apply succeeds
 	// TODO: take into account the templating object may not be applied if there are dependencies
 	if ac.Status.RollingStatus == oamtype.RollingTemplating {
-		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
+		ctx.Info("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
 		ac.Status.RollingStatus = oamtype.RollingTemplated
 	}
-	klog.V(common.LogDebug).InfoS("Successfully applied components", "workloads", len(workloads))
+	ctx.V(common.LogDebug).Info("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components",
 		"workloads", strconv.Itoa(len(workloads))))
 
@@ -336,22 +336,22 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	for _, e := range r.gc.Eligible(ac.GetNamespace(), ac.Status.Workloads, workloads) {
 		// https://github.com/golang/go/wiki/CommonMistakes#using-reference-to-loop-iterator-variable
 		e := e
-		klog.InfoS("Collect garbage ", "resource", klog.KRef(e.GetNamespace(), e.GetName()),
+		ctx.Info("Collect garbage ", "resource", klog.KRef(e.GetNamespace(), e.GetName()),
 			"apiVersion", e.GetAPIVersion(), "kind", e.GetKind())
 		record := r.record.WithAnnotations("kind", e.GetKind(), "name", e.GetName())
 
 		err := r.confirmDeleteOnApplyOnceMode(ctx, ac.GetNamespace(), &e)
 		if err != nil {
-			klog.InfoS("Confirm component can't be garbage collected", "err", err)
+			ctx.Info("Confirm component can't be garbage collected", "err", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			return reconcile.Result{}, errors.Wrap(err, errGCComponent)
 		}
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
-			klog.InfoS("Cannot garbage collect component", "err", err)
+			ctx.Info("Cannot garbage collect component", "err", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			return reconcile.Result{}, errors.Wrap(err, errGCComponent)
 		}
-		klog.V(common.LogDebug).Info("Garbage collected resource")
+		ctx.V(common.LogDebug).Info("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))
 	}
 

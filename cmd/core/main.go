@@ -117,7 +117,7 @@ func main() {
 	// setup logging
 	klog.InitFlags(nil)
 	if logDebug {
-		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+		_ = flag.Set("v", strconv.Itoa(commonconfig.LogDebug))
 	}
 	klog.InfoS("configs", "syncPeriod", syncPeriod.Seconds(), "qps", qps, "burst", burst, "concurrent-reconciles", controllerArgs.ConcurrentReconciles)
 	if pprofAddr != "" {

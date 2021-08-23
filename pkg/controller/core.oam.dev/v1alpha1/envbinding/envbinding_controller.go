@@ -79,14 +79,14 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 
 	if err := validatePlacement(envBinding); err != nil {
-		klog.ErrorS(err, "The placement is not compliant")
+		ctx.Error(err, "The placement is not compliant")
 		r.record.Event(envBinding, event.Warning("The placement is not compliant", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	baseApp, err := util.RawExtension2Application(envBinding.Spec.AppTemplate.RawExtension)
 	if err != nil {
-		klog.ErrorS(err, "Failed to parse AppTemplate of EnvBinding")
+		ctx.Error(err, "Failed to parse AppTemplate of EnvBinding")
 		r.record.Event(envBinding, event.Warning("Failed to parse AppTemplate of EnvBinding", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -104,7 +104,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	// prepare the pre-work for cluster scheduling
 	envBinding.Status.Phase = v1alpha1.EnvBindingPrepare
 	if err = engine.prepare(ctx, envBinding.Spec.Envs); err != nil {
-		klog.ErrorS(err, "Failed to prepare the pre-work for cluster scheduling")
+		ctx.Error(err, "Failed to prepare the pre-work for cluster scheduling")
 		r.record.Event(envBinding, event.Warning("Failed to prepare the pre-work for cluster scheduling", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -114,7 +114,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 	envBindApps, err := engine.initEnvBindApps(ctx, envBinding, baseApp, appParser)
 	if err != nil {
-		klog.ErrorS(err, "Failed to patch the parameters for application in different envs")
+		ctx.Error(err, "Failed to patch the parameters for application in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to patch the parameters for application in different envs", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -123,19 +123,19 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	envBinding.Status.Phase = v1alpha1.EnvBindingScheduling
 	clusterDecisions, err := engine.schedule(ctx, envBindApps)
 	if err != nil {
-		klog.ErrorS(err, "Failed to schedule resource of applications in different envs")
+		ctx.Error(err, "Failed to schedule resource of applications in different envs")
 		r.record.Event(envBinding, event.Warning("Failed to schedule resource of applications in different envs", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	if err = garbageCollect(ctx, r.Client, envBinding, envBindApps); err != nil {
-		klog.ErrorS(err, "Failed to garbage collect old resource for envBinding")
+		ctx.Error(err, "Failed to garbage collect old resource for envBinding")
 		r.record.Event(envBinding, event.Warning("Failed to garbage collect old resource for envBinding", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
 
 	if err = r.applyOrRecordManifests(ctx, envBinding, envBindApps); err != nil {
-		klog.ErrorS(err, "Failed to apply or record manifests")
+		ctx.Error(err, "Failed to apply or record manifests")
 		r.record.Event(envBinding, event.Warning("Failed to apply or record manifests", err))
 		return r.endWithNegativeCondition(ctx, envBinding, condition.ReconcileError(err))
 	}
@@ -143,7 +143,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	envBinding.Status.Phase = v1alpha1.EnvBindingFinished
 	envBinding.Status.ClusterDecisions = clusterDecisions
 	if err = r.Client.Status().Patch(ctx, envBinding, client.Merge); err != nil {
-		klog.ErrorS(err, "Failed to update status")
+		ctx.Error(err, "Failed to update status")
 		r.record.Event(envBinding, event.Warning("Failed to update status", err))
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, envBinding, condition.ReconcileError(err))
 	}

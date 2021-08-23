@@ -60,7 +60,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.V(common.LogDebugWithContent).InfoS("Admit appRollout", "appRollout", klog.KObj(obj),
+		klog.V(klog.Level(common.LogDebugWithContent)).InfoS("Admit appRollout", "appRollout", klog.KObj(obj),
 			"patches", util.DumpJSON(resp.Patches))
 	}
 	return resp

@@ -39,6 +39,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -245,7 +246,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			}
 			reconciler.client = mockClient
 			hs.Spec.WorkloadReferences = tc.hsWorkloadRefs
-			result, _ := reconciler.GetScopeHealthStatus(ctx, &hs)
+			result, _ := reconciler.GetScopeHealthStatus(common.NewReconcileContext(ctx, types.NamespacedName{}), &hs)
 			Expect(result).ShouldNot(BeNil())
 			Expect(result).Should(Equal(tc.wantScopeCondition))
 		}
@@ -316,7 +317,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			}
 			reconciler.client = mockClient
 			hs.Spec.WorkloadReferences = tc.hsWorkloadRefs
-			result, _ := reconciler.GetScopeHealthStatus(ctx, &hs)
+			result, _ := reconciler.GetScopeHealthStatus(common.NewReconcileContext(ctx, types.NamespacedName{}), &hs)
 			Expect(result).ShouldNot(BeNil())
 			Expect(result).Should(Equal(tc.wantScopeCondition))
 		}

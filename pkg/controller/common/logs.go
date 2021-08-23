@@ -16,8 +16,6 @@ limitations under the License.
 
 package common
 
-import "k8s.io/klog/v2"
-
 // klog has multiple levels, you can set the log levels by klog.V()
 // Basic examples:
 //
@@ -27,7 +25,7 @@ import "k8s.io/klog/v2"
 const (
 	// LogInfo level is for most info logs, this is the default
 	// One should just call Info directly.
-	LogInfo klog.Level = iota
+	LogInfo int = iota
 
 	// LogDebug is for more verbose logs
 	LogDebug

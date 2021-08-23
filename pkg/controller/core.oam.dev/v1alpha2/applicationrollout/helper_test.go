@@ -19,6 +19,10 @@ package applicationrollout
 import (
 	"testing"
 
+	"k8s.io/klog/v2/klogr"
+
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -186,7 +190,7 @@ func TestHandleTerminated(t *testing.T) {
 		},
 	}
 	for casename, c := range testcases {
-		got := handleRollingTerminated(c.rollout)
+		got := handleRollingTerminated(&common2.ReconcileContext{Logger: klogr.New()}, c.rollout)
 		if got != c.want {
 			t.Errorf("%s result missmatch want:%v got: %v", casename, c.want, got)
 		}

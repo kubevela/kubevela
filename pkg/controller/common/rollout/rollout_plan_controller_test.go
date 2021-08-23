@@ -17,7 +17,12 @@ limitations under the License.
 package rollout
 
 import (
+	"context"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 
 	"k8s.io/utils/pointer"
 
@@ -51,7 +56,7 @@ func Test_TryMovingToNextBatch(t *testing.T) {
 				rolloutSpec:   tt.rolloutSpec,
 				rolloutStatus: tt.rolloutStatus,
 			}
-			r.tryMovingToNextBatch()
+			r.tryMovingToNextBatch(common.NewReconcileContext(context.Background(), types.NamespacedName{Namespace: "test", Name: "app"}))
 			if r.rolloutStatus.CurrentBatch != tt.wantNextBatch {
 				t.Errorf("\n%s\n batch miss match: want batch `%d`, got batch:`%d`\n", name,
 					tt.wantNextBatch, r.rolloutStatus.CurrentBatch)

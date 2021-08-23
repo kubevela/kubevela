@@ -17,7 +17,6 @@ limitations under the License.
 package rollout
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -73,18 +72,18 @@ func NewRolloutPlanController(client client.Client, parentController oam.Object,
 }
 
 // Reconcile reconciles a rollout plan
-func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, status *v1alpha1.RolloutStatus) {
-	klog.InfoS("Reconcile the rollout plan", "rollout status", r.rolloutStatus,
+func (r *Controller) Reconcile(ctx *common.ReconcileContext) (res reconcile.Result, status *v1alpha1.RolloutStatus) {
+	ctx.Info("Reconcile the rollout plan", "rollout status", r.rolloutStatus,
 		"target workload", klog.KObj(r.targetWorkload))
 	if r.sourceWorkload != nil {
-		klog.InfoS("We will do rolling upgrades", "source workload", klog.KObj(r.sourceWorkload))
+		ctx.Info("We will do rolling upgrades", "source workload", klog.KObj(r.sourceWorkload))
 	}
-	klog.InfoS("rollout status", "rollout state", r.rolloutStatus.RollingState, "batch rolling state",
+	ctx.Info("rollout status", "rollout state", r.rolloutStatus.RollingState, "batch rolling state",
 		r.rolloutStatus.BatchRollingState, "current batch", r.rolloutStatus.CurrentBatch, "upgraded Replicas",
 		r.rolloutStatus.UpgradedReplicas, "ready Replicas", r.rolloutStatus.UpgradedReadyReplicas)
 
 	defer func() {
-		klog.InfoS("Finished one round of reconciling rollout plan", "rollout state", status.RollingState,
+		ctx.Info("Finished one round of reconciling rollout plan", "rollout state", status.RollingState,
 			"batch rolling state", status.BatchRollingState, "current batch", status.CurrentBatch,
 			"upgraded Replicas", status.UpgradedReplicas, "ready Replicas", status.UpgradedReadyReplicas,
 			"reconcile result ", res)
@@ -103,7 +102,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 		}
 	}()
 
-	workloadController, err := r.GetWorkloadController()
+	workloadController, err := r.GetWorkloadController(ctx)
 	if err != nil {
 		r.rolloutStatus.RolloutFailed(err.Error())
 		r.recorder.Event(r.parentController, event.Warning("Unsupported workload", err))
@@ -157,7 +156,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 }
 
 // reconcile logic when we are in the middle of rollout, we have to go through finalizing state before succeed or fail
-func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadController workloads.WorkloadController) {
+func (r *Controller) reconcileBatchInRolling(ctx *common.ReconcileContext, workloadController workloads.WorkloadController) {
 	if r.rolloutSpec.Paused {
 		r.recorder.Event(r.parentController, event.Normal("Rollout paused", "Rollout paused"))
 		r.rolloutStatus.SetConditions(v1alpha1.NewPositiveCondition(v1alpha1.BatchPaused))
@@ -201,7 +200,7 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 	case v1alpha1.BatchReadyState:
 		// all the pods in the are upgraded and their state are ready
 		// wait to move to the next batch if there are any
-		r.tryMovingToNextBatch()
+		r.tryMovingToNextBatch(ctx)
 
 	default:
 		panic(fmt.Sprintf("illegal status %+v", r.rolloutStatus))
@@ -210,18 +209,18 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 
 // all the common initialize work before we rollout
 // TODO: fail the rollout if the webhook call is explicitly rejected (through http status code)
-func (r *Controller) initializeRollout(ctx context.Context) error {
+func (r *Controller) initializeRollout(ctx *common.ReconcileContext) error {
 	// call the pre-rollout webhooks
 	for _, rw := range r.rolloutSpec.RolloutWebhooks {
 		if rw.Type == v1alpha1.InitializeRolloutHook {
 			err := callWebhook(ctx, r.parentController, string(v1alpha1.InitializingState), rw)
 			if err != nil {
-				klog.ErrorS(err, "failed to invoke a webhook",
+				ctx.Error(err, "failed to invoke a webhook",
 					"webhook name", rw.Name, "webhook end point", rw.URL)
 				r.rolloutStatus.RolloutRetry("failed to invoke a webhook")
 				return err
 			}
-			klog.InfoS("successfully invoked a pre rollout webhook", "webhook name", rw.Name, "webhook end point",
+			ctx.Info("successfully invoked a pre rollout webhook", "webhook name", rw.Name, "webhook end point",
 				rw.URL)
 		}
 	}
@@ -230,19 +229,19 @@ func (r *Controller) initializeRollout(ctx context.Context) error {
 }
 
 // all the common initialize work before we rollout one batch of resources
-func (r *Controller) initializeOneBatch(ctx context.Context) {
+func (r *Controller) initializeOneBatch(ctx *common.ReconcileContext) {
 	rolloutHooks := r.gatherAllWebhooks()
 	// call all the pre-batch rollout webhooks
 	for _, rh := range rolloutHooks {
 		if rh.Type == v1alpha1.PreBatchRolloutHook {
 			err := callWebhook(ctx, r.parentController, string(v1alpha1.BatchInitializingState), rh)
 			if err != nil {
-				klog.ErrorS(err, "failed to invoke a webhook",
+				ctx.Error(err, "failed to invoke a webhook",
 					"webhook name", rh.Name, "webhook end point", rh.URL)
 				r.rolloutStatus.RolloutRetry("failed to invoke a webhook")
 				return
 			}
-			klog.InfoS("successfully invoked a pre batch webhook", "webhook name", rh.Name, "webhook end point",
+			ctx.Info("successfully invoked a pre batch webhook", "webhook name", rh.Name, "webhook end point",
 				rh.URL)
 		}
 	}
@@ -260,29 +259,29 @@ func (r *Controller) gatherAllWebhooks() []v1alpha1.RolloutWebhook {
 }
 
 // check if we can move to the next batch
-func (r *Controller) tryMovingToNextBatch() {
+func (r *Controller) tryMovingToNextBatch(ctx *common.ReconcileContext) {
 	if r.rolloutSpec.BatchPartition == nil || *r.rolloutSpec.BatchPartition > r.rolloutStatus.CurrentBatch {
-		klog.InfoS("ready to rollout the next batch", "current batch", r.rolloutStatus.CurrentBatch)
+		ctx.Info("ready to rollout the next batch", "current batch", r.rolloutStatus.CurrentBatch)
 		r.rolloutStatus.StateTransition(v1alpha1.BatchRolloutApprovedEvent)
 	} else {
-		klog.V(common.LogDebug).InfoS("the current batch is waiting to move on", "current batch",
+		ctx.V(common.LogDebug).Info("the current batch is waiting to move on", "current batch",
 			r.rolloutStatus.CurrentBatch)
 	}
 }
 
-func (r *Controller) finalizeOneBatch(ctx context.Context) {
+func (r *Controller) finalizeOneBatch(ctx *common.ReconcileContext) {
 	rolloutHooks := r.gatherAllWebhooks()
 	// call all the post-batch rollout webhooks
 	for _, rh := range rolloutHooks {
 		if rh.Type == v1alpha1.PostBatchRolloutHook {
 			err := callWebhook(ctx, r.parentController, string(v1alpha1.BatchFinalizingState), rh)
 			if err != nil {
-				klog.ErrorS(err, "failed to invoke a webhook",
+				ctx.Error(err, "failed to invoke a webhook",
 					"webhook name", rh.Name, "webhook end point", rh.URL)
 				r.rolloutStatus.RolloutRetry("failed to invoke a webhook")
 				return
 			}
-			klog.InfoS("successfully invoked a post batch webhook", "webhook name", rh.Name, "webhook end point",
+			ctx.Info("successfully invoked a post batch webhook", "webhook name", rh.Name, "webhook end point",
 				rh.URL)
 		}
 	}
@@ -295,7 +294,7 @@ func (r *Controller) finalizeOneBatch(ctx context.Context) {
 			fmt.Sprintf("upgrade pod = %d, total ready pod = %d", r.rolloutStatus.UpgradedReplicas,
 				r.rolloutStatus.UpgradedReadyReplicas)))
 	} else {
-		klog.InfoS("finished one batch rollout", "current batch", r.rolloutStatus.CurrentBatch)
+		ctx.Info("finished one batch rollout", "current batch", r.rolloutStatus.CurrentBatch)
 		// th
 		r.recorder.Event(r.parentController, event.Normal("Batch Finalized",
 			fmt.Sprintf("Batch %d is finalized and ready to go", r.rolloutStatus.CurrentBatch)))
@@ -304,18 +303,18 @@ func (r *Controller) finalizeOneBatch(ctx context.Context) {
 }
 
 // all the common finalize work after we rollout
-func (r *Controller) finalizeRollout(ctx context.Context) {
+func (r *Controller) finalizeRollout(ctx *common.ReconcileContext) {
 	// call the post-rollout webhooks
 	for _, rw := range r.rolloutSpec.RolloutWebhooks {
 		if rw.Type == v1alpha1.FinalizeRolloutHook {
 			err := callWebhook(ctx, r.parentController, string(r.rolloutStatus.RollingState), rw)
 			if err != nil {
-				klog.ErrorS(err, "failed to invoke a webhook",
+				ctx.Error(err, "failed to invoke a webhook",
 					"webhook name", rw.Name, "webhook end point", rw.URL)
 				r.rolloutStatus.RolloutRetry("failed to invoke a post rollout webhook")
 				return
 			}
-			klog.InfoS("successfully invoked a post rollout webhook", "webhook name", rw.Name, "webhook end point",
+			ctx.Info("successfully invoked a post rollout webhook", "webhook name", rw.Name, "webhook end point",
 				rw.URL)
 		}
 	}
@@ -323,7 +322,7 @@ func (r *Controller) finalizeRollout(ctx context.Context) {
 }
 
 // GetWorkloadController pick the right workload controller to work on the workload
-func (r *Controller) GetWorkloadController() (workloads.WorkloadController, error) {
+func (r *Controller) GetWorkloadController(ctx *common.ReconcileContext) (workloads.WorkloadController, error) {
 	kind := r.targetWorkload.GetObjectKind().GroupVersionKind().Kind
 	target := types.NamespacedName{
 		Namespace: r.targetWorkload.GetNamespace(),
@@ -340,13 +339,13 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 		if r.targetWorkload.GetKind() == reflect.TypeOf(kruisev1.CloneSet{}).Name() {
 			// check whether current rollout plan is for workload rolling or scaling
 			if r.sourceWorkload != nil {
-				klog.InfoS("using cloneset rollout controller for this rolloutplan", "source workload name", source.Name, "namespace",
+				ctx.Info("using cloneset rollout controller for this rolloutplan", "source workload name", source.Name, "namespace",
 					source.Namespace, "target workload name", target.Name, "namespace",
 					target.Namespace)
 				return workloads.NewCloneSetRolloutController(r.client, r.recorder, r.parentController,
 					r.rolloutSpec, r.rolloutStatus, target), nil
 			}
-			klog.InfoS("using cloneset scale controller for this rolloutplan", "target workload name", target.Name, "namespace",
+			ctx.Info("using cloneset scale controller for this rolloutplan", "target workload name", target.Name, "namespace",
 				target.Namespace)
 			return workloads.NewCloneSetScaleController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil
@@ -358,13 +357,13 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.Deployment{}).Name() {
 			// check whether current rollout plan is for workload rolling or scaling
 			if r.sourceWorkload != nil {
-				klog.InfoS("using deployment rollout controller for this rolloutplan", "source workload name", source.Name, "namespace",
+				ctx.Info("using deployment rollout controller for this rolloutplan", "source workload name", source.Name, "namespace",
 					source.Namespace, "target workload name", target.Name, "namespace",
 					target.Namespace)
 				return workloads.NewDeploymentRolloutController(r.client, r.recorder, r.parentController,
 					r.rolloutSpec, r.rolloutStatus, source, target), nil
 			}
-			klog.InfoS("using deployment scale controller for this rolloutplan", "target workload name", target.Name, "namespace",
+			ctx.Info("using deployment scale controller for this rolloutplan", "target workload name", target.Name, "namespace",
 				target.Namespace)
 			return workloads.NewDeploymentScaleController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil
