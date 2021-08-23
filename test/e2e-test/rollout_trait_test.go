@@ -341,6 +341,7 @@ spec:
                                            resources: {
                                            limits:
                                               cpu: parameter.cpu
+                                           requests: cpu: "0"
                                            }
                                            }
                                      }]
@@ -379,7 +380,7 @@ spec:
                            targetRevisionName: parameter.targetRevision
                            componentName: context.name
                            rolloutPlan: {
-                           	rolloutStrategy: "IncreaseFirst"
+                           	rolloutStrategy: "DecreaseFirst"
                             rolloutBatches:[
                             	{ replicas: parameter.firstBatchReplicas},
                             	{ replicas: parameter.secondBatchReplicas}]
