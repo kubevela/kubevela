@@ -690,7 +690,7 @@ spec:
 `
 
 var dryRunResult = `---
-# Application(test-vela-app) -- Comopnent(express-server) 
+# Application(test-vela-app) -- Component(express-server) 
 ---
 
 apiVersion: apps/v1
@@ -701,6 +701,8 @@ metadata:
     app.oam.dev/component: express-server
     app.oam.dev/name: test-vela-app
     workload.oam.dev/type: test-webservice
+  name: express-server
+  namespace: default
 spec:
   selector:
     matchLabels:
@@ -727,6 +729,7 @@ metadata:
     trait.oam.dev/resource: service
     trait.oam.dev/type: test-ingress
   name: express-server
+  namespace: default
 spec:
   ports:
   - port: 80
@@ -745,6 +748,7 @@ metadata:
     trait.oam.dev/resource: ingress
     trait.oam.dev/type: test-ingress
   name: express-server
+  namespace: default
 spec:
   rules:
   - host: testsvc.example.com
@@ -876,6 +880,8 @@ var livediffResult = `---
 +     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
 +     workload.oam.dev/type: test-webservice
++   name: new-express-server
++   namespace: default
 + spec:
 +   selector:
 +     matchLabels:
@@ -909,6 +915,7 @@ var livediffResult = `---
 +     trait.oam.dev/resource: service
 +     trait.oam.dev/type: test-ingress
 +   name: new-express-server
++   namespace: default
 + spec:
 +   ports:
 +   - port: 8080
@@ -929,6 +936,7 @@ var livediffResult = `---
 +     trait.oam.dev/resource: ingress
 +     trait.oam.dev/type: test-ingress
 +   name: new-express-server
++   namespace: default
 + spec:
 +   rules:
 +   - host: new-testsvc.example.com

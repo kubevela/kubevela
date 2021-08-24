@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -63,9 +64,34 @@ func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([
 	if err != nil {
 		return nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
+	if appFile.Namespace == "" {
+		appFile.Namespace = corev1.NamespaceDefault
+	}
 	comps, err := appFile.GenerateComponentManifests()
 	if err != nil {
 		return nil, errors.WithMessage(err, "cannot generate AppConfig and Components")
+	}
+
+	for _, comp := range comps {
+		if comp.StandardWorkload != nil {
+			if comp.StandardWorkload.GetName() == "" {
+				comp.StandardWorkload.SetName(comp.Name)
+			}
+			if comp.StandardWorkload.GetNamespace() == "" {
+				comp.StandardWorkload.SetNamespace(appFile.Namespace)
+			}
+		}
+
+		for _, trait := range comp.Traits {
+			if trait.GetName() == "" {
+				traitType := trait.GetLabels()[oam.TraitTypeLabel]
+				traitName := oamutil.GenTraitNameCompatible(comp.Name, trait, traitType)
+				trait.SetName(traitName)
+			}
+			if trait.GetNamespace() == "" {
+				trait.SetNamespace(appFile.Namespace)
+			}
+		}
 	}
 	return comps, nil
 }
