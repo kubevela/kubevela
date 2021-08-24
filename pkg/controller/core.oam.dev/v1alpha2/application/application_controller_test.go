@@ -1839,7 +1839,10 @@ spec:
 		}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		// first reconcile handle finalizer
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		// second reconcile apply all resources
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1847,6 +1850,81 @@ spec:
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
 		By("verify targetRevision will be filled with real compRev by context.Revision")
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo(externalRevision))
+	})
+
+	It("Test rollout trait in workflow", func() {
+		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
+		Expect(err).Should(BeNil())
+		rolloutTrait := &v1beta1.TraitDefinition{}
+		Expect(json.Unmarshal([]byte(rolloutTdDef), rolloutTrait)).Should(BeNil())
+
+		wfStepDef, err := yaml.YAMLToJSON([]byte(applyCompWfStepDefinition))
+		Expect(err).Should(BeNil())
+		wfStep := &v1beta1.WorkflowStepDefinition{}
+		Expect(json.Unmarshal([]byte(wfStepDef), wfStep)).Should(BeNil())
+
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-rollout-workflow",
+			},
+		}
+		rolloutTrait.SetNamespace(ns.Name)
+		wfStep.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, rolloutTrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, wfStep)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-rollout-workflow",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Traits: []common.ApplicationTrait{
+							{
+								Type:       "rollout",
+								Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+							},
+						},
+					},
+				},
+				Workflow: &v1beta1.Workflow{
+					Steps: []v1beta1.WorkflowStep{
+						{
+							Name:       "apply",
+							Type:       "apply-component",
+							Properties: runtime.RawExtension{Raw: []byte(`{"component" : "myweb1"}`)},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+
+		By("verify workflow apply component had apply rollout")
+		checkRollout := &stdv1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, checkRollout)).Should(BeNil())
+		By("verify targetRevision will be filled with real compRev by context.ComponentRevName")
+		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo("myweb1-v1"))
+
+		By("verify workflow apply component didn't apply workload")
+		deploy := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
 	})
 })
 
@@ -2732,6 +2810,31 @@ spec:
          parameter: {
              targetRevision: *context.revision|string
          }
+`
+	applyCompWfStepDefinition = `
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Apply components and traits for your workflow steps
+  name: apply-component
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+        	"vela/op"
+        )
+
+        // apply components and traits
+        apply: op.#ApplyComponent & {
+        	component: parameter.component
+        }
+        parameter: {
+        	// +usage=Declare the name of the component
+        	component: string
+        }
 `
 )
 

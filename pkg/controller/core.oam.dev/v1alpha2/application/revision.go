@@ -395,6 +395,14 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 		if err := h.createControllerRevision(ctx, comp); err != nil {
 			return err
 		}
+
+		// when controllerRevision not exist handle replace context.RevisionName
+		for _, trait := range comp.Traits {
+			if err := replaceComponentRevisionContext(trait, comp.RevisionName); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 
