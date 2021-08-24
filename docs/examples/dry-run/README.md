@@ -3,7 +3,7 @@
 ```shell
 $ vela system dry-run -f docs/examples/dry-run/app.yaml -d docs/examples/dry-run/definitions
 ---
-# App application-sample -- Comopnent myweb
+# App application-sample -- Component myweb
 ---
 
 apiVersion: apps/v1

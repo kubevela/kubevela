@@ -16,6 +16,8 @@ StandardWorkload:
       app.oam.dev/component: myweb
       app.oam.dev/name: app-dryrun
       workload.oam.dev/type: myworker
+    name: myweb
+    namespace: default
   spec:
     selector:
       matchLabels:
@@ -42,6 +44,7 @@ Traits:
       trait.oam.dev/resource: service
       trait.oam.dev/type: myingress
     name: myweb
+    namespace: default
   spec:
     ports:
     - port: 80
@@ -58,6 +61,7 @@ Traits:
       trait.oam.dev/resource: ingress
       trait.oam.dev/type: myingress
     name: myweb
+    namespace: default
   spec:
     rules:
     - host: www.example.com

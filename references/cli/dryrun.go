@@ -120,7 +120,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		components[comp.Name] = comp.StandardWorkload
 	}
 	for _, c := range comps {
-		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Comopnent(%s) \n---\n\n", app.Name, c.Name)))
+		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Component(%s) \n---\n\n", app.Name, c.Name)))
 		result, err := yaml.Marshal(components[c.Name])
 		if err != nil {
 			return buff, errors.WithMessage(err, "marshal result for component "+c.Name+" object in yaml format")

@@ -71,6 +71,7 @@ spec:
                 trait.oam.dev/resource: service
                 trait.oam.dev/type: myingress
               name: myweb-1
+              namespace: default
             spec:
               ports:
               - port: 80
@@ -88,6 +89,7 @@ spec:
                 trait.oam.dev/resource: ingress
                 trait.oam.dev/type: myingress
               name: myweb-1
+              namespace: default
             spec:
               rules:
               - host: www.example.com
@@ -107,6 +109,8 @@ spec:
                 app.oam.dev/name: livediff-demo
                 trait.oam.dev/resource: scaler
                 trait.oam.dev/type: myscaler
+              name: myweb-1-myscaler-5547bdc57f
+              namespace: default
             spec:
               replicaCount: 2
       - componentName: myweb-2
@@ -155,6 +159,8 @@ spec:
               app.oam.dev/component: myweb-1
               app.oam.dev/name: livediff-demo
               workload.oam.dev/type: myworker
+            name: myweb-1
+            namespace: default
           spec:
             selector:
               matchLabels:
@@ -189,6 +195,8 @@ spec:
               app.oam.dev/component: myweb-2
               app.oam.dev/name: livediff-demo
               workload.oam.dev/type: myworker
+            name: myweb-2
+            namespace: default
           spec:
             selector:
               matchLabels:
