@@ -207,8 +207,8 @@ spec:
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
 			testutil.ReconcileRetry(&r, req)
-			By("Check whether ConfigMap is created")
 
+			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
 			Eventually(func() bool {
@@ -223,6 +223,10 @@ spec:
 				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
 				return def.Status.ConfigMapRef
 			}, 10*time.Second, time.Second).Should(Equal(name))
+
+			By("Delete the trait")
+			Expect(k8sClient.Delete(ctx, &def)).Should(Succeed())
+			testutil.ReconcileRetry(&r, req)
 		})
 	})
 
