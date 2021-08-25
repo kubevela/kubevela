@@ -11,7 +11,7 @@ In this tutorial, you will use rollout in runtime cluster with OCM.
 $ helm repo add kubevela https://charts.kubevela.net/core
 ```
 ```shell
-$ helm isntall vela-rollout  --create-namespace -n vela-system kubevela/vela-rollout
+$ helm install vela-rollout  --create-namespace -n vela-system kubevela/vela-rollout
 ```
 
 ## Install workflowStepDefinition
@@ -34,7 +34,7 @@ $ kubectl apply -f dispatchTraits.yaml
 $ kubectl apply -f app-first-scale.yaml
 ```
 
-Wait a few minute, check rollout and workload status in managed cluster.
+Wait a few minutes, check rollout and workload status in managed cluster.
 ```shell
 $ kubectl get rollout
 NAME           TARGET   UPGRADED   READY   BATCH-STATE   ROLLING-STATE    AGE
