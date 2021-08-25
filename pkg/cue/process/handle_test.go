@@ -75,12 +75,36 @@ image: "myserver"
 		},
 		"parameter3": []string{"item1", "item2"},
 	}
+	targetData := map[string]interface{}{
+		"int":    10,
+		"string": "mytxt",
+		"bool":   false,
+		"map": map[string]interface{}{
+			"key": "value",
+		},
+		"slice": []string{
+			"str1", "str2", "str3",
+		},
+	}
+	targetArbitraryData := map[string]interface{}{
+		"int":    10,
+		"string": "mytxt",
+		"bool":   false,
+		"map": map[string]interface{}{
+			"key": "value",
+		},
+		"slice": []string{
+			"str1", "str2", "str3",
+		},
+	}
 
 	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1")
 	ctx.InsertSecrets("db-conn", targetRequiredSecrets)
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 	ctx.SetParameters(targetParams)
+	ctx.PushData(ContextDataArtifacts, targetData)
+	ctx.PushData("arbitraryData", targetArbitraryData)
 
 	ctxInst, err := r.Compile("-", ctx.ExtendedContextFile())
 	if err != nil {
@@ -123,4 +147,12 @@ image: "myserver"
 	params, err := ctxInst.Lookup("context", ParametersFieldName).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"parameter1\":\"string\",\"parameter2\":{\"key1\":\"value1\",\"key2\":\"value2\"},\"parameter3\":[\"item1\",\"item2\"]}", string(params))
+
+	artifacts, err := ctxInst.Lookup("context", ContextDataArtifacts).MarshalJSON()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "{\"bool\":false,\"string\":\"mytxt\",\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"]}", string(artifacts))
+
+	arbitraryData, err := ctxInst.Lookup("context", "arbitraryData").MarshalJSON()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "{\"bool\":false,\"string\":\"mytxt\",\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"]}", string(arbitraryData))
 }
