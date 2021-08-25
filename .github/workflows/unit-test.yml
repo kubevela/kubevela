@@ -15,7 +15,6 @@ env:
   # Common versions
   GO_VERSION: '1.16'
   GOLANGCI_VERSION: 'v1.38'
-  KIND_VERSION: 'v0.7.0'
 
 jobs:
 
@@ -60,11 +59,6 @@ jobs:
       - name: Install ginkgo
         run:  |
           sudo apt-get install -y golang-ginkgo-dev
-
-      - name: Setup Kind Cluster
-        uses: engineerd/setup-kind@v0.5.0
-        with:
-          version: ${{ env.KIND_VERSION }}
 
       - name: install Kubebuilder
         uses: RyanSiu1995/kubebuilder-action@v1.2
