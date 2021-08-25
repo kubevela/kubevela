@@ -375,7 +375,7 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 			// check whether current rollout plan is for workload rolling or scaling
 			if r.sourceWorkload != nil {
 				return workloads.NewStatefulSetRolloutController(r.client, r.recorder, r.parentController,
-					r.rolloutSpec, r.rolloutStatus, source, target), nil
+					r.rolloutSpec, r.rolloutStatus, target), nil
 			}
 			return workloads.NewStatefulSetScaleController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil

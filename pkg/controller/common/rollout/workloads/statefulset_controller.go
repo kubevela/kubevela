@@ -38,7 +38,7 @@ type statefulSetController struct {
 
 // add the parent controller to the owner of the StatefulSet, and initialize the size
 // before kicking start the update and start from every pod in the old version
-func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet, initSize *int32) (bool, error) {
+func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet) (bool, error) {
 	if controller := metav1.GetControllerOf(statefulSet); controller != nil &&
 		controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
 		// it's already there
@@ -50,10 +50,6 @@ func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSe
 	// add the parent controller to the owner of the StatefulSet
 	ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
 	statefulSet.SetOwnerReferences(append(statefulSet.GetOwnerReferences(), *ref))
-
-	if initSize != nil {
-		statefulSet.Spec.Replicas = initSize
-	}
 
 	// patch the StatefulSet
 	if err := c.client.Patch(ctx, statefulSet, statefulSetPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
@@ -79,6 +75,23 @@ func (c *statefulSetController) scaleStatefulSet(ctx context.Context, statefulSe
 
 	klog.InfoS("Submitted upgrade quest for StatefulSet", "StatefulSet",
 		statefulSet.GetName(), "target replica size", size, "batch", c.rolloutStatus.CurrentBatch)
+	return nil
+}
+
+func (c *statefulSetController) setPartition(ctx context.Context, statefulSet *apps.StatefulSet, partition int32) error {
+	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopy())
+	statefulSet.Spec.UpdateStrategy.RollingUpdate.Partition = pointer.Int32Ptr(partition)
+
+	// patch the StatefulSet
+	if err := c.client.Patch(ctx, statefulSet, statefulSetPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning(event.Reason(fmt.Sprintf(
+			"Failed to update the partition of StatefulSet %s to the correct target %d", statefulSet.GetName(), partition)), err))
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return err
+	}
+
+	klog.InfoS("Submitted upgrade quest for StatefulSet", "StatefulSet",
+		statefulSet.GetName(), "target partition", partition, "batch", c.rolloutStatus.CurrentBatch)
 	return nil
 }
 
