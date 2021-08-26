@@ -103,20 +103,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
 				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully create PolicyDefRevision", "name", defRev.Name)
-	}
+		klog.InfoS("Successfully created PolicyDefRevision", "name", defRev.Name)
 
-	policydefinition.Status.LatestRevision = &common.Revision{
-		Name:         defRev.Name,
-		Revision:     defRev.Spec.Revision,
-		RevisionHash: defRev.Spec.RevisionHash,
-	}
+		policydefinition.Status.LatestRevision = &common.Revision{
+			Name:         defRev.Name,
+			Revision:     defRev.Spec.Revision,
+			RevisionHash: defRev.Spec.RevisionHash,
+		}
 
-	if err := r.UpdateStatus(ctx, &policydefinition); err != nil {
-		klog.ErrorS(err, "cannot update PolicyDefinition Status")
-		r.record.Event(&(policydefinition), event.Warning("cannot update PolicyDefinition Status", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
-			condition.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policydefinition.Name, err)))
+		if err := r.UpdateStatus(ctx, &policydefinition); err != nil {
+			klog.ErrorS(err, "cannot update PolicyDefinition Status")
+			r.record.Event(&(policydefinition), event.Warning("cannot update PolicyDefinition Status", err))
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(policydefinition),
+				condition.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policydefinition.Name, err)))
+		}
+
+		klog.InfoS("Successfully updated the status.latestRevision of the PolicyDefinition", "policyDefinition", klog.KRef(req.Namespace, req.Name),
+			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &policydefinition, r.defRevLimit); err != nil {

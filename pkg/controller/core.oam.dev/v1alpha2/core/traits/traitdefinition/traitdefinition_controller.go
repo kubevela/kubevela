@@ -70,8 +70,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.InfoS("The TraitDefinition doesn't exist", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 		return ctrl.Result{}, err
 	}
-	klog.InfoS("Retrieved TraitDefinition object", "traitDefinition", klog.KRef(req.Namespace, req.Name),
-		"status.configMapRef", traitdefinition.Status.ConfigMapRef, "status.latestRevision", traitdefinition.Status.LatestRevision)
 
 	// this is a placeholder for finalizer here in the future
 	if traitdefinition.DeletionTimestamp != nil {
@@ -98,12 +96,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, traitdefinition.Name, err)))
 	}
-	klog.InfoS("The revision of the TraitDefinition is generated", "traitDefinition", klog.KRef(req.Namespace, req.Name),
-		"Revision", defRev, "IsNewRevision", isNewRevision)
 
 	if isNewRevision {
 		if err := r.createTraitDefRevision(ctx, &traitdefinition, defRev); err != nil {
-			klog.InfoS("Could not create DefinitionRevision", "err", err)
+			klog.ErrorS(err, "Could not create DefinitionRevision")
 			r.record.Event(&traitdefinition, event.Warning("Could not create definitionRevision", err))
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
@@ -122,15 +118,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				condition.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, traitdefinition.Name, err)))
 		}
 		klog.InfoS("Successfully updated the status.latestRevision of the TraitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name),
-			"status.latestRevision", traitdefinition.Status.LatestRevision)
+			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
 	}
-	klog.InfoS("No need to update latestRevision for the TraitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
 		klog.InfoS("Failed to collect garbage", "err", err)
 		r.record.Event(&traitdefinition, event.Warning("Failed to garbage collect DefinitionRevision of type TraitDefinition", err))
 	}
-	klog.InfoS("Cleaned up the TraitDefinition,", "traitDefinition", klog.KRef(req.Namespace, req.Name))
 
 	def := utils.NewCapabilityTraitDef(&traitdefinition)
 	def.Name = req.NamespacedName.Name
@@ -142,8 +136,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &traitdefinition,
 			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, traitdefinition.Name, err)))
 	}
-	klog.InfoS("Successfully stored Capability Schema in ConfigMap", "traitDefinition", klog.KRef(req.Namespace, req.Name),
-		"ConfigMap", cmName)
 
 	if traitdefinition.Status.ConfigMapRef != cmName {
 		traitdefinition.Status.ConfigMapRef = cmName
@@ -156,8 +148,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.InfoS("Successfully updated the status.configMapRef of the TraitDefinition", "traitDefinition",
 			klog.KRef(req.Namespace, req.Name), "status.configMapRef", cmName)
 	}
-	klog.InfoS("No need to update ConfigMapRef for the TraitDefinition", "traitDefinition", klog.KRef(req.Namespace, req.Name))
-
 	return ctrl.Result{}, nil
 }
 
