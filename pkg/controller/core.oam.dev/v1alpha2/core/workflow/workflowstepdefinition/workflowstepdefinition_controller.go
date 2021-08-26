@@ -102,20 +102,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
 				condition.ReconcileError(fmt.Errorf(util.ErrCreateDefinitionRevision, defRev.Name, err)))
 		}
-		klog.InfoS("Successfully create WFStepDefRevision", "name", defRev.Name)
-	}
+		klog.InfoS("Successfully created WFStepDefRevision", "name", defRev.Name)
 
-	wfstepdefinition.Status.LatestRevision = &common.Revision{
-		Name:         defRev.Name,
-		Revision:     defRev.Spec.Revision,
-		RevisionHash: defRev.Spec.RevisionHash,
-	}
+		wfstepdefinition.Status.LatestRevision = &common.Revision{
+			Name:         defRev.Name,
+			Revision:     defRev.Spec.Revision,
+			RevisionHash: defRev.Spec.RevisionHash,
+		}
+		if err := r.UpdateStatus(ctx, &wfstepdefinition); err != nil {
+			klog.ErrorS(err, "cannot update WorkflowStepDefinition Status")
+			r.record.Event(&(wfstepdefinition), event.Warning("cannot update WorkflowStepDefinition Status", err))
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
+				condition.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfstepdefinition.Name, err)))
+		}
 
-	if err := r.UpdateStatus(ctx, &wfstepdefinition); err != nil {
-		klog.ErrorS(err, "cannot update WorkflowStepDefinition Status")
-		r.record.Event(&(wfstepdefinition), event.Warning("cannot update WorkflowStepDefinition Status", err))
-		return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &(wfstepdefinition),
-			condition.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfstepdefinition.Name, err)))
+		klog.InfoS("Successfully updated the status.latestRevision of the WorkflowStepDefinition", "WorkflowStepDefinition", klog.KRef(req.Namespace, req.Name),
+			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &wfstepdefinition, r.defRevLimit); err != nil {

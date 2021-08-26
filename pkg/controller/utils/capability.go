@@ -30,6 +30,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -230,6 +231,19 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		return cmName, err
 	}
 
+	// Create a configmap to store parameter for each definitionRevision
+	defRev := new(v1beta1.DefinitionRevision)
+	if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revName}, defRev); err != nil {
+		return "", err
+	}
+	ownerReference = []metav1.OwnerReference{{
+		APIVersion:         defRev.APIVersion,
+		Kind:               defRev.Kind,
+		Name:               defRev.Name,
+		UID:                defRev.GetUID(),
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
@@ -297,8 +311,20 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 	if err != nil {
 		return cmName, err
 	}
-	def.TraitDefinition.Status.ConfigMapRef = cmName
 
+	// Create a configmap to store parameter for each definitionRevision
+	defRev := new(v1beta1.DefinitionRevision)
+	if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revName}, defRev); err != nil {
+		return "", err
+	}
+	ownerReference = []metav1.OwnerReference{{
+		APIVersion:         defRev.APIVersion,
+		Kind:               defRev.Kind,
+		Name:               defRev.Name,
+		UID:                defRev.GetUID(),
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
@@ -342,6 +368,7 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 		if err != nil {
 			return cmName, fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 		}
+		klog.InfoS("Successfully stored Capability Schema in ConfigMap", "configMap", klog.KRef(namespace, cmName))
 		return cmName, nil
 	}
 
@@ -349,6 +376,7 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 	if err = k8sClient.Update(ctx, &cm); err != nil {
 		return cmName, fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 	}
+	klog.InfoS("Successfully update Capability Schema in ConfigMap", "configMap", klog.KRef(namespace, cmName))
 	return cmName, nil
 }
 
