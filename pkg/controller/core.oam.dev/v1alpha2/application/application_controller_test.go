@@ -1852,6 +1852,102 @@ spec:
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo(externalRevision))
 	})
 
+	It("Test context revision can be supported by in  workload ", func() {
+		compDef, err := yaml.YAMLToJSON([]byte(workloadWithContextRevision))
+		Expect(err).Should(BeNil())
+		component := &v1beta1.ComponentDefinition{}
+		Expect(json.Unmarshal([]byte(compDef), component)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, component)).Should(BeNil())
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-workload-context-revision",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-test-context-revision",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-revision",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		// first reconcile handle finalizer
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		// second reconcile apply all resources
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		deploy := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(BeNil())
+		By("verify targetRevision will be filled with real compRev by context.Revision")
+		Expect(len(deploy.Spec.Selector.MatchLabels)).Should(BeEquivalentTo(2))
+		Expect(deploy.Spec.Selector.MatchLabels["app.oam.dev/revision"]).Should(BeEquivalentTo("myweb1-v1"))
+	})
+
+	It("Test context revision can be supported by in  workload when specified componentRevision", func() {
+		compDef, err := yaml.YAMLToJSON([]byte(workloadWithContextRevision))
+		Expect(err).Should(BeNil())
+		component := &v1beta1.ComponentDefinition{}
+		Expect(json.Unmarshal([]byte(compDef), component)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, component)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		externalRevision := "my-component-rev-v1"
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-workload-context-revision-specify-revision",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-test-context-revision",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:             "myweb1",
+						Type:             "worker-revision",
+						ExternalRevision: externalRevision,
+						Properties:       runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		// first reconcile handle finalizer
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		// second reconcile apply all resources
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		deploy := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(BeNil())
+		By("verify targetRevision will be filled with real compRev by context.Revision")
+		Expect(len(deploy.Spec.Selector.MatchLabels)).Should(BeEquivalentTo(2))
+		Expect(deploy.Spec.Selector.MatchLabels["app.oam.dev/revision"]).Should(BeEquivalentTo(externalRevision))
+	})
+
 	It("Test rollout trait in workflow", func() {
 		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
 		Expect(err).Should(BeNil())
@@ -2719,6 +2815,71 @@ spec:
         	password: string
         }
 `
+	workloadWithContextRevision = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: worker-revision
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  extension:
+    healthPolicy: |
+      isHealth: context.output.status.readyReplicas == context.output.status.replicas 
+    template: |
+      output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: {
+              annotations: {
+                  if context["config"] != _|_ {
+                      for _, v in context.config {
+                          "\(v.name)" : v.value
+                      }
+                  }
+              }
+          }
+          spec: {
+              selector: matchLabels: {
+                  "app.oam.dev/component": context.name
+                  "app.oam.dev/revision": context.revision
+              }
+              template: {
+                  metadata: labels: {
+                      "app.oam.dev/component": context.name
+                      "app.oam.dev/revision": context.revision
+                  }
+
+                  spec: {
+                      containers: [{
+                          name:  context.name
+                          image: parameter.image
+
+                          if parameter["cmd"] != _|_ {
+                              command: parameter.cmd
+                          }
+                      }]
+                  }
+              }
+
+              selector:
+                  matchLabels:
+                      "app.oam.dev/component": context.name
+          }
+      }
+
+      parameter: {
+          // +usage=Which image would you like to use for your service
+          // +short=i
+          image: string
+
+          cmd?: [...string]
+      }`
 
 	shareFsTraitDefinition = `
 apiVersion: core.oam.dev/v1beta1

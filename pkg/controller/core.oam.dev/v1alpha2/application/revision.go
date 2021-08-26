@@ -445,7 +445,12 @@ func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context,
 			if err != nil {
 				return err
 			}
-			currentComp := componentManifest2Component(comp)
+			// let componentManifest2Component func replace context.Name's placeHolder to guarantee content of them to be same.
+			comp.RevisionName = existingCR.GetName()
+			currentComp, err := componentManifest2Component(comp)
+			if err != nil {
+				return err
+			}
 			// further check whether it's truly identical, even hash value is equal
 			if reflect.DeepEqual(existingComp, currentComp) {
 				comp.RevisionName = existingCR.GetName()
@@ -503,7 +508,10 @@ func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error)
 
 // createControllerRevision records snapshot of a component
 func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.ComponentManifest) error {
-	comp := componentManifest2Component(cm)
+	comp, err := componentManifest2Component(cm)
+	if err != nil {
+		return err
+	}
 	revision, _ := utils.ExtractRevision(cm.RevisionName)
 	cr := &appsv1.ControllerRevision{
 		ObjectMeta: metav1.ObjectMeta{
@@ -529,12 +537,17 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 	return h.r.Create(ctx, cr)
 }
 
-func componentManifest2Component(cm *types.ComponentManifest) *v1alpha2.Component {
+func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Component, error) {
 	component := &v1alpha2.Component{}
 	component.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 	component.SetName(cm.Name)
-	wl := cm.StandardWorkload.DeepCopy()
-	if wl != nil {
+	wl := &unstructured.Unstructured{}
+	if cm.StandardWorkload != nil {
+		// use revision name replace compRev placeHolder
+		if err := replaceComponentRevisionContext(cm.StandardWorkload, cm.RevisionName); err != nil {
+			return nil, err
+		}
+		wl = cm.StandardWorkload.DeepCopy()
 		util.RemoveLabels(wl, []string{oam.LabelAppRevision})
 	}
 	component.Spec.Workload = util.Object2RawExtension(wl)
@@ -550,7 +563,7 @@ func componentManifest2Component(cm *types.ComponentManifest) *v1alpha2.Componen
 		}
 		component.Spec.Helm = helm
 	}
-	return component
+	return component, nil
 }
 
 // FinalizeAndApplyAppRevision finalise AppRevision object and apply it
