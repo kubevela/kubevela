@@ -55,6 +55,7 @@ spec:
                 urls:
                   - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
                   - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
+                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/flux2/cluster.json # fluxcd
         - name: loki
           type: helm
           properties:
@@ -120,6 +121,15 @@ spec:
               image:
                 repository: oamdev/kube-state-metrics
                 tag: v2.1.0
+
+        - name: kube-prometheus-stack
+          type: helm
+          properties:
+            chart: kube-prometheus-stack
+            version: 18.0.0
+            repoType: helm
+            url: https://prometheus-community.github.io/helm-charts
+            targetNamespace: observability
 
 {{ range .ResourceFiles }}
         - name: {{ .Name }}
