@@ -116,32 +116,30 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 
 	for i := range apps {
 		app := apps[i]
-		app.ScheduledManifests = make(map[string]*unstructured.Unstructured, len(app.assembledManifests))
+		app.ScheduledManifests = make(map[string]*unstructured.Unstructured, 1)
 		clusterName := o.clusterDecisions[app.envConfig.Name]
-		for componentName, manifest := range app.assembledManifests {
-			manifestWork := new(ocmworkv1.ManifestWork)
-			manifestWork.SetNamespace(clusterName)
-
-			workloads := make([]ocmworkv1.Manifest, len(manifest))
-			for j, workload := range manifest {
-				workloads[j] = ocmworkv1.Manifest{
-					RawExtension: util.Object2RawExtension(workload),
-				}
+		manifestWork := new(ocmworkv1.ManifestWork)
+		workloads := make([]ocmworkv1.Manifest, 0, len(app.assembledManifests))
+		for _, manifest := range app.assembledManifests {
+			for j := range manifest {
+				workloads = append(workloads, ocmworkv1.Manifest{
+					RawExtension: util.Object2RawExtension(manifest[j]),
+				})
 			}
-			manifestWork.Spec.Workload.Manifests = workloads
-
-			obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(manifestWork)
-			if err != nil {
-				return nil, err
-			}
-			unstructuredManifestWork := &unstructured.Unstructured{
-				Object: obj,
-			}
-			unstructuredManifestWork.SetGroupVersionKind(ocmworkv1.GroupVersion.WithKind(reflect.TypeOf(ocmworkv1.ManifestWork{}).Name()))
-			envBindComponentName := fmt.Sprintf("%s-%s-%s", o.envBindingName, app.envConfig.Name, componentName)
-			unstructuredManifestWork.SetName(envBindComponentName)
-			app.ScheduledManifests[envBindComponentName] = unstructuredManifestWork
 		}
+		manifestWork.Spec.Workload.Manifests = workloads
+		obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(manifestWork)
+		if err != nil {
+			return nil, err
+		}
+		unstructuredManifestWork := &unstructured.Unstructured{
+			Object: obj,
+		}
+		unstructuredManifestWork.SetGroupVersionKind(ocmworkv1.GroupVersion.WithKind(reflect.TypeOf(ocmworkv1.ManifestWork{}).Name()))
+		envBindAppName := constructEnvBindAppName(o.envBindingName, app.envConfig.Name, o.appName)
+		unstructuredManifestWork.SetName(envBindAppName)
+		unstructuredManifestWork.SetNamespace(clusterName)
+		app.ScheduledManifests[envBindAppName] = unstructuredManifestWork
 	}
 
 	for env, cluster := range o.clusterDecisions {
@@ -268,12 +266,12 @@ func (s *SingleClusterEngine) schedule(ctx context.Context, apps []*EnvBindApp) 
 			return nil, err
 		}
 
-		app.ScheduledManifests = make(map[string]*unstructured.Unstructured, len(app.assembledManifests))
+		app.ScheduledManifests = make(map[string]*unstructured.Unstructured, 1)
 		unstructuredApp, err := util.Object2Unstructured(app.patchedApp)
 		if err != nil {
 			return nil, err
 		}
-		envBindAppName := fmt.Sprintf("%s-%s-%s", s.envBindingName, app.envConfig.Name, s.appName)
+		envBindAppName := constructEnvBindAppName(s.envBindingName, app.envConfig.Name, s.appName)
 		unstructuredApp.SetName(envBindAppName)
 		unstructuredApp.SetNamespace(selectedNamespace)
 		app.ScheduledManifests[envBindAppName] = unstructuredApp
@@ -303,9 +301,9 @@ func (s *SingleClusterEngine) dispatch(ctx context.Context, envBinding *v1alpha1
 	return nil
 }
 
-func (s *SingleClusterEngine) getSelectedNamespace(ctx context.Context, envbindApp *EnvBindApp) (string, error) {
-	if envbindApp.envConfig.Placement.NamespaceSelector != nil {
-		selector := envbindApp.envConfig.Placement.NamespaceSelector
+func (s *SingleClusterEngine) getSelectedNamespace(ctx context.Context, envBindApp *EnvBindApp) (string, error) {
+	if envBindApp.envConfig.Placement.NamespaceSelector != nil {
+		selector := envBindApp.envConfig.Placement.NamespaceSelector
 		if len(selector.Name) != 0 {
 			return selector.Name, nil
 		}
@@ -316,12 +314,12 @@ func (s *SingleClusterEngine) getSelectedNamespace(ctx context.Context, envbindA
 			}
 			err := s.cli.List(ctx, namespaceList, listOpts...)
 			if err != nil || len(namespaceList.Items) == 0 {
-				return "", errors.Wrapf(err, "fail to list selected namespace for env %s", envbindApp.envConfig.Name)
+				return "", errors.Wrapf(err, "fail to list selected namespace for env %s", envBindApp.envConfig.Name)
 			}
 			return namespaceList.Items[0].Name, nil
 		}
 	}
-	return envbindApp.patchedApp.Namespace, nil
+	return envBindApp.patchedApp.Namespace, nil
 }
 
 func validatePlacement(envBinding *v1alpha1.EnvBinding) error {
@@ -333,4 +331,8 @@ func validatePlacement(envBinding *v1alpha1.EnvBinding) error {
 		}
 	}
 	return nil
+}
+
+func constructEnvBindAppName(envBindingName, envName, appName string) string {
+	return fmt.Sprintf("%s-%s-%s", envBindingName, envName, appName)
 }
