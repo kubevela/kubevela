@@ -249,7 +249,9 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deletedRevision := new(v1beta1.DefinitionRevision)
+			deleteConfigMap := new(v1.ConfigMap)
 			deleteRevKey := types.NamespacedName{Namespace: namespace, Name: cdName + "-v1"}
+			deleteCMKey := types.NamespacedName{Namespace: namespace, Name: cdName + "-v1"}
 			listOpts := []client.ListOption{
 				client.InNamespace(namespace),
 				client.MatchingLabels{
@@ -268,6 +270,10 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
 				if err == nil || !apierrors.IsNotFound(err) {
 					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				err = k8sClient.Get(ctx, deleteCMKey, deleteConfigMap)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest configMap")
 				}
 				return nil
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())
@@ -289,6 +295,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deleteRevKey = types.NamespacedName{Namespace: namespace, Name: cdName + "-v2"}
+			deleteCMKey = types.NamespacedName{Namespace: namespace, Name: cdName + "-v2"}
 			Eventually(func() error {
 				err := k8sClient.List(ctx, defRevList, listOpts...)
 				if err != nil {
@@ -300,6 +307,10 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
 				if err == nil || !apierrors.IsNotFound(err) {
 					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				err = k8sClient.Get(ctx, deleteCMKey, deleteConfigMap)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest configMap")
 				}
 				return nil
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())
@@ -404,7 +415,9 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deletedRevision := new(v1beta1.DefinitionRevision)
+			deleteConfigMap := new(v1.ConfigMap)
 			deleteRevKey := types.NamespacedName{Namespace: namespace, Name: cdName + "-v1"}
+			deleteCMKey := types.NamespacedName{Namespace: namespace, Name: cdName + "-v1"}
 			listOpts := []client.ListOption{
 				client.InNamespace(namespace),
 				client.MatchingLabels{
@@ -423,6 +436,10 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
 				if err == nil || !apierrors.IsNotFound(err) {
 					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				err = k8sClient.Get(ctx, deleteCMKey, deleteConfigMap)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest configMap")
 				}
 				return nil
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())
@@ -461,6 +478,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deleteRevKey = types.NamespacedName{Namespace: namespace, Name: cdName + "-v1.3.1"}
+			deleteCMKey = types.NamespacedName{Namespace: namespace, Name: cdName + "-v1.3.1"}
 			Eventually(func() error {
 				err := k8sClient.List(ctx, defRevList, listOpts...)
 				if err != nil {
@@ -472,6 +490,10 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				err = k8sClient.Get(ctx, deleteRevKey, deletedRevision)
 				if err == nil || !apierrors.IsNotFound(err) {
 					return fmt.Errorf("haven't clean up the oldest revision")
+				}
+				err = k8sClient.Get(ctx, deleteCMKey, deleteConfigMap)
+				if err == nil || !apierrors.IsNotFound(err) {
+					return fmt.Errorf("haven't clean up the oldest configMap")
 				}
 				return nil
 			}, time.Second*30, time.Microsecond*300).Should(BeNil())

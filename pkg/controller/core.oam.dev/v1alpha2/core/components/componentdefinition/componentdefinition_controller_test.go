@@ -277,6 +277,10 @@ spec:
 				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
 				return def.Status.ConfigMapRef
 			}, 10*time.Second, time.Second).Should(Equal(name))
+
+			By("Delete the componentDefinition")
+			Expect(k8sClient.Delete(ctx, &def)).Should(Succeed())
+			testutil.ReconcileRetry(&r, req)
 		})
 
 		It("Applying ComponentDefinition with autodetect workload type", func() {
