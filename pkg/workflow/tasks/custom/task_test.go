@@ -77,7 +77,7 @@ myIP: value: "1.1.1.1"
 		{
 			Name: "output",
 			Type: "output",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				ExportKey: "myIP.value",
 				Name:      "podIP",
 			}},
@@ -85,7 +85,7 @@ myIP: value: "1.1.1.1"
 		{
 			Name: "input",
 			Type: "input",
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "podIP",
 				ParameterKey: "prefixIP",
 			}},
@@ -182,7 +182,7 @@ close({
 			Properties: runtime.RawExtension{Raw: []byte(`
 {"score": {"y": 101}}
 `)},
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "score",
 				ParameterKey: "score",
 			}},
@@ -190,7 +190,7 @@ close({
 		{
 			Name: "input",
 			Type: "input",
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "podIP",
 				ParameterKey: "prefixIP",
 			}},
@@ -198,7 +198,7 @@ close({
 		{
 			Name: "output",
 			Type: "ok",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				Name:      "podIP",
 				ExportKey: "myIP",
 			}},
@@ -206,7 +206,7 @@ close({
 		{
 			Name: "output-var-conflict",
 			Type: "ok",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				Name:      "score",
 				ExportKey: "name",
 			}},

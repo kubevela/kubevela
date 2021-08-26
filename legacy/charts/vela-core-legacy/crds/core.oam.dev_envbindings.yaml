@@ -77,8 +77,35 @@ spec:
                               description: ExternalRevision specified the component
                                 revisionName
                               type: string
+                            inputs:
+                              description: StepInputs defines variable input of WorkflowStep
+                              items:
+                                properties:
+                                  from:
+                                    type: string
+                                  parameterKey:
+                                    type: string
+                                required:
+                                - from
+                                - parameterKey
+                                type: object
+                              type: array
                             name:
                               type: string
+                            outputs:
+                              description: StepOutputs defines output variable of
+                                WorkflowStep
+                              items:
+                                properties:
+                                  exportKey:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - exportKey
+                                - name
+                                type: object
+                              type: array
                             properties:
                               type: object
                               
