@@ -31,8 +31,9 @@ import (
 )
 
 type workflow struct {
-	app *oamcore.Application
-	cli client.Client
+	app     *oamcore.Application
+	cli     client.Client
+	dagMode bool
 }
 
 // NewWorkflow returns a Workflow implementation.
@@ -45,12 +46,7 @@ func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
 
 // ExecuteSteps process workflow step in order.
 func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
-	if w.app.Spec.Workflow == nil {
-		return true, false, nil
-	}
-
-	steps := w.app.Spec.Workflow.Steps
-	if len(steps) == 0 {
+	if len(taskRunners) == 0 {
 		return true, false, nil
 	}
 
@@ -63,9 +59,11 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	wfStatus := w.app.Status.Workflow
 
+	allTasksDone := w.allDone(taskRunners)
+
 	if wfStatus.Terminated {
 		done = true
-		if len(taskRunners) > wfStatus.StepIndex {
+		if !allTasksDone {
 			w.app.Status.Phase = common.ApplicationWorkflowTerminated
 		}
 		return
@@ -73,7 +71,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	w.app.Status.Phase = common.ApplicationRunningWorkflow
 
-	if len(taskRunners) <= wfStatus.StepIndex {
+	if allTasksDone {
 		done = true
 		return
 	}
@@ -93,7 +91,34 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		return
 	}
 
-	return w.run(wfCtx, taskRunners)
+	var terminated bool
+	if w.dagMode {
+		terminated, pause, gerr = w.runAsDag(wfCtx, taskRunners)
+	} else {
+		terminated, pause, gerr = w.run(wfCtx, taskRunners[wfStatus.StepIndex:])
+	}
+
+	if !terminated {
+		done = w.allDone(taskRunners)
+	}
+	return
+}
+
+func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
+	status := w.app.Status.Workflow
+	for _, t := range taskRunners {
+		done := false
+		for _, ss := range status.Steps {
+			if ss.Name == t.Name() {
+				done = ss.Phase == common.WorkflowStepPhaseSucceeded
+				break
+			}
+		}
+		if !done {
+			return false
+		}
+	}
+	return true
 }
 
 func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) {
@@ -129,10 +154,56 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
-func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
+func (w *workflow) runAsDag(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (terminated bool, pause bool, gerr error) {
+	status := w.app.Status.Workflow
+	var (
+		todoTasks    []wfTypes.TaskRunner
+		pendingTasks []wfTypes.TaskRunner
+	)
+	done := true
+	for _, tRunner := range taskRunners {
+		ready := false
+		for _, ss := range status.Steps {
+			if ss.Name == tRunner.Name() {
+				ready = ss.Phase == common.WorkflowStepPhaseSucceeded
+				break
+			}
+		}
+		if !ready {
+			done = false
+			if tRunner.Pending(wfCtx) {
+				pendingTasks = append(pendingTasks, tRunner)
+				continue
+			}
+			todoTasks = append(todoTasks, tRunner)
+		}
+	}
+	if done {
+		return
+	}
+
+	if len(todoTasks) > 0 {
+		var terminated bool
+		terminated, pause, gerr = w.run(wfCtx, todoTasks)
+		if terminated {
+			done = true
+			return
+		}
+		if gerr != nil || pause {
+			return
+		}
+		if len(pendingTasks) > 0 {
+			return w.runAsDag(wfCtx, pendingTasks)
+		}
+	}
+	return
+
+}
+
+func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (terminated bool, pause bool, gerr error) {
 	wfStatus := w.app.Status.Workflow
-	for _, run := range taskRunners[wfStatus.StepIndex:] {
-		status, operation, err := run(wfCtx)
+	for _, runner := range taskRunners {
+		status, operation, err := runner.Run(wfCtx)
 		if err != nil {
 			gerr = err
 			return
@@ -152,6 +223,9 @@ func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 		}
 
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
+			if w.dagMode {
+				continue
+			}
 			return
 		}
 
@@ -159,6 +233,7 @@ func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 			gerr = errors.WithMessage(err, "commit workflow context")
 			return
 		}
+
 		wfStatus.StepIndex++
 
 		if operation != nil {
@@ -167,7 +242,7 @@ func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 		}
 
 		if wfStatus.Terminated {
-			done = true
+			terminated = true
 			return
 		}
 		if wfStatus.Suspend {
@@ -176,5 +251,5 @@ func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 			return
 		}
 	}
-	return true, false, nil // all steps done
+	return false, false, nil
 }

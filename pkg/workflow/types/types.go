@@ -18,14 +18,18 @@ package types
 
 import (
 	"context"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 // TaskRunner is a task runner.
-type TaskRunner func(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
+type TaskRunner interface {
+	Name() string
+	Pending(ctx wfContext.Context) bool
+	Run(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
+}
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
 type TaskDiscover interface {
