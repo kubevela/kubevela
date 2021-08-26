@@ -159,7 +159,6 @@ e2e-setup:
 	sh ./hack/e2e/modify_charts.sh
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
-	bin/vela addon enable fluxcd
 	bin/vela addon enable ocm-cluster-manager
 	ginkgo version
 	ginkgo -v -r e2e/setup
@@ -256,7 +255,7 @@ manifests: installcue kustomize
 	go run hack/crd/update.go charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
-	go run ./vela-templates/gen_addons.go --addons-path=./vela-templates/addons --store-path=./charts/vela-core/templates/addons
+	go run ./vela-templates/gen_addons.go
 
 GOLANGCILINT_VERSION ?= v1.31.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
