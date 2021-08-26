@@ -192,6 +192,7 @@ type Appfile struct {
 	Workloads    []*Workload
 
 	Policies      []*Workload
+	WorkflowMode  common.WorkflowMode
 	WorkflowSteps []v1beta1.WorkflowStep
 	Components    []common.ApplicationComponent
 }

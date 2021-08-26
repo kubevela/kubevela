@@ -105,6 +105,9 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		}
 
 		wds = append(wds, wd)
+		if len(comp.Inputs) > 0 || len(comp.Outputs) > 0 {
+			appfile.WorkflowMode = common.WorkflowModeDAG
+		}
 	}
 	appfile.Workloads = wds
 	appfile.Components = app.Spec.Components
@@ -117,10 +120,37 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	}
 
 	if wfSpec := app.Spec.Workflow; wfSpec != nil {
+		if appfile.WorkflowMode != "" {
+			return nil, fmt.Errorf("conflict workflows: workflow cannot be specified if the components have inputs or outputs")
+		}
+		appfile.WorkflowMode = common.WorkflowModeStep
 		appfile.WorkflowSteps = wfSpec.Steps
 	}
+	appfile.WorkflowSteps = p.parseWorkflowSteps(appfile.WorkflowMode, app)
 
 	return appfile, nil
+}
+
+func (p *Parser) parseWorkflowSteps(mode common.WorkflowMode, app *v1beta1.Application) []v1beta1.WorkflowStep {
+	switch mode {
+	case common.WorkflowModeDAG:
+		wf := make([]v1beta1.WorkflowStep, len(app.Spec.Components))
+		for i, comp := range app.Spec.Components {
+			wf[i] = v1beta1.WorkflowStep{
+				Name: comp.Name,
+				Properties: util.Object2RawExtension(map[string]interface{}{
+					"component": comp.Name,
+				}),
+				Inputs:  comp.Inputs,
+				Outputs: comp.Outputs,
+			}
+		}
+		return wf
+	case common.WorkflowModeStep:
+		return app.Spec.Workflow.Steps
+	default:
+		return nil
+	}
 }
 
 func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy) ([]*Workload, error) {

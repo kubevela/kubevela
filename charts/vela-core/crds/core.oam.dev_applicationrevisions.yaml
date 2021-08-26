@@ -898,6 +898,9 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                          mode:
+                            description: WorkflowMode describes the mode of workflow
+                            type: string
                           stepIndex:
                             type: integer
                           steps:
@@ -1006,6 +1009,7 @@ spec:
                             type: boolean
                         required:
                         - contextBackend
+                        - mode
                         - suspend
                         - terminated
                         type: object
@@ -1934,8 +1938,35 @@ spec:
                               description: ExternalRevision specified the component
                                 revisionName
                               type: string
+                            inputs:
+                              description: StepInputs defines variable input of WorkflowStep
+                              items:
+                                properties:
+                                  from:
+                                    type: string
+                                  parameterKey:
+                                    type: string
+                                required:
+                                - from
+                                - parameterKey
+                                type: object
+                              type: array
                             name:
                               type: string
+                            outputs:
+                              description: StepOutputs defines output variable of
+                                WorkflowStep
+                              items:
+                                properties:
+                                  exportKey:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                - exportKey
+                                - name
+                                type: object
+                              type: array
                             properties:
                               type: object
                               x-kubernetes-preserve-unknown-fields: true
@@ -2840,6 +2871,9 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                          mode:
+                            description: WorkflowMode describes the mode of workflow
+                            type: string
                           stepIndex:
                             type: integer
                           steps:
@@ -2948,6 +2982,7 @@ spec:
                             type: boolean
                         required:
                         - contextBackend
+                        - mode
                         - suspend
                         - terminated
                         type: object

@@ -257,12 +257,23 @@ type AppStatus struct {
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
 	AppRevision    string                  `json:"appRevision,omitempty"`
+	Mode           WorkflowMode            `json:"mode"`
 	StepIndex      int                     `json:"stepIndex,omitempty"`
 	Suspend        bool                    `json:"suspend"`
 	Terminated     bool                    `json:"terminated"`
 	ContextBackend *corev1.ObjectReference `json:"contextBackend"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
 }
+
+// WorkflowMode describes the mode of workflow
+type WorkflowMode string
+
+const (
+	// WorkflowModeDAG describes the DAG mode of workflow
+	WorkflowModeDAG WorkflowMode = "DAG"
+	// WorkflowModeStep describes the step by step mode of workflow
+	WorkflowModeStep WorkflowMode = "StepByStep"
+)
 
 // WorkflowStepPhase describes the phase of a workflow step.
 type WorkflowStepPhase string
@@ -328,11 +339,30 @@ type ApplicationComponent struct {
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 
+	Inputs  StepInputs  `json:"inputs,omitempty"`
+	Outputs StepOutputs `json:"outputs,omitempty"`
+
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
 }
+
+type inputItem struct {
+	ParameterKey string `json:"parameterKey"`
+	From         string `json:"from"`
+}
+
+// StepInputs defines variable input of WorkflowStep
+type StepInputs []inputItem
+
+type outputItem struct {
+	ExportKey string `json:"exportKey"`
+	Name      string `json:"name"`
+}
+
+// StepOutputs defines output variable of WorkflowStep
+type StepOutputs []outputItem
 
 // ClusterSelector defines the rules to select a Cluster resource.
 // Either name or labels is needed.

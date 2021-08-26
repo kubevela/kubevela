@@ -29,10 +29,12 @@ import (
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -114,10 +116,78 @@ var expectedExceptApp = &Appfile{
 			},
 		},
 	},
+	WorkflowMode: "StepByStep",
 	WorkflowSteps: []v1beta1.WorkflowStep{
 		{
 			Name: "suspend",
 			Type: "suspend",
+		},
+	},
+}
+
+var expectedDAGApp = &Appfile{
+	Name: "application-sample",
+	Workloads: []*Workload{
+		{
+			Name: "myweb",
+			Type: "worker",
+			Params: map[string]interface{}{
+				"image": "busybox",
+			},
+			FullTemplate: &Template{
+				TemplateStr: `
+      output: {
+        apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: {
+      		selector: matchLabels: {
+      			"app.oam.dev/component": context.name
+      		}
+      
+      		template: {
+      			metadata: labels: {
+      				"app.oam.dev/component": context.name
+      			}
+      
+      			spec: {
+      				containers: [{
+      					name:  context.name
+      					image: parameter.image
+      
+      					if parameter["cmd"] != _|_ {
+      						command: parameter.cmd
+      					}
+      				}]
+      			}
+      		}
+      
+      		selector:
+      			matchLabels:
+      				"app.oam.dev/component": context.name
+      	}
+      }
+      
+      parameter: {
+      	// +usage=Which image would you like to use for your service
+      	// +short=i
+      	image: string
+      
+      	cmd?: [...string]
+      }`,
+			},
+		},
+	},
+	WorkflowMode: "DAG",
+	WorkflowSteps: []v1beta1.WorkflowStep{
+		{
+			Name: "myweb",
+			Inputs: common.StepInputs{
+				{
+					ParameterKey: "test",
+					From:         "test",
+				},
+			},
+			Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb"}`)},
 		},
 	},
 }
@@ -227,7 +297,7 @@ spec:
       type: "suspend" 
 `
 
-const appfileYaml2 = `
+const appfileYamlNotExist = `
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -239,6 +309,44 @@ spec:
       type: worker-notexist
       properties:
         image: "busybox"
+`
+
+const appfileYamlConflictWorkflow = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-sample
+  namespace: default
+spec:
+  components:
+    - name: myweb
+      type: worker
+      properties:
+        image: "busybox"
+      inputs:
+        - parameterKey: test
+          from: "test"
+  workflow:
+    steps:
+    - name: "suspend"
+      type: "suspend" 
+`
+
+const appfileYamlDAGWorkflow = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-sample
+  namespace: default
+spec:
+  components:
+    - name: myweb
+      type: worker
+      properties:
+        image: "busybox"
+      inputs:
+        - parameterKey: test
+          from: "test"
 `
 
 var _ = Describe("Test application parser", func() {
@@ -276,15 +384,29 @@ var _ = Describe("Test application parser", func() {
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
 
 		notfound := v1beta1.Application{}
-		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
+		err = yaml.Unmarshal([]byte(appfileYamlNotExist), &notfound)
 		Expect(err).ShouldNot(HaveOccurred())
 		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &notfound)
 		Expect(err).Should(HaveOccurred())
+
+		conflictWorkflow := v1beta1.Application{}
+		err = yaml.Unmarshal([]byte(appfileYamlConflictWorkflow), &conflictWorkflow)
+		Expect(err).ShouldNot(HaveOccurred())
+		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &conflictWorkflow)
+		Expect(err).Should(HaveOccurred())
+
+		dagWorkflow := v1beta1.Application{}
+		err = yaml.Unmarshal([]byte(appfileYamlDAGWorkflow), &dagWorkflow)
+		Expect(err).ShouldNot(HaveOccurred())
+		dagAppfile, err := NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &dagWorkflow)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(equal(expectedDAGApp, dagAppfile)).Should(BeTrue())
 	})
 })
 
 func equal(af, dest *Appfile) bool {
-	if af.Name != dest.Name || len(af.Workloads) != len(dest.Workloads) {
+	if af.Name != dest.Name || len(af.Workloads) != len(dest.Workloads) ||
+		af.WorkflowMode != dest.WorkflowMode || !reflect.DeepEqual(af.WorkflowSteps, dest.WorkflowSteps) {
 		return false
 	}
 	for i, wd := range af.Workloads {
