@@ -9,7 +9,7 @@ import (
 	description: "Apply env binding component"
 }
 template: {
-	component: op.#ApplyEnvBindApp & {
+	app: op.#ApplyEnvBindApp & {
 		env:    parameter.env
 		policy: parameter.policy
 		app:    context.name

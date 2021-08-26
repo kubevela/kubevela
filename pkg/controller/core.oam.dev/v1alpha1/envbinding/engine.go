@@ -120,7 +120,8 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 		clusterName := o.clusterDecisions[app.envConfig.Name]
 		manifestWork := new(ocmworkv1.ManifestWork)
 		workloads := make([]ocmworkv1.Manifest, 0, len(app.assembledManifests))
-		for _, manifest := range app.assembledManifests {
+		for _, component := range app.patchedApp.Spec.Components {
+			manifest := app.assembledManifests[component.Name]
 			for j := range manifest {
 				workloads = append(workloads, ocmworkv1.Manifest{
 					RawExtension: util.Object2RawExtension(manifest[j]),
