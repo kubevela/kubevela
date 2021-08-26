@@ -5960,7 +5960,10 @@ spec:
                   +usage=Chart version\n\tversion: *\"*\" | string\n\t// +usage=The
                   namespace for helm chart, optional\n\ttargetNamespace?: string\n\t//
                   +usage=The release name\n\treleaseName?: string\n\t// +usage=Chart
-                  values\n\tvalues?: #nestedmap\n}\n\n#nestedmap: {\n\t...\n} \n"
+                  values\n\tvalues?: #nestedmap\n}\n\n#nestedmap: {\n\t...\n}\n"
+            status:
+              healthPolicy: 'isHealth: len(context.outputs.release.status.conditions)
+                != 0 && context.outputs.release.status.conditions[0]["status"]=="True"'
             workload:
               type: autodetects.core.oam.dev
         type: raw

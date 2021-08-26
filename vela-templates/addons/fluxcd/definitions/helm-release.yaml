@@ -144,3 +144,6 @@ spec:
         #nestedmap: {
         	...
         }
+  status:
+    # helmRelease's `ready` condition must be the first one
+    healthPolicy: 'isHealth: len(context.outputs.release.status.conditions) != 0 && context.outputs.release.status.conditions[0]["status"]=="True"'
