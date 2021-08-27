@@ -44,6 +44,15 @@ func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
 	}
 }
 
+// NewDAGWorkflow returns a DAG mode Workflow.
+func NewDAGWorkflow(app *oamcore.Application, cli client.Client) Workflow {
+	return &workflow{
+		app:     app,
+		cli:     cli,
+		dagMode: true,
+	}
+}
+
 // ExecuteSteps process workflow step in order.
 func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
 	if len(taskRunners) == 0 {
@@ -93,12 +102,14 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 
 	var terminated bool
 	if w.dagMode {
-		terminated, pause, gerr = w.runAsDag(wfCtx, taskRunners)
+		terminated, pause, gerr = w.runAsDAG(wfCtx, taskRunners)
 	} else {
 		terminated, pause, gerr = w.run(wfCtx, taskRunners[wfStatus.StepIndex:])
 	}
 
-	if !terminated {
+	if terminated {
+		done = true
+	} else {
 		done = w.allDone(taskRunners)
 	}
 	return
@@ -154,7 +165,7 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
-func (w *workflow) runAsDag(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (terminated bool, pause bool, gerr error) {
+func (w *workflow) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (terminated bool, pause bool, gerr error) {
 	status := w.app.Status.Workflow
 	var (
 		todoTasks    []wfTypes.TaskRunner
@@ -183,17 +194,13 @@ func (w *workflow) runAsDag(wfCtx wfContext.Context, taskRunners []wfTypes.TaskR
 	}
 
 	if len(todoTasks) > 0 {
-		var terminated bool
 		terminated, pause, gerr = w.run(wfCtx, todoTasks)
-		if terminated {
-			done = true
+		if gerr != nil || terminated || pause {
 			return
 		}
-		if gerr != nil || pause {
-			return
-		}
+
 		if len(pendingTasks) > 0 {
-			return w.runAsDag(wfCtx, pendingTasks)
+			return w.runAsDAG(wfCtx, pendingTasks)
 		}
 	}
 	return
@@ -242,6 +249,7 @@ func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 		}
 
 		if wfStatus.Terminated {
+			w.app.Status.Phase = common.ApplicationWorkflowTerminated
 			terminated = true
 			return
 		}

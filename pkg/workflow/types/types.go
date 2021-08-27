@@ -18,10 +18,10 @@ package types
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
 // TaskRunner is a task runner.
