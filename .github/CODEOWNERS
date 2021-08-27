@@ -29,5 +29,5 @@ pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope     @captainroy-hy
 vela-templates/                     @Somefive
 
 # Owner of vela CLI
-references/cli/                     @Somefive
+references/cli/                     @Somefive @zzxwill 
 
