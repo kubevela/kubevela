@@ -1,0 +1,53 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: rollout-multi-comp
+  namespace: default
+spec:
+  components:
+    - name: back-end
+      externalRevision: backend-v1
+      type: webservice
+      properties:
+        image: nginx:1.21
+        port: 80
+      traits:
+        - type: rollout
+          properties:
+            targetSize: 2
+            # This means to rollout two more replicas in two batches.
+            rolloutBatches:
+              - replicas: 1
+              - replicas: 1
+
+    - name: front-end
+      externalRevision: front-end-v1
+      type: webservice
+      properties:
+        image: node:16.7-alpine3.12
+        port: 80
+      traits:
+        - type: rollout
+          properties:
+            targetSize: 4
+            # This means to rollout two more replicas in two batches.
+            rolloutBatches:
+              - replicas: 2
+              - replicas: 2
+
+  workflow:
+    steps:
+     # rollout back-end component first, workflow will block until  rollout succeed
+      - name: rollout-back-end
+        type: rollout-wait-succeed
+        properties:
+          appName: rollout-multi-comp
+          component: back-end
+
+     # rollout front-end component
+      - name: rollout-front-end
+        type: rollout-wait-succeed
+        properties:
+          appName: rollout-multi-comp
+          component: front-end
+

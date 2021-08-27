@@ -16,26 +16,36 @@ import (
 #Apply: kube.#Apply
 
 #ApplyComponent: #Steps & {
-	component:      string
-	_componentName: component
-	load:           ws.#Load & {
-		component: _componentName
-	} @step(1)
 
-	workload:   workload__.value
-	workload__: kube.#Apply & {
-		value: load.value.workload
-		...
-	} @step(2)
+	 component:      string
+   _componentName: component
+   load:   ws.#Load & {
+  	   component: _componentName
+   } @step(1)
 
-	traits: #Steps & {
-		_key: "trait.oam.dev/resource"
-		if load.value.auxiliaries != _|_ {
-			for o in load.value.auxiliaries {
-				"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
-			}
-		}
-	} @step(3)
+   traits: #Steps & {
+   	     _key:  "trait.oam.dev/resource"
+         _manWlKey:   "trait.oam.dev/manage-workload"
+         skipApplyWorkload: *false | bool
+         if load.value.auxiliaries != _|_ {
+         	    for o in load.value.auxiliaries {
+         	    	"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
+                if o.metadata.labels[_manWlKey] != _|_ {
+                	 skipApplyWorkload: true
+                }
+              }
+         }
+   } @step(2)
+
+   workload__: {
+   	  if !traits.skipApplyWorkload {
+   	  	kube.#Apply & {
+   	  		   value: load.value.workload
+             ...
+         }
+   	  }
+   } @step(3)
+
 }
 
 #ApplyRemaining: #Steps & {
