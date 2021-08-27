@@ -2,7 +2,7 @@ pvc: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Create a Persistent Volume Claim"
+	description: "Create a Persistent Volume Claim and mount the PVC as volume to the  first container in the pod"
 	attributes: {
 		appliesToWorkloads: ["deployments.apps"]
 		podDisruptive: true

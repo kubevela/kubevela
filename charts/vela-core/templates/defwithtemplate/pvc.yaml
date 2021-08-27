@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Create a Persistent Volume Claim
+    definition.oam.dev/description: Create a Persistent Volume Claim and mount the PVC as volume to the  first container in the pod
   name: pvc
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
