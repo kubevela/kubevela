@@ -2,6 +2,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
   name: alibaba-rds
+  namespace: {{.Values.systemDefinitionNamespace}}
   annotations:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud RDS object
     type: terraform
