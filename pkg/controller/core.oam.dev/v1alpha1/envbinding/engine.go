@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"k8s.io/klog/v2"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 // ClusterManagerEngine defines Cluster Manage interface
@@ -43,7 +44,6 @@ type ClusterManagerEngine interface {
 	prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error
 	initEnvBindApps(ctx context.Context, envBinding *v1alpha1.EnvBinding, baseApp *v1beta1.Application, appParser *appfile.Parser) ([]*EnvBindApp, error)
 	schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error)
-	dispatch(ctx context.Context, envBinding *v1alpha1.EnvBinding, apps []*EnvBindApp) error
 }
 
 // OCMEngine represents Open-Cluster-Management multi-cluster management solution
@@ -152,18 +152,6 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 	return clusterDecisions, nil
 }
 
-func (o *OCMEngine) dispatch(ctx context.Context, envBinding *v1alpha1.EnvBinding, apps []*EnvBindApp) error {
-	applicator := apply.NewAPIApplicator(o.cli)
-	for _, app := range apps {
-		for _, obj := range app.ScheduledManifests {
-			if err := applicator.Apply(ctx, obj); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // dispatchPlacement dispatch Placement Object of OCM for cluster selected
 func (o *OCMEngine) dispatchPlacement(ctx context.Context, config v1alpha1.EnvConfig) error {
 	placement := new(ocmclusterv1alpha1.Placement)
@@ -245,7 +233,7 @@ func NewSingleClusterEngine(cli client.Client, appName, appNs, envBindingName st
 func (s *SingleClusterEngine) prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error {
 	clusterDecisions := make(map[string]string)
 	for _, config := range configs {
-		clusterDecisions[config.Name] = string(v1alpha1.LocalEngine)
+		clusterDecisions[config.Name] = string(v1alpha1.SingleClusterEngine)
 	}
 	s.clusterDecisions = clusterDecisions
 	return nil
@@ -289,19 +277,6 @@ func (s *SingleClusterEngine) schedule(ctx context.Context, apps []*EnvBindApp) 
 	return clusterDecisions, nil
 }
 
-func (s *SingleClusterEngine) dispatch(ctx context.Context, envBinding *v1alpha1.EnvBinding, apps []*EnvBindApp) error {
-	applicator := apply.NewAPIApplicator(s.cli)
-	for _, app := range apps {
-		for _, obj := range app.ScheduledManifests {
-			err := applicator.Apply(ctx, obj)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 func (s *SingleClusterEngine) getSelectedNamespace(ctx context.Context, envBindApp *EnvBindApp) (string, error) {
 	if envBindApp.envConfig.Placement.NamespaceSelector != nil {
 		selector := envBindApp.envConfig.Placement.NamespaceSelector
@@ -336,4 +311,69 @@ func validatePlacement(envBinding *v1alpha1.EnvBinding) error {
 
 func constructEnvBindAppName(envBindingName, envName, appName string) string {
 	return fmt.Sprintf("%s-%s-%s", envBindingName, envName, appName)
+}
+
+func constructResourceTrackerName(envBindingName, namespace string) string {
+	return fmt.Sprintf("%s-%s-%s", "envbinding", envBindingName, namespace)
+}
+
+func garbageCollect(ctx context.Context, k8sClient client.Client, envBinding *v1alpha1.EnvBinding, apps []*EnvBindApp) error {
+	rtRef := envBinding.Status.ResourceTracker
+	if rtRef == nil {
+		return nil
+	}
+
+	rt := new(v1beta1.ResourceTracker)
+	if envBinding.Spec.OutputResourcesTo != nil && len(envBinding.Spec.OutputResourcesTo.Name) != 0 {
+		rt.SetName(rtRef.Name)
+		err := k8sClient.Delete(ctx, rt)
+		return client.IgnoreNotFound(err)
+	}
+
+	rtKey := client.ObjectKey{Namespace: rtRef.Namespace, Name: rtRef.Name}
+	if err := k8sClient.Get(ctx, rtKey, rt); err != nil {
+		return err
+	}
+	var manifests []*unstructured.Unstructured
+	for _, app := range apps {
+		for _, obj := range app.ScheduledManifests {
+			manifests = append(manifests, obj)
+		}
+	}
+	for _, oldRsc := range rt.Status.TrackedResources {
+		isRemoved := true
+		for _, newRsc := range manifests {
+			if equalMateData(oldRsc, newRsc) {
+				isRemoved = false
+				break
+			}
+		}
+		if isRemoved {
+			if err := deleteOldResource(ctx, k8sClient, oldRsc); err != nil {
+				return err
+			}
+			klog.InfoS("Successfully GC a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
+		}
+	}
+	return nil
+}
+
+func equalMateData(rscRef corev1.ObjectReference, newRsc *unstructured.Unstructured) bool {
+	if rscRef.APIVersion == newRsc.GetAPIVersion() && rscRef.Kind == newRsc.GetKind() &&
+		rscRef.Namespace == newRsc.GetNamespace() && rscRef.Name == newRsc.GetName() {
+		return true
+	}
+	return false
+}
+
+func deleteOldResource(ctx context.Context, k8sClient client.Client, ref corev1.ObjectReference) error {
+	obj := new(unstructured.Unstructured)
+	obj.SetAPIVersion(ref.APIVersion)
+	obj.SetKind(ref.Kind)
+	obj.SetNamespace(ref.Namespace)
+	obj.SetName(ref.Name)
+	if err := k8sClient.Delete(ctx, obj); err != nil && !kerrors.IsNotFound(err) {
+		return errors.Wrapf(err, "cannot delete resource %v", ref)
+	}
+	return nil
 }

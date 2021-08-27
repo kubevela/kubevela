@@ -17,6 +17,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -31,8 +32,8 @@ const (
 	// OCMEngine represents Open-Cluster-Management multi-cluster management solution
 	OCMEngine ClusterManagementEngine = "ocm"
 
-	// LocalEngine represents single cluster ClusterManagerEngine
-	LocalEngine ClusterManagementEngine = "local"
+	// SingleClusterEngine represents single cluster ClusterManagerEngine
+	SingleClusterEngine ClusterManagementEngine = "single-cluster"
 )
 
 // EnvBindingPhase is a label for the condition of a EnvBinding at the current time
@@ -124,7 +125,10 @@ type EnvBindingStatus struct {
 
 	Phase EnvBindingPhase `json:"phase,omitempty"`
 
-	ClusterDecisions []ClusterDecision `json:"cluster_decisions,omitempty"`
+	ClusterDecisions []ClusterDecision `json:"clusterDecisions,omitempty"`
+
+	// ResourceTracker record the status of the ResourceTracker
+	ResourceTracker *corev1.ObjectReference `json:"resourceTracker,omitempty"`
 }
 
 // EnvBinding is the Schema for the EnvBinding API
