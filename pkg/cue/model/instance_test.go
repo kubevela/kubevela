@@ -196,7 +196,7 @@ metadata: name: parameter.name
 `,
 	}
 	_, err = ins.Unstructured()
-	assert.Equal(t, err.Error(), fmt.Sprintf(`metadata.name: reference "%s" not found`, velacue.ParameterTag))
+	assert.Equal(t, err.Error(), fmt.Sprintf(`failed to have the workload/trait unstructured: metadata.name: reference "%s" not found`, velacue.ParameterTag))
 	ins = &instance{
 		v: `
 apiVersion: "apps/v1"
@@ -215,4 +215,20 @@ metadata: name: "abc"
 			},
 		},
 	})
+
+	ins = &instance{
+		v: `
+apiVersion: "source.toolkit.fluxcd.io/v1beta1"
+metadata: {
+	name: "grafana"
+}
+kind: "HelmRepository"
+spec: {
+	url:      string
+	interval: *"5m" | string
+}`,
+	}
+	o, err := ins.Unstructured()
+	assert.Nil(t, o)
+	assert.NotNil(t, err)
 }
