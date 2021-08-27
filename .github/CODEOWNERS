@@ -20,7 +20,7 @@ runtime/rollout                                             @wangyikewxgm
 pkg/controller/core.oam.dev/v1alpha2/core/workflow/workflowstepdefinition  @yangsoon
 pkg/controller/core.oam.dev/v1alpha2/core/policies/policydefinition        @yangsoon
 pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition   @yangsoon @zzxwill 
-pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition           @yangsoon
+pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition           @yangsoon @zzxwill 
 
 # Owner of health scope controller
 pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope     @captainroy-hy
