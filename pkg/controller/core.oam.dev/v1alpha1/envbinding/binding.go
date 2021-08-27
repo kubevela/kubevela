@@ -62,27 +62,34 @@ func NewEnvBindApp(base *v1beta1.Application, envConfig *v1alpha1.EnvConfig) *En
 // generateConfiguredApplication patch component parameters to base Application
 func (e *EnvBindApp) generateConfiguredApplication() error {
 	newApp := e.baseApp.DeepCopy()
+
 	var baseComponent *common.ApplicationComponent
-	var matchIdx int
+	var misMatchedIdxs []int
 	for patchIdx := range e.envConfig.Patch.Components {
+		var matchedIdx int
+		isMatched := false
 		patchComponent := e.envConfig.Patch.Components[patchIdx]
-		var isMatched bool
+
 		for baseIdx := range e.baseApp.Spec.Components {
 			component := e.baseApp.Spec.Components[baseIdx]
 			if patchComponent.Name == component.Name && patchComponent.Type == component.Type {
-				matchIdx, baseComponent = baseIdx, &component
+				matchedIdx, baseComponent = baseIdx, &component
 				isMatched = true
 				break
 			}
 		}
 		if !isMatched || baseComponent == nil {
-			return errors.Errorf("fail to match component %s", patchComponent.Name)
+			misMatchedIdxs = append(misMatchedIdxs, patchIdx)
+			continue
 		}
 		targetComponent, err := PatchComponent(baseComponent, &patchComponent)
 		if err != nil {
 			return err
 		}
-		newApp.Spec.Components[matchIdx] = *targetComponent
+		newApp.Spec.Components[matchedIdx] = *targetComponent
+	}
+	for _, idx := range misMatchedIdxs {
+		newApp.Spec.Components = append(newApp.Spec.Components, e.envConfig.Patch.Components[idx])
 	}
 	e.patchedApp = newApp
 	return nil
@@ -203,25 +210,33 @@ func PatchComponent(baseComponent *common.ApplicationComponent, patchComponent *
 	targetComponent.Properties = util.Object2RawExtension(mergedProperties)
 
 	var baseTrait *common.ApplicationTrait
-	var matchIdx int
-	for _, patchTrait := range patchComponent.Traits {
-		var isMatched bool
+	var misMatchedIdxs []int
+	for patchIdx := range patchComponent.Traits {
+		var matchedIdx int
+		isMatched := false
+		patchTrait := patchComponent.Traits[patchIdx]
+
 		for index := range targetComponent.Traits {
 			trait := targetComponent.Traits[index]
 			if patchTrait.Type == trait.Type {
-				matchIdx, baseTrait = index, &trait
+				matchedIdx, baseTrait = index, &trait
 				isMatched = true
 				break
 			}
 		}
 		if !isMatched || baseTrait == nil {
-			return nil, errors.Errorf("fail to match trait %s", patchTrait.Type)
+			misMatchedIdxs = append(misMatchedIdxs, patchIdx)
+			continue
 		}
 		mergedProperties, err = PatchProperties(baseTrait.Properties, patchTrait.Properties)
 		if err != nil {
 			return nil, err
 		}
-		targetComponent.Traits[matchIdx].Properties = util.Object2RawExtension(mergedProperties)
+		targetComponent.Traits[matchedIdx].Properties = util.Object2RawExtension(mergedProperties)
+	}
+
+	for _, idx := range misMatchedIdxs {
+		targetComponent.Traits = append(targetComponent.Traits, patchComponent.Traits[idx])
 	}
 	return targetComponent, nil
 }

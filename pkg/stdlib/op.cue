@@ -106,10 +106,10 @@ import (
 	}
 }
 
-#ApplyEnvBindComponent: #Steps & {
+#ApplyEnvBindApp: #Steps & {
 	env:        string
 	policy:     string
-	component:  string
+	app:        string
 	namespace:  string
 	_namespace: namespace
 
@@ -140,7 +140,7 @@ import (
 		}
 	} @step(3)
 
-	target: "\(policy)-\(env)-\(component)"
+	target: "\(policy)-\(env)-\(app)"
 	apply:  kube.#Apply & {
 		value: {
 			yaml.Unmarshal(configMap.value.data[target])

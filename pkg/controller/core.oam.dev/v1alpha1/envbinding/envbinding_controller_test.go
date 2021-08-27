@@ -201,24 +201,20 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			}, 30*time.Second, 1*time.Second).Should(BeNil())
 
 			By("Check whether the parameter is patched")
-			mw1 := new(ocmworkv1.ManifestWork)
-			mw1Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)]
-			Expect(yaml.Unmarshal([]byte(mw1Yaml), mw1)).Should(BeNil())
+			mw := new(ocmworkv1.ManifestWork)
+			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
+			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
 			workload1 := new(v1.Deployment)
-			Expect(yaml.Unmarshal(mw1.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
+			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
 			Expect(workload1.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
 			Expect(workload1.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
 
-			mw2 := new(ocmworkv1.ManifestWork)
-			mw2Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[1].Name)]
-			Expect(yaml.Unmarshal([]byte(mw2Yaml), mw2)).Should(BeNil())
 			workload2 := new(v1.Deployment)
-			Expect(yaml.Unmarshal(mw2.Spec.Workload.Manifests[0].Raw, workload2)).Should(BeNil())
+			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[1].Raw, workload2)).Should(BeNil())
 			Expect(workload2.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort).Should(Equal(int32(8080)))
 
 			By("Check whether the cluster is selected correctly")
-			Expect(mw1.GetNamespace()).Should(Equal(spokeClusterName))
-			Expect(mw2.GetNamespace()).Should(Equal(spokeClusterName))
+			Expect(mw.GetNamespace()).Should(Equal(spokeClusterName))
 		})
 
 		It("Test EnvBinding select cluster by label", func() {
@@ -256,7 +252,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 
 			By("Check whether the parameter is patched")
 			mw := new(ocmworkv1.ManifestWork)
-			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)]
+			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
 			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
 			workload := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload)).Should(BeNil())
@@ -323,7 +319,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 
 			By("Check whether the parameter is patched")
 			mw1 := new(ocmworkv1.ManifestWork)
-			mw1Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)]
+			mw1Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
 			Expect(yaml.Unmarshal([]byte(mw1Yaml), mw1)).Should(BeNil())
 			workload1 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw1.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
@@ -331,7 +327,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			Expect(workload1.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
 
 			mw2 := new(ocmworkv1.ManifestWork)
-			mw2Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[1].Name, envBinding.Spec.Envs[1].Patch.Components[0].Name)]
+			mw2Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[1].Name, appTemplate.Name)]
 			Expect(yaml.Unmarshal([]byte(mw2Yaml), mw2)).Should(BeNil())
 			workload2 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw2.Spec.Workload.Manifests[0].Raw, workload2)).Should(BeNil())
@@ -396,7 +392,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			}, 30*time.Second, 1*time.Second).Should(BeNil())
 
 			mw := new(ocmworkv1.ManifestWork)
-			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)]
+			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
 			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
 			Expect(len(mw.Spec.Workload.Manifests)).Should(Equal(3))
 		})
@@ -420,31 +416,24 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			testutil.ReconcileRetry(&r, req)
 
 			By("Check whether create manifestWork")
-			mw1 := new(ocmworkv1.ManifestWork)
-			mw1Name := fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[0].Name)
+			mw := new(ocmworkv1.ManifestWork)
+			mwName := fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)
 			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: mw1Name, Namespace: spokeClusterName}, mw1)
-			}, 3*time.Second, 1*time.Second).Should(BeNil())
-
-			mw2 := new(ocmworkv1.ManifestWork)
-			mw2Name := fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, envBinding.Spec.Envs[0].Patch.Components[1].Name)
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: mw2Name, Namespace: spokeClusterName}, mw2)
+				return k8sClient.Get(ctx, client.ObjectKey{Name: mwName, Namespace: spokeClusterName}, mw)
 			}, 3*time.Second, 1*time.Second).Should(BeNil())
 
 			By("Check whether the parameter is patched")
 			workload1 := new(v1.Deployment)
-			Expect(yaml.Unmarshal(mw1.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
+			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
 			Expect(workload1.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
 			Expect(workload1.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
 
 			workload2 := new(v1.Deployment)
-			Expect(yaml.Unmarshal(mw2.Spec.Workload.Manifests[0].Raw, workload2)).Should(BeNil())
+			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[1].Raw, workload2)).Should(BeNil())
 			Expect(workload2.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort).Should(Equal(int32(8080)))
 
 			By("Check whether the cluster is selected correctly")
-			Expect(mw1.GetNamespace()).Should(Equal(spokeClusterName))
-			Expect(mw2.GetNamespace()).Should(Equal(spokeClusterName))
+			Expect(mw.GetNamespace()).Should(Equal(spokeClusterName))
 		})
 	})
 

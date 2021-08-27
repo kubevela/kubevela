@@ -47,4 +47,3 @@ spec:
         properties:
           env:       prod
           policy:    prod-env
-          component: podinfo-server
