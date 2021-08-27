@@ -11,10 +11,10 @@ jobs:
   sync-core-api:
     runs-on: ubuntu-20.04
     steps:
-      - name: Set up Go 1.14
+      - name: Set up Go 1.16
         uses: actions/setup-go@v1
         env:
-          GO_VERSION: '1.14'
+          GO_VERSION: '1.16'
           GOLANGCI_VERSION: 'v1.38'
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -33,4 +33,5 @@ jobs:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
           COMMIT_ID: ${{ github.sha }}
         run: |
+          bash ./hack/apis/clientgen.sh
           bash ./hack/apis/sync.sh

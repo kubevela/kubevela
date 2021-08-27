@@ -62,6 +62,8 @@ type ApplicationRevisionSpec struct {
 // +kubebuilder:storageversion
 // +kubebuilder:resource:categories={oam},shortName=apprev
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplicationRevision struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -72,6 +74,7 @@ type ApplicationRevision struct {
 // +kubebuilder:object:root=true
 
 // ApplicationRevisionList contains a list of ApplicationRevision
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplicationRevisionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

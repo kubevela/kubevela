@@ -36,11 +36,22 @@ rm -r kubevela-core-api/apis/*
 echo "clear kubevela-core-api pkg/oam"
 rm -r kubevela-core-api/pkg/oam/*
 
+echo "clear kubevela-core-api pkg/generated/client"
+if [[ -d "kubevela-core-api/pkg/generated/client/" ]]
+then
+  rm -r kubevela-core-api/pkg/generated/client/*
+else
+  mkdir -p kubevela-core-api/pkg/generated/client/
+fi
+
 echo "update kubevela-core-api api/"
 cp -R kubevela/apis/* kubevela-core-api/apis/
 
 echo "update kubevela-core-api pkg/oam"
 cp -R kubevela/pkg/oam/* kubevela-core-api/pkg/oam/
+
+echo "update kubevela-core-api pkg/generated/client"
+cp -R kubevela/pkg/generated/client/* kubevela-core-api/pkg/generated/client/
 
 echo "change import path"
 find ./kubevela-core-api -type f -name "*.go" -print0 | xargs -0 sed -i 's|github.com/oam-dev/kubevela/|github.com/oam-dev/kubevela-core-api/|g'
