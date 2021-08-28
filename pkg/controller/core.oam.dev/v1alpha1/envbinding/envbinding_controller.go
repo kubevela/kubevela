@@ -252,24 +252,24 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, envBinding *v1alpha1.
 	if envBinding.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(envBinding, resourceTrackerFinalizer) {
 			meta.AddFinalizer(envBinding, resourceTrackerFinalizer)
-			klog.InfoS("Register new finalizer for envbinding", "envbinding", klog.KObj(envBinding), "finalizer", resourceTrackerFinalizer)
-			return true, errors.Wrap(r.Client.Update(ctx, envBinding), "cannot update envbinding finalizer")
+			klog.InfoS("Register new finalizer for envBinding", "envBinding", klog.KObj(envBinding), "finalizer", resourceTrackerFinalizer)
+			return true, errors.Wrap(r.Client.Update(ctx, envBinding), "cannot update envBinding finalizer")
 		}
 	} else {
 		if meta.FinalizerExists(envBinding, resourceTrackerFinalizer) {
 			rt := new(v1beta1.ResourceTracker)
 			rt.SetName(constructResourceTrackerName(envBinding.Name, envBinding.Namespace))
-			if err := r.Client.Get(ctx, client.ObjectKey{Name: rt.Name}, rt); err != nil {
-				klog.ErrorS(err, "Failed to get resource tracker of envbinding", "envbinding", klog.KObj(envBinding))
+			if err := r.Client.Get(ctx, client.ObjectKey{Name: rt.Name}, rt); err != nil && !kerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to get resource tracker of envBinding", "envBinding", klog.KObj(envBinding))
 				return true, errors.WithMessage(err, "cannot remove finalizer")
 			}
 
-			if err := r.Client.Delete(ctx, rt); err != nil {
-				klog.ErrorS(err, "Failed to delete resource tracker of envbinding", "envbinding", klog.KObj(envBinding))
+			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to delete resource tracker of envBinding", "envBinding", klog.KObj(envBinding))
 				return true, errors.WithMessage(err, "cannot remove finalizer")
 			}
 			meta.RemoveFinalizer(envBinding, resourceTrackerFinalizer)
-			return true, errors.Wrap(r.Client.Update(ctx, envBinding), "cannot update envbinding finalizer")
+			return true, errors.Wrap(r.Client.Update(ctx, envBinding), "cannot update envBinding finalizer")
 		}
 	}
 	return false, nil
