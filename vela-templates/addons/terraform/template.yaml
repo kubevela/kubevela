@@ -18,9 +18,10 @@ spec:
         - name: terraform-controller
           type: helm
           properties:
-            repoType: git
-            url: https://github.com/oam-dev/terraform-controller
-            chart: ./chart
+            repoType: helm
+            url: https://charts.kubevela.net/addons
+            chart: terraform-controller
+            version: 0.1.17
 {{ range .ResourceFiles }}
         - name: {{ .Name }}
           type: raw

@@ -30,6 +30,8 @@ import (
 	"strings"
 	"text/template"
 
+	"k8s.io/utils/strings/slices"
+
 	"github.com/Masterminds/sprig"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -62,6 +64,9 @@ const (
 	// ChartTemplateNamespace is placeholder for helm chart
 	ChartTemplateNamespace = "{{.Values.systemDefinitionNamespace}}"
 )
+
+// DefaultEnableAddons is default enabled addons
+var DefaultEnableAddons = []string{"fluxcd", "kruise", "terraform"}
 
 type velaFile struct {
 	RelativePath string
@@ -258,13 +263,27 @@ func storeInitializer(init *v1beta1.Initializer, addonPath string, addonName str
 	return WriteToFile(filename, contents)
 }
 
+func storeDefaultAddon(init *v1beta1.Initializer, storePath, addonName string) error {
+	init.SetNamespace(ChartTemplateNamespace)
+	initContent, err := yaml.Marshal(init)
+	if err != nil {
+		return err
+	}
+
+	filename := path.Join(storePath, addonName+".yaml")
+	raw := string(initContent)
+	raw = strings.ReplaceAll(raw, fmt.Sprintf("'%s'", ChartTemplateNamespace), ChartTemplateNamespace)
+	removeTimestampInplace(&raw)
+	return WriteToFile(filename, raw)
+}
 func main() {
 	var addonsPath string
-	var storePath string
+	var configMapStorePath string
+	var initStorePath string
 
-	flag.StringVar(&addonsPath, "addons-path", "", "addons path")
-	flag.StringVar(&storePath, "store-path", "", "path store configMap")
-	flag.Parse()
+	flag.StringVar(&addonsPath, "addons-path", "./vela-templates/addons", "addons path")
+	flag.StringVar(&configMapStorePath, "store-path", "./charts/vela-core/templates/addons", "path store configMap")
+	flag.StringVar(&initStorePath, "init-path", "./charts/vela-core/templates/addons-default", "path to store default addon")
 
 	addons, err := walkAllAddons(addonsPath)
 	dealErr := func(addonName string, err error) {
@@ -284,7 +303,11 @@ func main() {
 		dealErr(addon, err)
 		err = storeInitializer(init, addonsPath, addInfo.Name)
 		dealErr(addon, err)
-		err = storeConfigMap(addInfo, init, storePath)
+		err = storeConfigMap(addInfo, init, configMapStorePath)
 		dealErr(addon, err)
+		if slices.Contains(DefaultEnableAddons, addon) {
+			err = storeDefaultAddon(init, initStorePath, addon)
+			dealErr(addon, err)
+		}
 	}
 }

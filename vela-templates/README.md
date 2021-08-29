@@ -24,9 +24,10 @@ This is the stole place for
    To generate addon, run
    
    ```shell
-    go run ./vela-templates/gen_addons.go --addons-path=./vela-templates/addons --store-path=./charts/vela-core/templates/addons 
+    go run ./vela-templates/gen_addons.go 
    ```
    
    This will generate
-      1. `charts/vela-core/addons/example-addon.yaml` (only Initializer)
-      2. `vela-templates/addons/demo/example-addon.yaml` (Initializer and ComponentDefinition)
+      1. `charts/vela-core/templates/addons/example-addon.yaml` (addon ConfigMap)
+      2. `charts/vela-core/templates/addons-default/example-addon.yaml` (default enabled addon Initializer)
+      3. `vela-templates/addons/auto-gen/example-addon.yaml` (addon Initializer)
