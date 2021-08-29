@@ -24,11 +24,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/bmizerany/assert"
-
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 const TaskTemplate = `
@@ -71,7 +71,7 @@ func TestProcess(t *testing.T) {
 	}
 	taskTemplate, _ = taskTemplate.Fill(map[string]interface{}{
 		"serviceURL": "http://127.0.0.1:8090/api/v1/token?val=test-token",
-	}, velacue.ParameterTag)
+	}, model.ParameterFieldName)
 
 	inst, err := Process(taskTemplate)
 	if err != nil {

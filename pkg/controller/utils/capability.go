@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -502,7 +503,7 @@ func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
 		return nil, err
 	}
 
-	schemaRef, ok := swagger.Components.Schemas[velacue.ParameterTag]
+	schemaRef, ok := swagger.Components.Schemas[model.ParameterFieldName]
 	if !ok {
 		return nil, errors.New(util.ErrGenerateOpenAPIV2JSONSchemaForCapability)
 	}

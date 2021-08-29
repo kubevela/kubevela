@@ -24,8 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 func TestGetCompileError(t *testing.T) {
@@ -196,7 +194,7 @@ metadata: name: parameter.name
 `,
 	}
 	_, err = ins.Unstructured()
-	assert.Equal(t, err.Error(), fmt.Sprintf(`failed to have the workload/trait unstructured: metadata.name: reference "%s" not found`, velacue.ParameterTag))
+	assert.Equal(t, err.Error(), fmt.Sprintf(`failed to have the workload/trait unstructured: metadata.name: reference "%s" not found`, ParameterFieldName))
 	ins = &instance{
 		v: `
 apiVersion: "apps/v1"

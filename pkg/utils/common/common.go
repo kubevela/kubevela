@@ -54,6 +54,7 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 )
 
 var (
@@ -121,7 +122,7 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == velacue.ParameterTag {
+		if paraDef.Name == model.ParameterFieldName {
 			found = true
 			break
 		}
@@ -160,29 +161,29 @@ func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
 	if fileNode, ok := node.(*ast.File); ok {
 		for _, decl := range fileNode.Decls {
 			if field, ok := decl.(*ast.Field); ok {
-				if label, ok := field.Label.(*ast.Ident); ok && label.Name == "#"+velacue.ParameterTag {
+				if label, ok := field.Label.(*ast.Ident); ok && label.Name == "#"+model.ParameterFieldName {
 					return decl.(*ast.Field).Value
 				}
 			}
 		}
 	}
-	paramVal := inst.LookupDef(velacue.ParameterTag)
+	paramVal := inst.LookupDef(model.ParameterFieldName)
 	return paramVal.Syntax(opts...)
 }
 
 // RefineParameterInstance refines cue instance to merely include `parameter` identifier
 func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
 	r := cue.Runtime{}
-	paramVal := inst.LookupDef(velacue.ParameterTag)
+	paramVal := inst.LookupDef(model.ParameterFieldName)
 	var paramOnlyStr string
 	switch k := paramVal.IncompleteKind(); k {
 	case cue.StructKind, cue.ListKind:
 		paramSyntax, _ := format.Node(extractParameterDefinitionNodeFromInstance(inst))
-		paramOnlyStr = fmt.Sprintf("#%s: %s\n", velacue.ParameterTag, string(paramSyntax))
+		paramOnlyStr = fmt.Sprintf("#%s: %s\n", model.ParameterFieldName, string(paramSyntax))
 	case cue.IntKind, cue.StringKind, cue.FloatKind, cue.BoolKind:
-		paramOnlyStr = fmt.Sprintf("#%s: %v", velacue.ParameterTag, paramVal)
+		paramOnlyStr = fmt.Sprintf("#%s: %v", model.ParameterFieldName, paramVal)
 	case cue.BottomKind:
-		paramOnlyStr = fmt.Sprintf("#%s: {}", velacue.ParameterTag)
+		paramOnlyStr = fmt.Sprintf("#%s: {}", model.ParameterFieldName)
 	default:
 		return nil, fmt.Errorf("unsupport parameter kind: %s", k.String())
 	}

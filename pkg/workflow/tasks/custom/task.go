@@ -27,7 +27,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
@@ -119,13 +119,13 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				return exec.status(), exec.operation(), nil
 			}
 
-			var paramFile = velacue.ParameterTag + ": {}\n"
+			var paramFile = model.ParameterFieldName + ": {}\n"
 			if params != nil {
 				ps, err := paramsValue.String()
 				if err != nil {
 					return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "params encode")
 				}
-				paramFile = fmt.Sprintf(velacue.ParameterTag+": {%s}\n", ps)
+				paramFile = fmt.Sprintf(model.ParameterFieldName+": {%s}\n", ps)
 			}
 
 			taskv, err := t.makeValue(ctx, templ+"\n"+paramFile)

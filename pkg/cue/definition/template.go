@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -38,9 +37,9 @@ import (
 
 const (
 	// OutputFieldName is the name of the struct contains the CR data
-	OutputFieldName = process.OutputFieldName
+	OutputFieldName = model.OutputFieldName
 	// OutputsFieldName is the name of the struct contains the map[string]CR data
-	OutputsFieldName = process.OutputsFieldName
+	OutputsFieldName = model.OutputsFieldName
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
 	// CustomMessage defines the custom message in definition template
@@ -87,17 +86,17 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
-	var paramFile = "parameter: {}"
+	var paramFile = model.ParameterFieldName + ": {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", velacue.ParameterTag, string(bt))
+			paramFile = fmt.Sprintf("%s: %s", model.ParameterFieldName, string(bt))
 		}
 	}
-	if err := bi.AddFile("parameter", paramFile); err != nil {
+	if err := bi.AddFile(model.ParameterFieldName, paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
@@ -286,17 +285,17 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s", td.name)
 	}
-	var paramFile = "parameter: {}"
+	var paramFile = model.ParameterFieldName + ": {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", velacue.ParameterTag, string(bt))
+			paramFile = fmt.Sprintf("%s: %s", model.ParameterFieldName, string(bt))
 		}
 	}
-	if err := bi.AddFile("parameter", paramFile); err != nil {
+	if err := bi.AddFile(model.ParameterFieldName, paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
 	}
 	if err := bi.AddFile("context", ctx.ExtendedContextFile()); err != nil {
@@ -350,7 +349,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		}
 
 		for _, auxiliary := range auxiliaries {
-			target := patcher.Lookup("context", "outputs", auxiliary.Name)
+			target := patcher.Lookup("context", model.OutputsFieldName, auxiliary.Name)
 			if target.Exists() {
 				t, err := model.NewOther(target)
 				if err != nil {
@@ -371,11 +370,11 @@ func GetCommonLabels(contextLabels map[string]string) map[string]string {
 	var commonLabels = map[string]string{}
 	for k, v := range contextLabels {
 		switch k {
-		case process.ContextAppName:
+		case model.ContextAppName:
 			commonLabels[oam.LabelAppName] = v
-		case process.ContextName:
+		case model.ContextName:
 			commonLabels[oam.LabelAppComponent] = v
-		case process.ContextAppRevision:
+		case model.ContextAppRevision:
 			commonLabels[oam.LabelAppRevision] = v
 		}
 	}

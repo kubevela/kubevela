@@ -31,7 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -214,7 +214,7 @@ func TestFixOpenAPISchema(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, tc.inputFile))
-			schema := swagger.Components.Schemas[cue.ParameterTag].Value
+			schema := swagger.Components.Schemas[model.ParameterFieldName].Value
 			fixOpenAPISchema("", schema)
 			fixedSchema, _ := schema.MarshalJSON()
 			expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, tc.fixedFile))

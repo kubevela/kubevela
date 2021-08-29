@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -720,7 +720,7 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 				Kind:       "Rollout",
 			},
 			Spec: v1alpha1.RolloutSpec{
-				TargetRevisionName: process.ComponentRevisionPlaceHolder,
+				TargetRevisionName: model.ComponentRevisionPlaceHolder,
 			},
 		}
 		u, err := util.Object2Unstructured(rollout)
@@ -741,7 +741,7 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 				Kind:       "Rollout",
 			},
 			Spec: v1alpha1.RolloutSpec{
-				TargetRevisionName: process.ComponentRevisionPlaceHolder,
+				TargetRevisionName: model.ComponentRevisionPlaceHolder,
 			},
 		}
 		u, err := util.Object2Unstructured(rollout)
