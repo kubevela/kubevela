@@ -2,10 +2,10 @@ scaler: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Manually scale the component."
+	description: "Manually scale K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: false
-		appliesToWorkloads: ["deployments.apps"]
+		appliesToWorkloads: ["*"]
 	}
 }
 template: {

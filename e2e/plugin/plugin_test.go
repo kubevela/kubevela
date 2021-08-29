@@ -174,7 +174,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Showing traits from registry"))
-			Expect(output).Should(ContainSubstring("init-container"))
+			Expect(output).Should(ContainSubstring("dynamic-sa"))
 		})
 	})
 	Context("Test kubectl vela comp and trait install", func() {

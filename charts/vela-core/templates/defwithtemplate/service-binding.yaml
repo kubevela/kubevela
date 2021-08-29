@@ -9,8 +9,7 @@ metadata:
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - '*'
   schematic:
     cue:
       template: |

@@ -3,7 +3,7 @@
 	annotations: {}
 	labels: {}
 	description: "Binding secrets of cloud resources to component env"
-	attributes: appliesToWorkloads: ["webservice", "worker"]
+	attributes: appliesToWorkloads: ["*"]
 }
 template: {
 	patch: spec: template: spec: {

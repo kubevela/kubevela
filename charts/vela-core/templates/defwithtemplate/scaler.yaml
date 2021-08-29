@@ -4,12 +4,12 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Manually scale the component.
+    definition.oam.dev/description: Manually scale K8s pod for your workload which follows the pod spec in path 'spec.template'.
   name: scaler
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
-    - deployments.apps
+    - '*'
   podDisruptive: false
   schematic:
     cue:

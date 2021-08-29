@@ -2,7 +2,7 @@ volumes: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Add volumes for your Workload."
+	description: "Add volumes on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		appliesToWorkloads: ["deployments.apps"]
 		podDisruptive: true

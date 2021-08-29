@@ -2,8 +2,8 @@ env: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "add env into your pods"
-	attributes: appliesToWorkloads: ["deployments.apps"]
+	description: "add env on K8s pod for your workload which follows the pod spec in path 'spec.template.'"
+	attributes: appliesToWorkloads: ["*"]
 }
 template: {
 	patch: spec: template: spec: {

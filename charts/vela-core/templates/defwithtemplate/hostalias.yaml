@@ -4,12 +4,12 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Add host aliases to workloads.
+    definition.oam.dev/description: Add host aliases on K8s pod for your workload which follows the pod spec in path 'spec.template'.
   name: hostalias
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
-    - deployment.apps
+    - '*'
   podDisruptive: false
   schematic:
     cue:
