@@ -74,13 +74,10 @@ func (s *StatefulSetRolloutController) VerifySpec(ctx context.Context) (bool, er
 		// nolint: nilerr
 		return false, nil
 	}
-
-	if s.statefulSet.Spec.Replicas != nil && currentReplicas != s.statefulSet.Status.Replicas {
-		verifyErr = fmt.Errorf("the statefulSet is still scaling, target = %d, statefulSet size = %d",
-			currentReplicas, s.statefulSet.Status.Replicas)
-		s.rolloutStatus.RolloutRetry(verifyErr.Error())
-		return false, nil
-	}
+	// record the size and we will use this value to drive the rest of the batches
+	klog.InfoS("record the target size", "total replicas", currentReplicas)
+	s.rolloutStatus.RolloutTargetSize = currentReplicas
+	s.rolloutStatus.RolloutOriginalSize = currentReplicas
 
 	// make sure that the updateRevision is different from what we have already done
 	targetHash := s.statefulSet.Status.UpdateRevision
@@ -88,15 +85,17 @@ func (s *StatefulSetRolloutController) VerifySpec(ctx context.Context) (bool, er
 		return false, fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
 	}
 
+	if s.statefulSet.Spec.Replicas != nil && currentReplicas != s.statefulSet.Status.Replicas {
+		verifyErr = fmt.Errorf("the StatefulSet is still scaling, target = %d, statefulSet size = %d",
+			currentReplicas, s.statefulSet.Status.Replicas)
+		s.rolloutStatus.RolloutRetry(verifyErr.Error())
+		return false, verifyErr
+	}
+
 	// check if the rollout batch replicas added up to the StatefulSet replicas
 	if verifyErr = s.verifyRolloutBatchReplicaValue(currentReplicas); verifyErr != nil {
 		return false, verifyErr
 	}
-
-	// record the size and we will use this value to drive the rest of the batches
-	klog.InfoS("record the target size", "total replicas", currentReplicas)
-	s.rolloutStatus.RolloutTargetSize = currentReplicas
-	s.rolloutStatus.RolloutOriginalSize = currentReplicas
 
 	// check if the StatefulSet has any controller
 	if controller := metav1.GetControllerOf(s.statefulSet); controller != nil {
@@ -144,7 +143,7 @@ func (s *StatefulSetRolloutController) RolloutOneBatchPods(ctx context.Context) 
 		return false, nil
 	}
 
-	newPodTarget := s.calculateCurrentTarget(s.rolloutStatus.RolloutTargetSize)
+	newPodTarget := s.calculateCurrentTarget(currentReplicas)
 	if err := s.setPartition(ctx, s.statefulSet, currentReplicas-newPodTarget); err != nil {
 		// nolint:nilerr
 		return false, nil
@@ -167,7 +166,7 @@ func (s *StatefulSetRolloutController) CheckOneBatchPods(ctx context.Context) (b
 		return false, nil
 	}
 
-	newPodTarget := s.calculateCurrentTarget(s.rolloutStatus.RolloutTargetSize)
+	newPodTarget := s.calculateCurrentTarget(currentReplicas)
 	readyPodCount := int(s.statefulSet.Status.ReadyReplicas)
 
 	if len(s.rolloutSpec.RolloutBatches) <= int(s.rolloutStatus.CurrentBatch) {
