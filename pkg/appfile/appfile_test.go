@@ -419,6 +419,107 @@ wait: op.#ConditionalWait & {
 	})
 })
 
+var _ = Describe("Test Policy", func() {
+	It("test generate Policies", func() {
+		testAppfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "default",
+			Workloads: []*Workload{
+				{
+					Name:               "test-comp",
+					Type:               "worker",
+					CapabilityCategory: oamtypes.KubeCategory,
+					engine:             definition.NewWorkloadAbstractEngine("test-comp", pd),
+					FullTemplate: &Template{
+						Kube: &common.Kube{
+							Template: func() runtime.RawExtension {
+								yamlStr := `apiVersion: apps/v1
+kind: Deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+      ports:
+      - containerPort: 80 `
+								b, _ := yaml.YAMLToJSON([]byte(yamlStr))
+								return runtime.RawExtension{Raw: b}
+							}(),
+						},
+					},
+				},
+			},
+			Policies: []*Workload{
+				{
+					Name: "test-policy",
+					Type: "test-policy",
+					Params: map[string]interface{}{
+						"boundComponents": []string{"test-comp"},
+					},
+					FullTemplate: &Template{TemplateStr: `	output: {
+		apiVersion: "core.oam.dev/v1alpha2"
+		kind:       "HealthScope"
+		spec: {
+					for k, v in parameter.boundComponents
+					if context.artifacts[v].ready {
+						compName: v
+						workload: {
+							apiVersion: context.artifacts[v].workload.apiVersion
+							kind:       context.artifacts[v].workload.kind
+							name:       v
+						}
+					},
+		}
+	}
+	parameter: {
+		boundComponents: [...string]
+	}`},
+					engine: definition.NewWorkloadAbstractEngine("test-policy", pd),
+				},
+			},
+		}
+		_, err := testAppfile.GenerateComponentManifests()
+		Expect(err).Should(BeNil())
+		gotPolicies, _, err := testAppfile.GenerateWorkflowAndPolicy(context.Background(), dm, k8sClient, pd, nil)
+		Expect(err).Should(BeNil())
+		Expect(len(gotPolicies)).ShouldNot(Equal(0))
+
+		expectPolicy := unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"compName": "test-comp",
+					"workload": map[string]interface{}{
+						"name":       "test-comp",
+						"apiVersion": "apps/v1",
+						"kind":       "Deployment",
+					},
+				},
+				"metadata": map[string]interface{}{
+					"name":      "test-policy",
+					"namespace": "default",
+					"labels": map[string]interface{}{
+						"app.oam.dev/name":        "test-app",
+						"app.oam.dev/component":   "test-policy",
+						"app.oam.dev/appRevision": "",
+						"workload.oam.dev/type":   "test-policy",
+					},
+				},
+				"apiVersion": "core.oam.dev/v1alpha2",
+				"kind":       "HealthScope",
+			},
+		}
+		Expect(len(gotPolicies)).ShouldNot(Equal(0))
+		gotPolicy := gotPolicies[0]
+		Expect(cmp.Diff(gotPolicy.Object, expectPolicy.Object)).Should(BeEmpty())
+	})
+})
+
 var _ = Describe("Test Terraform schematic appfile", func() {
 	It("workload capability is Terraform", func() {
 		var (
@@ -1365,4 +1466,82 @@ parameter: {}
 		}
 		assert.DeepEqual(t, tc.expectConfigMapData, tc.workload.UserConfigs)
 	}
+}
+
+func TestPrepareArtifactsData(t *testing.T) {
+	compManifests := []*oamtypes.ComponentManifest{
+		&oamtypes.ComponentManifest{
+			Name:         "readyComp",
+			Namespace:    "ns",
+			RevisionName: "readyComp-v1",
+			StandardWorkload: &unstructured.Unstructured{Object: map[string]interface{}{
+				"fake": "workload",
+			}},
+			Traits: func() []*unstructured.Unstructured {
+				ingressYAML := `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    trait.oam.dev/resource: ingress
+    trait.oam.dev/type: ingress
+  namespace: default
+spec:
+  rules:
+  - host: testsvc.example.com`
+				ingress := &unstructured.Unstructured{}
+				_ = yaml.Unmarshal([]byte(ingressYAML), ingress)
+				svcYAML := `apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    trait.oam.dev/resource: service
+    trait.oam.dev/type: ingress
+  namespace: default
+spec:
+  clusterIP: 10.96.185.119
+  selector:
+    app.oam.dev/component: express-server
+  type: ClusterIP`
+				svc := &unstructured.Unstructured{}
+				_ = yaml.Unmarshal([]byte(svcYAML), svc)
+				return []*unstructured.Unstructured{ingress, svc}
+			}(),
+			InsertConfigNotReady: false,
+		},
+	}
+
+	gotArtifacts := prepareArtifactsData(compManifests)
+	gotWorkload, _, err := unstructured.NestedMap(gotArtifacts, "readyComp", "workload")
+	assert.NilError(t, err)
+	diff := cmp.Diff(gotWorkload, map[string]interface{}{"fake": string("workload")})
+	assert.Equal(t, diff, "")
+
+	_, gotIngress, err := unstructured.NestedMap(gotArtifacts, "readyComp", "traits", "ingress", "ingress")
+	assert.NilError(t, err)
+	if !gotIngress {
+		t.Fatalf("cannot get ingress trait")
+	}
+	_, gotSvc, err := unstructured.NestedMap(gotArtifacts, "readyComp", "traits", "ingress", "service")
+	assert.NilError(t, err)
+	if !gotSvc {
+		t.Fatalf("cannot get service trait")
+	}
+
+	compManifests = []*oamtypes.ComponentManifest{
+		&oamtypes.ComponentManifest{
+			Name:                 "notReadyComp",
+			Namespace:            "ns",
+			RevisionName:         "notReadyComp-v1",
+			InsertConfigNotReady: true,
+		},
+	}
+
+	gotArtifacts = prepareArtifactsData(compManifests)
+	gotReady, _, err := unstructured.NestedBool(gotArtifacts, "notReadyComp", "ready")
+	assert.NilError(t, err)
+	assert.Equal(t, gotReady, false)
+
+	_, foundWorkload, err := unstructured.NestedMap(gotArtifacts, "notReadyComp", "workload")
+	assert.NilError(t, err)
+	assert.Equal(t, foundWorkload, false)
 }

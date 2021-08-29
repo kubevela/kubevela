@@ -194,6 +194,7 @@ type Appfile struct {
 	Policies      []*Workload
 	WorkflowSteps []v1beta1.WorkflowStep
 	Components    []common.ApplicationComponent
+	Artifacts     []*types.ComponentManifest
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
@@ -210,7 +211,7 @@ func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymap
 func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
 	var uns []*unstructured.Unstructured
 	for _, wl := range workloads {
-		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace, af.Components)
+		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace, af.Components, af.Artifacts)
 		if err != nil {
 			return nil, err
 		}
@@ -254,23 +255,50 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 	return tasks, nil
 }
 
-func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent) (*unstructured.Unstructured, error) {
+func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {
 	pCtx := process.NewPolicyContext(ns, wl.Name, appName, revision, components)
+	pCtx.PushData(process.ContextDataArtifacts, prepareArtifactsData(artifacts))
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", appName, ns)
 	}
 	return makeWorkloadWithContext(pCtx, wl, ns, appName)
 }
 
+// artifacts contains resouces in unstructured shape of all components
+// it allows to access values of workloads and traits in CUE template, i.g.,
+// `if context.artifacts.<compName>.ready` to determine whether it's ready to access
+// `context.artifacts.<compName>.workload` to access a workload
+// `context.artifacts.<compName>.traits.<traitType>.<traitResource>` to access a trait
+func prepareArtifactsData(comps []*types.ComponentManifest) map[string]interface{} {
+	artifacts := unstructured.Unstructured{Object: make(map[string]interface{})}
+	for _, pComp := range comps {
+		if pComp.InsertConfigNotReady {
+			_ = unstructured.SetNestedField(artifacts.Object, false, pComp.Name, "ready")
+			continue
+		}
+		_ = unstructured.SetNestedField(artifacts.Object, true, pComp.Name, "ready")
+		_ = unstructured.SetNestedField(artifacts.Object, pComp.StandardWorkload.Object, pComp.Name, "workload")
+		for _, t := range pComp.Traits {
+			_ = unstructured.SetNestedField(artifacts.Object, t.Object, pComp.Name,
+				"traits",
+				t.GetLabels()[oam.TraitTypeLabel],
+				t.GetLabels()[oam.TraitResource])
+		}
+	}
+	return artifacts.Object
+}
+
 // GenerateComponentManifests converts an appFile to a slice of ComponentManifest
 func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, error) {
 	compManifests := make([]*types.ComponentManifest, len(af.Workloads))
+	af.Artifacts = make([]*types.ComponentManifest, len(af.Workloads))
 	for i, wl := range af.Workloads {
 		cm, err := af.GenerateComponentManifest(wl)
 		if err != nil {
 			return nil, err
 		}
 		compManifests[i] = cm
+		af.Artifacts[i] = cm
 	}
 	return compManifests, nil
 }
