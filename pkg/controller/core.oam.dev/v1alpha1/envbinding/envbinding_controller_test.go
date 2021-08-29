@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -449,7 +450,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
 				RawExtension: util.Object2RawExtension(appTemplate),
 			}
-			envBinding.Spec.Engine = v1alpha1.LocalEngine
+			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -485,7 +486,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
 				RawExtension: util.Object2RawExtension(appTemplate),
 			}
-			envBinding.Spec.Engine = v1alpha1.LocalEngine
+			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
 				Namespace: namespace,
 				Name:      envBinding.Name,
@@ -530,7 +531,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
 				RawExtension: util.Object2RawExtension(appTemplate),
 			}
-			envBinding.Spec.Engine = v1alpha1.LocalEngine
+			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 			envBinding.Spec.Envs[0].Placement = v1alpha1.EnvPlacement{
 				NamespaceSelector: &v1alpha1.NamespaceSelector{
 					Name: spokeNs.Name,
@@ -560,7 +561,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			Expect(traitParameter["hello"]).Should(Equal("patch"))
 		})
 
-		It("Test EnvBinding select namespace by name", func() {
+		It("Test EnvBinding select namespace by label", func() {
 			envBinding := BaseEnvBinding.DeepCopy()
 			appTemplate := AppTemplate.DeepCopy()
 			appTemplate.SetName("test-app-select-ns-label")
@@ -571,7 +572,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
 				RawExtension: util.Object2RawExtension(appTemplate),
 			}
-			envBinding.Spec.Engine = v1alpha1.LocalEngine
+			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 			envBinding.Spec.Envs[0].Placement = v1alpha1.EnvPlacement{
 				NamespaceSelector: &v1alpha1.NamespaceSelector{
 					Labels: map[string]string{
@@ -601,6 +602,241 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			traitParameter := make(map[string]string)
 			Expect(json.Unmarshal(envBindApp.Spec.Components[0].Traits[0].Properties.Raw, &traitParameter)).Should(BeNil())
 			Expect(traitParameter["hello"]).Should(Equal("patch"))
+		})
+	})
+
+	Context("Test GC mechanism for EnvBinding", func() {
+		It("Test EnvBinding apply resource to single cluster", func() {
+			envBinding := BaseEnvBinding.DeepCopy()
+			appTemplate := AppTemplate.DeepCopy()
+			appTemplate.SetName("test-app-apply2cluster")
+			appTemplate.SetNamespace(namespace)
+
+			envBinding.SetName("test-envbinding-gc-single-cluster")
+			envBinding.SetNamespace(namespace)
+			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
+				RawExtension: util.Object2RawExtension(appTemplate),
+			}
+			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
+			envBinding.Spec.Envs[0].Placement = v1alpha1.EnvPlacement{
+				NamespaceSelector: &v1alpha1.NamespaceSelector{
+					Name: spokeNs.Name,
+				},
+			}
+
+			envBinding.Spec.Envs = append(envBinding.Spec.Envs, v1alpha1.EnvConfig{
+				Name: "test",
+				Patch: v1alpha1.EnvPatch{
+					Components: []commontype.ApplicationComponent{{
+						Name: "web",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "nginx:1.20",
+						}),
+						Traits: []commontype.ApplicationTrait{
+							{
+								Type: "labels",
+								Properties: util.Object2RawExtension(map[string]interface{}{
+									"hello": "patch-test",
+								}),
+							},
+						},
+					}},
+				},
+				Placement: v1alpha1.EnvPlacement{
+					NamespaceSelector: &v1alpha1.NamespaceSelector{
+						Name: spokeNs.Name,
+					},
+				},
+			})
+
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
+			By("Create envBinding")
+			Expect(k8sClient.Create(ctx, envBinding)).Should(BeNil())
+
+			testutil.ReconcileOnce(&r, req)
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check the Application created by EnvBinding Controller")
+			app1Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)
+			app1Key := client.ObjectKey{Name: app1Name, Namespace: spokeNs.Name}
+			envBindApp1 := new(v1beta1.Application)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, app1Key, envBindApp1)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			app2Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[1].Name, appTemplate.Name)
+			app2Key := client.ObjectKey{Name: app2Name, Namespace: spokeNs.Name}
+			envBindApp2 := new(v1beta1.Application)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, app2Key, envBindApp2)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			By("Check the ResourceTracker created by EnvBinding Controller")
+			rtName := constructResourceTrackerName(envBinding.Name, envBinding.Namespace)
+			rtKey := client.ObjectKey{Name: rtName}
+			rt := new(v1beta1.ResourceTracker)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, rtKey, rt)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			Expect(len(rt.Status.TrackedResources)).Should(Equal(len(envBinding.Spec.Envs)))
+			Expect(rt.Status.TrackedResources[0].Name).Should(Equal(app1Name))
+			Expect(rt.Status.TrackedResources[1].Name).Should(Equal(app2Name))
+
+			By("Modify the Spec of EnvBinding")
+			Eventually(func() error {
+				newEnvBinding := new(v1alpha1.EnvBinding)
+				err := k8sClient.Get(ctx, req.NamespacedName, newEnvBinding)
+				if err != nil {
+					return err
+				}
+				newEnvBinding.Spec.Envs = envBinding.Spec.Envs[1:]
+				return k8sClient.Update(ctx, newEnvBinding)
+			}, 5*time.Second, 1*time.Second).Should(BeNil())
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check the Application is deleted")
+			Eventually(func() error {
+				return client.IgnoreNotFound(k8sClient.Get(ctx, app1Key, envBindApp1))
+			})
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, rtKey, rt)
+				if err != nil {
+					return err
+				}
+				if len(rt.Status.TrackedResources) != 1 {
+					return errors.New("failed to update resourceTracker")
+				}
+				return nil
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+			Expect(rt.Status.TrackedResources[0].Name).Should(Equal(app2Name))
+
+			By("Delete EnvBinding")
+			Expect(k8sClient.Delete(ctx, envBinding))
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check the ResourceTracker and Application is deleted")
+			Eventually(func() error {
+				return client.IgnoreNotFound(k8sClient.Get(ctx, app2Key, envBindApp2))
+			})
+			Eventually(func() error {
+				return client.IgnoreNotFound(k8sClient.Get(ctx, rtKey, rt))
+			})
+		})
+
+		It("Test EnvBinding apply resource to multi cluster", func() {
+			envBinding := BaseEnvBinding.DeepCopy()
+			appTemplate := AppTemplate.DeepCopy()
+			appTemplate.SetName("test-app-apply2cluster")
+			appTemplate.SetNamespace(namespace)
+
+			envBinding.SetName("test-envbinding-gc-multi-cluster")
+			envBinding.SetNamespace(namespace)
+			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
+				RawExtension: util.Object2RawExtension(appTemplate),
+			}
+			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
+
+			envBinding.Spec.Envs = append(envBinding.Spec.Envs, v1alpha1.EnvConfig{
+				Name: "test",
+				Patch: v1alpha1.EnvPatch{
+					Components: []commontype.ApplicationComponent{{
+						Name: "web",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "nginx:1.20",
+						}),
+						Traits: []commontype.ApplicationTrait{
+							{
+								Type: "labels",
+								Properties: util.Object2RawExtension(map[string]interface{}{
+									"hello": "patch-test",
+								}),
+							},
+						},
+					}},
+				},
+				Placement: v1alpha1.EnvPlacement{
+					ClusterSelector: &commontype.ClusterSelector{
+						Name: spokeNs.Name,
+					},
+				},
+			})
+
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
+			By("Create envBinding")
+			Expect(k8sClient.Create(ctx, envBinding)).Should(BeNil())
+
+			testutil.ReconcileOnce(&r, req)
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check the ManifestWork created by EnvBinding Controller")
+			mw1Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)
+			mw1Key := client.ObjectKey{Name: mw1Name, Namespace: spokeNs.Name}
+			mw1 := new(ocmworkv1.ManifestWork)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, mw1Key, mw1)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			mw2Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[1].Name, appTemplate.Name)
+			mw2Key := client.ObjectKey{Name: mw2Name, Namespace: spokeNs.Name}
+			mw2 := new(ocmworkv1.ManifestWork)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, mw2Key, mw2)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			By("Check the ResourceTracker created by EnvBinding Controller")
+			rtName := constructResourceTrackerName(envBinding.Name, envBinding.Namespace)
+			rtKey := client.ObjectKey{Name: rtName}
+			rt := new(v1beta1.ResourceTracker)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, rtKey, rt)
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+
+			Expect(len(rt.Status.TrackedResources)).Should(Equal(len(envBinding.Spec.Envs)))
+			Expect(rt.Status.TrackedResources[0].Name).Should(Equal(mw1Name))
+			Expect(rt.Status.TrackedResources[1].Name).Should(Equal(mw2Name))
+
+			By("Modify the Spec of EnvBinding")
+			Eventually(func() error {
+				newEnvBinding := new(v1alpha1.EnvBinding)
+				err := k8sClient.Get(ctx, req.NamespacedName, newEnvBinding)
+				if err != nil {
+					return err
+				}
+				newEnvBinding.Spec.Envs = envBinding.Spec.Envs[1:]
+				return k8sClient.Update(ctx, newEnvBinding)
+			}, 5*time.Second, 1*time.Second).Should(BeNil())
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check the ManifestWork is deleted")
+			Eventually(func() error {
+				return client.IgnoreNotFound(k8sClient.Get(ctx, mw1Key, mw1))
+			})
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, rtKey, rt)
+				if err != nil {
+					return err
+				}
+				if len(rt.Status.TrackedResources) != 1 {
+					return errors.New("failed to update resourceTracker")
+				}
+				return nil
+			}, 3*time.Second, 1*time.Second).Should(BeNil())
+			Expect(rt.Status.TrackedResources[0].Name).Should(Equal(mw2Name))
+
+			By("Delete EnvBinding")
+			Expect(k8sClient.Delete(ctx, envBinding))
+			testutil.ReconcileRetry(&r, req)
+
+			By("Check the ResourceTracker and Application is deleted")
+			Eventually(func() error {
+				return client.IgnoreNotFound(k8sClient.Get(ctx, mw2Key, mw2))
+			})
+			Eventually(func() error {
+				return client.IgnoreNotFound(k8sClient.Get(ctx, rtKey, rt))
+			})
 		})
 	})
 })
