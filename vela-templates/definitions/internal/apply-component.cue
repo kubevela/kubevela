@@ -10,7 +10,7 @@ import (
 }
 template: {
 	// apply components and traits
-	apply: op.#ApplyComponent & {
+	output: op.#ApplyComponent & {
 		component: parameter.component
 	}
 
