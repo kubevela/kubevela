@@ -18,6 +18,7 @@
 package utils
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -240,7 +241,16 @@ func TestNewCapabilityComponentDef(t *testing.T) {
 }
 
 func TestGetOpenAPISchemaFromTerraformComponentDefinition(t *testing.T) {
-	configuration := `
+	type want struct {
+		subStr string
+		err    error
+	}
+	cases := map[string]struct {
+		configuration string
+		want          want
+	}{
+		"valid": {
+			configuration: `
 module "rds" {
   source = "terraform-alicloud-modules/rds/alicloud"
   engine = "MySQL"
@@ -300,11 +310,64 @@ variable "listVar" {
 
 variable "mapVar" {
   type = "map"
-}`
+}`,
+			want: want{
+				subStr: "account_name",
+				err:    nil,
+			},
+		},
+		"null type variable": {
+			configuration: `
+variable "name" {
+  default = "abc"
+}`,
+			want: want{
+				subStr: "",
+				err:    errors.New("null type variable is NOT supported, please specify a type for the variable: name"),
+			},
+		},
+		"complicated list variable": {
+			configuration: `
+variable "aaa" {
+  type = list(object({
+    type = string
+    sourceArn = string
+    config = string
+  }))
+  default = []
+}`,
+			want: want{
+				subStr: "aaa",
+				err:    nil,
+			},
+		},
+		"complicated map variable": {
+			configuration: `
+variable "bbb" {
+  type = map({
+    type = string
+    sourceArn = string
+    config = string
+  })
+  default = []
+}`,
+			want: want{
+				subStr: "bbb",
+				err:    nil,
+			},
+		},
+	}
 
-	schema, err := GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
-	assert.NilError(t, err)
-	data := string(schema)
-	assert.Equal(t, strings.Contains(data, "account_name"), true)
-	assert.Equal(t, strings.Contains(data, "intVar"), true)
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			schema, err := GetOpenAPISchemaFromTerraformComponentDefinition(tc.configuration)
+			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\nGetOpenAPISchemaFromTerraformComponentDefinition(...): -want error, +got error:\n%s", name, diff)
+			}
+			if tc.want.err == nil {
+				data := string(schema)
+				assert.Equal(t, strings.Contains(data, tc.want.subStr), true)
+			}
+		})
+	}
 }
