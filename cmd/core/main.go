@@ -17,10 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -69,6 +72,7 @@ func main() {
 	var storageDriver string
 	var syncPeriod time.Duration
 	var applyOnceOnly string
+	var pprofAddr string
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
@@ -102,12 +106,47 @@ func main() {
 	flag.DurationVar(&controllerArgs.DependCheckWait, "depend-check-wait", 30*time.Second, "depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready."+
 		"The default value is 30s, which means if dependent resources were not prepared, the ApplicationConfiguration would be reconciled after 30s.")
 	flag.StringVar(&controllerArgs.OAMSpecVer, "oam-spec-ver", "v0.3", "oam-spec-ver is the oam spec version controller want to setup, available options: v0.2, v0.3, all")
+	flag.StringVar(&pprofAddr, "pprof-addr", "", "The address for pprof to use while exporting profiling results. The default value is empty which means do not expose it. Set it to address like :6666 to expose it.")
 
 	flag.Parse()
 	// setup logging
 	klog.InitFlags(nil)
 	if logDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+
+	if pprofAddr != "" {
+		// Start pprof server if enabled
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		pprofServer := http.Server{
+			Addr:    pprofAddr,
+			Handler: mux,
+		}
+		klog.InfoS("Starting debug HTTP server", "addr", pprofServer.Addr)
+
+		go func() {
+			go func() {
+				ctx := context.Background()
+				<-ctx.Done()
+
+				ctx, cancelFunc := context.WithTimeout(context.Background(), 60*time.Minute)
+				defer cancelFunc()
+
+				if err := pprofServer.Shutdown(ctx); err != nil {
+					klog.Error(err, "Failed to shutdown debug HTTP server")
+				}
+			}()
+
+			if err := pprofServer.ListenAndServe(); !errors.Is(http.ErrServerClosed, err) {
+				klog.Error(err, "Failed to start debug HTTP server")
+				panic(err)
+			}
+		}()
 	}
 
 	if logFilePath != "" {
