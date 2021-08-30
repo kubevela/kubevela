@@ -99,6 +99,15 @@ func NewCommand() *cobra.Command {
 		// Addons
 		NewAddonCommand(commandArgs, ioStream),
 
+		// live-diff
+		NewLiveDiffCommand(commandArgs, ioStream),
+
+		// dry-run
+		NewDryRunCommand(commandArgs, ioStream),
+
+		// cue-packages
+		NewCUEPackageCommand(commandArgs, ioStream),
+
 		// Helper
 		SystemCommandGroup(commandArgs, ioStream),
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),

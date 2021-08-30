@@ -40,6 +40,23 @@ type LiveDiffCmdOptions struct {
 	Context  int
 }
 
+// NewSystemLiveDiffCommand is deprecated
+func NewSystemLiveDiffCommand(_ common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	o := &LiveDiffCmdOptions{
+		DryRunCmdOptions: DryRunCmdOptions{
+			IOStreams: ioStreams,
+		}}
+	cmd := &cobra.Command{
+		Use: "live-diff",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Info("vela system live-diff is deprecated, please use vela live-diff instead")
+			return nil
+		},
+	}
+	cmd.SetOut(ioStreams.Out)
+	return cmd
+}
+
 // NewLiveDiffCommand creates `live-diff` command
 func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &LiveDiffCmdOptions{

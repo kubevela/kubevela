@@ -46,6 +46,20 @@ type DryRunCmdOptions struct {
 	DefinitionFile  string
 }
 
+// NewSystemDryRunCommand is deprecated
+func NewSystemDryRunCommand(_ common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	o := &DryRunCmdOptions{IOStreams: ioStreams}
+	cmd := &cobra.Command{
+		Use: "dry-run",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Info("vela system dry-run is deprecated, please use vela dry-run instead")
+			return nil
+		},
+	}
+	cmd.SetOut(ioStreams.Out)
+	return cmd
+}
+
 // NewDryRunCommand creates `dry-run` command
 func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &DryRunCmdOptions{IOStreams: ioStreams}
