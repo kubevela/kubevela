@@ -25,3 +25,4 @@
 | system-definition-namespace | string |            vela-system            |     define the namespace of the system-level definition      |
 |    concurrent-reconciles    |  int   |                 4                 | concurrent-reconciles is the concurrent reconcile number of the controller. |
 |      depend-check-wait      |  time  |                30s                | depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready. |
+|         pprof-addr          | string |                ""                 | The address for pprof to use while profiling, empty means disable. |
