@@ -21,12 +21,10 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/oam-dev/kubevela/pkg/controller/common"
-
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 func Test_TryMovingToNextBatch(t *testing.T) {

@@ -21,23 +21,18 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/oam-dev/kubevela/pkg/controller/common"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
-	appsv1 "k8s.io/api/apps/v1"
-
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
+
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var _ = Describe("TestHandleReplicasFunc", func() {

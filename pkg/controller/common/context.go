@@ -18,7 +18,6 @@ package common
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -34,7 +33,7 @@ import (
 
 var (
 	// PerfEnabled identify whether to add performance log for controllers
-	PerfEnabled = os.Getenv("PERF") == "1"
+	PerfEnabled = false
 )
 
 var (
@@ -122,8 +121,8 @@ func (ctx *ReconcileContext) EndReconcile() {
 	}
 }
 
-// AddEvent add event checkpoint during reconcile. The recorded event time cost will be recorded when calling EndReconcile
-func (ctx *ReconcileContext) AddEvent(name string) {
+// AddPerfEvent add event checkpoint during reconcile. The recorded event time cost will be recorded when calling EndReconcile
+func (ctx *ReconcileContext) AddPerfEvent(name string) {
 	if PerfEnabled {
 		ctx.events = append(ctx.events, &ReconcileEvent{
 			Name: name,
@@ -132,13 +131,25 @@ func (ctx *ReconcileContext) AddEvent(name string) {
 	}
 }
 
-// BeginTimer add new timestamps
-func (ctx *ReconcileContext) BeginTimer(name string) {
+// BeginPerfTimer add new timestamps, should be used together with EndPerfTimer
+// Example:
+//   for i := 0; i < 8; i++ {
+//     ctx.BeginPerfTimer("x")
+//     time.Sleep(10*time.Second)
+//     ctx.EndPerfTimer("x")
+//     if i < 4 {
+//       ctx.BeginPerfTimer("y")
+//       time.Sleep(5*time.Second)
+//       ctx.EndPerfTimer("y")
+//     }
+//   }
+// Result: Event x cost 8*10 seconds, Event y cost 4*5 seconds.
+func (ctx *ReconcileContext) BeginPerfTimer(name string) {
 	ctx.timestamps[name] = time.Now()
 }
 
-// EndTimer calculate time cost since target name timestamp
-func (ctx *ReconcileContext) EndTimer(name string) {
+// EndPerfTimer calculate time cost since target name timestamp
+func (ctx *ReconcileContext) EndPerfTimer(name string) {
 	if t, ok := ctx.timestamps[name]; ok {
 		if _, _ok := ctx.timers[name]; !_ok {
 			ctx.timers[name] = time.Duration(0)

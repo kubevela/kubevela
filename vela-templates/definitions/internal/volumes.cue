@@ -10,7 +10,6 @@ volumes: {
 }
 template: {
 	patch: {
-		// +patchKey=name
 		spec: template: spec: volumes: [
 			for v in parameter.volumes {
 				{

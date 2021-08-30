@@ -148,7 +148,7 @@ var _ = Describe("CRD without definition can run in an ApplicationConfiguration"
 				reconciler.Reconcile(context.TODO(), req)
 			}
 			return err
-		}, 5*time.Second, time.Second).Should(BeNil())
+		}, 3*time.Second, time.Second).Should(BeNil())
 
 		By("Checking that trait should be created")
 		traitKey := client.ObjectKey{

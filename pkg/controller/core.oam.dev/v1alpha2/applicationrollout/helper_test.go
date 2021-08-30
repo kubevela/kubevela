@@ -19,20 +19,17 @@ package applicationrollout
 import (
 	"testing"
 
-	"k8s.io/klog/v2/klogr"
-
-	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/pointer"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 func TestDisableControllerOwner(t *testing.T) {

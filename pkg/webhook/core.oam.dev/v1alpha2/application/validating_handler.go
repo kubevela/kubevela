@@ -77,25 +77,25 @@ func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) 
 	if err := h.Decoder.Decode(req, app); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	ctx.AddEvent("decode-app")
+	ctx.AddPerfEvent("decode-app")
 	switch req.Operation {
 	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
-		ctx.AddEvent("validate-create")
+		ctx.AddPerfEvent("validate-create")
 	case admissionv1.Update:
 		oldApp := &v1beta1.Application{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-		ctx.AddEvent("decode-old-app")
+		ctx.AddPerfEvent("decode-old-app")
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
 			if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
 				return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 			}
 		}
-		ctx.AddEvent("validate-update")
+		ctx.AddPerfEvent("validate-update")
 	default:
 		// Do nothing for DELETE and CONNECT
 	}

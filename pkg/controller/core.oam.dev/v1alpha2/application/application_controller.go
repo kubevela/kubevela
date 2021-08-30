@@ -21,16 +21,15 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -95,7 +94,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 			oam.AnnotationKubeVelaVersion: version.VelaVersion,
 		})
 	}
-	ctx.AddEvent("get-application")
+	ctx.AddPerfEvent("get-application")
 
 	handler := &AppHandler{
 		r:   r,
@@ -105,7 +104,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	if err != nil {
 		return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
 	}
-	ctx.AddEvent("handle-finalizers")
+	ctx.AddPerfEvent("handle-finalizers")
 	if endReconcile {
 		return ctrl.Result{}, nil
 	}
@@ -121,7 +120,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 	app.Status.SetConditions(condition.ReadyCondition("Parsed"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
-	ctx.AddEvent("render-application")
+	ctx.AddPerfEvent("render-application")
 
 	if err := handler.PrepareCurrentAppRevision(ctx, appFile); err != nil {
 		ctx.Error(err, "Failed to prepare app revision")
@@ -130,7 +129,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	}
 	ctx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
-	ctx.AddEvent("prepare-revision")
+	ctx.AddPerfEvent("prepare-revision")
 
 	var comps []*velatypes.ComponentManifest
 	comps, err = appFile.GenerateComponentManifests()
@@ -139,17 +138,17 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
 	}
-	ctx.AddEvent("generate-component-manifest")
+	ctx.AddPerfEvent("generate-component-manifest")
 
 	handler.handleCheckManageWorkloadTrait(handler.currentAppRev.Spec.TraitDefinitions, comps)
-	ctx.AddEvent("handle-check-manage-workload-trait")
+	ctx.AddPerfEvent("handle-check-manage-workload-trait")
 
 	if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
 		ctx.Error(err, "Failed to handle components revisions")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
 	}
-	ctx.AddEvent("handle-component-revision")
+	ctx.AddPerfEvent("handle-component-revision")
 
 	if err := handler.FinalizeAndApplyAppRevision(ctx, comps); err != nil {
 		ctx.Error(err, "Failed to apply app revision")
@@ -159,7 +158,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 	ctx.Info("Successfully apply application revision")
-	ctx.AddEvent("finalize-and-apply-app-revision")
+	ctx.AddPerfEvent("finalize-and-apply-app-revision")
 
 	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, r.dm, r.Client, r.pd, handler.Dispatch)
 	if err != nil {
@@ -170,14 +169,14 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	app.Status.SetConditions(condition.ReadyCondition("Render"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 	ctx.Info("Successfully render application resources")
-	ctx.AddEvent("generate-workflow-and-policy")
+	ctx.AddPerfEvent("generate-workflow-and-policy")
 
 	if err := handler.ApplyAppManifests(ctx, comps, policies); err != nil {
 		ctx.Error(err, "Failed to apply application manifests")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Applied", err))
 	}
-	ctx.AddEvent("apply-app-manifest")
+	ctx.AddPerfEvent("apply-app-manifest")
 
 	if err := handler.UpdateAppLatestRevisionStatus(ctx); err != nil {
 		ctx.Error(err, "Failed to update application status")
@@ -186,7 +185,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	app.Status.SetConditions(condition.ReadyCondition("Applied"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
 	ctx.Info("Successfully apply application manifests")
-	ctx.AddEvent("update-app-latest-revision-status")
+	ctx.AddPerfEvent("update-app-latest-revision-status")
 
 	done, pause, err := workflow.NewWorkflow(app, r.Client).ExecuteSteps(ctx, handler.currentAppRev.Name, wfSteps)
 	if err != nil {
@@ -194,7 +193,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err))
 	}
-	ctx.AddEvent("execute-workflow-steps")
+	ctx.AddPerfEvent("execute-workflow-steps")
 
 	if pause {
 		if err := r.patchStatus(ctx, app); err != nil {
@@ -229,7 +228,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 			return r.endWithNegativeCondition(ctx, app, condition.ReadyCondition("GCAfterWorkflow"))
 		}
 	}
-	ctx.AddEvent("dispatch-garbage-collect")
+	ctx.AddPerfEvent("dispatch-garbage-collect")
 
 	// if in-place is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if handler.app.Spec.RolloutPlan != nil {
@@ -253,7 +252,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
 		app.Status.SetConditions(condition.ReadyCondition("Rollout"))
 		ctx.Info("Finished rollout")
-		ctx.AddEvent("handle-rollout")
+		ctx.AddPerfEvent("handle-rollout")
 	}
 
 	app.Status.Phase = common.ApplicationHealthChecking
@@ -275,7 +274,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	app.Status.SetConditions(condition.ReadyCondition("HealthCheck"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	app.Status.Phase = common.ApplicationRunning
-	ctx.AddEvent("health-check")
+	ctx.AddPerfEvent("health-check")
 
 	if err := garbageCollection(ctx, handler); err != nil {
 		ctx.Error(err, "Failed to run garbage collection")
@@ -283,13 +282,13 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 		return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
 	}
 	ctx.Info("Successfully garbage collect")
-	ctx.AddEvent("garbage-collect")
+	ctx.AddPerfEvent("garbage-collect")
 
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	if err := r.patchStatus(ctx, app); err != nil {
 		return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
 	}
-	ctx.AddEvent("patch-status")
+	ctx.AddPerfEvent("patch-status")
 	return ctrl.Result{}, nil
 }
 
