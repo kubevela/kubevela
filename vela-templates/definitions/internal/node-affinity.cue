@@ -2,9 +2,9 @@
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "affinity specify node affinity and toleration"
+	description: "affinity specify node affinity and toleration on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
-		appliesToWorkloads: ["deployments.apps"]
+		appliesToWorkloads: ["*"]
 		podDisruptive: true
 	}
 }

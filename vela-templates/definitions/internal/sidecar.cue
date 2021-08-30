@@ -2,10 +2,10 @@ sidecar: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Inject a sidecar container to the component."
+	description: "Inject a sidecar container to K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true
-		appliesToWorkloads: ["deployments.apps"]
+		appliesToWorkloads: ["*"]
 	}
 }
 template: {

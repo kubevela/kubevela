@@ -2,10 +2,10 @@ lifecycle: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Add lifecycle hooks to workloads."
+	description: "Add lifecycle hooks for the first container of K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true
-		appliesToWorkloads: ["deployments.apps"]
+		appliesToWorkloads: ["*"]
 	}
 }
 template: {
