@@ -10,4 +10,4 @@ jobs:
           fetch-depth: 0
       - uses: wagoid/commitlint-github-action@v4
         with:
-          helpURL: https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md#commit-conventions
+          helpURL: https://github.com/oam-dev/kubevela/blob/master/contribute/create-pull-request.md#commit-message-format
