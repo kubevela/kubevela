@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	common2 "github.com/oam-dev/kubevela/references/common"
@@ -128,9 +129,9 @@ func buildTemplateFromYAML(templateYAML string, def *common2.Definition) error {
 	}
 	yamlStrings := regexp.MustCompile(`\n---[^\n]*\n`).Split(string(templateYAMLBytes), -1)
 	templateObject := map[string]interface{}{
-		"output":     map[string]interface{}{},
-		"outputs":    map[string]interface{}{},
-		"parameters": map[string]interface{}{},
+		model.OutputFieldName:    map[string]interface{}{},
+		model.OutputsFieldName:   map[string]interface{}{},
+		model.ParameterFieldName: map[string]interface{}{},
 	}
 	for index, yamlString := range yamlStrings {
 		var yamlObject map[string]interface{}
@@ -138,13 +139,13 @@ func buildTemplateFromYAML(templateYAML string, def *common2.Definition) error {
 			return errors.Wrapf(err, "failed to unmarshal template yaml file")
 		}
 		if index == 0 {
-			templateObject["output"] = yamlObject
+			templateObject[model.OutputFieldName] = yamlObject
 		} else {
 			name, _, _ := unstructured.NestedString(yamlObject, "metadata", "name")
 			if name == "" {
 				name = fmt.Sprintf("output-%d", index)
 			}
-			templateObject["outputs"].(map[string]interface{})[name] = yamlObject
+			templateObject[model.OutputsFieldName].(map[string]interface{})[name] = yamlObject
 		}
 	}
 	codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
@@ -521,7 +522,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				if helmChartFormatEnv == "true" {
 					def.SetNamespace(HelmChartNamespacePlaceholder)
 				} else if helmChartFormatEnv == "system" {
-					def.SetNamespace("vela-system")
+					def.SetNamespace(types.DefaultKubeVelaNS)
 				}
 				if len(def.GetLabels()) == 0 {
 					def.SetLabels(nil)

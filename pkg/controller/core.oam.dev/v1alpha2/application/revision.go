@@ -23,7 +23,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -747,8 +747,8 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 
 func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName string) error {
 	str := string(util.JSONMarshal(u))
-	if strings.Contains(str, process.ComponentRevisionPlaceHolder) {
-		newStr := strings.ReplaceAll(str, process.ComponentRevisionPlaceHolder, compRevName)
+	if strings.Contains(str, model.ComponentRevisionPlaceHolder) {
+		newStr := strings.ReplaceAll(str, model.ComponentRevisionPlaceHolder, compRevName)
 		if err := json.Unmarshal([]byte(newStr), u); err != nil {
 			return err
 		}

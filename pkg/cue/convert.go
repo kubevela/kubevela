@@ -24,10 +24,8 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 )
-
-// ParameterTag is the keyword in CUE template to define users' input
-var ParameterTag = "parameter"
 
 // GetParameters get parameter from cue template
 func GetParameters(templateStr string) ([]types.Parameter, error) {
@@ -45,7 +43,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == ParameterTag {
+		if paraDef.Name == model.ParameterFieldName {
 			found = true
 			break
 		}

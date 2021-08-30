@@ -22,12 +22,13 @@ import (
 	"fmt"
 	"testing"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
 	v1 "k8s.io/api/core/v1"
@@ -42,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -589,7 +591,7 @@ variable "password" {
 				"writeConnectionSecretToRef": map[string]interface{}{
 					"name": "db",
 				},
-				process.OutputSecretName: "db-conn",
+				model.OutputSecretName: "db-conn",
 			},
 		}
 

@@ -35,6 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -722,7 +723,7 @@ func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, ca
 	if err != nil {
 		return nil, nil, err
 	}
-	parameters := swagger.Components.Schemas["parameter"].Value
+	parameters := swagger.Components.Schemas[model.ParameterFieldName].Value
 	WalkParameterSchema(parameters, "Properties", 0)
 
 	var consoleRefs []ConsoleReference

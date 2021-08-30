@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 
@@ -121,7 +123,7 @@ func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namesp
 // IsSecretProducer checks whether a workload is cloud resource producer role
 func (wl *Workload) IsSecretProducer() bool {
 	var existed bool
-	_, existed = wl.Params[process.OutputSecretName]
+	_, existed = wl.Params[model.OutputSecretName]
 	return existed
 }
 
@@ -257,7 +259,7 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {
 	pCtx := process.NewPolicyContext(ns, wl.Name, appName, revision, components)
-	pCtx.PushData(process.ContextDataArtifacts, prepareArtifactsData(artifacts))
+	pCtx.PushData(model.ContextDataArtifacts, prepareArtifactsData(artifacts))
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", appName, ns)
 	}
