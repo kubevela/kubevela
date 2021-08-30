@@ -9,7 +9,7 @@
 			customStatus: #"""
 				let igs = context.outputs.ingress.status.loadBalancer.ingress
 				if igs == _|_ {
-				  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
+				  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + "'\n"
 				}
 				if len(igs) > 0 {
 				  if igs[0].ip != _|_ {
