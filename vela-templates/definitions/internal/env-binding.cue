@@ -9,7 +9,7 @@ template: {
 		apiVersion: "core.oam.dev/v1alpha1"
 		kind:       "EnvBinding"
 		spec: {
-			engine: parameter.engine
+			engine: parameter.clusterManagementEngine
 			appTemplate: {
 				apiVersion: "core.oam.dev/v1beta1"
 				kind:       "Application"
@@ -22,11 +22,9 @@ template: {
 				}
 			}
 			envs: parameter.envs
-			if !parameter.created {
-				outputResourcesTo: {
-					name:      context.name
-					namespace: context.namespace
-				}
+			outputResourcesTo: {
+				name:      context.name
+				namespace: context.namespace
 			}
 		}
 	}
@@ -53,8 +51,7 @@ template: {
 		}
 	}
 	parameter: {
-		engine: *"ocm" | string
+		clusterManagementEngine: *"ocm" | string
 		envs: [...#Env]
-		created: *true | bool
 	}
 }
