@@ -55,6 +55,12 @@ const (
 	TerraformVariableTuple  string = "tuple"
 	TerraformVariableMap    string = "map"
 	TerraformVariableObject string = "object"
+	TerraformVariableNull   string = ""
+
+	TerraformListTypePrefix   string = "list("
+	TerraformTupleTypePrefix  string = "tuple("
+	TerraformMapTypePrefix    string = "map("
+	TerraformObjectTypePrefix string = "object("
 )
 
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
@@ -142,6 +148,18 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 			schema = openapi3.NewArraySchema()
 		case TerraformVariableMap, TerraformVariableObject:
 			schema = openapi3.NewObjectSchema()
+		case TerraformVariableNull:
+			return nil, fmt.Errorf("null type variable is NOT supported, please specify a type for the variable: %s", v.Name)
+		}
+
+		// To identify unusual list type
+		if schema == nil {
+			switch {
+			case strings.HasPrefix(v.Type, TerraformListTypePrefix) || strings.HasPrefix(v.Type, TerraformTupleTypePrefix):
+				schema = openapi3.NewArraySchema()
+			case strings.HasPrefix(v.Type, TerraformMapTypePrefix) || strings.HasPrefix(v.Type, TerraformObjectTypePrefix):
+				schema = openapi3.NewObjectSchema()
+			}
 		}
 		schema.Title = k
 		required = append(required, k)
