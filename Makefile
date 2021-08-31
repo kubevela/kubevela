@@ -65,25 +65,7 @@ doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
 
-PWD := $(shell pwd)
-docs-build:
-	docker run -it -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
-	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
-	 oamdev/vela-webtool:v1 -t build
-
-docs-start:
-	docker run -it -p 3000:3000 -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
-	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
-	 oamdev/vela-webtool:v1 -t start
-
-api-gen:
-	swag init -g references/apiserver/route.go --output references/apiserver/docs
-	swagger-codegen generate -l html2 -i references/apiserver/docs/swagger.yaml -o references/apiserver/docs
-	mv references/apiserver/docs/index.html docs/en/developers/references/restful-api/
-
-generate-source:
-	go run hack/frontend/source.go
-
+PWD := $(shell pwd)	
 cross-build:
 	rm -rf _bin
 	go get github.com/mitchellh/gox@v0.4.0
@@ -329,13 +311,6 @@ KUSTOMIZE=$(GOBIN)/kustomize
 else
 KUSTOMIZE=$(shell which kustomize)
 endif
-
-start-dashboard:
-	go run references/cmd/apiserver/main.go &
-	cd references/dashboard && npm install && npm start && cd ..
-
-swagger-gen:
-	$(GOBIN)/swag init -g apiserver/route.go -d pkg/ -o references/apiserver/docs/
 
 check-license-header:
 	./hack/licence/header-check.sh
