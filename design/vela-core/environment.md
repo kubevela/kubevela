@@ -1,294 +1,260 @@
-# Initializing Environments For Application Deployment
+# Making Environments For Application Deployment
 
 ## Background
 
-A team of application development usually needs to initialize some shared environments for developers to deploy applications to.
+An application development team usually needs to initialize some shared environments for developers to deploy applications to.
 For example, a team would initialize two environments, a *dev* environment for testing applications,
 and a *prod* environment for running applications to serve live traffic.
-The environment is a logical concept grouping common resources that multiple application deployments would depend on.
 
-A list of resources we want to initialize per environment:
+The environment is a logical concept grouping common resources that many applications would depend on. Below are a list of cases:
 
-- K8s Clusters. Different environments might have clusters of different size and version, e.g.
-  small v1.10 k8s cluster for *dev* environment and large v1.9 k8s cluster for *prod* environment.
-- Admin policies. Production environment would usually set global policies on all application deployments,
+- Kubernetes clusters. These include not only existing clusters but also new clusters to create during environment setup.
+- Admin policies. Production environment would usually set global policies for all application deployments,
   like chaos testing, SLO requirements, security scanning, misconfiguration detection.
-- Operators & CRDs. Environments contains a variety of Operators & CRDs as system capabilities.
-  These operators can include domain registration, routing, logging, monitoring, autoscaling, etc.
+- System components. That includes installing system level Operators & CRDS like FluxCD, KEDA, OpenKruise,
+  shared Namespaces, Observability (Prometheus, Grafana, Loki), Terraform Controller, KubeFlow Controller, etc.
 - Shared services. Environments contains a variety of system services that are be shared by applications.
   These resources can include DB, cache, load balancers, API Gateways, etc.
 
-With the introduction of environment, the user workflow on Vela works like:
-
-- Platform team defines system Components for Environments.
-- Platform team initializes Environments using system Components.
-- Platform team defines user Components for Applications.
-- Developers choose user Components and Environments to deploy Applications.
-
-When initializing environments, there are additional requirements:
-
-- The ability to describe dependency relations between environments. For example, both *dev* and *prod* environments
-  would depend on a common environment that sets up operators both *dev* and *prod* would use.
-
-In the following we propose solutions to implement environment concept for application delivery.
-
-## Initializer CRD
-
-We propose to add an Initializer CRD:
-
-```yaml
-kind: Initializer
-metadata:
-  name: prod-env
-spec:
-  # appTemplate indicates the application template to render and deploy an system application.
-  appTemplate:
-    # We can use Application to deploy the resources that an environment needs.
-    # An environment setup can be done just like deploying applications in system level.
-    metadata:
-      ...
-    spec:
-      # system components
-      components:
-        ...
-      # system policies
-      policies:
-        ...
-
-  # dependsOn indicates the other initializers that this depends on.
-  # It will not apply its components until all dependencies exist.
-  dependsOn:
-    - ref:
-        apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: common-operators
-```
-
-By providing this initializer CRD, users can initialize environments by deploying system components --
-the abstractions is flexible enough to do work like provisioning cloud resources, handling db migration,
-installing system operators, etc.
-Additionally, initializer dependency enables separating common setup tasks like setting up namespaces,
-RBAC rules, accounts into reusable modules.
+In this doc, we will provide solutions and case studies on how to use KubeVela to make environments, initialize shared resources,
+and compose application rollout across multiple environments.
 
 
-## Initializer-Related Operators
+## Using KubeVela to initialize Environment
 
-The Initializer CRD groups initialization resources together.
-To satisfy each resource and its use case, we also need to implement the supporting operators and definitions.
-In the following, we will walk through each use case and discuss the design of solution.
+An environment is just a logical concept that groups a bundle of resources for multiple applications to share.
+To make an environment, we first need to initialize the shared resources.
 
+When initializing an environment, there is one additional requirement:
 
-### Case 1: K8s Cluster
+- The ability to describe dependencies between environment modules. For example, both *dev* and *prod* environments
+  would depend on a common module that installs operators both *dev* and *prod* would use.
 
-In this case, an initializer contains some clusters, and developers specify an initializer name to deploy apps.
-
-Platform team would define placement rules as a Policy and deploy the environment as an Initializer:
+To setup shared resources and define dependencies, we propose to use Application with two Workflow Steps
+to achieve the requirements. An example looks like below:
 
 ```yaml
-kind: Initializer
-metadata:
-  name: prod-env
-spec:
-  appTemplate:
-    spec:
-      policies:
-        - name: prod-env-placement
-          type: placement
-          properties:
-            # clusters of specified names or matched labels will be selected
-            clusterSelector:
-              names: ["prod-1"， "prod-2"]
-              labels:
-                tier: prod
-```
-
-Developers would define how to deploy to clusters based on environments via Workflow:
-
-```yaml
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: my-app
+  name: setup-dev-env
 spec:
+  # Using Application to deploy resources that makes up an environment
+
+  components:
+  - name: <env-component-name>
+    type: <env-component-type>
+    properties:
+      <env-component-props>
+
+  policies:
+  - name: <env-policy-name>
+    type: <env-policy-type>
+    properties:
+      <env-policy-props>
+
   workflow:
-    - name: deploy2clusters
-      type: deploy2clusters
-      properties:
-        # target indicates the name of the initializer
-        # which contains the selected clusters information.
-        target: prod-env
-
-        # propagation indicates how to propagate the app to the clusters.
-        #   all: all clusters will get one instance of the app
-        #   twin: pick two clusters to deploy two instances of the app
-        #   single: pick one cluster to deploy only one instance of the app
-        propagation: all
+  - name: wait-dependencies
+    # depends-on-app step will wait until the dependent app's status turns to Running phase
+    type: depends-on-app
+    properties:
+      name: <application name>
+      namespace: <application namespace>
+      
+  - name: apply-self
+    # apply-application will apply all components of this Application per se
+    type: apply-application
 ```
 
-Under the hood, the `placement` Policy would be translated to Placement objects that contains cluster information.
-The `deploy2clusters` Workflow Steps would trigger `deploy2clusters` Operator to read Placement objects via `target` name
-and handles progapation of the app's resources to selected clusters.
 
+## Using KubeVela to compose multi-env application rollout
 
-### Case 2: Admin Policy
+Once we have initialized an environment, we can then deploy applications across environments.
+For example, we can deploy an application to dev env first, then verify the app is working, and promote to prod env at the end.
 
-In this case, an initializer contains some admin policies, and developers specify an initializer to deploy apps.
+We can use the following Definition to achieve that:
 
-Platform team would define an admin policy as a Policy, and deploy such an environment as an Initializer:
+- env-binding Policy: This defines the config patch and placement strategy per env.
+- multi-env WorkflowStep: This picks which policy and env to deploy the app to.
+- suspend WorkflowStep: This will pause the workflow for some manual validation.
 
-```yaml
-kind: Initializer
-metadata:
-  name: prod-env
-spec:
-  appTemplate:
-    spec:
-      policies:
-        - name: prod-env-slo-policy
-          type: slo-policy
-          properties:
-            properties:
-              # slo indicates the service in this env must be 99.99% up
-              slo: "99.99"
-        - name: prod-env-chaos-policy
-          type: chaos-policy
-          properties:
-            properties:
-              io:
-                action: fault
-                volumePath: /var/run/etcd
-                path: /var/run/etcd/**/*
-                percent: 50
-                duration: "400s"
-```
-
-Developers would specify a target to deploy via Workflow, which automatically does policy checks in the background:
+Below is an example:
 
 ```yaml
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: my-app
+  name: multi-env-demo
 spec:
-  workflow:
-    - name: check-policy
-      type: check-policy
+  components:
+    - name: myimage-server
+      type: webservice
       properties:
-        # This app will be checked against the policies in the given target
-        target: prod-env
-        # If policy checks failed, send alerts to specified channels
-        notifications:
-          slack: slack_url
-          dingding: dingding_url
+        image: myimage:v1.1
+        port: 80
+
+  policies:
+    - name: my-binding-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: test
+
+            patch: # overlay patch on above components
+              components:
+                - name: myimage-server
+                  type: webservice
+                  properties:
+                    image: myimage:v1.2
+                    port: 80
+
+            placement: # selecting the cluster to deploy to
+              clusterSelector:
+                labels:
+                  purpose: test
+
+          - name: prod
+            placement:
+              clusterSelector:
+                labels:
+                  purpose: prod
+
+  workflow:
+    steps:
+      - name: deploy-test-env
+        type: multi-env
+        properties:
+          policy: my-binding-policy
+          env: test
+
+      - name: manual-approval 
+        type: suspend
+
+      - name: deploy-prod-env
+        type: multi-env
+        properties:
+          policy: my-binding-policy
+          env: prod
 ```
 
-Under the hood, the `slo-policy` and `chaos-policy` Policies would be translated to data objects (e.g. ConfigMap
-or dedicated Policy objects) that contains policy data.
-The `check-policy` Workflow Steps would trigger `check-policy` Operator to register the apps
-to handlers of the target's policy checks, and handle notifications.
+Here're more details for above example:
 
-
-### case 3: Operator & CRD
-
-In this case, an initializer defines the system Operators ands CRDs to be installed on a cluster.
-Deploying such an initializer will setup these services and definitions on the host cluster.
-
-Platform team would define these Operators and CRDs as Components, and deploy such an environment as an Initializer:
-
-```yaml
-kind: Initializer
-metadata:
-  name: prod-env
-spec:
-  appTemplate:
-    spec:
-      components:
-        - name: prod-monitoring-operator
-          # Reuse the built-in Helm/Kustomize ComponentDefinition to deploy Operators from Git repo.
-          type: helm-git
-          properties:
-            chart:
-              repository: operator-git-repo-url
-              name: monitoring-operator
-              version: 3.2.0
-        - name: prod-logging-operator
-          type: kustomize-git
-          properties:
-            sourceRef:
-              kind: GitRepository
-              name: logging-operator
-            path: ./apps/prod
-```
-
-Under the hood, Vela will support built-in ComponentDefinitions to deploy Helm charts or Kustomize folders
-via git url. We can use this functionality to deploy system operators.
-
-
-### case 4: Shared Service
-
-In this case, an Initializer defines shared services to be installed on the cluster.
-Deploying such an initializer will setup these services on the host cluster.
-
-Platform team would define the shared services as Components, and deploy such an environment as an Initializer:
-
-```yaml
-kind: Initializer
-metadata:
-  name: prod-env
-spec:
-  appTemplate:
-    spec:
-      components:
-        - name: prod-policy-env
-          # Reuse the built-in Helm ComponentDefinition to deploy Crossplane resource.
-          type: helm-git
-          properties:
-            chart:
-              repository: crossplane-mysql-url
-              name: mysql
-              version: 3.2.0
-        - name: prod-policy-env
-          # Reuse the built-in Terraform ComponentDefinition to deploy cloud resource.
-          type: terraform-git
-          properties:
-            module:
-              source: "git::https://github.com/catalog/kafka.git"
-            outputs:
-              - key: queue_urls
-                moduleOutputName: queue_urls
-              - key: json_string
-                moduleOutputName: json_string
-            variables:
-              - key: ACCESS_KEY_ID
-                sensitive: true
-                environmentVariable: true
-              - key: SECRET_ACCESS_KEY
-                sensitive: true
-                environmentVariable: true
-              - key: CONFIRM_DESTROY
-                value: "1"
-                sensitive: false
-                environmentVariable: true
-```
+- It sets up an `env-binding` policy which defines two envs for users to use.
+  In each env, it defines the config patch and placement strategy specific to this env.
+- When the application runs, it triggers the following workflow:
+  - First it picks the policy, and picks the `test` env which is also defined inside the policy.
+  - Then the `multi-env` step will loads the policy data, picks the `test` env specific config section.
+    This step will render the final Application with patch data,
+    and picks the cluster to deploy to based on given placement strategy,
+    and finally deploys the Application to the cluster.
+  - Then it runs `suspend` step, which acts as an approval gate until user validation 
+  - Finally, it runs `multi-env` step again. Only this time it picks the `prod` env.
+    This step will render the final Application with patch data,
+    and picks the cluster to deploy to based on given placement strategy,
+    and finally deploys the Application to the cluster.
 
 
 ## Implementation Plan
 
 We will discuss the details of implementation plan in this section.
 
-### Environment Controller
-
-- Add a new Initializer CRD and controller skeleton in KubeVela. Add reconcile logic:
-  - If finalizer doesn't exist, add finalizer to the object.
-  - If obj DeletionTimestamp is non-zero (i.e. being deleted):
-    - Wait until the Application resource are deleted entirely.
-      The resource tracker finalizer will ensure all children resources are deleted entirely first.
-    - Then remove finalizer.
-  - Check initializer dependency:
-    - If any of them does not exist, try reconcile later.
-  - Handle each resource:
-    - Render the `appTemplate` into an Application object.
-    - Put Initializer name into the label `app.oam.dev/initializer-name` of Application object.
-    - Put Initializer CR as an ownerRef into the Application object.
-    - Apply the Application object.
-
-
 ## Considerations
+
+
+## Appendix
+
+### Creating Kubernetes cluster
+
+In this section, we will show how to create a Kubernetes cluster on Alibaba Cloud using Terraform.
+
+We will first setup Terraform Alibab provider:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: terraform-alibaba
+  namespace: vela-system
+spec:
+  components:
+    - name: default
+      type: raw
+      properties:
+        apiVersion: terraform.core.oam.dev/v1beta1
+        kind: Provider
+        metadata:
+          namespace: default
+        spec:
+          provider: alibaba
+          region: cn-hongkong
+          credentials:
+            source: Secret
+            secretRef:
+              namespace: vela-system
+              name: alibaba-account-creds
+              key: credentials
+  workflow:
+  - name: wait-dependencies
+    type: depends-on-app
+    properties:
+      name: terraform
+      namespace: vela-system
+      
+  - name: apply-self
+    type: apply-application
+```
+
+Then we will create a Kubernetes cluster:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: managed-cluster
+  namespace: vela-system
+spec:
+  components:
+    - name: ack-worker
+      type: alibaba-ack
+      properties:
+        writeConnectionSecretToRef:
+          name: ack-conn
+          namespace: vela-system
+  workflow:
+    steps:
+      - name: wait-dependencies
+        type: depends-on-app
+        properties:
+          name: terraform-alibaba
+          namespace: vela-system
+
+      - name: wait-dependencies
+        type: depends-on-app
+        properties:
+          name: ocm-cluster-manager
+          namespace: vela-system
+          
+      - name: terraform-ack
+        type: create-ack
+        properties:
+          component: ack-worker
+        outputs:
+          - name: connInfo
+            exportKey: connInfo
+
+      - name: register-ack
+        type: register-cluster
+        inputs:
+          - from: connInfo
+            parameterKey: connInfo
+        properties:
+          # user should set public network address of APIServer
+          hubAPIServer: {{ public network address of APIServer }}
+          env: prod
+          initNameSpace: default
+          patchLabels:
+            purpose: test
+```
+
+It will wait for dependent system components to be installed first, and then create the cluster,
+and finally register the cluster in K8s API.
