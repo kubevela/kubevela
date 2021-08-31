@@ -48,7 +48,7 @@ myIP: value: "1.1.1.1"
 			return v.FillObject(ip)
 		},
 		"input": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
-			val, err := v.LookupValue("prefixIP")
+			val, err := v.LookupValue("set","prefixIP")
 			assert.NilError(t, err)
 			str, err := val.CueValue().String()
 			assert.NilError(t, err)
@@ -87,7 +87,7 @@ myIP: value: "1.1.1.1"
 			Type: "input",
 			Inputs: v1beta1.StepInputs{{
 				From:         "podIP",
-				ParameterKey: "prefixIP",
+				ParameterKey: "set.prefixIP",
 			}},
 		},
 		{
