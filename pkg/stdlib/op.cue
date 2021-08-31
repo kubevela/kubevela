@@ -15,6 +15,23 @@ import (
 
 #Apply: kube.#Apply
 
+#ApplyApplication: #Steps & {
+	load: ws.#Load @step(1)
+	components: #Steps & {
+		for name, c in load.value {
+			"\(name)": #Steps & {
+				workload: kube.#Apply & {value: c.workload}
+				if c.auxiliaries != _|_ {
+					_key:  "trait.oam.dev/resource"
+					for index, o in c.auxiliaries {
+						"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
+					}
+				}
+			}
+		}
+	} @step(2)
+}
+
 #ApplyComponent: #Steps & {
 
 	 component:      string
