@@ -59,7 +59,7 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
 	return &suspendTaskRunner{
 		name: step.Name,
-	},nil
+	}, nil
 }
 
 // NewTaskDiscover will create a client for load task generator.
@@ -85,7 +85,7 @@ func (tr *suspendTaskRunner) Name() string {
 }
 
 // Run make workflow suspend.
-func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
+func (tr *suspendTaskRunner) Run(ctx wfContext.Context) (common.WorkflowStepStatus, *types.Operation, error) {
 	return common.WorkflowStepStatus{
 		Name:  tr.name,
 		Type:  "suspend",

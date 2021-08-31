@@ -282,7 +282,7 @@ var _ = Describe("Test Workflow", func() {
 				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
 			},
 			{
-				Name:       "suspend",
+				Name:       "suspend-1",
 				Type:       "suspend",
 				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
 			}}

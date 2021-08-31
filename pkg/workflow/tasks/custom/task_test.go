@@ -117,7 +117,7 @@ myIP: value: "1.1.1.1"
 		assert.NilError(t, err)
 		run, err := gen(step)
 		assert.NilError(t, err)
-		status, action, err := run.Run(wfCtx, &types.TaskRunOptions{})
+		status, action, err := run.Run(wfCtx)
 		assert.NilError(t, err)
 		if step.Name == "wait" {
 			assert.Equal(t, status.Phase, common.WorkflowStepPhaseRunning)
@@ -225,7 +225,7 @@ close({
 		assert.NilError(t, err)
 		run, err := gen(step)
 		assert.NilError(t, err)
-		status, _, err := run.Run(wfCtx, &types.TaskRunOptions{})
+		status, _, err := run.Run(wfCtx)
 		switch step.Name {
 		case "input":
 			assert.Equal(t, err != nil, true)
@@ -368,6 +368,37 @@ apply: {
 		assert.Equal(t, echo, tc.expected)
 	}
 
+}
+
+func TestPendingCheck(t *testing.T) {
+	wfCtx := newWorkflowContextForTest(t)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
+		},
+	})
+	step := v1beta1.WorkflowStep{
+		Name: "pending",
+		Type: "ok",
+		Inputs: v1beta1.StepInputs{{
+			From:         "score",
+			ParameterKey: "score",
+		}},
+	}
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
+	assert.NilError(t, err)
+	run, err := gen(step)
+	assert.NilError(t, err)
+	assert.Equal(t, run.Pending(wfCtx), true)
+	score, err := value.NewValue(`
+100
+`, nil)
+	assert.NilError(t, err)
+	err = wfCtx.SetVar(score, "score")
+	assert.NilError(t, err)
+	assert.Equal(t, run.Pending(wfCtx), false)
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {

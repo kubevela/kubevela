@@ -29,7 +29,7 @@ import (
 type TaskRunner interface {
 	Name() string
 	Pending(ctx wfContext.Context) bool
-	Run(ctx wfContext.Context, options *TaskRunOptions) (common.WorkflowStepStatus, *Operation, error)
+	Run(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
 }
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
@@ -49,7 +49,7 @@ type TaskRunOptions struct {
 type TaskPreStartHook func(ctx wfContext.Context, paramValue *value.Value, step v1beta1.WorkflowStep) error
 
 // TaskPostStopHook  run after task execution.
-type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep,phase common.WorkflowStepPhase) error
+type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error
 
 // Operation is workflow operation object.
 type Operation struct {

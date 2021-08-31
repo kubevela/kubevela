@@ -278,6 +278,72 @@ var _ = Describe("Test Workflow", func() {
 		Expect(done).Should(BeTrue())
 		Expect(pause).Should(BeFalse())
 	})
+
+	It("test for DAG", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "pending",
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		pending = true
+		wf := NewDAGWorkflow(app, k8sClient)
+		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pause).Should(BeFalse())
+		Expect(done).Should(BeFalse())
+		app.Status.Workflow.ContextBackend = nil
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   2,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s3",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}},
+		})).Should(BeEquivalentTo(""))
+
+		done, pause, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pause).Should(BeFalse())
+		Expect(done).Should(BeFalse())
+
+		pending = false
+		done, pause, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pause).Should(BeFalse())
+		Expect(done).Should(BeTrue())
+		app.Status.Workflow.ContextBackend = nil
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: revision,
+			StepIndex:   3,
+			Steps: []common.WorkflowStepStatus{{
+				Name:  "s1",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s3",
+				Type:  "success",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}, {
+				Name:  "s2",
+				Type:  "pending",
+				Phase: common.WorkflowStepPhaseSucceeded,
+			}},
+		})).Should(BeEquivalentTo(""))
+	})
 })
 
 func makeTestCase(steps []oamcore.WorkflowStep) (*oamcore.Application, []wfTypes.TaskRunner) {
@@ -301,10 +367,10 @@ func makeTestCase(steps []oamcore.WorkflowStep) (*oamcore.Application, []wfTypes
 var pending bool
 
 func makeRunner(name string, tpy string) wfTypes.TaskRunner {
-	var run func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error)
+	var run func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error)
 	switch tpy {
 	case "suspend":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		run = func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 			return common.WorkflowStepStatus{
 					Name:  name,
 					Type:  "suspend",
@@ -314,7 +380,7 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 				}, nil
 		}
 	case "terminate":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		run = func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 			return common.WorkflowStepStatus{
 					Name:  name,
 					Type:  "terminate",
@@ -323,16 +389,9 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 					Terminated: true,
 				}, nil
 		}
-	case "success":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
-				Name:  name,
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
-			}, &wfTypes.Operation{}, nil
-		}
+
 	case "failed":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		run = func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 			return common.WorkflowStepStatus{
 				Name:  name,
 				Type:  "failed",
@@ -340,16 +399,15 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 			}, &wfTypes.Operation{}, nil
 		}
 	case "error":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		run = func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 			return common.WorkflowStepStatus{
 				Name:  name,
 				Type:  "error",
 				Phase: common.WorkflowStepPhaseRunning,
 			}, &wfTypes.Operation{}, errors.New("error for test")
 		}
-
 	default:
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		run = func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 			return common.WorkflowStepStatus{
 				Name:  name,
 				Type:  tpy,
@@ -371,7 +429,6 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 			return false
 		},
 	}
-	return nil
 }
 
 var (
@@ -388,7 +445,7 @@ metadata:
 
 type testTaskRunner struct {
 	name         string
-	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error)
+	run          func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error)
 	checkPending func(ctx wfContext.Context) bool
 }
 
@@ -398,8 +455,8 @@ func (tr *testTaskRunner) Name() string {
 }
 
 // Run execute task.
-func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-	return tr.run(ctx, nil)
+func (tr *testTaskRunner) Run(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+	return tr.run(ctx)
 }
 
 // Pending check task should be executed or not.
