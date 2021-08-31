@@ -208,36 +208,36 @@ var _ = Describe("Test Application Controller", func() {
 		Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 	})
 
-	appwithInputAndOutput := &v1beta1.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "app-with-input-and-output",
-		},
-		Spec: v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{
-				{
-					Name:       "myweb1",
-					Type:       "worker",
-					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"]}`)},
-					Inputs: common.StepInputs{{From: "image",ParameterKey: "image"}},
-				},
-				{
-					Name:       "myweb2",
-					Type:       "worker",
-					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-					Outputs: common.StepOutputs{{ExportKey: "output.spec.template.spec.containers[0].image",Name: "image"}},
-				},
-				{
-					Name:       "myweb3",
-					Type:       "worker",
-					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-				},
-			},
-		},
-	}
+	//appwithInputAndOutput := &v1beta1.Application{
+	//	TypeMeta: metav1.TypeMeta{
+	//		Kind:       "Application",
+	//		APIVersion: "core.oam.dev/v1beta1",
+	//	},
+	//	ObjectMeta: metav1.ObjectMeta{
+	//		Name: "app-with-input-and-output",
+	//	},
+	//	Spec: v1beta1.ApplicationSpec{
+	//		Components: []common.ApplicationComponent{
+	//			{
+	//				Name:       "myweb1",
+	//				Type:       "worker",
+	//				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"]}`)},
+	//				Inputs:     common.StepInputs{{From: "image", ParameterKey: "image"}},
+	//			},
+	//			{
+	//				Name:       "myweb2",
+	//				Type:       "worker",
+	//				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+	//				Outputs:    common.StepOutputs{{ExportKey: "output.spec.template.spec.containers[0].image", Name: "image"}},
+	//			},
+	//			{
+	//				Name:       "myweb3",
+	//				Type:       "worker",
+	//				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+	//			},
+	//		},
+	//	},
+	//}
 
 	cd := &v1beta1.ComponentDefinition{}
 	cDDefJson, _ := yaml.YAMLToJSON([]byte(componentDefYaml))
@@ -255,9 +255,6 @@ var _ = Describe("Test Application Controller", func() {
 
 	sd := &v1beta1.ScopeDefinition{}
 	sdDefJson, _ := yaml.YAMLToJSON([]byte(scopeDefYaml))
-
-	applyStep:=&v1beta1.WorkflowStepDefinition{}
-	applyStepJson,_:=yaml.YAMLToJSON([]byte(applyComponentStepDef))
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "kubevela-app-with-config-myweb1-myconfig", Namespace: appwithConfig.Namespace},
@@ -283,9 +280,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(json.Unmarshal(webserverwdJson, webserverwd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, webserverwd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		Expect(json.Unmarshal(applyStepJson, applyStep)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, applyStep.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		var deployDef v1alpha2.WorkloadDefinition
 		Expect(yaml.Unmarshal([]byte(deploymentWorkloadDefinition), &deployDef)).Should(BeNil())
@@ -1890,7 +1884,6 @@ spec:
 		Expect(checkRollout.Spec.TargetRevisionName).Should(BeEquivalentTo(externalRevision))
 	})
 
-<<<<<<< HEAD
 	It("Test rollout trait in workflow", func() {
 		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
 		Expect(err).Should(BeNil())

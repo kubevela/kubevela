@@ -133,21 +133,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	klog.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 
-	var comps []*velatypes.ComponentManifest
-	comps, err = appFile.GenerateComponentManifests()
-	if err != nil {
-		klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
-	}
-
-	handler.handleCheckManageWorkloadTrait(handler.currentAppRev.Spec.TraitDefinitions, comps)
-
-	if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
-		klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
-	}
 	var wfSteps []wfTypes.TaskRunner
 	switch appFile.WorkflowMode {
 	case common.WorkflowModeDAG:
@@ -172,6 +157,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
 		}
+
+		handler.handleCheckManageWorkloadTrait(handler.currentAppRev.Spec.TraitDefinitions, comps)
 
 		if err := handler.FinalizeAndApplyAppRevision(ctx, comps); err != nil {
 			klog.ErrorS(err, "Failed to apply app revision", "application", klog.KObj(app))
