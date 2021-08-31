@@ -52,6 +52,8 @@ type AppHandler struct {
 	dispatcher     *dispatch.AppManifestsDispatcher
 	isNewRevision  bool
 	currentRevHash string
+
+	parser *appfile.Parser
 }
 
 // Dispatch apply manifests into k8s.
@@ -117,7 +119,7 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 			continue
 		}
 	}
-	a := assemble.NewAppManifests(h.currentAppRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
+	a := assemble.NewAppManifests(h.currentAppRev, h.parser).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client)).WithComponentManifests(comps)
 	manifests, err := a.AssembledManifests()
 	if err != nil {
 		return errors.WithMessage(err, "cannot assemble application manifests")
@@ -160,7 +162,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 
 		switch wl.CapabilityCategory {
 		case types.TerraformCategory:
-			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.RevisionName, appFile.Namespace)
+			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.AppRevisionName, appFile.Namespace)
 			ctx := context.Background()
 			var configuration terraformapi.Configuration
 			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
@@ -174,7 +176,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			}
 			status.Message = configuration.Status.Message
 		default:
-			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
+			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.AppRevisionName)
 			if !h.isNewRevision && wl.CapabilityCategory != types.CUECategory {
 				templateStr, err := appfile.GenerateCUETemplate(wl)
 				if err != nil {
@@ -259,9 +261,12 @@ func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
 	var references []corev1.ObjectReference
 	for _, scope := range scopes {
 		references = append(references, corev1.ObjectReference{
-			APIVersion: scope.GVK.GroupVersion().String(),
-			Kind:       scope.GVK.Kind,
-			Name:       scope.Name,
+			APIVersion: metav1.GroupVersion{
+				Group:   scope.GVK.Group,
+				Version: scope.GVK.Version,
+			}.String(),
+			Kind: scope.GVK.Kind,
+			Name: scope.Name,
 		})
 	}
 	return references

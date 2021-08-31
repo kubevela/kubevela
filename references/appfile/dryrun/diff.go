@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/appfile"
+
 	"github.com/aryann/difflib"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,12 +34,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // NewLiveDiffOption creates a live-diff option
 func NewLiveDiffOption(c client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *LiveDiffOption {
-	return &LiveDiffOption{NewDryRunOption(c, dm, pd, as)}
+	parser := appfile.NewApplicationParser(c, dm, pd)
+	return &LiveDiffOption{DryRun: NewDryRunOption(c, dm, pd, as), Parser: parser}
 }
 
 // ManifestKind enums the kind of OAM objects
@@ -87,6 +89,7 @@ type manifest struct {
 // living AppRevision in the cluster
 type LiveDiffOption struct {
 	DryRun
+	Parser *appfile.Parser
 }
 
 // Diff does three phases, dry-run on input app, preparing manifest for diff, and
@@ -103,7 +106,7 @@ func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, app
 	}
 
 	// old refers to the living app revision
-	oldManifest, err := generateManifestFromAppRevision(appRevision)
+	oldManifest, err := generateManifestFromAppRevision(l.Parser, appRevision)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot generate diff manifest for AppRevision %q", appRevision.Name)
 	}
@@ -315,9 +318,12 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 }
 
 // generateManifestFromAppRevision generates manifest from an AppRevision
-func generateManifestFromAppRevision(appRevision *v1beta1.ApplicationRevision) (*manifest, error) {
-	// comps, err := util.ConvertRawComponentManifests(appRevision.Spec.ComponentManifests)
-	comps, err := util.AppConfig2ComponentManifests(appRevision.Spec.ApplicationConfiguration, appRevision.Spec.Components)
+func generateManifestFromAppRevision(parser *appfile.Parser, appRevision *v1beta1.ApplicationRevision) (*manifest, error) {
+	af, err := parser.GenerateAppFileFromRevision(appRevision)
+	if err != nil {
+		return nil, err
+	}
+	comps, err := af.GenerateComponentManifests()
 	if err != nil {
 		return nil, err
 	}

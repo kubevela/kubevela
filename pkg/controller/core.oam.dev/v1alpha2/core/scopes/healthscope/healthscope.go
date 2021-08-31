@@ -497,7 +497,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.Object
 		}
 		switch wl.CapabilityCategory {
 		case oamtypes.TerraformCategory:
-			pCtx = af.NewBasicContext(wl, appfile.Name, appfile.RevisionName, appfile.Namespace)
+			pCtx = af.NewBasicContext(wl, appfile.Name, appfile.AppRevisionName, appfile.Namespace)
 			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
 			ctx := context.Background()
 			var configuration terraformapi.Configuration
@@ -513,7 +513,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.Object
 			wlHealth.Diagnosis = configuration.Status.Message
 			okToCheckTrait = true
 		default:
-			pCtx = process.NewContext(ns, wl.Name, appfile.Name, appfile.RevisionName)
+			pCtx = process.NewContext(ns, wl.Name, appfile.Name, appfile.AppRevisionName)
 			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
 			if wl.CapabilityCategory != oamtypes.CUECategory {
 				templateStr, err := af.GenerateCUETemplate(wl)

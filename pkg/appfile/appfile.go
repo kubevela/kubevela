@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -78,6 +79,7 @@ type Workload struct {
 	Params             map[string]interface{}
 	Traits             []*Trait
 	Scopes             []Scope
+	ScopeDefinition    []*v1beta1.ScopeDefinition
 	FullTemplate       *Template
 	engine             definition.AbstractEngine
 	// OutputSecretName is the secret name which this workload will generate after it successfully generate a cloud resource
@@ -139,8 +141,9 @@ func (wl *Workload) IsSecretConsumer() bool {
 
 // Scope defines the scope of workload
 type Scope struct {
-	Name string
-	GVK  schema.GroupVersionKind
+	Name            string
+	GVK             metav1.GroupVersionKind
+	ResourceVersion string
 }
 
 // Trait is ComponentTrait
@@ -188,10 +191,19 @@ func (trait *Trait) IsSecretConsumer() bool {
 
 // Appfile describes application
 type Appfile struct {
-	Name         string
-	Namespace    string
-	RevisionName string
-	Workloads    []*Workload
+	Name            string
+	Namespace       string
+	AppRevisionName string
+	Workloads       []*Workload
+
+	AppRevisionHash string
+	AppLabels       map[string]string
+	AppAnnotations  map[string]string
+
+	RelatedWorkflowStepDefinitions []*v1beta1.WorkflowStepDefinition
+	RelatedTraitDefinitions        map[string]*v1beta1.TraitDefinition
+	RelatedComponentDefinitions    map[string]*v1beta1.ComponentDefinition
+	RelatedScopeDefinitions        map[string]*v1beta1.ScopeDefinition
 
 	Policies      []*Workload
 	WorkflowSteps []v1beta1.WorkflowStep
@@ -213,7 +225,7 @@ func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymap
 func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
 	var uns []*unstructured.Unstructured
 	for _, wl := range workloads {
-		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace, af.Components, af.Artifacts)
+		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts)
 		if err != nil {
 			return nil, err
 		}
@@ -299,6 +311,12 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 		if err != nil {
 			return nil, err
 		}
+		if !wl.ConfigNotReady {
+			err = af.SetOAMContract(cm)
+			if err != nil {
+				return nil, err
+			}
+		}
 		compManifests[i] = cm
 		af.Artifacts[i] = cm
 	}
@@ -319,14 +337,165 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 	}
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
-		return generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromHelmModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	case types.KubeCategory:
-		return generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromKubeModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	case types.TerraformCategory:
-		return generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromTerraformModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	default:
-		return generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	}
+}
+
+// SetOAMContract will set OAM labels and annotations for resources as contract
+func (af *Appfile) SetOAMContract(comp *types.ComponentManifest) error {
+
+	compName := comp.Name
+	commonLabels := af.generateAndFilterCommonLabels(compName)
+	af.assembleWorkload(comp.StandardWorkload, compName, commonLabels)
+
+	workloadRef := corev1.ObjectReference{
+		APIVersion: comp.StandardWorkload.GetAPIVersion(),
+		Kind:       comp.StandardWorkload.GetKind(),
+		Name:       comp.StandardWorkload.GetName(),
+	}
+	for _, trait := range comp.Traits {
+		af.assembleTrait(trait, compName, commonLabels)
+		if err := af.setWorkloadRefToTrait(workloadRef, trait); err != nil {
+			return errors.WithMessagef(err, "cannot set workload reference to trait %q", trait.GetName())
+		}
+	}
+	return nil
+}
+
+// workload and trait in the same component both have these labels, except componentRevision which should be evaluated with input/output
+func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]string {
+	filter := func(labels map[string]string, notAllowedKey []string) {
+		for _, l := range notAllowedKey {
+			delete(labels, strings.TrimSpace(l))
+		}
+	}
+	Labels := map[string]string{
+		oam.LabelAppName:      af.Name,
+		oam.LabelAppRevision:  af.AppRevisionName,
+		oam.LabelAppComponent: compName,
+	}
+	// merge application's all labels
+	finalLabels := util.MergeMapOverrideWithDst(Labels, af.AppLabels)
+	filterLabels, ok := af.AppAnnotations[oam.AnnotationFilterLabelKeys]
+	if ok {
+		filter(finalLabels, strings.Split(filterLabels, ","))
+	}
+	return finalLabels
+}
+
+// workload and trait both have these annotations
+func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
+	var allFilterAnnotation []string
+	allFilterAnnotation = append(allFilterAnnotation, types.DefaultFilterAnnots...)
+
+	passedFilterAnnotation, ok := af.AppAnnotations[oam.AnnotationFilterAnnotationKeys]
+	if ok {
+		allFilterAnnotation = append(allFilterAnnotation, strings.Split(passedFilterAnnotation, ",")...)
+	}
+
+	// pass application's all annotations
+	util.AddAnnotations(obj, af.AppAnnotations)
+	// remove useless annotations for workload/trait
+	util.RemoveAnnotations(obj, allFilterAnnotation)
+}
+
+func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {
+
+	// we should not set namespace for namespace resources
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	if gvk == corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Namespace{}).Name()) {
+		return
+	}
+
+	// only set app's namespace when namespace is unspecified
+	// it's by design to set arbitrary namespace in render phase
+	if len(obj.GetNamespace()) == 0 {
+		obj.SetNamespace(af.Namespace)
+	}
+}
+
+func (af *Appfile) assembleWorkload(wl *unstructured.Unstructured, compName string, labels map[string]string) {
+	// use component name as workload name
+	// override the name set in render phase if exist
+	wl.SetName(compName)
+	af.setWorkloadLabels(wl, labels)
+	af.filterAndSetAnnotations(wl)
+	af.setNamespace(wl)
+}
+
+/* NOTE a workload has these possible labels
+   app.oam.dev/app-revision-hash: ce053923e2fb403f
+   app.oam.dev/appRevision: myapp-v2
+   app.oam.dev/component: mycomp
+   app.oam.dev/name: myapp
+   app.oam.dev/resourceType: WORKLOAD
+   app.oam.dev/revision: mycomp-v2
+   workload.oam.dev/type: kube-worker
+// Component Revision name was not added here (app.oam.dev/revision: mycomp-v2)
+*/
+func (af *Appfile) setWorkloadLabels(wl *unstructured.Unstructured, commonLabels map[string]string) {
+	// add more workload-specific labels here
+	util.AddLabels(wl, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeWorkload})
+	util.AddLabels(wl, commonLabels)
+}
+
+func (af *Appfile) assembleTrait(trait *unstructured.Unstructured, compName string, labels map[string]string) {
+	traitType := trait.GetLabels()[oam.TraitTypeLabel]
+	// only set generated name when name is unspecified
+	// it's by design to set arbitrary name in render phase
+	if len(trait.GetName()) == 0 {
+		traitName := util.GenTraitNameCompatible(compName, trait, traitType)
+		trait.SetName(traitName)
+	}
+	af.setTraitLabels(trait, labels)
+	af.filterAndSetAnnotations(trait)
+	af.setNamespace(trait)
+}
+
+/* NOTE a trait has these possible labels
+   app.oam.dev/app-revision-hash: ce053923e2fb403f
+   app.oam.dev/appRevision: myapp-v2
+   app.oam.dev/component: mycomp
+   app.oam.dev/name: myapp
+   app.oam.dev/resourceType: TRAIT
+   trait.oam.dev/resource: service
+   trait.oam.dev/type: ingress // already added in render phase
+// Component Revision name was not added here (app.oam.dev/revision: mycomp-v2)
+*/
+func (af *Appfile) setTraitLabels(trait *unstructured.Unstructured, commonLabels map[string]string) {
+	// add more trait-specific labels here
+	util.AddLabels(trait, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeTrait})
+	util.AddLabels(trait, commonLabels)
+}
+
+func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *unstructured.Unstructured) error {
+	traitType := trait.GetLabels()[oam.TraitTypeLabel]
+	if traitType == definition.AuxiliaryWorkload {
+		return nil
+	}
+	traitDef, ok := af.RelatedTraitDefinitions[traitType]
+	if !ok {
+		return errors.Errorf("TraitDefinition %s not found in appfile", traitType)
+	}
+	workloadRefPath := traitDef.Spec.WorkloadRefPath
+	// only add workload reference to the trait if it asks for it
+	if len(workloadRefPath) != 0 {
+		tmpWLRef := corev1.ObjectReference{
+			APIVersion: wlRef.APIVersion,
+			Kind:       wlRef.Kind,
+			Name:       wlRef.Name,
+		}
+		if err := fieldpath.Pave(trait.UnstructuredContent()).SetValue(workloadRefPath, tmpWLRef); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PrepareProcessContext prepares a DSL process Context
@@ -428,9 +597,12 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	compManifest.Scopes = make([]*corev1.ObjectReference, len(wl.Scopes))
 	for i, s := range wl.Scopes {
 		compManifest.Scopes[i] = &corev1.ObjectReference{
-			APIVersion: s.GVK.GroupVersion().String(),
-			Kind:       s.GVK.Kind,
-			Name:       s.Name,
+			APIVersion: metav1.GroupVersion{
+				Group:   s.GVK.Group,
+				Version: s.GVK.Version,
+			}.String(),
+			Kind: s.GVK.Kind,
+			Name: s.Name,
 		}
 	}
 	return compManifest, nil
@@ -703,6 +875,7 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 		Name:             wl.Name,
 		Namespace:        ns,
 		ExternalRevision: wl.ExternalRevision,
+		StandardWorkload: &unstructured.Unstructured{},
 	}
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
 		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)

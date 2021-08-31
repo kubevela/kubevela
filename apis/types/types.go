@@ -16,6 +16,8 @@ limitations under the License.
 
 package types
 
+import "github.com/oam-dev/kubevela/pkg/oam"
+
 const (
 	// DefaultKubeVelaNS defines the default KubeVela namespace in Kubernetes
 	DefaultKubeVelaNS = "vela-system"
@@ -71,3 +73,12 @@ const (
 	// TypePlugin defines one category used in Kubectl Plugin
 	TypePlugin = "Plugin Command"
 )
+
+// DefaultFilterAnnots are annotations won't pass to workload or trait
+var DefaultFilterAnnots = []string{
+	oam.AnnotationAppRollout,
+	oam.AnnotationRollingComponent,
+	oam.AnnotationInplaceUpgrade,
+	oam.AnnotationFilterLabelKeys,
+	oam.AnnotationFilterAnnotationKeys,
+}

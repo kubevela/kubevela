@@ -18,7 +18,6 @@ package assemble
 
 import (
 	"io/ioutil"
-	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,11 +28,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
-
-func TestAssemble(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Assemble Suite")
-}
 
 var _ = Describe("Test Assemble Options", func() {
 	It("test assemble", func() {
@@ -70,7 +64,7 @@ var _ = Describe("Test Assemble Options", func() {
 		err = yaml.Unmarshal(b, appRev)
 		Expect(err).Should(BeNil())
 
-		ao := NewAppManifests(appRev)
+		ao := NewAppManifests(appRev, appParser)
 		workloads, traits, _, err := ao.GroupAssembledManifests()
 		Expect(err).Should(BeNil())
 
@@ -189,7 +183,7 @@ var _ = Describe("Test Assemble Options", func() {
 		err = yaml.Unmarshal(b, appRev)
 		Expect(err).Should(BeNil())
 
-		ao := NewAppManifests(appRev)
+		ao := NewAppManifests(appRev, appParser)
 		workloads, _, _, err := ao.GroupAssembledManifests()
 		Expect(err).Should(BeNil())
 

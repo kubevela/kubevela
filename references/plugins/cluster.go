@@ -22,6 +22,8 @@ import (
 	"os"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -197,7 +199,7 @@ func validateCapabilities(tmp *types.Capability, dm discoverymapper.DiscoveryMap
 		return fmt.Errorf("installing capability '%s'... %w", definitionName, err)
 	}
 	tmp.CrdInfo = &types.CRDInfo{
-		APIVersion: gvk.GroupVersion().String(),
+		APIVersion: metav1.GroupVersion{Group: gvk.Group, Version: gvk.Version}.String(),
 		Kind:       gvk.Kind,
 	}
 

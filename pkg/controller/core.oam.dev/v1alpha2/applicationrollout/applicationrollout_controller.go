@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -53,6 +56,7 @@ const (
 // Reconciler reconciles an AppRollout object
 type Reconciler struct {
 	client.Client
+	pd                   *packages.PackageDiscover
 	dm                   discoverymapper.DiscoveryMapper
 	record               event.Recorder
 	Scheme               *runtime.Scheme
@@ -132,8 +136,8 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 	}
 
 	klog.InfoS("handle AppRollout", "name", appRollout.Name, "namespace", appRollout.Namespace, "state", appRollout.Status.RollingState)
-
-	h := rolloutHandler{Reconciler: r, appRollout: appRollout}
+	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
+	h := rolloutHandler{Reconciler: r, appRollout: appRollout, parser: appParser}
 	// handle rollout target/source change (only if it's not deleting already)
 	if isRolloutModified(*appRollout) {
 		h.handleRolloutModified()
@@ -304,6 +308,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	reconciler := Reconciler{
+		pd:                   args.PackageDiscover,
 		Client:               mgr.GetClient(),
 		dm:                   args.DiscoveryMapper,
 		Scheme:               mgr.GetScheme(),

@@ -25,6 +25,8 @@ spec:
         properties:
           image: crccheck/hello-world
           port: 8000
+        scopes:
+          healthscopes.core.oam.dev: sample-health-scope
         traits:
         - properties:
             domain: localhost
@@ -42,73 +44,6 @@ spec:
         rollingState: ""
         upgradedReadyReplicas: 0
         upgradedReplicas: 0
-  applicationConfiguration:
-    apiVersion: core.oam.dev/v1alpha2
-    kind: ApplicationConfiguration
-    metadata: {}
-    spec:
-      components:
-      - componentName: test-comp
-        revisionName: test-comp-v4
-        scopes: 
-        - scopeRef:
-            apiVersion: core.oam.dev/v1beta1
-            kind: HealthScope
-            name: sample-health-scope
-        traits:
-        - trait:
-            apiVersion: v1
-            kind: Service
-            metadata:
-              labels:
-                app.oam.dev/appRevision: test-assemble-v1
-                app.oam.dev/component: test-comp
-                app.oam.dev/name: test-assemble
-                trait.oam.dev/resource: service
-                trait.oam.dev/type: ingress
-              name: test-comp
-            spec:
-              ports:
-              - port: 8000
-                targetPort: 8000
-              selector:
-                app.oam.dev/component: test-comp
-        - trait:
-            apiVersion: networking.k8s.io/v1beta1
-            kind: Ingress
-            metadata:
-              labels:
-                app.oam.dev/appRevision: test-assemble-v1
-                app.oam.dev/component: test-comp
-                app.oam.dev/name: test-assemble
-                trait.oam.dev/resource: ingress
-                trait.oam.dev/type: ingress
-              name: test-comp
-            spec:
-              rules:
-              - host: localhost
-                http:
-                  paths:
-                  - backend:
-                      serviceName: test-comp
-                      servicePort: 8000
-                    path: /
-        - trait:
-            apiVersion: core.oam.dev/v1alpha2
-            kind: ManualScalerTrait
-            metadata:
-              labels:
-                app.oam.dev/appRevision: test-assemble-v1
-                app.oam.dev/component: test-comp
-                app.oam.dev/name: test-assemble
-                trait.oam.dev/resource: manualscaler
-                trait.oam.dev/type: manualscaler
-              name: test-comp
-            spec:
-              replicaCount: 3
-    status:
-      dependency: {}
-      observedGeneration: 0
   componentDefinitions:
     webservice:
       apiVersion: core.oam.dev/v1beta1
@@ -216,40 +151,20 @@ spec:
             kind: Deployment
           type: deployments.apps
       status: {}
-  components:
-  - raw:
-      apiVersion: core.oam.dev/v1alpha2
-      kind: Component
-      metadata:
-        labels:
-          app.oam.dev/component-revision-hash: 6d971ce2b68f2b4f
-        name: test-comp
+  scopeGVK:
+    healthscopes.core.oam.dev/v1beta1:
+      group: core.oam.dev
+      version: v1beta1
+      kind: HealthScope
+  scopeDefinitions:
+    healthscopes.core.oam.dev:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ScopeDefinition
+      metadata: { }
       spec:
-        workload:
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            labels:
-              app.oam.dev/appRevision: test-assemble-v1
-              app.oam.dev/component: test-comp
-              app.oam.dev/name: test-assemble
-              workload.oam.dev/type: webservice
-          spec:
-            selector:
-              matchLabels:
-                app.oam.dev/component: test-comp
-            template:
-              metadata:
-                labels:
-                  app.oam.dev/component: test-comp
-              spec:
-                containers:
-                - image: crccheck/hello-world
-                  name: test-comp
-                  ports:
-                  - containerPort: 8000
-      status:
-        observedGeneration: 0
+        definitionRef:
+          name: healthscopes.core.oam.dev
+          version: v1beta1
   resourcesConfigMap:
     name: test-assemble-v1
   traitDefinitions:

@@ -39,7 +39,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			continue
 		}
 
-		pCtx, err := newValidationProcessContext(wl, a.Name, a.RevisionName, a.Namespace)
+		pCtx, err := newValidationProcessContext(wl, a.Name, a.AppRevisionName, a.Namespace)
 		if err != nil {
 			return errors.WithMessage(err, "cannot create validationg process context")
 		}
