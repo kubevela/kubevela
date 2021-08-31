@@ -770,7 +770,11 @@ var livediffResult = `---
   apiVersion: core.oam.dev/v1beta1
   kind: Application
   metadata:
+-   annotations:
+-     oam.dev/kubevela-version: UNKNOWN
     creationTimestamp: null
+-   finalizers:
+-   - app.oam.dev/resource-tracker-finalizer
     name: test-vela-app
     namespace: default
   spec:
