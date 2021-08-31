@@ -1,4 +1,4 @@
-#Message: {
+#DingMessage: {
 	text?: *null | {
 		content: string
 	}

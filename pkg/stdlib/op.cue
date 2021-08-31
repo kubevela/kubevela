@@ -93,14 +93,26 @@ import (
 }
 
 #DingTalk: #Steps & {
-	message:  dingDing.#Message
-	_message: json.Marshal(message)
-	token:    string
+	message:  dingDing.#DingMessage
+	dingUrl:  string
 	do:       http.#Do & {
 		method: "POST"
-		url:    "https://oapi.dingtalk.com/robot/send?access_token=\(token)"
+		url:    dingUrl
 		request: {
-			body: _message
+			body: json.Marshal(message)
+			header: "Content-Type": "application/json"
+		}
+	}
+}
+
+#Slack: #Steps & {
+	message:  slack.#SlackMessage
+	slackUrl: string
+	do:       http.#Do & {
+		method: "POST"
+		url:    slackUrl
+		request: {
+			body: json.Marshal(message)
 			header: "Content-Type": "application/json"
 		}
 	}

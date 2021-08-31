@@ -1,0 +1,35 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: first-vela-workflow
+  namespace: default
+spec:
+  components:
+  - name: express-server
+    type: webservice
+    properties:
+      image: crccheck/hello-world
+      port: 8000
+    traits:
+    - type: ingress
+      properties:
+        domain: testsvc.example.com
+        http:
+          /: 8000
+  workflow:
+    steps:
+      - name: notification
+        type: webhook-notification
+        properties:
+          dingding:
+            url: ding url
+            message:
+              msgtype: text
+              text:
+                content: Hello KubeVela
+          slack:
+            url: slack url
+            message:
+              text: Hello KubeVela
+      - name: first-server
+        type: apply-application
