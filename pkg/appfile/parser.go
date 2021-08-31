@@ -91,8 +91,10 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appName := app.Name
 
 	appfile := new(Appfile)
+	appfile.parser = p
 	appfile.Name = appName
 	appfile.Namespace = ns
+	appfile.WorkflowMode = common.WorkflowModeDAG
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
 		wd, err := p.parseWorkload(ctx, comp)
@@ -121,9 +123,6 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	}
 
 	if wfSpec := app.Spec.Workflow; wfSpec != nil {
-		if appfile.WorkflowMode != "" {
-			return nil, fmt.Errorf("conflict workflows: workflow cannot be specified if the components have inputs or outputs")
-		}
 		appfile.WorkflowMode = common.WorkflowModeStep
 		appfile.WorkflowSteps = wfSpec.Steps
 	}
@@ -139,6 +138,7 @@ func (p *Parser) parseWorkflowSteps(mode common.WorkflowMode, app *v1beta1.Appli
 		for i, comp := range app.Spec.Components {
 			wf[i] = v1beta1.WorkflowStep{
 				Name: comp.Name,
+				Type: "apply-component",
 				Properties: util.Object2RawExtension(map[string]interface{}{
 					"component": comp.Name,
 				}),

@@ -38,7 +38,7 @@ const (
 type Dispatcher func(ctx context.Context, manifests ...*unstructured.Unstructured) error
 
 type provider struct {
-	apply func(ctx context.Context, manifests ...*unstructured.Unstructured) error
+	apply Dispatcher
 	cli   client.Client
 }
 

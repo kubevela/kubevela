@@ -23,19 +23,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
-
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
@@ -50,12 +37,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // constant error information
@@ -198,16 +195,24 @@ type Appfile struct {
 	WorkflowSteps []v1beta1.WorkflowStep
 	Components    []common.ApplicationComponent
 	Artifacts     []*types.ComponentManifest
+
+	parser *Parser
+}
+
+type Handler interface {
+	Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error
+	HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error
+	CurrentAppRev() *v1beta1.ApplicationRevision
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
+func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, handler Handler) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
 
-	steps, err = af.generateSteps(ctx, m, cli, pd, dispatcher)
+	steps, err = af.generateSteps(ctx, m, cli, pd, handler)
 	return
 }
 
@@ -227,7 +232,7 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 	return uns, nil
 }
 
-func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) ([]wfTypes.TaskRunner, error) {
+func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, handler Handler) ([]wfTypes.TaskRunner, error) {
 	loadTaskTemplate := func(ctx context.Context, name string) (string, error) {
 		templ, err := LoadTemplate(ctx, dm, cli, name, types.TypeWorkflowStep)
 		if err != nil {
@@ -241,7 +246,21 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 	}
 
 	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, cli, dispatcher)
+	kube.Install(handlerProviders, cli, handler.Dispatch)
+	oamProvider.Install(handlerProviders, func(ctx context.Context, comp common.ApplicationComponent) (*types.ComponentManifest, error) {
+		wl, err := af.parser.parseWorkload(ctx, comp)
+		if err != nil {
+			return nil, err
+		}
+		manifest, err := af.GenerateComponentManifest(wl)
+		if err != nil {
+			return nil, err
+		}
+		if err := setWorkloadRefToTrait(manifest, handler.CurrentAppRev()); err != nil {
+			return nil, errors.WithMessage(err, "setWorkloadRefToTrait")
+		}
+		return manifest, handler.HandleComponentsRevision(ctx, []*types.ComponentManifest{manifest})
+	})
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, loadTaskTemplate)
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
@@ -256,6 +275,28 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
+}
+
+// setWorkloadRefToTrait set workload reference to trait.
+func setWorkloadRefToTrait(wl *types.ComponentManifest, appRev *v1beta1.ApplicationRevision) error {
+	for _, trait := range wl.Traits {
+		traitType := trait.GetLabels()[oam.TraitTypeLabel]
+		traitDef := appRev.Spec.TraitDefinitions[traitType]
+		workloadRefPath := traitDef.Spec.WorkloadRefPath
+		// only add workload reference to the trait if it asks for it
+		if len(workloadRefPath) != 0 {
+			// TODO(roywang) this is for backward compatibility, remove crossplane/runtime/v1alpha1 in the future
+			tmpWLRef := corev1.ObjectReference{
+				APIVersion: wl.StandardWorkload.GetAPIVersion(),
+				Kind:       wl.StandardWorkload.GetKind(),
+				Name:       wl.StandardWorkload.GetName(),
+			}
+			if err := fieldpath.Pave(trait.UnstructuredContent()).SetValue(workloadRefPath, tmpWLRef); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {

@@ -56,6 +56,5 @@ func ReconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) 
 	// 1st and 2nd time reconcile to add finalizer
 	r.Reconcile(context.TODO(), req)
 	r.Reconcile(context.TODO(), req)
-
 	return r.Reconcile(context.TODO(), req)
 }

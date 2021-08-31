@@ -52,6 +52,7 @@ type AppHandler struct {
 	dispatcher     *dispatch.AppManifestsDispatcher
 	isNewRevision  bool
 	currentRevHash string
+	workflowMode   common.WorkflowMode
 }
 
 // Dispatch apply manifests into k8s.
@@ -59,6 +60,11 @@ func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Un
 	h.initDispatcher()
 	_, err := h.dispatcher.Dispatch(ctx, manifests)
 	return err
+}
+
+// CurrentAppRev return current applicationRevision.
+func (h *AppHandler) CurrentAppRev()  *v1beta1.ApplicationRevision {
+	return h.currentAppRev
 }
 
 // DispatchAndGC apply manifests and do GC.
@@ -96,7 +102,7 @@ func (h *AppHandler) initDispatcher() {
 // ApplyAppManifests will dispatch Application manifests
 func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	appRev := h.currentAppRev
-	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" || len(h.app.Spec.Policies) != 0 {
+	if h.workflowMode != "" || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" || len(h.app.Spec.Policies) != 0 {
 		if err := h.Dispatch(ctx, policies...); err != nil {
 			return errors.WithMessage(err, "cannot dispatch policies before workflow")
 		}

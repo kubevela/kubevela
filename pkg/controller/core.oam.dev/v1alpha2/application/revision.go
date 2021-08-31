@@ -128,6 +128,7 @@ func SprintComponentManifest(cm *types.ComponentManifest) string {
 // PrepareCurrentAppRevision will generate a pure revision without metadata and rendered result
 // the generated revision will be compare with the last revision to see if there's any difference.
 func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.Appfile) error {
+	h.workflowMode = af.WorkflowMode
 	appRev, appRevisionHash, err := h.gatherRevisionSpec(af)
 	if err != nil {
 		return err

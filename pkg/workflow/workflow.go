@@ -37,11 +37,15 @@ type workflow struct {
 }
 
 // NewWorkflow returns a Workflow implementation.
-func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
-	return &workflow{
+func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.WorkflowMode) Workflow {
+	wf := &workflow{
 		app: app,
 		cli: cli,
 	}
+	if mode == common.WorkflowModeDAG {
+		wf.dagMode = true
+	}
+	return wf
 }
 
 // NewDAGWorkflow returns a DAG mode Workflow.

@@ -574,3 +574,38 @@ wait: {
 		assert.Equal(t, s, tCase.expect)
 	}
 }
+
+func TestLookupByScript(t *testing.T){
+	testCases := []struct {
+		src    string
+		script string
+		expect    string
+	}{
+		{
+			src: `
+apply: containers: [{name: "main", image: "busybox"}]
+`,
+script: `apply.containers[0].image`,
+			expect:`"busybox"
+`,
+		},
+		{
+			src: `
+apply: workload: name: "main"
+`,
+			script: `
+apply.workload.name`,
+			expect:`"main"
+`,
+		},
+	}
+
+	for _,tCase:=range testCases{
+		srcV,err:=NewValue(tCase.src,nil)
+		assert.NilError(t,err)
+		v,err:=srcV.LookupByScript(tCase.script)
+		assert.NilError(t,err)
+		result,_:=v.String()
+		assert.Equal(t,tCase.expect,result)
+	}
+}

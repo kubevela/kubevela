@@ -9,5 +9,6 @@
 	#do:       "read"
 	#provider: "kube"
 	value?: {...}
+	err?: _
 	...
 }
