@@ -30,6 +30,10 @@ template: {
 
 	parameter: {
 		// +usage=The mapping of environment variables to secret
-		envMappings: [string]: [string]: string
+		envMappings: [string]: #KeySecret
+	}
+	#KeySecret: {
+		key?:   string
+		secret: string
 	}
 }
