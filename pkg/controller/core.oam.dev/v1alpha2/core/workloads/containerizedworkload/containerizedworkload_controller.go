@@ -79,7 +79,7 @@ func (r *Reconciler) Reconcile(_ctx context.Context, req ctrl.Request) (ctrl.Res
 	ctx.BeginReconcile()
 	defer ctx.EndReconcile()
 
-	ctx.Info("Reconcile containerizedworkload", klog.KRef(req.Namespace, req.Name))
+	ctx.Info("Reconcile containerizedworkload", "containerizedworkload", klog.KRef(req.Namespace, req.Name))
 	var workload v1alpha2.ContainerizedWorkload
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
 		if apierrors.IsNotFound(err) {
