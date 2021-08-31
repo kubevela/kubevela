@@ -25,7 +25,11 @@ import (
 )
 
 // TaskRunner is a task runner.
-type TaskRunner func(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
+type TaskRunner interface {
+	Name() string
+	Pending(ctx wfContext.Context) bool
+	Run(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
+}
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
 type TaskDiscover interface {

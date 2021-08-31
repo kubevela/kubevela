@@ -72,6 +72,27 @@ func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes
 	return t.makeTaskGenerator(templ)
 }
 
+type taskRunner struct {
+	name         string
+	run          func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error)
+	checkPending func(ctx wfContext.Context) bool
+}
+
+// Name return step name.
+func (tr *taskRunner) Name() string {
+	return tr.name
+}
+
+// Run execute task.
+func (tr *taskRunner) Run(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+	return tr.run(ctx)
+}
+
+// Pending check task should be executed or not.
+func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
+	return tr.checkPending(ctx)
+}
+
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep) (wfTypes.TaskRunner, error) {
 
@@ -97,7 +118,17 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 		}
 
-		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		tRunner := new(taskRunner)
+		tRunner.name = wfStep.Name
+		tRunner.checkPending = func(ctx wfContext.Context) bool {
+			for _, input := range inputs {
+				if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
+					return true
+				}
+			}
+			return false
+		}
+		tRunner.run = func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 
 			paramsValue, err := ctx.MakeParameter(params)
 			if err != nil {
@@ -154,8 +185,8 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			return exec.status(), exec.operation(), nil
-		}, nil
-
+		}
+		return tRunner, nil
 	}, nil
 }
 
