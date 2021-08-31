@@ -358,50 +358,36 @@ var _ = Describe("HealthScope", func() {
 			},
 			time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
 
-		By("Create HealthScope instance")
-		healthScopeName := "example-health-scope"
-		hs := v1alpha2.HealthScope{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      healthScopeName,
-				Namespace: namespace,
-			},
-			Spec: v1alpha2.HealthScopeSpec{
-				ProbeTimeout:       &varInt32_60,
-				WorkloadReferences: []corev1.ObjectReference{},
-			},
-		}
-
-		// TODO(roywang) we haven't implemnet associating app references to
-		// health scope in app controller, so manually add app references now
-		hs.Spec.AppRefs = []v1alpha2.AppReference{{
-			AppName: "app-healthscope",
-			CompReferences: []v1alpha2.CompReference{{
-				CompName: "my-server",
-				Workload: corev1.ObjectReference{
-					Kind:       "Deployment",
-					Name:       "my-server",
-					APIVersion: "apps/v1",
-				},
-			}},
-		}, {
-			AppName: "app-healthscope-unhealthy",
-			CompReferences: []v1alpha2.CompReference{{
-				CompName: "my-server-unhealthy",
-				Workload: corev1.ObjectReference{
-					Kind:       "Deployment",
-					Name:       "my-server-unhealthy",
-					APIVersion: "apps/v1",
-				},
-			}},
-		}}
-		Expect(k8sClient.Create(ctx, &hs)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		By("Verify health scope")
+		By("Verify the healthy health scope")
 		healthScopeObject := client.ObjectKey{
-			Name:      healthScopeName,
+			Name:      "app-healthscope",
 			Namespace: namespace,
 		}
+
 		healthScope := &v1alpha2.HealthScope{}
+		Expect(k8sClient.Get(ctx, healthScopeObject, healthScope)).Should(Succeed())
+
+		Eventually(
+			func() v1alpha2.ScopeHealthCondition {
+				*healthScope = v1alpha2.HealthScope{}
+				k8sClient.Get(ctx, healthScopeObject, healthScope)
+				return healthScope.Status.ScopeHealthCondition
+			},
+			time.Second*60, time.Millisecond*500).Should(Equal(v1alpha2.ScopeHealthCondition{
+			HealthStatus:     v1alpha2.StatusHealthy,
+			Total:            int64(2),
+			HealthyWorkloads: int64(2),
+		}))
+
+		By("Verify the unhealthy health scope")
+		healthScopeObject = client.ObjectKey{
+			Name:      "app-healthscope-unhealthy",
+			Namespace: namespace,
+		}
+
+		healthScope = &v1alpha2.HealthScope{}
+		Expect(k8sClient.Get(ctx, healthScopeObject, healthScope)).Should(Succeed())
+
 		Eventually(
 			func() v1alpha2.ScopeHealthCondition {
 				*healthScope = v1alpha2.HealthScope{}
@@ -411,8 +397,8 @@ var _ = Describe("HealthScope", func() {
 			time.Second*60, time.Millisecond*500).Should(Equal(v1alpha2.ScopeHealthCondition{
 			HealthStatus:       v1alpha2.StatusUnhealthy,
 			Total:              int64(2),
-			HealthyWorkloads:   int64(1),
 			UnhealthyWorkloads: int64(1),
+			HealthyWorkloads:   int64(1),
 		}))
 	})
 })
