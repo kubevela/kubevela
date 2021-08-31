@@ -109,7 +109,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				if err != nil {
 					return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
 				}
-				if err := paramsValue.FillObject(inputValue, input.ParameterKey); err != nil {
+				if err := paramsValue.FillObject(inputValue, strings.Split(input.ParameterKey, ".")...); err != nil {
 					return common.WorkflowStepStatus{}, nil, err
 				}
 			}
