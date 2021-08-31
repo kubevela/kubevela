@@ -101,9 +101,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			oam.AnnotationKubeVelaVersion: version.VelaVersion,
 		})
 	}
+	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 	handler := &AppHandler{
-		r:   r,
-		app: app,
+		r:      r,
+		app:    app,
+		parser: appParser,
 	}
 	endReconcile, err := r.handleFinalizers(ctx, app)
 	if err != nil {
@@ -115,7 +117,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// parse application to appfile
 	app.Status.Phase = common.ApplicationRendering
-	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
+
 	appFile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		klog.ErrorS(err, "Failed to parse application", "application", klog.KObj(app))
@@ -127,6 +129,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if err := handler.PrepareCurrentAppRevision(ctx, appFile); err != nil {
 		klog.ErrorS(err, "Failed to prepare app revision", "application", klog.KObj(app))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Revision", err))
+	}
+	if err := handler.FinalizeAndApplyAppRevision(ctx); err != nil {
+		klog.ErrorS(err, "Failed to apply app revision", "application", klog.KObj(app))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Revision", err))
 	}
@@ -149,11 +156,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
 	}
 
-	if err := handler.FinalizeAndApplyAppRevision(ctx, comps); err != nil {
-		klog.ErrorS(err, "Failed to apply app revision", "application", klog.KObj(app))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Revision", err))
-	}
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 	klog.Info("Successfully apply application revision", "application", klog.KObj(app))

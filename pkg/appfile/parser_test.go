@@ -29,7 +29,6 @@ import (
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -315,9 +314,9 @@ var _ = Describe("Test appFile parser", func() {
 	It("application without-trait will only create appfile with workload", func() {
 		// TestApp is test data
 		var TestApp = &Appfile{
-			RevisionName: "test-v1",
-			Name:         "test",
-			Namespace:    "default",
+			AppRevisionName: "test-v1",
+			Name:            "test",
+			Namespace:       "default",
 			Workloads: []*Workload{
 				{
 					Name: "myweb",
@@ -332,7 +331,7 @@ var _ = Describe("Test appFile parser", func() {
 						{"name": "c2", "value": "v2"},
 					},
 					Scopes: []Scope{
-						{Name: "test-scope", GVK: schema.GroupVersionKind{
+						{Name: "test-scope", GVK: metav1.GroupVersionKind{
 							Group:   "core.oam.dev",
 							Version: "v1alpha2",
 							Kind:    "HealthScope",

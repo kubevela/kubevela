@@ -195,8 +195,11 @@ func InstallTraitDefinition(client client.Client, mapper discoverymapper.Discove
 		return err
 	}
 	cap.CrdInfo = &types.CRDInfo{
-		APIVersion: gvk.GroupVersion().String(),
-		Kind:       gvk.Kind,
+		APIVersion: v1.GroupVersion{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+		}.String(),
+		Kind: gvk.Kind,
 	}
 	if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err

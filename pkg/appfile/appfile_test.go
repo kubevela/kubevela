@@ -56,9 +56,9 @@ var _ = Describe("Test Helm schematic appfile", func() {
 
 	It("Test generate AppConfig resources from Helm schematic", func() {
 		appFile := &Appfile{
-			Name:         appName,
-			Namespace:    "default",
-			RevisionName: appName + "-v1",
+			Name:            appName,
+			Namespace:       "default",
+			AppRevisionName: appName + "-v1",
 			Workloads: []*Workload{
 				{
 					Name:               compName,
@@ -228,9 +228,9 @@ spec:
 
 	var testAppfile = func() *Appfile {
 		return &Appfile{
-			RevisionName: appName + "-v1",
-			Name:         appName,
-			Namespace:    "default",
+			AppRevisionName: appName + "-v1",
+			Name:            appName,
+			Namespace:       "default",
 			Workloads: []*Workload{
 				{
 					Name:               compName,
@@ -596,10 +596,10 @@ variable "password" {
 		}
 
 		af := &Appfile{
-			Workloads:    []*Workload{wl},
-			Name:         appName,
-			RevisionName: revision,
-			Namespace:    ns,
+			Workloads:       []*Workload{wl},
+			Name:            appName,
+			AppRevisionName: revision,
+			Namespace:       ns,
 		}
 
 		variable := map[string]interface{}{"account_name": "oamtest"}

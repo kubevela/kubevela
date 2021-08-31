@@ -21,7 +21,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -402,6 +403,27 @@ func (in *ApplicationRevisionSpec) DeepCopyInto(out *ApplicationRevisionSpec) {
 		*out = make(map[string]ScopeDefinition, len(*in))
 		for key, val := range *in {
 			(*out)[key] = *val.DeepCopy()
+		}
+	}
+	if in.PolicyDefinitions != nil {
+		in, out := &in.PolicyDefinitions, &out.PolicyDefinitions
+		*out = make(map[string]PolicyDefinition, len(*in))
+		for key, val := range *in {
+			(*out)[key] = *val.DeepCopy()
+		}
+	}
+	if in.WorkflowStepDefinitions != nil {
+		in, out := &in.WorkflowStepDefinitions, &out.WorkflowStepDefinitions
+		*out = make(map[string]WorkflowStepDefinition, len(*in))
+		for key, val := range *in {
+			(*out)[key] = *val.DeepCopy()
+		}
+	}
+	if in.ScopeGVK != nil {
+		in, out := &in.ScopeGVK, &out.ScopeGVK
+		*out = make(map[string]v1.GroupVersionKind, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
 		}
 	}
 	if in.Components != nil {
@@ -1126,7 +1148,7 @@ func (in *ResourceTrackerStatus) DeepCopyInto(out *ResourceTrackerStatus) {
 	*out = *in
 	if in.TrackedResources != nil {
 		in, out := &in.TrackedResources, &out.TrackedResources
-		*out = make([]v1.ObjectReference, len(*in))
+		*out = make([]corev1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 }

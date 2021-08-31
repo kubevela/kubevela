@@ -47,7 +47,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -576,13 +575,13 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 }
 
 // GetGVKFromDefinition help get Group Version Kind from DefinitionReference
-func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef common.DefinitionReference) (schema.GroupVersionKind, error) {
+func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef common.DefinitionReference) (metav1.GroupVersionKind, error) {
 	// if given definitionRef is empty or it's a dummy definition, return an empty GVK
 	// NOTE currently, only TraitDefinition is allowed to omit definitionRef conditionally.
 	if len(definitionRef.Name) < 1 || definitionRef.Name == Dummy {
-		return schema.EmptyObjectKind.GroupVersionKind(), nil
+		return metav1.GroupVersionKind{}, nil
 	}
-	var gvk schema.GroupVersionKind
+	var gvk metav1.GroupVersionKind
 	groupResource := schema.ParseGroupResource(definitionRef.Name)
 	gvr := schema.GroupVersionResource{Group: groupResource.Group, Resource: groupResource.Resource, Version: definitionRef.Version}
 	kinds, err := dm.KindsFor(gvr)
@@ -594,7 +593,11 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef comm
 			PartialResource: gvr,
 		}
 	}
-	return kinds[0], nil
+	return metav1.GroupVersionKind{
+		Group:   kinds[0].Group,
+		Kind:    kinds[0].Kind,
+		Version: kinds[0].Version,
+	}, nil
 }
 
 // ConvertWorkloadGVK2Definition help convert a GVK to DefinitionReference
@@ -713,72 +716,6 @@ func RawExtension2Application(raw runtime.RawExtension) (*v1beta1.Application, e
 		a.SetNamespace("default")
 	}
 	return a, nil
-}
-
-// AppConfig2ComponentManifests convert AppConfig and Components to a slice of ComponentManifest.
-func AppConfig2ComponentManifests(acRaw runtime.RawExtension, comps []common.RawComponent) ([]*oamtypes.ComponentManifest, error) {
-	var err error
-	ac, err := RawExtension2AppConfig(acRaw)
-	if err != nil {
-		return nil, err
-	}
-	cms := make([]*oamtypes.ComponentManifest, len(ac.Spec.Components))
-	for i, acc := range ac.Spec.Components {
-		cm := &oamtypes.ComponentManifest{
-			Name:         acc.ComponentName,
-			RevisionName: acc.RevisionName,
-		}
-		if acc.RevisionName == "--" {
-			// generate ComponentManifest from appfile
-			cms[i] = cm
-			continue
-		}
-		if acc.ComponentName == "" && acc.RevisionName != "" {
-			cm.Name = ExtractComponentName(acc.RevisionName)
-		}
-		for _, compRaw := range comps {
-			comp, err := RawExtension2Component(compRaw.Raw)
-			if err != nil {
-				return nil, err
-			}
-			cm.RevisionHash = comp.GetLabels()[oam.LabelComponentRevisionHash]
-			if comp.Name == cm.Name {
-				cm.StandardWorkload, err = RawExtension2Unstructured(&comp.Spec.Workload)
-				if err != nil {
-					return nil, err
-				}
-				if comp.Spec.Helm != nil {
-					rls, err := RawExtension2Unstructured(&comp.Spec.Helm.Release)
-					if err != nil {
-						return nil, err
-					}
-					repo, err := RawExtension2Unstructured(&comp.Spec.Helm.Repository)
-					if err != nil {
-						return nil, err
-					}
-					cm.PackagedWorkloadResources = []*unstructured.Unstructured{rls, repo}
-				}
-				break
-			}
-		}
-		cm.Traits = make([]*unstructured.Unstructured, len(acc.Traits))
-		for j, t := range acc.Traits {
-			cm.Traits[j], err = RawExtension2Unstructured(&t.Trait)
-			if err != nil {
-				return nil, err
-			}
-		}
-		cm.Scopes = make([]*corev1.ObjectReference, len(acc.Scopes))
-		for x, s := range acc.Scopes {
-			cm.Scopes[x] = &corev1.ObjectReference{
-				Kind:       s.ScopeReference.Kind,
-				Name:       s.ScopeReference.Name,
-				APIVersion: s.ScopeReference.APIVersion,
-			}
-		}
-		cms[i] = cm
-	}
-	return cms, nil
 }
 
 // Object2Map turn the Object to a map

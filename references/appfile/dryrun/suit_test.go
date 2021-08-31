@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/appfile"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -106,7 +108,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).Should(BeNil())
 
 	dryrunOpt = NewDryRunOption(k8sClient, dm, pd, []oam.Object{cdMyWorker, tdMyIngress, tdMyScaler})
-	diffOpt = &LiveDiffOption{dryrunOpt}
+	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, dm, pd)}
 
 	close(done)
 }, 60)
