@@ -1,10 +1,10 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.2.4
+    controller-gen.kubebuilder.io/version: v0.6.2
   name: approllouts.core.oam.dev
 spec:
   group: core.oam.dev
@@ -18,27 +18,24 @@ spec:
     - approllout
     singular: approllout
   scope: Namespaced
-  subresources:
-    status: {}
-  version: v1alpha2
   versions:
   - additionalPrinterColumns:
-    - JSONPath: .status.rolloutStatus.rolloutTargetSize
+    - jsonPath: .status.rolloutStatus.rolloutTargetSize
       name: TARGET
       type: string
-    - JSONPath: .status.rolloutStatus.upgradedReplicas
+    - jsonPath: .status.rolloutStatus.upgradedReplicas
       name: UPGRADED
       type: string
-    - JSONPath: .status.rolloutStatus.upgradedReadyReplicas
+    - jsonPath: .status.rolloutStatus.upgradedReadyReplicas
       name: READY
       type: string
-    - JSONPath: .status.rolloutStatus.batchRollingState
+    - jsonPath: .status.rolloutStatus.batchRollingState
       name: BATCH-STATE
       type: string
-    - JSONPath: .status.rolloutStatus.rollingState
+    - jsonPath: .status.rolloutStatus.rollingState
       name: ROLLING-STATE
       type: string
-    - JSONPath: .metadata.creationTimestamp
+    - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
     name: v1alpha2
@@ -483,23 +480,25 @@ spec:
         type: object
     served: true
     storage: false
+    subresources:
+      status: {}
   - additionalPrinterColumns:
-    - JSONPath: .status.rolloutTargetSize
+    - jsonPath: .status.rolloutTargetSize
       name: TARGET
       type: string
-    - JSONPath: .status.upgradedReplicas
+    - jsonPath: .status.upgradedReplicas
       name: UPGRADED
       type: string
-    - JSONPath: .status.upgradedReadyReplicas
+    - jsonPath: .status.upgradedReadyReplicas
       name: READY
       type: string
-    - JSONPath: .status.batchRollingState
+    - jsonPath: .status.batchRollingState
       name: BATCH-STATE
       type: string
-    - JSONPath: .status.rollingState
+    - jsonPath: .status.rollingState
       name: ROLLING-STATE
       type: string
-    - JSONPath: .metadata.creationTimestamp
+    - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
     name: v1beta1
@@ -945,6 +944,8 @@ spec:
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""
