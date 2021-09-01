@@ -608,4 +608,35 @@ apply.workload.name`,
 		result, _ := v.String()
 		assert.Equal(t, tCase.expect, result)
 	}
+
+	errorCases := []struct {
+		src    string
+		script string
+		err    string
+	}{
+		{
+			src: `
+   op: string 
+   op: 12
+`,
+			script: `op(1`,
+			err:    "expected ')', found 'EOF'",
+		},
+		{
+			src: `
+   op: string 
+   op: "help"
+`,
+			script: `oss`,
+			err:    "zz_output__: reference \"oss\" not found",
+		},
+	}
+
+	for _, tCase := range errorCases {
+		srcV, err := NewValue(tCase.src, nil)
+		assert.NilError(t, err)
+		_, err = srcV.LookupByScript(tCase.script)
+		assert.Error(t, err, tCase.err)
+		assert.Equal(t, err.Error(), tCase.err)
+	}
 }
