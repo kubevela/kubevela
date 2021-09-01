@@ -224,7 +224,11 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 func (p *Parser) ValidateComponentNames(ctx context.Context, af *Appfile) (int, error) {
 	existCompNames := make(map[string]string)
 	existApps := v1beta1.ApplicationList{}
-	if err := p.client.List(ctx, &existApps); err != nil {
+
+	listOpts := []client.ListOption{
+		client.InNamespace(af.Namespace),
+	}
+	if err := p.client.List(ctx, &existApps, listOpts...); err != nil {
 		return 0, err
 	}
 	for _, existApp := range existApps.Items {
