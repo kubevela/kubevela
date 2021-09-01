@@ -9,8 +9,8 @@ let baseImage = "gcr.io/distroless/base@sha256:aa4fd987555ea10e1a4ec8765da8158b5
 	workspace: [_name_=string]: #workspace & {name: "\(_name_)"}
 	steps: [...#Script]
 
-	_name:      string
-	_namespace: string
+	_name:      name
+	_namespace: namespace
 	_generate_scripts: [ for i, x in steps {"""
 scriptfile="/vela/scripts/script-\(i)"
 touch ${scriptfile} && chmod +x ${scriptfile}
@@ -18,7 +18,7 @@ cat > ${scriptfile} << '_EOF_'
 \(base64.Encode(null, x.script))
 _EOF_
 """}]
-	do: kube.#Apply & {
+	do: {
 		value: #PodTask & {
 			_scripts:   strings.Join(_generate_scripts, "")
 			_workspace: workspace
@@ -30,6 +30,7 @@ _EOF_
 				#StepContainer
 				name:             step.name
 				image:            step.image
+				env:              step.envs
 				_workspaceMounts: workspace
 				_index:           i
 			}]
@@ -41,7 +42,7 @@ _EOF_
 	name:   string
 	image:  string
 	script: string
-	envs?: [...{name: string, value: string}]
+	envs: [...{name: string, value: string}]
 	workspaceMounts: [...{workspace: #workspace, mountPath: string}]
 }
 
@@ -51,7 +52,7 @@ _EOF_
 
 #PodTask: {
 	_scripts: string
-	_workspace: [_name=string]: #workspace
+	_workspace: {...}
 	_volumes: [ for x in _workspace {name: x.name, emptyDir: {}}]
 	apiVersion: "v1"
 	kind:       "Pod"
@@ -61,6 +62,7 @@ _EOF_
 		name:      string
 	}
 	spec: {
+		containers: [...#StepContainer]
 		initContainers: [
 			{
 				name: "place-tools"
@@ -71,6 +73,7 @@ _EOF_
 			}, {
 				name:            "place-scripts"
 				imagePullPolicy: "IfNotPresent"
+				image:           baseImage
 				command: ["sh"]
 				args: ["-c", _scripts + "\n/vela/tools/entrypoint decode-script \"${scriptfile}\""]
 				volumeMounts: [{name: "vela-internal-scripts", mountPath: "/vela/scripts"}, {name: "vela-internal-tools", mountPath: "/vela/tools"}]
@@ -80,7 +83,7 @@ _EOF_
 				name: "vela-internal-workspace"
 			},
 			{emptyDir: {}
-				name: vela - internal - home
+				name: "vela-internal-home"
 			},
 			{emptyDir: {}
 				name: "vela-internal-results"
@@ -106,6 +109,7 @@ _EOF_
 			}
 				name: "vela-internal-downward"
 			}] + _volumes
+		restartPolicy: "Never"
 	}
 }
 
@@ -115,12 +119,13 @@ _EOF_
 	if _index != 0 {
 		_waitFile: "/vela/tools/\(_index)"
 	}
-	_workspaceMounts: [...{workspace: #workspace, mountPath: string}]
-	_volumeMounts: [ for v in _workspaceMounts {name: v.name, mountPath: v.mountPath}]
+	_workspaceMounts: {...}
+	_volumeMounts: [ for v in _workspaceMounts {name: v.workspace.name, mountPath: v.mountPath}]
 
 	name: string
 	args: ["-wait_file", _waitFile, "-wait_file_content", "-post_file", "/vela/tools/\(_index)", "-termination_path", "/vela/termination", "-step_metadata_dir", "/vela/steps/step-\(name)", "-step_metadata_dir_link", "/vela/steps/\(_index)", "-entrypoint", "/vela/scripts/script-\(_index)", "--"]
 	command: ["/vela/tools/entrypoint"]
+	env?:                     _
 	image:                    string
 	imagePullPolicy:          "Always"
 	terminationMessagePath:   "/vela/termination"
