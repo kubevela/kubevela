@@ -18,34 +18,35 @@ spec:
         let pushImage=image
 
         build: op.#Task & {
-           name: "\(context.name)-\(context.stepSessionId)"
-           namespace: context.namespace
+                name:      "\(context.name)-\(context.stepId)"
+                namespace: context.namespace
 
-           // Declare workspaces that used to share data.
-           workspace: {
-               "code-dir": {}
-           }
+                // Declare workspaces that used to share data.
+                workspace: {
+                        "code-dir": {}
+                }
 
-           steps: [
-        // git clone code repo.
-        {
-             name: "git-clone"
-             image: "git-image-with-pull-ssh"
-             workspaceMounts: [{workspace: workspace["code-dir"], mountPath: "/data/code"}]
-             script: """
-        #! /bin/bash
-        git clone \(repourl) /data/code
-        """},
-        // build and push image.
-        {
-             name: "build-image"
-             image: "gcr.io/kaniko-project/executor:v1.3.0"
-             workspaceMounts: [{workspace: workspace["code-dir"],mountPath: "/data/build"}]
-             script: """
-        /kaniko/executor --dockerfile=/data/build/\(dockerfile)\
-        --context=/data/build\
-        --destination=\(pushImage)
-        """}]
+                steps: [
+                        // git clone code repo.
+                        {
+                                name:  "git-clone"
+                                image: "git-image-with-pull-ssh"
+                                workspaceMounts: [{workspace: workspace["code-dir"], mountPath: "/data/code"}]
+                                script: """
+                #! /bin/bash
+                git clone \(repourl) /data/code
+                """
+                        },
+                        // build and push image.
+                        {
+                                name:  "build-image"
+                                image: "gcr.io/kaniko-project/executor:v1.3.0"
+                                workspaceMounts: [{workspace: workspace["code-dir"], mountPath: "/data/build"}]
+                                script: """
+                #! /bin/bash
+                /kaniko/executor --dockerfile=/data/build/\(dockerfile) --context=/data/build --destination=\(pushImage)
+                """
+                        }]
         }
 
         // wait until deployment ready
