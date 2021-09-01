@@ -23,7 +23,7 @@ data:
               values:
                 featureGates: PreDownloadImageForInPlaceUpdate=true
             type: helm
-          - name: cloneset-service
+          - name: cloneset
             properties:
               apiVersion: core.oam.dev/v1beta1
               kind: ComponentDefinition
@@ -33,7 +33,7 @@ data:
                     services that have a stable network endpoint to receive external network
                     traffic from customers. If workload type is skipped for any service
                     defined in Appfile, it will be defaulted to `webservice` type.
-                name: cloneset-service
+                name: cloneset
                 namespace: vela-system
               spec:
                 schematic:
