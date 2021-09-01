@@ -141,7 +141,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 			if exec.status().Phase == common.WorkflowStepPhaseSucceeded {
 				for _, output := range outputs {
-					v, err := taskv.LookupValue(strings.Split(output.ExportKey, ".")...)
+					v, err := taskv.LookupByScript(output.ExportKey)
 					if err != nil {
 						exec.err(err, StatusReasonOutput)
 						return exec.status(), exec.operation(), nil

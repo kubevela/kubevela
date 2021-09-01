@@ -246,6 +246,22 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 	}, nil
 }
 
+// LookupByScript reports the value by cue script.
+func (val *Value) LookupByScript(script string) (*Value, error) {
+	var outputKey = "zz_output__"
+	script = strings.TrimSpace(script)
+	raw, err := val.String()
+	if err != nil {
+		return nil, err
+	}
+	raw += fmt.Sprintf("\n%s: %s", outputKey, script)
+	newV, err := val.MakeValue(raw)
+	if err != nil {
+		return nil, err
+	}
+	return newV.LookupValue(outputKey)
+}
+
 type field struct {
 	Name  string
 	Value *Value
