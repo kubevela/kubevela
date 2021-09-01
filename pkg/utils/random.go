@@ -14,14 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package util
+package utils
 
-import "testing"
+import (
+	"math/rand"
+	"time"
+)
 
-func TestRandom(t *testing.T) {
-	s1 := RandomString(10)
-	s2 := RandomString(10)
-	if s1 == s2 {
-		t.Error("random generate same string")
+var letters = []rune("abcdefghijklmnopqrstuvwxyz123456789")
+
+// RandomString generate random string.
+func RandomString(n int) string {
+	randSrc := rand.NewSource(time.Now().UnixNano())
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[randSrc.Int63()%int64(len(letters))]
 	}
+	return string(b)
 }

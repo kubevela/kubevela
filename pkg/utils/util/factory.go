@@ -17,7 +17,6 @@ limitations under the License.
 package util
 
 import (
-	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -159,19 +158,4 @@ func computeDiscoverCacheDir(parentDir, host string) string {
 	// now do a simple collapse of non-AZ09 characters.  Collisions are possible but unlikely.  Even if we do collide the problem is short lived
 	safeHost := overlyCautiousIllegalFileCharacters.ReplaceAllString(schemelessHost, "_")
 	return filepath.Join(parentDir, safeHost)
-}
-
-var letters = []rune("abcdefghijklmnopqrstuvwxyz123456789")
-
-// RandomString generate random string.
-func RandomString(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
