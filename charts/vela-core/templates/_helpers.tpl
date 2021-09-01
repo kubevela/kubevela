@@ -51,6 +51,11 @@ app.kubernetes.io/name: {{ include "kubevela.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "kubevela-apiserver.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "kubevela.name" . }}-apiserver
+app.kubernetes.io/instance: {{ .Release.Name }}-apiserver
+{{- end -}}
+
 {{/*
 Create the name of the service account to use
 */}}
