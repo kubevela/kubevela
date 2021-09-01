@@ -574,3 +574,69 @@ wait: {
 		assert.Equal(t, s, tCase.expect)
 	}
 }
+
+func TestLookupByScript(t *testing.T) {
+	testCases := []struct {
+		src    string
+		script string
+		expect string
+	}{
+		{
+			src: `
+apply: containers: [{name: "main", image: "busybox"}]
+`,
+			script: `apply.containers[0].image`,
+			expect: `"busybox"
+`,
+		},
+		{
+			src: `
+apply: workload: name: "main"
+`,
+			script: `
+apply.workload.name`,
+			expect: `"main"
+`,
+		},
+	}
+
+	for _, tCase := range testCases {
+		srcV, err := NewValue(tCase.src, nil)
+		assert.NilError(t, err)
+		v, err := srcV.LookupByScript(tCase.script)
+		assert.NilError(t, err)
+		result, _ := v.String()
+		assert.Equal(t, tCase.expect, result)
+	}
+
+	errorCases := []struct {
+		src    string
+		script string
+		err    string
+	}{
+		{
+			src: `
+   op: string 
+   op: 12
+`,
+			script: `op(1`,
+			err:    "expected ')', found 'EOF'",
+		},
+		{
+			src: `
+   op: string 
+   op: "help"
+`,
+			script: `oss`,
+			err:    "zz_output__: reference \"oss\" not found",
+		},
+	}
+
+	for _, tCase := range errorCases {
+		srcV, err := NewValue(tCase.src, nil)
+		assert.NilError(t, err)
+		_, err = srcV.LookupByScript(tCase.script)
+		assert.Error(t, err, tCase.err)
+		assert.Equal(t, err.Error(), tCase.err)
+	}
+}
