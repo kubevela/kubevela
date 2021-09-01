@@ -189,9 +189,6 @@ func (am *AppManifests) assemble() {
 		return
 	}
 	for _, comp := range am.componentManifests {
-		if comp.InsertConfigNotReady {
-			continue
-		}
 		if checkAutoDetectComponent(comp.StandardWorkload) {
 			klog.Warningf("component without specify workloadDef can not attach traits currently")
 			continue
@@ -304,14 +301,14 @@ func (am *AppManifests) assembleWorkload(compName string, wl *unstructured.Unstr
 
 // component revision label added here
 // label key: app.oam.dev/revision
-func (am *AppManifests) setWorkloadLabels(wl *unstructured.Unstructured, componentRevisionLabel map[string]string) {
+func (am *AppManifests) setWorkloadLabels(wl *unstructured.Unstructured, additionalLabels map[string]string) {
 	// add more workload-specific labels here
-	util.AddLabels(wl, componentRevisionLabel)
+	util.AddLabels(wl, additionalLabels)
 }
 
 // component revision label added here
 // label key: app.oam.dev/revision
-func (am *AppManifests) setTraitLabels(trait *unstructured.Unstructured, componentRevisionLabel map[string]string) {
+func (am *AppManifests) setTraitLabels(trait *unstructured.Unstructured, additionalLabels map[string]string) {
 	// add more trait-specific labels here
-	util.AddLabels(trait, componentRevisionLabel)
+	util.AddLabels(trait, additionalLabels)
 }

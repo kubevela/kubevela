@@ -74,7 +74,7 @@ const (
 	TypePlugin = "Plugin Command"
 )
 
-// DefaultFilterAnnots are annotations won't pass to workload or trait
+// DefaultFilterAnnots are annotations that won't pass to workload or trait
 var DefaultFilterAnnots = []string{
 	oam.AnnotationAppRollout,
 	oam.AnnotationRollingComponent,

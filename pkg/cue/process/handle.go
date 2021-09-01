@@ -37,8 +37,6 @@ type Context interface {
 	BaseContextFile() string
 	ExtendedContextFile() string
 	BaseContextLabels() map[string]string
-	SetConfigs(configs []map[string]string)
-	InsertSecrets(outputSecretName string, requiredSecrets []RequiredSecrets)
 	SetParameters(params map[string]interface{})
 	PushData(key string, data interface{})
 }
@@ -128,11 +126,6 @@ func NewPolicyContext(namespace, name, appName, appRevision string, components [
 		namespace:   namespace,
 		components:  components,
 	}
-}
-
-// SetConfigs set configs for templateContext
-func (ctx *templateContext) SetConfigs(configs []map[string]string) {
-	ctx.configs = configs
 }
 
 // SetParameters sets templateContext parameters

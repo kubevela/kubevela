@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
 	"github.com/aryann/difflib"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"

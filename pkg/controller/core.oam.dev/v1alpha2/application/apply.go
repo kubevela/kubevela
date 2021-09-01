@@ -115,9 +115,6 @@ func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.Compo
 				return errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
-		if comp.InsertConfigNotReady {
-			continue
-		}
 	}
 	a := assemble.NewAppManifests(h.currentAppRev, h.parser).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client)).WithComponentManifests(comps)
 	manifests, err := a.AssembledManifests()
@@ -138,27 +135,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			Healthy:            true,
 		}
 
-		var (
-			outputSecretName string
-			err              error
-			pCtx             process.Context
-		)
-
-		// this can help detect the componentManifest not ready and reconcile again
-		if wl.ConfigNotReady {
-			status.Healthy = false
-			status.Message = "secrets or configs not ready"
-			appStatus = append(appStatus, status)
-			healthy = false
-			continue
-		}
-		if wl.IsSecretProducer() {
-			outputSecretName, err = appfile.GetOutputSecretNames(wl)
-			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, setting outputSecretName error", appFile.Name, wl.Name)
-			}
-			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
-		}
+		var pCtx process.Context
 
 		switch wl.CapabilityCategory {
 		case types.TerraformCategory:

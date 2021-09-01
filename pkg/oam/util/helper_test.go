@@ -797,7 +797,7 @@ func TestGetGVKFromDef(t *testing.T) {
 	mapper.MockKindsFor = mock.NewMockKindsFor("Abc", "v1", "v2")
 	gvk, err := util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com"})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "example.com",
 		Version: "v1",
 		Kind:    "Abc",
@@ -805,7 +805,7 @@ func TestGetGVKFromDef(t *testing.T) {
 
 	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com", Version: "v2"})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "example.com",
 		Version: "v2",
 		Kind:    "Abc",
@@ -813,7 +813,7 @@ func TestGetGVKFromDef(t *testing.T) {
 
 	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "",
 		Version: "",
 		Kind:    "",
@@ -821,7 +821,7 @@ func TestGetGVKFromDef(t *testing.T) {
 
 	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "dummy"})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "",
 		Version: "",
 		Kind:    "",

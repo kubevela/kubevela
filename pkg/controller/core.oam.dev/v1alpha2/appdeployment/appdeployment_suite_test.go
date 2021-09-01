@@ -27,7 +27,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -242,7 +241,7 @@ var appref = oamcore.Application{ // work around AppRevision validation
 	},
 }
 
-// TODO(wonderflow): fix this test using the new apprevision format without appConfig and components
+// TODO(wonderflow): fix this test using the new apprevision format without appConfig and components, MUST fix when we re-use AppDeployment, or deprecate it by using workflow mechanism
 var _ = PDescribe("Test AppDeployment Controller", func() {
 
 	ctx := context.Background()
@@ -415,17 +414,7 @@ var _ = PDescribe("Test AppDeployment Controller", func() {
 	})
 })
 
-func setupAppRevision(ctx context.Context, name, ns string, ac []byte, comps ...[]byte) *oamcore.ApplicationRevision {
-
-	rawComps := []common.RawComponent{}
-	for _, comp := range comps {
-		compCopy := make([]byte, len(comp))
-		copy(compCopy, comp)
-		rawComps = append(rawComps, common.RawComponent{Raw: runtime.RawExtension{Raw: compCopy}})
-	}
-
-	acCopy := make([]byte, len(ac))
-	copy(acCopy, ac)
+func setupAppRevision(ctx context.Context, name, ns string, _ []byte, _ ...[]byte) *oamcore.ApplicationRevision {
 
 	apprev := &oamcore.ApplicationRevision{
 		ObjectMeta: metav1.ObjectMeta{

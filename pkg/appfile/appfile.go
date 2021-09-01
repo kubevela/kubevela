@@ -21,21 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
-
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
@@ -51,12 +37,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // constant error information
@@ -82,29 +76,6 @@ type Workload struct {
 	ScopeDefinition    []*v1beta1.ScopeDefinition
 	FullTemplate       *Template
 	engine             definition.AbstractEngine
-	// OutputSecretName is the secret name which this workload will generate after it successfully generate a cloud resource
-	OutputSecretName string
-	// RequiredSecrets stores secret names which the workload needs from cloud resource component and its context
-	RequiredSecrets []process.RequiredSecrets
-	UserConfigs     []map[string]string
-	// ConfigNotReady indicates there's RequiredSecrets and UserConfigs but they're not ready yet.
-	ConfigNotReady bool
-}
-
-// GetUserConfigName get user config from AppFile, it will contain config file in it.
-func (wl *Workload) GetUserConfigName() string {
-	if wl.Params == nil {
-		return ""
-	}
-	t, ok := wl.Params[AppfileBuiltinConfig]
-	if !ok {
-		return ""
-	}
-	ts, ok := t.(string)
-	if !ok {
-		return ""
-	}
-	return ts
 }
 
 // EvalContext eval workload template and set result to context
@@ -120,23 +91,6 @@ func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
 	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
-}
-
-// IsSecretProducer checks whether a workload is cloud resource producer role
-func (wl *Workload) IsSecretProducer() bool {
-	var existed bool
-	_, existed = wl.Params[model.OutputSecretName]
-	return existed
-}
-
-// IsSecretConsumer checks whether a workload is cloud resource consumer role
-func (wl *Workload) IsSecretConsumer() bool {
-	requiredSecretTag := strings.TrimRight(InsertSecretToTag, "=")
-	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(wl.FullTemplate.TemplateStr))
-	if err != nil || !matched {
-		return false
-	}
-	return true
 }
 
 // Scope defines the scope of workload
@@ -179,16 +133,6 @@ func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namesp
 	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
 }
 
-// IsSecretConsumer checks whether a trait is cloud resource consumer role
-func (trait *Trait) IsSecretConsumer() bool {
-	requiredSecretTag := strings.TrimRight(InsertSecretToTag, "=")
-	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(trait.FullTemplate.TemplateStr))
-	if err != nil || !matched {
-		return false
-	}
-	return true
-}
-
 // Appfile describes application
 type Appfile struct {
 	Name            string
@@ -200,10 +144,9 @@ type Appfile struct {
 	AppLabels       map[string]string
 	AppAnnotations  map[string]string
 
-	RelatedWorkflowStepDefinitions []*v1beta1.WorkflowStepDefinition
-	RelatedTraitDefinitions        map[string]*v1beta1.TraitDefinition
-	RelatedComponentDefinitions    map[string]*v1beta1.ComponentDefinition
-	RelatedScopeDefinitions        map[string]*v1beta1.ScopeDefinition
+	RelatedTraitDefinitions     map[string]*v1beta1.TraitDefinition
+	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition
+	RelatedScopeDefinitions     map[string]*v1beta1.ScopeDefinition
 
 	Policies      []*Workload
 	WorkflowSteps []v1beta1.WorkflowStep
@@ -286,13 +229,13 @@ func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns strin
 func prepareArtifactsData(comps []*types.ComponentManifest) map[string]interface{} {
 	artifacts := unstructured.Unstructured{Object: make(map[string]interface{})}
 	for _, pComp := range comps {
-		if pComp.InsertConfigNotReady {
-			_ = unstructured.SetNestedField(artifacts.Object, false, pComp.Name, "ready")
-			continue
+		if pComp.StandardWorkload != nil {
+			_ = unstructured.SetNestedField(artifacts.Object, pComp.StandardWorkload.Object, pComp.Name, "workload")
 		}
-		_ = unstructured.SetNestedField(artifacts.Object, true, pComp.Name, "ready")
-		_ = unstructured.SetNestedField(artifacts.Object, pComp.StandardWorkload.Object, pComp.Name, "workload")
 		for _, t := range pComp.Traits {
+			if t == nil {
+				continue
+			}
 			_ = unstructured.SetNestedField(artifacts.Object, t.Object, pComp.Name,
 				"traits",
 				t.GetLabels()[oam.TraitTypeLabel],
@@ -311,11 +254,9 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 		if err != nil {
 			return nil, err
 		}
-		if !wl.ConfigNotReady {
-			err = af.SetOAMContract(cm)
-			if err != nil {
-				return nil, err
-			}
+		err = af.SetOAMContract(cm)
+		if err != nil {
+			return nil, err
 		}
 		compManifests[i] = cm
 		af.Artifacts[i] = cm
@@ -327,13 +268,6 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentManifest, error) {
 	if af.Namespace == "" {
 		af.Namespace = corev1.NamespaceDefault
-	}
-	if wl.ConfigNotReady {
-		return &types.ComponentManifest{
-			Name:                 wl.Name,
-			Namespace:            af.Namespace,
-			InsertConfigNotReady: true,
-		}, nil
 	}
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
@@ -450,7 +384,10 @@ func (af *Appfile) assembleTrait(trait *unstructured.Unstructured, compName stri
 	// only set generated name when name is unspecified
 	// it's by design to set arbitrary name in render phase
 	if len(trait.GetName()) == 0 {
-		traitName := util.GenTraitNameCompatible(compName, trait, traitType)
+		cpTrait := trait.DeepCopy()
+		// remove labels that should not be calculate into hash
+		util.RemoveLabels(cpTrait, []string{oam.LabelAppRevision})
+		traitName := util.GenTraitNameCompatible(compName, cpTrait, traitType)
 		trait.SetName(traitName)
 	}
 	af.setTraitLabels(trait, labels)
@@ -510,48 +447,10 @@ func PrepareProcessContext(wl *Workload, applicationName, revision, namespace st
 // NewBasicContext prepares a basic DSL process Context
 func NewBasicContext(wl *Workload, applicationName, revision, namespace string) process.Context {
 	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
-	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
-	if len(wl.UserConfigs) > 0 {
-		pCtx.SetConfigs(wl.UserConfigs)
-	}
 	if wl.Params != nil {
 		pCtx.SetParameters(wl.Params)
 	}
 	return pCtx
-}
-
-// GetSecretAndConfigs will get secrets and configs the workload requires
-func GetSecretAndConfigs(cli client.Client, workload *Workload, appName, ns string) error {
-	if workload.IsSecretConsumer() {
-		requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, workload.FullTemplate.TemplateStr, workload.Params)
-		if err != nil {
-			return err
-		}
-		workload.RequiredSecrets = requiredSecrets
-	}
-
-	for _, tr := range workload.Traits {
-		if tr.IsSecretConsumer() {
-			requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, tr.FullTemplate.TemplateStr, tr.Params)
-			if err != nil {
-				return err
-			}
-			tr.RequiredSecrets = requiredSecrets
-		}
-	}
-
-	userConfig := workload.GetUserConfigName()
-	if userConfig != "" {
-		cg := config.Configmap{Client: cli}
-		// TODO(wonderflow): envName should not be namespace when we have serverside env
-		var envName = ns
-		data, err := cg.GetConfigData(config.GenConfigMapName(appName, workload.Name, userConfig), envName)
-		if err != nil {
-			return errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, appName, ns)
-		}
-		workload.UserConfigs = data
-	}
-	return nil
 }
 
 func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
@@ -568,19 +467,9 @@ func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns st
 }
 
 func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
-	var (
-		outputSecretName string
-		err              error
-	)
-	if wl.IsSecretProducer() {
-		outputSecretName, err = GetOutputSecretNames(wl)
-		if err != nil {
-			return nil, err
-		}
-		wl.OutputSecretName = outputSecretName
-	}
+	var err error
+
 	for _, tr := range wl.Traits {
-		pCtx.InsertSecrets("", tr.RequiredSecrets)
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
 		}

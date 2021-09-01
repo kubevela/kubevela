@@ -85,7 +85,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(k8sClient.DeleteAllOf(ctx, &appsv1.ControllerRevision{}, client.InNamespace(namespace))).Should(Succeed())
 	})
 
-	It("should create ConfigMap with final resources for app with workflow", func() {
+	PIt("should create ConfigMap with final resources for app with workflow", func() {
 		Expect(k8sClient.Create(ctx, appWithWorkflowAndPolicy)).Should(BeNil())
 
 		// first try to add finalizer
