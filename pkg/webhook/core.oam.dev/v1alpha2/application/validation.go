@@ -22,14 +22,11 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
@@ -89,57 +86,32 @@ func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, ap
 		}
 
 		labeledControllerComponent := cr.GetLabels()[oam.LabelControllerRevisionComponent]
-		labeledRevisionHash := cr.GetLabels()[oam.LabelComponentRevisionHash]
 		if labeledControllerComponent != comp.Name {
 			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, fmt.Sprintf("label:%s for revision:%s should be equal with component name", oam.LabelControllerRevisionComponent, revisionName)))
-			continue
-		}
-		if len(labeledRevisionHash) == 0 {
-			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, fmt.Sprintf("label:%s for revision:%s should exist", oam.LabelComponentRevisionHash, revisionName)))
 			continue
 		}
 
 		comp, err := util.RawExtension2Component(cr.Data)
 		if err != nil {
-			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't covert revision to component"))
+			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "can't covert revision to component"))
 			continue
 		}
-		workload, err := util.RawExtension2Unstructured(&comp.Spec.Workload)
+		_, err = util.RawExtension2Unstructured(&comp.Spec.Workload)
 		if err != nil {
-			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't extract workload"))
+			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "can't extract workload"))
 			continue
 		}
-		packagedWorkloadResources := make([]*unstructured.Unstructured, 0)
 		if comp.Spec.Helm != nil {
-			helmRelease, err := util.RawExtension2Unstructured(&comp.Spec.Helm.Release)
+			_, err = util.RawExtension2Unstructured(&comp.Spec.Helm.Release)
 			if err != nil {
-				componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't extract helmRelease"))
+				componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "can't extract helmRelease"))
 				continue
 			}
-			helmRepository, err := util.RawExtension2Unstructured(&comp.Spec.Helm.Repository)
+			_, err = util.RawExtension2Unstructured(&comp.Spec.Helm.Repository)
 			if err != nil {
-				componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't extract helmRepository"))
+				componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "can't extract helmRepository"))
 				continue
 			}
-			if helmRelease != nil {
-				packagedWorkloadResources = append(packagedWorkloadResources, helmRelease)
-			}
-			if helmRepository != nil {
-				packagedWorkloadResources = append(packagedWorkloadResources, helmRepository)
-			}
-		}
-		// recalculate hash
-		hash, err := application.ComputeComponentRevisionHash(&types.ComponentManifest{
-			StandardWorkload:          workload,
-			PackagedWorkloadResources: packagedWorkloadResources,
-		})
-		if err != nil {
-			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "cann't recalculate hash"))
-			continue
-		}
-		if hash != labeledRevisionHash {
-			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].externalRevision", index)), app, "hash value which specified in labels and revision data's hash should be equal"))
-			continue
 		}
 	}
 	return componentErrs

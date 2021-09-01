@@ -72,26 +72,5 @@ func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([
 		return nil, errors.WithMessage(err, "cannot generate AppConfig and Components")
 	}
 
-	for _, comp := range comps {
-		if comp.StandardWorkload != nil {
-			if comp.StandardWorkload.GetName() == "" {
-				comp.StandardWorkload.SetName(comp.Name)
-			}
-			if comp.StandardWorkload.GetNamespace() == "" {
-				comp.StandardWorkload.SetNamespace(appFile.Namespace)
-			}
-		}
-
-		for _, trait := range comp.Traits {
-			if trait.GetName() == "" {
-				traitType := trait.GetLabels()[oam.TraitTypeLabel]
-				traitName := oamutil.GenTraitNameCompatible(comp.Name, trait, traitType)
-				trait.SetName(traitName)
-			}
-			if trait.GetNamespace() == "" {
-				trait.SetNamespace(appFile.Namespace)
-			}
-		}
-	}
 	return comps, nil
 }

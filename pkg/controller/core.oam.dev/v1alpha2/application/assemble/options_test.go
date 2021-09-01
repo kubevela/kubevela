@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var _ = Describe("Test WorkloadOption", func() {
@@ -60,6 +61,7 @@ var _ = Describe("Test WorkloadOption", func() {
 			By("Use openkruise CloneSet as workload")
 			cs := &unstructured.Unstructured{}
 			cs.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.CloneSet{}).Name()))
+			cs.SetLabels(map[string]string{oam.LabelAppComponent: compName})
 			comp := types.ComponentManifest{
 				Name:             compName,
 				StandardWorkload: cs,
@@ -84,6 +86,7 @@ var _ = Describe("Test WorkloadOption", func() {
 			By("Use openkruise CloneSet as workload")
 			sts := &unstructured.Unstructured{}
 			sts.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.StatefulSet{}).Name()))
+			sts.SetLabels(map[string]string{oam.LabelAppComponent: compName})
 			comp := types.ComponentManifest{
 				Name:             compName,
 				StandardWorkload: sts,
@@ -101,6 +104,7 @@ var _ = Describe("Test WorkloadOption", func() {
 			By("Verify workload is paused")
 			assembledCS := &v1alpha1.StatefulSet{}
 			runtime.DefaultUnstructuredConverter.FromUnstructured(wl.Object, assembledCS)
+			fmt.Println(assembledCS.Spec.UpdateStrategy)
 			Expect(assembledCS.Spec.UpdateStrategy.RollingUpdate.Paused).Should(BeTrue())
 		})
 

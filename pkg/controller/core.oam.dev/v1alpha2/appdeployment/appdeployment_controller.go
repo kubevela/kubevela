@@ -20,10 +20,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-
 	"github.com/pkg/errors"
 	istioapiv1beta1 "istio.io/api/networking/v1beta1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -40,9 +36,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )

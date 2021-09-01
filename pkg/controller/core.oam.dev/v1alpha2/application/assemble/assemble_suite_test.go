@@ -18,7 +18,6 @@ package assemble
 
 import (
 	"os"
-	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -152,6 +151,9 @@ var _ = Describe("Test Assemble Options", func() {
 		)
 		appRev := &v1beta1.ApplicationRevision{}
 		b, err := os.ReadFile("./testdata/filter_annotations.yaml")
+		Expect(err).Should(BeNil())
+		err = yaml.Unmarshal(b, appRev)
+		Expect(err).Should(BeNil())
 		getKeys := func(m map[string]string) []string {
 			var keys []string
 			for k := range m {
@@ -179,10 +181,6 @@ var _ = Describe("Test Assemble Options", func() {
 			      properties:
 			        image: nginx
 		*/
-
-		Expect(err).Should(BeNil())
-		err = yaml.Unmarshal(b, appRev)
-		Expect(err).Should(BeNil())
 
 		ao := NewAppManifests(appRev, appParser)
 		workloads, _, _, err := ao.GroupAssembledManifests()

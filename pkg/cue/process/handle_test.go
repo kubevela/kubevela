@@ -63,10 +63,7 @@ image: "myserver"
 		Ins:  svcIns,
 		Name: "service",
 	}
-	targetRequiredSecrets := []RequiredSecrets{{
-		ContextName: "conn1",
-		Data:        map[string]interface{}{"password": "123"},
-	}}
+
 	targetParams := map[string]interface{}{
 		"parameter1": "string",
 		"parameter2": map[string]string{
@@ -99,7 +96,6 @@ image: "myserver"
 	}
 
 	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1")
-	ctx.InsertSecrets("db-conn", targetRequiredSecrets)
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 	ctx.SetParameters(targetParams)
@@ -139,10 +135,6 @@ image: "myserver"
 	ns, err := ctxInst.Lookup("context", model.ContextNamespace).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myns", ns)
-
-	requiredSecrets, err := ctxInst.Lookup("context", "conn1").MarshalJSON()
-	assert.Equal(t, nil, err)
-	assert.Equal(t, "{\"password\":\"123\"}", string(requiredSecrets))
 
 	params, err := ctxInst.Lookup("context", model.ParameterFieldName).MarshalJSON()
 	assert.Equal(t, nil, err)

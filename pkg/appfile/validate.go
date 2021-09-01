@@ -33,12 +33,6 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		if wl.CapabilityCategory != types.CUECategory {
 			continue
 		}
-		if wl.IsSecretConsumer() {
-			// we don't check CUE schema when it's has secret insert demand as the secret can not be ready
-			// we should deprecate the secret consumer when workflow ready and add the check back
-			continue
-		}
-
 		pCtx, err := newValidationProcessContext(wl, a.Name, a.AppRevisionName, a.Namespace)
 		if err != nil {
 			return errors.WithMessage(err, "cannot create validationg process context")

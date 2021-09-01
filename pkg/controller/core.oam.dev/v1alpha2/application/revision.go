@@ -69,11 +69,7 @@ func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 
 	components := map[string]interface{}{}
 	for _, c := range comps {
-		if c.InsertConfigNotReady {
-			continue
-		}
 		components[c.Name] = SprintComponentManifest(c)
-
 	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -222,14 +218,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			appRev.Spec.PolicyDefinitions[p.FullTemplate.PolicyDefinition.Name] = *pd
 		}
 	}
-	for _, w := range af.RelatedWorkflowStepDefinitions {
-		if w == nil {
-			continue
-		}
-		wd := w.DeepCopy()
-		wd.Status = v1beta1.WorkflowStepDefinitionStatus{}
-		appRev.Spec.WorkflowStepDefinitions[w.Name] = *wd
-	}
+
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
 		klog.ErrorS(err, "Failed to compute hash of appRevision for application", "application", klog.KObj(h.app))
@@ -426,9 +415,6 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 // 2. check all componentTrait  rely on componentRevName, if yes fill it
 func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
 	for _, cm := range compManifests {
-		if cm.InsertConfigNotReady {
-			continue
-		}
 
 		// external revision specified
 		if len(cm.ExternalRevision) != 0 {
@@ -519,7 +505,7 @@ func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context,
 			}
 			currentComp := componentManifest2Component(comp)
 			// further check whether it's truly identical, even hash value is equal
-			if reflect.DeepEqual(existingComp, currentComp) {
+			if checkComponentSpecEqual(existingComp, currentComp) {
 				comp.RevisionName = existingCR.GetName()
 				// found identical revision already exisits
 				// skip creating new one
@@ -543,6 +529,24 @@ func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context,
 	return nil
 }
 
+func checkComponentSpecEqual(a, b *v1alpha2.Component) bool {
+	if reflect.DeepEqual(a, b) {
+		return true
+	}
+	au, err := util.RawExtension2Unstructured(&a.Spec.Workload)
+	if err != nil {
+		return false
+	}
+	bu, err := util.RawExtension2Unstructured(&b.Spec.Workload)
+	if err != nil {
+		return false
+	}
+	if !reflect.DeepEqual(au.Object["spec"], bu.Object["spec"]) {
+		return false
+	}
+	return reflect.DeepEqual(a.Spec.Helm, b.Spec.Helm)
+}
+
 // ComputeComponentRevisionHash to compute component hash
 func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error) {
 	compRevisionHash := struct {
@@ -551,10 +555,12 @@ func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error)
 	}{}
 	wl := comp.StandardWorkload.DeepCopy()
 	if wl != nil {
-		// remove workload's app revision label before computing component hash
-		// otherwise different app revision will always have different revision component
-		util.RemoveLabels(wl, []string{oam.LabelAppRevision})
-		hash, err := utils.ComputeSpecHash(wl)
+		// Only calculate spec for component revision
+		spec, found := wl.Object["spec"]
+		if !found {
+			return "", errors.Errorf(".spec not found in workload %s in namespace %s", wl.GetName(), wl.GetNamespace())
+		}
+		hash, err := utils.ComputeSpecHash(spec)
 		if err != nil {
 			return "", err
 		}

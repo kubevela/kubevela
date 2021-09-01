@@ -19,33 +19,21 @@ package appfile
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-)
-
-const (
-	// AppfileBuiltinConfig defines the built-in config variable
-	AppfileBuiltinConfig = "config"
 )
 
 // TemplateLoaderFn load template of a capability definition
@@ -97,11 +85,6 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		if err != nil {
 			return nil, err
 		}
-		if err := GetSecretAndConfigs(p.client, wd, appName, ns); err != nil {
-			klog.InfoS("Failed to get secret and configs", "namespace", ns, "app name", appName, "workload name", wd.Name,
-				"err", err)
-			wd.ConfigNotReady = true
-		}
 
 		wds = append(wds, wd)
 	}
@@ -113,18 +96,6 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appfile.Policies, err = p.parsePolicies(ctx, app.Spec.Policies)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
-	}
-
-	if wfSpec := app.Spec.Workflow; wfSpec != nil {
-		appfile.RelatedWorkflowStepDefinitions = []*v1beta1.WorkflowStepDefinition{}
-		appfile.WorkflowSteps = wfSpec.Steps
-		for _, v := range wfSpec.Steps {
-			templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, v.Type, types.TypeWorkflowStep)
-			if err != nil {
-				return nil, errors.WithMessagef(err, "fetch type of %s", v.Type)
-			}
-			appfile.RelatedWorkflowStepDefinitions = append(appfile.RelatedWorkflowStepDefinitions, templ.WorkflowStepDefinition.DeepCopy())
-		}
 	}
 
 	for _, w := range wds {
@@ -153,6 +124,11 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 			appfile.RelatedScopeDefinitions[s.Name] = s.DeepCopy()
 		}
 	}
+
+	if wfSpec := app.Spec.Workflow; wfSpec != nil {
+		appfile.WorkflowSteps = wfSpec.Steps
+	}
+
 	return appfile, nil
 }
 
@@ -176,8 +152,36 @@ func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfi
 	return file
 }
 
+// inheritLabelAndAnnotationFromAppRev is a compatible function, that we can't record metadata for application object in AppRev
+func inheritLabelAndAnnotationFromAppRev(appRev *v1beta1.ApplicationRevision) {
+	if len(appRev.Spec.Application.Annotations) > 0 || len(appRev.Spec.Application.Labels) > 0 {
+		return
+	}
+	appRev.Spec.Application.SetNamespace(appRev.Namespace)
+	if appRev.Spec.Application.GetName() == "" {
+		appRev.Spec.Application.SetName(appRev.Labels[oam.LabelAppName])
+	}
+	labels := make(map[string]string)
+	for k, v := range appRev.GetLabels() {
+		if k == oam.LabelAppRevisionHash || k == oam.LabelAppName {
+			continue
+		}
+		labels[k] = v
+	}
+	appRev.Spec.Application.SetLabels(labels)
+
+	annotations := make(map[string]string)
+	for k, v := range appRev.GetAnnotations() {
+		annotations[k] = v
+	}
+	appRev.Spec.Application.SetAnnotations(annotations)
+}
+
 // GenerateAppFileFromRevision converts an application revision to an Appfile
 func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision) (*Appfile, error) {
+
+	inheritLabelAndAnnotationFromAppRev(appRev)
+
 	app := appRev.Spec.Application.DeepCopy()
 	ns := app.Namespace
 	appName := app.Name
@@ -202,21 +206,6 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
 
-	if wfSpec := app.Spec.Workflow; wfSpec != nil {
-		appfile.WorkflowSteps = wfSpec.Steps
-		appfile.RelatedWorkflowStepDefinitions = []*v1beta1.WorkflowStepDefinition{}
-		if wfSpec := app.Spec.Workflow; wfSpec != nil {
-			appfile.WorkflowSteps = wfSpec.Steps
-			for _, v := range wfSpec.Steps {
-				templ, err := LoadTemplateFromRevision(v.Type, types.TypeWorkflowStep, appRev)
-				if err != nil {
-					return nil, errors.WithMessagef(err, "fetch type of %s", v.Type)
-				}
-				appfile.RelatedWorkflowStepDefinitions = append(appfile.RelatedWorkflowStepDefinitions, templ.WorkflowStepDefinition.DeepCopy())
-			}
-		}
-	}
-
 	for k, v := range appRev.Spec.ComponentDefinitions {
 		appfile.RelatedComponentDefinitions[k] = v.DeepCopy()
 	}
@@ -225,6 +214,10 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	}
 	for k, v := range appRev.Spec.ScopeDefinitions {
 		appfile.RelatedScopeDefinitions[k] = v.DeepCopy()
+	}
+
+	if wfSpec := app.Spec.Workflow; wfSpec != nil {
+		appfile.WorkflowSteps = wfSpec.Steps
 	}
 
 	return appfile, nil
@@ -257,7 +250,7 @@ func (p *Parser) parsePoliciesFromRevision(policies []v1beta1.AppPolicy, appRev 
 func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "fetch type of %s", name)
+		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
 	}
 	return p.convertTemplate2Workload(name, typ, props, templ)
 }
@@ -265,7 +258,7 @@ func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType typ
 func (p *Parser) makeWorkloadFromRevision(name, typ string, capType types.CapType, props runtime.RawExtension, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
 	templ, err := LoadTemplateFromRevision(typ, capType, appRev)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "fetch type of %s", name)
+		return nil, errors.WithMessagef(err, "fetch component/policy type of %s from revision", name)
 	}
 
 	return p.convertTemplate2Workload(name, typ, props, templ)
@@ -434,93 +427,6 @@ func (p *Parser) ValidateComponentNames(ctx context.Context, af *Appfile) (int, 
 	}
 
 	return 0, nil
-}
-
-// GetOutputSecretNames set all secret names, which are generated by cloud resource, to context
-func GetOutputSecretNames(workloads *Workload) (string, error) {
-	secretName, err := getComponentSetting(model.OutputSecretName, workloads.Params)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprint(secretName), nil
-}
-
-func parseInsertSecretTo(ctx context.Context, c client.Client, namespace string, templateStr string, props map[string]interface{}) ([]process.RequiredSecrets, error) {
-	var requiredSecret []process.RequiredSecrets
-	cueStr := velacue.BaseTemplate + templateStr
-	r := cue.Runtime{}
-	ins, err := r.Compile("-", cueStr)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot compile CUE template")
-	}
-	params := ins.Lookup(model.ParameterFieldName)
-	if !params.Exists() {
-		return nil, nil
-	}
-	paramsSt, err := params.Struct()
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot resolve parameters in CUE template")
-	}
-	for i := 0; i < paramsSt.Len(); i++ {
-		fieldInfo := paramsSt.Field(i)
-		fName := fieldInfo.Name
-		cgs := fieldInfo.Value.Doc()
-		for _, cg := range cgs {
-			for _, comment := range cg.List {
-				if comment == nil {
-					continue
-				}
-				if strings.Contains(comment.Text, InsertSecretToTag) {
-					contextName := strings.Split(comment.Text, InsertSecretToTag)[1]
-					contextName = strings.TrimSpace(contextName)
-					secretNameInterface, err := getComponentSetting(fName, props)
-					if err != nil {
-						return nil, err
-					}
-					secretName, ok := secretNameInterface.(string)
-					if !ok {
-						return nil, fmt.Errorf("failed to convert secret name %v to string", secretNameInterface)
-					}
-					secretData, err := extractSecret(ctx, c, namespace, secretName)
-					if err != nil {
-						return nil, err
-					}
-					requiredSecret = append(requiredSecret, process.RequiredSecrets{
-						Name:        secretName,
-						ContextName: contextName,
-						Namespace:   namespace,
-						Data:        secretData,
-					})
-				}
-			}
-		}
-
-	}
-	return requiredSecret, nil
-}
-
-func extractSecret(ctx context.Context, c client.Client, namespace, name string) (map[string]interface{}, error) {
-	secretData := make(map[string]interface{})
-	var secret v1.Secret
-	if err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, &secret); err != nil {
-		return nil, fmt.Errorf("failed to get secret %s from namespace %s which is required by the component: %w",
-			name, namespace, err)
-	}
-	for k, v := range secret.Data {
-		secretData[k] = string(v)
-	}
-	if len(secretData) == 0 {
-		return nil, fmt.Errorf("data in secret %s from namespace %s isn't available", name, namespace)
-	}
-	return secretData, nil
-}
-
-func getComponentSetting(settingParamName string, params map[string]interface{}) (interface{}, error) {
-	if secretName, ok := params[settingParamName]; ok {
-		return secretName, nil
-	}
-	return nil, fmt.Errorf("failed to get the value of component setting %s", settingParamName)
 }
 
 // GetScopeDefAndGVK get grouped API version of the given scope

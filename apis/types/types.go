@@ -77,7 +77,7 @@ const (
 // LabelArg is the argument `label` of a definition
 const LabelArg = "label"
 
-// DefaultFilterAnnots are annotations won't pass to workload or trait
+// DefaultFilterAnnots are annotations that won't pass to workload or trait
 var DefaultFilterAnnots = []string{
 	oam.AnnotationAppRollout,
 	oam.AnnotationRollingComponent,

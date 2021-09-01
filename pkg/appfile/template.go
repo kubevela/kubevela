@@ -41,8 +41,6 @@ const (
 	UsageTag = "+usage="
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
-	// InsertSecretToTag marks the value should be set as an context
-	InsertSecretToTag = "+insertSecretTo="
 )
 
 // Template is a helper struct for processing capability including
