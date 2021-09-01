@@ -48,7 +48,7 @@ myIP: value: "1.1.1.1"
 			return v.FillObject(ip)
 		},
 		"input": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
-			val, err := v.LookupValue("set","prefixIP")
+			val, err := v.LookupValue("set", "prefixIP")
 			assert.NilError(t, err)
 			str, err := val.CueValue().String()
 			assert.NilError(t, err)
