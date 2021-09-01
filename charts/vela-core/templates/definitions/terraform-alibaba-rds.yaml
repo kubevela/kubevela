@@ -5,6 +5,7 @@ metadata:
   namespace: {{.Values.systemDefinitionNamespace}}
   annotations:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud RDS object
+  labels:
     type: terraform
 spec:
   workload:

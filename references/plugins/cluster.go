@@ -205,7 +205,8 @@ func validateCapabilities(tmp *types.Capability, dm discoverymapper.DiscoveryMap
 }
 
 // HandleDefinition will handle definition to capability
-func HandleDefinition(name, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *commontypes.Schematic) (types.Capability, error) {
+func HandleDefinition(name, crdName string, annotation, labels map[string]string, extension *runtime.RawExtension, tp types.CapType,
+	applyTo []string, schematic *commontypes.Schematic) (types.Capability, error) {
 	var tmp types.Capability
 	tmp, err := HandleTemplate(extension, schematic, name)
 	if err != nil {
@@ -217,6 +218,7 @@ func HandleDefinition(name, crdName string, annotation map[string]string, extens
 	}
 	tmp.CrdName = crdName
 	tmp.Description = GetDescription(annotation)
+	tmp.Labels = labels
 	return tmp, nil
 }
 
@@ -352,8 +354,8 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 
 // GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
 func GetCapabilityByComponentDefinitionObject(componentDef v1beta1.ComponentDefinition, referenceName string) (*types.Capability, error) {
-	capability, err := HandleDefinition(componentDef.Name, referenceName,
-		componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
+	capability, err := HandleDefinition(componentDef.Name, referenceName, componentDef.Annotations, componentDef.Labels,
+		componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
 	}
@@ -367,8 +369,8 @@ func GetCapabilityByTraitDefinitionObject(traitDef v1beta1.TraitDefinition) (*ty
 		capability types.Capability
 		err        error
 	)
-	capability, err = HandleDefinition(traitDef.Name, traitDef.Spec.Reference.Name,
-		traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
+	capability, err = HandleDefinition(traitDef.Name, traitDef.Spec.Reference.Name, traitDef.Annotations, traitDef.Labels,
+		traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to handle TraitDefinition")
 	}

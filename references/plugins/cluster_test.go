@@ -79,6 +79,7 @@ var _ = Describe("DefinitionFiles", func() {
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 		},
+		Labels: map[string]string{"usecase": "forplugintest"},
 	}
 
 	websvc := types.Capability{
@@ -108,6 +109,7 @@ var _ = Describe("DefinitionFiles", func() {
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 		},
+		Labels: map[string]string{"usecase": "forplugintest"},
 	}
 
 	req, _ := labels.NewRequirement("usecase", selection.Equals, []string{"forplugintest"})

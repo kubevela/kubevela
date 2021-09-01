@@ -17,16 +17,25 @@ limitations under the License.
 package e2e
 
 import (
-	"github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/e2e"
 )
 
-var _ = ginkgo.Describe("Workload", func() {
+var _ = Describe("Workload", func() {
 	e2e.WorkloadCapabilityListContext()
+
+	Context("list components with `label` filter", func() {
+		It("list components with the specified label", func() {
+			output, err := e2e.Exec("vela components --label type=terraform")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("alibaba-oss"))
+		})
+	})
 })
 
-var _ = ginkgo.Describe("Test vela show", func() {
+var _ = Describe("Test vela show", func() {
 	e2e.ShowCapabilityReference("show webservice", "webservice")
 
 	env := "namespace-xxxfwrr23erfm"
