@@ -90,6 +90,12 @@ poc-01   true          {{ APIServer address }}       True     True        30s
 
 ## Deploy the resource to ack cluster
 
+install trait `expose` from default capability center.
+
+```shell
+vela cap install default-cap-center/expose
+```
+
 ```shell
 kubectl apply -f app.yaml
 ```

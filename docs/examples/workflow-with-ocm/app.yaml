@@ -20,7 +20,6 @@ spec:
       type: env-binding
       properties:
         engine: ocm
-        created: false
         envs:
           - name: prod
             patch:
@@ -43,7 +42,7 @@ spec:
   workflow:
     steps:
       - name: deploy-server
-        type: deploy2cluster
+        type: mutil-env
         properties:
           env:       prod
           policy:    prod-env

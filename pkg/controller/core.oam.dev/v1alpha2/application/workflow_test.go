@@ -72,6 +72,25 @@ var _ = Describe("Test Workflow", func() {
 		Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
 	}}
 
+	appWithPolicy := &oamcore.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-app-only-with-policy",
+			Namespace: namespace,
+		},
+		Spec: oamcore.ApplicationSpec{
+			Components: []common.ApplicationComponent{{
+				Name:       "test-component",
+				Type:       "worker",
+				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+			}},
+			Policies: []oamcore.AppPolicy{{
+				Name:       "test-policy",
+				Type:       "foopolicy",
+				Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+			}},
+		},
+	}
+
 	testDefinitions := []string{componentDefYaml, policyDefYaml, wfStepDefYaml}
 
 	BeforeEach(func() {
@@ -109,20 +128,46 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cm.Data[ConfigMapKeyComponents]).Should(Equal(testConfigMapComponentValue))
 	})
 
-	It("should create workload in policy before workflow start", func() {
-		appWithPolicy := appWithWorkflow.DeepCopy()
-		appWithPolicy.SetName("test-app-with-policy")
-		appWithPolicy.Spec.Policies = []oamcore.AppPolicy{{
-			Name:       "test-foo-policy",
-			Type:       "foopolicy",
-			Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
-		}}
-
+	It("should create workload in application when policy is specified", func() {
 		Expect(k8sClient.Create(ctx, appWithPolicy)).Should(BeNil())
 
 		// first try to add finalizer
 		tryReconcile(reconciler, appWithPolicy.Name, appWithPolicy.Namespace)
 		tryReconcile(reconciler, appWithPolicy.Name, appWithPolicy.Namespace)
+
+		deploy := &appsv1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      appWithPolicy.Spec.Components[0].Name,
+			Namespace: appWithPolicy.Namespace,
+		}, deploy)).Should(BeNil())
+
+		policyObj := &unstructured.Unstructured{}
+		policyObj.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "example.com",
+			Kind:    "Foo",
+			Version: "v1",
+		})
+
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      "test-policy",
+			Namespace: appWithPolicy.Namespace,
+		}, policyObj)).Should(BeNil())
+	})
+
+	It("should create workload in policy before workflow start", func() {
+		appWithPolicyAndWorkflow := appWithWorkflow.DeepCopy()
+		appWithPolicyAndWorkflow.SetName("test-app-with-policy")
+		appWithPolicyAndWorkflow.Spec.Policies = []oamcore.AppPolicy{{
+			Name:       "test-foo-policy",
+			Type:       "foopolicy",
+			Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+		}}
+
+		Expect(k8sClient.Create(ctx, appWithPolicyAndWorkflow)).Should(BeNil())
+
+		// first try to add finalizer
+		tryReconcile(reconciler, appWithPolicyAndWorkflow.Name, appWithPolicyAndWorkflow.Namespace)
+		tryReconcile(reconciler, appWithPolicyAndWorkflow.Name, appWithPolicyAndWorkflow.Namespace)
 
 		policyObj := &unstructured.Unstructured{}
 		policyObj.SetGroupVersionKind(schema.GroupVersionKind{
@@ -133,7 +178,7 @@ var _ = Describe("Test Workflow", func() {
 
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Name:      "test-foo-policy",
-			Namespace: appWithPolicy.Namespace,
+			Namespace: appWithPolicyAndWorkflow.Namespace,
 		}, policyObj)).Should(BeNil())
 	})
 
