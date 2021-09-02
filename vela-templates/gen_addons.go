@@ -30,16 +30,16 @@ import (
 	"strings"
 	"text/template"
 
-	"k8s.io/utils/strings/slices"
-
 	"github.com/Masterminds/sprig"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -66,7 +66,7 @@ const (
 )
 
 // DefaultEnableAddons is default enabled addons
-var DefaultEnableAddons = []string{"fluxcd", "kruise", "terraform"}
+var DefaultEnableAddons = []string{"terraform"}
 
 type velaFile struct {
 	RelativePath string
@@ -265,6 +265,11 @@ func storeInitializer(init *v1beta1.Initializer, addonPath string, addonName str
 
 func storeDefaultAddon(init *v1beta1.Initializer, storePath, addonName string) error {
 	init.SetNamespace(ChartTemplateNamespace)
+
+	init.SetAnnotations(util.MergeMapOverrideWithDst(init.Annotations, map[string]string{
+		"helm.sh/hook": "post-install, post-upgrade, pre-delete",
+	}))
+
 	initContent, err := yaml.Marshal(init)
 	if err != nil {
 		return err
