@@ -177,8 +177,8 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			return exec.status(), exec.operation(), nil
-		}, nil
-
+		}
+		return tRunner, nil
 	}, nil
 }
 

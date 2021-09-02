@@ -324,7 +324,7 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 				}, nil
 		}
 	case "success":
-		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
 			return common.WorkflowStepStatus{
 				Name:  name,
 				Type:  "success",
