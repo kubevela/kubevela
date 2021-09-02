@@ -1,6 +1,8 @@
 import (
 	"encoding/yaml"
 	"encoding/json"
+	"encoding/base64"
+	"strings"
 )
 
 #ConditionalWait: {
@@ -16,13 +18,13 @@ import (
 #Apply: kube.#Apply
 
 #ApplyApplication: #Steps & {
-	load: ws.#Load @step(1)
+	load:       ws.#Load @step(1)
 	components: #Steps & {
 		for name, c in load.value {
 			"\(name)": #Steps & {
 				workload: kube.#Apply & {value: c.workload}
 				if c.auxiliaries != _|_ {
-					_key:  "trait.oam.dev/resource"
+					_key: "trait.oam.dev/resource"
 					for index, o in c.auxiliaries {
 						"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
 					}
@@ -34,35 +36,34 @@ import (
 
 #ApplyComponent: #Steps & {
 
-	 component:      string
-   _componentName: component
-   load:   ws.#Load & {
-  	   component: _componentName
-   } @step(1)
+	component:      string
+	_componentName: component
+	load:           ws.#Load & {
+		component: _componentName
+	} @step(1)
 
-   traits: #Steps & {
-   	     _key:  "trait.oam.dev/resource"
-         _manWlKey:   "trait.oam.dev/manage-workload"
-         skipApplyWorkload: *false | bool
-         if load.value.auxiliaries != _|_ {
-         	    for o in load.value.auxiliaries {
-         	    	"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
-                if o.metadata.labels[_manWlKey] != _|_ {
-                	 skipApplyWorkload: true
-                }
-              }
-         }
-   } @step(2)
+	traits: #Steps & {
+		_key:              "trait.oam.dev/resource"
+		_manWlKey:         "trait.oam.dev/manage-workload"
+		skipApplyWorkload: *false | bool
+		if load.value.auxiliaries != _|_ {
+			for o in load.value.auxiliaries {
+				"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
+				if o.metadata.labels[_manWlKey] != _|_ {
+					skipApplyWorkload: true
+				}
+			}
+		}
+	} @step(2)
 
-   workload__: {
-   	  if !traits.skipApplyWorkload {
-   	  	kube.#Apply & {
-   	  		   value: load.value.workload
-             ...
-         }
-   	  }
-   } @step(3)
-
+	workload__: {
+		if !traits.skipApplyWorkload {
+			kube.#Apply & {
+				value: load.value.workload
+				...
+			}
+		}
+	} @step(3)
 }
 
 #ApplyRemaining: #Steps & {
@@ -110,9 +111,9 @@ import (
 }
 
 #DingTalk: #Steps & {
-	message:  dingDing.#DingMessage
-	dingUrl:  string
-	do:       http.#Do & {
+	message: dingDing.#DingMessage
+	dingUrl: string
+	do:      http.#Do & {
 		method: "POST"
 		url:    dingUrl
 		request: {
@@ -193,5 +194,7 @@ import (
 	#do: "steps"
 	...
 }
+
+#Task: task.#Task
 
 NoExist: _|_
