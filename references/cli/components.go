@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,11 +55,20 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			if err != nil {
 				return err
 			}
+
+			label, err := cmd.Flags().GetString(types.LabelArg)
+			if err != nil {
+				return err
+			}
+			if label != "" && len(strings.Split(label, "=")) != 2 {
+				return fmt.Errorf("label %s is not in the right format", label)
+			}
+
 			if !isDiscover {
-				return printComponentList(env.Namespace, c, ioStreams)
+				return printComponentList(env.Namespace, c, ioStreams, label)
 			}
 			option := types.TypeComponentDefinition
-			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option)
+			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option, label)
 			if err != nil {
 				return err
 			}
@@ -70,11 +80,12 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		},
 	}
 	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
+	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams) error {
+func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams, label string) error {
 	def, err := common.ListRawComponentDefinitions(userNamespace, c)
 	if err != nil {
 		return err
@@ -89,6 +100,9 @@ func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.
 	table.AddRow("NAME", "NAMESPACE", "WORKLOAD", "DESCRIPTION")
 
 	for _, r := range def {
+		if label != "" && !common.CheckLabelExistence(r.Labels, label) {
+			continue
+		}
 		var workload string
 		if r.Spec.Workload.Type != "" {
 			workload = r.Spec.Workload.Type

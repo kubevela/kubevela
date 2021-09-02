@@ -504,3 +504,15 @@ func GetCapabilityConfigMap(kubeClient client.Client, capabilityName string) (co
 	err := kubeClient.Get(context.Background(), client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: cmName}, &cm)
 	return cm, err
 }
+
+// CheckLabelExistence checks whether a label `key=value` exists in definition labels
+func CheckLabelExistence(labels map[string]string, label string) bool {
+	splitLabel := strings.Split(label, "=")
+	k, v := splitLabel[0], splitLabel[1]
+	if labelValue, ok := labels[k]; ok {
+		if labelValue == v {
+			return true
+		}
+	}
+	return false
+}

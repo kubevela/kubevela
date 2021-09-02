@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"testing"
 
+	"gotest.tools/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -49,5 +50,43 @@ func TestAddSourceIntoDefinition(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Errorf("error result want %s, got %s", result, testcase)
+	}
+}
+
+func TestCheckLabelExistence(t *testing.T) {
+	cases := map[string]struct {
+		labels  map[string]string
+		label   string
+		existed bool
+	}{
+		"label exists": {
+			labels: map[string]string{
+				"env": "prod",
+			},
+			label:   "env=prod",
+			existed: true,
+		},
+
+		"label's key matches": {
+			labels: map[string]string{
+				"env": "prod",
+			},
+			label:   "env=dev",
+			existed: false,
+		},
+		"label's key doesn't match": {
+			labels: map[string]string{
+				"env": "prod",
+			},
+			label:   "type=terraform",
+			existed: false,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			result := CheckLabelExistence(tc.labels, tc.label)
+			assert.Equal(t, result, tc.existed)
+		})
 	}
 }

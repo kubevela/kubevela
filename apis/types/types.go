@@ -71,3 +71,6 @@ const (
 	// TypePlugin defines one category used in Kubectl Plugin
 	TypePlugin = "Plugin Command"
 )
+
+// LabelArg is the argument `label` of a definition
+const LabelArg = "label"

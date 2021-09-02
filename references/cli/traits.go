@@ -54,11 +54,19 @@ func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			if err != nil {
 				return err
 			}
+			label, err := cmd.Flags().GetString(types.LabelArg)
+			if err != nil {
+				return err
+			}
+			if label != "" && len(strings.Split(label, "=")) != 2 {
+				return fmt.Errorf("label %s is not in the right format", label)
+
+			}
 			if !isDiscover {
-				return printTraitList(env.Namespace, c, ioStreams)
+				return printTraitList(env.Namespace, c, ioStreams, label)
 			}
 			option := types.TypeTrait
-			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option)
+			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option, label)
 			if err != nil {
 				return err
 			}
@@ -70,11 +78,12 @@ func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		},
 	}
 	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
+	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams) error {
+func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams, label string) error {
 	table := newUITable()
 	table.Wrap = true
 
@@ -84,6 +93,9 @@ func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOSt
 	}
 	table.AddRow("NAME", "NAMESPACE", "APPLIES-TO", "CONFLICTS-WITH", "POD-DISRUPTIVE", "DESCRIPTION")
 	for _, t := range traitDefinitionList {
+		if label != "" && !common.CheckLabelExistence(t.Labels, label) {
+			continue
+		}
 		table.AddRow(t.Name, t.Namespace, strings.Join(t.Spec.AppliesToWorkloads, ","), strings.Join(t.Spec.ConflictsWith, ","), t.Spec.PodDisruptive, plugins.GetDescription(t.Annotations))
 	}
 	ioStreams.Info(table.String())
