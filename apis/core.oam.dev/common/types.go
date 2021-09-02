@@ -325,6 +325,9 @@ type ApplicationComponent struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
+	Inputs  StepInputs  `json:"inputs,omitempty"`
+	Outputs StepOutputs `json:"outputs,omitempty"`
+
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 
@@ -332,6 +335,22 @@ type ApplicationComponent struct {
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
+}
+
+// StepOutputs defines output variable of WorkflowStep
+type StepOutputs []outputItem
+
+// StepInputs defines variable input of WorkflowStep
+type StepInputs []inputItem
+
+type inputItem struct {
+	ParameterKey string `json:"parameterKey"`
+	From         string `json:"from"`
+}
+
+type outputItem struct {
+	ExportKey string `json:"exportKey"`
+	Name      string `json:"name"`
 }
 
 // ClusterSelector defines the rules to select a Cluster resource.

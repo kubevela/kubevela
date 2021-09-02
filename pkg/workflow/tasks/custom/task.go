@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -58,9 +59,10 @@ type LoadTaskTemplate func(ctx context.Context, name string) (string, error)
 
 // TaskLoader is a client that get taskGenerator.
 type TaskLoader struct {
-	loadTemplate func(ctx context.Context, name string) (string, error)
-	pd           *packages.PackageDiscover
-	handlers     providers.Providers
+	loadTemplate      func(ctx context.Context, name string) (string, error)
+	pd                *packages.PackageDiscover
+	handlers          providers.Providers
+	runOptionsProcess func(*wfTypes.TaskRunOptions)
 }
 
 // GetTaskGenerator get TaskGenerator by name.
@@ -70,6 +72,27 @@ func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes
 		return nil, err
 	}
 	return t.makeTaskGenerator(templ)
+}
+
+type taskRunner struct {
+	name         string
+	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error)
+	checkPending func(ctx wfContext.Context) bool
+}
+
+// Name return step name.
+func (tr *taskRunner) Name() string {
+	return tr.name
+}
+
+// Run execute task.
+func (tr *taskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+	return tr.run(ctx, options)
+}
+
+// Pending check task should be executed or not.
+func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
+	return tr.checkPending(ctx)
 }
 
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
@@ -83,8 +106,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				Phase: common.WorkflowStepPhaseSucceeded,
 			},
 		}
-		outputs := wfStep.Outputs
-		inputs := wfStep.Inputs
+
 		params := map[string]interface{}{}
 
 		if len(wfStep.Properties.Raw) > 0 {
@@ -97,19 +119,27 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 		}
 
-		return func(ctx wfContext.Context) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-
+		tRunner := new(taskRunner)
+		tRunner.name = wfStep.Name
+		tRunner.checkPending = func(ctx wfContext.Context) bool {
+			for _, input := range wfStep.Inputs {
+				if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
+					return true
+				}
+			}
+			return false
+		}
+		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			if t.runOptionsProcess != nil {
+				t.runOptionsProcess(options)
+			}
 			paramsValue, err := ctx.MakeParameter(params)
 			if err != nil {
 				return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
 			}
 
-			for _, input := range inputs {
-				inputValue, err := ctx.GetVar(strings.Split(input.From, ".")...)
-				if err != nil {
-					return common.WorkflowStepStatus{}, nil, errors.WithMessagef(err, "get input from [%s]", input.From)
-				}
-				if err := paramsValue.FillObject(inputValue, strings.Split(input.ParameterKey, ".")...); err != nil {
+			for _, hook := range options.PreStartHooks {
+				if err := hook(ctx, paramsValue, wfStep); err != nil {
 					return common.WorkflowStepStatus{}, nil, err
 				}
 			}
@@ -139,17 +169,10 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				return exec.status(), exec.operation(), nil
 			}
 
-			if exec.status().Phase == common.WorkflowStepPhaseSucceeded {
-				for _, output := range outputs {
-					v, err := taskv.LookupByScript(output.ExportKey)
-					if err != nil {
-						exec.err(err, StatusReasonOutput)
-						return exec.status(), exec.operation(), nil
-					}
-					if err := ctx.SetVar(v, output.Name); err != nil {
-						exec.err(err, StatusReasonOutput)
-						return exec.status(), exec.operation(), nil
-					}
+			for _, hook := range options.PostStopHooks {
+				if err := hook(ctx, taskv, wfStep, exec.status().Phase); err != nil {
+					exec.err(err, StatusReasonOutput)
+					return exec.status(), exec.operation(), nil
 				}
 			}
 
@@ -321,5 +344,9 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 		loadTemplate: lt,
 		pd:           pkgDiscover,
 		handlers:     handlers,
+		runOptionsProcess: func(options *wfTypes.TaskRunOptions) {
+			options.PreStartHooks = append(options.PreStartHooks, hooks.Input)
+			options.PostStopHooks = append(options.PostStopHooks, hooks.Output)
+		},
 	}
 }

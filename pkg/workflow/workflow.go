@@ -131,8 +131,9 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 
 func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
 	wfStatus := w.app.Status.Workflow
-	for _, run := range taskRunners[wfStatus.StepIndex:] {
-		status, operation, err := run(wfCtx)
+
+	for _, runner := range taskRunners {
+		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{})
 		if err != nil {
 			gerr = err
 			return

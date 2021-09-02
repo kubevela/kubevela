@@ -49,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+	providerOAM "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -152,6 +153,8 @@ type Appfile struct {
 	WorkflowSteps []v1beta1.WorkflowStep
 	Components    []common.ApplicationComponent
 	Artifacts     []*types.ComponentManifest
+
+	parser *Parser
 }
 
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
@@ -194,8 +197,38 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 		return "", errors.New("custom workflowStep only support cue")
 	}
 
+	if len(af.WorkflowSteps)==0{
+		for _,comp:=range af.Components{
+			obj,err:=util.Object2Map(comp)
+			if err!=nil{
+				return nil, err
+			}
+			delete(obj)
+			c.Outputs=nil
+			af.WorkflowSteps=append(af.WorkflowSteps,v1beta1.WorkflowStep{
+				Name: comp.Name,
+				Properties: util.Object2RawExtension(c),
+			})
+		}
+	}
+
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, cli, dispatcher)
+	providerOAM.Install(handlerProviders, func(ctx context.Context, comp common.ApplicationComponent) (*types.ComponentManifest, error) {
+		wl, err := af.parser.parseWorkload(ctx, comp)
+		if err != nil {
+			return nil, err
+		}
+		wl.FullTemplate.Health
+		manifest, err := af.GenerateComponentManifest(wl)
+		if err != nil {
+			return nil, err
+		}
+		if err := af.SetOAMContract(manifest); err != nil {
+			return nil, err
+		}
+		return manifest, nil
+	})
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, loadTaskTemplate)
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {

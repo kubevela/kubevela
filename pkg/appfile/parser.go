@@ -142,6 +142,8 @@ func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfi
 		RelatedTraitDefinitions:     make(map[string]*v1beta1.TraitDefinition),
 		RelatedComponentDefinitions: make(map[string]*v1beta1.ComponentDefinition),
 		RelatedScopeDefinitions:     make(map[string]*v1beta1.ScopeDefinition),
+
+		parser: p,
 	}
 	for k, v := range app.Annotations {
 		file.AppAnnotations[k] = v

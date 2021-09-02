@@ -21,16 +21,35 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
 // TaskRunner is a task runner.
-type TaskRunner func(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
+type TaskRunner interface {
+	Name() string
+	Pending(ctx wfContext.Context) bool
+	Run(ctx wfContext.Context, options *TaskRunOptions) (common.WorkflowStepStatus, *Operation, error)
+}
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
 type TaskDiscover interface {
 	GetTaskGenerator(ctx context.Context, name string) (TaskGenerator, error)
 }
+
+// TaskRunOptions is the options for task run.
+type TaskRunOptions struct {
+	Id            string
+	Data          *value.Value
+	PreStartHooks []TaskPreStartHook
+	PostStopHooks []TaskPostStopHook
+}
+
+// TaskPreStartHook run before task execution.
+type TaskPreStartHook func(ctx wfContext.Context, paramValue *value.Value, step v1beta1.WorkflowStep) error
+
+// TaskPostStopHook  run after task execution.
+type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep,phase common.WorkflowStepPhase) error
 
 // Operation is workflow operation object.
 type Operation struct {

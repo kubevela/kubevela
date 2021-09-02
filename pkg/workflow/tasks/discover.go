@@ -57,13 +57,9 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 }
 
 func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
-	return func(ctx wfContext.Context) (common.WorkflowStepStatus, *types.Operation, error) {
-		return common.WorkflowStepStatus{
-			Name:  step.Name,
-			Type:  step.Type,
-			Phase: common.WorkflowStepPhaseSucceeded,
-		}, &types.Operation{Suspend: true}, nil
-	}, nil
+	return &suspendTaskRunner{
+		name: step.Name,
+	},nil
 }
 
 // NewTaskDiscover will create a client for load task generator.
@@ -77,4 +73,27 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 		},
 		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, pd, providerHandlers),
 	}
+}
+
+type suspendTaskRunner struct {
+	name string
+}
+
+// Name return suspend step name.
+func (tr *suspendTaskRunner) Name() string {
+	return tr.name
+}
+
+// Run make workflow suspend.
+func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
+	return common.WorkflowStepStatus{
+		Name:  tr.name,
+		Type:  "suspend",
+		Phase: common.WorkflowStepPhaseSucceeded,
+	}, &types.Operation{Suspend: true}, nil
+}
+
+// Pending check task should be executed or not.
+func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
+	return false
 }

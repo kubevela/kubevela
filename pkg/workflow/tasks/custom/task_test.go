@@ -117,7 +117,11 @@ myIP: value: "1.1.1.1"
 		assert.NilError(t, err)
 		run, err := gen(step)
 		assert.NilError(t, err)
+<<<<<<< HEAD
 		status, action, err := run(wfCtx)
+=======
+		status, action, err := run.Run(wfCtx,&types.TaskRunOptions{})
+>>>>>>> 635eafc7... Feat(workflow): upgrade
 		assert.NilError(t, err)
 		if step.Name == "wait" {
 			assert.Equal(t, status.Phase, common.WorkflowStepPhaseRunning)
@@ -225,7 +229,11 @@ close({
 		assert.NilError(t, err)
 		run, err := gen(step)
 		assert.NilError(t, err)
+<<<<<<< HEAD
 		status, _, err := run(wfCtx)
+=======
+		status, _, err := run.Run(wfCtx,&types.TaskRunOptions{})
+>>>>>>> 635eafc7... Feat(workflow): upgrade
 		switch step.Name {
 		case "input":
 			assert.Equal(t, err != nil, true)
