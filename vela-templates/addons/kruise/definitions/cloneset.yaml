@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
-  name: cloneset-service
+  name: cloneset
   namespace: vela-system
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.
