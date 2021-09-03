@@ -18,12 +18,14 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -37,31 +39,31 @@ type workflow struct {
 }
 
 // NewWorkflow returns a Workflow implementation.
-func NewWorkflow(app *oamcore.Application, cli client.Client) Workflow {
-	return &workflow{
-		app: app,
-		cli: cli,
+func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.WorkflowMode) Workflow {
+	dagMode := false
+	if mode == common.WorkflowModeDAG {
+		dagMode = true
 	}
-}
-
-// NewDAGWorkflow returns a DAG mode Workflow.
-func NewDAGWorkflow(app *oamcore.Application, cli client.Client) Workflow {
 	return &workflow{
 		app:     app,
 		cli:     cli,
-		dagMode: true,
+		dagMode: dagMode,
 	}
 }
 
 // ExecuteSteps process workflow step in order.
-func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
+func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.ApplicationRevision, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
+	revAndSpecHash, err := computeAppRevisionHash(appRev.Name, w.app)
+	if err != nil {
+		return false, false, err
+	}
 	if len(taskRunners) == 0 {
 		return true, false, nil
 	}
 
-	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != rev {
+	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
 		w.app.Status.Workflow = &common.WorkflowStatus{
-			AppRevision: rev,
+			AppRevision: revAndSpecHash,
 		}
 	}
 
@@ -94,7 +96,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		wfCtx wfContext.Context
 	)
 
-	wfCtx, gerr = w.makeContext(rev)
+	wfCtx, gerr = w.makeContext(appRev.Name)
 	if gerr != nil {
 		return
 	}
@@ -146,7 +148,12 @@ func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) 
 		}
 		return
 	}
-	wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
+
+	if w.dagMode {
+		wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, rev)
+	} else {
+		wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
+	}
 	if err != nil {
 		err = errors.WithMessage(err, "new context")
 		return
@@ -231,9 +238,8 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 				}
 				stepStatus := e.getStepStatus(runner.Name())
 
-				if stepStatus != nil {
+				if stepStatus != nil && stepStatus.SubSteps != nil {
 					stepsEngine.status.StepIndex = stepStatus.SubSteps.StepIndex
-					stepsEngine.status.Steps = stepStatus.SubSteps.Steps
 				}
 				err := stepsEngine.run(wfCtx, runners)
 				return stepsEngine.status, err
@@ -307,4 +313,9 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 
 func (e *engine) needStop() bool {
 	return e.status.Suspend == true || e.status.Terminated == true
+}
+
+func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {
+	specHash, err := utils.ComputeSpecHash(app.Spec)
+	return fmt.Sprintf("%s:%s", rev, specHash), err
 }

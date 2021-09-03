@@ -125,7 +125,9 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		}
 	}
 
+	appfile.WorkflowMode = common.WorkflowModeDAG
 	if wfSpec := app.Spec.Workflow; wfSpec != nil {
+		appfile.WorkflowMode = common.WorkflowModeStep
 		appfile.WorkflowSteps = wfSpec.Steps
 	}
 

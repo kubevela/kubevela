@@ -35,7 +35,13 @@ type TaskRunner interface {
 // TaskDiscover is the interface to obtain the TaskGenerator。
 type TaskDiscover interface {
 	GetTaskGenerator(ctx context.Context, name string) (TaskGenerator, error)
+	RegisterGenerator(name string, p TaskGeneratorProducer)
 }
+
+// TaskGeneratorProducer produce task generator.
+type TaskGeneratorProducer func(ctx wfContext.Context,
+	options *TaskRunOptions,
+	step v1beta1.WorkflowStep) (common.WorkflowStepStatus, *Operation, error)
 
 // TaskRunOptions is the options for task run.
 type TaskRunOptions struct {

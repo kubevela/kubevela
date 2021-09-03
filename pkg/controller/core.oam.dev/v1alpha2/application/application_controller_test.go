@@ -354,6 +354,7 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: appwithNoTrait.Namespace,
 		}
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created")
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -950,7 +951,6 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: rolloutApp.Namespace,
 		}
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
 		By("Check AppRevision created as expected")
 		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
 		appRevision := &v1beta1.ApplicationRevision{}
@@ -1200,6 +1200,7 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: appRefertoWd.Namespace,
 		}
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1248,6 +1249,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}

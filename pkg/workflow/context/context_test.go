@@ -275,6 +275,12 @@ func TestContext(t *testing.T) {
 	wfCm = nil
 	_, err = LoadContext(cli, "default", "app-v1")
 	assert.Equal(t, err != nil, true)
+
+	wfCtx, err = NewEmptyContext(cli, "default", "app-v1")
+	assert.NilError(t, err)
+	assert.Equal(t, len(wfCtx.GetComponents()), 0)
+	_, err = wfCtx.GetComponent("server")
+	assert.Equal(t, err != nil, true)
 }
 
 func newContextForTest(t *testing.T) *WorkflowContext {

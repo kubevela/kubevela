@@ -23,6 +23,9 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
@@ -42,14 +45,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
-	providerOAM "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -153,18 +153,24 @@ type Appfile struct {
 	WorkflowSteps []v1beta1.WorkflowStep
 	Components    []common.ApplicationComponent
 	Artifacts     []*types.ComponentManifest
+	WorkflowMode  common.WorkflowMode
 
 	parser *Parser
 }
 
+type Handler interface {
+	HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error
+	Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error
+}
+
 // GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
+func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, app *v1beta1.Application, appRev *v1beta1.ApplicationRevision, h Handler) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
 
-	steps, err = af.generateSteps(ctx, m, cli, pd, dispatcher)
+	steps, err = af.generateSteps(ctx, app, appRev, h)
 	return
 }
 
@@ -184,9 +190,9 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 	return uns, nil
 }
 
-func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) ([]wfTypes.TaskRunner, error) {
+func (af *Appfile) generateSteps(ctx context.Context, app *v1beta1.Application, appRev *v1beta1.ApplicationRevision, h Handler) ([]wfTypes.TaskRunner, error) {
 	loadTaskTemplate := func(ctx context.Context, name string) (string, error) {
-		templ, err := LoadTemplate(ctx, dm, cli, name, types.TypeWorkflowStep)
+		templ, err := LoadTemplate(ctx, af.parser.dm, af.parser.client, name, types.TypeWorkflowStep)
 		if err != nil {
 			return "", err
 		}
@@ -201,35 +207,77 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 		for _, comp := range af.Components {
 			af.WorkflowSteps = append(af.WorkflowSteps, v1beta1.WorkflowStep{
 				Name:       comp.Name,
+				Type:       "oam.dev/apply-component",
 				Properties: util.Object2RawExtension(comp),
+				Inputs:     comp.Inputs,
+				Outputs:    comp.Outputs,
 			})
 		}
 	}
 
 	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, cli, dispatcher)
-	providerOAM.Install(handlerProviders, func(ctx context.Context, comp common.ApplicationComponent) (*types.ComponentManifest, error) {
-		wl, err := af.parser.parseWorkload(ctx, comp)
+	kube.Install(handlerProviders, af.parser.client, h.Dispatch)
+	taskDiscover := tasks.NewTaskDiscover(handlerProviders, af.parser.pd, loadTaskTemplate)
+	taskDiscover.RegisterGenerator("oam.dev/apply-component", func(_ wfContext.Context, options *wfTypes.TaskRunOptions, step v1beta1.WorkflowStep) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		comp := common.ApplicationComponent{}
+		js, err := step.Properties.MarshalJSON()
 		if err != nil {
-			return nil, err
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "parameter invalid", Message: err.Error()}, nil, nil
+		}
+		if err := json.Unmarshal(js, &comp); err != nil {
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "parameter invalid", Message: err.Error()}, nil, nil
+		}
+
+		wl, err := af.parser.parseWorkloadFromRevision(comp, appRev)
+		if err != nil {
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "ParseWorkload", Message: err.Error()}, nil, nil
 		}
 		manifest, err := af.GenerateComponentManifest(wl)
 		if err != nil {
-			return nil, err
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "GenerateComponentManifest", Message: err.Error()}, nil, nil
 		}
 		if err := af.SetOAMContract(manifest); err != nil {
-			return nil, err
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "SetOAMContract", Message: err.Error()}, nil, nil
 		}
-		return manifest, nil
+		if err := h.HandleComponentsRevision(context.Background(), []*types.ComponentManifest{manifest}); err != nil {
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "HandleComponentsRevision", Message: err.Error()}, nil, nil
+		}
+		objs := []*unstructured.Unstructured{}
+
+		skipStandardWorkload := false
+		for _, trait := range wl.Traits {
+			if trait.FullTemplate.TraitDefinition.Spec.ManageWorkload {
+				skipStandardWorkload = true
+			}
+		}
+		if !skipStandardWorkload {
+			objs = append(objs, manifest.StandardWorkload)
+		}
+		objs = append(objs, manifest.Traits...)
+		if err := h.Dispatch(context.Background(), objs...); err != nil {
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "DispatchManifest", Message: err.Error()}, nil, nil
+
+		}
+		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded}, nil, nil
 	})
-	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, loadTaskTemplate)
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
 		genTask, err := taskDiscover.GetTaskGenerator(ctx, step.Type)
 		if err != nil {
 			return nil, err
 		}
-		task, err := genTask(step, &wfTypes.GeneratorOptions{})
+		var id string
+		if app.Status.Workflow != nil {
+			for _, status := range app.Status.Workflow.Steps {
+				if status.Name == step.Name {
+					id = status.Id
+				}
+			}
+		}
+		if id == "" {
+			id = utils.RandomString(10)
+		}
+		task, err := genTask(step, &wfTypes.GeneratorOptions{Id: id})
 		if err != nil {
 			return nil, err
 		}

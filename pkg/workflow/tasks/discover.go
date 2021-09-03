@@ -34,7 +34,7 @@ import (
 
 type taskDiscover struct {
 	builtins           map[string]types.TaskGenerator
-	remoteTaskDiscover types.TaskDiscover
+	remoteTaskDiscover *custom.TaskLoader
 }
 
 // GetTaskGenerator get task generator by name.
@@ -56,13 +56,8 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-// TaskGeneratorProducer produce task generator.
-type TaskGeneratorProducer func(ctx wfContext.Context,
-	options *types.TaskRunOptions,
-	step v1beta1.WorkflowStep) (common.WorkflowStepStatus, *types.Operation, error)
-
 // RegisterGenerator
-func (td *taskDiscover) RegisterGenerator(name string, p TaskGeneratorProducer) {
+func (td *taskDiscover) RegisterGenerator(name string, p types.TaskGeneratorProducer) {
 	td.builtins[name] = makeGenerator(name, p)
 }
 
@@ -112,12 +107,12 @@ type commonTaskRunner struct {
 	name         string
 	step         v1beta1.WorkflowStep
 	generatorOpt *types.GeneratorOptions
-	up           TaskGeneratorProducer
+	up           types.TaskGeneratorProducer
 }
 
 // Name return step name.
 func (ct *commonTaskRunner) Name() string {
-	return ct.name
+	return ct.step.Name
 }
 
 // Run workflow step.
@@ -136,7 +131,7 @@ func (ct *commonTaskRunner) Pending(ctx wfContext.Context) bool {
 	return false
 }
 
-func makeGenerator(name string, p TaskGeneratorProducer) types.TaskGenerator {
+func makeGenerator(name string, p types.TaskGeneratorProducer) types.TaskGenerator {
 	return func(wfStep v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
 		return &commonTaskRunner{
 			name:         name,

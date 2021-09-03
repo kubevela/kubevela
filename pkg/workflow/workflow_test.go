@@ -64,7 +64,7 @@ var _ = Describe("Test Workflow", func() {
 				Type: "success",
 			},
 		})
-		wf := NewWorkflow(app, k8sClient)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
 		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pause).Should(BeFalse())
@@ -102,7 +102,7 @@ var _ = Describe("Test Workflow", func() {
 		})
 
 		app.Status.Workflow = workflowStatus
-		wf = NewWorkflow(app, k8sClient)
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeStep)
 		done, pause, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pause).Should(BeFalse())
@@ -143,7 +143,7 @@ var _ = Describe("Test Workflow", func() {
 				Type: "success",
 			},
 		})
-		wf := NewWorkflow(app, k8sClient)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
 		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(done).Should(BeFalse())
@@ -215,7 +215,7 @@ var _ = Describe("Test Workflow", func() {
 				Type: "terminate",
 			},
 		})
-		wf := NewWorkflow(app, k8sClient)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
 		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pause).Should(BeFalse())
@@ -253,7 +253,7 @@ var _ = Describe("Test Workflow", func() {
 				Type: "error",
 			},
 		})
-		wf := NewWorkflow(app, k8sClient)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
 		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).To(HaveOccurred())
 		Expect(done).Should(BeFalse())
@@ -272,7 +272,7 @@ var _ = Describe("Test Workflow", func() {
 
 	It("skip workflow", func() {
 		app, runners := makeTestCase([]oamcore.WorkflowStep{})
-		wf := NewWorkflow(app, k8sClient)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
 		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(done).Should(BeTrue())
@@ -295,7 +295,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		pending = true
-		wf := NewDAGWorkflow(app, k8sClient)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG)
 		done, pause, err := wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pause).Should(BeFalse())

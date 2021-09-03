@@ -834,6 +834,9 @@ spec:
                         description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                         type: string
                     type: object
+                  mode:
+                    description: WorkflowMode describes the mode of workflow
+                    type: string
                   stepIndex:
                     type: integer
                   steps:
@@ -841,6 +844,8 @@ spec:
                       description: WorkflowStepStatus record the status of a workflow
                         step
                       properties:
+                        id:
+                          type: string
                         message:
                           description: A human readable message indicating details
                             about why the workflowStep is in this state.
@@ -859,14 +864,45 @@ spec:
                           description: SubStepsStatus record the status of workflow
                             steps.
                           properties:
+                            mode:
+                              description: WorkflowMode describes the mode of workflow
+                              type: string
                             stepIndex:
                               type: integer
                             steps:
-                              items: {}
+                              items:
+                                description: WorkflowSubStepStatus record the status
+                                  of a workflow step
+                                properties:
+                                  id:
+                                    type: string
+                                  message:
+                                    description: A human readable message indicating
+                                      details about why the workflowStep is in this
+                                      state.
+                                    type: string
+                                  name:
+                                    type: string
+                                  phase:
+                                    description: WorkflowStepPhase describes the phase
+                                      of a workflow step.
+                                    type: string
+                                  reason:
+                                    description: A brief CamelCase message indicating
+                                      details about why the workflowStep is in this
+                                      state.
+                                    type: string
+                                  type:
+                                    type: string
+                                required:
+                                - id
+                                type: object
                               type: array
                           type: object
                         type:
                           type: string
+                      required:
+                      - id
                       type: object
                     type: array
                   suspend:
@@ -875,6 +911,7 @@ spec:
                     type: boolean
                 required:
                 - contextBackend
+                - mode
                 - suspend
                 - terminated
                 type: object
@@ -1802,6 +1839,9 @@ spec:
                         description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                         type: string
                     type: object
+                  mode:
+                    description: WorkflowMode describes the mode of workflow
+                    type: string
                   stepIndex:
                     type: integer
                   steps:
@@ -1809,6 +1849,8 @@ spec:
                       description: WorkflowStepStatus record the status of a workflow
                         step
                       properties:
+                        id:
+                          type: string
                         message:
                           description: A human readable message indicating details
                             about why the workflowStep is in this state.
@@ -1827,14 +1869,45 @@ spec:
                           description: SubStepsStatus record the status of workflow
                             steps.
                           properties:
+                            mode:
+                              description: WorkflowMode describes the mode of workflow
+                              type: string
                             stepIndex:
                               type: integer
                             steps:
-                              items: {}
+                              items:
+                                description: WorkflowSubStepStatus record the status
+                                  of a workflow step
+                                properties:
+                                  id:
+                                    type: string
+                                  message:
+                                    description: A human readable message indicating
+                                      details about why the workflowStep is in this
+                                      state.
+                                    type: string
+                                  name:
+                                    type: string
+                                  phase:
+                                    description: WorkflowStepPhase describes the phase
+                                      of a workflow step.
+                                    type: string
+                                  reason:
+                                    description: A brief CamelCase message indicating
+                                      details about why the workflowStep is in this
+                                      state.
+                                    type: string
+                                  type:
+                                    type: string
+                                required:
+                                - id
+                                type: object
                               type: array
                           type: object
                         type:
                           type: string
+                      required:
+                      - id
                       type: object
                     type: array
                   suspend:
@@ -1843,6 +1916,7 @@ spec:
                     type: boolean
                 required:
                 - contextBackend
+                - mode
                 - suspend
                 - terminated
                 type: object

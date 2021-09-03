@@ -81,7 +81,7 @@ func TestRegister(t *testing.T) {
 		Name: "step1",
 	}, &types.GeneratorOptions{Id: "abcd"})
 	assert.NilError(t, err)
-	assert.Equal(t, run.Name(), "test")
+	assert.Equal(t, run.Name(), "step1")
 	status, _, err := run.Run(nil, &types.TaskRunOptions{})
 	assert.NilError(t, err)
 	assert.Equal(t, status.Name, "step1")

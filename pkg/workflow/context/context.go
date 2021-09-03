@@ -265,6 +265,16 @@ func NewContext(cli client.Client, ns, rev string) (Context, error) {
 	return wfCtx, wfCtx.Commit()
 }
 
+// NewEmptyContext new workflow context without initialize data.
+func NewEmptyContext(cli client.Client, ns, rev string) (Context, error) {
+	wfCtx, err := newContext(cli, ns, rev)
+	if err != nil {
+		return nil, err
+	}
+
+	return wfCtx, wfCtx.Commit()
+}
+
 func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 	var (
 		ctx   = context.Background()

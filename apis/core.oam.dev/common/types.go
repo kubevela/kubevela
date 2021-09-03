@@ -220,8 +220,20 @@ type WorkflowStepStatus struct {
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason   string         `json:"reason,omitempty"`
-	SubSteps SubStepsStatus `json:"subSteps,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
+}
+
+// WorkflowSubStepStatus record the status of a workflow step
+type WorkflowSubStepStatus struct {
+	Id    string            `json:"id"`
+	Name  string            `json:"name,omitempty"`
+	Type  string            `json:"type,omitempty"`
+	Phase WorkflowStepPhase `json:"phase,omitempty"`
+	// A human readable message indicating details about why the workflowStep is in this state.
+	Message string `json:"message,omitempty"`
+	// A brief CamelCase message indicating details about why the workflowStep is in this state.
+	Reason string `json:"reason,omitempty"`
 }
 
 // AppStatus defines the observed state of Application
@@ -258,6 +270,7 @@ type AppStatus struct {
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
 	AppRevision    string                  `json:"appRevision,omitempty"`
+	Mode           WorkflowMode            `json:"mode"`
 	StepIndex      int                     `json:"stepIndex,omitempty"`
 	Suspend        bool                    `json:"suspend"`
 	Terminated     bool                    `json:"terminated"`
@@ -267,8 +280,9 @@ type WorkflowStatus struct {
 
 // SubStepsStatus record the status of workflow steps.
 type SubStepsStatus struct {
-	StepIndex int                  `json:"stepIndex,omitempty"`
-	Steps     []WorkflowStepStatus `json:"steps,omitempty"`
+	StepIndex int                     `json:"stepIndex,omitempty"`
+	Mode      WorkflowMode            `json:"mode,omitempty"`
+	Steps     []WorkflowSubStepStatus `json:"steps,omitempty"`
 }
 
 // WorkflowStepPhase describes the phase of a workflow step.
@@ -301,6 +315,16 @@ const (
 
 	// WorkflowStepType represents DefinitionRevision refer to type WorkflowStepDefinition
 	WorkflowStepType DefinitionType = "WorkflowStep"
+)
+
+// WorkflowMode describes the mode of workflow
+type WorkflowMode string
+
+const (
+	// WorkflowModeDAG describes the DAG mode of workflow
+	WorkflowModeDAG WorkflowMode = "DAG"
+	// WorkflowModeStep describes the step by step mode of workflow
+	WorkflowModeStep WorkflowMode = "StepByStep"
 )
 
 // AppRolloutStatus defines the observed state of AppRollout

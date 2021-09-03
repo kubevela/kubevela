@@ -172,7 +172,9 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	controllerDone()
+	if controllerDone != nil {
+		controllerDone()
+	}
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })

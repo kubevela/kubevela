@@ -160,7 +160,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
 	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 
-	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, r.dm, r.Client, r.pd, handler.Dispatch)
+	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, app, handler.currentAppRev, handler)
 	if err != nil {
 		klog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
@@ -176,6 +176,52 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Applied", err))
 	}
+
+	if !appWillRollout(app) {
+		done, pause, err := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode).ExecuteSteps(ctx, handler.currentAppRev, wfSteps)
+		if err != nil {
+			klog.Error(err, "[handle workflow]")
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err))
+		}
+
+		if pause {
+			if err := r.patchStatus(ctx, app); err != nil {
+				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+			}
+			return ctrl.Result{}, nil
+		}
+
+		if !done {
+			return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.patchStatus(ctx, app)
+		}
+
+		wfStatus := app.Status.Workflow
+		if wfStatus != nil {
+			if wfStatus.Terminated && app.Status.Phase == common.ApplicationWorkflowTerminated {
+				if err := r.patchStatus(ctx, app); err != nil {
+					return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+				}
+				return ctrl.Result{}, nil
+			}
+
+			if !wfStatus.Terminated {
+				_, err := handler.DispatchAndGC(ctx)
+				if err != nil {
+					klog.ErrorS(err, "Failed to gc after workflow",
+						"application", klog.KObj(app))
+					r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+					return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("GCAfterWorkflow", err))
+				}
+				wfStatus.Terminated = true
+				//app.Status.ResourceTracker = ref
+				if err := r.patchStatus(ctx, app); err != nil {
+					return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+				}
+			}
+		}
+	}
+
 	if err := handler.UpdateAppLatestRevisionStatus(ctx); err != nil {
 		klog.ErrorS(err, "Failed to update application status", "application", klog.KObj(app))
 		return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
@@ -183,47 +229,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition("Applied"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
 	klog.Info("Successfully apply application manifests", "application", klog.KObj(app))
-
-	done, pause, err := workflow.NewWorkflow(app, r.Client).ExecuteSteps(ctx, handler.currentAppRev.Name, wfSteps)
-	if err != nil {
-		klog.Error(err, "[handle workflow]")
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err))
-	}
-
-	if pause {
-		if err := r.patchStatus(ctx, app); err != nil {
-			return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
-		}
-		return ctrl.Result{}, nil
-	}
-
-	if !done {
-		return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.patchStatus(ctx, app)
-	}
-
-	wfStatus := app.Status.Workflow
-	if wfStatus != nil {
-		if wfStatus.Terminated && app.Status.Phase == common.ApplicationWorkflowTerminated {
-			if err := r.patchStatus(ctx, app); err != nil {
-				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
-			}
-			return ctrl.Result{}, nil
-		}
-
-		if !wfStatus.Terminated {
-			ref, err := handler.DispatchAndGC(ctx)
-			if err != nil {
-				klog.ErrorS(err, "Failed to gc after workflow",
-					"application", klog.KObj(app))
-				r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
-				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("GCAfterWorkflow", err))
-			}
-			wfStatus.Terminated = true
-			app.Status.ResourceTracker = ref
-			return r.endWithNegativeCondition(ctx, app, condition.ReadyCondition("GCAfterWorkflow"))
-		}
-	}
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if handler.app.Spec.RolloutPlan != nil {
@@ -288,7 +293,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	}
 	app.Status.Phase = common.ApplicationRunning
-
 	if err := garbageCollection(ctx, handler); err != nil {
 		klog.ErrorS(err, "Failed to run garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
