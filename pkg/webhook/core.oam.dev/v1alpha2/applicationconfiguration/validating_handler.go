@@ -25,9 +25,9 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -35,9 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -86,7 +86,10 @@ type ValidatingHandler struct {
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate ApplicationConfiguration Spec here
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	app := &v1alpha2.ApplicationConfiguration{}
 	if req.Resource.String() != appConfigResource.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", appConfigResource))
@@ -98,8 +101,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if !app.ObjectMeta.DeletionTimestamp.IsZero() {
 		// TODO: validate finalizer too
 		// skip validating the AppConfig being deleted
-		klog.Info("skip validating applicationConfiguration being deleted", " name: ", app.Name,
-			" deletiongTimestamp: ", app.GetDeletionTimestamp())
+		ctx.Info("skip validating applicationConfiguration being deleted", "deletionTimestamp", app.GetDeletionTimestamp())
 		return admission.ValidationResponse(true, "")
 	}
 
@@ -111,7 +113,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 		} else {
 			// TODO(wonderflow): we can audit delete or something else here.
-			klog.Info("deleting Application Configuration", req.Name)
+			ctx.Info("deleting Application Configuration")
 		}
 	case admissionv1.Update:
 		oldApp := &v1alpha2.ApplicationConfiguration{}
@@ -133,12 +135,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // ValidateCreate validates the Application on creation
-func (h *ValidatingHandler) ValidateCreate(ctx context.Context, obj *v1alpha2.ApplicationConfiguration) field.ErrorList {
+func (h *ValidatingHandler) ValidateCreate(_ctx context.Context, obj *v1alpha2.ApplicationConfiguration) field.ErrorList {
+	ctx := common.NewReconcileContextWithObjectMeta(_ctx, obj.ObjectMeta)
 	var componentErrs field.ErrorList
 	vAppConfig := &ValidatingAppConfig{}
-	ctx = util.SetNamespaceInCtx(ctx, obj.Namespace)
 	if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
-		klog.InfoS("failed to prepare information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
+		ctx.Error(err, "failed to prepare information before validation")
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), obj.Spec,
 			fmt.Sprintf("failed to prepare information before validation, err = %s", err.Error())))
 		return componentErrs
@@ -146,8 +148,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, obj *v1alpha2.Ap
 	for _, validator := range h.Validators {
 		if allErrs := validator.Validate(ctx, *vAppConfig); len(allErrs) != 0 {
 			// utilerrors.NewAggregate can remove nil from allErrs
-			klog.InfoS("validation failed", " name: ", obj.Name, " errMsgi: ",
-				utilerrors.NewAggregate(allErrs).Error())
+			ctx.Error(utilerrors.NewAggregate(allErrs), "validation failed")
 			for _, err := range allErrs {
 				componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), obj.Spec,
 					fmt.Sprintf("validation failed, err = %s", err.Error())))
@@ -166,8 +167,9 @@ func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *
 }
 
 // ValidateRevisionNameFn validates revisionName and componentName are assigned both.
-func ValidateRevisionNameFn(_ context.Context, v ValidatingAppConfig) []error {
-	klog.Info("validate revisionName in applicationConfiguration", "name", v.appConfig.Name)
+func ValidateRevisionNameFn(_ctx context.Context, v ValidatingAppConfig) []error {
+	ctx := common.NewReconcileContextWithObjectMeta(_ctx, v.appConfig.ObjectMeta)
+	ctx.Info("validate revisionName in applicationConfiguration")
 	var allErrs []error
 	for _, c := range v.validatingComps {
 		if c.appConfigComponent.ComponentName != "" && c.appConfigComponent.RevisionName != "" {
@@ -202,8 +204,9 @@ func ValidateWorkloadNameForVersioningFn(_ context.Context, v ValidatingAppConfi
 }
 
 // ValidateTraitAppliableToWorkloadFn validates whether a trait is allowed to apply to the workload.
-func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig) []error {
-	klog.Info("validate trait is appliable to workload", "name", v.appConfig.Name)
+func ValidateTraitAppliableToWorkloadFn(_ctx context.Context, v ValidatingAppConfig) []error {
+	ctx := common.NewReconcileContextWithObjectMeta(_ctx, v.appConfig.ObjectMeta)
+	ctx.Info("validate trait is appliable to workload")
 	var allErrs []error
 	for _, c := range v.validatingComps {
 		// TODO(roywang) consider a CRD group could have multiple versions
@@ -211,7 +214,7 @@ func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig
 		workloadType := c.workloadDefinition.Spec.Reference.Name
 		workloadTypeGroup := schema.ParseGroupResource(workloadType).Group
 
-		klog.InfoS("validate trait is appliable to workload: ",
+		ctx.Info("validate trait is appliable to workload: ",
 			"workloadType", workloadType, "workloadTypeGroup", workloadTypeGroup)
 	ValidateApplyTo:
 		for _, t := range c.validatingTraits {
@@ -243,8 +246,9 @@ func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig
 // ValidateTraitConflictFn validates whether conflicting traits are applied to the same workload.
 // NOTE(roywang) It returns immediately if one conflict is detected
 // instead of returning after collecting ALL conflicts
-func ValidateTraitConflictFn(_ context.Context, v ValidatingAppConfig) []error {
-	klog.Info("validate trait conflicts ", "appconfig name:", v.appConfig.Name)
+func ValidateTraitConflictFn(_ctx context.Context, v ValidatingAppConfig) []error {
+	ctx := common.NewReconcileContextWithObjectMeta(_ctx, v.appConfig.ObjectMeta)
+	ctx.Info("validate trait conflicts")
 	allErrs := make([]error, 0)
 	for _, comp := range v.validatingComps {
 		allConflictRules := map[string][]string{}

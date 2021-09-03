@@ -22,6 +22,7 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -62,7 +64,10 @@ func (h *ValidatingHandler) InjectClient(c client.Client) error {
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate component definition
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common2.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1beta1.ComponentDefinition{}
 	if req.Resource.String() != componentDefGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", componentDefGVR))

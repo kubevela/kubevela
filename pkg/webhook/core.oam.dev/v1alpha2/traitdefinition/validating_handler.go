@@ -23,7 +23,7 @@ import (
 
 	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
-	"k8s.io/klog"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -73,7 +74,10 @@ func (fn TraitDefValidatorFn) Validate(ctx context.Context, td v1beta1.TraitDefi
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate trait definition
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1beta1.TraitDefinition{}
 	if req.Resource.String() != traitDefGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", traitDefGVR))
@@ -84,10 +88,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-		klog.Info("validating ", " name: ", obj.Name, " operation: ", string(req.Operation))
+		ctx.Info("validating", "operation", string(req.Operation))
 		for _, validator := range h.Validators {
 			if err := validator.Validate(ctx, *obj); err != nil {
-				klog.Info("validation failed ", " name: ", obj.Name, " errMsgi: ", err.Error())
+				ctx.Error(err, "validation failed")
 				return admission.Denied(err.Error())
 			}
 		}
@@ -99,7 +103,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				return admission.Denied(err.Error())
 			}
 		}
-		klog.Info("validation passed ", " name: ", obj.Name, " operation: ", string(req.Operation))
+		ctx.Info("validation passed", "operation", string(req.Operation))
 	}
 	return admission.ValidationResponse(true, "")
 }

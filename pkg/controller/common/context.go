@@ -25,15 +25,11 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2/klogr"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-)
-
-var (
-	// PerfEnabled identify whether to add performance log for controllers
-	PerfEnabled = false
 )
 
 var (
@@ -65,7 +61,7 @@ type ReconcileContext struct {
 }
 
 func getCallerName() string {
-	if _, file, _, ok := runtime.Caller(2); ok {
+	if _, file, _, ok := runtime.Caller(3); ok {
 		s := filepath.Base(file)
 		if strings.Contains(file, "handler") {
 			s = filepath.Base(filepath.Dir(file)) + "_" + s
@@ -78,22 +74,37 @@ func getCallerName() string {
 	return "-"
 }
 
-// NewReconcileContext create new context for one reconcile
-func NewReconcileContext(ctx context.Context, obj types.NamespacedName) *ReconcileContext {
+func newReconcileContext(ctx context.Context, namespacedName types.NamespacedName) *ReconcileContext {
 	callerName := getCallerName()
-	logger := klogr.New().WithValues("namespace", obj.Namespace, "name", obj.Name, "caller", callerName)
-	ctx = util.SetNamespaceInCtx(ctx, obj.Namespace)
+	logger := klogr.New().WithValues("namespace", namespacedName.Namespace, "name", namespacedName.Name, "caller", callerName)
+	ctx = util.SetNamespaceInCtx(ctx, namespacedName.Namespace)
 	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
 	return &ReconcileContext{
 		Context:    ctx,
 		Logger:     logger,
 		callerName: callerName,
-		obj:        obj,
+		obj:        namespacedName,
 		cancel:     cancel,
 		events:     []*ReconcileEvent{},
 		timestamps: map[string]time.Time{},
 		timers:     map[string]time.Duration{},
 	}
+}
+
+// NewReconcileContext create new context for one reconcile
+func NewReconcileContext(ctx context.Context, namespacedName types.NamespacedName) *ReconcileContext {
+	return newReconcileContext(ctx, namespacedName)
+}
+
+// NewReconcileContextWithObjectMeta create ReconcileContext if ctx is not one
+func NewReconcileContextWithObjectMeta(ctx context.Context, meta v1.ObjectMeta) *ReconcileContext {
+	if rctx, ok := ctx.(*ReconcileContext); ok {
+		return rctx
+	}
+	return newReconcileContext(ctx, types.NamespacedName{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+	})
 }
 
 // BeginReconcile starts recording for new reconcile

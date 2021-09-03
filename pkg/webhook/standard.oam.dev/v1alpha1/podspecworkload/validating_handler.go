@@ -22,13 +22,14 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 // ValidatingHandler handles PodSpecWorkload
@@ -42,19 +43,22 @@ type ValidatingHandler struct {
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1alpha1.PodSpecWorkload{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		klog.InfoS("Failed to decode", "req operation", req.AdmissionRequest.Operation, "req",
-			req.AdmissionRequest, "err", err)
+		ctx.Error(err, "Failed to decode", "req operation", req.AdmissionRequest.Operation, "req",
+			req.AdmissionRequest)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	switch req.AdmissionRequest.Operation {
 	case admissionv1.Create:
-		if allErrs := ValidateCreate(obj); len(allErrs) > 0 {
+		if allErrs := ValidateCreate(ctx, obj); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	case admissionv1.Update:
@@ -63,7 +67,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusBadRequest, err)
 		}
 
-		if allErrs := ValidateUpdate(obj, oldObj); len(allErrs) > 0 {
+		if allErrs := ValidateUpdate(ctx, obj, oldObj); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	default:
@@ -74,8 +78,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // ValidateCreate validates the PodSpecWorkload on creation
-func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("Validate create podSpecWorkload", "podSpecWorkload", klog.KObj(r))
+func ValidateCreate(ctx *common.ReconcileContext, r *v1alpha1.PodSpecWorkload) field.ErrorList {
+	ctx.Info("Validate create podSpecWorkload")
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
@@ -93,14 +97,14 @@ func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
 }
 
 // ValidateUpdate validates the PodSpecWorkload on update
-func ValidateUpdate(r *v1alpha1.PodSpecWorkload, _ *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("Validate update podSpecWorkload", "podSpecWorkload", klog.KObj(r))
-	return ValidateCreate(r)
+func ValidateUpdate(ctx *common.ReconcileContext, r *v1alpha1.PodSpecWorkload, _ *v1alpha1.PodSpecWorkload) field.ErrorList {
+	ctx.Info("Validate update podSpecWorkload")
+	return ValidateCreate(ctx, r)
 }
 
 // ValidateDelete validates the PodSpecWorkload on delete
-func ValidateDelete(r *v1alpha1.PodSpecWorkload) field.ErrorList {
-	klog.InfoS("Validate delete PodSpecWorkload", "podSpecWorkload", klog.KObj(r))
+func ValidateDelete(ctx *common.ReconcileContext, r *v1alpha1.PodSpecWorkload) field.ErrorList {
+	ctx.Info("Validate delete PodSpecWorkload")
 	return nil
 }
 

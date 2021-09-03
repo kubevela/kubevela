@@ -24,13 +24,14 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 // ValidatingHandler handles Component
@@ -48,25 +49,28 @@ type ValidatingHandler struct {
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1alpha2.Component{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		klog.InfoS("Failed to decode component", "req operation", req.AdmissionRequest.Operation, "req",
-			req.AdmissionRequest, "err", err)
+		ctx.Error(err, "Failed to decode component", "req operation", req.AdmissionRequest.Operation, "req",
+			req.AdmissionRequest)
 		return admission.Denied(err.Error())
 	}
 
 	switch req.AdmissionRequest.Operation { //nolint:exhaustive
 	case admissionv1.Create:
-		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			klog.InfoS("Failed to create component", "component", klog.KObj(obj), "err", allErrs.ToAggregate().Error())
+		if allErrs := ValidateComponentObject(ctx, obj); len(allErrs) > 0 {
+			ctx.Error(allErrs.ToAggregate(), "Failed to create component")
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	case admissionv1.Update:
-		if allErrs := ValidateComponentObject(obj); len(allErrs) > 0 {
-			klog.InfoS("Failed to update component", "component", klog.KObj(obj), "err", allErrs.ToAggregate().Error())
+		if allErrs := ValidateComponentObject(ctx, obj); len(allErrs) > 0 {
+			ctx.Error(allErrs.ToAggregate(), "Failed to update component")
 			return admission.Denied(allErrs.ToAggregate().Error())
 		}
 	}
@@ -75,8 +79,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // ValidateComponentObject validates the Component on creation
-func ValidateComponentObject(obj *v1alpha2.Component) field.ErrorList {
-	klog.InfoS("Validate component", "component", klog.KObj(obj))
+func ValidateComponentObject(ctx *common.ReconcileContext, obj *v1alpha2.Component) field.ErrorList {
+	ctx.Info("Validate component")
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&obj.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 	fldPath := field.NewPath("spec")

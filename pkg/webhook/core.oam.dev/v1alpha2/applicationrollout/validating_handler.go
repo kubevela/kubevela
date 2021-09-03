@@ -21,7 +21,7 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
-	"k8s.io/klog/v2"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 // ValidatingHandler handles AppRollout
@@ -42,19 +43,22 @@ type ValidatingHandler struct {
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1beta1.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
-		klog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
+		ctx.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
 			req.AdmissionRequest)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	// there is no need validate deleted rollout, th
 	if !obj.DeletionTimestamp.IsZero() {
-		klog.InfoS("skip validate deleted rollout ", "namespace", obj.Namespace, "name", obj.Name)
+		ctx.Info("skip validate deleted rollout ")
 		return admission.ValidationResponse(true, "")
 	}
 

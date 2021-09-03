@@ -25,7 +25,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -33,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -56,7 +56,10 @@ type MutatingHandler struct {
 var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1alpha2.Component{}
 
 	err := h.Decoder.Decode(req, obj)
@@ -64,11 +67,11 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	// mutate the object
-	if err := h.Mutate(obj); err != nil {
-		klog.InfoS("Failed to mutate the component", "component", klog.KObj(obj), "err", err)
+	if err := h.Mutate(ctx, obj); err != nil {
+		ctx.Error(err, "Failed to mutate the component")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	klog.InfoS("Print the mutated obj", "obj name", obj.Name, "mutated obj", string(obj.Spec.Workload.Raw))
+	ctx.Info("Print the mutated obj", "mutated obj", string(obj.Spec.Workload.Raw))
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -77,14 +80,14 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.InfoS("Admit component", "component", klog.KObj(obj), "patches", util.JSONMarshal(resp.Patches))
+		ctx.Info("Admit component", "patches", util.JSONMarshal(resp.Patches))
 	}
 	return resp
 }
 
 // Mutate sets all the default value for the Component
-func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
-	klog.InfoS("Mutate component", "component", klog.KObj(obj))
+func (h *MutatingHandler) Mutate(ctx *common.ReconcileContext, obj *v1alpha2.Component) error {
+	ctx.Info("Mutate component")
 	var content map[string]interface{}
 	if err := json.Unmarshal(obj.Spec.Workload.Raw, &content); err != nil {
 		return err
@@ -94,7 +97,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
 		if !ok {
 			return fmt.Errorf("workload content has an unknown type field")
 		}
-		klog.InfoS("Component refers to workoadDefinition by type", "name", obj.Name, "workload type", workloadType)
+		ctx.Info("Component refers to workoadDefinition by type", "workload type", workloadType)
 		// Fetch the corresponding workloadDefinition CR, the workloadDefinition crd is cluster scoped
 		workloadDefinition := &v1alpha2.WorkloadDefinition{}
 		if err := h.Client.Get(context.TODO(), types.NamespacedName{Name: workloadType}, workloadDefinition); err != nil {
@@ -116,7 +119,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.Component) error {
 		}.String()
 		workload.SetAPIVersion(apiVersion)
 		workload.SetKind(gvk.Kind)
-		klog.InfoS("Set the component workload GVK", "workload apiVersion", workload.GetAPIVersion(), "workload Kind", workload.GetKind())
+		ctx.Info("Set the component workload GVK", "workload apiVersion", workload.GetAPIVersion(), "workload Kind", workload.GetKind())
 		// copy namespace/label/annotation to the workload and add workloadType label
 		workload.SetNamespace(obj.GetNamespace())
 		workload.SetLabels(util.MergeMapOverrideWithDst(obj.GetLabels(), map[string]string{oam.WorkloadTypeLabel: workloadType}))

@@ -23,6 +23,7 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
@@ -65,7 +67,10 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate initializer
-func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	init := &v1beta1.Initializer{}
 
 	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {

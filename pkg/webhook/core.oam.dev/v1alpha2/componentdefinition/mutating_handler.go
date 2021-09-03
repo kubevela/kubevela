@@ -23,7 +23,7 @@ import (
 	"net/http"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/klog/v2"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -51,7 +52,10 @@ type MutatingHandler struct {
 var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common2.NewReconcileContext(_ctx, types2.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1beta1.ComponentDefinition{}
 
 	err := h.Decoder.Decode(req, obj)
@@ -59,8 +63,8 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	// mutate the object
-	if err := h.Mutate(obj); err != nil {
-		klog.Error(err, "failed to mutate the componentDefinition", "name", obj.Name)
+	if err := h.Mutate(ctx, obj); err != nil {
+		ctx.Error(err, "failed to mutate the componentDefinition")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -71,15 +75,14 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.InfoS("admit ComponentDefinition",
-			"namespace", obj.Namespace, "name", obj.Name, "patches", util.JSONMarshal(resp.Patches))
+		ctx.Info("admit ComponentDefinition", "patches", util.JSONMarshal(resp.Patches))
 	}
 	return resp
 }
 
 // Mutate sets all the default value for the ComponentDefinition
-func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
-	klog.InfoS("mutate", "name", obj.Name)
+func (h *MutatingHandler) Mutate(ctx *common2.ReconcileContext, obj *v1beta1.ComponentDefinition) error {
+	ctx.Info("mutate")
 
 	// If the Type field is not empty, it means that ComponentDefinition refers to an existing WorkloadDefinition
 	if obj.Spec.Workload.Type != "" && obj.Spec.Workload.Definition == (common.WorkloadGVK{}) {

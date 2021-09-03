@@ -21,13 +21,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"k8s.io/klog/v2"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	util "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -42,14 +43,17 @@ type MutatingHandler struct {
 var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1alpha1.PodSpecWorkload{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	DefaultPodSpecWorkload(obj)
+	DefaultPodSpecWorkload(ctx, obj)
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -57,16 +61,16 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.V(5).InfoS("Admit PodSpecWorkload", "podSpecWorkload", klog.KObj(obj), "patches", util.DumpJSON(resp.Patches))
+		ctx.Info("Admit PodSpecWorkload", "patches", util.DumpJSON(resp.Patches))
 	}
 	return resp
 }
 
 // DefaultPodSpecWorkload will set the default value for the PodSpecWorkload
-func DefaultPodSpecWorkload(obj *v1alpha1.PodSpecWorkload) {
-	klog.InfoS("Set the default value for the PodSpecWorkload", "podSpecWorkload", klog.KObj(obj))
+func DefaultPodSpecWorkload(ctx *common.ReconcileContext, obj *v1alpha1.PodSpecWorkload) {
+	ctx.Info("Set the default value for the PodSpecWorkload")
 	if obj.Spec.Replicas == nil {
-		klog.InfoS("Set default replicas as 1")
+		ctx.Info("Set default replicas as 1")
 		obj.Spec.Replicas = pointer.Int32Ptr(1)
 	}
 }

@@ -36,6 +36,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -195,7 +196,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 				injc := handler.(inject.Client)
 				injc.InjectClient(test.client)
 				mutatingHandler := handler.(*MutatingHandler)
-				err := mutatingHandler.Mutate(&appConfig)
+				err := mutatingHandler.Mutate(common2.NewReconcileContextWithObjectMeta(context.Background(), appConfig.ObjectMeta), &appConfig)
 				if len(test.errMsg) == 0 {
 					Expect(err).Should(BeNil())
 					Expect(appConfig.Spec.Components[0].Traits[0].Trait.Raw).Should(BeEquivalentTo(test.wanted))

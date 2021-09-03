@@ -23,7 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -59,10 +58,7 @@ type AppHandler struct {
 // Dispatch apply manifests into k8s.
 func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error {
 	h.initDispatcher()
-	rctx := common2.NewReconcileContext(ctx, types2.NamespacedName{
-		Namespace: h.app.Namespace,
-		Name:      h.app.Name,
-	})
+	rctx := common2.NewReconcileContextWithObjectMeta(ctx, h.app.ObjectMeta)
 	_, err := h.dispatcher.Dispatch(rctx, manifests)
 	return err
 }

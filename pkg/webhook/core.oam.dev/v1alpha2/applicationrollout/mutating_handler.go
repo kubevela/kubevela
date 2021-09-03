@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"k8s.io/klog/v2"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -45,14 +45,17 @@ type MutatingHandler struct {
 var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1beta1.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	DefaultAppRollout(obj)
+	DefaultAppRollout(ctx, obj)
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -60,15 +63,14 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.V(klog.Level(common.LogDebugWithContent)).InfoS("Admit appRollout", "appRollout", klog.KObj(obj),
-			"patches", util.DumpJSON(resp.Patches))
+		ctx.Info("Admit appRollout", "patches", util.DumpJSON(resp.Patches))
 	}
 	return resp
 }
 
 // DefaultAppRollout will set the default value for the AppRollout®
-func DefaultAppRollout(obj *v1beta1.AppRollout) {
-	klog.InfoS("create default for approllout", "name", obj.Name)
+func DefaultAppRollout(ctx *common.ReconcileContext, obj *v1beta1.AppRollout) {
+	ctx.Info("create default for approllout")
 
 	// default rollout batches if it's rollout (scale requires more info)
 	if obj.Spec.SourceAppRevisionName != "" {

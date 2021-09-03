@@ -37,6 +37,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -198,7 +199,7 @@ var _ = Describe("Component Admission controller Test", func() {
 				dm := mock.NewMockDiscoveryMapper()
 				dm.MockKindsFor = mock.NewMockKindsFor("Foo", "v1")
 				mutatingHandler.Mapper = dm
-				err := mutatingHandler.Mutate(&component)
+				err := mutatingHandler.Mutate(common2.NewReconcileContextWithObjectMeta(context.Background(), component.ObjectMeta), &component)
 				if len(test.errMsg) == 0 {
 					Expect(err).Should(BeNil())
 					Expect(component.Spec.Workload.Raw).Should(BeEquivalentTo(test.wanted))

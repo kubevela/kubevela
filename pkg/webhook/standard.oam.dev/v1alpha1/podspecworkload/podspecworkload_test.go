@@ -17,15 +17,18 @@ limitations under the License.
 package podspecworkload
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 func TestPodSpecWorkload(t *testing.T) {
@@ -35,6 +38,7 @@ func TestPodSpecWorkload(t *testing.T) {
 
 var _ = Describe("Test PodSpecWorkload", func() {
 	var baseCase v1alpha1.PodSpecWorkload
+	ctx := common.NewReconcileContext(context.Background(), types.NamespacedName{})
 
 	BeforeEach(func() {
 		baseCase = v1alpha1.PodSpecWorkload{
@@ -49,7 +53,7 @@ var _ = Describe("Test PodSpecWorkload", func() {
 		cw := baseCase
 		want := baseCase
 		want.Spec.Replicas = pointer.Int32Ptr(1)
-		DefaultPodSpecWorkload(&cw)
+		DefaultPodSpecWorkload(ctx, &cw)
 		Expect(cw).Should(BeEquivalentTo(want))
 	})
 
@@ -57,7 +61,7 @@ var _ = Describe("Test PodSpecWorkload", func() {
 		cw := baseCase
 		cw.Spec.Replicas = pointer.Int32Ptr(10)
 		want := cw
-		DefaultPodSpecWorkload(&cw)
+		DefaultPodSpecWorkload(ctx, &cw)
 		Expect(cw).Should(BeEquivalentTo(want))
 	})
 
@@ -71,22 +75,22 @@ var _ = Describe("Test PodSpecWorkload", func() {
 				Image: "test",
 			},
 		}
-		Expect(ValidateCreate(&cw).ToAggregate()).NotTo(HaveOccurred())
-		Expect(ValidateUpdate(&cw, nil).ToAggregate()).NotTo(HaveOccurred())
-		Expect(ValidateDelete(&cw).ToAggregate()).NotTo(HaveOccurred())
+		Expect(ValidateCreate(ctx, &cw).ToAggregate()).NotTo(HaveOccurred())
+		Expect(ValidateUpdate(ctx, &cw, nil).ToAggregate()).NotTo(HaveOccurred())
+		Expect(ValidateDelete(ctx, &cw).ToAggregate()).NotTo(HaveOccurred())
 	})
 
 	It("Test validate invalid trait", func() {
 		cw := baseCase
 		cw.Spec.Replicas = pointer.Int32Ptr(-5)
-		Expect(ValidateCreate(&cw).ToAggregate()).To(HaveOccurred())
-		Expect(ValidateUpdate(&cw, nil).ToAggregate()).To(HaveOccurred())
-		Expect(len(ValidateCreate(&cw))).Should(Equal(3))
+		Expect(ValidateCreate(ctx, &cw).ToAggregate()).To(HaveOccurred())
+		Expect(ValidateUpdate(ctx, &cw, nil).ToAggregate()).To(HaveOccurred())
+		Expect(len(ValidateCreate(ctx, &cw))).Should(Equal(3))
 		// add namespace
 		cw.ObjectMeta.Namespace = "default"
-		Expect(len(ValidateCreate(&cw))).Should(Equal(2))
+		Expect(len(ValidateCreate(ctx, &cw))).Should(Equal(2))
 		// get valid replica
 		cw.Spec.Replicas = pointer.Int32Ptr(5)
-		Expect(len(ValidateCreate(&cw))).Should(Equal(1))
+		Expect(len(ValidateCreate(ctx, &cw))).Should(Equal(1))
 	})
 })

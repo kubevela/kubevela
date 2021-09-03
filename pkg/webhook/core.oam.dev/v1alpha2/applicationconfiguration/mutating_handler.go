@@ -27,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -57,7 +57,10 @@ type MutatingHandler struct {
 var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(_ctx context.Context, req admission.Request) admission.Response {
+	ctx := common.NewReconcileContext(_ctx, types.NamespacedName{Name: req.Name, Namespace: req.Namespace})
+	ctx.BeginReconcile()
+	defer ctx.EndReconcile()
 	obj := &v1alpha2.ApplicationConfiguration{}
 
 	err := h.Decoder.Decode(req, obj)
@@ -65,13 +68,11 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	// mutate the object
-	if err := h.Mutate(obj); err != nil {
-		klog.InfoS("Failed to mutate the applicationConfiguration", "applicationConfiguration", klog.KObj(obj),
-			"err", err)
+	if err := h.Mutate(ctx, obj); err != nil {
+		ctx.Error(err, "Failed to mutate the applicationConfiguration")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	klog.InfoS("Print the mutated applicationConfiguration", "applicationConfiguration",
-		klog.KObj(obj), "mutated applicationConfiguration", string(util.JSONMarshal(obj.Spec)))
+	ctx.Info("Print the mutated applicationConfiguration", "mutated applicationConfiguration", string(util.JSONMarshal(obj.Spec)))
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -80,15 +81,14 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.InfoS("Admit applicationConfiguration", "applicationConfiguration", klog.KObj(obj),
-			"patches", util.JSONMarshal(resp.Patches))
+		ctx.Info("Admit applicationConfiguration", "patches", util.JSONMarshal(resp.Patches))
 	}
 	return resp
 }
 
 // Mutate sets all the default value for the Component
-func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
-	klog.InfoS("Mutate applicationConfiguration", "applicationConfiguration", klog.KObj(obj))
+func (h *MutatingHandler) Mutate(ctx *common.ReconcileContext, obj *v1alpha2.ApplicationConfiguration) error {
+	ctx.Info("Mutate applicationConfiguration")
 
 	for compIdx, comp := range obj.Spec.Components {
 		var updated bool
@@ -97,7 +97,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
 			if err := json.Unmarshal(tr.Trait.Raw, &content); err != nil {
 				return err
 			}
-			rawByte, mutated, err := h.mutateTrait(content, comp.ComponentName)
+			rawByte, mutated, err := h.mutateTrait(ctx, content, comp.ComponentName)
 			if err != nil {
 				return err
 			}
@@ -116,7 +116,7 @@ func (h *MutatingHandler) Mutate(obj *v1alpha2.ApplicationConfiguration) error {
 	return nil
 }
 
-func (h *MutatingHandler) mutateTrait(content map[string]interface{}, compName string) ([]byte, bool, error) {
+func (h *MutatingHandler) mutateTrait(ctx *common.ReconcileContext, content map[string]interface{}, compName string) ([]byte, bool, error) {
 	if content[TraitTypeField] == nil {
 		return nil, false, nil
 	}
@@ -124,7 +124,7 @@ func (h *MutatingHandler) mutateTrait(content map[string]interface{}, compName s
 	if !ok {
 		return nil, false, fmt.Errorf("name of trait should be string instead of %s", reflect.TypeOf(content[TraitTypeField]))
 	}
-	klog.InfoS("Trait refers to traitDefinition by name", "compName", compName, "trait name", traitType)
+	ctx.Info("Trait refers to traitDefinition by name", "compName", compName, "trait name", traitType)
 	// Fetch the corresponding traitDefinition CR, the traitDefinition crd is cluster scoped
 	traitDefinition := &v1alpha2.TraitDefinition{}
 	if err := h.Client.Get(context.TODO(), types.NamespacedName{Name: traitType}, traitDefinition); err != nil {
@@ -153,7 +153,7 @@ func (h *MutatingHandler) mutateTrait(content map[string]interface{}, compName s
 	}.String()
 	trait.SetAPIVersion(apiVersion)
 	trait.SetKind(customResourceDefinition.Spec.Names.Kind)
-	klog.InfoS("Set the trait GVK", "trait apiVersion", trait.GetAPIVersion(), "trait Kind", trait.GetKind())
+	ctx.Info("Set the trait GVK", "trait apiVersion", trait.GetAPIVersion(), "trait Kind", trait.GetKind())
 	// add traitType label
 	trait.SetLabels(util.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.TraitTypeLabel: traitType}))
 	// copy back the object
