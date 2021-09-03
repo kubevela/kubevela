@@ -21,6 +21,11 @@ import (
 	"time"
 )
 
+var (
+	// PerfEnabled identify whether to add performance log for controllers
+	PerfEnabled = false
+)
+
 const (
 	reconcileTimeout = time.Minute
 )
