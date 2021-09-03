@@ -34,6 +34,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -165,6 +166,10 @@ func main() {
 	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitonNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
+
+	// wrapper the round tripper by multi cluster rewriter
+	restConfig.Wrap(clustermanager.NewSecretModeMultiClusterRoundTripper)
+
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst
