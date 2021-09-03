@@ -24,7 +24,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -247,22 +249,42 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	app.Status.Phase = common.ApplicationHealthChecking
 	klog.Info("Check application health status")
-	// check application health status
-	appCompStatus, healthy, err := handler.aggregateHealthStatus(appFile)
-	if err != nil {
-		klog.ErrorS(err, "Failed to aggregate status", "application", klog.KObj(app))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", err))
-	}
-	app.Status.Services = appCompStatus
-	if !healthy {
-		if err := r.patchStatus(ctx, app); err != nil {
-			return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+
+	// check application health status if no health check policy is applied
+	if !hasHealthCheckPolicy(appFile.Policies) {
+		appCompStatus, healthy, err := handler.aggregateHealthStatus(appFile)
+		if err != nil {
+			klog.ErrorS(err, "application", klog.KObj(app))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
+			app.Status.SetConditions(condition.Condition{
+				Type:               v1beta1.TypeHealthy,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             v1beta1.ReasonHealthCheckErr,
+			})
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", err))
 		}
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", errors.New("not healthy")))
+		app.Status.Services = appCompStatus
+		if !healthy {
+			app.Status.SetConditions(condition.Condition{
+				Type:               v1beta1.TypeHealthy,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             v1beta1.ReasonUnhealthy,
+			})
+			if err := r.patchStatus(ctx, app); err != nil {
+				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+			}
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", errors.New("not healthy")))
+		}
+		app.Status.SetConditions(condition.Condition{
+			Type:               v1beta1.TypeHealthy,
+			Status:             corev1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+			Reason:             v1beta1.ReasonHealthy,
+		})
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	}
-	app.Status.SetConditions(condition.ReadyCondition("HealthCheck"))
-	r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	app.Status.Phase = common.ApplicationRunning
 
 	if err := garbageCollection(ctx, handler); err != nil {
@@ -347,6 +369,16 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application) 
 // resources into the cluster. Rollout controller will do real release works.
 func appWillRollout(app *v1beta1.Application) bool {
 	return len(app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil
+}
+
+func hasHealthCheckPolicy(policies []*appfile.Workload) bool {
+	for _, p := range policies {
+		if p.FullTemplate != nil && p.FullTemplate.PolicyDefinition != nil &&
+			p.FullTemplate.PolicyDefinition.Spec.ManageHealthCheck {
+			return true
+		}
+	}
+	return false
 }
 
 // SetupWithManager install to manager

@@ -18,6 +18,8 @@ package controllers_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -317,20 +319,22 @@ var _ = Describe("HealthScope", func() {
 		}))
 	})
 
-	It("Test an application with health scope", func() {
+	It("Test an application with health policy", func() {
 		By("Apply a healthy application")
 		var newApp v1beta1.Application
+		var healthyAppName, unhealthyAppName string
 		Expect(utilcommon.ReadYamlToObject("testdata/app/app_healthscope.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
 		Eventually(func() error {
 			return k8sClient.Create(ctx, newApp.DeepCopy())
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
+		healthyAppName = newApp.Name
 		By("Get Application latest status")
 		Eventually(
 			func() *common.Revision {
 				var app v1beta1.Application
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newApp.Name}, &app)
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: healthyAppName}, &app)
 				if app.Status.LatestRevision != nil {
 					return app.Status.LatestRevision
 				}
@@ -346,11 +350,12 @@ var _ = Describe("HealthScope", func() {
 			return k8sClient.Create(ctx, newApp.DeepCopy())
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
+		unhealthyAppName = newApp.Name
 		By("Get Application latest status")
 		Eventually(
 			func() *common.Revision {
 				var app v1beta1.Application
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newApp.Name}, &app)
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: unhealthyAppName}, &app)
 				if app.Status.LatestRevision != nil {
 					return app.Status.LatestRevision
 				}
@@ -379,6 +384,28 @@ var _ = Describe("HealthScope", func() {
 			HealthyWorkloads: int64(2),
 		}))
 
+		By("Verify the healthy application status")
+		Eventually(func() error {
+			healthyApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: healthyAppName}, healthyApp); err != nil {
+				return err
+			}
+			appCompStatuses := healthyApp.Status.Services
+			if len(appCompStatuses) != 2 {
+				return fmt.Errorf("expect 2 comp statuses, but got %d", len(appCompStatuses))
+			}
+			compSts1 := appCompStatuses[0]
+			if !compSts1.Healthy || !strings.Contains(compSts1.Message, "Ready:1/1") {
+				return fmt.Errorf("expect healthy comp, but %v is unhealthy, msg: %q", compSts1.Name, compSts1.Message)
+			}
+			if len(compSts1.Traits) != 1 {
+				return fmt.Errorf("expect 2 traits statuses, but got %d", len(compSts1.Traits))
+			}
+			Expect(compSts1.Traits[0].Message).Should(ContainSubstring("No loadBalancer found"))
+
+			return nil
+		}, time.Second*30, time.Millisecond*500).Should(Succeed())
+
 		By("Verify the unhealthy health scope")
 		healthScopeObject = client.ObjectKey{
 			Name:      "app-healthscope-unhealthy",
@@ -400,5 +427,26 @@ var _ = Describe("HealthScope", func() {
 			UnhealthyWorkloads: int64(1),
 			HealthyWorkloads:   int64(1),
 		}))
+
+		By("Verify the unhealthy application status")
+		Eventually(func() error {
+			unhealthyApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: healthyAppName}, unhealthyApp); err != nil {
+				return err
+			}
+			appCompStatuses := unhealthyApp.Status.Services
+			if len(appCompStatuses) != 2 {
+				return fmt.Errorf("expect 2 comp statuses, but got %d", len(appCompStatuses))
+			}
+			for _, cSts := range appCompStatuses {
+				if cSts.Name == "my-server-unhealthy" {
+					unhealthyCompSts := cSts
+					if unhealthyCompSts.Healthy || !strings.Contains(unhealthyCompSts.Message, "Ready:0/1") {
+						return fmt.Errorf("expect unhealthy comp, but %s is unhealthy, msg: %q", unhealthyCompSts.Name, unhealthyCompSts.Message)
+					}
+				}
+			}
+			return nil
+		}, time.Second*30, time.Millisecond*500).Should(Succeed())
 	})
 })

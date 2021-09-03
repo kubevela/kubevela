@@ -39,6 +39,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -108,10 +109,16 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 				if o, ok := obj.(*v1alpha2.HealthScope); ok {
 					*o = hs
 				}
+				if o, ok := obj.(*v1beta1.Application); ok {
+					*o = v1beta1.Application{}
+				}
 				return nil
 			},
 			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
 				return errMockErr
+			},
+			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				return nil
 			},
 		}
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
@@ -125,9 +132,15 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 				if o, ok := obj.(*v1alpha2.HealthScope); ok {
 					*o = hs
 				}
+				if o, ok := obj.(*v1beta1.Application); ok {
+					*o = v1beta1.Application{}
+				}
 				return nil
 			},
 			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				return nil
+			},
+			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 				return nil
 			},
 		}
@@ -142,9 +155,15 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 				if o, ok := obj.(*v1alpha2.HealthScope); ok {
 					*o = hs
 				}
+				if o, ok := obj.(*v1beta1.Application); ok {
+					*o = v1beta1.Application{}
+				}
 				return nil
 			},
 			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				return nil
+			},
+			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 				return nil
 			},
 		}
