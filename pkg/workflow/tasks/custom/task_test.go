@@ -115,7 +115,7 @@ myIP: value: "1.1.1.1"
 	for _, step := range steps {
 		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 		assert.NilError(t, err)
-		run, err := gen(step)
+		run, err := gen(step, nil)
 		assert.NilError(t, err)
 		status, action, err := run.Run(wfCtx)
 		assert.NilError(t, err)
@@ -223,7 +223,7 @@ close({
 	for _, step := range steps {
 		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 		assert.NilError(t, err)
-		run, err := gen(step)
+		run, err := gen(step, nil)
 		assert.NilError(t, err)
 		status, _, err := run.Run(wfCtx)
 		switch step.Name {
@@ -389,7 +389,7 @@ func TestPendingCheck(t *testing.T) {
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	assert.NilError(t, err)
-	run, err := gen(step)
+	run, err := gen(step, nil)
 	assert.NilError(t, err)
 	assert.Equal(t, run.Pending(wfCtx), true)
 	score, err := value.NewValue(`

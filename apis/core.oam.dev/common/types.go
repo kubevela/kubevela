@@ -213,14 +213,15 @@ type RawComponent struct {
 
 // WorkflowStepStatus record the status of a workflow step
 type WorkflowStepStatus struct {
+	Id    string            `json:"id"`
 	Name  string            `json:"name,omitempty"`
 	Type  string            `json:"type,omitempty"`
 	Phase WorkflowStepPhase `json:"phase,omitempty"`
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason      string                 `json:"reason,omitempty"`
-	ResourceRef corev1.ObjectReference `json:"resourceRef,omitempty"`
+	Reason   string         `json:"reason,omitempty"`
+	SubSteps SubStepsStatus `json:"subSteps,omitempty"`
 }
 
 // AppStatus defines the observed state of Application
@@ -262,6 +263,12 @@ type WorkflowStatus struct {
 	Terminated     bool                    `json:"terminated"`
 	ContextBackend *corev1.ObjectReference `json:"contextBackend"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
+}
+
+// SubStepsStatus record the status of workflow steps.
+type SubStepsStatus struct {
+	StepIndex int                  `json:"stepIndex,omitempty"`
+	Steps     []WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // WorkflowStepPhase describes the phase of a workflow step.

@@ -197,17 +197,11 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 		return "", errors.New("custom workflowStep only support cue")
 	}
 
-	if len(af.WorkflowSteps)==0{
-		for _,comp:=range af.Components{
-			obj,err:=util.Object2Map(comp)
-			if err!=nil{
-				return nil, err
-			}
-			delete(obj)
-			c.Outputs=nil
-			af.WorkflowSteps=append(af.WorkflowSteps,v1beta1.WorkflowStep{
-				Name: comp.Name,
-				Properties: util.Object2RawExtension(c),
+	if len(af.WorkflowSteps) == 0 {
+		for _, comp := range af.Components {
+			af.WorkflowSteps = append(af.WorkflowSteps, v1beta1.WorkflowStep{
+				Name:       comp.Name,
+				Properties: util.Object2RawExtension(comp),
 			})
 		}
 	}
@@ -219,7 +213,6 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 		if err != nil {
 			return nil, err
 		}
-		wl.FullTemplate.Health
 		manifest, err := af.GenerateComponentManifest(wl)
 		if err != nil {
 			return nil, err
@@ -236,7 +229,7 @@ func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.Discove
 		if err != nil {
 			return nil, err
 		}
-		task, err := genTask(step)
+		task, err := genTask(step, &wfTypes.GeneratorOptions{})
 		if err != nil {
 			return nil, err
 		}

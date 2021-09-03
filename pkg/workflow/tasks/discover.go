@@ -56,7 +56,17 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
+// TaskGeneratorProducer produce task generator.
+type TaskGeneratorProducer func(ctx wfContext.Context,
+	options *types.TaskRunOptions,
+	step v1beta1.WorkflowStep) (common.WorkflowStepStatus, *types.Operation, error)
+
+// RegisterGenerator
+func (td *taskDiscover) RegisterGenerator(name string, p TaskGeneratorProducer) {
+	td.builtins[name] = makeGenerator(name, p)
+}
+
+func suspend(step v1beta1.WorkflowStep, _ *types.GeneratorOptions) (types.TaskRunner, error) {
 	return &suspendTaskRunner{
 		name: step.Name,
 	}, nil
@@ -96,4 +106,43 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context) (common.WorkflowStepStat
 // Pending check task should be executed or not.
 func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 	return false
+}
+
+type commonTaskRunner struct {
+	name         string
+	step         v1beta1.WorkflowStep
+	generatorOpt *types.GeneratorOptions
+	up           TaskGeneratorProducer
+}
+
+// Name return step name.
+func (ct *commonTaskRunner) Name() string {
+	return ct.name
+}
+
+// Run workflow step.
+func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
+	status, operation, err := ct.up(ctx, options, ct.step)
+	if ct.generatorOpt != nil {
+		status.Id = ct.generatorOpt.Id
+	}
+	status.Type = ct.name
+	status.Name = ct.step.Name
+	return status, operation, err
+}
+
+// Pending check task should be executed or not.
+func (ct *commonTaskRunner) Pending(ctx wfContext.Context) bool {
+	return false
+}
+
+func makeGenerator(name string, p TaskGeneratorProducer) types.TaskGenerator {
+	return func(wfStep v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
+		return &commonTaskRunner{
+			name:         name,
+			step:         wfStep,
+			generatorOpt: opt,
+			up:           p,
+		}, nil
+	}
 }

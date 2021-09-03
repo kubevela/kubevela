@@ -18,6 +18,9 @@ package tasks
 
 import (
 	"context"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -59,4 +62,30 @@ func TestDiscover(t *testing.T) {
 	_, err = discover.GetTaskGenerator(context.Background(), "fly")
 	assert.Equal(t, err.Error(), makeErr("fly").Error())
 
+}
+
+func TestRegister(t *testing.T) {
+	discover := &taskDiscover{
+		builtins: map[string]types.TaskGenerator{
+			"suspend": suspend,
+		}}
+	discover.RegisterGenerator("test", func(ctx wfContext.Context, options *types.TaskRunOptions, step v1beta1.WorkflowStep) (common.WorkflowStepStatus, *types.Operation, error) {
+		return common.WorkflowStepStatus{
+			Phase: common.WorkflowStepPhaseSucceeded,
+		}, nil, nil
+	})
+
+	gen, err := discover.GetTaskGenerator(context.Background(), "test")
+	assert.NilError(t, err)
+	run, err := gen(v1beta1.WorkflowStep{
+		Name: "step1",
+	}, &types.GeneratorOptions{Id: "abcd"})
+	assert.NilError(t, err)
+	assert.Equal(t, run.Name(), "test")
+	status, _, err := run.Run(nil, &types.TaskRunOptions{})
+	assert.NilError(t, err)
+	assert.Equal(t, status.Name, "step1")
+	assert.Equal(t, status.Type, "test")
+	assert.Equal(t, status.Id, "abcd")
+	assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
 }

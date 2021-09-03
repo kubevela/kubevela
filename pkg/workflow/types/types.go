@@ -39,10 +39,10 @@ type TaskDiscover interface {
 
 // TaskRunOptions is the options for task run.
 type TaskRunOptions struct {
-	Id            string
 	Data          *value.Value
 	PreStartHooks []TaskPreStartHook
 	PostStopHooks []TaskPostStopHook
+	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
 }
 
 // TaskPreStartHook run before task execution.
@@ -58,7 +58,13 @@ type Operation struct {
 }
 
 // TaskGenerator will generate taskRunner.
-type TaskGenerator func(wfStep v1beta1.WorkflowStep) (TaskRunner, error)
+type TaskGenerator func(wfStep v1beta1.WorkflowStep, options *GeneratorOptions) (TaskRunner, error)
+
+// // TaskRunOptions is the options for generate task.
+type GeneratorOptions struct {
+	Id       string
+	PrePhase common.WorkflowStepPhase
+}
 
 // Action is that workflow provider can do.
 type Action interface {

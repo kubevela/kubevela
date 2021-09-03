@@ -62,7 +62,6 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != rev {
 		w.app.Status.Workflow = &common.WorkflowStatus{
 			AppRevision: rev,
-			Steps:       []common.WorkflowStepStatus{},
 		}
 	}
 
@@ -100,15 +99,21 @@ func (w *workflow) ExecuteSteps(ctx context.Context, rev string, taskRunners []w
 		return
 	}
 
-	var terminated bool
-	if w.dagMode {
-		terminated, pause, gerr = w.runAsDAG(wfCtx, taskRunners)
-	} else {
-		terminated, pause, gerr = w.run(wfCtx, taskRunners[wfStatus.StepIndex:])
+	e := &engine{
+		status:  wfStatus,
+		dagMode: w.dagMode,
 	}
 
-	if terminated {
+	gerr = e.run(wfCtx, taskRunners)
+
+	if wfStatus.Suspend {
+		pause = true
+		w.app.Status.Phase = common.ApplicationWorkflowSuspending
+	}
+
+	if wfStatus.Terminated {
 		done = true
+		w.app.Status.Phase = common.ApplicationWorkflowTerminated
 	} else {
 		done = w.allDone(taskRunners)
 	}
@@ -165,8 +170,7 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
-func (w *workflow) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (terminated bool, pause bool, gerr error) {
-	status := w.app.Status.Workflow
+func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
 	var (
 		todoTasks    []wfTypes.TaskRunner
 		pendingTasks []wfTypes.TaskRunner
@@ -174,7 +178,7 @@ func (w *workflow) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskR
 	done := true
 	for _, tRunner := range taskRunners {
 		ready := false
-		for _, ss := range status.Steps {
+		for _, ss := range e.status.Steps {
 			if ss.Name == tRunner.Name() {
 				ready = ss.Phase == common.WorkflowStepPhaseSucceeded
 				break
@@ -190,74 +194,117 @@ func (w *workflow) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskR
 		}
 	}
 	if done {
-		return
+		return nil
 	}
 
 	if len(todoTasks) > 0 {
-		terminated, pause, gerr = w.run(wfCtx, todoTasks)
-		if gerr != nil || terminated || pause {
-			return
+		err := e.steps(wfCtx, todoTasks)
+		if err != nil {
+			return err
+		}
+		if e.needStop() {
+			return nil
 		}
 
 		if len(pendingTasks) > 0 {
-			return w.runAsDAG(wfCtx, pendingTasks)
+			return e.runAsDAG(wfCtx, pendingTasks)
 		}
 	}
-	return terminated, pause, gerr
+	return nil
 
 }
 
-func (w *workflow) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) (terminated bool, pause bool, gerr error) {
-	wfStatus := w.app.Status.Workflow
+func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
+	if e.dagMode {
+		return e.runAsDAG(wfCtx, taskRunners)
+	} else {
+		return e.steps(wfCtx, taskRunners[e.status.StepIndex:])
+	}
+}
+
+func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
 	for _, runner := range taskRunners {
-		status, operation, err := runner.Run(wfCtx)
+		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{
+			RunSteps: func(isDag bool, runners ...wfTypes.TaskRunner) (*common.WorkflowStatus, error) {
+				stepsEngine := &engine{
+					dagMode: isDag,
+				}
+				stepStatus := e.getStepStatus(runner.Name())
+
+				if stepStatus != nil {
+					stepsEngine.status.StepIndex = stepStatus.SubSteps.StepIndex
+					stepsEngine.status.Steps = stepStatus.SubSteps.Steps
+				}
+				err := stepsEngine.run(wfCtx, runners)
+				return stepsEngine.status, err
+			},
+		})
 		if err != nil {
-			gerr = err
-			return
+			return err
 		}
 
-		var conditionUpdated bool
-		for i := range wfStatus.Steps {
-			if wfStatus.Steps[i].Name == status.Name {
-				wfStatus.Steps[i] = status
-				conditionUpdated = true
-				break
-			}
-		}
-
-		if !conditionUpdated {
-			wfStatus.Steps = append(wfStatus.Steps, status)
-		}
+		e.updateStepStatus(status)
 
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
-			if w.dagMode {
+			if e.isDag() {
 				continue
 			}
-			return
+			return nil
 		}
 
 		if err := wfCtx.Commit(); err != nil {
-			gerr = errors.WithMessage(err, "commit workflow context")
-			return
+			return errors.WithMessage(err, "commit workflow context")
 		}
 
-		wfStatus.StepIndex++
-
-		if operation != nil {
-			wfStatus.Terminated = operation.Terminated
-			wfStatus.Suspend = operation.Suspend
-		}
-
-		if wfStatus.Terminated {
-			w.app.Status.Phase = common.ApplicationWorkflowTerminated
-			terminated = true
-			return
-		}
-		if wfStatus.Suspend {
-			pause = true
-			w.app.Status.Phase = common.ApplicationWorkflowSuspending
-			return
+		e.finishStep(operation)
+		if e.needStop() {
+			return nil
 		}
 	}
-	return false, false, nil
+	return nil
+}
+
+type engine struct {
+	dagMode bool
+	status  *common.WorkflowStatus
+}
+
+func (e *engine) getStepStatus(name string) *common.WorkflowStepStatus {
+	for i := range e.status.Steps {
+		if e.status.Steps[i].Name == name {
+			return &e.status.Steps[i]
+			break
+		}
+	}
+	return nil
+}
+
+func (e *engine) isDag() bool {
+	return e.dagMode
+}
+
+func (e *engine) finishStep(operation *wfTypes.Operation) {
+	e.status.StepIndex++
+	if operation != nil {
+		e.status.Suspend = operation.Suspend
+		e.status.Terminated = operation.Terminated
+	}
+}
+
+func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
+	var conditionUpdated bool
+	for i := range e.status.Steps {
+		if e.status.Steps[i].Name == status.Name {
+			e.status.Steps[i] = status
+			conditionUpdated = true
+			break
+		}
+	}
+	if !conditionUpdated {
+		e.status.Steps = append(e.status.Steps, status)
+	}
+}
+
+func (e *engine) needStop() bool {
+	return e.status.Suspend == true || e.status.Terminated == true
 }

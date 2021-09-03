@@ -96,7 +96,7 @@ func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
 }
 
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
-	return func(wfStep v1beta1.WorkflowStep) (wfTypes.TaskRunner, error) {
+	return func(wfStep v1beta1.WorkflowStep, genOpt *wfTypes.GeneratorOptions) (wfTypes.TaskRunner, error) {
 
 		exec := &executor{
 			handlers: t.handlers,
@@ -105,6 +105,10 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				Type:  wfStep.Type,
 				Phase: common.WorkflowStepPhaseSucceeded,
 			},
+		}
+
+		if genOpt != nil {
+			exec.wfStatus.Id = genOpt.Id
 		}
 
 		params := map[string]interface{}{}
