@@ -24,6 +24,7 @@ ARG VERSION
 ARG GITVERSION
 
 RUN  apk add gcc musl-dev libc-dev ;\
+     GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
      go test -c -o manager-${TARGETARCH}  -cover -covermode=atomic -coverpkg ./... .
 
 RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
