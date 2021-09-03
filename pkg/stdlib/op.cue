@@ -167,6 +167,7 @@ import (
 				name:      policy
 				namespace: _namespace
 			}
+			data?: _
 		}
 	} @step(3)
 
@@ -176,6 +177,26 @@ import (
 			yaml.Unmarshal(configMap.value.data[target])
 		}
 	} @step(4)
+
+	if apply.value.kind == "Application" {
+		"wait-app": #ConditionalWait & {
+			continue: apply.value.status.status == "running"
+		} @step(5)
+	}
+
+	if apply.value.kind == "ManifestWork" {
+		"wait-manifestWork": #ConditionalWait & {
+			continue: len(apply.value.status.resourceStatus) != 0
+		} @step(6)
+
+		for manifest in apply.value.status.resourceStatus.manifests {
+			for condition in manifest.conditions {
+				"wait-\(manifest.resourceMeta.kind)-\(condition.reason)": #ConditionalWait & {
+					continue: condition.status == "True"
+				} @step(7)
+			}
+		}
+	}
 }
 
 #HTTPGet: http.#Do & {method: "GET"}
