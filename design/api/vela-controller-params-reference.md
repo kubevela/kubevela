@@ -21,8 +21,22 @@
 |       apply-once-only       | string |               false               | For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force. |
 |        disable-caps         | string |                ""                 |           To be disabled builtin capability list.            |
 |       storage-driver        | string |               Local               |         Application file save to the storage driver          |
-|  informer-re-sync-interval  |  time  |                2h                 |    controller shared informer lister full re-sync period     |
+|  informer-re-sync-interval  |  time  |                1h                 | Controller shared informer lister full re-sync period, the interval between two routinely reconciles for one CR (like Application) if no changes made to it. |
 | system-definition-namespace | string |            vela-system            |     define the namespace of the system-level definition      |
-|    concurrent-reconciles    |  int   |                 4                 | concurrent-reconciles is the concurrent reconcile number of the controller. |
+|    concurrent-reconciles    |  int   |                 4                 | The concurrent reconcile number of the controller. You can increase the degree of concurrency if a large number of CPU cores are provided to the controller. |
+|        kube-api-qps         |  int   |                50                 | The qps for reconcile k8s clients. Increase it if you have high concurrency. A small number might restrict the requests to the api-server which may cause a long waiting queue when there are a large number of inflight requests. Try to avoid setting it too high since it will cause large burden on apiserver. |
+|       kube-api-burst        |  int   |                100                | The burst for reconcile k8s clients. The usage of this parameter is similar to kube-api-qps. Setting it to be larger than kube-api-qps allows accepting more requests temporarily. |
 |      depend-check-wait      |  time  |                30s                | depend-check-wait is the time to wait for ApplicationConfiguration's dependent-resource ready. |
+|        oam-spec-var         | string |               v0.3                |         the oam spec version controller want to set-up       |
 |         pprof-addr          | string |                ""                 | The address for pprof to use while profiling, empty means disable. |
+|        perf-enabled         |  bool  |               false               | Enable performance logging for controllers, disabled by default. |
+
+### Recommended Parameters for Scenarios with Various Scale
+
+| Scale |  #Nodes  | #Applications |   #Pods  | concurrent-reconciles | kube-api-qps | kube-api-burst |  CPU  | Memory |
+| :---: | -------: | ------------: | -------: | --------------------: | :----------: | -------------: | ----: | -----: |
+| Small |  < 200   |   < 3,000     | < 18,000 |              2        |      300     |      500       |   0.5 |   1Gi  |
+| Medium | < 500   |   < 5,000     | < 30,000 |              4        |      500     |      800       |     1 |   2Gi  |
+| Large | < 1,000  |   < 12,000    | < 72,000 |              4        |      800     |     1,000      |     2 |   4Gi  |
+
+> For details, read KubeVela Performance Test Report
