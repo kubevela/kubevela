@@ -19,7 +19,6 @@ package main // #nosec
 // generate compatibility testdata
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -40,7 +39,7 @@ func main() {
 			return nil
 		}
 		/* #nosec */
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "failed to read file", err)
 			return err
@@ -54,7 +53,7 @@ func main() {
 		}
 		dstpath := dstdir + "/" + fileName
 		/* #nosec */
-		if err = ioutil.WriteFile(dstpath, []byte(newdata), 0644); err != nil {
+		if err = os.WriteFile(dstpath, []byte(newdata), 0644); err != nil {
 			fmt.Fprintln(os.Stderr, "failed to write file:", err)
 			return err
 		}

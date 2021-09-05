@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -189,7 +188,7 @@ func LoadRepos() ([]CapCenterConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := ioutil.ReadFile(filepath.Clean(config))
+	data, err := os.ReadFile(filepath.Clean(config))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []CapCenterConfig{defaultRepo}, nil
@@ -224,7 +223,7 @@ func StoreRepos(repos []CapCenterConfig) error {
 		return err
 	}
 	//nolint:gosec
-	return ioutil.WriteFile(config, data, 0644)
+	return os.WriteFile(config, data, 0644)
 }
 
 // ParseCapability will convert config from remote center to capability
@@ -292,7 +291,7 @@ func (g *GithubRegistry) SyncCapabilityFromCenter() error {
 			continue
 		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
+		err = os.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
 		if err != nil {
 			fmt.Printf("write definition %s to %s err %v\n", addon.Name+".yaml", repoDir, err)
 			continue
@@ -333,7 +332,7 @@ func (o *OssRegistry) SyncCapabilityFromCenter() error {
 			continue
 		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
+		err = os.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
 		if err != nil {
 			fmt.Printf("write definition %s to %s err %v\n", addon.Name+".yaml", repoDir, err)
 			continue

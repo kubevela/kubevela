@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 
 	"cuelang.org/go/cue"
@@ -96,7 +96,7 @@ func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			err = ioutil.WriteFile("./vela.yaml", b, 0600)
+			err = os.WriteFile("./vela.yaml", b, 0600)
 			if err != nil {
 				return err
 			}

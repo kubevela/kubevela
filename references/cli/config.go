@@ -21,7 +21,7 @@ import (
 	"bytes"
 	b64 "encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -105,7 +105,7 @@ func ListConfigs(ioStreams cmdutil.IOStreams, cmd *cobra.Command) error {
 }
 
 func listConfigs(dir string) ([]string, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}

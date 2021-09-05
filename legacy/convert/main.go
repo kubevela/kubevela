@@ -18,7 +18,6 @@ package main // #nosec
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -38,7 +37,7 @@ func main() {
 			return nil
 		}
 		/* #nosec */
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "failed to read file", err)
 			return err
@@ -47,7 +46,7 @@ func main() {
 		newdata = strings.ReplaceAll(newdata, "x-kubernetes-preserve-unknown-fields: true", "")
 		newdata = strings.ReplaceAll(newdata, "default: false", "")
 		/* #nosec */
-		if err = ioutil.WriteFile(path, []byte(newdata), 0644); err != nil {
+		if err = os.WriteFile(path, []byte(newdata), 0644); err != nil {
 			fmt.Fprintln(os.Stderr, "failed to write file:", err)
 			return err
 		}

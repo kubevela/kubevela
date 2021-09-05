@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	"cuelang.org/go/cue"
@@ -90,7 +89,7 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	// parse response body and headers
 	return map[string]interface{}{
 		"body":    string(b),

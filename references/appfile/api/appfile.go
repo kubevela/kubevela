@@ -19,7 +19,6 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,7 +103,7 @@ func JSONToYaml(data []byte, appFile *AppFile) (*AppFile, error) {
 
 // LoadFromFile will read the file and load the AppFile struct
 func LoadFromFile(filename string) (*AppFile, error) {
-	b, err := ioutil.ReadFile(filepath.Clean(filename))
+	b, err := os.ReadFile(filepath.Clean(filename))
 	if err != nil {
 		return nil, err
 	}

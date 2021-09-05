@@ -17,7 +17,7 @@ limitations under the License.
 package http
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -113,7 +113,7 @@ func runMockServer(shutdown chan struct{}) {
 		w.Write([]byte("hello"))
 	})
 	http.HandleFunc("/echo", func(w http.ResponseWriter, req *http.Request) {
-		bt, _ := ioutil.ReadAll(req.Body)
+		bt, _ := io.ReadAll(req.Body)
 		w.Write(bt)
 	})
 	srv := &http.Server{Addr: ":1229"}

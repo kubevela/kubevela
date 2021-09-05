@@ -21,7 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -67,7 +67,7 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint, method string, payloa
 			if requestErr != nil {
 				return requestErr
 			}
-			body, requestErr = ioutil.ReadAll(r.Body)
+			body, requestErr = io.ReadAll(r.Body)
 			if requestErr != nil {
 				return requestErr
 			}

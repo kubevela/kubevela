@@ -18,7 +18,6 @@ package appfile
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -91,7 +90,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: addonNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	workloadData, err := ioutil.ReadFile("testdata/workloadDef.yaml")
+	workloadData, err := os.ReadFile("testdata/workloadDef.yaml")
 	Expect(err).Should(BeNil())
 
 	Expect(yaml.Unmarshal(workloadData, &wd)).Should(BeNil())
@@ -100,7 +99,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("Creating workload definition", "data", wd)
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	def, err := ioutil.ReadFile("testdata/terraform-aliyun-oss-workloadDefinition.yaml")
+	def, err := os.ReadFile("testdata/terraform-aliyun-oss-workloadDefinition.yaml")
 	Expect(err).Should(BeNil())
 	var terraformDefinition corev1beta1.WorkloadDefinition
 	Expect(yaml.Unmarshal(def, &terraformDefinition)).Should(BeNil())
