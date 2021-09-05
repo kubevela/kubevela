@@ -137,7 +137,7 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 		}
 		unstructuredManifestWork.SetGroupVersionKind(ocmworkv1.GroupVersion.WithKind(reflect.TypeOf(ocmworkv1.ManifestWork{}).Name()))
 		envBindAppName := constructEnvBindAppName(o.envBindingName, app.envConfig.Name, o.appName)
-		unstructuredManifestWork.SetName(envBindAppName)
+		unstructuredManifestWork.SetName(o.appName)
 		unstructuredManifestWork.SetNamespace(clusterName)
 		app.ScheduledManifests[envBindAppName] = unstructuredManifestWork
 	}
@@ -260,7 +260,6 @@ func (s *SingleClusterEngine) schedule(ctx context.Context, apps []*EnvBindApp) 
 			return nil, err
 		}
 		envBindAppName := constructEnvBindAppName(s.envBindingName, app.envConfig.Name, s.appName)
-		unstructuredApp.SetName(envBindAppName)
 		unstructuredApp.SetNamespace(selectedNamespace)
 		app.ScheduledManifests[envBindAppName] = unstructuredApp
 	}
