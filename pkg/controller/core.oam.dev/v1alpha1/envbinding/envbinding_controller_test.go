@@ -418,7 +418,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 
 			By("Check whether create manifestWork")
 			mw := new(ocmworkv1.ManifestWork)
-			mwName := fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)
+			mwName := appTemplate.Name
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{Name: mwName, Namespace: spokeClusterName}, mw)
 			}, 3*time.Second, 1*time.Second).Should(BeNil())
@@ -458,7 +458,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			testutil.ReconcileRetry(&r, req)
 
 			By("Check the Application created by EnvBinding Controller")
-			appName := fmt.Sprintf("%s-%s-%s", envBinding.Name, "prod", appTemplate.Name)
+			appName := appTemplate.Name
 			appReq := client.ObjectKey{Name: appName, Namespace: namespace}
 			envBindApp := new(v1beta1.Application)
 			Eventually(func() error {
@@ -544,7 +544,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			testutil.ReconcileRetry(&r, req)
 
 			By("Check the Application created by EnvBinding Controller")
-			appName := fmt.Sprintf("%s-%s-%s", envBinding.Name, "prod", appTemplate.Name)
+			appName := appTemplate.Name
 			appReq := client.ObjectKey{Name: appName, Namespace: spokeNs.Name}
 			envBindApp := new(v1beta1.Application)
 			Eventually(func() error {
@@ -587,7 +587,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			testutil.ReconcileRetry(&r, req)
 
 			By("Check the Application created by EnvBinding Controller")
-			appName := fmt.Sprintf("%s-%s-%s", envBinding.Name, "prod", appTemplate.Name)
+			appName := appTemplate.Name
 			appReq := client.ObjectKey{Name: appName, Namespace: spokeNs.Name}
 			envBindApp := new(v1beta1.Application)
 			Eventually(func() error {
@@ -658,14 +658,14 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			testutil.ReconcileRetry(&r, req)
 
 			By("Check the Application created by EnvBinding Controller")
-			app1Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)
+			app1Name := appTemplate.Name
 			app1Key := client.ObjectKey{Name: app1Name, Namespace: spokeNs.Name}
 			envBindApp1 := new(v1beta1.Application)
 			Eventually(func() error {
 				return k8sClient.Get(ctx, app1Key, envBindApp1)
 			}, 3*time.Second, 1*time.Second).Should(BeNil())
 
-			app2Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[1].Name, appTemplate.Name)
+			app2Name := appTemplate.Name
 			app2Key := client.ObjectKey{Name: app2Name, Namespace: spokeNs.Name}
 			envBindApp2 := new(v1beta1.Application)
 			Eventually(func() error {
@@ -772,14 +772,14 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			testutil.ReconcileRetry(&r, req)
 
 			By("Check the ManifestWork created by EnvBinding Controller")
-			mw1Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)
+			mw1Name := appTemplate.Name
 			mw1Key := client.ObjectKey{Name: mw1Name, Namespace: spokeNs.Name}
 			mw1 := new(ocmworkv1.ManifestWork)
 			Eventually(func() error {
 				return k8sClient.Get(ctx, mw1Key, mw1)
 			}, 3*time.Second, 1*time.Second).Should(BeNil())
 
-			mw2Name := constructEnvBindAppName(envBinding.Name, envBinding.Spec.Envs[1].Name, appTemplate.Name)
+			mw2Name := appTemplate.Name
 			mw2Key := client.ObjectKey{Name: mw2Name, Namespace: spokeNs.Name}
 			mw2 := new(ocmworkv1.ManifestWork)
 			Eventually(func() error {
