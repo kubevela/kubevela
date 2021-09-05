@@ -89,11 +89,15 @@ func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	return wf.vars.Error()
 }
 
-// MakeParameter make 'value' with map[string]interface{}
-func (wf *WorkflowContext) MakeParameter(parameter map[string]interface{}) (*value.Value, error) {
+// MakeParameter make 'value' with interface{}
+func (wf *WorkflowContext) MakeParameter(parameter interface{}) (*value.Value, error) {
 	var s = "{}"
 	if parameter != nil {
-		s = string(util.MustJSONMarshal(parameter))
+		bt, err := json.Marshal(parameter)
+		if err != nil {
+			return nil, err
+		}
+		s = string(bt)
 	}
 
 	return wf.vars.MakeValue(s)

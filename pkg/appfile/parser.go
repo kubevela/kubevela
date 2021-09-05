@@ -195,7 +195,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
-		wd, err := p.parseWorkloadFromRevision(comp, appRev)
+		wd, err := p.ParseWorkloadFromRevision(comp, appRev)
 		if err != nil {
 			return nil, err
 		}
@@ -325,9 +325,9 @@ func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationCompo
 	return workload, nil
 }
 
-// parseWorkloadFromRevision resolve an ApplicationComponent and generate a Workload
+// ParseWorkloadFromRevision resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile from app revision.
-func (p *Parser) parseWorkloadFromRevision(comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
+func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
 	workload, err := p.makeWorkloadFromRevision(comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties, appRev)
 	if err != nil {
 		return nil, err

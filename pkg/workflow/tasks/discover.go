@@ -19,6 +19,12 @@ package tasks
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -35,6 +41,7 @@ import (
 type taskDiscover struct {
 	builtins           map[string]types.TaskGenerator
 	remoteTaskDiscover *custom.TaskLoader
+	templateLoader     *template.TemplateLoader
 }
 
 // GetTaskGenerator get task generator by name.
@@ -56,8 +63,8 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-// RegisterGenerator
-func (td *taskDiscover) RegisterGenerator(name string, p types.TaskGeneratorProducer) {
+// RegisterGenerator register generator to taskDiscover.
+func (td *taskDiscover) RegisterGenerator(name string, p types.BuiltinTaskRunner) {
 	td.builtins[name] = makeGenerator(name, p)
 }
 
@@ -68,15 +75,17 @@ func suspend(step v1beta1.WorkflowStep, _ *types.GeneratorOptions) (types.TaskRu
 }
 
 // NewTaskDiscover will create a client for load task generator.
-func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, loadTemplate custom.LoadTaskTemplate) types.TaskDiscover {
+func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
 	http.Install(providerHandlers)
+	templateLoader := template.NewTemplateLoader(cli, dm)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, pd, providerHandlers),
+		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers),
+		templateLoader:     templateLoader,
 	}
 }
 
@@ -104,10 +113,10 @@ func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 }
 
 type commonTaskRunner struct {
-	name         string
+	tpy          string
 	step         v1beta1.WorkflowStep
 	generatorOpt *types.GeneratorOptions
-	up           types.TaskGeneratorProducer
+	up           types.BuiltinTaskRunner
 }
 
 // Name return step name.
@@ -117,13 +126,25 @@ func (ct *commonTaskRunner) Name() string {
 
 // Run workflow step.
 func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
-	status, operation, err := ct.up(ctx, options, ct.step)
+
+	paramsValue, err := ctx.MakeParameter(ct.step.Properties)
+	if err != nil {
+		return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
+	}
+	if err := hooks.Input(ctx, paramsValue, ct.step); err != nil {
+		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}, nil, nil
+	}
+	status, operation, taskValue := ct.up(ctx, options, paramsValue)
 	if ct.generatorOpt != nil {
 		status.Id = ct.generatorOpt.Id
 	}
-	status.Type = ct.name
+	status.Type = ct.tpy
 	status.Name = ct.step.Name
-	return status, operation, err
+
+	if err := hooks.Output(ctx, taskValue, ct.step, status.Phase); err != nil {
+		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}, nil, nil
+	}
+	return status, operation, nil
 }
 
 // Pending check task should be executed or not.
@@ -131,10 +152,10 @@ func (ct *commonTaskRunner) Pending(ctx wfContext.Context) bool {
 	return false
 }
 
-func makeGenerator(name string, p types.TaskGeneratorProducer) types.TaskGenerator {
+func makeGenerator(tpy string, p types.BuiltinTaskRunner) types.TaskGenerator {
 	return func(wfStep v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
 		return &commonTaskRunner{
-			name:         name,
+			tpy:          tpy,
 			step:         wfStep,
 			generatorOpt: opt,
 			up:           p,

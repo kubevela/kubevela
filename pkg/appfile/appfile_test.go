@@ -494,7 +494,7 @@ spec:
 		}
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
-		gotPolicies, _, err := testAppfile.GenerateWorkflowAndPolicy(context.Background(), dm, k8sClient, pd, nil)
+		gotPolicies, _, err := testAppfile.PrepareWorkflowAndPolicy(context.Background(), dm, k8sClient, pd, nil)
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))
 

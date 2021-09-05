@@ -141,28 +141,30 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 
 	var comps []*velatypes.ComponentManifest
-	comps, err = appFile.GenerateComponentManifests()
-	if err != nil {
-		klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
+	if appFile.WorkflowMode == common.WorkflowModeStep {
+		comps, err = appFile.GenerateComponentManifests()
+		if err != nil {
+			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
+		}
+
+		handler.handleCheckManageWorkloadTrait(handler.currentAppRev.Spec.TraitDefinitions, comps)
+
+		if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
+			klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
+		}
+
+		app.Status.SetConditions(condition.ReadyCondition("Revision"))
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
+		klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 	}
 
-	handler.handleCheckManageWorkloadTrait(handler.currentAppRev.Spec.TraitDefinitions, comps)
-
-	if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
-		klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
-	}
-
-	app.Status.SetConditions(condition.ReadyCondition("Revision"))
-	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
-	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
-
-	policies, wfSteps, err := appFile.GenerateWorkflowAndPolicy(ctx, app, handler.currentAppRev, handler)
+	policies, err := appFile.PrepareWorkflowAndPolicy(ctx, app, handler.currentAppRev, handler)
 	if err != nil {
-		klog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
+		klog.Error(err, "[Handle PrepareWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
 	}
@@ -178,7 +180,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if !appWillRollout(app) {
-		done, pause, err := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode).ExecuteSteps(ctx, handler.currentAppRev, wfSteps)
+		steps, err := workflow.GenerateApplicationSteps(ctx, app, appParser, appFile, handler.currentAppRev, handler, r.Client, r.dm, r.pd)
+		if err != nil {
+			klog.Error(err, "[handle workflow]")
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err))
+		}
+
+		done, pause, err := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode).ExecuteSteps(ctx, handler.currentAppRev, steps)
 		if err != nil {
 			klog.Error(err, "[handle workflow]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
