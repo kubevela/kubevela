@@ -43,6 +43,7 @@ type Handler interface {
 }
 
 // GenerateApplicationSteps generate application steps.
+// nolint:gocyclo
 func GenerateApplicationSteps(ctx context.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,

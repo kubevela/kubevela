@@ -131,7 +131,7 @@ func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOpt
 	}
 
 	if err := hooks.Input(ctx, paramsValue, ct.step); err != nil {
-		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}), nil, nil
+		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}), nil, err
 	}
 	status, operation, taskValue := ct.up(ctx, options, paramsValue)
 
@@ -139,7 +139,7 @@ func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOpt
 		return ct.setMeta(status), nil, nil
 	}
 	if err := hooks.Output(ctx, taskValue, ct.step, status.Phase); err != nil {
-		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}), nil, nil
+		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}), nil, err
 	}
 	return ct.setMeta(status), operation, nil
 }
