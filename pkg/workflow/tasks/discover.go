@@ -18,6 +18,7 @@ package tasks
 
 import (
 	"context"
+	"strings"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -124,29 +125,41 @@ func (ct *commonTaskRunner) Name() string {
 
 // Run workflow step.
 func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
-
 	paramsValue, err := ctx.MakeParameter(ct.step.Properties)
 	if err != nil {
-		return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
+		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed}), nil, errors.WithMessage(err, "make parameter")
 	}
+
 	if err := hooks.Input(ctx, paramsValue, ct.step); err != nil {
-		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}, nil, err
+		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}), nil, nil
 	}
 	status, operation, taskValue := ct.up(ctx, options, paramsValue)
+
+	if status.Phase != common.WorkflowStepPhaseSucceeded {
+		return ct.setMeta(status), nil, nil
+	}
+	if err := hooks.Output(ctx, taskValue, ct.step, status.Phase); err != nil {
+		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}), nil, nil
+	}
+	return ct.setMeta(status), operation, nil
+}
+
+func (ct *commonTaskRunner) setMeta(status common.WorkflowStepStatus) common.WorkflowStepStatus {
 	if ct.generatorOpt != nil {
 		status.ID = ct.generatorOpt.ID
 	}
-	status.Type = ct.tpy
 	status.Name = ct.step.Name
-
-	if err := hooks.Output(ctx, taskValue, ct.step, status.Phase); err != nil {
-		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}, nil, err
-	}
-	return status, operation, nil
+	status.Type = ct.tpy
+	return status
 }
 
 // Pending check task should be executed or not.
 func (ct *commonTaskRunner) Pending(ctx wfContext.Context) bool {
+	for _, input := range ct.step.Inputs {
+		if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
+			return true
+		}
+	}
 	return false
 }
 

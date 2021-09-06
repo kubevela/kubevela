@@ -319,7 +319,6 @@ var _ = Describe("Test Workflow", func() {
 		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
-
 })
 
 func triggerWorkflowStepToSucceed(obj *unstructured.Unstructured) {

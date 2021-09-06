@@ -1628,6 +1628,61 @@ var _ = Describe("Test Application Controller", func() {
 		deploy := &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
 	})
+
+	FIt("application with input/output run as dag workflow", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-input-output",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		healthComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(componentDefWithHealthYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = "app-with-input-output"
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		appwithInputOutput := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-input-output",
+				Namespace: "app-with-input-output",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Inputs: common.StepInputs{
+							{
+								From:         "replicas",
+								ParameterKey: "properties.replicas",
+							},
+						},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","replicas": 2}`)},
+						Outputs: common.StepOutputs{
+							{Name: "replicas", ExportKey: "output.status.replicas"},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), appwithInputOutput)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: appwithInputOutput.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(context.Background(), appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+	})
 })
 
 const (
@@ -1954,6 +2009,7 @@ spec:
               }
           }
           spec: {
+              replicas: parameter.replicas
               selector: matchLabels: {
                   "app.oam.dev/component": context.name
               }
@@ -1984,7 +2040,7 @@ spec:
           // +usage=Which image would you like to use for your service
           // +short=i
           image: string
-
+          replicas: *1 | int 			
           cmd?: [...string]
       }
 `

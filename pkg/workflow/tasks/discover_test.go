@@ -20,6 +20,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -82,10 +85,28 @@ func TestRegister(t *testing.T) {
 	}, &types.GeneratorOptions{ID: "abcd"})
 	assert.NilError(t, err)
 	assert.Equal(t, run.Name(), "step1")
-	status, _, err := run.Run(nil, &types.TaskRunOptions{})
+	wfCtx := mockContext(t)
+	status, _, err := run.Run(wfCtx, &types.TaskRunOptions{})
 	assert.NilError(t, err)
 	assert.Equal(t, status.Name, "step1")
 	assert.Equal(t, status.Type, "test")
 	assert.Equal(t, status.ID, "abcd")
 	assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
+}
+
+func mockContext(t *testing.T) wfContext.Context {
+	cli := &test.MockClient{
+		MockCreate: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+			return nil
+		},
+		MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			return nil
+		},
+		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			return nil
+		},
+	}
+	wfCtx, err := wfContext.NewEmptyContext(cli, "default", "v1")
+	assert.NilError(t, err)
+	return wfCtx
 }

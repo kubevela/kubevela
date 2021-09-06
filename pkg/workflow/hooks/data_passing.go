@@ -17,6 +17,7 @@ limitations under the License.
 package hooks
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -45,6 +46,7 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error {
 	if phase == common.WorkflowStepPhaseSucceeded {
 		for _, output := range step.Outputs {
+			fmt.Println(taskValue.String())
 			v, err := taskValue.LookupValue(strings.Split(output.ExportKey, ".")...)
 			if err != nil {
 				return err

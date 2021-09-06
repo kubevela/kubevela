@@ -79,6 +79,10 @@ func GenerateApplicationSteps(ctx context.Context,
 			return failedStepStatus(err, "HandleComponentsRevision"), nil, nil
 		}
 
+		taskValue, err := value.NewValue("{}", nil)
+		if err != nil {
+			return failedStepStatus(err, "MakeTaskValue"), nil, nil
+		}
 		skipStandardWorkload := false
 		for _, trait := range wl.Traits {
 			if trait.FullTemplate.TraitDefinition.Spec.ManageWorkload {
@@ -89,10 +93,12 @@ func GenerateApplicationSteps(ctx context.Context,
 			if err := h.Dispatch(context.Background(), manifest.StandardWorkload); err != nil {
 				return failedStepStatus(err, "DispatchStandardWorkload"), nil, nil
 			}
+
 		}
 		if err := h.Dispatch(context.Background(), manifest.Traits...); err != nil {
 			return failedStepStatus(err, "DispatchTraits"), nil, nil
 		}
+
 		app := appRev.Spec.Application
 		pCtx := wl.Ctx
 		isHealth := true
@@ -108,10 +114,29 @@ func GenerateApplicationSteps(ctx context.Context,
 			}
 		}
 		if !isHealth {
-			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseRunning}, nil, nil
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseRunning}, nil, taskValue
 		}
 
-		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded}, nil, nil
+		if !skipStandardWorkload {
+			v := manifest.StandardWorkload.DeepCopy()
+			if err := cli.Get(context.Background(), client.ObjectKeyFromObject(manifest.StandardWorkload), v); err != nil {
+				return failedStepStatus(err, "TaskValueFillOutput"), nil, taskValue
+			}
+			if err := taskValue.FillObject(v.Object, "output"); err != nil {
+				return failedStepStatus(err, "TaskValueFillOutput"), nil, taskValue
+			}
+		}
+
+		for _, trait := range manifest.Traits {
+			v := trait.DeepCopy()
+			if err := cli.Get(context.Background(), client.ObjectKeyFromObject(trait), v); err != nil {
+				return failedStepStatus(err, "TaskValueFillOutput"), nil, taskValue
+			}
+			if err := taskValue.FillObject(trait.Object, "output", trait.GetName()); err != nil {
+				return failedStepStatus(err, "TaskValueFillOutputs"), nil, taskValue
+			}
+		}
+		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded}, nil, taskValue
 	})
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
