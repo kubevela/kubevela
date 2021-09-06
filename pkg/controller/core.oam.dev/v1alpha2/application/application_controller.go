@@ -137,12 +137,30 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Revision", err))
 	}
+
 	klog.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
+	app.Status.SetConditions(condition.ReadyCondition("Revision"))
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
+	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 
-	var comps []*velatypes.ComponentManifest
+	policies, err := appFile.PrepareWorkflowAndPolicy()
+	if err != nil {
+		klog.Error(err, "[Handle PrepareWorkflowAndPolicy]")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("PrepareWorkflowAndPolicy", err))
+	}
+
+	if len(policies) > 0 {
+		if err := handler.Dispatch(ctx, policies...); err != nil {
+			klog.Error(err, "[Handle ApplyPolicyResources]")
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("ApplyPolices", err))
+		}
+	}
+
 	if appFile.WorkflowMode == common.WorkflowModeStep {
-		comps, err = appFile.GenerateComponentManifests()
+		comps, err := appFile.GenerateComponentManifests()
 		if err != nil {
 			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
@@ -157,30 +175,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
 		}
 
-		app.Status.SetConditions(condition.ReadyCondition("Revision"))
-		r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
-		klog.Info("Successfully apply application revision", "application", klog.KObj(app))
+		if err := handler.ProduceArtifacts(ctx, comps, policies); err != nil {
+			klog.ErrorS(err, "Failed to apply application manifests",
+				"application", klog.KObj(app))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("ProduceArtifacts", err))
+		}
+
 	}
 
-	policies, err := appFile.PrepareWorkflowAndPolicy()
-	if err != nil {
-		klog.Error(err, "[Handle PrepareWorkflowAndPolicy]")
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
-	}
 	app.Status.SetConditions(condition.ReadyCondition("Render"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 	klog.InfoS("Successfully render application resources", "application", klog.KObj(app))
 
-	if err := handler.ApplyAppManifests(ctx, comps, policies); err != nil {
-		klog.ErrorS(err, "Failed to apply application manifests",
-			"application", klog.KObj(app))
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Applied", err))
-	}
-
 	if !appWillRollout(app) {
-		steps, err := workflow.GenerateApplicationSteps(ctx, app, appParser, appFile, handler.currentAppRev, handler, r.Client, r.dm, r.pd)
+		steps, err := handler.GenerateApplicationSteps(ctx, app, appParser, appFile, handler.currentAppRev, r.Client, r.dm, r.pd)
 		if err != nil {
 			klog.Error(err, "[handle workflow]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
@@ -262,44 +271,45 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.Info("Finished rollout ")
 	}
 
-	app.Status.Phase = common.ApplicationHealthChecking
-	klog.Info("Check application health status")
-
-	// check application health status if no health check policy is applied
-	if !hasHealthCheckPolicy(appFile.Policies) {
-		appCompStatus, healthy, err := handler.aggregateHealthStatus(appFile)
-		if err != nil {
-			klog.ErrorS(err, "application", klog.KObj(app))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
-			app.Status.SetConditions(condition.Condition{
-				Type:               v1beta1.TypeHealthy,
-				Status:             corev1.ConditionFalse,
-				LastTransitionTime: metav1.Now(),
-				Reason:             v1beta1.ReasonHealthCheckErr,
-			})
-			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", err))
-		}
-		app.Status.Services = appCompStatus
-		if !healthy {
-			app.Status.SetConditions(condition.Condition{
-				Type:               v1beta1.TypeHealthy,
-				Status:             corev1.ConditionFalse,
-				LastTransitionTime: metav1.Now(),
-				Reason:             v1beta1.ReasonUnhealthy,
-			})
-			if err := r.patchStatus(ctx, app); err != nil {
-				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+	// Keep the ability to get status
+	if !appFile.SkipHealthCheck {
+		// check application health status if no health check policy is applied
+		if !hasHealthCheckPolicy(appFile.Policies) {
+			appCompStatus, healthy, err := handler.aggregateHealthStatus(appFile)
+			if err != nil {
+				klog.ErrorS(err, "application", klog.KObj(app))
+				r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
+				app.Status.SetConditions(condition.Condition{
+					Type:               v1beta1.TypeHealthy,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.Now(),
+					Reason:             v1beta1.ReasonHealthCheckErr,
+				})
+				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", err))
 			}
-			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", errors.New("not healthy")))
+			app.Status.Services = appCompStatus
+			if !healthy {
+				app.Status.SetConditions(condition.Condition{
+					Type:               v1beta1.TypeHealthy,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.Now(),
+					Reason:             v1beta1.ReasonUnhealthy,
+				})
+				if err := r.patchStatus(ctx, app); err != nil {
+					return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+				}
+				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", errors.New("not healthy")))
+			}
+			app.Status.SetConditions(condition.Condition{
+				Type:               v1beta1.TypeHealthy,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: metav1.Now(),
+				Reason:             v1beta1.ReasonHealthy,
+			})
+			r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 		}
-		app.Status.SetConditions(condition.Condition{
-			Type:               v1beta1.TypeHealthy,
-			Status:             corev1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             v1beta1.ReasonHealthy,
-		})
-		r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	}
+
 	app.Status.Phase = common.ApplicationRunning
 	if err := garbageCollection(ctx, handler); err != nil {
 		klog.ErrorS(err, "Failed to run garbage collection")

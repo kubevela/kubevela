@@ -13,10 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package workflow
+package application
 
 import (
 	"context"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -24,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -31,29 +34,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Handler is the interface of application handler.
-type Handler interface {
-	HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error
-	Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error
-}
-
 // GenerateApplicationSteps generate application steps.
-// nolint:gocyclo
-func GenerateApplicationSteps(ctx context.Context,
+func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
 	af *appfile.Appfile,
 	appRev *v1beta1.ApplicationRevision,
-	h Handler,
 	cli client.Client,
 	dm discoverymapper.DiscoveryMapper,
 	pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
-
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, cli, h.Dispatch)
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, cli, dm)
@@ -100,22 +91,24 @@ func GenerateApplicationSteps(ctx context.Context,
 			return failedStepStatus(err, "DispatchTraits"), nil, nil
 		}
 
-		app := appRev.Spec.Application
-		pCtx := wl.Ctx
-		isHealth := true
-		if ok, err := wl.EvalHealth(pCtx, cli, app.Namespace); err != nil || !ok {
-			isHealth = false
-		}
-		if isHealth {
-			for _, trait := range wl.Traits {
-				if ok, err := trait.EvalHealth(pCtx, cli, app.Namespace); err != nil || !ok {
-					isHealth = false
-					break
+		if wl.CapabilityCategory == types.CUECategory {
+			app := appRev.Spec.Application
+			pCtx := wl.Ctx
+			isHealth := true
+			if ok, err := wl.EvalHealth(pCtx, cli, app.Namespace); err != nil || !ok {
+				isHealth = false
+			}
+			if isHealth {
+				for _, trait := range wl.Traits {
+					if ok, err := trait.EvalHealth(pCtx, cli, app.Namespace); err != nil || !ok {
+						isHealth = false
+						break
+					}
 				}
 			}
-		}
-		if !isHealth {
-			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseRunning}, nil, taskValue
+			if !isHealth {
+				return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseRunning}, nil, taskValue
+			}
 		}
 
 		if !skipStandardWorkload {
@@ -133,7 +126,7 @@ func GenerateApplicationSteps(ctx context.Context,
 			if err := cli.Get(context.Background(), client.ObjectKeyFromObject(trait), v); err != nil {
 				return failedStepStatus(err, "TaskValueFillOutput"), nil, taskValue
 			}
-			if err := taskValue.FillObject(trait.Object, "output", trait.GetName()); err != nil {
+			if err := taskValue.FillObject(trait.Object, "outputs", trait.GetLabels()[oam.TraitResource]); err != nil {
 				return failedStepStatus(err, "TaskValueFillOutputs"), nil, taskValue
 			}
 		}

@@ -368,11 +368,6 @@ func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *c
 				tmpl.TemplateStr = tmpStr
 			}
 		}
-		if extHealthTempl, ok := extension["healthPolicy"]; ok {
-			if tmpStr, ok := extHealthTempl.(string); ok {
-				tmpl.Health = tmpStr
-			}
-		}
 	}
 	return nil
 }

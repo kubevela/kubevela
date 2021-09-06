@@ -64,6 +64,10 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
 		w.app.Status.Workflow = &common.WorkflowStatus{
 			AppRevision: revAndSpecHash,
+			Mode:        common.WorkflowModeStep,
+		}
+		if w.dagMode {
+			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
 		}
 	}
 
@@ -231,21 +235,7 @@ func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) 
 
 func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
 	for _, runner := range taskRunners {
-		r := runner
-		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{
-			RunSteps: func(isDag bool, runners ...wfTypes.TaskRunner) (*common.WorkflowStatus, error) {
-				stepsEngine := &engine{
-					dagMode: isDag,
-				}
-				stepStatus := e.getStepStatus(r.Name())
-
-				if stepStatus != nil && stepStatus.SubSteps != nil {
-					stepsEngine.status.StepIndex = stepStatus.SubSteps.StepIndex
-				}
-				err := stepsEngine.run(wfCtx, runners)
-				return stepsEngine.status, err
-			},
-		})
+		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{})
 		if err != nil {
 			return err
 		}

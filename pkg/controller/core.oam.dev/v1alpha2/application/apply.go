@@ -33,7 +33,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -95,37 +94,9 @@ func (h *AppHandler) initDispatcher() {
 	}
 }
 
-// ApplyAppManifests will dispatch Application manifests
-func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
-	appRev := h.currentAppRev
-	if !appWillRollout(h.app) {
-		if err := h.Dispatch(ctx, policies...); err != nil {
-			return errors.WithMessage(err, "cannot dispatch policies")
-		}
-		if h.app.Spec.Workflow != nil {
-			return h.createResourcesConfigMap(ctx, appRev, comps, policies)
-		}
-		return nil
-	}
-	if appWillRollout(h.app) {
-		return nil
-	}
-
-	// dispatch packaged workload resources before dispatching assembled manifests
-	for _, comp := range comps {
-		if len(comp.PackagedWorkloadResources) != 0 {
-			if err := h.Dispatch(ctx, comp.PackagedWorkloadResources...); err != nil {
-				return errors.WithMessage(err, "cannot dispatch packaged workload resources")
-			}
-		}
-	}
-	a := assemble.NewAppManifests(h.currentAppRev, h.parser).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client)).WithComponentManifests(comps)
-	manifests, err := a.AssembledManifests()
-	if err != nil {
-		return errors.WithMessage(err, "cannot assemble application manifests")
-	}
-	_, err = h.DispatchAndGC(ctx, manifests...)
-	return err
+// ProduceArtifacts will produce Application artifacts that will be saved in configMap.
+func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
+	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
 }
 
 func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {

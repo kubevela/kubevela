@@ -253,7 +253,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -309,7 +309,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -361,7 +361,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -418,7 +418,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -480,7 +480,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -516,7 +516,7 @@ var _ = Describe("test generate revision ", func() {
 		lastRevision := curApp.Status.LatestRevision.Name
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -558,7 +558,7 @@ var _ = Describe("test generate revision ", func() {
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -604,7 +604,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -635,7 +635,7 @@ var _ = Describe("test generate revision ", func() {
 		lastRevision := curApp.Status.LatestRevision.Name
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
@@ -672,7 +672,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -712,7 +712,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		Expect(comps[0].RevisionName).Should(Equal(externalRevisionName2))
