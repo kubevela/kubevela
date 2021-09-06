@@ -9,9 +9,18 @@ labels: {
 	}
 }
 template: {
-	patch: spec: template: metadata: labels: {
-		for k, v in parameter {
-			"\(k)": v
+	patch: {
+		metadata: {
+			labels: {
+				for k, v in parameter {
+					"\(k)": v
+  			}
+  		}
+  	}
+		spec: template: metadata: labels: {
+			for k, v in parameter {
+				"\(k)": v
+			}
 		}
 	}
 	parameter: [string]: string

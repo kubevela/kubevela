@@ -9,9 +9,18 @@ annotations: {
 	}
 }
 template: {
-	patch: spec: template: metadata: annotations: {
-		for k, v in parameter {
-			"\(k)": v
+	patch: {
+		metadata: {
+			annotations: {
+				for k, v in parameter {
+					"\(k)": v
+				}
+			}
+		}
+		spec: template: metadata: annotations: {
+			for k, v in parameter {
+				"\(k)": v
+			}
 		}
 	}
 	parameter: [string]: string
