@@ -19,7 +19,7 @@ package assemble
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 
 	"github.com/google/go-cmp/cmp"
@@ -49,7 +49,7 @@ var _ = Describe("Test WorkloadOption", func() {
 
 	BeforeEach(func() {
 		appRev = &v1beta1.ApplicationRevision{}
-		b, err := ioutil.ReadFile("./testdata/apprevision.yaml")
+		b, err := os.ReadFile("./testdata/apprevision.yaml")
 		Expect(err).Should(BeNil())
 		err = yaml.Unmarshal(b, appRev)
 		Expect(err).Should(BeNil())

@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -668,7 +667,7 @@ func (ref *MarkdownReference) generateConflictWithAndMore(capabilityName string,
 	if err != nil {
 		return "", fmt.Errorf("failed to locate conflictWith file: %w", err)
 	}
-	data, err := ioutil.ReadFile(filepath.Clean(conflictWithFile))
+	data, err := os.ReadFile(filepath.Clean(conflictWithFile))
 	if err != nil {
 		return "", err
 	}

@@ -18,7 +18,6 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -73,7 +72,7 @@ func TestGenerateSideBar(t *testing.T) {
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngenerateSideBar(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
-			data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(TestDir, SideBar)))
+			data, err := os.ReadFile(filepath.Clean(filepath.Join(TestDir, SideBar)))
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				assert.Contains(t, string(data), c.Name)
@@ -130,7 +129,7 @@ func TestGenerateREADME(t *testing.T) {
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngenerateREADME(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
-			data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(TestDir, README)))
+			data, err := os.ReadFile(filepath.Clean(filepath.Join(TestDir, README)))
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				switch c.Type {

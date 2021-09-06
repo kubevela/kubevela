@@ -18,7 +18,6 @@ package plugin
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -71,9 +70,9 @@ var _ = BeforeSuite(func(done Done) {
 
 	err = os.MkdirAll("definitions", os.ModePerm)
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile("definitions/webservice.yaml", []byte(componentDef), 0644)
+	err = os.WriteFile("definitions/webservice.yaml", []byte(componentDef), 0644)
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile("definitions/ingress.yaml", []byte(traitDef), 0644)
+	err = os.WriteFile("definitions/ingress.yaml", []byte(traitDef), 0644)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("apply test definitions")

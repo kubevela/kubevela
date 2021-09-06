@@ -18,7 +18,6 @@ package driver
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -63,7 +62,7 @@ func (l *Local) Save(app *api.Application, envName string) error {
 		return err
 	}
 	//nolint:gosec
-	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
+	return os.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
 }
 
 // Delete application from local storage

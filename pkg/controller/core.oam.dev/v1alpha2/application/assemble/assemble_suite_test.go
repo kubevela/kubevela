@@ -17,7 +17,7 @@ limitations under the License.
 package assemble
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -43,7 +43,7 @@ var _ = Describe("Test Assemble Options", func() {
 		)
 
 		appRev := &v1beta1.ApplicationRevision{}
-		b, err := ioutil.ReadFile("./testdata/apprevision.yaml")
+		b, err := os.ReadFile("./testdata/apprevision.yaml")
 		/* appRevision test data is generated based on below application
 		apiVersion: core.oam.dev/v1beta1
 		kind: Application
@@ -156,7 +156,7 @@ var _ = Describe("Test Assemble Options", func() {
 			compName = "frontend"
 		)
 		appRev := &v1beta1.ApplicationRevision{}
-		b, err := ioutil.ReadFile("./testdata/filter_annotations.yaml")
+		b, err := os.ReadFile("./testdata/filter_annotations.yaml")
 		getKeys := func(m map[string]string) []string {
 			var keys []string
 			for k := range m {

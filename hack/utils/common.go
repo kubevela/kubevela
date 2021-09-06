@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -63,7 +62,7 @@ func GetChartSource(path string) (string, error) {
 		return "", err
 	}
 	defer os.Remove(packagedPath)
-	packaged, err := ioutil.ReadFile(packagedPath)
+	packaged, err := os.ReadFile(packagedPath)
 	if err != nil {
 		return "", err
 	}

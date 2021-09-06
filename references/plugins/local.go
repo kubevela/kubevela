@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,7 +124,7 @@ func loadInstalledCapabilityWithCapName(dir string, capT types.CapType, capName 
 
 func loadInstalledCapability(dir string, name string) ([]types.Capability, error) {
 	var tmps []types.Capability
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -139,7 +138,7 @@ func loadInstalledCapability(dir string, name string) ([]types.Capability, error
 		if strings.HasSuffix(f.Name(), ".cue") {
 			continue
 		}
-		data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(dir, f.Name())))
+		data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, f.Name())))
 		if err != nil {
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue
@@ -192,7 +191,7 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 			continue
 		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(subDir, tmp.Name), data, 0644)
+		err = os.WriteFile(filepath.Join(subDir, tmp.Name), data, 0644)
 		if err != nil {
 			fmt.Printf("sync %s err: %v\n", tmp.Name, err)
 			continue
@@ -240,7 +239,7 @@ func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 // LoadCapabilityFromSyncedCenter will load capability from dir
 func LoadCapabilityFromSyncedCenter(mapper discoverymapper.DiscoveryMapper, dir string) ([]types.Capability, error) {
 	var tmps []types.Capability
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -254,7 +253,7 @@ func LoadCapabilityFromSyncedCenter(mapper discoverymapper.DiscoveryMapper, dir 
 		if strings.HasSuffix(f.Name(), ".cue") {
 			continue
 		}
-		data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(dir, f.Name())))
+		data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, f.Name())))
 		if err != nil {
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue

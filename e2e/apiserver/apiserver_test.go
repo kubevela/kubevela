@@ -19,7 +19,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -90,7 +90,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.Get(util.URL("/envs/" + envHelloMeta.EnvName))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -109,7 +109,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -125,7 +125,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.Get(util.URL("/envs/"))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -143,7 +143,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -160,7 +160,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -178,7 +178,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.Get(util.URL(url))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -197,7 +197,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.Post(util.URL(url), "application/json", strings.NewReader(string(data)))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -215,7 +215,7 @@ var _ = ginkgo.Describe("API", func() {
 			// TODO(zzxwill) revise the check process if we need to work on https://github.com/oam-dev/kubevela/discussions/933
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -229,7 +229,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.Get(util.URL("/components/"))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
@@ -257,7 +257,7 @@ var _ = ginkgo.Describe("API", func() {
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
-			result, err := ioutil.ReadAll(resp.Body)
+			result, err := io.ReadAll(resp.Body)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)

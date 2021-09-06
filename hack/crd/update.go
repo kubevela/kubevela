@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -39,7 +38,7 @@ func main() {
 
 func fixNewSchemaValidationCheck(crds []string) error {
 	for _, crd := range crds {
-		data, err := ioutil.ReadFile(crd)
+		data, err := os.ReadFile(crd)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "reading CRD file %s hit an issue: %s\n", crd, err)
 			return err
@@ -62,7 +61,7 @@ func fixNewSchemaValidationCheck(crds []string) error {
 				newData = append(newData, line)
 				previousLine = line
 			}
-			ioutil.WriteFile(crd, []byte(strings.Join(newData, "\n")), 0644)
+			os.WriteFile(crd, []byte(strings.Join(newData, "\n")), 0644)
 		}
 	}
 	return nil

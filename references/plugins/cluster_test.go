@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
@@ -184,13 +184,13 @@ var _ = Describe("test GetCapabilityByName", func() {
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: defaultNS}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create ComponentDefinition")
-		data, _ := ioutil.ReadFile("testdata/componentDef.yaml")
+		data, _ := os.ReadFile("testdata/componentDef.yaml")
 		yaml.Unmarshal(data, &cd1)
 		yaml.Unmarshal(data, &cd2)
-		data2, _ := ioutil.ReadFile("testdata/kube-worker.yaml")
+		data2, _ := os.ReadFile("testdata/kube-worker.yaml")
 		yaml.Unmarshal(data2, &cd3)
 
-		helmYaml, _ := ioutil.ReadFile("testdata/helm.yaml")
+		helmYaml, _ := os.ReadFile("testdata/helm.yaml")
 		yaml.Unmarshal(helmYaml, &cd4)
 
 		cd1.Namespace = ns
@@ -210,10 +210,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		Expect(k8sClient.Create(ctx, &cd4)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create TraitDefinition")
-		data, _ = ioutil.ReadFile("testdata/manualscalars.yaml")
+		data, _ = os.ReadFile("testdata/manualscalars.yaml")
 		yaml.Unmarshal(data, &td1)
 		yaml.Unmarshal(data, &td2)
-		data3, _ := ioutil.ReadFile("testdata/svcTraitDef.yaml")
+		data3, _ := os.ReadFile("testdata/svcTraitDef.yaml")
 		yaml.Unmarshal(data3, &td3)
 		td1.Namespace = ns
 		td1.Name = trait1
@@ -311,7 +311,7 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: defaultNS}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create ComponentDefinition")
-		data, _ := ioutil.ReadFile("testdata/componentDef.yaml")
+		data, _ := os.ReadFile("testdata/componentDef.yaml")
 		yaml.Unmarshal(data, &cd1)
 		yaml.Unmarshal(data, &cd2)
 		cd1.Namespace = ns
@@ -323,7 +323,7 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		Expect(k8sClient.Create(ctx, &cd2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create TraitDefinition")
-		data, _ = ioutil.ReadFile("testdata/manualscalars.yaml")
+		data, _ = os.ReadFile("testdata/manualscalars.yaml")
 		yaml.Unmarshal(data, &td1)
 		yaml.Unmarshal(data, &td2)
 		td1.Namespace = ns

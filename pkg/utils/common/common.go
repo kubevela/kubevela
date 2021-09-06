@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -103,7 +102,7 @@ func HTTPGet(ctx context.Context, url string) ([]byte, error) {
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 // GetCUEParameterValue converts definitions to cue format
@@ -240,7 +239,7 @@ func AskToChooseOneService(svcNames []string) (string, error) {
 
 // ReadYamlToObject will read a yaml K8s object to runtime.Object
 func ReadYamlToObject(path string, object k8sruntime.Object) error {
-	data, err := ioutil.ReadFile(filepath.Clean(path))
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return err
 	}

@@ -19,7 +19,7 @@ package applicationconfiguration
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,7 +36,7 @@ import (
 
 var RevisionHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	var req RevisionHookRequest
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(400)
 		return
