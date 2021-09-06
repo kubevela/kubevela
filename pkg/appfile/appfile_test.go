@@ -392,39 +392,17 @@ wait: op.#ConditionalWait & {
 		Expect(err).To(BeNil())
 
 		appfile := &Appfile{
-			WorkflowSteps: []v1beta1.WorkflowStep{
+			Components: []common.ApplicationComponent{
 				{
-					Name: "wait",
-					Type: "test-wait",
+					Name: "test1",
+				},
+				{
+					Name: "test2",
 				},
 			},
 		}
-		ctx := context.WithValue(context.Background(), util.AppDefinitionNamespace, "default")
-		runners, err := appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
-		Expect(err).To(BeNil())
-		Expect(len(runners)).Should(BeEquivalentTo(1))
-
-		appfile.WorkflowSteps = []v1beta1.WorkflowStep{
-			{
-				Name: "wait",
-				Type: "test-wait",
-			},
-			{
-				Name: "empty",
-				Type: "empty",
-			},
-		}
-		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
-		Expect(err).NotTo(BeNil())
-
-		appfile.WorkflowSteps = []v1beta1.WorkflowStep{
-			{
-				Name: "foo",
-				Type: "not-cue",
-			},
-		}
-		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
-		Expect(err).NotTo(BeNil())
+		appfile.generateSteps()
+		Expect(len(appfile.WorkflowSteps)).Should(Equal(2))
 	})
 })
 
@@ -494,7 +472,7 @@ spec:
 		}
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
-		gotPolicies, _, err := testAppfile.PrepareWorkflowAndPolicy(context.Background(), dm, k8sClient, pd, nil)
+		gotPolicies, err := testAppfile.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))
 

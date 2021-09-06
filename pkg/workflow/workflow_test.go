@@ -74,7 +74,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(workflowStatus.ContextBackend.Name).Should(BeEquivalentTo("workflow-" + revision.Name))
 		workflowStatus.ContextBackend = nil
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: workflowStatus.AppRevision,
 			StepIndex:   1,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -110,7 +110,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(done).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: app.Status.Workflow.AppRevision,
 			StepIndex:   3,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -152,7 +152,7 @@ var _ = Describe("Test Workflow", func() {
 		wfStatus := *app.Status.Workflow
 		wfStatus.ContextBackend = nil
 		Expect(cmp.Diff(wfStatus, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: wfStatus.AppRevision,
 			StepIndex:   2,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
@@ -182,7 +182,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(done).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: app.Status.Workflow.AppRevision,
 			StepIndex:   3,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -223,7 +223,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(done).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: app.Status.Workflow.AppRevision,
 			StepIndex:   2,
 			Terminated:  true,
 			Steps: []common.WorkflowStepStatus{{
@@ -261,7 +261,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(pause).Should(BeFalse())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: app.Status.Workflow.AppRevision,
 			StepIndex:   1,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -303,7 +303,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(done).Should(BeFalse())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: app.Status.Workflow.AppRevision,
 			StepIndex:   2,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -328,7 +328,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(done).Should(BeTrue())
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
-			AppRevision: revision.Name,
+			AppRevision: app.Status.Workflow.AppRevision,
 			StepIndex:   3,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",

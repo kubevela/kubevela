@@ -18,16 +18,16 @@ package tasks
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"testing"
 
-	"github.com/pkg/errors"
-	"gotest.tools/assert"
-
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
+	"github.com/pkg/errors"
+	"gotest.tools/assert"
 )
 
 func TestDiscover(t *testing.T) {
@@ -69,7 +69,7 @@ func TestRegister(t *testing.T) {
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		}}
-	discover.RegisterGenerator("test", func(ctx wfContext.Context, options *types.TaskRunOptions, step v1beta1.WorkflowStep) (common.WorkflowStepStatus, *types.Operation, error) {
+	discover.RegisterGenerator("test", func(_ wfContext.Context, options *types.TaskRunOptions, paramValue *value.Value) (common.WorkflowStepStatus, *types.Operation, *value.Value) {
 		return common.WorkflowStepStatus{
 			Phase: common.WorkflowStepPhaseSucceeded,
 		}, nil, nil
@@ -79,13 +79,13 @@ func TestRegister(t *testing.T) {
 	assert.NilError(t, err)
 	run, err := gen(v1beta1.WorkflowStep{
 		Name: "step1",
-	}, &types.GeneratorOptions{Id: "abcd"})
+	}, &types.GeneratorOptions{ID: "abcd"})
 	assert.NilError(t, err)
 	assert.Equal(t, run.Name(), "step1")
 	status, _, err := run.Run(nil, &types.TaskRunOptions{})
 	assert.NilError(t, err)
 	assert.Equal(t, status.Name, "step1")
 	assert.Equal(t, status.Type, "test")
-	assert.Equal(t, status.Id, "abcd")
+	assert.Equal(t, status.ID, "abcd")
 	assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
 }

@@ -20,8 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
@@ -108,7 +109,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		}
 
 		if genOpt != nil {
-			exec.wfStatus.Id = genOpt.Id
+			exec.wfStatus.ID = genOpt.ID
 		}
 
 		params := map[string]interface{}{}

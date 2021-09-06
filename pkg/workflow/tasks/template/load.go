@@ -38,14 +38,14 @@ const (
 	templateDir = "static"
 )
 
-// TemplateLoader load task definition template.
-type TemplateLoader struct {
+// Loader load task definition template.
+type Loader struct {
 	client client.Client
 	dm     discoverymapper.DiscoveryMapper
 }
 
 // LoadTaskTemplate gets the workflowStep definition.
-func (loader *TemplateLoader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
+func (loader *Loader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
 	files, err := templateFS.ReadDir(templateDir)
 	if err != nil {
 		return "", err
@@ -72,8 +72,8 @@ func (loader *TemplateLoader) LoadTaskTemplate(ctx context.Context, name string)
 }
 
 // NewTemplateLoader create a task template loader.
-func NewTemplateLoader(client client.Client, dm discoverymapper.DiscoveryMapper) *TemplateLoader {
-	return &TemplateLoader{
+func NewTemplateLoader(client client.Client, dm discoverymapper.DiscoveryMapper) *Loader {
+	return &Loader{
 		client: client,
 		dm:     dm,
 	}

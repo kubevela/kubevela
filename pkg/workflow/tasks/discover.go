@@ -19,29 +19,27 @@ package tasks
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
-
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/pkg/errors"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
+
+	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type taskDiscover struct {
 	builtins           map[string]types.TaskGenerator
 	remoteTaskDiscover *custom.TaskLoader
-	templateLoader     *template.TemplateLoader
+	templateLoader     *template.Loader
 }
 
 // GetTaskGenerator get task generator by name.
@@ -132,17 +130,17 @@ func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOpt
 		return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
 	}
 	if err := hooks.Input(ctx, paramsValue, ct.step); err != nil {
-		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}, nil, nil
+		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}, nil, err
 	}
 	status, operation, taskValue := ct.up(ctx, options, paramsValue)
 	if ct.generatorOpt != nil {
-		status.Id = ct.generatorOpt.Id
+		status.ID = ct.generatorOpt.ID
 	}
 	status.Type = ct.tpy
 	status.Name = ct.step.Name
 
 	if err := hooks.Output(ctx, taskValue, ct.step, status.Phase); err != nil {
-		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}, nil, nil
+		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}, nil, err
 	}
 	return status, operation, nil
 }

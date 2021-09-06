@@ -213,7 +213,7 @@ type RawComponent struct {
 
 // WorkflowStepStatus record the status of a workflow step
 type WorkflowStepStatus struct {
-	Id    string            `json:"id"`
+	ID    string            `json:"id"`
 	Name  string            `json:"name,omitempty"`
 	Type  string            `json:"type,omitempty"`
 	Phase WorkflowStepPhase `json:"phase,omitempty"`
@@ -226,7 +226,7 @@ type WorkflowStepStatus struct {
 
 // WorkflowSubStepStatus record the status of a workflow step
 type WorkflowSubStepStatus struct {
-	Id    string            `json:"id"`
+	ID    string            `json:"id"`
 	Name  string            `json:"name,omitempty"`
 	Type  string            `json:"type,omitempty"`
 	Phase WorkflowStepPhase `json:"phase,omitempty"`

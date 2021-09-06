@@ -162,7 +162,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 	}
 
-	policies, err := appFile.PrepareWorkflowAndPolicy(ctx, app, handler.currentAppRev, handler)
+	policies, err := appFile.PrepareWorkflowAndPolicy()
 	if err != nil {
 		klog.Error(err, "[Handle PrepareWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
@@ -223,7 +223,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 					return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("GCAfterWorkflow", err))
 				}
 				wfStatus.Terminated = true
-				//app.Status.ResourceTracker = ref
 				if err := r.patchStatus(ctx, app); err != nil {
 					return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
 				}

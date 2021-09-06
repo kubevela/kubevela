@@ -224,19 +224,20 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
 	if e.dagMode {
 		return e.runAsDAG(wfCtx, taskRunners)
-	} else {
-		return e.steps(wfCtx, taskRunners[e.status.StepIndex:])
 	}
+
+	return e.steps(wfCtx, taskRunners[e.status.StepIndex:])
 }
 
 func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
 	for _, runner := range taskRunners {
+		r := runner
 		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{
 			RunSteps: func(isDag bool, runners ...wfTypes.TaskRunner) (*common.WorkflowStatus, error) {
 				stepsEngine := &engine{
 					dagMode: isDag,
 				}
-				stepStatus := e.getStepStatus(runner.Name())
+				stepStatus := e.getStepStatus(r.Name())
 
 				if stepStatus != nil && stepStatus.SubSteps != nil {
 					stepsEngine.status.StepIndex = stepStatus.SubSteps.StepIndex
@@ -279,7 +280,6 @@ func (e *engine) getStepStatus(name string) *common.WorkflowStepStatus {
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == name {
 			return &e.status.Steps[i]
-			break
 		}
 	}
 	return nil
@@ -312,7 +312,7 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 }
 
 func (e *engine) needStop() bool {
-	return e.status.Suspend == true || e.status.Terminated == true
+	return e.status.Suspend || e.status.Terminated
 }
 
 func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {

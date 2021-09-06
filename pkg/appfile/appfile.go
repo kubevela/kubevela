@@ -158,19 +158,20 @@ type Appfile struct {
 	parser *Parser
 }
 
+// Handler handles reconcile
 type Handler interface {
 	HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error
 	Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error
 }
 
 // PrepareWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context, app *v1beta1.Application, appRev *v1beta1.ApplicationRevision, h Handler) (policies []*unstructured.Unstructured, err error) {
+func (af *Appfile) PrepareWorkflowAndPolicy() (policies []*unstructured.Unstructured, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
 
-	err = af.generateSteps(ctx, app, appRev, h)
+	af.generateSteps()
 	return
 }
 
@@ -190,7 +191,7 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 	return uns, nil
 }
 
-func (af *Appfile) generateSteps(ctx context.Context, app *v1beta1.Application, appRev *v1beta1.ApplicationRevision, h Handler) error {
+func (af *Appfile) generateSteps() {
 	if len(af.WorkflowSteps) == 0 {
 		for _, comp := range af.Components {
 			af.WorkflowSteps = append(af.WorkflowSteps, v1beta1.WorkflowStep{
@@ -202,77 +203,6 @@ func (af *Appfile) generateSteps(ctx context.Context, app *v1beta1.Application, 
 			})
 		}
 	}
-	return nil
-	//handlerProviders := providers.NewProviders()
-	//kube.Install(handlerProviders, af.parser.client, h.Dispatch)
-	//taskDiscover := tasks.NewTaskDiscover(handlerProviders, af.parser.pd, af.parser.client, af.parser.dm)
-	//taskDiscover.RegisterGenerator("oam.dev/apply-component", func(_ wfContext.Context, options *wfTypes.TaskRunOptions, step v1beta1.WorkflowStep) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-	//	comp := common.ApplicationComponent{}
-	//	js, err := step.Properties.MarshalJSON()
-	//	if err != nil {
-	//		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "parameter invalid", Message: err.Error()}, nil, nil
-	//	}
-	//	if err := json.Unmarshal(js, &comp); err != nil {
-	//		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "parameter invalid", Message: err.Error()}, nil, nil
-	//	}
-	//
-	//	wl, err := af.parser.ParseWorkloadFromRevision(comp, appRev)
-	//	if err != nil {
-	//		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "ParseWorkload", Message: err.Error()}, nil, nil
-	//	}
-	//	manifest, err := af.GenerateComponentManifest(wl)
-	//	if err != nil {
-	//		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "GenerateComponentManifest", Message: err.Error()}, nil, nil
-	//	}
-	//	if err := af.SetOAMContract(manifest); err != nil {
-	//		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "SetOAMContract", Message: err.Error()}, nil, nil
-	//	}
-	//	if err := h.HandleComponentsRevision(context.Background(), []*types.ComponentManifest{manifest}); err != nil {
-	//		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "HandleComponentsRevision", Message: err.Error()}, nil, nil
-	//	}
-	//	objs := []*unstructured.Unstructured{}
-	//
-	//	skipStandardWorkload := false
-	//	for _, trait := range wl.Traits {
-	//		if trait.FullTemplate.TraitDefinition.Spec.ManageWorkload {
-	//			skipStandardWorkload = true
-	//		}
-	//	}
-	//	if !skipStandardWorkload {
-	//		objs = append(objs, manifest.StandardWorkload)
-	//	}
-	//	objs = append(objs, manifest.Traits...)
-	//	if err := h.Dispatch(context.Background(), objs...); err != nil {
-	//		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "DispatchManifest", Message: err.Error()}, nil, nil
-	//
-	//	}
-	//	wl.engine.HealthCheck()
-	//	return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded}, nil, nil
-	//})
-	//var tasks []wfTypes.TaskRunner
-	//for _, step := range af.WorkflowSteps {
-	//	genTask, err := taskDiscover.GetTaskGenerator(ctx, step.Type)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//	var id string
-	//	if app.Status.Workflow != nil {
-	//		for _, status := range app.Status.Workflow.Steps {
-	//			if status.Name == step.Name {
-	//				id = status.Id
-	//			}
-	//		}
-	//	}
-	//	if id == "" {
-	//		id = utils.RandomString(10)
-	//	}
-	//	task, err := genTask(step, &wfTypes.GeneratorOptions{Id: id})
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//	tasks = append(tasks, task)
-	//}
-	//return tasks, nil
 }
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {
@@ -284,7 +214,7 @@ func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns strin
 	return makeWorkloadWithContext(pCtx, wl, ns, appName)
 }
 
-// artifacts contains resouces in unstructured shape of all components
+// artifacts contains resources in unstructured shape of all components
 // it allows to access values of workloads and traits in CUE template, i.g.,
 // `if context.artifacts.<compName>.ready` to determine whether it's ready to access
 // `context.artifacts.<compName>.workload` to access a workload

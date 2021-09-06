@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -122,14 +123,14 @@ func GenerateApplicationSteps(ctx context.Context,
 		if app.Status.Workflow != nil {
 			for _, status := range app.Status.Workflow.Steps {
 				if status.Name == step.Name {
-					id = status.Id
+					id = status.ID
 				}
 			}
 		}
 		if id == "" {
 			id = utils.RandomString(10)
 		}
-		task, err := genTask(step, &wfTypes.GeneratorOptions{Id: id})
+		task, err := genTask(step, &wfTypes.GeneratorOptions{ID: id})
 		if err != nil {
 			return nil, err
 		}
@@ -139,5 +140,5 @@ func GenerateApplicationSteps(ctx context.Context,
 }
 
 func failedStepStatus(err error, reason string) common.WorkflowStepStatus {
-	return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "parameter invalid", Message: err.Error()}
+	return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: reason, Message: err.Error()}
 }
