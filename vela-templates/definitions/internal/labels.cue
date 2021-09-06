@@ -14,9 +14,9 @@ template: {
 			labels: {
 				for k, v in parameter {
 					"\(k)": v
-  			}
-  		}
-  	}
+        }
+      }
+		}
 		spec: template: metadata: labels: {
 			for k, v in parameter {
 				"\(k)": v
