@@ -77,7 +77,7 @@ myIP: value: "1.1.1.1"
 		{
 			Name: "output",
 			Type: "output",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				ExportKey: "myIP.value",
 				Name:      "podIP",
 			}},
@@ -85,7 +85,7 @@ myIP: value: "1.1.1.1"
 		{
 			Name: "input",
 			Type: "input",
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "podIP",
 				ParameterKey: "set.prefixIP",
 			}},
@@ -117,7 +117,7 @@ myIP: value: "1.1.1.1"
 		assert.NilError(t, err)
 		run, err := gen(step, nil)
 		assert.NilError(t, err)
-		status, action, err := run.Run(wfCtx)
+		status, action, err := run.Run(wfCtx, &types.TaskRunOptions{})
 		assert.NilError(t, err)
 		if step.Name == "wait" {
 			assert.Equal(t, status.Phase, common.WorkflowStepPhaseRunning)
@@ -182,7 +182,7 @@ close({
 			Properties: runtime.RawExtension{Raw: []byte(`
 {"score": {"y": 101}}
 `)},
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "score",
 				ParameterKey: "score",
 			}},
@@ -190,7 +190,7 @@ close({
 		{
 			Name: "input",
 			Type: "input",
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "podIP",
 				ParameterKey: "prefixIP",
 			}},
@@ -198,7 +198,7 @@ close({
 		{
 			Name: "output",
 			Type: "ok",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				Name:      "podIP",
 				ExportKey: "myIP",
 			}},
@@ -206,7 +206,7 @@ close({
 		{
 			Name: "output-var-conflict",
 			Type: "ok",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				Name:      "score",
 				ExportKey: "name",
 			}},
@@ -225,7 +225,7 @@ close({
 		assert.NilError(t, err)
 		run, err := gen(step, nil)
 		assert.NilError(t, err)
-		status, _, err := run.Run(wfCtx)
+		status, _, err := run.Run(wfCtx, &types.TaskRunOptions{})
 		switch step.Name {
 		case "input":
 			assert.Equal(t, err != nil, true)
@@ -381,7 +381,7 @@ func TestPendingCheck(t *testing.T) {
 	step := v1beta1.WorkflowStep{
 		Name: "pending",
 		Type: "ok",
-		Inputs: v1beta1.StepInputs{{
+		Inputs: common.StepInputs{{
 			From:         "score",
 			ParameterKey: "score",
 		}},

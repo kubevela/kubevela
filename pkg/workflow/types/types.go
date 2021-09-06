@@ -29,7 +29,7 @@ import (
 type TaskRunner interface {
 	Name() string
 	Pending(ctx wfContext.Context) bool
-	Run(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
+	Run(ctx wfContext.Context, options *TaskRunOptions) (common.WorkflowStepStatus, *Operation, error)
 }
 
 // TaskDiscover is the interface to obtain the TaskGenerator。

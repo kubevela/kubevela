@@ -99,7 +99,7 @@ func (tr *suspendTaskRunner) Name() string {
 }
 
 // Run make workflow suspend.
-func (tr *suspendTaskRunner) Run(ctx wfContext.Context) (common.WorkflowStepStatus, *types.Operation, error) {
+func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
 	return common.WorkflowStepStatus{
 		Name:  tr.name,
 		Type:  "suspend",
