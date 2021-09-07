@@ -5985,7 +5985,11 @@ data:
                     template: "patch: {\n\tspec: {\n\t\tpatchesJson6902: parameter.patchesJson\n\t}\n}\n\nparameter:
                       {\n\t// +usage=A list of JSON6902 patch.\n\tpatchesJson: [...#jsonPatchItem]\n}\n\n//
                       +usage=Contains a JSON6902 patch\n#jsonPatchItem: {\n\ttarget: #selector\n\tpatch:
-                      {\n\t\top:     string\n\t\tpath:   string\n\t\tvalue?: string\n\t}\n}\n\n//
+                      [...{\n\t\t// +usage=operation to perform\n\t\top: string | \"add\"
+                      | \"remove\" | \"replace\" | \"move\" | \"copy\" | \"test\"\n\t\t//
+                      +usage=operate path e.g. /foo/bar\n\t\tpath: string\n\t\t// +usage=specify
+                      source path when op is copy/move\n\t\tfrom?:  string\n\t\t// +usage=specify
+                      opraation value when op is test/add/replace\n\t\tvalue?: string\n\t}]\n}\n\n//
                       +usage=Selector specifies a set of resources\n#selector: {\n\tgroup?:
                       \             string\n\tversion?:            string\n\tkind?:               string\n\tnamespace?:
                       \         string\n\tname?:               string\n\tannotationSelector?:
