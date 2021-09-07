@@ -32,6 +32,10 @@ type PolicyDefinitionSpec struct {
 	// Schematic defines the data format and template of the encapsulation of the policy definition
 	// +optional
 	Schematic *common.Schematic `json:"schematic,omitempty"`
+
+	// ManageHealthCheck means the policy will handle health checking and skip application controller
+	// built-in health checking.
+	ManageHealthCheck bool `json:"manageHealthCheck,omitempty"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition
