@@ -23,14 +23,15 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/pkg/errors"
+	"gotest.tools/assert"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
-	"github.com/pkg/errors"
-	"gotest.tools/assert"
 )
 
 func TestDiscover(t *testing.T) {
