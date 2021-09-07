@@ -102,9 +102,10 @@ run: fmt vet
 fmt: goimports installcue
 	go fmt ./...
 	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w $$(go list -f {{.Dir}} ./...)
-	$(CUE) fmt ./vela-templates/definitions/internal/
-	$(CUE) fmt ./vela-templates/definitions/registry/
-
+	$(CUE) fmt ./vela-templates/definitions/internal/*
+	$(CUE) fmt ./vela-templates/definitions/registry/*
+	$(CUE) fmt ./pkg/stdlib/pkgs/*
+	$(CUE) fmt ./pkg/workflow/tasks/template/static/*
 # Run go vet against code
 vet:
 	go vet ./...

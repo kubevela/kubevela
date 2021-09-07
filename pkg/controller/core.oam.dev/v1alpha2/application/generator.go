@@ -18,6 +18,8 @@ package application
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -72,66 +74,35 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 			return failedStepStatus(err, "HandleComponentsRevision"), nil, nil
 		}
 
-		taskValue, err := value.NewValue("{}", nil)
-		if err != nil {
-			return failedStepStatus(err, "MakeTaskValue"), nil, nil
-		}
-		skipStandardWorkload := false
-		for _, trait := range wl.Traits {
-			if trait.FullTemplate.TraitDefinition.Spec.ManageWorkload {
-				skipStandardWorkload = true
-			}
-		}
+		skipStandardWorkload := skipApplyWorkload(wl)
+		appliedResources := []corev1.ObjectReference{}
 		if !skipStandardWorkload {
 			if err := h.Dispatch(context.Background(), manifest.StandardWorkload); err != nil {
 				return failedStepStatus(err, "DispatchStandardWorkload"), nil, nil
 			}
-
+			appliedResources = append(appliedResources, genObjectReferences(manifest.StandardWorkload)...)
 		}
+
 		if err := h.Dispatch(context.Background(), manifest.Traits...); err != nil {
-			return failedStepStatus(err, "DispatchTraits"), nil, nil
+			return failedStepStatusWithApplied(err, "DispatchTraits", appliedResources), nil, nil
+		}
+		appliedResources = append(appliedResources, genObjectReferences(manifest.Traits...)...)
+
+		_, isHealth, err := h.collectHealthStatus(wl, appRev)
+		if err != nil {
+			return failedStepStatusWithApplied(err, "CollectHealthStatus", appliedResources), nil, nil
 		}
 
-		if wl.CapabilityCategory == types.CUECategory {
-			app := appRev.Spec.Application
-			pCtx := wl.Ctx
-			isHealth := true
-			if ok, err := wl.EvalHealth(pCtx, cli, app.Namespace); err != nil || !ok {
-				isHealth = false
-			}
-			if isHealth {
-				for _, trait := range wl.Traits {
-					if ok, err := trait.EvalHealth(pCtx, cli, app.Namespace); err != nil || !ok {
-						isHealth = false
-						break
-					}
-				}
-			}
-			if !isHealth {
-				return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseRunning}, nil, taskValue
-			}
+		if !isHealth {
+			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseRunning, AppliedResources: appliedResources}, nil, nil
 		}
 
-		if !skipStandardWorkload {
-			v := manifest.StandardWorkload.DeepCopy()
-			if err := cli.Get(context.Background(), client.ObjectKeyFromObject(manifest.StandardWorkload), v); err != nil {
-				return failedStepStatus(err, "TaskValueFillOutput"), nil, taskValue
-			}
-			if err := taskValue.FillObject(v.Object, "output"); err != nil {
-				return failedStepStatus(err, "TaskValueFillOutput"), nil, taskValue
-			}
+		taskValue, err := makeTaskValue(manifest, skipStandardWorkload, cli)
+		if err != nil {
+			return failedStepStatusWithApplied(err, "MakeTaskValue", appliedResources), nil, taskValue
 		}
 
-		for _, trait := range manifest.Traits {
-			v := trait.DeepCopy()
-			if err := cli.Get(context.Background(), client.ObjectKeyFromObject(trait), v); err != nil {
-				return failedStepStatus(err, "TaskValueFillOutput"), nil, taskValue
-			}
-			if err := taskValue.FillObject(trait.Object, "outputs", trait.GetLabels()[oam.TraitResource]); err != nil {
-				return failedStepStatus(err, "TaskValueFillOutputs"), nil, taskValue
-			}
-		}
-		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded}, nil, taskValue
+		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded, AppliedResources: appliedResources}, nil, taskValue
 	})
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
@@ -139,18 +110,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		var id string
-		if app.Status.Workflow != nil {
-			for _, status := range app.Status.Workflow.Steps {
-				if status.Name == step.Name {
-					id = status.ID
-				}
-			}
-		}
-		if id == "" {
-			id = utils.RandomString(10)
-		}
-		task, err := genTask(step, &wfTypes.GeneratorOptions{ID: id})
+		task, err := genTask(step, &wfTypes.GeneratorOptions{ID: generateStepID(step.Name, app.Status.Workflow)})
 		if err != nil {
 			return nil, err
 		}
@@ -161,4 +121,72 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 
 func failedStepStatus(err error, reason string) common.WorkflowStepStatus {
 	return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: reason, Message: err.Error()}
+}
+
+func failedStepStatusWithApplied(err error, reason string, applied []corev1.ObjectReference) common.WorkflowStepStatus {
+	return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: reason, Message: err.Error(), AppliedResources: applied}
+}
+
+func skipApplyWorkload(wl *appfile.Workload) bool {
+	for _, trait := range wl.Traits {
+		if trait.FullTemplate.TraitDefinition.Spec.ManageWorkload {
+			return true
+		}
+	}
+	return false
+}
+
+func makeTaskValue(manifest *types.ComponentManifest, skipStandardWorkload bool, cli client.Client) (*value.Value, error) {
+	taskValue, err := value.NewValue("{}", nil)
+	if err != nil {
+		return nil, err
+	}
+	if !skipStandardWorkload {
+		v := manifest.StandardWorkload.DeepCopy()
+		if err := cli.Get(context.Background(), client.ObjectKeyFromObject(manifest.StandardWorkload), v); err != nil {
+			return taskValue, err
+		}
+		if err := taskValue.FillObject(v.Object, "output"); err != nil {
+			return taskValue, err
+		}
+	}
+
+	for _, trait := range manifest.Traits {
+		v := trait.DeepCopy()
+		if err := cli.Get(context.Background(), client.ObjectKeyFromObject(trait), v); err != nil {
+			return taskValue, err
+		}
+		if err := taskValue.FillObject(trait.Object, "outputs", trait.GetLabels()[oam.TraitResource]); err != nil {
+			return taskValue, err
+		}
+	}
+	return taskValue, nil
+}
+
+func genObjectReferences(objs ...*unstructured.Unstructured) []corev1.ObjectReference {
+	refers := []corev1.ObjectReference{}
+	for _, o := range objs {
+		refers = append(refers, corev1.ObjectReference{
+			Kind:       o.GetKind(),
+			Namespace:  o.GetNamespace(),
+			Name:       o.GetName(),
+			APIVersion: o.GetAPIVersion(),
+		})
+	}
+	return refers
+}
+
+func generateStepID(stepName string, wfStatus *common.WorkflowStatus) string {
+	var id string
+	if wfStatus != nil {
+		for _, status := range wfStatus.Steps {
+			if status.Name == stepName {
+				id = status.ID
+			}
+		}
+	}
+	if id == "" {
+		id = utils.RandomString(10)
+	}
+	return id
 }

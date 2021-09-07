@@ -51,6 +51,7 @@ type AppHandler struct {
 	dispatcher     *dispatch.AppManifestsDispatcher
 	isNewRevision  bool
 	currentRevHash string
+	services       []common.ApplicationComponentStatus
 
 	parser *appfile.Parser
 }
@@ -97,6 +98,60 @@ func (h *AppHandler) initDispatcher() {
 // ProduceArtifacts will produce Application artifacts that will be saved in configMap.
 func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
 	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
+}
+
+func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.ApplicationRevision) (*common.ApplicationComponentStatus, bool, error) {
+
+	var (
+		status = common.ApplicationComponentStatus{
+			Name:               wl.Name,
+			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
+			Healthy:            true,
+		}
+		appName  = appRev.Spec.Application.Name
+		isHealth = true
+	)
+
+	if wl.CapabilityCategory == types.TerraformCategory {
+		return nil, true, nil
+	}
+
+	if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
+		isHealth = false
+		status.Healthy = false
+	}
+	var traitStatusList []common.ApplicationTraitStatus
+
+	var err error
+	status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
+	if err != nil {
+		return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, wl.Name)
+	}
+
+	for _, tr := range wl.Traits {
+		var traitStatus = common.ApplicationTraitStatus{
+			Type:    tr.Name,
+			Healthy: true,
+		}
+		if ok, err := tr.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
+			isHealth = false
+			traitStatus.Healthy = false
+		}
+		traitStatus.Message, err = tr.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
+		if err != nil {
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, wl.Name, tr.Name)
+		}
+		traitStatusList = append(traitStatusList, traitStatus)
+	}
+
+	status.Traits = traitStatusList
+	status.Scopes = generateScopeReference(wl.Scopes)
+	if h.services == nil {
+		h.services = []common.ApplicationComponentStatus{status}
+	} else {
+		h.services = append(h.services, status)
+	}
+	return &status, isHealth, nil
 }
 
 func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {

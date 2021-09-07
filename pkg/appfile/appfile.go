@@ -149,12 +149,11 @@ type Appfile struct {
 	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition
 	RelatedScopeDefinitions     map[string]*v1beta1.ScopeDefinition
 
-	Policies        []*Workload
-	WorkflowSteps   []v1beta1.WorkflowStep
-	Components      []common.ApplicationComponent
-	Artifacts       []*types.ComponentManifest
-	WorkflowMode    common.WorkflowMode
-	SkipHealthCheck bool
+	Policies      []*Workload
+	WorkflowSteps []v1beta1.WorkflowStep
+	Components    []common.ApplicationComponent
+	Artifacts     []*types.ComponentManifest
+	WorkflowMode  common.WorkflowMode
 
 	parser *Parser
 }
@@ -195,9 +194,6 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 func (af *Appfile) generateSteps() {
 	if len(af.WorkflowSteps) == 0 {
 		for _, comp := range af.Components {
-			if len(comp.Inputs) > 0 {
-				af.SkipHealthCheck = true
-			}
 			af.WorkflowSteps = append(af.WorkflowSteps, v1beta1.WorkflowStep{
 				Name:       comp.Name,
 				Type:       "oam.dev/apply-component",

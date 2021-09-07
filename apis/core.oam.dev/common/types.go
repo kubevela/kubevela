@@ -220,8 +220,9 @@ type WorkflowStepStatus struct {
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason   string          `json:"reason,omitempty"`
-	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
+	Reason           string                   `json:"reason,omitempty"`
+	AppliedResources []corev1.ObjectReference `json:"appliedResources,omitempty"`
+	SubSteps         *SubStepsStatus          `json:"subSteps,omitempty"`
 }
 
 // WorkflowSubStepStatus record the status of a workflow step
@@ -233,7 +234,8 @@ type WorkflowSubStepStatus struct {
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason string `json:"reason,omitempty"`
+	Reason           string                   `json:"reason,omitempty"`
+	AppliedResources []corev1.ObjectReference `json:"appliedResources,omitempty"`
 }
 
 // AppStatus defines the observed state of Application

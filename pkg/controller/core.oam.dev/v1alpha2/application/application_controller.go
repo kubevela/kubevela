@@ -203,6 +203,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err))
 		}
 
+		app.Status.Services = handler.services
+
 		if pause {
 			if err := r.patchStatus(ctx, app); err != nil {
 				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
@@ -271,11 +273,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.Info("Finished rollout ")
 	}
 
-	// Keep the ability to get status
-	if !appFile.SkipHealthCheck {
-		// check application health status if no health check policy is applied
-		if !hasHealthCheckPolicy(appFile.Policies) {
-			appCompStatus, healthy, err := handler.aggregateHealthStatus(appFile)
+	if !hasHealthCheckPolicy(appFile.Policies) {
+		healthy := true
+		if appFile.WorkflowMode == common.WorkflowModeStep {
+			// check application health status if no health check policy is applied
+			appCompStatus, isHealthy, err := handler.aggregateHealthStatus(appFile)
 			if err != nil {
 				klog.ErrorS(err, "application", klog.KObj(app))
 				r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
@@ -287,27 +289,41 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				})
 				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", err))
 			}
+			healthy = isHealthy
 			app.Status.Services = appCompStatus
-			if !healthy {
-				app.Status.SetConditions(condition.Condition{
-					Type:               v1beta1.TypeHealthy,
-					Status:             corev1.ConditionFalse,
-					LastTransitionTime: metav1.Now(),
-					Reason:             v1beta1.ReasonUnhealthy,
-				})
-				if err := r.patchStatus(ctx, app); err != nil {
-					return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+		} else {
+			for _, service := range handler.services {
+				if !service.Healthy {
+					healthy = false
+					break
 				}
-				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", errors.New("not healthy")))
+				for _, tr := range service.Traits {
+					if !tr.Healthy {
+						healthy = false
+						break
+					}
+				}
 			}
+		}
+		if !healthy {
 			app.Status.SetConditions(condition.Condition{
 				Type:               v1beta1.TypeHealthy,
-				Status:             corev1.ConditionTrue,
+				Status:             corev1.ConditionFalse,
 				LastTransitionTime: metav1.Now(),
-				Reason:             v1beta1.ReasonHealthy,
+				Reason:             v1beta1.ReasonUnhealthy,
 			})
-			r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
+			if err := r.patchStatus(ctx, app); err != nil {
+				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+			}
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", errors.New("not healthy")))
 		}
+		app.Status.SetConditions(condition.Condition{
+			Type:               v1beta1.TypeHealthy,
+			Status:             corev1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+			Reason:             v1beta1.ReasonHealthy,
+		})
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	}
 
 	app.Status.Phase = common.ApplicationRunning

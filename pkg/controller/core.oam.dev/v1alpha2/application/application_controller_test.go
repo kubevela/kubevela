@@ -1144,7 +1144,7 @@ var _ = Describe("Test Application Controller", func() {
 				fmt.Println(checkApp.Status.Conditions)
 			}
 			return string(checkApp.Status.Phase)
-		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(common.ApplicationRunning))
+		}, 5*time.Second, time.Second).Should(BeEquivalentTo(common.ApplicationRunning))
 		Expect(checkApp.Status.Services).Should(BeEquivalentTo([]common.ApplicationComponentStatus{
 			{
 				Name:               compName,
@@ -1808,6 +1808,77 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkCM.Data["enemies"]).Should(BeEquivalentTo("hello,i am lives"))
 		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
 	})
+	It("test applicaiton applied resource in workflow step status", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-applied-resources",
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), &ns)).Should(BeNil())
+
+		healthComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = "app-applied-resources"
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-applied-resources",
+				Namespace: "app-applied-resources",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Workflow.Steps[0].AppliedResources).Should(BeEquivalentTo([]corev1.ObjectReference{
+			{Kind: "Deployment",
+				Namespace:  "app-applied-resources",
+				Name:       "myweb1",
+				APIVersion: "apps/v1",
+			},
+			{Kind: "ConfigMap",
+				Namespace:  "app-applied-resources",
+				Name:       "myweb1game-config",
+				APIVersion: "v1",
+			},
+		}))
+		Expect(checkApp.Status.Workflow.Steps[1].AppliedResources).Should(BeEquivalentTo([]corev1.ObjectReference{
+			{Kind: "Deployment",
+				Namespace:  "app-applied-resources",
+				Name:       "myweb2",
+				APIVersion: "apps/v1",
+			},
+			{Kind: "ConfigMap",
+				Namespace:  "app-applied-resources",
+				Name:       "myweb2game-config",
+				APIVersion: "v1",
+			},
+		}))
+	})
+
 })
 
 const (
@@ -2445,159 +2516,6 @@ spec:
         			}
         		}]
         	}
-        }
-`
-
-	deploymentWorkloadDefinition = `
-apiVersion: core.oam.dev/beta1
-kind: WorkloadDefinition
-metadata:
-  name: deployment
-  namespace: default
-  annotations:
-    definition.oam.dev/description: A Deployment provides declarative updates for Pods and ReplicaSets
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  extension:
-    template: |
-      output: {
-      	apiVersion: "apps/v1"
-      	kind:       "Deployment"
-        metadata: name: "business-deploy"
-      	spec: {
-      		selector: matchLabels: {
-      			"app.oam.dev/component": context.name
-      		}
-
-      		template: {
-      			metadata: labels: {
-      				"app.oam.dev/component": context.name
-      			}
-
-      			spec: {
-      				containers: [{
-      					name:  "business-deploy"
-      					image: parameter.image
-
-      					if parameter["cmd"] != _|_ {
-      						command: parameter.cmd
-      					}
-
-      					if parameter["dbSecret"] != _|_ {
-      						env: [
-      							{
-      								name: "username"
-      								value: dbConn.username
-      							},
-      						]
-      					}
-
-      					ports: [{
-      						containerPort: parameter.port
-      					}]
-
-      					if parameter["cpu"] != _|_ {
-      						resources: {
-      							limits:
-      								cpu: parameter.cpu
-      							requests:
-      								cpu: parameter.cpu
-      						}
-      					}
-      				}]
-      		}
-      		}
-      	}
-      }
-
-      parameter: {
-      	// +usage=Which image would you like to use for your service
-      	// +short=i
-      	image: string
-
-      	// +usage=Commands to run in the container
-      	cmd?: [...string]
-
-      	// +usage=Which port do you want customer traffic sent to
-      	// +short=p
-      	port: *80 | int
-
-      	// +usage=Referred db secret
-      	// +insertSecretTo=dbConn
-      	dbSecret?: string
-
-      	// +usage=Number of CPU units for the service
-      	cpu?: string
-      }
-
-      dbConn: {
-      	username: string
-      	endpoint: string
-      	port:     string
-      }
-`
-
-	compDefSecretYaml = `apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: secretconsumer
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-        					if parameter["dbSecret"] != _|_ {
-        						env: [
-        							{
-        								name:  "username"
-        								value: dbConn.username
-        							},
-        							{
-        								name:  "DB_PASSWORD"
-        								value: dbConn.password
-        							},
-        						]
-        					}
-        				}]
-        			}
-        		}
-        	}
-        }
-
-        parameter: {
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-
-        	// +usage=Referred db secret
-        	// +insertSecretTo=dbConn
-        	dbSecret?: string
-        }
-
-        dbConn: {
-        	username: string
-        	password: string
         }
 `
 	workloadWithContextRevision = `
