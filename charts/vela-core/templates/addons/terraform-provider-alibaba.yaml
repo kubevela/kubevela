@@ -1,0 +1,65 @@
+apiVersion: v1
+data:
+  initializer: |
+    apiVersion: core.oam.dev/v1beta1
+    kind: Initializer
+    metadata:
+      annotations:
+        addons.oam.dev/description: terraform provider (alibaba)
+        addons.oam.dev/name: terraform/provider-alibaba
+      name: terraform-provider-alibaba
+      namespace: default
+    spec:
+      appTemplate:
+        spec:
+          components:
+          - name: alibaba-account-creds
+            properties:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: alibaba-provider-secret
+                namespace: vela-system
+              stringData:
+                credentials: |
+                  accessKeyID: [[ index .Args "ALICLOUD_ACCESS_KEY" ]]
+                  accessKeySecret: [[ index .Args "ALICLOUD_SECRET_KEY" ]]
+                  securityToken: [[ index .Args "ALICLOUD_SECURITY_TOKEN" ]]
+              type: Opaque
+            type: raw
+          - name: default
+            properties:
+              apiVersion: terraform.core.oam.dev/v1beta1
+              kind: Provider
+              metadata:
+                name: default
+                namespace: default
+              spec:
+                credentials:
+                  secretRef:
+                    key: credentials
+                    name: alibaba-account-creds
+                    namespace: vela-system
+                  source: Secret
+                provider: alibaba
+                region: cn-beijing
+            type: raw
+        status:
+          rollout:
+            batchRollingState: ""
+            currentBatch: 0
+            lastTargetAppRevision: ""
+            rollingState: ""
+            upgradedReadyReplicas: 0
+            upgradedReplicas: 0
+    status:
+      observedGeneration: 0
+kind: ConfigMap
+metadata:
+  annotations:
+    addons.oam.dev/description: terraform provider (alibaba)
+    addons.oam.dev/name: terraform/provider-alibaba
+  labels:
+    addons.oam.dev/type: terraform-provider-alibaba
+  name: terraform-provider-alibaba
+  namespace: {{.Values.systemDefinitionNamespace}}

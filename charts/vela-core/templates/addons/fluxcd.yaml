@@ -6163,6 +6163,7 @@ metadata:
   annotations:
     addons.oam.dev/description: Flux is a set of continuous and progressive delivery
       solutions for Kubernetes
+    addons.oam.dev/name: fluxcd
   labels:
     addons.oam.dev/type: fluxcd
   name: fluxcd

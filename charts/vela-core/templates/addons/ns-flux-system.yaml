@@ -33,6 +33,7 @@ kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: Create namespace for flux-system
+    addons.oam.dev/name: ns-flux-system
   labels:
     addons.oam.dev/type: ns-flux-system
   name: ns-flux-system

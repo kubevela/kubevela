@@ -147,6 +147,7 @@ kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: An out of the box solution for KubeVela observability
+    addons.oam.dev/name: observability
   labels:
     addons.oam.dev/type: observability
   name: observability
