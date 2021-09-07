@@ -398,8 +398,8 @@ variable "acl" {
 			},
 			want: want{
 				errMsg:     "",
-				tableName1: "# Properties",
-				tableName2: "## writeConnectionSecretToRef",
+				tableName1: "### Properties",
+				tableName2: "#### writeConnectionSecretToRef",
 			},
 		},
 		"configuration is not valid": {

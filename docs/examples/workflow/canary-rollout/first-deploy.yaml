@@ -1,0 +1,44 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: rollout-test
+  namespace: default
+spec:
+  components:
+    - name: back-end
+      type: webservice
+      properties:
+        image: httpd:2.4.48
+        port: 80
+
+      traits:
+        - type: rollout
+          properties:
+            targetSize: 2
+            rolloutBatches:
+              - replicas: 2
+
+        - type: expose
+          properties:
+            port:
+            - 80
+
+        - type: traffic-gateway
+          properties:
+            hosts:
+              - back-end.example.com
+            gateways: ingressgateway   # use istio default gateway
+
+
+
+  workflow:
+    steps:
+      - name: deploy
+        type: canary-rollout
+        properties:
+          batchPartition: 0
+          traffic:
+            weightedTargets:
+              - revision: back-end-v1
+                port: 80
+                weight: 100 # 100% shift to new version

@@ -1,0 +1,98 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: canary-rollout
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |-
+        import ("vela/op")
+
+        parameter: {
+              component?: string
+              batchPartition: int
+              traffic: weightedTargets: [...{
+                 revision: string
+                 port: int
+                 weight: int
+              }]
+        }
+
+
+        if parameter.component != _|_ {
+            comp__: parameter.component
+        }
+
+        // if component is empty, use first component
+        if parameter.component == _|_ {
+            comps__ : op.#Load
+            compNames__ : [for name, c in comps__.value {name} ]
+            comp__: compNames__[0]
+        }
+
+        comp__: string
+
+        apply: op.#ApplyComponent & {
+           component: comp__
+           traits: ["rollout"]: {
+              value: spec: rolloutPlan: batchPartition: parameter.batchPartition
+           }
+
+           traits: ["virtualService"]: {
+              value: spec: http: [
+                 {
+                        match: [
+                          {uri: {
+                             exact: "/"
+                          }}
+                        ]
+                        route:[
+                         for i, t in parameter.traffic.weightedTargets {
+                            destination: {
+                                 host: comp__
+                                 port: {
+                                    number: t.port
+                                 }
+                                 subset: t.revision }
+                            weight: t.weight}]
+                 }
+              ]
+           }
+
+           traits: ["destinationRule"]: {
+               value: spec: subsets: [
+                    for i, t in parameter.traffic.weightedTargets {
+                           name: t.revision
+                           labels: {"app.oam.dev/revision": t.revision}
+                    }
+               ]
+           }
+        }
+
+        rolloutName: apply.traits["rollout"].value.metadata.name
+
+        rollout: op.#Read & {
+            value: {
+               kind: "Rollout"
+               apiVersion: "standard.oam.dev/v1alpha1"
+               metadata: {
+                   name: rolloutName
+                   namespace: context.namespace
+               }
+            }
+        }
+
+        // the new deployment's name is newRevision, this can be used for istio virtualService for traffic shifting
+        newRevision: apply.traits["rollout"].value.spec.targetRevisionName
+
+        // wait untill rollout controller have handled the rollout object and fill the status field
+        // block in this step until batchPartion ready
+        wait: op.#ConditionalWait & {
+            continue: rollout.value.status.lastTargetRevision==newRevision && rollout.value.status.batchRollingState=="batchReady" && rollout.value.status.currentBatch==parameter.batchPartition
+        }
+
+
+
+
+
