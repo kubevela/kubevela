@@ -37,6 +37,7 @@ import (
 )
 
 // GenerateApplicationSteps generate application steps.
+// nolint:gocyclo
 func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,

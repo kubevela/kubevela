@@ -266,15 +266,6 @@ type engine struct {
 	status  *common.WorkflowStatus
 }
 
-func (e *engine) getStepStatus(name string) *common.WorkflowStepStatus {
-	for i := range e.status.Steps {
-		if e.status.Steps[i].Name == name {
-			return &e.status.Steps[i]
-		}
-	}
-	return nil
-}
-
 func (e *engine) isDag() bool {
 	return e.dagMode
 }
