@@ -75,6 +75,7 @@ var _ = Describe("Test Workflow", func() {
 		workflowStatus.ContextBackend = nil
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
+			Mode:        common.WorkflowModeStep,
 			StepIndex:   1,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -111,6 +112,7 @@ var _ = Describe("Test Workflow", func() {
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
 			StepIndex:   3,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -153,6 +155,7 @@ var _ = Describe("Test Workflow", func() {
 		wfStatus.ContextBackend = nil
 		Expect(cmp.Diff(wfStatus, common.WorkflowStatus{
 			AppRevision: wfStatus.AppRevision,
+			Mode:        common.WorkflowModeStep,
 			StepIndex:   2,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
@@ -183,6 +186,7 @@ var _ = Describe("Test Workflow", func() {
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
 			StepIndex:   3,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -224,6 +228,7 @@ var _ = Describe("Test Workflow", func() {
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
 			StepIndex:   2,
 			Terminated:  true,
 			Steps: []common.WorkflowStepStatus{{
@@ -262,6 +267,7 @@ var _ = Describe("Test Workflow", func() {
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
 			StepIndex:   1,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -304,6 +310,7 @@ var _ = Describe("Test Workflow", func() {
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeDAG,
 			StepIndex:   2,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -329,6 +336,7 @@ var _ = Describe("Test Workflow", func() {
 		app.Status.Workflow.ContextBackend = nil
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeDAG,
 			StepIndex:   3,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",

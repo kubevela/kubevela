@@ -2351,7 +2351,6 @@ spec:
         	}
         }
 `
-
 	rolloutTraitDefinition = `
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition

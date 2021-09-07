@@ -21,10 +21,9 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
