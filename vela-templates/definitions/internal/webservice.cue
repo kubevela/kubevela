@@ -13,7 +13,10 @@ template: {
 		apiVersion: "apps/v1"
 		kind:       "Deployment"
 		spec: {
-			selector: matchLabels: "app.oam.dev/component": context.name
+			selector: matchLabels: {
+				"app.oam.dev/component": context.name
+				"app.oam.dev/revision":  context.revision
+			}
 
 			template: {
 				metadata: labels: {
@@ -21,6 +24,7 @@ template: {
 					if parameter.addRevisionLabel {
 						"app.oam.dev/appRevision": context.appRevision
 					}
+					"app.oam.dev/revision": context.revision
 				}
 
 				spec: {
