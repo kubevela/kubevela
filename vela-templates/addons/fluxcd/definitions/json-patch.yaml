@@ -29,7 +29,7 @@ spec:
         		path: string
         		// +usage=specify source path when op is copy/move
         		from?:  string
-        		// +usage=specify opraation value when op is test/add/replace
+        		// +usage=specify operation value when op is test/add/replace
         		value?: string
         	}]
         }

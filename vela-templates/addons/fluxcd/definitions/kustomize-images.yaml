@@ -1,0 +1,25 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "The images of kustomize"
+  name: kustomize-images
+spec:
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: {
+        		images: parameter.images
+        	}
+        }
+
+        parameter: {
+        	// +usage=specify the images of kustomize
+        	images: [...{
+            name: string
+            newName?: string
+            newTag?: string
+            digest?: string
+          }]
+        }

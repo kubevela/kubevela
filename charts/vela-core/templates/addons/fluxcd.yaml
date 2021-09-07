@@ -5989,11 +5989,27 @@ data:
                       | \"remove\" | \"replace\" | \"move\" | \"copy\" | \"test\"\n\t\t//
                       +usage=operate path e.g. /foo/bar\n\t\tpath: string\n\t\t// +usage=specify
                       source path when op is copy/move\n\t\tfrom?:  string\n\t\t// +usage=specify
-                      opraation value when op is test/add/replace\n\t\tvalue?: string\n\t}]\n}\n\n//
+                      operation value when op is test/add/replace\n\t\tvalue?: string\n\t}]\n}\n\n//
                       +usage=Selector specifies a set of resources\n#selector: {\n\tgroup?:
                       \             string\n\tversion?:            string\n\tkind?:               string\n\tnamespace?:
                       \         string\n\tname?:               string\n\tannotationSelector?:
                       string\n\tlabelSelector?:      string\n}\n"
+            type: raw
+          - name: kustomize-images
+            properties:
+              apiVersion: core.oam.dev/v1beta1
+              kind: TraitDefinition
+              metadata:
+                annotations:
+                  definition.oam.dev/description: The images of kustomize
+                name: kustomize-images
+              spec:
+                schematic:
+                  cue:
+                    template: "patch: {\n\tspec: {\n\t\timages: parameter.images\n\t}\n}\n\nparameter:
+                      {\n\t// +usage=specify the images of kustomize\n\timages: [...{\n
+                      \   name: string\n    newName?: string\n    newTag?: string\n    digest?:
+                      string\n  }]\n}\n"
             type: raw
           - name: kustomize-patch
             properties:
@@ -6086,6 +6102,21 @@ data:
                       {\n\t// +usage=a list of strategicmerge, defined as inline yaml
                       objects.\n\tpatchesStrategicMerge: [...#nestedmap]\n}\n\n#nestedmap:
                       {\n\t...\n}\n"
+            type: raw
+          - name: kustomize-target-namespace
+            properties:
+              apiVersion: core.oam.dev/v1beta1
+              kind: TraitDefinition
+              metadata:
+                annotations:
+                  definition.oam.dev/description: The target namespace of kustomize
+                name: kustomize-target-namespace
+              spec:
+                schematic:
+                  cue:
+                    template: "patch: {\n\tspec: {\n\t\ttargetNamespace: parameter.targetNamespace\n\t}\n}\n\nparameter:
+                      {\n\t// +usage=specify the target namespace of kustomize\n\ttargetNamespace:
+                      string\n}\n"
             type: raw
         status:
           rollout:

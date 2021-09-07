@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "The target namespace of kustomize"
+  name: kustomize-target-namespace
+spec:
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: {
+        		targetNamespace: parameter.targetNamespace
+        	}
+        }
+
+        parameter: {
+        	// +usage=specify the target namespace of kustomize
+        	targetNamespace: string
+        }
