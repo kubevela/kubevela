@@ -84,83 +84,12 @@ spec:
 		})
 	})
 
-	Context("When the TraitDefinition is valid, but the namespace is blank, should create a ConfigMap", func() {
-		var traitDefinitionName = "scaler-no-ns"
-		var namespace = "default"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: traitDefinitionName, Namespace: namespace}}
-
-		BeforeEach(func() {
-			ns = corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			By("Create a namespace")
-			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
-
-		It("Apply TraitDefinition", func() {
-			By("Apply TraitDefinition")
-			var validTraitDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Configures replicas for your service."
-  name: scaler-no-ns
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  schematic:
-    cue:
-      template: |
-        outputs: scaler: {
-        	apiVersion: "core.oam.dev/v1alpha2"
-        	kind:       "ManualScalerTrait"
-        	spec: {
-        		replicaCount: parameter.replicas
-        	}
-        }
-        parameter: {
-        	//+short=r
-        	//+usage=Replicas of the workload
-        	replicas: *1 | int
-        }
-`
-
-			var def v1beta1.TraitDefinition
-			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
-			def.Namespace = namespace
-			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
-			testutil.ReconcileRetry(&r, req)
-
-			By("Check whether ConfigMap is created")
-			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
-				return err == nil
-			}, 15*time.Second, time.Second).Should(BeTrue())
-			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
-			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
-
-			By("Check whether ConfigMapRef refer to right")
-			Eventually(func() string {
-				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
-				return def.Status.ConfigMapRef
-			}, 10*time.Second, time.Second).Should(Equal(name))
-		})
-	})
-
 	Context("When the TraitDefinition is valid, should create a ConfigMap", func() {
 		var traitDefinitionName = "scaler1"
-		var namespace = "ns-tr-def"
+		var namespace = "ns-tr-def-1"
 		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: traitDefinitionName, Namespace: namespace}}
 
-		BeforeEach(func() {
+		It("Apply TraitDefinition", func() {
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: namespace,
@@ -168,15 +97,13 @@ spec:
 			}
 			By("Create a namespace")
 			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
-		})
 
-		It("Apply TraitDefinition", func() {
 			By("Apply TraitDefinition")
 			var validTraitDefinition = `
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
-  namespace: ns-tr-def
+  namespace: ns-tr-def-1
   annotations:
     definition.oam.dev/description: "Configures replicas for your service."
   name: scaler1
@@ -214,7 +141,7 @@ spec:
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
+			}, 30*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
 
@@ -222,7 +149,7 @@ spec:
 			Eventually(func() string {
 				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
 				return def.Status.ConfigMapRef
-			}, 10*time.Second, time.Second).Should(Equal(name))
+			}, 30*time.Second, time.Second).Should(Equal(name))
 
 			By("Delete the trait")
 			Expect(k8sClient.Delete(ctx, &def)).Should(Succeed())
@@ -232,7 +159,7 @@ spec:
 
 	Context("When the TraitDefinition is invalid, should report issues", func() {
 		var invalidTraitDefinitionName = "invalid-tr1"
-		var namespace = "ns-tr-def"
+		var namespace = "ns-tr-def2"
 		BeforeEach(func() {
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -249,7 +176,7 @@ spec:
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
-  namespace: ns-tr-def
+  namespace: ns-tr-def2
   annotations:
     definition.oam.dev/description: "Configures replicas for your service."
   name: invalid-tr1
