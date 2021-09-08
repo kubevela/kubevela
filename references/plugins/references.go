@@ -540,7 +540,7 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		}
 		if arguments.Len() == 0 {
 			var param ReferenceParameter
-			param.Name = "undefined"
+			param.Name = "-"
 			param.Required = true
 			tl := paraValue.Template()
 			if tl != nil { // is map type
