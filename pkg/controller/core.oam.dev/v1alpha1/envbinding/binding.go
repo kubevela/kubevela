@@ -18,6 +18,7 @@ package envbinding
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
@@ -28,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -270,13 +270,15 @@ func StoreManifest2ConfigMap(ctx context.Context, cli client.Client, envBinding 
 	cm := new(corev1.ConfigMap)
 	data := make(map[string]string)
 	for _, app := range apps {
+		m := make(map[string]map[string]interface{})
 		for name, manifest := range app.ScheduledManifests {
-			objYaml, err := yaml.Marshal(manifest.UnstructuredContent())
-			if err != nil {
-				return err
-			}
-			data[name] = string(objYaml)
+			m[name] = manifest.UnstructuredContent()
 		}
+		d, err := json.Marshal(m)
+		if err != nil {
+			return errors.Wrapf(err, "fail to marshal patched application for env %s", app.envConfig.Name)
+		}
+		data[app.envConfig.Name] = string(d)
 	}
 	cm.Data = data
 	cm.SetName(envBinding.Spec.OutputResourcesTo.Name)

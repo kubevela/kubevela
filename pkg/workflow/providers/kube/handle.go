@@ -26,6 +26,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -72,8 +73,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	} else if err := val.UnmarshalTo(workload); err != nil {
 		return err
 	}
-
-	deployCtx := context.Background()
+	deployCtx := multicluster.Context(context.Background(), workload)
 	if workload.GetNamespace() == "" {
 		workload.SetNamespace("default")
 	}

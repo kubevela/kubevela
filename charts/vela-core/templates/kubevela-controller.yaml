@@ -129,6 +129,10 @@ spec:
             - "--application-revision-limit={{ .Values.applicationRevisionLimit }}"
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
             - "--oam-spec-ver={{ .Values.OAMSpecVer }}"
+            {{ if .Values.multicluster.enabled }}
+            - "--multi-cluster-enabled"
+            - "--cluster-gateway-secret-namespace={{ .Release.Namespace }}"
+            {{ end }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:

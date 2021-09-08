@@ -51,7 +51,7 @@ template: {
 		}
 	}
 	parameter: {
-		clusterManagementEngine: *"ocm" | string
+		clusterManagementEngine: *"cluster-gateway" | string
 		envs: [...#Env]
 	}
 }

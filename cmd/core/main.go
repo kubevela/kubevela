@@ -32,14 +32,17 @@ import (
 
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -78,6 +81,7 @@ func main() {
 	var leaseDuration time.Duration
 	var renewDeadline time.Duration
 	var retryPeriod time.Duration
+	var multiClusterEnabled bool
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
@@ -122,6 +126,7 @@ func main() {
 		"The duration that the acting controlplane will retry refreshing leadership before giving up")
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
+	flag.BoolVar(&multiClusterEnabled, "multi-cluster-enabled", false, "Enable multi-cluster, disabled by default.")
 
 	flag.Parse()
 	// setup logging
@@ -175,6 +180,12 @@ func main() {
 	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitonNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
+
+	// wrapper the round tripper by multi cluster rewriter
+	if multiClusterEnabled {
+		restConfig.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	}
+
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst
@@ -193,6 +204,7 @@ func main() {
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
+		ClientDisableCacheFor:   []client.Object{&v1beta1.ResourceTracker{}},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")

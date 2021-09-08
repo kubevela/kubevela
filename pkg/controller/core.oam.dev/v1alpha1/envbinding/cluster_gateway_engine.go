@@ -1,0 +1,137 @@
+/*
+ Copyright 2021. The KubeVela Authors.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
+package envbinding
+
+import (
+	"context"
+
+	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+)
+
+var (
+	// ClusterGatewaySecretNamespace the namespace where cluster-gateway secret locates
+	ClusterGatewaySecretNamespace string
+)
+
+type ClusterGatewayEngine struct {
+	client.Client
+	envBindingName string
+	clusterDecisions map[string]v1alpha1.ClusterDecision
+}
+
+func NewClusterGatewayEngine(cli client.Client, appName, appNs, envBindingName string) ClusterManagerEngine {
+	return &ClusterGatewayEngine{
+		Client: cli,
+		envBindingName: envBindingName,
+		//cli:            cli,
+		//appNs:          appNs,
+		//appName:        appName,
+		//envBindingName: envBindingName,
+	}
+}
+
+// TODO only support cluster name now, should support selector and namespace later
+func (engine *ClusterGatewayEngine) prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error {
+	engine.clusterDecisions = make(map[string]v1alpha1.ClusterDecision)
+	clusterNameToConfig := make(map[string]string)
+	for _, config := range configs {
+		if config.Placement.NamespaceSelector != nil {
+			return errors.Errorf("invalid env %s: namespace selector in cluster-gateway is not supported now", config.Name)
+		}
+		if config.Placement.ClusterSelector == nil {
+			return errors.Errorf("invalid env %s: cluster selector must be set for now", config.Name)
+		}
+		if len(config.Placement.ClusterSelector.Labels) != 0 {
+			return errors.Errorf("invalid env %s: cluster selector does not support label selector for now", config.Name)
+		}
+		if len(config.Placement.ClusterSelector.Name) == 0 {
+			return errors.Errorf("invalid env %s: cluster selector must set cluster name for now", config.Name)
+		}
+		clusterName := config.Placement.ClusterSelector.Name
+		if dupConfigName, ok := clusterNameToConfig[clusterName]; ok {
+			return errors.Errorf("invalid env %s: cluster name %s is conflict with env %s", config.Name, clusterName, dupConfigName)
+		}
+		clusterNameToConfig[clusterName] = config.Name
+		if err := engine.Get(ctx, types.NamespacedName{Namespace: ClusterGatewaySecretNamespace, Name: clusterName}, &v1.Secret{}); err != nil {
+			return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, config.Name)
+		}
+		engine.clusterDecisions[config.Name] = v1alpha1.ClusterDecision{Env: config.Name, Cluster: clusterName}
+	}
+	return nil
+}
+
+func (engine *ClusterGatewayEngine) initEnvBindApps(ctx context.Context, envBinding *v1alpha1.EnvBinding, baseApp *v1beta1.Application, appParser *appfile.Parser) ([]*EnvBindApp, error) {
+	envBindApps, err := CreateEnvBindApps(envBinding, baseApp)
+	if err != nil {
+		return nil, err
+	}
+	if err = RenderEnvBindApps(ctx, envBindApps, appParser); err != nil {
+		return nil, err
+	}
+	if err = AssembleEnvBindApps(envBindApps); err != nil {
+		return nil, err
+	}
+	return envBindApps, nil
+}
+
+func (engine *ClusterGatewayEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error) {
+	for _, app := range apps {
+		app.ScheduledManifests = make(map[string]*unstructured.Unstructured)
+		clusterName := engine.clusterDecisions[app.envConfig.Name].Cluster
+		for _, component := range app.patchedApp.Spec.Components {
+			for _, manifest := range app.assembledManifests[component.Name] {
+				manifestName := component.Name + "/" + manifest.GetName()
+				multicluster.SetClusterName(manifest, clusterName)
+				app.ScheduledManifests[manifestName] = manifest
+			}
+		}
+	}
+	var decisions []v1alpha1.ClusterDecision
+	for _, decision := range engine.clusterDecisions {
+		decisions = append(decisions, decision)
+	}
+	return decisions, nil
+}
+
+//func (engine *ClusterGatewayEngine) makeClusterDecision(ctx context.Context, config v1alpha1.EnvConfig) ([]*v1alpha1.ClusterDecision, error) {
+//	decisions := make([]*v1alpha1.ClusterDecision, 0)
+//	if config.Placement.NamespaceSelector != nil {
+//		namespaces := make([]string, 0)
+//		if len(config.Placement.NamespaceSelector.Name) != 0 {
+//			namespaces = append(namespaces, config.Placement.NamespaceSelector.Name)
+//		} else {
+//			ns := &v1.NamespaceList{}
+//			if err := engine.List(ctx, ns, client.MatchingLabels(config.Placement.NamespaceSelector.Labels)); err != nil {
+//				return nil, errors.Wrapf(err, "failed to list selected namespace for env %s", config.Name)
+//			}
+//			for _, item := range ns.Items {
+//				namespaces = append(namespaces, item.Name)
+//			}
+//		}
+//
+//	}
+//	return decisions, nil
+//}

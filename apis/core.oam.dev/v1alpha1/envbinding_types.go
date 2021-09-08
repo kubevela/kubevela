@@ -34,6 +34,9 @@ const (
 
 	// SingleClusterEngine represents single cluster ClusterManagerEngine
 	SingleClusterEngine ClusterManagementEngine = "single-cluster"
+
+	// ClusterGatewayEngine represents multi-cluster management solution with cluster-gateway
+	ClusterGatewayEngine ClusterManagementEngine = "cluster-gateway"
 )
 
 // EnvBindingPhase is a label for the condition of a EnvBinding at the current time
@@ -88,6 +91,7 @@ type AppTemplate struct {
 }
 
 // ClusterDecision recorded the mapping of environment and cluster
+// TODO we might need to rename ClusterDecision to EnvDecision as it is also associated with namespace
 type ClusterDecision struct {
 	Env       string `json:"env"`
 	Cluster   string `json:"cluster,omitempty"`

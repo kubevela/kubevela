@@ -40,6 +40,8 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -97,8 +99,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
 	case v1alpha1.SingleClusterEngine:
 		engine = NewSingleClusterEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
+	case v1alpha1.ClusterGatewayEngine:
+		engine = NewClusterGatewayEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
 	default:
-		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
+		engine = NewClusterGatewayEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
 	}
 
 	// prepare the pre-work for cluster scheduling
@@ -267,6 +271,32 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, envBinding *v1alpha1.
 			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
 				klog.ErrorS(err, "Failed to delete resource tracker of envBinding", "envBinding", klog.KObj(envBinding))
 				return true, errors.WithMessage(err, "cannot remove finalizer")
+			}
+
+			baseApp, err := util.RawExtension2Application(envBinding.Spec.AppTemplate.RawExtension)
+			if err != nil {
+				klog.ErrorS(err, "Failed to parse AppTemplate of EnvBinding")
+				return true, errors.WithMessage(err, "cannot remove finalizer")
+			}
+			// delete subCluster resourceTracker
+			for _, decision := range envBinding.Status.ClusterDecisions {
+				subCtx := multicluster.ContextWithClusterName(ctx, decision.Cluster)
+				listOpts := []client.ListOption{
+					client.MatchingLabels{
+						oam.LabelAppName:      baseApp.Name,
+						oam.LabelAppNamespace: baseApp.Namespace,
+					}}
+				rtList := &v1beta1.ResourceTrackerList{}
+				if err := r.Client.List(subCtx, rtList, listOpts...); err != nil {
+					klog.ErrorS(err, "Failed to list resource tracker of app", "name", baseApp.Name, "env", decision.Env)
+					return true, errors.WithMessage(err, "cannot remove finalizer")
+				}
+				for _, rt := range rtList.Items {
+					if err := r.Client.Delete(subCtx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
+						klog.ErrorS(err, "Failed to delete resource tracker", "name", rt.Name)
+						return true, errors.WithMessage(err, "cannot remove finalizer")
+					}
+				}
 			}
 			meta.RemoveFinalizer(envBinding, resourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, envBinding), "cannot update envBinding finalizer")
