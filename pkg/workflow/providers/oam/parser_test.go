@@ -83,7 +83,6 @@ Traits: [{
 Scopes:                    null
 PackagedWorkloadResources: null
 PackagedTraitResources:    null
-InsertConfigNotReady:      false
 `,
 		},
 		{
