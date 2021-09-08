@@ -18,7 +18,7 @@ package plugin
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"time"
 
@@ -51,7 +51,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			}, 5*time.Second).Should(BeNil())
 
 			By("dry-run application")
-			err := ioutil.WriteFile("dry-run-app.yaml", []byte(application), 0644)
+			err := os.WriteFile("dry-run-app.yaml", []byte(application), 0644)
 			Expect(err).NotTo(HaveOccurred())
 			output, err := e2e.Exec("kubectl-vela dry-run -f dry-run-app.yaml -n vela-system")
 			Expect(err).NotTo(HaveOccurred())
@@ -91,7 +91,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			}, 5*time.Second).Should(BeNil())
 
 			By("live-diff application")
-			err := ioutil.WriteFile("live-diff-app.yaml", []byte(newApplication), 0644)
+			err := os.WriteFile("live-diff-app.yaml", []byte(newApplication), 0644)
 			Expect(err).NotTo(HaveOccurred())
 			output, err := e2e.Exec("kubectl-vela live-diff -f live-diff-app.yaml")
 			Expect(err).NotTo(HaveOccurred())

@@ -17,7 +17,7 @@ limitations under the License.
 package dryrun
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -118,6 +118,6 @@ var _ = AfterSuite(func() {
 })
 
 func readDataFromFile(path string) string {
-	b, _ := ioutil.ReadFile(path)
+	b, _ := os.ReadFile(path)
 	return string(b)
 }

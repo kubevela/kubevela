@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -288,7 +287,7 @@ func generateIndexHTML(docsPath string) error {
 </body>
 </html>
 `
-	return ioutil.WriteFile(filepath.Join(docsPath, IndexHTML), []byte(indexHTML), 0600)
+	return os.WriteFile(filepath.Join(docsPath, IndexHTML), []byte(indexHTML), 0600)
 }
 
 func generateCustomCSS(docsPath string) error {
@@ -296,7 +295,7 @@ func generateCustomCSS(docsPath string) error {
 body {
     overflow: auto !important;
 }`
-	return ioutil.WriteFile(filepath.Join(docsPath, CSS), []byte(css), 0600)
+	return os.WriteFile(filepath.Join(docsPath, CSS), []byte(css), 0600)
 }
 
 func generateREADME(capabilities []types.Capability, docsPath string) error {

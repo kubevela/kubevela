@@ -25,8 +25,17 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const (
+	// TypeHealthy application are believed to be determined as healthy by a health scope.
+	TypeHealthy condition.ConditionType = "Healthy"
+)
+
+// Reasons an application is or is not healthy
+const (
+	ReasonHealthy        condition.ConditionReason = "AllComponentsHealthy"
+	ReasonUnhealthy      condition.ConditionReason = "UnhealthyOrUnknownComponents"
+	ReasonHealthCheckErr condition.ConditionReason = "HealthCheckeError"
+)
 
 // AppPolicy defines a global policy for all components in the app.
 type AppPolicy struct {

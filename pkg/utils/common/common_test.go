@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -212,7 +211,7 @@ func TestGenOpenAPI(t *testing.T) {
 			if tc.want.targetSchemaFile == "" {
 				return
 			}
-			wantSchema, _ := ioutil.ReadFile(filepath.Join("testdata", tc.want.targetSchemaFile))
+			wantSchema, _ := os.ReadFile(filepath.Join("testdata", tc.want.targetSchemaFile))
 			if diff := cmp.Diff(wantSchema, got); diff != "" {
 				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want, +got:\n%s", tc.reason, diff)
 			}
@@ -232,7 +231,7 @@ func TestRealtimePrintCommandOutput(t *testing.T) {
 	err = RealtimePrintCommandOutput(cmd, logFile)
 	assert.NoError(t, err)
 
-	data, _ := ioutil.ReadFile(logFile)
+	data, _ := os.ReadFile(logFile)
 	assert.Contains(t, string(data), hello)
 	os.Remove(logFile)
 }

@@ -21,7 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -61,7 +61,7 @@ func (c *ComponentHandler) customComponentRevisionHook(relatedApps []reconcile.R
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
-	respData, err := ioutil.ReadAll(resp.Body)
+	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

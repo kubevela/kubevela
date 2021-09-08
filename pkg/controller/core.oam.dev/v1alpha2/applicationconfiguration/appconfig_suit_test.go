@@ -148,7 +148,7 @@ var _ = Describe("CRD without definition can run in an ApplicationConfiguration"
 				reconciler.Reconcile(context.TODO(), req)
 			}
 			return err
-		}, 3*time.Second, time.Second).Should(BeNil())
+		}, 30*time.Second, time.Second).Should(BeNil())
 
 		By("Checking that trait should be created")
 		traitKey := client.ObjectKey{
@@ -163,7 +163,7 @@ var _ = Describe("CRD without definition can run in an ApplicationConfiguration"
 				reconciler.Reconcile(context.TODO(), req)
 			}
 			return err
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 10*time.Second, 300*time.Millisecond).Should(BeNil())
 
 		By("Checking the application status has right warning message")
 		Expect(func() string {

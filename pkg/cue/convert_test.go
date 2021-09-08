@@ -17,7 +17,7 @@ limitations under the License.
 package cue
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -27,7 +27,7 @@ import (
 )
 
 func TestGetParameter(t *testing.T) {
-	data, _ := ioutil.ReadFile("testdata/workloads/metrics.cue")
+	data, _ := os.ReadFile("testdata/workloads/metrics.cue")
 	params, err := GetParameters(string(data))
 	assert.NoError(t, err)
 	assert.Equal(t, params, []types.Parameter{
@@ -37,7 +37,7 @@ func TestGetParameter(t *testing.T) {
 		{Name: "port", Required: false, Default: int64(8080), Type: cue.IntKind},
 		{Name: "selector", Required: false, Usage: "the label selector for the pods, default is the workload labels", Type: cue.StructKind},
 	})
-	data, _ = ioutil.ReadFile("testdata/workloads/deployment.cue")
+	data, _ = os.ReadFile("testdata/workloads/deployment.cue")
 	params, err = GetParameters(string(data))
 	assert.NoError(t, err)
 	assert.Equal(t, []types.Parameter{
@@ -49,7 +49,7 @@ func TestGetParameter(t *testing.T) {
 		{Name: "cpu", Short: "", Required: false, Usage: "", Default: "", Type: cue.StringKind}},
 		params)
 
-	data, _ = ioutil.ReadFile("testdata/workloads/test-param.cue")
+	data, _ = os.ReadFile("testdata/workloads/test-param.cue")
 	params, err = GetParameters(string(data))
 	assert.NoError(t, err)
 	assert.Equal(t, []types.Parameter{
@@ -60,14 +60,14 @@ func TestGetParameter(t *testing.T) {
 		{Name: "enable", Default: false, Type: cue.BoolKind},
 		{Name: "fval", Default: 64.3, Type: cue.FloatKind},
 		{Name: "nval", Default: float64(0), Required: true, Type: cue.NumberKind}}, params)
-	data, _ = ioutil.ReadFile("testdata/workloads/empty.cue")
+	data, _ = os.ReadFile("testdata/workloads/empty.cue")
 	params, err = GetParameters(string(data))
 	assert.NoError(t, err)
 	var exp []types.Parameter
 	assert.Equal(t, exp, params)
 
-	data, _ = ioutil.ReadFile("testdata/workloads/webservice.cue") // test cue parameter with "// +ignore" annotation
-	params, err = GetParameters(string(data))                      // Only test for func RetrieveComments
+	data, _ = os.ReadFile("testdata/workloads/webservice.cue") // test cue parameter with "// +ignore" annotation
+	params, err = GetParameters(string(data))                  // Only test for func RetrieveComments
 	assert.NoError(t, err)
 	var flag bool
 	for _, para := range params {

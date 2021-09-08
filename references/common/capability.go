@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,7 +107,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		return err
 	}
 	defDir, _ := system.GetCapabilityDir()
-	fileContent, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
+	fileContent, err := os.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
 	if err != nil {
 		return err
 	}
@@ -384,7 +383,7 @@ func ListCapabilities(userNamespace string, c common.Args, capabilityCenterName 
 	if capabilityCenterName != "" {
 		return listCenterCapabilities(userNamespace, c, filepath.Join(dir, capabilityCenterName))
 	}
-	dirs, err := ioutil.ReadDir(dir)
+	dirs, err := os.ReadDir(dir)
 	if err != nil {
 		return capabilityList, err
 	}

@@ -21,7 +21,6 @@ import (
 	"context"
 	j "encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -362,7 +361,7 @@ func saveAndLoadRemoteAppfile(url string) (*api.AppFile, error) {
 		return nil, err
 	}
 	//nolint:gosec
-	return af, ioutil.WriteFile(dest, body, 0644)
+	return af, os.WriteFile(dest, body, 0644)
 }
 
 // ExportFromAppFile exports Application from appfile object
@@ -450,7 +449,7 @@ func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte, args c
 		return err
 	}
 
-	if err := ioutil.WriteFile(deployFilePath, data, 0600); err != nil {
+	if err := os.WriteFile(deployFilePath, data, 0600); err != nil {
 		return errors.Wrap(err, "write deploy config manifests failed")
 	}
 

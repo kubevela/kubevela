@@ -19,7 +19,7 @@ package utils
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -218,7 +218,7 @@ func TestFixOpenAPISchema(t *testing.T) {
 			schema := swagger.Components.Schemas[model.ParameterFieldName].Value
 			fixOpenAPISchema("", schema)
 			fixedSchema, _ := schema.MarshalJSON()
-			expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, tc.fixedFile))
+			expectedSchema, _ := os.ReadFile(filepath.Join(TestDir, tc.fixedFile))
 			assert.Equal(t, string(fixedSchema), string(expectedSchema))
 		})
 	}

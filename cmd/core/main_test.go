@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -72,7 +71,7 @@ var _ = Describe("test waitSecretVolume", func() {
 			By("add non-empty file")
 			_, err := os.Create(testdir + "/file")
 			Expect(err).NotTo(HaveOccurred())
-			err = ioutil.WriteFile(testdir+"/file", []byte("test"), os.ModeAppend)
+			err = os.WriteFile(testdir+"/file", []byte("test"), os.ModeAppend)
 			Expect(err).NotTo(HaveOccurred())
 			err = waitWebhookSecretVolume(testdir, testTimeout, testInterval)
 			Expect(err).NotTo(HaveOccurred())
