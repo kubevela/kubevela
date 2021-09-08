@@ -126,7 +126,7 @@ func main() {
 		"The duration that the acting controlplane will retry refreshing leadership before giving up")
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
-	flag.BoolVar(&multiClusterEnabled, "multi-cluster-enabled", false, "Enable multi-cluster, disabled by default.")
+	flag.BoolVar(&multiClusterEnabled, "enable-cluster-gateway", false, "Enable multi-cluster, disabled by default.")
 
 	flag.Parse()
 	// setup logging
@@ -206,7 +206,7 @@ func main() {
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
-		ClientDisableCacheFor:   []client.Object{&v1beta1.ResourceTracker{}},
+		ClientDisableCacheFor:      []client.Object{&v1beta1.ResourceTracker{}},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")

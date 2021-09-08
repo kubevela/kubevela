@@ -96,7 +96,7 @@ func (engine *ClusterGatewayEngine) schedule(ctx context.Context, apps []*EnvBin
 	for _, app := range apps {
 		app.ScheduledManifests = make(map[string]*unstructured.Unstructured)
 		clusterName := engine.clusterDecisions[app.envConfig.Name].Cluster
-		for _, component := range app.patchedApp.Spec.Components {
+		for _, component := range app.PatchedApp.Spec.Components {
 			for _, manifest := range app.assembledManifests[component.Name] {
 				manifestName := component.Name + "/" + manifest.GetName()
 				multicluster.SetClusterName(manifest, clusterName)

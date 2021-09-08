@@ -38,6 +38,7 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 
 	deployRef := corev1.ObjectReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
+	deployRef.Name = "deploy"
 	svcRef := corev1.ObjectReference{}
 	svcRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindService))
 
@@ -63,19 +64,25 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 			caseName: "healthy workload",
 			wlRef:    scRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*unstructured.Unstructured); ok {
-					*o = scUnstructured
-					return nil
-				}
-				if o, ok := obj.(*apps.Deployment); ok {
-					*o = apps.Deployment{
-						Spec: apps.DeploymentSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.DeploymentStatus{
-							ReadyReplicas: 1, // healthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 1, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
+					} else {
+						*o = scUnstructured
 					}
+					return nil
 				}
 				return nil
 			},
@@ -87,19 +94,25 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    scRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*unstructured.Unstructured); ok {
-					*o = scUnstructured
-					return nil
-				}
-				if o, ok := obj.(*apps.Deployment); ok {
-					*o = apps.Deployment{
-						Spec: apps.DeploymentSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.DeploymentStatus{
-							ReadyReplicas: 0, // unhealthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 0, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
+					} else {
+						*o = scUnstructured
 					}
+					return nil
 				}
 				return nil
 			},
@@ -121,12 +134,14 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 			caseName: "unhealthy for deployment not found",
 			wlRef:    scRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*unstructured.Unstructured); ok {
-					*o = scUnstructured
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "deploy" {
+						return errMockErr
+					} else {
+						*o = scUnstructured
+					}
 					return nil
-				}
-				if _, ok := obj.(*apps.Deployment); ok {
-					return errMockErr
 				}
 				return nil
 			},
@@ -145,7 +160,6 @@ func TestCheckPodSpecWorkloadHealth(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expect.HealthStatus, result.HealthStatus, tc.caseName)
 			}
-
 		}(t)
 	}
 }

@@ -22,7 +22,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	apps "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -31,14 +34,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
-
-	"github.com/pkg/errors"
-
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -55,8 +53,10 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
 	cwRef := corev1.ObjectReference{}
 	cwRef.SetGroupVersionKind(corev1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
+	cwRef.Name = "cw"
 	deployRef := corev1.ObjectReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
+	deployRef.Name = "deploy"
 	svcRef := corev1.ObjectReference{}
 	svcRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindService))
 	cw := corev1alpha2.ContainerizedWorkload{
@@ -80,19 +80,30 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 			caseName: "healthy workload",
 			wlRef:    cwRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
-					*o = cw
-					return nil
-				}
-				if o, ok := obj.(*apps.Deployment); ok {
-					*o = apps.Deployment{
-						Spec: apps.DeploymentSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.DeploymentStatus{
-							ReadyReplicas: 1, // healthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "cw" {
+						cwObj, err := util.Object2Unstructured(cw)
+						if err != nil {
+							return err
+						}
+						*o = *cwObj
 					}
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 1, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
+					}
+					return nil
 				}
 				return nil
 			},
@@ -104,19 +115,30 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    cwRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
-					*o = cw
-					return nil
-				}
-				if o, ok := obj.(*apps.Deployment); ok {
-					*o = apps.Deployment{
-						Spec: apps.DeploymentSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.DeploymentStatus{
-							ReadyReplicas: 0, // unhealthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "cw" {
+						cwObj, err := util.Object2Unstructured(cw)
+						if err != nil {
+							return err
+						}
+						*o = *cwObj
 					}
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 0, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
+					}
+					return nil
 				}
 				return nil
 			},
@@ -138,12 +160,19 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 			caseName: "unhealthy for deployment not found",
 			wlRef:    cwRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
-					*o = cw
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "cw" {
+						cwObj, err := util.Object2Unstructured(cw)
+						if err != nil {
+							return err
+						}
+						*o = *cwObj
+					}
+					if key.Name == "deploy" {
+						return errMockErr
+					}
 					return nil
-				}
-				if _, ok := obj.(*apps.Deployment); ok {
-					return errMockErr
 				}
 				return nil
 			},
@@ -156,15 +185,25 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 			wlRef:    cwRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				switch o := obj.(type) {
-				case *corev1alpha2.ContainerizedWorkload:
-					*o = cw
-				case *apps.Deployment:
-					*o = apps.Deployment{
-						Status: apps.DeploymentStatus{
-							ReadyReplicas: 1, // healthy
-						},
-					}
 				case *unstructured.Unstructured:
+					if key.Name == "cw" {
+						cwObj, err := util.Object2Unstructured(cw)
+						if err != nil {
+							return err
+						}
+						*o = *cwObj
+					}
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 1, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
+					}
 					return errMockErr
 				}
 				return nil
@@ -184,7 +223,6 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expect.HealthStatus, result.HealthStatus, tc.caseName)
 			}
-
 		}(t)
 	}
 }
@@ -193,6 +231,7 @@ func TestCheckDeploymentHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
 	deployRef := corev1.ObjectReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
+	deployRef.Name = "deploy"
 
 	tests := []struct {
 		caseName  string
@@ -209,15 +248,23 @@ func TestCheckDeploymentHealth(t *testing.T) {
 			caseName: "healthy workload",
 			wlRef:    deployRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.Deployment); ok {
-					*o = apps.Deployment{
-						Spec: apps.DeploymentSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.DeploymentStatus{
-							ReadyReplicas: 1, // healthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 1, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
 					}
+					return nil
 				}
 				return nil
 			},
@@ -229,15 +276,23 @@ func TestCheckDeploymentHealth(t *testing.T) {
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    deployRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.Deployment); ok {
-					*o = apps.Deployment{
-						Spec: apps.DeploymentSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.DeploymentStatus{
-							ReadyReplicas: 0, // unhealthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 0, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
 					}
+					return nil
 				}
 				return nil
 			},
@@ -274,6 +329,7 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
 	stsRef := corev1.ObjectReference{}
 	stsRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindStatefulSet))
+	stsRef.Name = "sts"
 
 	tests := []struct {
 		caseName  string
@@ -290,15 +346,23 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 			caseName: "healthy workload",
 			wlRef:    stsRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.StatefulSet); ok {
-					*o = apps.StatefulSet{
-						Spec: apps.StatefulSetSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.StatefulSetStatus{
-							ReadyReplicas: 1, // healthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "sts" {
+						stsObj, err := util.Object2Unstructured(apps.StatefulSet{
+							Spec: apps.StatefulSetSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.StatefulSetStatus{
+								ReadyReplicas: 1, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *stsObj
 					}
+					return nil
 				}
 				return nil
 			},
@@ -310,15 +374,23 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 			caseName: "unhealthy for statefulset not ready",
 			wlRef:    stsRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.StatefulSet); ok {
-					*o = apps.StatefulSet{
-						Spec: apps.StatefulSetSpec{
-							Replicas: &varInt1,
-						},
-						Status: apps.StatefulSetStatus{
-							ReadyReplicas: 0, // unhealthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "sts" {
+						stsObj, err := util.Object2Unstructured(apps.StatefulSet{
+							Spec: apps.StatefulSetSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.StatefulSetStatus{
+								ReadyReplicas: 0, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *stsObj
 					}
+					return nil
 				}
 				return nil
 			},
@@ -355,6 +427,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
 	dstRef := corev1.ObjectReference{}
 	dstRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDaemonSet))
+	dstRef.Name = "dst"
 
 	tests := []struct {
 		caseName  string
@@ -371,12 +444,20 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 			caseName: "healthy workload",
 			wlRef:    dstRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.DaemonSet); ok {
-					*o = apps.DaemonSet{
-						Status: apps.DaemonSetStatus{
-							NumberUnavailable: 0, // healthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "dst" {
+						dstObj, err := util.Object2Unstructured(apps.DaemonSet{
+							Status: apps.DaemonSetStatus{
+								NumberUnavailable: 0, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *dstObj
 					}
+					return nil
 				}
 				return nil
 			},
@@ -388,12 +469,20 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 			caseName: "unhealthy for daemonset not ready",
 			wlRef:    dstRef,
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.DaemonSet); ok {
-					*o = apps.DaemonSet{
-						Status: apps.DaemonSetStatus{
-							NumberUnavailable: 1, // unhealthy
-						},
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "dst" {
+						dstObj, err := util.Object2Unstructured(apps.DaemonSet{
+							Status: apps.DaemonSetStatus{
+								NumberUnavailable: 1, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *dstObj
 					}
+					return nil
 				}
 				return nil
 			},
@@ -523,20 +612,27 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 		{
 			caseName: "peer workload is healthy",
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.Deployment); ok {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
 					if key.Name == "main-workload" {
-						deployObj.DeepCopyInto(o)
+						deploy, err := util.Object2Unstructured(deployObj)
+						if err != nil {
+							return err
+						}
+						*o = *deploy
+					} else if key.Name == "peer-workload" {
+						peerDeploy, err := util.Object2Unstructured(peerDeployObj)
+						if err != nil {
+							return err
+						}
+						*o = *peerDeploy
 					} else {
-						peerDeployObj.DeepCopyInto(o)
+						o.SetLabels(map[string]string{
+							oam.LabelAppComponent: "test-comp",
+							oam.LabelAppName:      "test-app",
+						})
 					}
-				}
-				if o, ok := obj.(*unstructured.Unstructured); ok {
-					u := unstructured.Unstructured{}
-					u.SetLabels(map[string]string{
-						oam.LabelAppComponent: "test-comp",
-						oam.LabelAppName:      "test-app",
-					})
-					*o = u
+					return nil
 				}
 				return nil
 			},
@@ -556,21 +652,28 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 		{
 			caseName: "peer workload is unhealthy",
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.Deployment); ok {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
 					if key.Name == "main-workload" {
-						deployObj.DeepCopyInto(o)
-					} else {
-						peerDeployObj.DeepCopyInto(o)
-						o.Status.ReadyReplicas = int32(0) // unhealthy
+						deploy, err := util.Object2Unstructured(deployObj)
+						if err != nil {
+							return err
+						}
+						*o = *deploy
+						o.SetLabels(map[string]string{
+							oam.LabelAppComponent: "test-comp",
+							oam.LabelAppName:      "test-app",
+						})
+					} else if key.Name == "peer-workload" {
+						peerDeployCopy := peerDeployObj.DeepCopy()
+						peerDeployCopy.Status.ReadyReplicas = int32(0)
+						peerDeploy, err := util.Object2Unstructured(peerDeployCopy)
+						if err != nil {
+							return err
+						}
+						*o = *peerDeploy
 					}
-				}
-				if o, ok := obj.(*unstructured.Unstructured); ok {
-					u := unstructured.Unstructured{}
-					u.SetLabels(map[string]string{
-						oam.LabelAppComponent: "test-comp",
-						oam.LabelAppName:      "test-app",
-					})
-					*o = u
+					return nil
 				}
 				return nil
 			},
@@ -590,16 +693,20 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 		{
 			caseName: "error occurs when get peer workload",
 			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if o, ok := obj.(*apps.Deployment); ok {
-					deployObj.DeepCopyInto(o)
-				}
-				if o, ok := obj.(*unstructured.Unstructured); ok {
-					u := unstructured.Unstructured{}
-					u.SetLabels(map[string]string{
-						oam.LabelAppComponent: "test-comp",
-						oam.LabelAppName:      "test-app",
-					})
-					*o = u
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "main-workload" {
+						deploy, err := util.Object2Unstructured(deployObj)
+						if err != nil {
+							return err
+						}
+						*o = *deploy
+						o.SetLabels(map[string]string{
+							oam.LabelAppComponent: "test-comp",
+							oam.LabelAppName:      "test-app",
+						})
+					}
+					return nil
 				}
 				return nil
 			},

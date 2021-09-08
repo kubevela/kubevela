@@ -707,6 +707,8 @@ spec:
                   description: ApplicationComponentStatus record the health status
                     of App component
                   properties:
+                    env:
+                      type: string
                     healthy:
                       type: boolean
                     message:
@@ -1760,6 +1762,8 @@ spec:
                   description: ApplicationComponentStatus record the health status
                     of App component
                   properties:
+                    env:
+                      type: string
                     healthy:
                       type: boolean
                     message:

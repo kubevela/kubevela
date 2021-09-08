@@ -31,6 +31,7 @@ import (
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -135,14 +136,19 @@ func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref 
 		TargetWorkload: ref,
 	}
 
-	cwObj := v1alpha2.ContainerizedWorkload{}
-	cwObj.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ref.Name}, &cwObj); err != nil {
+	unstructuredCW := &unstructured.Unstructured{}
+	unstructuredCW.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ref.Name}, unstructuredCW); err != nil {
 		r.HealthStatus = StatusUnhealthy
 		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 		return r
 	}
-	r.ComponentName = getComponentNameFromLabel(&cwObj)
+	cwObj := &v1alpha2.ContainerizedWorkload{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredCW.Object, cwObj); err != nil {
+		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+		return r
+	}
+	r.ComponentName = getComponentNameFromLabel(cwObj)
 	r.TargetWorkload.UID = cwObj.GetUID()
 
 	childRefs := cwObj.Status.Resources
@@ -197,14 +203,22 @@ func CheckDeploymentHealth(ctx context.Context, client client.Client, ref core.O
 		HealthStatus:   StatusUnhealthy,
 		TargetWorkload: ref,
 	}
-	deployment := apps.Deployment{}
-	deployment.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
+
+	unstructuredDeployment := &unstructured.Unstructured{}
+	unstructuredDeployment.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
 	deploymentRef := types.NamespacedName{Namespace: namespace, Name: ref.Name}
-	if err := client.Get(ctx, deploymentRef, &deployment); err != nil {
+	if err := client.Get(ctx, deploymentRef, unstructuredDeployment); err != nil {
 		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 		return r
 	}
-	r.ComponentName = getComponentNameFromLabel(&deployment)
+
+	deployment := new(apps.Deployment)
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredDeployment.Object, deployment); err != nil {
+		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+		return r
+	}
+
+	r.ComponentName = getComponentNameFromLabel(deployment)
 	r.TargetWorkload.UID = deployment.GetUID()
 
 	requiredReplicas := int32(0)
@@ -231,24 +245,31 @@ func CheckStatefulsetHealth(ctx context.Context, client client.Client, ref core.
 		HealthStatus:   StatusUnhealthy,
 		TargetWorkload: ref,
 	}
-	statefulset := apps.StatefulSet{}
-	statefulset.APIVersion = ref.APIVersion
-	statefulset.Kind = ref.Kind
-	nk := types.NamespacedName{Namespace: namespace, Name: ref.Name}
-	if err := client.Get(ctx, nk, &statefulset); err != nil {
+
+	unstructuredStatefulSet := &unstructured.Unstructured{}
+	unstructuredStatefulSet.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindStatefulSet))
+	statefulSetRef := types.NamespacedName{Namespace: namespace, Name: ref.Name}
+	if err := client.Get(ctx, statefulSetRef, unstructuredStatefulSet); err != nil {
 		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 		return r
 	}
-	r.ComponentName = getComponentNameFromLabel(&statefulset)
-	r.TargetWorkload.UID = statefulset.GetUID()
-	requiredReplicas := int32(0)
-	if statefulset.Spec.Replicas != nil {
-		requiredReplicas = *statefulset.Spec.Replicas
+
+	statefulSet := new(apps.StatefulSet)
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredStatefulSet.Object, statefulSet); err != nil {
+		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+		return r
 	}
-	r.Diagnosis = fmt.Sprintf(infoFmtReady, statefulset.Status.ReadyReplicas, requiredReplicas)
+
+	r.ComponentName = getComponentNameFromLabel(statefulSet)
+	r.TargetWorkload.UID = statefulSet.GetUID()
+	requiredReplicas := int32(0)
+	if statefulSet.Spec.Replicas != nil {
+		requiredReplicas = *statefulSet.Spec.Replicas
+	}
+	r.Diagnosis = fmt.Sprintf(infoFmtReady, statefulSet.Status.ReadyReplicas, requiredReplicas)
 
 	// Health criteria
-	if statefulset.Status.ReadyReplicas != requiredReplicas {
+	if statefulSet.Status.ReadyReplicas != requiredReplicas {
 		return r
 	}
 	r.HealthStatus = StatusHealthy
@@ -264,20 +285,27 @@ func CheckDaemonsetHealth(ctx context.Context, client client.Client, ref core.Ob
 		HealthStatus:   StatusUnhealthy,
 		TargetWorkload: ref,
 	}
-	daemonset := apps.DaemonSet{}
-	daemonset.APIVersion = ref.APIVersion
-	daemonset.Kind = ref.Kind
-	nk := types.NamespacedName{Namespace: namespace, Name: ref.Name}
-	if err := client.Get(ctx, nk, &daemonset); err != nil {
+
+	unstructuredDaemonSet := &unstructured.Unstructured{}
+	unstructuredDaemonSet.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDaemonSet))
+	daemonSetRef := types.NamespacedName{Namespace: namespace, Name: ref.Name}
+	if err := client.Get(ctx, daemonSetRef, unstructuredDaemonSet); err != nil {
 		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 		return r
 	}
-	r.ComponentName = getComponentNameFromLabel(&daemonset)
-	r.TargetWorkload.UID = daemonset.GetUID()
-	r.Diagnosis = fmt.Sprintf(infoFmtReady, daemonset.Status.NumberReady, daemonset.Status.DesiredNumberScheduled)
+
+	daemonSet := new(apps.DaemonSet)
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredDaemonSet.Object, daemonSet); err != nil {
+		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
+		return r
+	}
+
+	r.ComponentName = getComponentNameFromLabel(daemonSet)
+	r.TargetWorkload.UID = daemonSet.GetUID()
+	r.Diagnosis = fmt.Sprintf(infoFmtReady, daemonSet.Status.NumberReady, daemonSet.Status.DesiredNumberScheduled)
 
 	// Health criteria
-	if daemonset.Status.NumberUnavailable != 0 {
+	if daemonSet.Status.NumberUnavailable != 0 {
 		return r
 	}
 	r.HealthStatus = StatusHealthy
@@ -443,9 +471,9 @@ func (p PeerHealthConditions) MergePeerWorkloadsConditions(basic *WorkloadHealth
 }
 
 // CUEBasedHealthCheck check workload and traits health through CUE-based health checking approach.
-func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.ObjectReference, ns string, appfile *af.Appfile) (*WorkloadHealthCondition, []*TraitHealthCondition) {
+func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadReference, ns string, appfile *af.Appfile) (*WorkloadHealthCondition, []*TraitHealthCondition) {
 	wlHealth := &WorkloadHealthCondition{
-		TargetWorkload: wlRef,
+		TargetWorkload: wlRef.ObjectReference,
 	}
 
 	o := &unstructured.Unstructured{}
@@ -495,7 +523,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.Object
 			wlHealth.Diagnosis = configuration.Status.Apply.Message
 			okToCheckTrait = true
 		default:
-			pCtx = process.NewContext(ns, wl.Name, appfile.Name, appfile.AppRevisionName)
+			pCtx = process.NewProcessContextWithCtx(ctx, ns, wl.Name, appfile.Name, appfile.AppRevisionName)
 			if wl.CapabilityCategory != oamtypes.CUECategory {
 				templateStr, err := af.GenerateCUETemplate(wl)
 				if err != nil {
@@ -551,7 +579,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.Object
 		}
 
 		if len(tr.FullTemplate.Health) == 0 {
-			tHealth.HealthStatus = StatusUnknown
+			tHealth.HealthStatus = StatusHealthy
 			tHealth.Diagnosis = "no CUE-based health check template"
 			traits[i] = tHealth
 			continue

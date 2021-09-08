@@ -119,7 +119,7 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 		clusterName := o.clusterDecisions[app.envConfig.Name]
 		manifestWork := new(ocmworkv1.ManifestWork)
 		workloads := make([]ocmworkv1.Manifest, 0, len(app.assembledManifests))
-		for _, component := range app.patchedApp.Spec.Components {
+		for _, component := range app.PatchedApp.Spec.Components {
 			manifest := app.assembledManifests[component.Name]
 			for j := range manifest {
 				workloads = append(workloads, ocmworkv1.Manifest{
@@ -255,7 +255,7 @@ func (s *SingleClusterEngine) schedule(ctx context.Context, apps []*EnvBindApp) 
 		}
 
 		app.ScheduledManifests = make(map[string]*unstructured.Unstructured, 1)
-		unstructuredApp, err := util.Object2Unstructured(app.patchedApp)
+		unstructuredApp, err := util.Object2Unstructured(app.PatchedApp)
 		if err != nil {
 			return nil, err
 		}
@@ -293,7 +293,7 @@ func (s *SingleClusterEngine) getSelectedNamespace(ctx context.Context, envBindA
 			return namespaceList.Items[0].Name, nil
 		}
 	}
-	return envBindApp.patchedApp.Namespace, nil
+	return envBindApp.PatchedApp.Namespace, nil
 }
 
 func validatePlacement(envBinding *v1alpha1.EnvBinding) error {

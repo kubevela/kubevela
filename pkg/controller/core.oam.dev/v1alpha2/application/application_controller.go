@@ -188,7 +188,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		handler.addServiceStatus(false, app.Status.Services...)
 		handler.addAppliedResource(app.Status.AppliedResources...)
-		app.Status.Services = handler.services
 		app.Status.AppliedResources = handler.appliedResources
 		switch workflowState {
 		case common.WorkflowStateSuspended:
@@ -263,6 +262,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.Policies) {
+		app.Status.Services = handler.services
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
 		}
