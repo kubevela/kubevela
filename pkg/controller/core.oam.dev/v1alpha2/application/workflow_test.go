@@ -123,9 +123,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Name:      appRev.Name,
 			Namespace: namespace,
-		}, cm)).Should(BeNil())
-
-		Expect(cm.Data[ConfigMapKeyComponents]).Should(Equal(testConfigMapComponentValue))
+		}, cm)).Should(util.NotFoundMatcher{})
 	})
 
 	It("should create workload in application when policy is specified", func() {
@@ -448,6 +446,4 @@ spec:
           continue: apply.value.spec.key != ""
         }
 `
-
-	testConfigMapComponentValue = `{"test-component":"{\"Scopes\":[],\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"apps/v1\\\",\\\"kind\\\":\\\"Deployment\\\",\\\"metadata\\\":{\\\"annotations\\\":{\\\"oam.dev/kubevela-version\\\":\\\"UNKNOWN\\\"},\\\"labels\\\":{\\\"app.oam.dev/appRevision\\\":\\\"test-wf-policy-v1\\\",\\\"app.oam.dev/component\\\":\\\"test-component\\\",\\\"app.oam.dev/name\\\":\\\"test-wf-policy\\\",\\\"app.oam.dev/resourceType\\\":\\\"WORKLOAD\\\",\\\"workload.oam.dev/type\\\":\\\"worker\\\"},\\\"name\\\":\\\"test-component\\\",\\\"namespace\\\":\\\"test-ns\\\"},\\\"spec\\\":{\\\"selector\\\":{\\\"matchLabels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"template\\\":{\\\"metadata\\\":{\\\"labels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"command\\\":[\\\"sleep\\\",\\\"1000\\\"],\\\"image\\\":\\\"busybox\\\",\\\"name\\\":\\\"test-component\\\"}]}}}}\",\"Traits\":[]}"}`
 )

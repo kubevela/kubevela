@@ -561,10 +561,7 @@ func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error)
 	wl := comp.StandardWorkload.DeepCopy()
 	if wl != nil {
 		// Only calculate spec for component revision
-		spec, found := wl.Object["spec"]
-		if !found {
-			return "", errors.Errorf(".spec not found in workload %s in namespace %s", wl.GetName(), wl.GetNamespace())
-		}
+		spec := wl.Object["spec"]
 		hash, err := utils.ComputeSpecHash(spec)
 		if err != nil {
 			return "", err

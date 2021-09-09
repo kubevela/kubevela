@@ -111,7 +111,7 @@ func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 	return false
 }
 
-type commonTaskRunner struct {
+type componentTaskRunner struct {
 	tpy          string
 	step         v1beta1.WorkflowStep
 	generatorOpt *types.GeneratorOptions
@@ -119,12 +119,12 @@ type commonTaskRunner struct {
 }
 
 // Name return step name.
-func (ct *commonTaskRunner) Name() string {
+func (ct *componentTaskRunner) Name() string {
 	return ct.step.Name
 }
 
 // Run workflow step.
-func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
+func (ct *componentTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
 	paramsValue, err := ctx.MakeParameter(ct.step.Properties)
 	if err != nil {
 		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed}), nil, errors.WithMessage(err, "make parameter")
@@ -133,7 +133,7 @@ func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOpt
 	if err := hooks.Input(ctx, paramsValue, ct.step); err != nil {
 		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}), nil, err
 	}
-	status, operation, taskValue := ct.up(ctx, options, paramsValue)
+	status, operation, taskValue := ct.up(ctx, options, ct.generatorOpt.ID, paramsValue)
 
 	if status.Phase != common.WorkflowStepPhaseSucceeded {
 		return ct.setMeta(status), nil, nil
@@ -144,7 +144,7 @@ func (ct *commonTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOpt
 	return ct.setMeta(status), operation, nil
 }
 
-func (ct *commonTaskRunner) setMeta(status common.WorkflowStepStatus) common.WorkflowStepStatus {
+func (ct *componentTaskRunner) setMeta(status common.WorkflowStepStatus) common.WorkflowStepStatus {
 	if ct.generatorOpt != nil {
 		status.ID = ct.generatorOpt.ID
 	}
@@ -154,7 +154,7 @@ func (ct *commonTaskRunner) setMeta(status common.WorkflowStepStatus) common.Wor
 }
 
 // Pending check task should be executed or not.
-func (ct *commonTaskRunner) Pending(ctx wfContext.Context) bool {
+func (ct *componentTaskRunner) Pending(ctx wfContext.Context) bool {
 	for _, input := range ct.step.Inputs {
 		if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
 			return true
@@ -165,7 +165,7 @@ func (ct *commonTaskRunner) Pending(ctx wfContext.Context) bool {
 
 func makeGenerator(tpy string, p types.BuiltinTaskRunner) types.TaskGenerator {
 	return func(wfStep v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
-		return &commonTaskRunner{
+		return &componentTaskRunner{
 			tpy:          tpy,
 			step:         wfStep,
 			generatorOpt: opt,

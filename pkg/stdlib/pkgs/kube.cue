@@ -1,6 +1,7 @@
 #Apply: {
 	#do:       "apply"
 	#provider: "kube"
+	cluster:   *"" | string
 	value: {...}
 	...
 }

@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/stdlib"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
@@ -35,9 +37,9 @@ import (
 
 // Value is an object with cue.runtime and vendors
 type Value struct {
-	v  cue.Value
-	r  cue.Runtime
-	pd *packages.PackageDiscover
+	v          cue.Value
+	r          cue.Runtime
+	addImports func(instance *build.Instance) error
 }
 
 // String return value's cue format string
@@ -72,7 +74,7 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 }
 
 // NewValue new a value
-func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File) error) (*Value, error) {
+func NewValue(s string, pd *packages.PackageDiscover, tagTempl string, opts ...func(*ast.File) error) (*Value, error) {
 	builder := &build.Instance{}
 
 	file, err := parser.ParseFile("-", s, parser.ParseComments)
@@ -87,11 +89,18 @@ func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File) er
 	if err := builder.AddSyntax(file); err != nil {
 		return nil, err
 	}
-
-	if pd != nil {
-		if _, err := pd.ImportPackagesAndBuildInstance(builder); err != nil {
-			return nil, err
+	addImports := func(inst *build.Instance) error {
+		if pd != nil {
+			pd.ImportBuiltinPackagesFor(builder)
 		}
+		if err := stdlib.AddImportsFor(builder, tagTempl); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := addImports(builder); err != nil {
+		return nil, err
 	}
 
 	var r cue.Runtime
@@ -102,7 +111,7 @@ func NewValue(s string, pd *packages.PackageDiscover, opts ...func(*ast.File) er
 	val := new(Value)
 	val.r = r
 	val.v = inst.Value()
-	val.pd = pd
+	val.addImports = addImports
 	return val, nil
 }
 
@@ -182,10 +191,8 @@ func (val *Value) MakeValue(s string) (*Value, error) {
 	if err := builder.AddFile("-", s); err != nil {
 		return nil, err
 	}
-	if val.pd != nil {
-		if _, err := val.pd.ImportPackagesAndBuildInstance(builder); err != nil {
-			return nil, err
-		}
+	if err := val.addImports(builder); err != nil {
+		return nil, err
 	}
 	inst, err := val.r.Build(builder)
 	if err != nil {
@@ -194,7 +201,7 @@ func (val *Value) MakeValue(s string) (*Value, error) {
 	v := new(Value)
 	v.r = val.r
 	v.v = inst.Value()
-	v.pd = val.pd
+	v.addImports = val.addImports
 	return v, nil
 }
 
@@ -276,9 +283,9 @@ func (val *Value) StepByList(handle func(name string, in *Value) (bool, error)) 
 	}
 	for iter.Next() {
 		stop, err := handle(iter.Label(), &Value{
-			v:  iter.Value(),
-			r:  val.r,
-			pd: val.pd,
+			v:          iter.Value(),
+			r:          val.r,
+			addImports: val.addImports,
 		})
 		if err != nil {
 			return err
@@ -388,6 +395,33 @@ func (val *Value) Field(label string) (cue.Value, error) {
 		return v, errors.Errorf("label %s's value not computed", label)
 	}
 	return v, nil
+}
+
+// GetString get the string value at a path starting from v.
+func (val *Value) GetString(paths ...string) (string, error) {
+	v, err := val.LookupValue(paths...)
+	if err != nil {
+		return "", err
+	}
+	return v.CueValue().String()
+}
+
+// GetInt64 get the int value at a path starting from v.
+func (val *Value) GetInt64(paths ...string) (int64, error) {
+	v, err := val.LookupValue(paths...)
+	if err != nil {
+		return 0, err
+	}
+	return v.CueValue().Int64()
+}
+
+// GetBool get the int value at a path starting from v.
+func (val *Value) GetBool(paths ...string) (bool, error) {
+	v, err := val.LookupValue(paths...)
+	if err != nil {
+		return false, err
+	}
+	return v.CueValue().Bool()
 }
 
 func isDef(s string) bool {

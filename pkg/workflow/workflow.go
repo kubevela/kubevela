@@ -69,6 +69,10 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 		if w.dagMode {
 			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
 		}
+
+		// clean recorded resources info.
+		w.app.Status.Services = nil
+		w.app.Status.AppliedResources = nil
 	}
 
 	wfStatus := w.app.Status.Workflow
@@ -153,11 +157,8 @@ func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) 
 		return
 	}
 
-	if w.dagMode {
-		wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, rev)
-	} else {
-		wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, rev)
-	}
+	wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, rev)
+
 	if err != nil {
 		err = errors.WithMessage(err, "new context")
 		return
@@ -174,7 +175,11 @@ func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) 
 }
 
 func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
-	metadata, err := value.NewValue(string(util.MustJSONMarshal(w.app.ObjectMeta)), nil)
+	copierMeta := w.app.ObjectMeta.DeepCopy()
+	copierMeta.ManagedFields = nil
+	copierMeta.Finalizers = nil
+	copierMeta.OwnerReferences = nil
+	metadata, err := value.NewValue(string(util.MustJSONMarshal(copierMeta)), nil, "")
 	if err != nil {
 		return err
 	}

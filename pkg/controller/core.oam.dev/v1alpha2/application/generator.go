@@ -17,8 +17,9 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 
-	corev1 "k8s.io/api/core/v1"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -26,14 +27,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -50,67 +50,28 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, cli, h.Dispatch)
+	oamProvider.Install(handlerProviders, h.applyComponentFunc(
+		appParser, appRev, af, cli))
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, cli, dm)
-	taskDiscover.RegisterGenerator("oam.dev/apply-component", func(_ wfContext.Context, options *wfTypes.TaskRunOptions, paramValue *value.Value) (common.WorkflowStepStatus, *wfTypes.Operation, *value.Value) {
-		comp := common.ApplicationComponent{}
-
-		if err := paramValue.UnmarshalTo(&comp); err != nil {
-			return failedStepStatus(err, "Parameter Invalid"), nil, nil
-		}
-
-		wl, err := appParser.ParseWorkloadFromRevision(comp, appRev)
-		if err != nil {
-			return failedStepStatus(err, "ParseWorkload"), nil, nil
-		}
-
-		manifest, err := af.GenerateComponentManifest(wl)
-		if err != nil {
-			return failedStepStatus(err, "GenerateComponentManifest"), nil, nil
-		}
-		if err := af.SetOAMContract(manifest); err != nil {
-			return failedStepStatus(err, "SetOAMContract"), nil, nil
-		}
-		if err := h.HandleComponentsRevision(context.Background(), []*types.ComponentManifest{manifest}); err != nil {
-			return failedStepStatus(err, "HandleComponentsRevision"), nil, nil
-		}
-
-		skipStandardWorkload := skipApplyWorkload(wl)
-		appliedResources := []corev1.ObjectReference{}
-		if !skipStandardWorkload {
-			if err := h.Dispatch(context.Background(), manifest.StandardWorkload); err != nil {
-				return failedStepStatus(err, "DispatchStandardWorkload"), nil, nil
-			}
-			appliedResources = append(appliedResources, genObjectReferences(manifest.StandardWorkload)...)
-		}
-
-		if err := h.Dispatch(context.Background(), manifest.Traits...); err != nil {
-			return failedStepStatusWithApplied(err, "DispatchTraits", appliedResources), nil, nil
-		}
-		appliedResources = append(appliedResources, genObjectReferences(manifest.Traits...)...)
-
-		_, isHealth, err := h.collectHealthStatus(wl, appRev)
-		if err != nil {
-			return failedStepStatusWithApplied(err, "CollectHealthStatus", appliedResources), nil, nil
-		}
-
-		if !isHealth {
-			return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseRunning, AppliedResources: appliedResources}, nil, nil
-		}
-
-		taskValue, err := makeTaskValue(manifest, skipStandardWorkload, cli)
-		if err != nil {
-			return failedStepStatusWithApplied(err, "MakeTaskValue", appliedResources), nil, taskValue
-		}
-
-		return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseSucceeded, AppliedResources: appliedResources}, nil, taskValue
-	})
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
-		genTask, err := taskDiscover.GetTaskGenerator(ctx, step.Type)
+		copierStep := step.DeepCopy()
+		genTask, err := taskDiscover.GetTaskGenerator(ctx, copierStep.Type)
 		if err != nil {
 			return nil, err
 		}
-		task, err := genTask(step, &wfTypes.GeneratorOptions{ID: generateStepID(step.Name, app.Status.Workflow)})
+
+		task, err := genTask(*copierStep, &wfTypes.GeneratorOptions{
+			ID: generateStepID(step.Name, app.Status.Workflow),
+			StepConvertor: func(lstep v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error) {
+				if lstep.Type == "apply-component" {
+					if err := convertStepProperties(&lstep, app); err != nil {
+						return lstep, errors.WithMessage(err, "convert [apply-component]")
+					}
+				}
+				return lstep, nil
+			},
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -119,12 +80,73 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	return tasks, nil
 }
 
-func failedStepStatus(err error, reason string) common.WorkflowStepStatus {
-	return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: reason, Message: err.Error()}
+func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application) error {
+	o := struct {
+		Component string `json:"component"`
+	}{}
+	js, err := step.Properties.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(js, &o); err != nil {
+		return err
+	}
+	for _, c := range app.Spec.Components {
+		step.Inputs = c.Inputs
+		step.Outputs = c.Outputs
+		c.Inputs = nil
+		c.Outputs = nil
+		if c.Name == o.Component {
+			step.Properties = util.Object2RawExtension(c)
+			return nil
+		}
+
+	}
+
+	return nil
 }
 
-func failedStepStatusWithApplied(err error, reason string, applied []corev1.ObjectReference) common.WorkflowStepStatus {
-	return common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: reason, Message: err.Error(), AppliedResources: applied}
+func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile, cli client.Client) oamProvider.ComponentApply {
+	return func(comp common.ApplicationComponent) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+
+		wl, err := appParser.ParseWorkloadFromRevision(comp, appRev)
+		if err != nil {
+			return nil, nil, false, errors.WithMessage(err, "ParseWorkload")
+		}
+
+		manifest, err := af.GenerateComponentManifest(wl)
+		if err != nil {
+			return nil, nil, false, errors.WithMessage(err, "GenerateComponentManifest")
+		}
+		if err := af.SetOAMContract(manifest); err != nil {
+			return nil, nil, false, errors.WithMessage(err, "SetOAMContract")
+		}
+		if err := h.HandleComponentsRevision(context.Background(), []*types.ComponentManifest{manifest}); err != nil {
+			return nil, nil, false, errors.WithMessage(err, "HandleComponentsRevision")
+		}
+
+		skipStandardWorkload := skipApplyWorkload(wl)
+		if !skipStandardWorkload {
+			if err := h.Dispatch(context.Background(), "", common.WorkflowResourceCreator, manifest.StandardWorkload); err != nil {
+				return nil, nil, false, errors.WithMessage(err, "DispatchStandardWorkload")
+			}
+		}
+
+		if err := h.Dispatch(context.Background(), "", common.WorkflowResourceCreator, manifest.Traits...); err != nil {
+			return nil, nil, false, errors.WithMessage(err, "DispatchTraits")
+		}
+
+		_, isHealth, err := h.collectHealthStatus(wl, appRev)
+		if err != nil {
+			return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
+		}
+
+		if !isHealth {
+			return nil, nil, false, nil
+		}
+		workload, traits, err := getComponentResources(manifest, skipStandardWorkload, cli)
+		return workload, traits, true, err
+	}
 }
 
 func skipApplyWorkload(wl *appfile.Workload) bool {
@@ -136,44 +158,27 @@ func skipApplyWorkload(wl *appfile.Workload) bool {
 	return false
 }
 
-func makeTaskValue(manifest *types.ComponentManifest, skipStandardWorkload bool, cli client.Client) (*value.Value, error) {
-	taskValue, err := value.NewValue("{}", nil)
-	if err != nil {
-		return nil, err
-	}
+func getComponentResources(manifest *types.ComponentManifest, skipStandardWorkload bool, cli client.Client) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	var (
+		workload *unstructured.Unstructured
+		traits   []*unstructured.Unstructured
+	)
 	if !skipStandardWorkload {
 		v := manifest.StandardWorkload.DeepCopy()
 		if err := cli.Get(context.Background(), client.ObjectKeyFromObject(manifest.StandardWorkload), v); err != nil {
-			return taskValue, err
+			return nil, nil, err
 		}
-		if err := taskValue.FillObject(v.Object, "output"); err != nil {
-			return taskValue, err
-		}
+		workload = v
 	}
 
 	for _, trait := range manifest.Traits {
 		v := trait.DeepCopy()
 		if err := cli.Get(context.Background(), client.ObjectKeyFromObject(trait), v); err != nil {
-			return taskValue, err
+			return workload, nil, err
 		}
-		if err := taskValue.FillObject(trait.Object, "outputs", trait.GetLabels()[oam.TraitResource]); err != nil {
-			return taskValue, err
-		}
+		traits = append(traits, v)
 	}
-	return taskValue, nil
-}
-
-func genObjectReferences(objs ...*unstructured.Unstructured) []corev1.ObjectReference {
-	refers := []corev1.ObjectReference{}
-	for _, o := range objs {
-		refers = append(refers, corev1.ObjectReference{
-			Kind:       o.GetKind(),
-			Namespace:  o.GetNamespace(),
-			Name:       o.GetName(),
-			APIVersion: o.GetAPIVersion(),
-		})
-	}
-	return refers
+	return workload, traits, nil
 }
 
 func generateStepID(stepName string, wfStatus *common.WorkflowStatus) string {

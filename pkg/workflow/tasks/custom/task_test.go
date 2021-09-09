@@ -152,7 +152,7 @@ func TestErrCases(t *testing.T) {
 close({
    x: 100
 })
-`, nil, value.TagFieldOrder)
+`, nil, "", value.TagFieldOrder)
 	assert.NilError(t, err)
 	err = wfCtx.SetVar(closeVar, "score")
 	assert.NilError(t, err)
@@ -361,7 +361,7 @@ apply: {
 
 	for _, tc := range testCases {
 		echo = ""
-		v, err := value.NewValue(tc.base, nil, value.TagFieldOrder)
+		v, err := value.NewValue(tc.base, nil, "", value.TagFieldOrder)
 		assert.NilError(t, err)
 		err = exec.doSteps(wfCtx, v)
 		assert.Equal(t, err != nil, tc.hasErr)
@@ -394,7 +394,7 @@ func TestPendingCheck(t *testing.T) {
 	assert.Equal(t, run.Pending(wfCtx), true)
 	score, err := value.NewValue(`
 100
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = wfCtx.SetVar(score, "score")
 	assert.NilError(t, err)
@@ -411,7 +411,7 @@ func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	wfCtx := new(wfContext.WorkflowContext)
 	err = wfCtx.LoadFromConfigMap(cm)
 	assert.NilError(t, err)
-	v, _ := value.NewValue(`name: "app"`, nil)
+	v, _ := value.NewValue(`name: "app"`, nil, "")
 	assert.NilError(t, wfCtx.SetVar(v, types.ContextKeyMetadata))
 	return wfCtx
 }

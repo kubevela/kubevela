@@ -152,36 +152,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if len(policies) > 0 {
-		if err := handler.Dispatch(ctx, policies...); err != nil {
+		if err := handler.Dispatch(ctx, "", common.PolicyResourceCreator, policies...); err != nil {
 			klog.Error(err, "[Handle ApplyPolicyResources]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("ApplyPolices", err))
 		}
-	}
-
-	if appFile.WorkflowMode == common.WorkflowModeStep {
-		comps, err := appFile.GenerateComponentManifests()
-		if err != nil {
-			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
-		}
-
-		handler.handleCheckManageWorkloadTrait(handler.currentAppRev.Spec.TraitDefinitions, comps)
-
-		if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
-			klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err))
-		}
-
-		if err := handler.ProduceArtifacts(ctx, comps, policies); err != nil {
-			klog.ErrorS(err, "Failed to apply application manifests",
-				"application", klog.KObj(app))
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
-			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("ProduceArtifacts", err))
-		}
-
 	}
 
 	app.Status.SetConditions(condition.ReadyCondition("Render"))
@@ -203,7 +178,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err))
 		}
 
+		handler.addServiceStatus(false, app.Status.Services...)
+		handler.addAppliedResource(app.Status.AppliedResources...)
 		app.Status.Services = handler.services
+		app.Status.AppliedResources = handler.appliedResources
 
 		if pause {
 			if err := r.patchStatus(ctx, app); err != nil {
@@ -274,38 +252,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if !hasHealthCheckPolicy(appFile.Policies) {
-		healthy := true
-		if appFile.WorkflowMode == common.WorkflowModeStep {
-			// check application health status if no health check policy is applied
-			appCompStatus, isHealthy, err := handler.aggregateHealthStatus(appFile)
-			if err != nil {
-				klog.ErrorS(err, "application", klog.KObj(app))
-				r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
-				app.Status.SetConditions(condition.Condition{
-					Type:               v1beta1.TypeHealthy,
-					Status:             corev1.ConditionFalse,
-					LastTransitionTime: metav1.Now(),
-					Reason:             v1beta1.ReasonHealthCheckErr,
-				})
-				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HealthCheck", err))
-			}
-			healthy = isHealthy
-			app.Status.Services = appCompStatus
-		} else {
-			for _, service := range handler.services {
-				if !service.Healthy {
-					healthy = false
-					break
-				}
-				for _, tr := range service.Traits {
-					if !tr.Healthy {
-						healthy = false
-						break
-					}
-				}
-			}
-		}
-		if !healthy {
+		app.Status.Phase = common.ApplicationHealthChecking
+		if !isHealthy(handler.services) {
 			app.Status.SetConditions(condition.Condition{
 				Type:               v1beta1.TypeHealthy,
 				Status:             corev1.ConditionFalse,
@@ -419,6 +367,20 @@ func hasHealthCheckPolicy(policies []*appfile.Workload) bool {
 		}
 	}
 	return false
+}
+
+func isHealthy(services []common.ApplicationComponentStatus) bool {
+	for _, service := range services {
+		if !service.Healthy {
+			return false
+		}
+		for _, tr := range service.Traits {
+			if !tr.Healthy {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // SetupWithManager install to manager

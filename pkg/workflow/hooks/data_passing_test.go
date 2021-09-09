@@ -57,7 +57,7 @@ func TestOutput(t *testing.T) {
 	wfCtx := mockContext(t)
 	taskValue, err := value.NewValue(`
 output: score: 99 
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	Output(wfCtx, taskValue, v1beta1.WorkflowStep{
 		Outputs: common.StepOutputs{{

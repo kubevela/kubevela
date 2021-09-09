@@ -163,7 +163,7 @@ func (wf *WorkflowContext) LoadFromConfigMap(cm corev1.ConfigMap) error {
 		wf.components[name] = cm
 	}
 	var err error
-	wf.vars, err = value.NewValue(data[ConfigMapKeyVars], nil)
+	wf.vars, err = value.NewValue(data[ConfigMapKeyVars], nil, "")
 	if err != nil {
 		return errors.WithMessage(err, "decode vars")
 	}
@@ -304,7 +304,7 @@ func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 		components: map[string]*ComponentManifest{},
 	}
 	var err error
-	wfCtx.vars, err = value.NewValue("", nil)
+	wfCtx.vars, err = value.NewValue("", nil, "")
 
 	return wfCtx, err
 }

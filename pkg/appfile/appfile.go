@@ -195,11 +195,11 @@ func (af *Appfile) generateSteps() {
 	if len(af.WorkflowSteps) == 0 {
 		for _, comp := range af.Components {
 			af.WorkflowSteps = append(af.WorkflowSteps, v1beta1.WorkflowStep{
-				Name:       comp.Name,
-				Type:       "oam.dev/apply-component",
-				Properties: util.Object2RawExtension(comp),
-				Inputs:     comp.Inputs,
-				Outputs:    comp.Outputs,
+				Name: comp.Name,
+				Type: "apply-component",
+				Properties: util.Object2RawExtension(map[string]string{
+					"component": comp.Name,
+				}),
 			})
 		}
 	}

@@ -53,13 +53,13 @@ func TestLoad(t *testing.T) {
 	tdm := mock.NewMockDiscoveryMapper()
 	loader := NewTemplateLoader(cli, tdm)
 
-	tmpl, err := loader.LoadTaskTemplate(context.Background(), "apply-oam-component")
+	tmpl, err := loader.LoadTaskTemplate(context.Background(), "apply-component")
 	assert.NilError(t, err)
-	expected, err := os.ReadFile("./static/apply-oam-component.cue")
+	expected, err := os.ReadFile("./static/apply-component.cue")
 	assert.NilError(t, err)
 	assert.Equal(t, tmpl, string(expected))
 
-	tmpl, err = loader.LoadTaskTemplate(context.Background(), "apply-component")
+	tmpl, err = loader.LoadTaskTemplate(context.Background(), "apply-oam-component")
 	assert.NilError(t, err)
 	assert.Equal(t, tmpl, `import (
 	"vela/op"
@@ -81,7 +81,7 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Apply components and traits for your workflow steps
-  name: apply-component
+  name: apply-oam-component
   namespace: vela-system
 spec:
   schematic:

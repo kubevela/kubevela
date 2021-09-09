@@ -19,7 +19,10 @@ package stdlib
 import (
 	"embed"
 	"fmt"
+	"path/filepath"
 	"strings"
+
+	"cuelang.org/go/cue/build"
 )
 
 var (
@@ -29,7 +32,7 @@ var (
 )
 
 // GetPackages Get Stdlib packages
-func GetPackages() (map[string]string, error) {
+func GetPackages(tagTempl string) (map[string]string, error) {
 
 	files, err := fs.ReadDir("pkgs")
 	if err != nil {
@@ -51,6 +54,25 @@ func GetPackages() (map[string]string, error) {
 	}
 
 	return map[string]string{
-		"vela/op": pkgContent,
+		"vela/op": pkgContent + "\n" + tagTempl,
 	}, nil
+}
+
+// AddImportsFor install imports for build.Instance.
+func AddImportsFor(inst *build.Instance, tagTempl string) error {
+	pkgs, err := GetPackages(tagTempl)
+	if err != nil {
+		return err
+	}
+	for path, content := range pkgs {
+		p := &build.Instance{
+			PkgName:    filepath.Base(path),
+			ImportPath: path,
+		}
+		if err := p.AddFile("-", content); err != nil {
+			return err
+		}
+		inst.Imports = append(inst.Imports, p)
+	}
+	return nil
 }

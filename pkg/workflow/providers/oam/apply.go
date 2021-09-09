@@ -17,13 +17,13 @@ limitations under the License.
 package oam
 
 import (
-	"context"
-	"encoding/json"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -35,41 +35,58 @@ const (
 	ProviderName = "oam"
 )
 
-// Parser parse types.ComponentManifest from application's component.
-type Parser func(ctx context.Context, comp common.ApplicationComponent) (*types.ComponentManifest, error)
+// ComponentApply apply oam component.
+type ComponentApply func(comp common.ApplicationComponent) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 type provider struct {
-	parse Parser
+	apply ComponentApply
 }
 
-// Parse component manifest from value.
-func (p *provider) Parse(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	compSettings, err := v.LookupValue("settings")
+// ApplyComponent apply component.
+func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	compSettings, err := v.LookupValue("value")
 	if err != nil {
 		return err
 	}
-	var comp common.ApplicationComponent
+	comp := common.ApplicationComponent{}
+
 	if err := compSettings.UnmarshalTo(&comp); err != nil {
 		return err
 	}
-	manifest, err := p.parse(context.Background(), comp)
+
+	workload, traits, healthy, err := p.apply(comp)
 	if err != nil {
-		return errors.WithMessagef(err, "render component(%s)", comp.Name)
+		return err
 	}
 
-	raw, err := json.Marshal(manifest)
-	if err != nil {
-		return errors.WithMessagef(err, "marshal manifest(component=%s)", comp.Name)
+	if workload != nil {
+		if err := v.FillObject(workload.Object, "output"); err != nil {
+			return errors.WithMessage(err, "FillOutput")
+		}
 	}
-	return v.FillRaw(string(raw), "value")
+
+	for _, trait := range traits {
+		name := trait.GetLabels()[oam.TraitResource]
+		if name != "" {
+			if err := v.FillObject(trait.Object, "outputs", name); err != nil {
+				return errors.WithMessage(err, "FillOutputs")
+			}
+		}
+	}
+
+	if !healthy {
+		act.Wait("wait healthy")
+	}
+
+	return nil
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, parser Parser) {
+func Install(p providers.Providers, apply ComponentApply) {
 	prd := &provider{
-		parse: parser,
+		apply: apply,
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
-		"parse": prd.Parse,
+		"component-apply": prd.ApplyComponent,
 	})
 }

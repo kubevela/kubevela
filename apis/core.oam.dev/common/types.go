@@ -220,9 +220,8 @@ type WorkflowStepStatus struct {
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason           string                   `json:"reason,omitempty"`
-	AppliedResources []corev1.ObjectReference `json:"appliedResources,omitempty"`
-	SubSteps         *SubStepsStatus          `json:"subSteps,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
 }
 
 // WorkflowSubStepStatus record the status of a workflow step
@@ -234,8 +233,7 @@ type WorkflowSubStepStatus struct {
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason           string                   `json:"reason,omitempty"`
-	AppliedResources []corev1.ObjectReference `json:"appliedResources,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // AppStatus defines the observed state of Application
@@ -267,6 +265,9 @@ type AppStatus struct {
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
+
+	// AppliedResources record the resources that the  workflow step apply.
+	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
 }
 
 // WorkflowStatus record the status of workflow
@@ -410,4 +411,21 @@ type ClusterPlacement struct {
 
 	// Distribution defines the replica distribution of an AppRevision to a cluster.
 	Distribution Distribution `json:"distribution,omitempty"`
+}
+
+// ResourceCreatorRole defines the resource creator.
+type ResourceCreatorRole string
+
+const (
+	// PolicyResourceCreator create the policy resource.
+	PolicyResourceCreator ResourceCreatorRole = "policy"
+	// WorkflowResourceCreator create the resource in workflow.
+	WorkflowResourceCreator ResourceCreatorRole = "workflow"
+)
+
+// ClusterObjectReference defines the object reference with cluster.
+type ClusterObjectReference struct {
+	Cluster                string              `json:"cluster,omitempty"`
+	Creator                ResourceCreatorRole `json:"creator,omitempty"`
+	corev1.ObjectReference `json:",inline"`
 }

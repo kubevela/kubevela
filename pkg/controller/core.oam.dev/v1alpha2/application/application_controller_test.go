@@ -325,7 +325,6 @@ var _ = Describe("Test Application Controller", func() {
 		renderEvents, err := recorder.GetEventsWithName(appFailRender.Name)
 		Expect(err).Should(BeNil())
 		Expect(len(renderEvents)).Should(Equal(3))
-
 	})
 
 	It("app-without-trait will only create workload", func() {
@@ -1775,6 +1774,9 @@ var _ = Describe("Test Application Controller", func() {
 		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
 		web2Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb2"}
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
 
 		expDeployment.Status.Replicas = 1
@@ -1795,7 +1797,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		checkApp := &v1beta1.Application{}
+		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 
@@ -1853,28 +1855,42 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-		Expect(checkApp.Status.Workflow.Steps[0].AppliedResources).Should(BeEquivalentTo([]corev1.ObjectReference{
-			{Kind: "Deployment",
-				Namespace:  "app-applied-resources",
-				Name:       "myweb1",
-				APIVersion: "apps/v1",
+		Expect(checkApp.Status.AppliedResources).Should(BeEquivalentTo([]common.ClusterObjectReference{
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "Deployment",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb1",
+					APIVersion: "apps/v1",
+				},
 			},
-			{Kind: "ConfigMap",
-				Namespace:  "app-applied-resources",
-				Name:       "myweb1game-config",
-				APIVersion: "v1",
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb1game-config",
+					APIVersion: "v1",
+				},
 			},
-		}))
-		Expect(checkApp.Status.Workflow.Steps[1].AppliedResources).Should(BeEquivalentTo([]corev1.ObjectReference{
-			{Kind: "Deployment",
-				Namespace:  "app-applied-resources",
-				Name:       "myweb2",
-				APIVersion: "apps/v1",
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "Deployment",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb2",
+					APIVersion: "apps/v1",
+				},
 			},
-			{Kind: "ConfigMap",
-				Namespace:  "app-applied-resources",
-				Name:       "myweb2game-config",
-				APIVersion: "v1",
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb2game-config",
+					APIVersion: "v1",
+				},
 			},
 		}))
 	})

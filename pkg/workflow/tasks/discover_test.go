@@ -72,7 +72,7 @@ func TestRegister(t *testing.T) {
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		}}
-	discover.RegisterGenerator("test", func(_ wfContext.Context, options *types.TaskRunOptions, paramValue *value.Value) (common.WorkflowStepStatus, *types.Operation, *value.Value) {
+	discover.RegisterGenerator("test", func(_ wfContext.Context, options *types.TaskRunOptions, _ string, paramValue *value.Value) (common.WorkflowStepStatus, *types.Operation, *value.Value) {
 		return common.WorkflowStepStatus{
 			Phase: common.WorkflowStepPhaseSucceeded,
 		}, nil, nil

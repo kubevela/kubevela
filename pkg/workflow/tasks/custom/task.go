@@ -99,6 +99,13 @@ func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep, genOpt *wfTypes.GeneratorOptions) (wfTypes.TaskRunner, error) {
 
+		var err error
+		if genOpt.StepConvertor != nil {
+			wfStep, err = genOpt.StepConvertor(wfStep)
+			if err != nil {
+				return nil, errors.WithMessage(err, "convert step")
+			}
+		}
 		exec := &executor{
 			handlers: t.handlers,
 			wfStatus: common.WorkflowStepStatus{
@@ -163,7 +170,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				paramFile = fmt.Sprintf(model.ParameterFieldName+": {%s}\n", ps)
 			}
 
-			taskv, err := t.makeValue(ctx, templ+"\n"+paramFile)
+			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), genOpt.ID)
 			if err != nil {
 				exec.err(err, StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
@@ -187,16 +194,18 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 	}, nil
 }
 
-func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string) (*value.Value, error) {
+func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string) (*value.Value, error) {
+	var contextTempl string
 	meta, _ := ctx.GetVar(wfTypes.ContextKeyMetadata)
 	if meta != nil {
 		ms, err := meta.String()
 		if err != nil {
 			return nil, err
 		}
-		templ += fmt.Sprintf("\ncontext: {%s}", ms)
+		contextTempl = fmt.Sprintf("\ncontext: {%s}\ncontext: stepSessionID: \"%s\"", ms, id)
 	}
-	return value.NewValue(templ, t.pd, value.ProcessScript, value.TagFieldOrder)
+
+	return value.NewValue(templ+contextTempl, t.pd, contextTempl, value.ProcessScript, value.TagFieldOrder)
 }
 
 type executor struct {

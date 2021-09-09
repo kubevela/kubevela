@@ -41,6 +41,7 @@ type TaskDiscover interface {
 // BuiltinTaskRunner produce builtin task.
 type BuiltinTaskRunner func(ctx wfContext.Context,
 	options *TaskRunOptions,
+	id string,
 	paramValue *value.Value) (common.WorkflowStepStatus, *Operation, *value.Value)
 
 // TaskRunOptions is the options for task run.
@@ -68,8 +69,9 @@ type TaskGenerator func(wfStep v1beta1.WorkflowStep, options *GeneratorOptions) 
 
 // GeneratorOptions is the options for generate task.
 type GeneratorOptions struct {
-	ID       string
-	PrePhase common.WorkflowStepPhase
+	ID            string
+	PrePhase      common.WorkflowStepPhase
+	StepConvertor func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
 }
 
 // Action is that workflow provider can do.

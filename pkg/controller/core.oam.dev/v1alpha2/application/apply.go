@@ -51,16 +51,76 @@ type AppHandler struct {
 	dispatcher     *dispatch.AppManifestsDispatcher
 	isNewRevision  bool
 	currentRevHash string
-	services       []common.ApplicationComponentStatus
 
-	parser *appfile.Parser
+	services         []common.ApplicationComponentStatus
+	appliedResources []common.ClusterObjectReference
+	parser           *appfile.Parser
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 	h.initDispatcher()
 	_, err := h.dispatcher.Dispatch(ctx, manifests)
+	if err == nil {
+		for _, mf := range manifests {
+			ref := common.ClusterObjectReference{
+				Cluster: cluster,
+				Creator: owner,
+				ObjectReference: corev1.ObjectReference{
+					Name:       mf.GetName(),
+					Namespace:  mf.GetNamespace(),
+					Kind:       mf.GetKind(),
+					APIVersion: mf.GetAPIVersion(),
+				},
+			}
+			h.addAppliedResource(ref)
+		}
+	}
 	return err
+}
+
+// addAppliedResource recorde applied resource.
+// reconcile run at single threaded. So there is no need to consider to use locker.
+func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
+	for _, ref := range refs {
+		found := false
+		for _, current := range h.appliedResources {
+			if isSameObjReference(current, ref) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			h.appliedResources = append(h.appliedResources, ref)
+		}
+	}
+}
+
+func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {
+	return ref1.Cluster == ref2.Cluster &&
+		ref1.Namespace == ref2.Namespace &&
+		ref1.Name == ref2.Name
+}
+
+// addServiceStatus recorde the whole component status.
+// reconcile run at single threaded. So there is no need to consider to use locker.
+func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComponentStatus) {
+	for _, svc := range svcs {
+		found := false
+		for i := range h.services {
+			current := h.services[i]
+			if current.Name == svc.Name {
+				if cover {
+					h.services[i] = svc
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			h.services = append(h.services, svc)
+		}
+	}
 }
 
 // DispatchAndGC apply manifests and do GC.
@@ -146,11 +206,7 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 
 	status.Traits = traitStatusList
 	status.Scopes = generateScopeReference(wl.Scopes)
-	if h.services == nil {
-		h.services = []common.ApplicationComponentStatus{status}
-	} else {
-		h.services = append(h.services, status)
-	}
+	h.addServiceStatus(true, status)
 	return &status, isHealth, nil
 }
 
