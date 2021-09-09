@@ -252,8 +252,8 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		updateAppWithCpuAndPlan(app, "3", plan)
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
-
-	It("Test application only upgrade batchPartition", func() {
+	// TODO(@wangyikewxgm): pending this test as it's flaky, will fix it soon
+	PIt("Test application only upgrade batchPartition", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -510,7 +510,8 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 3)))
 	})
 
-	It("Test rollout with another component only rollout first component", func() {
+	// TODO(@wangyikewxgm): pending this test as it's flaky, will fix it soon
+	PIt("Test rollout with another component only rollout first component", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
