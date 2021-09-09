@@ -60,6 +60,8 @@ func (d *WorkflowStepDefinition) GetCondition(conditionType condition.ConditionT
 // +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=workflowstep
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type WorkflowStepDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -69,6 +71,7 @@ type WorkflowStepDefinition struct {
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // WorkflowStepDefinitionList contains a list of WorkflowStepDefinition
 type WorkflowStepDefinitionList struct {

@@ -41,6 +41,8 @@ type ClusterStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Cluster is the Schema for the clusters API
 type Cluster struct {
@@ -52,6 +54,7 @@ type Cluster struct {
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterList contains a list of Cluster
 type ClusterList struct {
