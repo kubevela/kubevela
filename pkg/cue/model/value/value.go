@@ -248,8 +248,9 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 		return nil, errors.Errorf("var(path=%s) not exist", strings.Join(paths, "."))
 	}
 	return &Value{
-		v: v,
-		r: val.r,
+		v:          v,
+		r:          val.r,
+		addImports: val.addImports,
 	}, nil
 }
 
@@ -357,8 +358,9 @@ func (val *Value) fields() ([]*field, error) {
 			no:   no,
 			Name: v.Name,
 			Value: &Value{
-				r: val.r,
-				v: v.Value,
+				r:          val.r,
+				v:          v.Value,
+				addImports: val.addImports,
 			}})
 	}
 	sort.Sort(sortFields(fields))

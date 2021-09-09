@@ -28,11 +28,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -122,6 +120,7 @@ value:{
 	%s
 	metadata: name: "app"
 }
+cluster: ""
 `, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
@@ -140,26 +139,30 @@ value: {
 %s
 metadata: name: "app"
 }
+cluster: ""
 `, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("value")
 		Expect(err).ToNot(HaveOccurred())
-		rv := new(unstructured.Unstructured)
-		err = result.UnmarshalTo(rv)
-		Expect(err).ToNot(HaveOccurred())
-		rv.SetCreationTimestamp(metav1.Time{})
-		rv.SetUID("")
+		//rv := new(unstructured.Unstructured)
+		//err = result.UnmarshalTo(rv)
+		//Expect(err).ToNot(HaveOccurred())
+		//rv.SetCreationTimestamp(metav1.Time{})
+		//rv.SetUID("")
 
 		expected := new(unstructured.Unstructured)
-		ev, err := value.NewValue(expectedCue, nil, "")
+		ev, err := result.MakeValue(expectedCue)
 		Expect(err).ToNot(HaveOccurred())
 		err = ev.UnmarshalTo(expected)
 		Expect(err).ToNot(HaveOccurred())
-		rv.SetManagedFields(nil)
-		rv.SetResourceVersion("")
-		Expect(cmp.Diff(rv, expected)).Should(BeEquivalentTo(""))
+		//rv.SetManagedFields(nil)
+		//rv.SetResourceVersion("")
+		//rv.SetSelfLink("")
+
+		err = result.FillObject(expected.Object)
+		Expect(err).ToNot(HaveOccurred())
 	})
 	It("patch & apply", func() {
 		p := &provider{
@@ -183,6 +186,7 @@ metadata: name: "app"
 		Expect(err).ToNot(HaveOccurred())
 		v, err := value.NewValue(fmt.Sprintf(`
 value: {%s}
+cluster: ""
 patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
@@ -329,7 +333,7 @@ spec: {
 	}]
 	dnsPolicy:          "ClusterFirst"
 	enableServiceLinks: true
-	preemptionPolicy:  "PreemptLowerPriority"
+	preemptionPolicy:   "PreemptLowerPriority"
 	priority:           0
 	restartPolicy:      "Always"
 	schedulerName:      "default-scheduler"
