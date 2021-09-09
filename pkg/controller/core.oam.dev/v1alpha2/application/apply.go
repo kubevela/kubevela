@@ -170,13 +170,13 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
 			}
-			if configuration.Status.State != terraformtypes.Available {
+			if configuration.Status.Apply.State != terraformtypes.Available {
 				healthy = false
 				status.Healthy = false
 			} else {
 				status.Healthy = true
 			}
-			status.Message = configuration.Status.Message
+			status.Message = configuration.Status.Apply.Message
 		default:
 			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
 			if !h.isNewRevision && wl.CapabilityCategory != types.CUECategory {

@@ -207,7 +207,7 @@ var _ = Describe("Test statusAggregate", func() {
 		By("set status for Terraform configuration")
 		var gotConfiguration terraformapi.Configuration
 		k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: componentName}, &gotConfiguration)
-		gotConfiguration.Status.State = terraformtypes.Available
+		gotConfiguration.Status.Apply.State = terraformtypes.Available
 		k8sClient.Status().Update(ctx, &gotConfiguration)
 
 		By("aggregate status one more time")
