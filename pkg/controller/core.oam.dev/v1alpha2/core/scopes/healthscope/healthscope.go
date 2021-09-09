@@ -505,12 +505,12 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.Object
 				wlHealth.HealthStatus = StatusUnhealthy
 				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 			}
-			if configuration.Status.State != terraformtypes.Available {
+			if configuration.Status.Apply.State != terraformtypes.Available {
 				wlHealth.HealthStatus = StatusUnhealthy
 			} else {
 				wlHealth.HealthStatus = StatusHealthy
 			}
-			wlHealth.Diagnosis = configuration.Status.Message
+			wlHealth.Diagnosis = configuration.Status.Apply.Message
 			okToCheckTrait = true
 		default:
 			pCtx = process.NewContext(ns, wl.Name, appfile.Name, appfile.RevisionName)
