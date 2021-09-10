@@ -100,9 +100,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case v1alpha1.SingleClusterEngine:
 		engine = NewSingleClusterEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
 	case v1alpha1.ClusterGatewayEngine:
-		engine = NewClusterGatewayEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
+		engine = NewClusterGatewayEngine(r.Client, envBinding.Name)
 	default:
-		engine = NewClusterGatewayEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
+		engine = NewClusterGatewayEngine(r.Client, envBinding.Name)
 	}
 
 	// prepare the pre-work for cluster scheduling

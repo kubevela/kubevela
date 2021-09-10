@@ -19,11 +19,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-type ContextKey string
+type contextKey string
 
 const (
 	// ClusterContextKey is the name of cluster using in client http context
-	ClusterContextKey ContextKey = "ClusterName"
+	ClusterContextKey = contextKey("ClusterName")
 	// ClusterLabelKey specifies which cluster the target k8s object should locate
 	ClusterLabelKey = "cluster.oam.dev/clusterName"
 	// ApplicationClusterLabelKey specifies which cluster the target application should place its resources
@@ -47,7 +47,7 @@ func ContextWithClusterName(ctx context.Context, clusterName string) context.Con
 
 // ContextForApplicationResource create context with multi-cluster for application resource
 func ContextForApplicationResource(ctx context.Context, application *v1beta1.Application) context.Context {
-	return context.WithValue(ctx, ClusterLabelKey, application.GetLabels()[ApplicationClusterLabelKey])
+	return context.WithValue(ctx, ClusterContextKey, application.GetLabels()[ApplicationClusterLabelKey])
 }
 
 // SetClusterName set cluster name for object
@@ -110,7 +110,7 @@ func Initialize(restConfig *rest.Config) error {
 	if err != nil {
 		return errors2.Wrapf(err, "unable to get client to find cluster gateway service")
 	}
-	svc, err := WaitUntilClusterGatewayReady(context.Background(), c, 60, 5 * time.Second)
+	svc, err := WaitUntilClusterGatewayReady(context.Background(), c, 60, 5*time.Second)
 	if err != nil {
 		return errors2.Wrapf(err, "failed to wait for cluster gateway, unable to use multi-cluster")
 	}

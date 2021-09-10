@@ -31,20 +31,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
+// ClusterGatewayEngine construct the multicluster engine of using cluster-gateway
 type ClusterGatewayEngine struct {
 	client.Client
-	envBindingName string
+	envBindingName   string
 	clusterDecisions map[string]v1alpha1.ClusterDecision
 }
 
-func NewClusterGatewayEngine(cli client.Client, appName, appNs, envBindingName string) ClusterManagerEngine {
+// NewClusterGatewayEngine create multicluster engine to use cluster-gateway
+func NewClusterGatewayEngine(cli client.Client, envBindingName string) ClusterManagerEngine {
 	return &ClusterGatewayEngine{
-		Client: cli,
+		Client:         cli,
 		envBindingName: envBindingName,
-		//cli:            cli,
-		//appNs:          appNs,
-		//appName:        appName,
-		//envBindingName: envBindingName,
 	}
 }
 
@@ -110,23 +108,3 @@ func (engine *ClusterGatewayEngine) schedule(ctx context.Context, apps []*EnvBin
 	}
 	return decisions, nil
 }
-
-//func (engine *ClusterGatewayEngine) makeClusterDecision(ctx context.Context, config v1alpha1.EnvConfig) ([]*v1alpha1.ClusterDecision, error) {
-//	decisions := make([]*v1alpha1.ClusterDecision, 0)
-//	if config.Placement.NamespaceSelector != nil {
-//		namespaces := make([]string, 0)
-//		if len(config.Placement.NamespaceSelector.Name) != 0 {
-//			namespaces = append(namespaces, config.Placement.NamespaceSelector.Name)
-//		} else {
-//			ns := &v1.NamespaceList{}
-//			if err := engine.List(ctx, ns, client.MatchingLabels(config.Placement.NamespaceSelector.Labels)); err != nil {
-//				return nil, errors.Wrapf(err, "failed to list selected namespace for env %s", config.Name)
-//			}
-//			for _, item := range ns.Items {
-//				namespaces = append(namespaces, item.Name)
-//			}
-//		}
-//
-//	}
-//	return decisions, nil
-//}

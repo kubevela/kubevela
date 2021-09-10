@@ -58,7 +58,6 @@ type HealthScopeSpec struct {
 // AppReference records references of an application's components
 type AppReference struct {
 	AppName        string          `json:"appName,omitempty"`
-	ClusterName    string          `json:"clusterName,omitempty"`
 	CompReferences []CompReference `json:"compReferences,omitempty"`
 }
 

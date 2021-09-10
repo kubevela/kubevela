@@ -91,7 +91,6 @@ type AppTemplate struct {
 }
 
 // ClusterDecision recorded the mapping of environment and cluster
-// TODO we might need to rename ClusterDecision to EnvDecision as it is also associated with namespace
 type ClusterDecision struct {
 	Env       string `json:"env"`
 	Cluster   string `json:"cluster,omitempty"`

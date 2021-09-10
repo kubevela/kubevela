@@ -36,7 +36,7 @@ func isEnvBindingPolicy(policy *unstructured.Unstructured) bool {
 }
 
 // GarbageCollectionForSubClusters run garbage collection in sub clusters if envBinding policy exists
-func GarbageCollectionForSubClusters(ctx context.Context, c client.Client, policies []*unstructured.Unstructured, gcHandler func(context.Context)error) error {
+func GarbageCollectionForSubClusters(ctx context.Context, c client.Client, policies []*unstructured.Unstructured, gcHandler func(context.Context) error) error {
 	subClusters := make(map[string]bool)
 	for _, raw := range policies {
 		if !isEnvBindingPolicy(raw) {

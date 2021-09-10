@@ -184,18 +184,13 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 	}
 
 	var wlRefs []corev1.ObjectReference
-	wlClusterNames := make([]string, 0)
 	if len(healthScope.Spec.WorkloadReferences) > 0 {
 		wlRefs = healthScope.Spec.WorkloadReferences
-		for range wlRefs {
-			wlClusterNames = append(wlClusterNames, "")
-		}
 	} else {
 		wlRefs = make([]corev1.ObjectReference, 0)
 		for _, app := range healthScope.Spec.AppRefs {
 			for _, comp := range app.CompReferences {
 				wlRefs = append(wlRefs, comp.Workload)
-				wlClusterNames = append(wlClusterNames, app.ClusterName)
 			}
 		}
 	}
@@ -222,8 +217,8 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 	var wg sync.WaitGroup
 	wg.Add(len(wlRefs))
 
-	for idx, workloadRef := range wlRefs {
-		go func(ctx context.Context, resRef corev1.ObjectReference) {
+	for _, workloadRef := range wlRefs {
+		go func(resRef corev1.ObjectReference) {
 			defer wg.Done()
 			var (
 				wlHealthCondition *WorkloadHealthCondition
@@ -268,14 +263,13 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 				}
 			}
 			// handle unknown workload
-			klog.V(common.LogDebug).InfoS("unknown workload", "workload", resRef)
 			wlHealthCondition = r.unknownChecker.Check(ctx, r.client, resRef, healthScope.GetNamespace())
 			wlHealthCondition.Traits = traitConditions
 			wlHealthResultsC <- wlHealthResult{
 				name: appNames[resRef],
 				w:    wlHealthCondition,
 			}
-		}(context.WithValue(ctx, "clusterName", wlClusterNames[idx]), workloadRef)
+		}(workloadRef)
 	}
 
 	go func() {

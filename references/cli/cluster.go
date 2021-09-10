@@ -20,14 +20,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,26 +35,11 @@ import (
 )
 
 const (
+	// ClusterSecretLabelKey identifies the cluster secrets
 	ClusterSecretLabelKey = "cluster.core.oam.dev/cluster-credential"
 )
 
-func getSecretNamespace(ctx context.Context, c client.Client) (string, error) {
-	gv := v1alpha1.SchemeGroupVersion
-	apiService := &unstructured.Unstructured{}
-	apiService.SetGroupVersionKind(schema.GroupVersionKind{Group: "apiregistration.k8s.io", Version: "v1", Kind: "APIService"})
-	if err := c.Get(ctx, types2.NamespacedName{Name: gv.Version + "." + gv.Group}, apiService); err != nil {
-		return "", errors.Wrapf(err, "failed to find APIService for Cluster Gateway")
-	}
-	ns, ok, err := unstructured.NestedString(apiService.Object, "spec", "service", "namespace")
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to get cluster gateway service namespace")
-	}
-	if !ok {
-		return "", errors.Wrapf(err, "unable to get cluster gateway service namespace")
-	}
-	return ns, nil
-}
-
+// ClusterCommandGroup create a group of cluster command
 func ClusterCommandGroup(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cluster",
@@ -70,17 +52,19 @@ func ClusterCommandGroup(c common.Args) *cobra.Command {
 	_ = c.SetConfig() // set kubeConfig if possible, otherwise ignore it
 	cmd.AddCommand(
 		NewClusterListCommand(c),
-		NewClusterAddCommand(c),
+		NewClusterJoinCommand(c),
 	)
 	return cmd
 }
 
+// NewClusterListCommand create cluster list command
 func NewClusterListCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "list",
-		Short: "list managed clusters",
-		Long: "list child clusters managed by KubeVela",
-		Args: cobra.ExactValidArgs(0),
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "list managed clusters",
+		Long:    "list child clusters managed by KubeVela",
+		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k8sClient, err := c.GetClient()
 			if err != nil {
@@ -110,13 +94,14 @@ func NewClusterListCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
-func NewClusterAddCommand(c common.Args) *cobra.Command {
+// NewClusterJoinCommand create command to help user join cluster to multicluster management
+func NewClusterJoinCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "add [KUBECONFIG]",
-		Short: "add managed cluster",
-		Long: "add managed cluster by kubeconfig",
-		Example: "# Add cluster declared in my-child-cluster.kubeconfig\n" +
-			"> vela cluster add my-child-cluster.kubeconfig",
+		Use:   "join [KUBECONFIG]",
+		Short: "join managed cluster",
+		Long:  "join managed cluster by kubeconfig",
+		Example: "# Join cluster declared in my-child-cluster.kubeconfig\n" +
+			"> vela cluster join my-child-cluster.kubeconfig",
 		Args: cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k8sClient, err := c.GetClient()
@@ -132,7 +117,7 @@ func NewClusterAddCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get kubeconfig")
 			}
-			if len(config.CurrentContext) == 0{
+			if len(config.CurrentContext) == 0 {
 				return fmt.Errorf("current-context is not set")
 			}
 			ctx, ok := config.Contexts[config.CurrentContext]
@@ -157,16 +142,16 @@ func NewClusterAddCommand(c common.Args) *cobra.Command {
 			}
 			secret = &v1.Secret{
 				ObjectMeta: v12.ObjectMeta{
-					Name: ctx.Cluster,
+					Name:      ctx.Cluster,
 					Namespace: namespace,
-					Labels: map[string]string{ClusterSecretLabelKey: "kubeconfig"},
+					Labels:    map[string]string{ClusterSecretLabelKey: "kubeconfig"},
 				},
 				Type: v1.SecretTypeTLS,
 				Data: map[string][]byte{
 					"endpoint": []byte(cluster.Server),
-					"ca.crt": cluster.CertificateAuthorityData,
-					"tls.crt": authInfo.ClientCertificateData,
-					"tls.key": authInfo.ClientKeyData,
+					"ca.crt":   cluster.CertificateAuthorityData,
+					"tls.crt":  authInfo.ClientCertificateData,
+					"tls.key":  authInfo.ClientKeyData,
 				},
 			}
 			if err := k8sClient.Create(context.Background(), secret); err != nil {

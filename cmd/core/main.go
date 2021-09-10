@@ -180,7 +180,6 @@ func main() {
 	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitonNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
-
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst

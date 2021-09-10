@@ -21,10 +21,12 @@ import (
 	"strings"
 )
 
+// ErrorList wraps a list of errors
 type ErrorList struct {
 	errors []error
 }
 
+// Error implement error interface
 func (e ErrorList) Error() string {
 	if !e.HasError() {
 		return "No error found."
@@ -36,10 +38,12 @@ func (e ErrorList) Error() string {
 	return fmt.Sprintf("Found %d errors. [(%s)]", len(e.errors), strings.Join(errMessages, "), ("))
 }
 
+// Append append error to list
 func (e *ErrorList) Append(err error) {
 	e.errors = append(e.errors, err)
 }
 
+// HasError check if any error exists in list
 func (e ErrorList) HasError() bool {
 	return len(e.errors) > 0
 }
