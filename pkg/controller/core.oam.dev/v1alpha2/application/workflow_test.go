@@ -471,7 +471,7 @@ var _ = Describe("Test Workflow", func() {
 		updateApp := &oamcore.Application{}
 		Expect(k8sClient.Get(ctx, appKey, updateApp)).Should(BeNil())
 		Expect(updateApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
-		updateApp.Spec.Workflow=&oamcore.Workflow{
+		updateApp.Spec.Workflow = &oamcore.Workflow{
 			Steps: []oamcore.WorkflowStep{{
 				Name:       "test-web2",
 				Type:       "apply-component",

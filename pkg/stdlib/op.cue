@@ -34,37 +34,7 @@ import (
 	} @step(2)
 }
 
-#ApplyComponent: #Steps & {
-
-	component:      string
-	_componentName: component
-	load:           ws.#Load & {
-		component: _componentName
-	} @step(1)
-
-	traits: #Steps & {
-		_key:              "trait.oam.dev/resource"
-		_manWlKey:         "trait.oam.dev/manage-workload"
-		skipApplyWorkload: *false | bool
-		if load.value.auxiliaries != _|_ {
-			for o in load.value.auxiliaries {
-				"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
-				if o.metadata.labels[_manWlKey] != _|_ {
-					skipApplyWorkload: true
-				}
-			}
-		}
-	} @step(2)
-
-	workload__: {
-		if !traits.skipApplyWorkload {
-			kube.#Apply & {
-				value: load.value.workload
-				...
-			}
-		}
-	} @step(3)
-}
+#ApplyComponent: oam.#ApplyComponent
 
 #ApplyRemaining: #Steps & {
 	namespace?: string
@@ -207,7 +177,7 @@ import (
 
 #HTTPDelete: http.#Do & {method: "DELETE"}
 
-#Load: ws.#Load
+#Load: oam.#Load
 
 #Read: kube.#Read
 

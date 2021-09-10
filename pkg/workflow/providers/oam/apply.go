@@ -17,14 +17,15 @@ limitations under the License.
 package oam
 
 import (
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"encoding/json"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -36,10 +37,11 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 type provider struct {
 	apply ComponentApply
+	app   *v1beta1.Application
 }
 
 // ApplyComponent apply component.
@@ -53,8 +55,8 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 	if err := compSettings.UnmarshalTo(&comp); err != nil {
 		return err
 	}
-
-	workload, traits, healthy, err := p.apply(comp)
+	patcher, _ := v.LookupValue("patch")
+	workload, traits, healthy, err := p.apply(comp, patcher)
 	if err != nil {
 		return err
 	}
@@ -81,12 +83,30 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 	return nil
 }
 
+// LoadComponent load component describe info in application.
+func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	for _, comp := range p.app.Spec.Components {
+		comp.Inputs = nil
+		comp.Outputs = nil
+		jt, err := json.Marshal(comp)
+		if err != nil {
+			return err
+		}
+		if err := v.FillRaw(string(jt), "value", comp.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Install register handlers to provider discover.
-func Install(p providers.Providers, apply ComponentApply) {
+func Install(p providers.Providers, app *v1beta1.Application, apply ComponentApply) {
 	prd := &provider{
 		apply: apply,
+		app:   app.DeepCopy(),
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"component-apply": prd.ApplyComponent,
+		"load":            prd.LoadComponent,
 	})
 }

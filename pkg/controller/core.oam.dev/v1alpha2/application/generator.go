@@ -27,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -50,7 +51,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, cli, h.Dispatch)
-	oamProvider.Install(handlerProviders, h.applyComponentFunc(
+	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
 		appParser, appRev, af, cli))
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, cli, dm)
 	var tasks []wfTypes.TaskRunner
@@ -107,13 +108,13 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile, cli client.Client) oamProvider.ComponentApply {
-	return func(comp common.ApplicationComponent) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	return func(comp common.ApplicationComponent, patcher *value.Value) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 
 		wl, err := appParser.ParseWorkloadFromRevision(comp, appRev)
 		if err != nil {
 			return nil, nil, false, errors.WithMessage(err, "ParseWorkload")
 		}
-
+		wl.Patch = patcher
 		manifest, err := af.GenerateComponentManifest(wl)
 		if err != nil {
 			return nil, nil, false, errors.WithMessage(err, "GenerateComponentManifest")

@@ -79,7 +79,7 @@ metadata: {
 
 var testHealthy bool
 
-func simpleComponentApplyForTest(comp common.ApplicationComponent) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	workload := new(unstructured.Unstructured)
 	workload.UnmarshalJSON([]byte(`{
   "apiVersion": "v1",

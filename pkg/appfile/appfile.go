@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -70,6 +71,7 @@ type Workload struct {
 	ScopeDefinition    []*v1beta1.ScopeDefinition
 	FullTemplate       *Template
 	Ctx                process.Context
+	Patch              *value.Value
 	engine             definition.AbstractEngine
 }
 
@@ -466,6 +468,29 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	for _, tr := range wl.Traits {
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
+		}
+	}
+	if patcher := wl.Patch; patcher != nil {
+		workload, auxiliaries := pCtx.Output()
+		if p, err := patcher.LookupValue("workload"); err == nil {
+			pi, err := model.NewOther(p.CueValue())
+			if err != nil {
+				return nil, errors.WithMessage(err, "patch workload")
+			}
+			if err := workload.Unify(pi); err != nil {
+				return nil, errors.WithMessage(err, "patch workload")
+			}
+		}
+		for _, aux := range auxiliaries {
+			if p, err := patcher.LookupValue("traits", aux.Name); err == nil {
+				pi, err := model.NewOther(p.CueValue())
+				if err != nil {
+					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
+				}
+				if err := aux.Ins.Unify(pi); err != nil {
+					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
+				}
+			}
 		}
 	}
 	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
