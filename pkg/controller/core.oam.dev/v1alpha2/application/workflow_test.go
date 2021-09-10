@@ -428,6 +428,64 @@ var _ = Describe("Test Workflow", func() {
 		Expect(checkCM.Data["enemies"]).Should(BeEquivalentTo("hello,i am lives"))
 		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
 	})
+
+	It("add workflow to an existing app ", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "existing-app-add-workflow",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+
+		webComponentDef := &oamcore.ComponentDefinition{}
+		webDefJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
+		Expect(json.Unmarshal(webDefJson, webComponentDef)).Should(BeNil())
+		webComponentDef.Namespace = ns.Name
+		Expect(k8sClient.Create(ctx, webComponentDef)).Should(BeNil())
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "existing-app-add-workflow",
+				Namespace: ns.Name,
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "webserver",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "webserver",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		updateApp := &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, appKey, updateApp)).Should(BeNil())
+		Expect(updateApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		updateApp.Spec.Workflow=&oamcore.Workflow{
+			Steps: []oamcore.WorkflowStep{{
+				Name:       "test-web2",
+				Type:       "apply-component",
+				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+			}},
+		}
+		Expect(k8sClient.Update(context.Background(), updateApp)).Should(BeNil())
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+	})
 })
 
 func triggerWorkflowStepToSucceed(obj *unstructured.Unstructured) {

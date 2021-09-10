@@ -35,8 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-
-	"github.com/oam-dev/kubevela/pkg/stdlib"
 )
 
 const (
@@ -109,7 +107,6 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 // ImportPackagesAndBuildInstance Combine import built-in packages and build cue template together to avoid data race
 func (pd *PackageDiscover) ImportPackagesAndBuildInstance(bi *build.Instance) (inst *cue.Instance, err error) {
 	pd.ImportBuiltinPackagesFor(bi)
-	_ = stdlib.AddImportsFor(bi, "")
 	var r cue.Runtime
 	pd.mutex.Lock()
 	defer pd.mutex.Unlock()
