@@ -1895,8 +1895,8 @@ spec:
 		deploy := &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(BeNil())
 		By("verify targetRevision will be filled with real compRev by context.Revision")
-		Expect(len(deploy.Spec.Selector.MatchLabels)).Should(BeEquivalentTo(2))
-		Expect(deploy.Spec.Selector.MatchLabels["app.oam.dev/revision"]).Should(BeEquivalentTo("myweb1-v1"))
+		Expect(len(deploy.Spec.Template.Labels)).Should(BeEquivalentTo(2))
+		Expect(deploy.Spec.Template.Labels["app.oam.dev/revision"]).Should(BeEquivalentTo("myweb1-v1"))
 	})
 
 	It("Test context revision can be supported by in  workload when specified componentRevision", func() {
@@ -1944,8 +1944,8 @@ spec:
 		deploy := &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(BeNil())
 		By("verify targetRevision will be filled with real compRev by context.Revision")
-		Expect(len(deploy.Spec.Selector.MatchLabels)).Should(BeEquivalentTo(2))
-		Expect(deploy.Spec.Selector.MatchLabels["app.oam.dev/revision"]).Should(BeEquivalentTo(externalRevision))
+		Expect(len(deploy.Spec.Template.Labels)).Should(BeEquivalentTo(2))
+		Expect(deploy.Spec.Template.Labels["app.oam.dev/revision"]).Should(BeEquivalentTo(externalRevision))
 	})
 
 	It("Test rollout trait in workflow", func() {
@@ -2847,7 +2847,6 @@ spec:
           spec: {
               selector: matchLabels: {
                   "app.oam.dev/component": context.name
-                  "app.oam.dev/revision": context.revision
               }
               template: {
                   metadata: labels: {

@@ -15,7 +15,6 @@ template: {
 		spec: {
 			selector: matchLabels: {
 				"app.oam.dev/component": context.name
-				"app.oam.dev/revision":  context.revision
 			}
 
 			template: {
