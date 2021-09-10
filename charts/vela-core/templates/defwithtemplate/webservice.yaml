@@ -15,10 +15,7 @@ spec:
         	apiVersion: "apps/v1"
         	kind:       "Deployment"
         	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        			"app.oam.dev/revision":  context.revision
-        		}
+        		selector: matchLabels: "app.oam.dev/component": context.name
 
         		template: {
         			metadata: labels: {
