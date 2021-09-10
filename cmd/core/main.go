@@ -181,14 +181,17 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 
-	// wrapper the round tripper by multi cluster rewriter
-	if multiClusterEnabled {
-		restConfig.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
-	}
-
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst
+
+	// wrapper the round tripper by multi cluster rewriter
+	if multiClusterEnabled {
+		if err := multicluster.Initialize(restConfig); err != nil {
+			klog.ErrorS(err, "failed to enable multicluster")
+			os.Exit(1)
+		}
+	}
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     scheme,

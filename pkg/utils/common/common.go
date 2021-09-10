@@ -44,6 +44,7 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,6 +64,7 @@ var (
 
 func init() {
 	_ = clientgoscheme.AddToScheme(Scheme)
+	_ = apiregistrationv1.AddToScheme(Scheme)
 	_ = crdv1.AddToScheme(Scheme)
 	_ = oamcore.AddToScheme(Scheme)
 	_ = oamstandard.AddToScheme(Scheme)

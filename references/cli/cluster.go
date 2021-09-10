@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -85,10 +86,11 @@ func NewClusterListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			namespace, err := getSecretNamespace(context.Background(), k8sClient)
+			svc, err := multicluster.GetClusterGatewayService(context.Background(), k8sClient)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
 			}
+			namespace := svc.Namespace
 			secrets := v1.SecretList{}
 			if err := k8sClient.List(context.Background(), &secrets, client.HasLabels{ClusterSecretLabelKey}, client.InNamespace(namespace)); err != nil {
 				return errors.Wrapf(err, "failed to get cluster secrets")
@@ -121,10 +123,11 @@ func NewClusterAddCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			namespace, err := getSecretNamespace(context.Background(), k8sClient)
+			svc, err := multicluster.GetClusterGatewayService(context.Background(), k8sClient)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
 			}
+			namespace := svc.Namespace
 			config, err := clientcmd.LoadFromFile(args[0])
 			if err != nil {
 				return errors.Wrapf(err, "failed to get kubeconfig")

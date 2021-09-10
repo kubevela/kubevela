@@ -31,11 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
-var (
-	// ClusterGatewaySecretNamespace the namespace where cluster-gateway secret locates
-	ClusterGatewaySecretNamespace string
-)
-
 type ClusterGatewayEngine struct {
 	client.Client
 	envBindingName string
@@ -75,7 +70,7 @@ func (engine *ClusterGatewayEngine) prepare(ctx context.Context, configs []v1alp
 			return errors.Errorf("invalid env %s: cluster name %s is conflict with env %s", config.Name, clusterName, dupConfigName)
 		}
 		clusterNameToConfig[clusterName] = config.Name
-		if err := engine.Get(ctx, types.NamespacedName{Namespace: ClusterGatewaySecretNamespace, Name: clusterName}, &v1.Secret{}); err != nil {
+		if err := engine.Get(ctx, types.NamespacedName{Namespace: multicluster.ClusterGatewaySecretNamespace, Name: clusterName}, &v1.Secret{}); err != nil {
 			return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, config.Name)
 		}
 		engine.clusterDecisions[config.Name] = v1alpha1.ClusterDecision{Env: config.Name, Cluster: clusterName}

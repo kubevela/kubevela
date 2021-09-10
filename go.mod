@@ -23,7 +23,6 @@ require (
 	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
 	github.com/gin-gonic/gin v1.7.0
 	github.com/go-logr/logr v0.4.0
-	github.com/go-openapi/swag v0.19.14 // indirect
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
@@ -54,7 +53,6 @@ require (
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.uber.org/zap v1.18.1
-	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023 // indirect
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
@@ -62,14 +60,15 @@ require (
 	helm.sh/helm/v3 v3.6.1
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
-	k8s.io/api v0.21.3
+	k8s.io/api v0.22.1
 	k8s.io/apiextensions-apiserver v0.21.3
-	k8s.io/apimachinery v0.21.3
+	k8s.io/apimachinery v0.22.1
 	k8s.io/cli-runtime v0.21.0
-	k8s.io/client-go v0.21.3
+	k8s.io/client-go v0.22.1
 	k8s.io/klog v1.0.0
-	k8s.io/klog/v2 v2.8.0
-	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
+	k8s.io/klog/v2 v2.9.0
+	k8s.io/kube-aggregator v0.22.1
+	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
 	k8s.io/kubectl v0.21.0
 	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
 	open-cluster-management.io/api v0.0.0-20210804091127-340467ff6239

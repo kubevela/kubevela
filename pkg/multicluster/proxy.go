@@ -17,28 +17,13 @@ limitations under the License.
 package multicluster
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/klog/v2"
 
 	clusterapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-)
-
-type ContextKey string
-
-const (
-	// ClusterContextKey is the name of cluster using in client http context
-	ClusterContextKey ContextKey = "ClusterName"
-	// ClusterLabelKey specifies which cluster the target k8s object should locate
-	ClusterLabelKey = "cluster.oam.dev/clusterName"
-	// ApplicationClusterLabelKey specifies which cluster the target application should place its resources
-	ApplicationClusterLabelKey = "app.cluster.oam.dev/clusterName"
 )
 
 type secretMultiClusterRoundTripper struct {
@@ -91,28 +76,3 @@ func (rt *secretMultiClusterRoundTripper) CancelRequest(req *http.Request) {
 
 // WrappedRoundTripper can get the wrapped RoundTripper
 func (rt *secretMultiClusterRoundTripper) WrappedRoundTripper() http.RoundTripper { return rt.rt }
-
-// Context create context with multi-cluster
-func Context(ctx context.Context, obj *unstructured.Unstructured) context.Context {
-	return ContextWithClusterName(ctx, obj.GetLabels()[ClusterLabelKey])
-}
-
-// ContextWithClusterName create context with multi-cluster by cluster name
-func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
-	return context.WithValue(ctx, ClusterContextKey, clusterName)
-}
-
-// ContextForApplicationResource create context with multi-cluster for application resource
-func ContextForApplicationResource(ctx context.Context, application *v1beta1.Application) context.Context {
-	return context.WithValue(ctx, ClusterLabelKey, application.GetLabels()[ApplicationClusterLabelKey])
-}
-
-// SetClusterName set cluster name for object
-func SetClusterName(obj *unstructured.Unstructured, clusterName string) {
-	labels := obj.GetLabels()
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	labels[ClusterLabelKey] = clusterName
-	obj.SetLabels(labels)
-}
