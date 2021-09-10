@@ -235,7 +235,22 @@ func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) 
 		return e.runAsDAG(wfCtx, taskRunners)
 	}
 
-	return e.steps(wfCtx, taskRunners[e.status.StepIndex:])
+	return e.steps(wfCtx, e.todoByIndex(taskRunners))
+}
+
+func (e *engine) todoByIndex(taskRunners []wfTypes.TaskRunner) []wfTypes.TaskRunner {
+	index := 0
+	for _, t := range taskRunners {
+		for _, ss := range e.status.Steps {
+			if ss.Name == t.Name() {
+				if ss.Phase == common.WorkflowStepPhaseSucceeded {
+					index++
+				}
+				break
+			}
+		}
+	}
+	return taskRunners[index:]
 }
 
 func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
@@ -276,7 +291,6 @@ func (e *engine) isDag() bool {
 }
 
 func (e *engine) finishStep(operation *wfTypes.Operation) {
-	e.status.StepIndex++
 	if operation != nil {
 		e.status.Suspend = operation.Suspend
 		e.status.Terminated = operation.Terminated

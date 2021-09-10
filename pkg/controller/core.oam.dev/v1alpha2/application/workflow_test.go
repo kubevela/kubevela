@@ -269,7 +269,6 @@ var _ = Describe("Test Workflow", func() {
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeFalse())
 		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
-		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
 	})
 
 	It("test workflow terminate a suspend workflow", func() {
@@ -316,7 +315,6 @@ var _ = Describe("Test Workflow", func() {
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
 		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
-		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
 

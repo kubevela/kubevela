@@ -649,8 +649,6 @@ spec:
                   mode:
                     description: WorkflowMode describes the mode of workflow
                     type: string
-                  stepIndex:
-                    type: integer
                   steps:
                     items:
                       description: WorkflowStepStatus record the status of a workflow step
@@ -1435,8 +1433,6 @@ spec:
                   mode:
                     description: WorkflowMode describes the mode of workflow
                     type: string
-                  stepIndex:
-                    type: integer
                   steps:
                     items:
                       description: WorkflowStepStatus record the status of a workflow step

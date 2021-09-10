@@ -191,7 +191,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 
 		if !done {
-			return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, r.patchStatus(ctx, app)
+			if err := r.patchStatus(ctx, app); err != nil {
+				return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+			}
+			return reconcile.Result{RequeueAfter: WorkflowReconcileWaitTime}, nil
 		}
 
 		wfStatus := app.Status.Workflow
