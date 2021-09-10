@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: first-vela-workflow
+  namespace: default
+spec:
+  components:
+    - name: test-server
+      type: webservice
+      properties:
+        # replace the imagepolicy `default:gitops` with your policy
+        image: "your image" # {"$imagepolicy": "default:gitops"}
+        port: 8088
+      traits:
+        - type: ingress
+          properties:
+            domain: testsvc.example.com
+            http:
+              /: 8088
