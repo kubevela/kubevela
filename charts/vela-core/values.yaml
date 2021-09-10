@@ -109,3 +109,17 @@ apiServer:
   replicaCount: 1
   Service:
     type: ClusterIP
+
+multicluster:
+  enabled: false
+  clusterGateway:
+    replicaCount: 1
+    port: 9443
+    image:
+      repository: oamdev/cluster-gateway
+      tag: latest
+      pullPolicy: Always
+    resource:
+      limits:
+        cpu: 100m
+        memory: 10Mi
