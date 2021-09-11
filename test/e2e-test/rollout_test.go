@@ -266,7 +266,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 	})
 
-	It("Test component rollout cloneset", func() {
+	PIt("Test component rollout cloneset", func() {
 		var err error
 		applySourceApp("app-source.yaml")
 		updateApp("app-target.yaml", 2)

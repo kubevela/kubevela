@@ -72,7 +72,7 @@ var _ = Describe("Initializer Normal tests", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	})
 
-	It("Test apply initializer without dependsOn", func() {
+	PIt("Test apply initializer without dependsOn", func() {
 		compName := "env1-comp"
 		init := &v1beta1.Initializer{
 			TypeMeta: metav1.TypeMeta{
@@ -125,7 +125,7 @@ var _ = Describe("Initializer Normal tests", func() {
 		}, 30*time.Second, 5*time.Second).Should(Succeed())
 	})
 
-	It("Test apply initializer which will create namespace", func() {
+	PIt("Test apply initializer which will create namespace", func() {
 		randomNs := randomNamespaceName("initializer-createns")
 		init := &v1beta1.Initializer{
 			TypeMeta: metav1.TypeMeta{
@@ -182,7 +182,7 @@ var _ = Describe("Initializer Normal tests", func() {
 
 	Context("Test apply initializer depends on other initializer", func() {
 
-		It("initializer depends on existing initializer", func() {
+		PIt("initializer depends on existing initializer", func() {
 			compName := "env2-comp"
 
 			init := &v1beta1.Initializer{
@@ -279,7 +279,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			}, 30*time.Second, 5*time.Second).Should(Succeed())
 		})
 
-		It("initializer depends on not non-built-in initializer not found, should be rejected by webhook", func() {
+		PIt("initializer depends on not non-built-in initializer not found, should be rejected by webhook", func() {
 			init := &v1beta1.Initializer{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Initializer",
@@ -319,7 +319,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			Expect(k8sClient.Create(ctx, init)).Should(HaveOccurred())
 		})
 
-		It("initializer depends on built-in initializer", func() {
+		PIt("initializer depends on built-in initializer", func() {
 			initCm := &corev1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "ConfigMap",
@@ -406,7 +406,7 @@ var _ = Describe("Initializer Normal tests", func() {
 			}, 120*time.Second, 500*time.Millisecond).Should(Succeed())
 		})
 
-		It("Deleting initializer depended by other initializer should be rejected by webhook", func() {
+		PIt("Deleting initializer depended by other initializer should be rejected by webhook", func() {
 			initA := &v1beta1.Initializer{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Initializer",

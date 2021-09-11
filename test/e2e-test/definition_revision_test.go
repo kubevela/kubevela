@@ -125,7 +125,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	})
 
-	It("Test deploy application which containing cue rendering module", func() {
+	PIt("Test deploy application which containing cue rendering module", func() {
 		var (
 			appName   = "test-website-app"
 			comp1Name = "front"
@@ -322,7 +322,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(HaveOccurred())
 	})
 
-	It("Test deploy application which specify the name of component", func() {
+	PIt("Test deploy application which specify the name of component", func() {
 		compName := "job"
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -352,7 +352,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 	})
 
-	It("Test deploy application which containing helm module", func() {
+	PIt("Test deploy application which containing helm module", func() {
 		var (
 			appName  = "test-helm"
 			compName = "worker"
@@ -513,7 +513,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}, 120*time.Second, 5*time.Second).Should(BeTrue())
 	})
 
-	It("Test deploy application which containing kube module", func() {
+	PIt("Test deploy application which containing kube module", func() {
 		var (
 			appName  = "test-kube-app"
 			compName = "worker"
@@ -686,7 +686,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 	})
 
 	// refer to https://github.com/oam-dev/kubevela/discussions/1810#discussioncomment-914295
-	It("Test k8s resources created by application whether with correct label", func() {
+	PIt("Test k8s resources created by application whether with correct label", func() {
 		var (
 			appName  = "test-resources-labels"
 			compName = "web"
@@ -760,7 +760,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		workloadLabel := webServiceDeploy.GetLabels()[oam.WorkloadTypeLabel]
 		Expect(workloadLabel).Should(Equal("webservice-v1"))
 
-		By("Verify the trait(service) is created successfully")
+		By("Verify the traPIt(service) is created successfully")
 		exposeSVC := &corev1.Service{}
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: compName, Namespace: namespace}, exposeSVC)

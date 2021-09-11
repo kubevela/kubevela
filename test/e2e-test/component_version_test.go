@@ -163,7 +163,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 	})
 
 	When("create or update a component", func() {
-		It("should create corresponding ControllerRevision", func() {
+		PIt("should create corresponding ControllerRevision", func() {
 			By("Create Component v1")
 			Expect(k8sClient.Create(ctx, &componentV1)).Should(Succeed())
 
@@ -215,7 +215,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 	})
 
 	When("Components have revisionName in AppConfig", func() {
-		It("should NOT create NOR update workloads, when update components", func() {
+		PIt("should NOT create NOR update workloads, when update components", func() {
 			By("Create Component v1")
 			Expect(k8sClient.Create(ctx, &componentV1)).Should(Succeed())
 
@@ -262,7 +262,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 	})
 
 	When("Components have componentName", func() {
-		It("should update workloads with new revision of components, when update components", func() {
+		PIt("should update workloads with new revision of components, when update components", func() {
 			By("Create Component v1")
 			Expect(k8sClient.Create(ctx, &componentV1)).Should(Succeed())
 
@@ -320,7 +320,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 	})
 
 	When("Components have componentName and have revision-enabled trait", func() {
-		It("should create workloads with name of revision and keep the old revision", func() {
+		PIt("should create workloads with name of revision and keep the old revision", func() {
 
 			By("Create trait definition")
 			var td v1alpha2.TraitDefinition
@@ -431,7 +431,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 	})
 
 	When("Components have componentName and without revision-enabled trait", func() {
-		It("should create workloads with name of component and replace the old revision", func() {
+		PIt("should create workloads with name of component and replace the old revision", func() {
 
 			By("Create trait definition")
 			var td v1alpha2.TraitDefinition
@@ -594,7 +594,7 @@ var _ = Describe("Component revision", func() {
 	}
 
 	Context("Attach a revision-enable trait the first time, workload should not be recreated", func() {
-		It("should create Component and ApplicationConfiguration", func() {
+		PIt("should create Component and ApplicationConfiguration", func() {
 			By("submit Component")
 			Expect(k8sClient.Create(ctx, &component)).Should(Succeed())
 			By("check Component exist")

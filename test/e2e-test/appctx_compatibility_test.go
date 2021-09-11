@@ -64,7 +64,7 @@ var _ = Describe("Test compatibility for deprecation of appContext", func() {
 		Expect(k8sClient.DeleteAllOf(ctx, &corev1.PersistentVolume{})).Should(Succeed())
 	})
 
-	It("Test application can update its resources' owners", func() {
+	PIt("Test application can update its resources' owners", func() {
 		var err error
 		var appCtxKey, rtKey *client.ObjectKey
 
@@ -162,7 +162,7 @@ var _ = Describe("Test compatibility for deprecation of appContext", func() {
 		}, 30*time.Second, 500*time.Millisecond).Should(util.NotFoundMatcher{})
 	})
 
-	It("Test delete an application with a legacy finalizer", func() {
+	PIt("Test delete an application with a legacy finalizer", func() {
 		var err error
 		var rtKey *client.ObjectKey
 		// simulate a resource tracker created by a legacy application

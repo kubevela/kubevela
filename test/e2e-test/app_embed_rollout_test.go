@@ -230,7 +230,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		}, time.Second*30, time.Microsecond*300).Should(BeNil())
 	}
 
-	It("Test upgrade application", func() {
+	PIt("Test upgrade application", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -253,7 +253,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
 
-	It("Test application only upgrade batchPartition", func() {
+	PIt("Test application only upgrade batchPartition", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -363,7 +363,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
 
-	It("Test upgrade application in middle of  rolling out", func() {
+	PIt("Test upgrade application in middle of  rolling out", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -405,7 +405,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
 
-	It("Test pause  in middle of embed app rolling out", func() {
+	PIt("Test pause  in middle of embed app rolling out", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -478,7 +478,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 2), "2")
 	})
 
-	It("Test rollout with trait", func() {
+	PIt("Test rollout with trait", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -510,7 +510,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 3)))
 	})
 
-	It("Test rollout with another component only rollout first component", func() {
+	PIt("Test rollout with another component only rollout first component", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{

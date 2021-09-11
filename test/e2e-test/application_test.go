@@ -160,7 +160,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 	})
 
-	It("Test app created normally", func() {
+	PIt("Test app created normally", func() {
 		applyApp("app1.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
@@ -185,7 +185,7 @@ var _ = Describe("Application Normal tests", func() {
 		verifyComponentRevision("myweb", 4)
 	})
 
-	It("Test app have component with multiple same type traits", func() {
+	PIt("Test app have component with multiple same type traits", func() {
 		traitDef := new(v1beta1.TraitDefinition)
 		Expect(common.ReadYamlToObject("testdata/app/trait_config.yaml", traitDef)).Should(BeNil())
 		traitDef.Namespace = namespaceName
@@ -216,7 +216,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(testApp.Status.Services[0].Traits[1].Message).Should(Equal("secret:app-env-config"))
 	})
 
-	It("Test app have rollout-template false annotation", func() {
+	PIt("Test app have rollout-template false annotation", func() {
 		By("Apply an application")
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app5.yaml", &newApp)).Should(BeNil())
@@ -224,7 +224,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
 	})
 
-	It("Test app have empty rollingBatches rolloutPlan", func() {
+	PIt("Test app have empty rollingBatches rolloutPlan", func() {
 		By("Apply an application")
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app6.yaml", &newApp)).Should(BeNil())
@@ -232,7 +232,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
 	})
 
-	It("Test app have components with same name", func() {
+	PIt("Test app have components with same name", func() {
 		By("Apply an application")
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app8.yaml", &newApp)).Should(BeNil())
@@ -240,7 +240,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
 	})
 
-	It("Test two app have component with same name", func() {
+	PIt("Test two app have component with same name", func() {
 		By("Apply an application")
 		var firstApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app9.yaml", &firstApp)).Should(BeNil())
