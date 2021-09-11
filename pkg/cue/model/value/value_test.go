@@ -18,7 +18,6 @@ package value
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -675,36 +674,17 @@ boolKey: true
 
 func TestImports(t *testing.T) {
 	cont := `
-context: {name:              "app-with-rollout-workflow"
-namespace:         "app-with-rollout-workflow"
-selfLink:          "/apis/core.oam.dev/v1beta1/namespaces/app-with-rollout-workflow/applications/app-with-rollout-workflow"
-uid:               "c90a0161-9055-417f-bc9d-00ec67c15f9c"
-resourceVersion:   "244"
-generation:        1
-creationTimestamp: "2021-09-09T02:16:56Z"
-annotations: {
-	"oam.dev/kubevela-version": "UNKNOWN"
-}
-}
 context: stepSessionID: "3w9qkdgn5w"`
 	v, err := NewValue(`
 import (
 	"vela/op"
 )
 
-// apply components and traits
-apply: op.#ApplyComponent & {
-	component: parameter.component
-}
-parameter: {
-	// +usage=Declare the name of the component
-	component: string
-}
-
-parameter: {component: "myweb1"
-}
+id: op.context.stepSessionID 
 
 `+cont, nil, cont)
-	fmt.Println(err)
-	fmt.Println(v.String())
+	assert.NilError(t, err)
+	id, err := v.GetString("id")
+	assert.NilError(t, err)
+	assert.Equal(t, id, "3w9qkdgn5w")
 }

@@ -18,17 +18,11 @@ import (
 #Apply: kube.#Apply
 
 #ApplyApplication: #Steps & {
-	load:       ws.#Load @step(1)
+	load:       oam.#LoadComponets @step(1)
 	components: #Steps & {
 		for name, c in load.value {
-			"\(name)": #Steps & {
-				workload: kube.#Apply & {value: c.workload}
-				if c.auxiliaries != _|_ {
-					_key: "trait.oam.dev/resource"
-					for index, o in c.auxiliaries {
-						"\(o.metadata.labels[_key])": kube.#Apply & {value: o}
-					}
-				}
+			"\(name)": oam.#Apply & {
+				value: c
 			}
 		}
 	} @step(2)
@@ -37,47 +31,21 @@ import (
 #ApplyComponent: oam.#ApplyComponent
 
 #ApplyRemaining: #Steps & {
-	namespace?: string
-
 	// exceptions specify the resources not to apply.
-	exceptions?: [componentName=string]: {
-		// skipApplyWorkload indicates whether to skip apply the workload resource
-		skipApplyWorkload: *true | bool
+	exceptions: [...string]
+	_exceptions: {for c in exceptions {"\(c)": true}}
 
-		// skipAllTraits indicates to skip apply all resources of the traits.
-		// If this is true, skipApplyTraits will be ignored
-		skipAllTraits: *true | bool
-
-		// skipApplyTraits specifies the names of the traits to skip apply
-		skipApplyTraits: [...string]
-	}
-
-	components: ws.#Load @step(1)
-	#up__: [ for name, c in components.value {
-		#Steps
-		if exceptions[name] != _|_ {
-			if exceptions[name].skipApplyWorkload == false {
-				"apply-workload": kube.#Apply & {value: c.workload}
-			}
-			if exceptions[name].skipAllTraits == false && c.auxiliaries != _|_ {
-				#up_auxiliaries: [ for t in c.auxiliaries {
-					kube.#Apply & {value: t}
-				}]
-			}
-		}
-		if exceptions[name] == _|_ {
-			"apply-workload": kube.#Apply & {value: c.workload}
-			if c.auxiliaries != _|_ {
-				#up_auxiliaries: [ for index, o in c.auxiliaries {
-					"s\(index)": kube.#Apply & {
-						value: o
-					}
-				}]
+	load:       ws.#Load @step(1)
+	components: #Steps & {
+		for name, c in load.value {
+			if _exceptions[name] == _|_ {
+				"\(name)": oam.#Apply & {
+					value: c
+				}
 			}
 
 		}
-	},
-	] @step(2)
+	} @step(2)
 }
 
 #DingTalk: #Steps & {
