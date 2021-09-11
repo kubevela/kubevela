@@ -55,7 +55,7 @@ func TestLoad(t *testing.T) {
 
 	tmpl, err := loader.LoadTaskTemplate(context.Background(), "apply-component")
 	assert.NilError(t, err)
-	expected, err := os.ReadFile("./static/apply-component.cue")
+	expected, err := os.ReadFile("./static/builtin-apply-component.cue")
 	assert.NilError(t, err)
 	assert.Equal(t, tmpl, string(expected))
 

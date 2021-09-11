@@ -105,6 +105,7 @@ fmt: goimports installcue
 	$(CUE) fmt ./vela-templates/definitions/internal/*
 	$(CUE) fmt ./vela-templates/definitions/registry/*
 	$(CUE) fmt ./pkg/stdlib/pkgs/*
+	$(CUE) fmt ./pkg/stdlib/op.cue
 	$(CUE) fmt ./pkg/workflow/tasks/template/static/*
 # Run go vet against code
 vet:

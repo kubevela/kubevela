@@ -56,23 +56,27 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, cli, dm)
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
-		copierStep := step.DeepCopy()
-		genTask, err := taskDiscover.GetTaskGenerator(ctx, copierStep.Type)
+		options := &wfTypes.GeneratorOptions{
+			ID: generateStepID(step.Name, app.Status.Workflow),
+		}
+		generatorName := step.Type
+		if generatorName == "apply-component" {
+			generatorName = "builtin-apply-component"
+			options.StepConvertor = func(lstep v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error) {
+				copierStep := lstep.DeepCopy()
+				if err := convertStepProperties(copierStep, app); err != nil {
+					return lstep, errors.WithMessage(err, "convert [apply-component]")
+				}
+				return *copierStep, nil
+			}
+		}
+
+		genTask, err := taskDiscover.GetTaskGenerator(ctx, generatorName)
 		if err != nil {
 			return nil, err
 		}
 
-		task, err := genTask(*copierStep, &wfTypes.GeneratorOptions{
-			ID: generateStepID(step.Name, app.Status.Workflow),
-			StepConvertor: func(lstep v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error) {
-				if lstep.Type == "apply-component" {
-					if err := convertStepProperties(&lstep, app); err != nil {
-						return lstep, errors.WithMessage(err, "convert [apply-component]")
-					}
-				}
-				return lstep, nil
-			},
-		})
+		task, err := genTask(step, options)
 		if err != nil {
 			return nil, err
 		}
