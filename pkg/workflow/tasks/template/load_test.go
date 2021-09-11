@@ -53,7 +53,7 @@ func TestLoad(t *testing.T) {
 	tdm := mock.NewMockDiscoveryMapper()
 	loader := NewTemplateLoader(cli, tdm)
 
-	tmpl, err := loader.LoadTaskTemplate(context.Background(), "apply-component")
+	tmpl, err := loader.LoadTaskTemplate(context.Background(), "builtin-apply-component")
 	assert.NilError(t, err)
 	expected, err := os.ReadFile("./static/builtin-apply-component.cue")
 	assert.NilError(t, err)

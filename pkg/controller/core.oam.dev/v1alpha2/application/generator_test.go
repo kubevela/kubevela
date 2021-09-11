@@ -21,17 +21,18 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test Application workflow generator", func() {
