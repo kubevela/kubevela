@@ -234,7 +234,6 @@ manifests: installcue kustomize
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	./hack/crd/cleanup.sh
 	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/
-	go run hack/crd/update.go charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
 	go run ./vela-templates/gen_addons.go

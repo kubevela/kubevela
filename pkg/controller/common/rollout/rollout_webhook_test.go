@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -148,7 +150,7 @@ func TestMakeHTTPRequest(t *testing.T) {
 func TestCallWebhook(t *testing.T) {
 	ctx := context.TODO()
 	body := "all good"
-	res := v1alpha1.PodSpecWorkload{
+	res := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "name",
 			Namespace: "namespace",
