@@ -69,6 +69,8 @@ type InitializerStatus struct {
 // +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=init
 // +kubebuilder:printcolumn:name="PHASE",type=string,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Initializer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -78,6 +80,7 @@ type Initializer struct {
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // InitializerList contains a list of Initializer.
 type InitializerList struct {

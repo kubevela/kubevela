@@ -64,6 +64,8 @@ func (d *PolicyDefinition) GetCondition(conditionType condition.ConditionType) c
 // +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=policy
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PolicyDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -73,6 +75,7 @@ type PolicyDefinition struct {
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // PolicyDefinitionList contains a list of PolicyDefinition
 type PolicyDefinitionList struct {

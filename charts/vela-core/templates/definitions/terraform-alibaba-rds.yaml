@@ -39,7 +39,7 @@ spec:
           value = module.rds.this_db_instance_connection_string
         }
         output "DB_PASSWORD" {
-          value = module.rds.this_db_instance_port
+          value = var.password
         }
 
         variable "instance_name" {

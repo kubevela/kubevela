@@ -76,6 +76,8 @@ type ComponentDefinitionStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="WORKLOAD-KIND",type=string,JSONPath=".spec.workload.definition.kind"
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=".metadata.annotations.definition\\.oam\\.dev/description"
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ComponentDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -95,6 +97,7 @@ func (cd *ComponentDefinition) GetCondition(conditionType condition.ConditionTyp
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ComponentDefinitionList contains a list of ComponentDefinition
 type ComponentDefinitionList struct {
