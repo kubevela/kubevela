@@ -825,12 +825,6 @@ func isControlledByApp(ac *v1alpha2.ApplicationConfiguration) bool {
 // getOwnerFromAC will check and get the real owner, if the owner is Application, it will use ApplicationContext as owner
 // or it will make the AC as the owner
 func getOwnerFromAC(ac *v1alpha2.ApplicationConfiguration) *metav1.OwnerReference {
-	for _, owner := range ac.GetOwnerReferences() {
-		if owner.APIVersion == v1beta1.SchemeGroupVersion.String() && owner.Kind == v1beta1.ApplicationKind &&
-			owner.Controller != nil && *owner.Controller {
-			return metav1.NewControllerRef(ac, v1alpha2.ApplicationContextGroupVersionKind)
-		}
-	}
 	return metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 }
 
