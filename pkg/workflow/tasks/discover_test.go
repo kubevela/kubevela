@@ -20,15 +20,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -65,48 +59,4 @@ func TestDiscover(t *testing.T) {
 	_, err = discover.GetTaskGenerator(context.Background(), "fly")
 	assert.Equal(t, err.Error(), makeErr("fly").Error())
 
-}
-
-func TestRegister(t *testing.T) {
-	discover := &taskDiscover{
-		builtins: map[string]types.TaskGenerator{
-			"suspend": suspend,
-		}}
-	discover.RegisterGenerator("test", func(_ wfContext.Context, options *types.TaskRunOptions, _ string, paramValue *value.Value) (common.WorkflowStepStatus, *types.Operation, *value.Value) {
-		return common.WorkflowStepStatus{
-			Phase: common.WorkflowStepPhaseSucceeded,
-		}, nil, nil
-	})
-
-	gen, err := discover.GetTaskGenerator(context.Background(), "test")
-	assert.NilError(t, err)
-	run, err := gen(v1beta1.WorkflowStep{
-		Name: "step1",
-	}, &types.GeneratorOptions{ID: "abcd"})
-	assert.NilError(t, err)
-	assert.Equal(t, run.Name(), "step1")
-	wfCtx := mockContext(t)
-	status, _, err := run.Run(wfCtx, &types.TaskRunOptions{})
-	assert.NilError(t, err)
-	assert.Equal(t, status.Name, "step1")
-	assert.Equal(t, status.Type, "test")
-	assert.Equal(t, status.ID, "abcd")
-	assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
-}
-
-func mockContext(t *testing.T) wfContext.Context {
-	cli := &test.MockClient{
-		MockCreate: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-			return nil
-		},
-		MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-			return nil
-		},
-		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-			return nil
-		},
-	}
-	wfCtx, err := wfContext.NewEmptyContext(cli, "default", "v1")
-	assert.NilError(t, err)
-	return wfCtx
 }

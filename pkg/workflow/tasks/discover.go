@@ -18,23 +18,21 @@ package tasks
 
 import (
 	"context"
-	"strings"
+
+	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
-
-	"github.com/pkg/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type taskDiscover struct {
@@ -60,11 +58,6 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 
 	}
 	return nil, errors.Errorf("can't find task generator: %s", name)
-}
-
-// RegisterGenerator register generator to taskDiscover.
-func (td *taskDiscover) RegisterGenerator(name string, p types.BuiltinTaskRunner) {
-	td.builtins[name] = makeGenerator(name, p)
 }
 
 func suspend(step v1beta1.WorkflowStep, _ *types.GeneratorOptions) (types.TaskRunner, error) {
@@ -109,67 +102,4 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 // Pending check task should be executed or not.
 func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 	return false
-}
-
-type componentTaskRunner struct {
-	tpy          string
-	step         v1beta1.WorkflowStep
-	generatorOpt *types.GeneratorOptions
-	up           types.BuiltinTaskRunner
-}
-
-// Name return step name.
-func (ct *componentTaskRunner) Name() string {
-	return ct.step.Name
-}
-
-// Run workflow step.
-func (ct *componentTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
-	paramsValue, err := ctx.MakeParameter(ct.step.Properties)
-	if err != nil {
-		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed}), nil, errors.WithMessage(err, "make parameter")
-	}
-
-	if err := hooks.Input(ctx, paramsValue, ct.step); err != nil {
-		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Input", Message: err.Error()}), nil, err
-	}
-	status, operation, taskValue := ct.up(ctx, options, ct.generatorOpt.ID, paramsValue)
-
-	if status.Phase != common.WorkflowStepPhaseSucceeded {
-		return ct.setMeta(status), nil, nil
-	}
-	if err := hooks.Output(ctx, taskValue, ct.step, status.Phase); err != nil {
-		return ct.setMeta(common.WorkflowStepStatus{Phase: common.WorkflowStepPhaseFailed, Reason: "Output", Message: err.Error()}), nil, err
-	}
-	return ct.setMeta(status), operation, nil
-}
-
-func (ct *componentTaskRunner) setMeta(status common.WorkflowStepStatus) common.WorkflowStepStatus {
-	if ct.generatorOpt != nil {
-		status.ID = ct.generatorOpt.ID
-	}
-	status.Name = ct.step.Name
-	status.Type = ct.tpy
-	return status
-}
-
-// Pending check task should be executed or not.
-func (ct *componentTaskRunner) Pending(ctx wfContext.Context) bool {
-	for _, input := range ct.step.Inputs {
-		if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func makeGenerator(tpy string, p types.BuiltinTaskRunner) types.TaskGenerator {
-	return func(wfStep v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
-		return &componentTaskRunner{
-			tpy:          tpy,
-			step:         wfStep,
-			generatorOpt: opt,
-			up:           p,
-		}, nil
-	}
 }

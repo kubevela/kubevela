@@ -177,7 +177,7 @@ import (
 
 #HTTPDelete: http.#Do & {method: "DELETE"}
 
-#Load: oam.#Load
+#Load: oam.#LoadComponets
 
 #Read: kube.#Read
 

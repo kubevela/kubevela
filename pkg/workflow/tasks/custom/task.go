@@ -99,13 +99,6 @@ func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep, genOpt *wfTypes.GeneratorOptions) (wfTypes.TaskRunner, error) {
 
-		var err error
-		if genOpt.StepConvertor != nil {
-			wfStep, err = genOpt.StepConvertor(wfStep)
-			if err != nil {
-				return nil, errors.WithMessage(err, "convert step")
-			}
-		}
 		exec := &executor{
 			handlers: t.handlers,
 			wfStatus: common.WorkflowStepStatus{
@@ -115,8 +108,16 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			},
 		}
 
+		var err error
+
 		if genOpt != nil {
 			exec.wfStatus.ID = genOpt.ID
+			if genOpt.StepConvertor != nil {
+				wfStep, err = genOpt.StepConvertor(wfStep)
+				if err != nil {
+					return nil, errors.WithMessage(err, "convert step")
+				}
+			}
 		}
 
 		params := map[string]interface{}{}
