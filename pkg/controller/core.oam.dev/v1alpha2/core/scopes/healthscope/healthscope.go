@@ -67,7 +67,6 @@ const (
 )
 
 var (
-	kindContainerizedWorkload = v1alpha2.ContainerizedWorkloadKind
 	kindDeployment            = reflect.TypeOf(apps.Deployment{}).Name()
 	kindService               = reflect.TypeOf(core.Service{}).Name()
 	kindStatefulSet           = reflect.TypeOf(apps.StatefulSet{}).Name()
@@ -122,31 +121,6 @@ func (fn WorkloadHealthCheckFn) Check(ctx context.Context, c client.Client, tr c
 		}
 		peerHCs.MergePeerWorkloadsConditions(r)
 	}
-	return r
-}
-
-// CheckContainerziedWorkloadHealth check health condition of ContainerizedWorkload
-func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref core.ObjectReference, namespace string) *WorkloadHealthCondition {
-	if ref.GroupVersionKind() != v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload) {
-		return nil
-	}
-	r := &WorkloadHealthCondition{
-		HealthStatus:   StatusHealthy,
-		TargetWorkload: ref,
-	}
-
-	cwObj := v1alpha2.ContainerizedWorkload{}
-	cwObj.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ref.Name}, &cwObj); err != nil {
-		r.HealthStatus = StatusUnhealthy
-		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
-		return r
-	}
-	r.ComponentName = getComponentNameFromLabel(&cwObj)
-	r.TargetWorkload.UID = cwObj.GetUID()
-
-	childRefs := cwObj.Status.Resources
-	updateChildResourcesCondition(ctx, c, namespace, r, ref, childRefs)
 	return r
 }
 
