@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,7 +47,6 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 			Name: namespace,
 		},
 	}
-	var cw v1alpha2.ContainerizedWorkload
 	var component v1alpha2.Component
 	var appConfig v1alpha2.ApplicationConfiguration
 	componentName := "example-component"
@@ -60,29 +60,6 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 				Name: namespace,
 			},
 		}
-		cw = v1alpha2.ContainerizedWorkload{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ContainerizedWorkload",
-				APIVersion: "core.oam.dev/v1alpha2",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: "wordpress:4.6.1-apache",
-						Ports: []v1alpha2.ContainerPort{
-							{
-								Name: "wordpress",
-								Port: 80,
-							},
-						},
-					},
-				},
-			},
-		}
 		component = v1alpha2.Component{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "core.oam.dev/v1alpha2",
@@ -94,7 +71,19 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 			},
 			Spec: v1alpha2.ComponentSpec{
 				Workload: runtime.RawExtension{
-					Object: &cw,
+					Object: &appsv1.Deployment{
+						Spec: appsv1.DeploymentSpec{
+							Template: corev1.PodTemplateSpec{
+								Spec: corev1.PodSpec{
+									Containers: []corev1.Container{
+										{
+											Image: "nginx:v3",
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		}
