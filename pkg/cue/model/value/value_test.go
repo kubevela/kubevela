@@ -35,7 +35,7 @@ object: {
     }
 }
 `
-	testVal1, err := NewValue(src, nil)
+	testVal1, err := NewValue(src, nil, "")
 	assert.NilError(t, err)
 	err = testVal1.FillObject(12, "object", "x")
 	assert.NilError(t, err)
@@ -65,7 +65,7 @@ z: {
 `
 	assert.Equal(t, val1String, expectedValString)
 
-	testVal2, err := NewValue(src, nil)
+	testVal2, err := NewValue(src, nil, "")
 	assert.NilError(t, err)
 	err = testVal2.FillRaw(expectedValString)
 	assert.NilError(t, err)
@@ -136,7 +136,7 @@ step3: {
 	}
 
 	for _, tCase := range testCases {
-		val, err := NewValue(tCase.base, nil)
+		val, err := NewValue(tCase.base, nil, "")
 		assert.NilError(t, err)
 		number := 99
 		err = val.StepByFields(func(_ string, in *Value) (bool, error) {
@@ -156,7 +156,7 @@ step1: "1"
 step2: "2"
 step3: "3"
 `
-	val, err := NewValue(caseSkip, nil)
+	val, err := NewValue(caseSkip, nil, "")
 	assert.NilError(t, err)
 	inc := 0
 	err = val.StepByFields(func(_ string, in *Value) (bool, error) {
@@ -190,7 +190,7 @@ step3: "3"
 		s, err := in.CueValue().String()
 		assert.NilError(t, err)
 		if s == "2" {
-			v, err := NewValue("v: 33", nil)
+			v, err := NewValue("v: 33", nil, "")
 			assert.NilError(t, err)
 			*in = *v
 		}
@@ -315,7 +315,7 @@ step3: {
 `}}
 
 	for _, tCase := range testCases {
-		val, err := NewValue(tCase.base, nil, TagFieldOrder)
+		val, err := NewValue(tCase.base, nil, "", TagFieldOrder)
 		assert.NilError(t, err)
 		number := 99
 		err = val.StepByFields(func(name string, in *Value) (bool, error) {
@@ -341,7 +341,7 @@ do: "apply"
 		Do       string `json:"do"`
 	}{}
 
-	val, err := NewValue(case1, nil)
+	val, err := NewValue(case1, nil, "")
 	assert.NilError(t, err)
 	err = val.UnmarshalTo(&out)
 	assert.NilError(t, err)
@@ -358,7 +358,7 @@ do: "apply"
 provider: string
 do: string
 `
-	val, err = NewValue(caseIncomplete, nil)
+	val, err = NewValue(caseIncomplete, nil, "")
 	assert.NilError(t, err)
 	err = val.UnmarshalTo(&out)
 	assert.Equal(t, err != nil, true)
@@ -366,7 +366,7 @@ do: string
 
 func TestStepByList(t *testing.T) {
 	base := `[{step: 1},{step: 2}]`
-	v, err := NewValue(base, nil)
+	v, err := NewValue(base, nil, "")
 	assert.NilError(t, err)
 	var i int64
 	err = v.StepByList(func(name string, in *Value) (bool, error) {
@@ -394,7 +394,7 @@ func TestStepByList(t *testing.T) {
 	assert.Equal(t, err.Error(), "mock error")
 	assert.Equal(t, i, int64(1))
 
-	notListV, err := NewValue(`{}`, nil)
+	notListV, err := NewValue(`{}`, nil, "")
 	assert.NilError(t, err)
 	err = notListV.StepByList(func(_ string, _ *Value) (bool, error) {
 		return false, nil
@@ -408,11 +408,11 @@ func TestValue(t *testing.T) {
 	caseError := `
 provider: xxx
 `
-	val, err := NewValue(caseError, nil)
+	val, err := NewValue(caseError, nil, "")
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, val == nil, true)
 
-	val, err = NewValue(":", nil)
+	val, err = NewValue(":", nil, "")
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, val == nil, true)
 
@@ -421,7 +421,7 @@ provider: xxx
 provider: "kube"
 do: "apply"
 `
-	val, err = NewValue(caseOk, nil)
+	val, err = NewValue(caseOk, nil, "")
 	assert.NilError(t, err)
 	originCue := val.CueValue()
 
@@ -432,7 +432,7 @@ do: "apply"
 	err = val.FillRaw(caseError)
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, originCue, val.CueValue())
-	cv, err := NewValue(caseOk, nil)
+	cv, err := NewValue(caseOk, nil, "")
 	assert.NilError(t, err)
 	err = val.FillObject(cv)
 	assert.Equal(t, err != nil, true)
@@ -467,14 +467,14 @@ func TestValueError(t *testing.T) {
 provider: "kube"
 do: "apply"
 `
-	val, err := NewValue(caseOk, nil)
+	val, err := NewValue(caseOk, nil, "")
 	assert.NilError(t, err)
 	err = val.FillRaw(`
 provider: "conflict"`)
 	assert.NilError(t, err)
 	assert.Equal(t, val.Error() != nil, true)
 
-	val, err = NewValue(caseOk, nil)
+	val, err = NewValue(caseOk, nil, "")
 	assert.NilError(t, err)
 	err = val.FillObject(map[string]string{
 		"provider": "abc",
@@ -490,7 +490,7 @@ name: "foo"
 #age: 100
 bottom: _|_
 `
-	val, err := NewValue(caseSrc, nil)
+	val, err := NewValue(caseSrc, nil, "")
 	assert.NilError(t, err)
 
 	name, err := val.Field("name")
@@ -563,7 +563,7 @@ wait: {
 	}
 
 	for _, tCase := range testCases {
-		v, err := NewValue(tCase.src, nil, ProcessScript)
+		v, err := NewValue(tCase.src, nil, "", ProcessScript)
 		if tCase.err != "" {
 			assert.Equal(t, err.Error(), tCase.err)
 			continue
@@ -601,7 +601,7 @@ apply.workload.name`,
 	}
 
 	for _, tCase := range testCases {
-		srcV, err := NewValue(tCase.src, nil)
+		srcV, err := NewValue(tCase.src, nil, "")
 		assert.NilError(t, err)
 		v, err := srcV.LookupByScript(tCase.script)
 		assert.NilError(t, err)
@@ -633,10 +633,58 @@ apply.workload.name`,
 	}
 
 	for _, tCase := range errorCases {
-		srcV, err := NewValue(tCase.src, nil)
+		srcV, err := NewValue(tCase.src, nil, "")
 		assert.NilError(t, err)
 		_, err = srcV.LookupByScript(tCase.script)
 		assert.Error(t, err, tCase.err)
 		assert.Equal(t, err.Error(), tCase.err)
 	}
+}
+
+func TestGet(t *testing.T) {
+	caseOk := `
+strKey: "xxx"
+intKey: 100
+boolKey: true
+`
+	val, err := NewValue(caseOk, nil, "")
+	assert.NilError(t, err)
+
+	str, err := val.GetString("strKey")
+	assert.NilError(t, err)
+	assert.Equal(t, str, "xxx")
+	// err case
+	_, err = val.GetInt64("strKey")
+	assert.Equal(t, err != nil, true)
+
+	intv, err := val.GetInt64("intKey")
+	assert.NilError(t, err)
+	assert.Equal(t, intv, int64(100))
+	// err case
+	_, err = val.GetBool("intKey")
+	assert.Equal(t, err != nil, true)
+
+	ok, err := val.GetBool("boolKey")
+	assert.NilError(t, err)
+	assert.Equal(t, ok, true)
+	// err case
+	_, err = val.GetString("boolKey")
+	assert.Equal(t, err != nil, true)
+}
+
+func TestImports(t *testing.T) {
+	cont := `
+context: stepSessionID: "3w9qkdgn5w"`
+	v, err := NewValue(`
+import (
+	"vela/op"
+)
+
+id: op.context.stepSessionID 
+
+`+cont, nil, cont)
+	assert.NilError(t, err)
+	id, err := v.GetString("id")
+	assert.NilError(t, err)
+	assert.Equal(t, id, "3w9qkdgn5w")
 }

@@ -87,7 +87,7 @@ request:{
 	}
 
 	for tName, tCase := range testCases {
-		v, err := value.NewValue(tCase.request, nil)
+		v, err := value.NewValue(tCase.request, nil, "")
 		assert.NilError(t, err, tName)
 		prd := &provider{}
 		err = prd.Do(nil, v, nil)

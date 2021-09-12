@@ -33,7 +33,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -52,13 +51,76 @@ type AppHandler struct {
 	dispatcher     *dispatch.AppManifestsDispatcher
 	isNewRevision  bool
 	currentRevHash string
+
+	services         []common.ApplicationComponentStatus
+	appliedResources []common.ClusterObjectReference
+	parser           *appfile.Parser
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 	h.initDispatcher()
 	_, err := h.dispatcher.Dispatch(ctx, manifests)
+	if err == nil {
+		for _, mf := range manifests {
+			ref := common.ClusterObjectReference{
+				Cluster: cluster,
+				Creator: owner,
+				ObjectReference: corev1.ObjectReference{
+					Name:       mf.GetName(),
+					Namespace:  mf.GetNamespace(),
+					Kind:       mf.GetKind(),
+					APIVersion: mf.GetAPIVersion(),
+				},
+			}
+			h.addAppliedResource(ref)
+		}
+	}
 	return err
+}
+
+// addAppliedResource recorde applied resource.
+// reconcile run at single threaded. So there is no need to consider to use locker.
+func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
+	for _, ref := range refs {
+		found := false
+		for _, current := range h.appliedResources {
+			if isSameObjReference(current, ref) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			h.appliedResources = append(h.appliedResources, ref)
+		}
+	}
+}
+
+func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {
+	return ref1.Cluster == ref2.Cluster &&
+		ref1.Namespace == ref2.Namespace &&
+		ref1.Name == ref2.Name
+}
+
+// addServiceStatus recorde the whole component status.
+// reconcile run at single threaded. So there is no need to consider to use locker.
+func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComponentStatus) {
+	for _, svc := range svcs {
+		found := false
+		for i := range h.services {
+			current := h.services[i]
+			if current.Name == svc.Name {
+				if cover {
+					h.services[i] = svc
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			h.services = append(h.services, svc)
+		}
+	}
 }
 
 // DispatchAndGC apply manifests and do GC.
@@ -93,41 +155,59 @@ func (h *AppHandler) initDispatcher() {
 	}
 }
 
-// ApplyAppManifests will dispatch Application manifests
-func (h *AppHandler) ApplyAppManifests(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
-	// dispatch workload in policy before workflow start
-	if len(policies) != 0 {
-		if err := h.Dispatch(ctx, policies...); err != nil {
-			return errors.WithMessage(err, "cannot dispatch policies")
+// ProduceArtifacts will produce Application artifacts that will be saved in configMap.
+func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
+	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
+}
+
+func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.ApplicationRevision) (*common.ApplicationComponentStatus, bool, error) {
+
+	var (
+		status = common.ApplicationComponentStatus{
+			Name:               wl.Name,
+			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
+			Healthy:            true,
 		}
+		appName  = appRev.Spec.Application.Name
+		isHealth = true
+	)
+
+	if wl.CapabilityCategory == types.TerraformCategory {
+		return nil, true, nil
 	}
 
-	appRev := h.currentAppRev
-	if (h.app.Spec.Workflow != nil && len(h.app.Spec.Workflow.Steps) > 0) || h.app.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
-		return h.createResourcesConfigMap(ctx, appRev, comps, policies)
+	if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
+		isHealth = false
+		status.Healthy = false
 	}
-	if appWillRollout(h.app) {
-		return nil
-	}
+	var traitStatusList []common.ApplicationTraitStatus
 
-	// dispatch packaged workload resources before dispatching assembled manifests
-	for _, comp := range comps {
-		if len(comp.PackagedWorkloadResources) != 0 {
-			if err := h.Dispatch(ctx, comp.PackagedWorkloadResources...); err != nil {
-				return errors.WithMessage(err, "cannot dispatch packaged workload resources")
-			}
-		}
-		if comp.InsertConfigNotReady {
-			continue
-		}
-	}
-	a := assemble.NewAppManifests(h.currentAppRev).WithWorkloadOption(assemble.DiscoveryHelmBasedWorkload(ctx, h.r.Client))
-	manifests, err := a.AssembledManifests()
+	var err error
+	status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
 	if err != nil {
-		return errors.WithMessage(err, "cannot assemble application manifests")
+		return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, wl.Name)
 	}
-	_, err = h.DispatchAndGC(ctx, manifests...)
-	return err
+
+	for _, tr := range wl.Traits {
+		var traitStatus = common.ApplicationTraitStatus{
+			Type:    tr.Name,
+			Healthy: true,
+		}
+		if ok, err := tr.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
+			isHealth = false
+			traitStatus.Healthy = false
+		}
+		traitStatus.Message, err = tr.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
+		if err != nil {
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, wl.Name, tr.Name)
+		}
+		traitStatusList = append(traitStatusList, traitStatus)
+	}
+
+	status.Traits = traitStatusList
+	status.Scopes = generateScopeReference(wl.Scopes)
+	h.addServiceStatus(true, status)
+	return &status, isHealth, nil
 }
 
 func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
@@ -140,31 +220,11 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			Healthy:            true,
 		}
 
-		var (
-			outputSecretName string
-			err              error
-			pCtx             process.Context
-		)
-
-		// this can help detect the componentManifest not ready and reconcile again
-		if wl.ConfigNotReady {
-			status.Healthy = false
-			status.Message = "secrets or configs not ready"
-			appStatus = append(appStatus, status)
-			healthy = false
-			continue
-		}
-		if wl.IsSecretProducer() {
-			outputSecretName, err = appfile.GetOutputSecretNames(wl)
-			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, setting outputSecretName error", appFile.Name, wl.Name)
-			}
-			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
-		}
+		var pCtx process.Context
 
 		switch wl.CapabilityCategory {
 		case types.TerraformCategory:
-			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.RevisionName, appFile.Namespace)
+			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.AppRevisionName, appFile.Namespace)
 			ctx := context.Background()
 			var configuration terraformapi.Configuration
 			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
@@ -178,7 +238,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 			}
 			status.Message = configuration.Status.Apply.Message
 		default:
-			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
+			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.AppRevisionName)
 			if !h.isNewRevision && wl.CapabilityCategory != types.CUECategory {
 				templateStr, err := appfile.GenerateCUETemplate(wl)
 				if err != nil {
@@ -263,9 +323,12 @@ func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
 	var references []corev1.ObjectReference
 	for _, scope := range scopes {
 		references = append(references, corev1.ObjectReference{
-			APIVersion: scope.GVK.GroupVersion().String(),
-			Kind:       scope.GVK.Kind,
-			Name:       scope.Name,
+			APIVersion: metav1.GroupVersion{
+				Group:   scope.GVK.Group,
+				Version: scope.GVK.Version,
+			}.String(),
+			Kind: scope.GVK.Kind,
+			Name: scope.Name,
 		})
 	}
 	return references

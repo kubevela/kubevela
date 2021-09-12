@@ -88,7 +88,7 @@ spec: {
 spec: containers: [{
 // +patchKey=name
 env:[{name: "ClusterIP",value: "1.1.1.1"}]}]
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = wfCtx.PatchComponent("server", pv)
 	assert.NilError(t, err)
@@ -167,7 +167,7 @@ result: 101
 		},
 	}
 	for _, tCase := range testCases {
-		val, err := value.NewValue(tCase.variable, nil)
+		val, err := value.NewValue(tCase.variable, nil, "")
 		assert.NilError(t, err)
 		input, err := val.LookupValue("input")
 		assert.NilError(t, err)
@@ -195,7 +195,7 @@ score:  100
 result: 101
 `)
 
-	conflictV, _ := value.NewValue(`score: 101`, nil)
+	conflictV, _ := value.NewValue(`score: 101`, nil, "")
 	err = wfCtx.SetVar(conflictV, "football")
 	assert.Equal(t, err != nil, true)
 }
@@ -274,6 +274,12 @@ func TestContext(t *testing.T) {
 
 	wfCm = nil
 	_, err = LoadContext(cli, "default", "app-v1")
+	assert.Equal(t, err != nil, true)
+
+	wfCtx, err = NewEmptyContext(cli, "default", "app-v1")
+	assert.NilError(t, err)
+	assert.Equal(t, len(wfCtx.GetComponents()), 0)
+	_, err = wfCtx.GetComponent("server")
 	assert.Equal(t, err != nil, true)
 }
 

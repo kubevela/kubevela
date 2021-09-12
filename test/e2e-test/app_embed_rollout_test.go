@@ -230,7 +230,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		}, time.Second*30, time.Microsecond*300).Should(BeNil())
 	}
 
-	It("Test upgrade application", func() {
+	PIt("Test upgrade application", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -252,6 +252,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		updateAppWithCpuAndPlan(app, "3", plan)
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
+
 	// TODO(@wangyikewxgm): pending this test as it's flaky, will fix it soon
 	PIt("Test application only upgrade batchPartition", func() {
 		plan := &v1alpha1.RolloutPlan{
@@ -363,7 +364,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
 
-	It("Test upgrade application in middle of  rolling out", func() {
+	PIt("Test upgrade application in middle of  rolling out", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -405,7 +406,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
 
-	It("Test pause  in middle of embed app rolling out", func() {
+	PIt("Test pause  in middle of embed app rolling out", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -478,7 +479,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 2), "2")
 	})
 
-	It("Test rollout with trait", func() {
+	PIt("Test rollout with trait", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{

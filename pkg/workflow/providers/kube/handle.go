@@ -19,6 +19,8 @@ package kube
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,10 +37,10 @@ const (
 )
 
 // Dispatcher is a client for apply resources.
-type Dispatcher func(ctx context.Context, manifests ...*unstructured.Unstructured) error
+type Dispatcher func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error
 
 type provider struct {
-	apply func(ctx context.Context, manifests ...*unstructured.Unstructured) error
+	apply Dispatcher
 	cli   client.Client
 }
 
@@ -75,7 +77,11 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if workload.GetNamespace() == "" {
 		workload.SetNamespace("default")
 	}
-	if err := h.apply(deployCtx, workload); err != nil {
+	cluster, err := v.GetString("cluster")
+	if err != nil {
+		return err
+	}
+	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
 	return v.FillObject(workload.Object, "value")

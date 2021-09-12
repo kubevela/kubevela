@@ -22,14 +22,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -251,8 +252,8 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -293,8 +294,11 @@ var _ = Describe("test generate revision ", func() {
 		gotComp, err := util.RawExtension2Component(gotCR.Data)
 		Expect(err).Should(BeNil())
 		expectWorkload := comps[0].StandardWorkload.DeepCopy()
-		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision})
-		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
+		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
+		var gotWL = unstructured.Unstructured{}
+		err = json.Unmarshal(gotComp.Spec.Workload.Raw, &gotWL)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(&gotWL, expectWorkload)).Should(BeEmpty())
 
 		By("Apply the application again without any spec change")
 		annoKey2 := "testKey2"
@@ -304,8 +308,8 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -331,7 +335,7 @@ var _ = Describe("test generate revision ", func() {
 		gotComp, err = util.RawExtension2Component(gotCR.Data)
 		Expect(err).Should(BeNil())
 		expectWorkload = comps[0].StandardWorkload.DeepCopy()
-		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision})
+		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
 		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
 
 		By("Verify component revision is not changed")
@@ -356,8 +360,8 @@ var _ = Describe("test generate revision ", func() {
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -395,7 +399,7 @@ var _ = Describe("test generate revision ", func() {
 		gotComp, err = util.RawExtension2Component(gotCR.Data)
 		Expect(err).Should(BeNil())
 		expectWorkload = comps[0].StandardWorkload.DeepCopy()
-		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision})
+		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
 		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
 
 		By("Change the application same as v1 and apply again")
@@ -413,8 +417,8 @@ var _ = Describe("test generate revision ", func() {
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -459,7 +463,8 @@ var _ = Describe("test generate revision ", func() {
 		gotComp, err = util.RawExtension2Component(gotCR.Data)
 		Expect(err).Should(BeNil())
 		expectWorkload = comps[0].StandardWorkload.DeepCopy()
-		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision})
+		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
+		expectWorkload.SetAnnotations(map[string]string{"testKey1": "true"})
 		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
 	})
 
@@ -474,8 +479,8 @@ var _ = Describe("test generate revision ", func() {
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -510,8 +515,8 @@ var _ = Describe("test generate revision ", func() {
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -552,8 +557,8 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		handler.app = &app
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 		Eventually(
 			func() error {
@@ -598,8 +603,8 @@ var _ = Describe("test generate revision ", func() {
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -629,8 +634,8 @@ var _ = Describe("test generate revision ", func() {
 		app.SetLabels(map[string]string{labelKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
@@ -666,8 +671,8 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
@@ -686,8 +691,11 @@ var _ = Describe("test generate revision ", func() {
 		gotComp, err := util.RawExtension2Component(gotCR.Data)
 		Expect(err).Should(BeNil())
 		expectWorkload := comps[0].StandardWorkload.DeepCopy()
-		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision})
-		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
+		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
+		var gotWL = unstructured.Unstructured{}
+		err = json.Unmarshal(gotComp.Spec.Workload.Raw, &gotWL)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(&gotWL, expectWorkload)).Should(BeEmpty())
 
 		By("Specify component revision name and revision already exist")
 		externalRevisionName2 := "specified-revision-v2"
@@ -703,8 +711,8 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.FinalizeAndApplyAppRevision(ctx, comps)).Should(Succeed())
-		Expect(handler.ApplyAppManifests(context.Background(), comps, nil)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
 
 		Expect(comps[0].RevisionName).Should(Equal(externalRevisionName2))

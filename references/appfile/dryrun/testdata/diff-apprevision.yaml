@@ -1,8 +1,6 @@
 apiVersion: core.oam.dev/v1beta1
 kind: ApplicationRevision
 metadata:
-  annotations:
-    oam.dev/kubevela-version: undefined
   generation: 1
   labels:
     app.oam.dev/app-revision-hash: c2207054644744d
@@ -109,7 +107,7 @@ spec:
                 app.oam.dev/name: livediff-demo
                 trait.oam.dev/resource: scaler
                 trait.oam.dev/type: myscaler
-              name: myweb-1-myscaler-5547bdc57f
+              name: myweb-1-myscaler-69ccc5855d
               namespace: default
             spec:
               replicaCount: 2

@@ -35,7 +35,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 	componentDefName := "test-webservice"
 	traitDefName := "test-ingress"
 
-	Context("Test kubectl vela dry-run", func() {
+	PContext("Test kubectl vela dry-run", func() {
 		It("Test dry-run application use definitions which applied to the cluster", func() {
 			By("check definitions which application used whether applied to the cluster")
 			var cd v1beta1.ComponentDefinition
@@ -65,7 +65,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		})
 	})
 
-	Context("Test kubectl vela live-diff", func() {
+	PContext("Test kubectl vela live-diff", func() {
 		applicationName := "test-vela-app"
 
 		It("Test live-diff application use definition which applied to the cluster", func() {
@@ -105,7 +105,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		})
 	})
 
-	Context("Test kubectl vela show", func() {
+	PContext("Test kubectl vela show", func() {
 		It("Test show componentDefinition reference", func() {
 			cdName := "test-show-task"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
@@ -161,7 +161,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		})
 	})
 
-	Context("Test kubectl vela comp discover", func() {
+	PContext("Test kubectl vela comp discover", func() {
 		It("Test list components in local registry", func() {
 			output, err := e2e.Exec("kubectl-vela comp --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
@@ -169,7 +169,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring("fake-workload"))
 		})
 	})
-	Context("Test kubectl vela trait discover", func() {
+	PContext("Test kubectl vela trait discover", func() {
 		It("Test list traits in local registry", func() {
 			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
@@ -177,7 +177,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring("dynamic-sa"))
 		})
 	})
-	Context("Test kubectl vela comp and trait install", func() {
+	PContext("Test kubectl vela comp and trait install", func() {
 		It("Test install a sample component", func() {
 			output, err := e2e.Exec("kubectl-vela comp get cloneset --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
@@ -189,7 +189,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring("Successfully install trait: init-container"))
 		})
 	})
-	Context("Test kubectl vela list installed comp and trait", func() {
+	PContext("Test kubectl vela list installed comp and trait", func() {
 		It("Test list installed component", func() {
 			output, err := e2e.Exec("kubectl-vela comp --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
@@ -201,7 +201,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring("init-container"))
 		})
 	})
-	Context("Test uninstall vela trait", func() {
+	PContext("Test uninstall vela trait", func() {
 		It("Clean the sample component", func() {
 			cmd := exec.Command("kubectl", "delete", "componentDefinition", "cloneset", "-n", "vela-system")
 			output, err := cmd.Output()

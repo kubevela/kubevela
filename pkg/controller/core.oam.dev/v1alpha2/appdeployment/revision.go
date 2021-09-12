@@ -18,7 +18,6 @@ package appdeployment
 
 import (
 	"fmt"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -142,9 +141,4 @@ func makeService(compName, ns, revName string, port int) *corev1.Service {
 			Ports: []corev1.ServicePort{{Protocol: "TCP", Port: int32(port)}},
 		},
 	}
-}
-
-func makeRevisionName(name, revision string) string {
-	splits := strings.Split(revision, "-")
-	return fmt.Sprintf("%s-%s", name, splits[len(splits)-1])
 }

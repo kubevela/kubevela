@@ -20,21 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
+	"reflect"
 	"strings"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
-
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
@@ -50,9 +37,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -78,31 +68,11 @@ type Workload struct {
 	Params             map[string]interface{}
 	Traits             []*Trait
 	Scopes             []Scope
+	ScopeDefinition    []*v1beta1.ScopeDefinition
 	FullTemplate       *Template
+	Ctx                process.Context
+	Patch              *value.Value
 	engine             definition.AbstractEngine
-	// OutputSecretName is the secret name which this workload will generate after it successfully generate a cloud resource
-	OutputSecretName string
-	// RequiredSecrets stores secret names which the workload needs from cloud resource component and its context
-	RequiredSecrets []process.RequiredSecrets
-	UserConfigs     []map[string]string
-	// ConfigNotReady indicates there's RequiredSecrets and UserConfigs but they're not ready yet.
-	ConfigNotReady bool
-}
-
-// GetUserConfigName get user config from AppFile, it will contain config file in it.
-func (wl *Workload) GetUserConfigName() string {
-	if wl.Params == nil {
-		return ""
-	}
-	t, ok := wl.Params[AppfileBuiltinConfig]
-	if !ok {
-		return ""
-	}
-	ts, ok := t.(string)
-	if !ok {
-		return ""
-	}
-	return ts
 }
 
 // EvalContext eval workload template and set result to context
@@ -117,30 +87,17 @@ func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string
 
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
-}
-
-// IsSecretProducer checks whether a workload is cloud resource producer role
-func (wl *Workload) IsSecretProducer() bool {
-	var existed bool
-	_, existed = wl.Params[model.OutputSecretName]
-	return existed
-}
-
-// IsSecretConsumer checks whether a workload is cloud resource consumer role
-func (wl *Workload) IsSecretConsumer() bool {
-	requiredSecretTag := strings.TrimRight(InsertSecretToTag, "=")
-	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(wl.FullTemplate.TemplateStr))
-	if err != nil || !matched {
-		return false
+	if wl.FullTemplate.Health == "" {
+		return true, nil
 	}
-	return true
+	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
 }
 
 // Scope defines the scope of workload
 type Scope struct {
-	Name string
-	GVK  schema.GroupVersionKind
+	Name            string
+	GVK             metav1.GroupVersionKind
+	ResourceVersion string
 }
 
 // Trait is ComponentTrait
@@ -173,47 +130,57 @@ func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string
 
 // EvalHealth eval trait health check
 func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
-}
-
-// IsSecretConsumer checks whether a trait is cloud resource consumer role
-func (trait *Trait) IsSecretConsumer() bool {
-	requiredSecretTag := strings.TrimRight(InsertSecretToTag, "=")
-	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(trait.FullTemplate.TemplateStr))
-	if err != nil || !matched {
-		return false
+	if trait.FullTemplate.Health == "" {
+		return true, nil
 	}
-	return true
+	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
 }
 
 // Appfile describes application
 type Appfile struct {
-	Name         string
-	Namespace    string
-	RevisionName string
-	Workloads    []*Workload
+	Name            string
+	Namespace       string
+	AppRevisionName string
+	Workloads       []*Workload
+
+	AppRevisionHash string
+	AppLabels       map[string]string
+	AppAnnotations  map[string]string
+
+	RelatedTraitDefinitions     map[string]*v1beta1.TraitDefinition
+	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition
+	RelatedScopeDefinitions     map[string]*v1beta1.ScopeDefinition
 
 	Policies      []*Workload
 	WorkflowSteps []v1beta1.WorkflowStep
 	Components    []common.ApplicationComponent
 	Artifacts     []*types.ComponentManifest
+	WorkflowMode  common.WorkflowMode
+
+	parser *Parser
 }
 
-// GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) GenerateWorkflowAndPolicy(ctx context.Context, m discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) (policies []*unstructured.Unstructured, steps []wfTypes.TaskRunner, err error) {
+// Handler handles reconcile
+type Handler interface {
+	HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error
+	Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error
+}
+
+// PrepareWorkflowAndPolicy generates workflow steps and policies from an appFile
+func (af *Appfile) PrepareWorkflowAndPolicy() (policies []*unstructured.Unstructured, err error) {
 	policies, err = af.generateUnstructureds(af.Policies)
 	if err != nil {
 		return
 	}
 
-	steps, err = af.generateSteps(ctx, m, cli, pd, dispatcher)
+	af.generateSteps()
 	return
 }
 
 func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
 	var uns []*unstructured.Unstructured
 	for _, wl := range workloads {
-		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace, af.Components, af.Artifacts)
+		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts)
 		if err != nil {
 			return nil, err
 		}
@@ -226,35 +193,18 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 	return uns, nil
 }
 
-func (af *Appfile) generateSteps(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Client, pd *packages.PackageDiscover, dispatcher kube.Dispatcher) ([]wfTypes.TaskRunner, error) {
-	loadTaskTemplate := func(ctx context.Context, name string) (string, error) {
-		templ, err := LoadTemplate(ctx, dm, cli, name, types.TypeWorkflowStep)
-		if err != nil {
-			return "", err
+func (af *Appfile) generateSteps() {
+	if len(af.WorkflowSteps) == 0 {
+		for _, comp := range af.Components {
+			af.WorkflowSteps = append(af.WorkflowSteps, v1beta1.WorkflowStep{
+				Name: comp.Name,
+				Type: "apply-component",
+				Properties: util.Object2RawExtension(map[string]string{
+					"component": comp.Name,
+				}),
+			})
 		}
-		schematic := templ.WorkflowStepDefinition.Spec.Schematic
-		if schematic != nil && schematic.CUE != nil {
-			return schematic.CUE.Template, nil
-		}
-		return "", errors.New("custom workflowStep only support cue")
 	}
-
-	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, cli, dispatcher)
-	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, loadTaskTemplate)
-	var tasks []wfTypes.TaskRunner
-	for _, step := range af.WorkflowSteps {
-		genTask, err := taskDiscover.GetTaskGenerator(ctx, step.Type)
-		if err != nil {
-			return nil, err
-		}
-		task, err := genTask(step)
-		if err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, task)
-	}
-	return tasks, nil
 }
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {
@@ -266,7 +216,7 @@ func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns strin
 	return makeWorkloadWithContext(pCtx, wl, ns, appName)
 }
 
-// artifacts contains resouces in unstructured shape of all components
+// artifacts contains resources in unstructured shape of all components
 // it allows to access values of workloads and traits in CUE template, i.g.,
 // `if context.artifacts.<compName>.ready` to determine whether it's ready to access
 // `context.artifacts.<compName>.workload` to access a workload
@@ -274,13 +224,13 @@ func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns strin
 func prepareArtifactsData(comps []*types.ComponentManifest) map[string]interface{} {
 	artifacts := unstructured.Unstructured{Object: make(map[string]interface{})}
 	for _, pComp := range comps {
-		if pComp.InsertConfigNotReady {
-			_ = unstructured.SetNestedField(artifacts.Object, false, pComp.Name, "ready")
-			continue
+		if pComp.StandardWorkload != nil {
+			_ = unstructured.SetNestedField(artifacts.Object, pComp.StandardWorkload.Object, pComp.Name, "workload")
 		}
-		_ = unstructured.SetNestedField(artifacts.Object, true, pComp.Name, "ready")
-		_ = unstructured.SetNestedField(artifacts.Object, pComp.StandardWorkload.Object, pComp.Name, "workload")
 		for _, t := range pComp.Traits {
+			if t == nil {
+				continue
+			}
 			_ = unstructured.SetNestedField(artifacts.Object, t.Object, pComp.Name,
 				"traits",
 				t.GetLabels()[oam.TraitTypeLabel],
@@ -299,6 +249,10 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 		if err != nil {
 			return nil, err
 		}
+		err = af.SetOAMContract(cm)
+		if err != nil {
+			return nil, err
+		}
 		compManifests[i] = cm
 		af.Artifacts[i] = cm
 	}
@@ -310,23 +264,170 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 	if af.Namespace == "" {
 		af.Namespace = corev1.NamespaceDefault
 	}
-	if wl.ConfigNotReady {
-		return &types.ComponentManifest{
-			Name:                 wl.Name,
-			Namespace:            af.Namespace,
-			InsertConfigNotReady: true,
-		}, nil
-	}
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
-		return generateComponentFromHelmModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromHelmModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	case types.KubeCategory:
-		return generateComponentFromKubeModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromKubeModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	case types.TerraformCategory:
-		return generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromTerraformModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	default:
-		return generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		return generateComponentFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	}
+}
+
+// SetOAMContract will set OAM labels and annotations for resources as contract
+func (af *Appfile) SetOAMContract(comp *types.ComponentManifest) error {
+
+	compName := comp.Name
+	commonLabels := af.generateAndFilterCommonLabels(compName)
+	af.assembleWorkload(comp.StandardWorkload, compName, commonLabels)
+
+	workloadRef := corev1.ObjectReference{
+		APIVersion: comp.StandardWorkload.GetAPIVersion(),
+		Kind:       comp.StandardWorkload.GetKind(),
+		Name:       comp.StandardWorkload.GetName(),
+	}
+	for _, trait := range comp.Traits {
+		af.assembleTrait(trait, compName, commonLabels)
+		if err := af.setWorkloadRefToTrait(workloadRef, trait); err != nil {
+			return errors.WithMessagef(err, "cannot set workload reference to trait %q", trait.GetName())
+		}
+	}
+	return nil
+}
+
+// workload and trait in the same component both have these labels, except componentRevision which should be evaluated with input/output
+func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]string {
+	filter := func(labels map[string]string, notAllowedKey []string) {
+		for _, l := range notAllowedKey {
+			delete(labels, strings.TrimSpace(l))
+		}
+	}
+	Labels := map[string]string{
+		oam.LabelAppName:      af.Name,
+		oam.LabelAppRevision:  af.AppRevisionName,
+		oam.LabelAppComponent: compName,
+	}
+	// merge application's all labels
+	finalLabels := util.MergeMapOverrideWithDst(Labels, af.AppLabels)
+	filterLabels, ok := af.AppAnnotations[oam.AnnotationFilterLabelKeys]
+	if ok {
+		filter(finalLabels, strings.Split(filterLabels, ","))
+	}
+	return finalLabels
+}
+
+// workload and trait both have these annotations
+func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
+	var allFilterAnnotation []string
+	allFilterAnnotation = append(allFilterAnnotation, types.DefaultFilterAnnots...)
+
+	passedFilterAnnotation, ok := af.AppAnnotations[oam.AnnotationFilterAnnotationKeys]
+	if ok {
+		allFilterAnnotation = append(allFilterAnnotation, strings.Split(passedFilterAnnotation, ",")...)
+	}
+
+	// pass application's all annotations
+	util.AddAnnotations(obj, af.AppAnnotations)
+	// remove useless annotations for workload/trait
+	util.RemoveAnnotations(obj, allFilterAnnotation)
+}
+
+func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {
+
+	// we should not set namespace for namespace resources
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	if gvk == corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Namespace{}).Name()) {
+		return
+	}
+
+	// only set app's namespace when namespace is unspecified
+	// it's by design to set arbitrary namespace in render phase
+	if len(obj.GetNamespace()) == 0 {
+		obj.SetNamespace(af.Namespace)
+	}
+}
+
+func (af *Appfile) assembleWorkload(wl *unstructured.Unstructured, compName string, labels map[string]string) {
+	// use component name as workload name
+	// override the name set in render phase if exist
+	wl.SetName(compName)
+	af.setWorkloadLabels(wl, labels)
+	af.filterAndSetAnnotations(wl)
+	af.setNamespace(wl)
+}
+
+/* NOTE a workload has these possible labels
+   app.oam.dev/app-revision-hash: ce053923e2fb403f
+   app.oam.dev/appRevision: myapp-v2
+   app.oam.dev/component: mycomp
+   app.oam.dev/name: myapp
+   app.oam.dev/resourceType: WORKLOAD
+   app.oam.dev/revision: mycomp-v2
+   workload.oam.dev/type: kube-worker
+// Component Revision name was not added here (app.oam.dev/revision: mycomp-v2)
+*/
+func (af *Appfile) setWorkloadLabels(wl *unstructured.Unstructured, commonLabels map[string]string) {
+	// add more workload-specific labels here
+	util.AddLabels(wl, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeWorkload})
+	util.AddLabels(wl, commonLabels)
+}
+
+func (af *Appfile) assembleTrait(trait *unstructured.Unstructured, compName string, labels map[string]string) {
+	traitType := trait.GetLabels()[oam.TraitTypeLabel]
+	// only set generated name when name is unspecified
+	// it's by design to set arbitrary name in render phase
+	if len(trait.GetName()) == 0 {
+		cpTrait := trait.DeepCopy()
+		// remove labels that should not be calculate into hash
+		util.RemoveLabels(cpTrait, []string{oam.LabelAppRevision})
+		traitName := util.GenTraitNameCompatible(compName, cpTrait, traitType)
+		trait.SetName(traitName)
+	}
+	af.setTraitLabels(trait, labels)
+	af.filterAndSetAnnotations(trait)
+	af.setNamespace(trait)
+}
+
+/* NOTE a trait has these possible labels
+   app.oam.dev/app-revision-hash: ce053923e2fb403f
+   app.oam.dev/appRevision: myapp-v2
+   app.oam.dev/component: mycomp
+   app.oam.dev/name: myapp
+   app.oam.dev/resourceType: TRAIT
+   trait.oam.dev/resource: service
+   trait.oam.dev/type: ingress // already added in render phase
+// Component Revision name was not added here (app.oam.dev/revision: mycomp-v2)
+*/
+func (af *Appfile) setTraitLabels(trait *unstructured.Unstructured, commonLabels map[string]string) {
+	// add more trait-specific labels here
+	util.AddLabels(trait, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeTrait})
+	util.AddLabels(trait, commonLabels)
+}
+
+func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *unstructured.Unstructured) error {
+	traitType := trait.GetLabels()[oam.TraitTypeLabel]
+	if traitType == definition.AuxiliaryWorkload {
+		return nil
+	}
+	traitDef, ok := af.RelatedTraitDefinitions[traitType]
+	if !ok {
+		return errors.Errorf("TraitDefinition %s not found in appfile", traitType)
+	}
+	workloadRefPath := traitDef.Spec.WorkloadRefPath
+	// only add workload reference to the trait if it asks for it
+	if len(workloadRefPath) != 0 {
+		tmpWLRef := corev1.ObjectReference{
+			APIVersion: wlRef.APIVersion,
+			Kind:       wlRef.Kind,
+			Name:       wlRef.Name,
+		}
+		if err := fieldpath.Pave(trait.UnstructuredContent()).SetValue(workloadRefPath, tmpWLRef); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PrepareProcessContext prepares a DSL process Context
@@ -341,48 +442,10 @@ func PrepareProcessContext(wl *Workload, applicationName, revision, namespace st
 // NewBasicContext prepares a basic DSL process Context
 func NewBasicContext(wl *Workload, applicationName, revision, namespace string) process.Context {
 	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
-	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
-	if len(wl.UserConfigs) > 0 {
-		pCtx.SetConfigs(wl.UserConfigs)
-	}
 	if wl.Params != nil {
 		pCtx.SetParameters(wl.Params)
 	}
 	return pCtx
-}
-
-// GetSecretAndConfigs will get secrets and configs the workload requires
-func GetSecretAndConfigs(cli client.Client, workload *Workload, appName, ns string) error {
-	if workload.IsSecretConsumer() {
-		requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, workload.FullTemplate.TemplateStr, workload.Params)
-		if err != nil {
-			return err
-		}
-		workload.RequiredSecrets = requiredSecrets
-	}
-
-	for _, tr := range workload.Traits {
-		if tr.IsSecretConsumer() {
-			requiredSecrets, err := parseInsertSecretTo(context.TODO(), cli, ns, tr.FullTemplate.TemplateStr, tr.Params)
-			if err != nil {
-				return err
-			}
-			tr.RequiredSecrets = requiredSecrets
-		}
-	}
-
-	userConfig := workload.GetUserConfigName()
-	if userConfig != "" {
-		cg := config.Configmap{Client: cli}
-		// TODO(wonderflow): envName should not be namespace when we have serverside env
-		var envName = ns
-		data, err := cg.GetConfigData(config.GenConfigMapName(appName, workload.Name, userConfig), envName)
-		if err != nil {
-			return errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, appName, ns)
-		}
-		workload.UserConfigs = data
-	}
-	return nil
 }
 
 func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
@@ -390,6 +453,7 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 	if err != nil {
 		return nil, err
 	}
+	wl.Ctx = pCtx
 	return baseGenerateComponent(pCtx, wl, appName, ns)
 }
 
@@ -399,21 +463,34 @@ func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns st
 }
 
 func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
-	var (
-		outputSecretName string
-		err              error
-	)
-	if wl.IsSecretProducer() {
-		outputSecretName, err = GetOutputSecretNames(wl)
-		if err != nil {
-			return nil, err
-		}
-		wl.OutputSecretName = outputSecretName
-	}
+	var err error
+
 	for _, tr := range wl.Traits {
-		pCtx.InsertSecrets("", tr.RequiredSecrets)
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
+		}
+	}
+	if patcher := wl.Patch; patcher != nil {
+		workload, auxiliaries := pCtx.Output()
+		if p, err := patcher.LookupValue("workload"); err == nil {
+			pi, err := model.NewOther(p.CueValue())
+			if err != nil {
+				return nil, errors.WithMessage(err, "patch workload")
+			}
+			if err := workload.Unify(pi); err != nil {
+				return nil, errors.WithMessage(err, "patch workload")
+			}
+		}
+		for _, aux := range auxiliaries {
+			if p, err := patcher.LookupByScript(fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil {
+				pi, err := model.NewOther(p.CueValue())
+				if err != nil {
+					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
+				}
+				if err := aux.Ins.Unify(pi); err != nil {
+					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
+				}
+			}
 		}
 	}
 	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
@@ -428,9 +505,12 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	compManifest.Scopes = make([]*corev1.ObjectReference, len(wl.Scopes))
 	for i, s := range wl.Scopes {
 		compManifest.Scopes[i] = &corev1.ObjectReference{
-			APIVersion: s.GVK.GroupVersion().String(),
-			Kind:       s.GVK.Kind,
-			Name:       s.Name,
+			APIVersion: metav1.GroupVersion{
+				Group:   s.GVK.Group,
+				Version: s.GVK.Version,
+			}.String(),
+			Kind: s.GVK.Kind,
+			Name: s.Name,
 		}
 	}
 	return compManifest, nil
@@ -703,6 +783,7 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 		Name:             wl.Name,
 		Namespace:        ns,
 		ExternalRevision: wl.ExternalRevision,
+		StandardWorkload: &unstructured.Unstructured{},
 	}
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
 		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)

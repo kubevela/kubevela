@@ -23,6 +23,7 @@ import (
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,8 +41,6 @@ const (
 	UsageTag = "+usage="
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
-	// InsertSecretToTag marks the value should be set as an context
-	InsertSecretToTag = "+insertSecretTo="
 )
 
 // Template is a helper struct for processing capability including
@@ -56,10 +55,12 @@ type Template struct {
 	Helm               *common.Helm
 	Kube               *common.Kube
 	Terraform          *common.Terraform
-	// TODO: Add scope definition too
-	ComponentDefinition    *v1beta1.ComponentDefinition
-	WorkloadDefinition     *v1beta1.WorkloadDefinition
-	TraitDefinition        *v1beta1.TraitDefinition
+
+	ComponentDefinition *v1beta1.ComponentDefinition
+	WorkloadDefinition  *v1beta1.WorkloadDefinition
+	TraitDefinition     *v1beta1.TraitDefinition
+	ScopeDefinition     *v1beta1.ScopeDefinition
+
 	PolicyDefinition       *v1beta1.PolicyDefinition
 	WorkflowStepDefinition *v1beta1.WorkflowStepDefinition
 }
@@ -89,8 +90,11 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 				}
 				tmpl.Reference = common.WorkloadTypeDescriptor{
 					Definition: common.WorkloadGVK{
-						APIVersion: gvk.GroupVersion().String(),
-						Kind:       gvk.Kind,
+						APIVersion: metav1.GroupVersion{
+							Group:   gvk.Group,
+							Version: gvk.Version,
+						}.String(),
+						Kind: gvk.Kind,
 					},
 				}
 				return tmpl, nil
@@ -144,11 +148,81 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 	return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 }
 
+// LoadTemplateFromRevision will load Definition template from app revision
+func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) (*Template, error) {
+	if apprev == nil {
+		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
+	}
+	switch capType {
+	case types.TypeComponentDefinition:
+		cd, ok := apprev.Spec.ComponentDefinitions[capName]
+		if !ok {
+			wd, ok := apprev.Spec.WorkloadDefinitions[capName]
+			if !ok {
+				return nil, errors.Errorf("ComponentDefinition [%s] not found in app revision %s", capName, apprev.Name)
+			}
+			tmpl, err := newTemplateOfWorkloadDefinition(&wd)
+			if err != nil {
+				return nil, err
+			}
+			return tmpl, nil
+		}
+		tmpl, err := newTemplateOfCompDefinition(cd.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+
+	case types.TypeTrait:
+		td, ok := apprev.Spec.TraitDefinitions[capName]
+		if !ok {
+			return nil, errors.Errorf("TraitDefinition [%s] not found in app revision %s", capName, apprev.Name)
+		}
+		tmpl, err := newTemplateOfTraitDefinition(td.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	case types.TypePolicy:
+		d, ok := apprev.Spec.PolicyDefinitions[capName]
+		if !ok {
+			return nil, errors.Errorf("PolicyDefinition [%s] not found in app revision %s", capName, apprev.Name)
+		}
+		tmpl, err := newTemplateOfPolicyDefinition(d.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	case types.TypeWorkflowStep:
+		w, ok := apprev.Spec.WorkflowStepDefinitions[capName]
+		if !ok {
+			return nil, errors.Errorf("WorkflowStepDefinition [%s] not found in app revision %s", capName, apprev.Name)
+		}
+		tmpl, err := newTemplateOfWorkflowStepDefinition(w.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	case types.TypeScope:
+		s, ok := apprev.Spec.ScopeDefinitions[capName]
+		if !ok {
+			return nil, errors.Errorf("ScopeDefinition [%s] not found in app revision %s", capName, apprev.Name)
+		}
+		tmpl, err := newTemplateOfScopeDefinition(s.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	default:
+		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
+	}
+}
+
 // DryRunTemplateLoader return a function that do the same work as
 // LoadTemplate, but load template from provided ones before loading from
 // cluster through LoadTemplate
 func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
-	return TemplateLoaderFn(func(ctx context.Context, dm discoverymapper.DiscoveryMapper, r client.Reader, capName string, capType types.CapType) (*Template, error) {
+	return func(ctx context.Context, dm discoverymapper.DiscoveryMapper, r client.Reader, capName string, capType types.CapType) (*Template, error) {
 		// retrieve provided cap definitions
 		for _, def := range defs {
 			if unstructDef, ok := def.(*unstructured.Unstructured); ok {
@@ -186,7 +260,7 @@ func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
 			return nil, errors.WithMessagef(err, "cannot load template %q from cluster and provided ones", capName)
 		}
 		return tmpl, nil
-	})
+	}
 }
 
 func newTemplateOfCompDefinition(compDef *v1beta1.ComponentDefinition) (*Template, error) {
@@ -215,6 +289,7 @@ func newTemplateOfTraitDefinition(traitDef *v1beta1.TraitDefinition) (*Template,
 
 func newTemplateOfWorkloadDefinition(wlDef *v1beta1.WorkloadDefinition) (*Template, error) {
 	tmpl := &Template{
+		Reference:          common.WorkloadTypeDescriptor{Type: wlDef.Spec.Reference.Name},
 		WorkloadDefinition: wlDef,
 	}
 	if err := loadSchematicToTemplate(tmpl, wlDef.Spec.Status, wlDef.Spec.Schematic, wlDef.Spec.Extension); err != nil {
@@ -238,6 +313,16 @@ func newTemplateOfWorkflowStepDefinition(def *v1beta1.WorkflowStepDefinition) (*
 		WorkflowStepDefinition: def,
 	}
 	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfScopeDefinition(def *v1beta1.ScopeDefinition) (*Template, error) {
+	tmpl := &Template{
+		ScopeDefinition: def,
+	}
+	if err := loadSchematicToTemplate(tmpl, nil, nil, def.Spec.Extension); err != nil {
 		return nil, errors.WithMessage(err, "cannot load template")
 	}
 	return tmpl, nil
@@ -281,7 +366,6 @@ func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *c
 		if extTemplate, ok := extension["template"]; ok {
 			if tmpStr, ok := extTemplate.(string); ok {
 				tmpl.TemplateStr = tmpStr
-				return nil
 			}
 		}
 	}

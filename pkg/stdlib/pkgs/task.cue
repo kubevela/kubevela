@@ -107,8 +107,8 @@ _EOF_
 					path: "ready"
 				}]
 			}
-				name: "vela-internal-downward"
-			}] + _volumes
+					name: "vela-internal-downward"
+				}] + _volumes
 		restartPolicy: "Never"
 	}
 }

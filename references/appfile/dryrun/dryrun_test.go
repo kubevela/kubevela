@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -46,9 +48,10 @@ var _ = Describe("Test DryRun", func() {
 		expectCompYAML := readDataFromFile("./testdata/dryrun-exp-comp.yaml")
 		By("Verify generated Comp")
 		Expect(comps).ShouldNot(BeEmpty())
-		resultCompStr, err := yaml.Marshal(comps[0])
+		var expC = types.ComponentManifest{}
+		err = yaml.Unmarshal([]byte(expectCompYAML), &expC)
 		Expect(err).Should(BeNil())
-		diff := cmp.Diff(expectCompYAML, string(resultCompStr))
+		diff := cmp.Diff(&expC, comps[0])
 		Expect(diff).Should(BeEmpty())
 	})
 })

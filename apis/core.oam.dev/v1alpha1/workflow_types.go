@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
@@ -47,24 +48,8 @@ type WorkflowStep struct {
 	Type string `json:"type"`
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
-	Inputs     StepInputs           `json:"inputs,omitempty"`
-	Outputs    StepOutputs          `json:"outputs,omitempty"`
-}
-
-// StepOutputs defines output variable of WorkflowStep
-type StepOutputs []outputItem
-
-// StepInputs defines variable input of WorkflowStep
-type StepInputs []inputItem
-
-type inputItem struct {
-	ParameterKey string `json:"parameterKey"`
-	From         string `json:"from"`
-}
-
-type outputItem struct {
-	ExportKey string `json:"exportKey"`
-	Name      string `json:"name"`
+	Inputs     common.StepInputs    `json:"inputs,omitempty"`
+	Outputs    common.StepOutputs   `json:"outputs,omitempty"`
 }
 
 // A WorkflowSpec defines the desired state of a Workflow.

@@ -19,16 +19,31 @@ package stdlib
 import (
 	"testing"
 
+	"cuelang.org/go/cue/build"
+
 	"cuelang.org/go/cue"
 	"gotest.tools/assert"
 )
 
 func TestGetPackages(t *testing.T) {
-	pkgs, err := GetPackages()
+	pkgs, err := GetPackages("context: _")
 	assert.NilError(t, err)
 	var r cue.Runtime
 	for path, content := range pkgs {
 		_, err := r.Compile(path, content)
 		assert.NilError(t, err)
 	}
+
+	builder := &build.Instance{}
+	builder.AddFile("-", `
+import "vela/op"
+out: op.context`)
+	err = AddImportsFor(builder, "context: id: \"xxx\"")
+	assert.NilError(t, err)
+
+	insts := cue.Build([]*build.Instance{builder})
+	assert.Equal(t, len(insts), 1)
+	str, err := insts[0].Lookup("out", "id").String()
+	assert.NilError(t, err)
+	assert.Equal(t, str, "xxx")
 }

@@ -77,7 +77,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: crossNamespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	})
 
-	It("Test application containing cluster-scoped trait", func() {
+	PIt("Test application containing cluster-scoped trait", func() {
 		By("Install TraitDefinition")
 		traitDef := &v1beta1.TraitDefinition{}
 		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(clusterScopeTraitDefYAML, namespace)), traitDef)).Should(Succeed())
@@ -139,7 +139,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, 20*time.Second, 500*time.Millisecond).Should(BeNil())
 	})
 
-	It("Test GC for cluster-scoped trait", func() {
+	PIt("Test GC for cluster-scoped trait", func() {
 		By("Install cluster-scoped trait's TraitDefinition")
 		clusterTraitDef := &v1beta1.TraitDefinition{}
 		Expect(yaml.Unmarshal([]byte(fmt.Sprintf(clusterScopeTraitDefYAML, namespace)), clusterTraitDef)).Should(Succeed())
@@ -253,7 +253,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, 20*time.Second, 2*time.Second).Should(SatisfyAll(&util.NotFoundMatcher{}))
 	})
 
-	It("Test application have cross-namespace workload", func() {
+	PIt("Test application have cross-namespace workload", func() {
 		// install  component definition
 		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
@@ -351,7 +351,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 	})
 
-	It("Test update application by add  a cross namespace trait resource ", func() {
+	PIt("Test update application by add  a cross namespace trait resource ", func() {
 		var (
 			appName       = "test-app-2"
 			app           = new(v1beta1.Application)
@@ -467,7 +467,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
-	It("Test update application by delete a cross namespace trait resource", func() {
+	PIt("Test update application by delete a cross namespace trait resource", func() {
 		var (
 			appName       = "test-app-3"
 			app           = new(v1beta1.Application)
@@ -578,7 +578,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
-	It("Test application have two different workload", func() {
+	PIt("Test application have two different workload", func() {
 		var (
 			appName        = "test-app-4"
 			app            = new(v1beta1.Application)
@@ -717,7 +717,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 	})
 
-	It("Update a cross namespace workload of application", func() {
+	PIt("Update a cross namespace workload of application", func() {
 		// install  component definition
 		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)
@@ -857,7 +857,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
-	It("Test cross-namespace resource gc logic, delete a cross-ns component", func() {
+	PIt("Test cross-namespace resource gc logic, delete a cross-ns component", func() {
 		var (
 			appName        = "test-app-6"
 			app            = new(v1beta1.Application)
@@ -1006,7 +1006,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
-	It("Test cross-namespace resource gc logic, delete a cross-ns trait", func() {
+	PIt("Test cross-namespace resource gc logic, delete a cross-ns trait", func() {
 		var (
 			appName       = "test-app-7"
 			app           = new(v1beta1.Application)
@@ -1167,7 +1167,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())
 	})
 
-	It("Test cross-namespace resource gc logic, update a cross-ns workload's namespace", func() {
+	PIt("Test cross-namespace resource gc logic, update a cross-ns workload's namespace", func() {
 		// install  related definition
 		crossCdJson, _ := yaml.YAMLToJSON([]byte(fmt.Sprintf(crossCompDefYaml, namespace, crossNamespace)))
 		ccd := new(v1beta1.ComponentDefinition)

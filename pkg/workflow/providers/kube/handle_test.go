@@ -23,14 +23,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -96,7 +96,7 @@ var _ = AfterSuite(func() {
 var _ = Describe("Test Workflow Provider Kube", func() {
 	It("apply and read", func() {
 		p := &provider{
-			apply: func(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -120,7 +120,8 @@ value:{
 	%s
 	metadata: name: "app"
 }
-`, component.Workload.String()), nil)
+cluster: ""
+`, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -138,30 +139,34 @@ value: {
 %s
 metadata: name: "app"
 }
-`, component.Workload.String()), nil)
+cluster: ""
+`, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("value")
 		Expect(err).ToNot(HaveOccurred())
-		rv := new(unstructured.Unstructured)
-		err = result.UnmarshalTo(rv)
-		Expect(err).ToNot(HaveOccurred())
-		rv.SetCreationTimestamp(metav1.Time{})
-		rv.SetUID("")
+		//rv := new(unstructured.Unstructured)
+		//err = result.UnmarshalTo(rv)
+		//Expect(err).ToNot(HaveOccurred())
+		//rv.SetCreationTimestamp(metav1.Time{})
+		//rv.SetUID("")
 
 		expected := new(unstructured.Unstructured)
-		ev, err := value.NewValue(expectedCue, nil)
+		ev, err := result.MakeValue(expectedCue)
 		Expect(err).ToNot(HaveOccurred())
 		err = ev.UnmarshalTo(expected)
 		Expect(err).ToNot(HaveOccurred())
-		rv.SetManagedFields(nil)
-		rv.SetResourceVersion("")
-		Expect(cmp.Diff(rv, expected)).Should(BeEquivalentTo(""))
+		//rv.SetManagedFields(nil)
+		//rv.SetResourceVersion("")
+		//rv.SetSelfLink("")
+
+		err = result.FillObject(expected.Object)
+		Expect(err).ToNot(HaveOccurred())
 	})
 	It("patch & apply", func() {
 		p := &provider{
-			apply: func(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -181,7 +186,8 @@ metadata: name: "app"
 		Expect(err).ToNot(HaveOccurred())
 		v, err := value.NewValue(fmt.Sprintf(`
 value: {%s}
-patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
+cluster: ""
+patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -198,7 +204,7 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil)
 
 	It("test error case", func() {
 		p := &provider{
-			apply: func(ctx context.Context, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -219,7 +225,7 @@ value: {
   kind: "Pod"
   apiVersion: "v1"
   spec: close({kind: 12})	
-}`, nil)
+}`, nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).To(HaveOccurred())
@@ -230,7 +236,7 @@ value: {
   apiVersion: "v1"
 }
 patch: _|_
-`, nil)
+`, nil, "")
 		err = p.Apply(ctx, v, nil)
 		Expect(err).To(HaveOccurred())
 
@@ -243,7 +249,7 @@ value: {
   kind: "Pod"
   apiVersion: "v1"
 }
-`, nil)
+`, nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -260,7 +266,7 @@ val: {
   kind: "Pod"
   apiVersion: "v1"
 }
-`, nil)
+`, nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).To(HaveOccurred())
@@ -327,7 +333,7 @@ spec: {
 	}]
 	dnsPolicy:          "ClusterFirst"
 	enableServiceLinks: true
-	preemptionPolicy:  "PreemptLowerPriority"
+	preemptionPolicy:   "PreemptLowerPriority"
 	priority:           0
 	restartPolicy:      "Always"
 	schedulerName:      "default-scheduler"

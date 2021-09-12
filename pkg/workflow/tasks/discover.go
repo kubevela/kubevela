@@ -20,21 +20,25 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 type taskDiscover struct {
 	builtins           map[string]types.TaskGenerator
-	remoteTaskDiscover types.TaskDiscover
+	remoteTaskDiscover *custom.TaskLoader
+	templateLoader     *template.Loader
 }
 
 // GetTaskGenerator get task generator by name.
@@ -56,25 +60,46 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-func suspend(step v1beta1.WorkflowStep) (types.TaskRunner, error) {
-	return func(ctx wfContext.Context) (common.WorkflowStepStatus, *types.Operation, error) {
-		return common.WorkflowStepStatus{
-			Name:  step.Name,
-			Type:  step.Type,
-			Phase: common.WorkflowStepPhaseSucceeded,
-		}, &types.Operation{Suspend: true}, nil
+func suspend(step v1beta1.WorkflowStep, _ *types.GeneratorOptions) (types.TaskRunner, error) {
+	return &suspendTaskRunner{
+		name: step.Name,
 	}, nil
 }
 
 // NewTaskDiscover will create a client for load task generator.
-func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, loadTemplate custom.LoadTaskTemplate) types.TaskDiscover {
+func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
 	http.Install(providerHandlers)
+	templateLoader := template.NewTemplateLoader(cli, dm)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, pd, providerHandlers),
+		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers),
+		templateLoader:     templateLoader,
 	}
+}
+
+type suspendTaskRunner struct {
+	name string
+}
+
+// Name return suspend step name.
+func (tr *suspendTaskRunner) Name() string {
+	return tr.name
+}
+
+// Run make workflow suspend.
+func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
+	return common.WorkflowStepStatus{
+		Name:  tr.name,
+		Type:  "suspend",
+		Phase: common.WorkflowStepPhaseSucceeded,
+	}, &types.Operation{Suspend: true}, nil
+}
+
+// Pending check task should be executed or not.
+func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
+	return false
 }
