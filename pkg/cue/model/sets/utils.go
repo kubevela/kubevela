@@ -249,7 +249,14 @@ func toFile(n ast.Node) (*ast.File, error) {
 	case nil:
 		return nil, nil
 	case *ast.StructLit:
-		return &ast.File{Decls: x.Elts}, nil
+		decls := []ast.Decl{}
+		for _, elt := range x.Elts {
+			if _, ok := elt.(*ast.Ellipsis); ok {
+				continue
+			}
+			decls = append(decls, elt)
+		}
+		return &ast.File{Decls: decls}, nil
 	case ast.Expr:
 		ast.SetRelPos(x, token.NoSpace)
 		return &ast.File{Decls: []ast.Decl{&ast.EmbedDecl{Expr: x}}}, nil
