@@ -189,7 +189,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 	})
 
-	PIt("Test clean up rollout appRevision", func() {
+	It("Test clean up rollout appRevision", func() {
 		appName := "app-2"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")

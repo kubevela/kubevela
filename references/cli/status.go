@@ -320,6 +320,13 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 			}
 		}
 		if wlhc == nil {
+			cTime := app.GetCreationTimestamp()
+			if time.Since(cTime.Time) <= deployTimeout {
+				return compStatusHealthChecking, HealthStatusUnknown, "", nil
+			}
+			if len(healthScope.Spec.AppRefs) == 0 && len(healthScope.Spec.WorkloadReferences) == 0 {
+				return compStatusHealthCheckDone, HealthStatusHealthy, "no workload or app found in health scope", nil
+			}
 			return compStatusUnknown, HealthStatusUnknown, "", fmt.Errorf("cannot get health condition from the health scope: %s", healthScope.Name)
 		}
 		healthStatus = wlhc.HealthStatus
