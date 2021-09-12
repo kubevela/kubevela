@@ -75,7 +75,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		Expect(k8sClient.Delete(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	})
 
-	It("Test clean up appRevision", func() {
+	PIt("Test clean up appRevision", func() {
 		appName := "app-1"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")
@@ -175,7 +175,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 	})
 
-	It("Test clean up rollout appRevision", func() {
+	PIt("Test clean up rollout appRevision", func() {
 		appName := "app-2"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")

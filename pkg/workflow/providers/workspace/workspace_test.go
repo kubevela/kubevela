@@ -33,7 +33,7 @@ func TestProvider_Load(t *testing.T) {
 	p := &provider{}
 	v, err := value.NewValue(`
 component: "server"
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = p.Load(wfCtx, v, &mockAction{})
 	assert.NilError(t, err)
@@ -44,7 +44,7 @@ component: "server"
 	assert.Equal(t, str, expectedManifest)
 
 	// check Get Components
-	v, err = value.NewValue(`{}`, nil)
+	v, err = value.NewValue(`{}`, nil, "")
 	assert.NilError(t, err)
 	err = p.Load(wfCtx, v, &mockAction{})
 	assert.NilError(t, err)
@@ -61,7 +61,7 @@ component: "server"
 	}
 
 	for _, tCase := range errTestCases {
-		errv, err := value.NewValue(tCase, nil)
+		errv, err := value.NewValue(tCase, nil, "")
 		assert.NilError(t, err)
 		err = p.Load(wfCtx, errv, &mockAction{})
 		assert.Equal(t, err != nil, true)
@@ -79,7 +79,7 @@ value: {
     }]
 }
 component: "server"
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = p.Export(wfCtx, v, &mockAction{})
 	assert.NilError(t, err)
@@ -124,7 +124,7 @@ component: "server"
 `}
 
 	for _, tCase := range errCases {
-		v, err = value.NewValue(tCase, nil)
+		v, err = value.NewValue(tCase, nil, "")
 		assert.NilError(t, err)
 		err = p.Export(wfCtx, v, &mockAction{})
 		assert.Equal(t, err != nil, true)
@@ -139,7 +139,7 @@ func TestProvider_DoVar(t *testing.T) {
 method: "Put"
 path: "clusterIP"
 value: "1.1.1.1"
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = p.DoVar(wfCtx, v, &mockAction{})
 	assert.NilError(t, err)
@@ -152,7 +152,7 @@ value: "1.1.1.1"
 	v, err = value.NewValue(`
 method: "Get"
 path: "clusterIP"
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = p.DoVar(wfCtx, v, &mockAction{})
 	assert.NilError(t, err)
@@ -174,7 +174,7 @@ path: "ClusterIP"
 `}
 
 	for _, tCase := range errCases {
-		v, err = value.NewValue(tCase, nil)
+		v, err = value.NewValue(tCase, nil, "")
 		assert.NilError(t, err)
 		err = p.DoVar(wfCtx, v, &mockAction{})
 		assert.Equal(t, err != nil, true)
@@ -187,7 +187,7 @@ func TestProvider_Wait(t *testing.T) {
 	act := &mockAction{}
 	v, err := value.NewValue(`
 continue: 100!=100
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = p.Wait(wfCtx, v, act)
 	assert.NilError(t, err)
@@ -196,7 +196,7 @@ continue: 100!=100
 	act = &mockAction{}
 	v, err = value.NewValue(`
 continue: 100==100
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = p.Wait(wfCtx, v, act)
 	assert.NilError(t, err)
@@ -205,14 +205,14 @@ continue: 100==100
 	act = &mockAction{}
 	v, err = value.NewValue(`
 continue: bool
-`, nil)
+`, nil, "")
 	assert.NilError(t, err)
 	err = p.Wait(wfCtx, v, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.wait, true)
 
 	act = &mockAction{}
-	v, err = value.NewValue(``, nil)
+	v, err = value.NewValue(``, nil, "")
 	assert.NilError(t, err)
 	err = p.Wait(wfCtx, v, act)
 	assert.NilError(t, err)

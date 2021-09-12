@@ -135,7 +135,6 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 		pv := fieldpath.Pave(assembledWorkload.UnstructuredContent())
 		// TODO: we can get the workloadDefinition name from workload.GetLabels()["oam.WorkloadTypeLabel"]
 		// and use a special field like "disablePath" in the definition to allow configurable behavior
-
 		// we hard code the behavior depends on the known assembledWorkload.group/kind for now.
 		if assembledWorkload.GroupVersionKind().Group == kruisev1alpha1.GroupVersion.Group {
 			switch assembledWorkload.GetKind() {

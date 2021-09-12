@@ -55,7 +55,6 @@ func TestAppFile(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
-	//ctx := context.Background()
 	By("bootstrapping test environment")
 	useExistCluster := false
 	testEnv = &envtest.Environment{

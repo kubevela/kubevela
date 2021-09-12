@@ -213,14 +213,27 @@ type RawComponent struct {
 
 // WorkflowStepStatus record the status of a workflow step
 type WorkflowStepStatus struct {
+	ID    string            `json:"id"`
 	Name  string            `json:"name,omitempty"`
 	Type  string            `json:"type,omitempty"`
 	Phase WorkflowStepPhase `json:"phase,omitempty"`
 	// A human readable message indicating details about why the workflowStep is in this state.
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason      string                 `json:"reason,omitempty"`
-	ResourceRef corev1.ObjectReference `json:"resourceRef,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
+}
+
+// WorkflowSubStepStatus record the status of a workflow step
+type WorkflowSubStepStatus struct {
+	ID    string            `json:"id"`
+	Name  string            `json:"name,omitempty"`
+	Type  string            `json:"type,omitempty"`
+	Phase WorkflowStepPhase `json:"phase,omitempty"`
+	// A human readable message indicating details about why the workflowStep is in this state.
+	Message string `json:"message,omitempty"`
+	// A brief CamelCase message indicating details about why the workflowStep is in this state.
+	Reason string `json:"reason,omitempty"`
 }
 
 // AppStatus defines the observed state of Application
@@ -252,16 +265,26 @@ type AppStatus struct {
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
+
+	// AppliedResources record the resources that the  workflow step apply.
+	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
 }
 
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
 	AppRevision    string                  `json:"appRevision,omitempty"`
-	StepIndex      int                     `json:"stepIndex,omitempty"`
+	Mode           WorkflowMode            `json:"mode"`
 	Suspend        bool                    `json:"suspend"`
 	Terminated     bool                    `json:"terminated"`
 	ContextBackend *corev1.ObjectReference `json:"contextBackend"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
+}
+
+// SubStepsStatus record the status of workflow steps.
+type SubStepsStatus struct {
+	StepIndex int                     `json:"stepIndex,omitempty"`
+	Mode      WorkflowMode            `json:"mode,omitempty"`
+	Steps     []WorkflowSubStepStatus `json:"steps,omitempty"`
 }
 
 // WorkflowStepPhase describes the phase of a workflow step.
@@ -296,6 +319,16 @@ const (
 	WorkflowStepType DefinitionType = "WorkflowStep"
 )
 
+// WorkflowMode describes the mode of workflow
+type WorkflowMode string
+
+const (
+	// WorkflowModeDAG describes the DAG mode of workflow
+	WorkflowModeDAG WorkflowMode = "DAG"
+	// WorkflowModeStep describes the step by step mode of workflow
+	WorkflowModeStep WorkflowMode = "StepByStep"
+)
+
 // AppRolloutStatus defines the observed state of AppRollout
 type AppRolloutStatus struct {
 	v1alpha1.RolloutStatus `json:",inline"`
@@ -325,6 +358,9 @@ type ApplicationComponent struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
+	Inputs  StepInputs  `json:"inputs,omitempty"`
+	Outputs StepOutputs `json:"outputs,omitempty"`
+
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 
@@ -332,6 +368,22 @@ type ApplicationComponent struct {
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
+}
+
+// StepOutputs defines output variable of WorkflowStep
+type StepOutputs []outputItem
+
+// StepInputs defines variable input of WorkflowStep
+type StepInputs []inputItem
+
+type inputItem struct {
+	ParameterKey string `json:"parameterKey"`
+	From         string `json:"from"`
+}
+
+type outputItem struct {
+	ExportKey string `json:"exportKey"`
+	Name      string `json:"name"`
 }
 
 // ClusterSelector defines the rules to select a Cluster resource.
@@ -358,4 +410,21 @@ type ClusterPlacement struct {
 
 	// Distribution defines the replica distribution of an AppRevision to a cluster.
 	Distribution Distribution `json:"distribution,omitempty"`
+}
+
+// ResourceCreatorRole defines the resource creator.
+type ResourceCreatorRole string
+
+const (
+	// PolicyResourceCreator create the policy resource.
+	PolicyResourceCreator ResourceCreatorRole = "policy"
+	// WorkflowResourceCreator create the resource in workflow.
+	WorkflowResourceCreator ResourceCreatorRole = "workflow"
+)
+
+// ClusterObjectReference defines the object reference with cluster.
+type ClusterObjectReference struct {
+	Cluster                string              `json:"cluster,omitempty"`
+	Creator                ResourceCreatorRole `json:"creator,omitempty"`
+	corev1.ObjectReference `json:",inline"`
 }

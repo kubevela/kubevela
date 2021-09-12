@@ -102,9 +102,11 @@ run: fmt vet
 fmt: goimports installcue
 	go fmt ./...
 	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w $$(go list -f {{.Dir}} ./...)
-	$(CUE) fmt ./vela-templates/definitions/internal/
-	$(CUE) fmt ./vela-templates/definitions/registry/
-
+	$(CUE) fmt ./vela-templates/definitions/internal/*
+	$(CUE) fmt ./vela-templates/definitions/registry/*
+	$(CUE) fmt ./pkg/stdlib/pkgs/*
+	$(CUE) fmt ./pkg/stdlib/op.cue
+	$(CUE) fmt ./pkg/workflow/tasks/template/static/*
 # Run go vet against code
 vet:
 	go vet ./...
@@ -234,7 +236,6 @@ manifests: installcue kustomize
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	./hack/crd/cleanup.sh
 	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/
-	go run hack/crd/update.go charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
 	go run ./vela-templates/gen_addons.go

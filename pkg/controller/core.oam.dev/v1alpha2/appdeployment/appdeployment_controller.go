@@ -18,7 +18,6 @@ package appdeployment
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/pkg/errors"
@@ -36,12 +35,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	oamcorealpha "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -62,6 +61,8 @@ type Reconciler struct {
 	wr                   WorkloadRenderer
 	Scheme               *runtime.Scheme
 	concurrentReconciles int
+
+	PackageDiscover *packages.PackageDiscover
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=appdeployments,verbs=get;list;watch;create;update;patch;delete
@@ -302,65 +303,25 @@ func (r *Reconciler) getWorkloadsFromRevision(ctx context.Context, revName, ns s
 		return nil, err
 	}
 
-	ac, err := convertRawExtention2AppConfig(appRev.Spec.ApplicationConfiguration)
+	parser := appfile.NewApplicationParser(r.Client, r.dm, r.PackageDiscover)
+	af, err := parser.GenerateAppFileFromRevision(appRev.DeepCopy())
 	if err != nil {
 		return nil, err
 	}
-
-	// In AppRevision, none of the component have any revision in their names.
-	appendRevisionToACComponentNames(ac, revName)
-
-	var comps []*oamcorealpha.Component
-	for _, rawComp := range appRev.Spec.Components {
-		comp, err := convertRawExtention2Component(rawComp.Raw)
-		if err != nil {
-			return nil, err
+	manifs, err := af.GenerateComponentManifests()
+	if err != nil {
+		return nil, err
+	}
+	var res []*workload
+	for _, mf := range manifs {
+		var wl = new(workload)
+		wl.Object = mf.StandardWorkload.DeepCopy()
+		for _, tr := range mf.Traits {
+			wl.traits = append(wl.traits, &workloadTrait{Object: tr})
 		}
-		comp.Name = makeRevisionName(comp.Name, revName)
-		comp.Namespace = appRev.Namespace
-		comps = append(comps, comp)
+		res = append(res, wl)
 	}
-
-	workloads, err := r.wr.Render(ctx, ac, comps)
-	if err != nil {
-		return nil, err
-	}
-
-	return workloads, nil
-}
-
-func appendRevisionToACComponentNames(ac *oamcorealpha.ApplicationConfiguration, revName string) {
-	for i, acc := range ac.Spec.Components {
-		compName := acc.ComponentName
-		if acc.RevisionName != "" {
-			compName = utils.ExtractComponentName(acc.RevisionName)
-		}
-		ac.Spec.Components[i].ComponentName = makeRevisionName(compName, revName)
-	}
-}
-
-func convertRawExtention2AppConfig(raw runtime.RawExtension) (*oamcorealpha.ApplicationConfiguration, error) {
-	obj := &oamcorealpha.ApplicationConfiguration{}
-	b, err := raw.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(b, obj); err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
-func convertRawExtention2Component(raw runtime.RawExtension) (*oamcorealpha.Component, error) {
-	obj := &oamcorealpha.Component{}
-	b, err := raw.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(b, obj); err != nil {
-		return nil, err
-	}
-	return obj, nil
+	return res, nil
 }
 
 func (r *Reconciler) calculateDiff(appd *oamcore.AppDeployment) *revisionsDiff {
@@ -550,10 +511,11 @@ func removeString(slice []string, s string) (result []string) {
 // Setup adds a controller that reconciles AppDeployment.
 func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	r := &Reconciler{
-		dm:     args.DiscoveryMapper,
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		wr:     NewWorkloadRenderer(mgr.GetClient()),
+		dm:              args.DiscoveryMapper,
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		wr:              NewWorkloadRenderer(mgr.GetClient()),
+		PackageDiscover: args.PackageDiscover,
 	}
 	return r.SetupWithManager(mgr)
 }

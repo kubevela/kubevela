@@ -360,7 +360,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 	})
 
-	It("Test cloneset basic scale", func() {
+	PIt("Test cloneset basic scale", func() {
 		CreateClonesetDef()
 		applySourceApp("app-no-replica.yaml")
 		By("Apply the application rollout go directly to the target")
@@ -375,7 +375,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 	})
 
-	It("Test cloneset rollout with a manual check", func() {
+	PIt("Test cloneset rollout with a manual check", func() {
 		applyTwoAppVersion()
 		// scale to v1
 		initialScale()
@@ -431,7 +431,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 	})
 
-	It("Test pause and modify rollout plan after rolling succeeded", func() {
+	PIt("Test pause and modify rollout plan after rolling succeeded", func() {
 		CreateClonesetDef()
 		applySourceApp("app-no-replica.yaml")
 		By("Apply the application rollout go directly to the target")
@@ -502,7 +502,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		Expect(appRollout.Status.GetCondition(oamstd.RolloutSucceed).LastTransitionTime).Should(BeEquivalentTo(lt))
 	})
 
-	It("Test rolling forward after a successful rollout", func() {
+	PIt("Test rolling forward after a successful rollout", func() {
 		applyTwoAppVersion()
 		// scale to v1
 		initialScale()
@@ -529,7 +529,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		rollForwardToSource()
 	})
 
-	It("Test rolling forward in the middle of rollout", func() {
+	PIt("Test rolling forward in the middle of rollout", func() {
 		applyTwoAppVersion()
 		// scale to v1
 		initialScale()
@@ -555,7 +555,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		rollForwardToSource()
 	})
 
-	It("Test delete rollout plan should not remove workload", func() {
+	PIt("Test delete rollout plan should not remove workload", func() {
 		CreateClonesetDef()
 		applyTwoAppVersion()
 		// scale to v1
@@ -598,7 +598,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 			}, time.Second*30, time.Second).Should(BeTrue())
 	})
 
-	It("Test revert the rollout plan in the middle of rollout", func() {
+	PIt("Test revert the rollout plan in the middle of rollout", func() {
 		CreateClonesetDef()
 		applyTwoAppVersion()
 		// scale to v1
@@ -648,7 +648,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 			}, time.Second*30, time.Second).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
 	})
 
-	It("Test rollout will update same name trait", func() {
+	PIt("Test rollout will update same name trait", func() {
 		CreateClonesetDef()
 		CreateIngressDef()
 		applySourceApp("app-with-ingress-source.yaml")
@@ -680,7 +680,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		verifyIngress("test-1.example.com")
 	})
 
-	It("Test rollout succeed will gc useless trait", func() {
+	PIt("Test rollout succeed will gc useless trait", func() {
 		CreateClonesetDef()
 		CreateIngressDef()
 		applySourceApp("app-with-ingress-source.yaml")
@@ -716,7 +716,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 		}, time.Second*30, 300*time.Microsecond).Should(util.NotFoundMatcher{})
 	})
 
-	It("Test scale again by modify targetSize", func() {
+	PIt("Test scale again by modify targetSize", func() {
 		var err error
 		CreateClonesetDef()
 		applySourceApp("app-no-replica.yaml")

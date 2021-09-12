@@ -18,6 +18,7 @@ package workflow
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -25,5 +26,5 @@ import (
 type Workflow interface {
 	// ExecuteSteps executes the steps of an Application with given steps of rendered resources.
 	// It returns done=true only if all steps are executed and succeeded.
-	ExecuteSteps(ctx context.Context, appRevName string, taskRunners []types.TaskRunner) (done bool, pause bool, err error)
+	ExecuteSteps(ctx context.Context, appRev *v1beta1.ApplicationRevision, taskRunners []types.TaskRunner) (done bool, pause bool, err error)
 }

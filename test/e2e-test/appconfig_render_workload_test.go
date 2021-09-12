@@ -80,7 +80,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(BeNil())
 	})
 
-	It("Test AppConfig controller renders workloads", func() {
+	PIt("Test AppConfig controller renders workloads", func() {
 		By("Create WorkloadDefinition")
 		d := wd(wdNameAndDef(wdName))
 		Expect(k8sClient.Create(ctx, d)).Should(Succeed())

@@ -353,7 +353,7 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 		if err != nil {
 			return err
 		}
-		if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd); err != nil {
+		if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd, ""); err != nil {
 			return err
 		}
 	} else if _, err = r.Compile("-", templateString+"\n"+velacue.BaseTemplate); err != nil {

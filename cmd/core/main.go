@@ -45,7 +45,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
-	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -230,7 +229,6 @@ func main() {
 	if useWebhook {
 		klog.InfoS("Enable webhook", "server port", strconv.Itoa(webhookPort))
 		oamwebhook.Register(mgr, controllerArgs)
-		velawebhook.Register(mgr, disableCaps)
 		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
 			klog.ErrorS(err, "Unable to get webhook secret")
 			os.Exit(1)

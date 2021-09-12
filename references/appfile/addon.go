@@ -19,7 +19,6 @@ package appfile
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -95,7 +94,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 					return nil, fmt.Errorf("failed to create directory for %s: %w", tfJSONDir, err)
 				}
 			}
-			if err := ioutil.WriteFile(filepath.Join(tfJSONDir, "main.tf.json"), tf, 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(tfJSONDir, "main.tf.json"), tf, 0600); err != nil {
 				return nil, fmt.Errorf("failed to convert Terraform template: %w", err)
 			}
 

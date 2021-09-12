@@ -797,7 +797,7 @@ func TestGetGVKFromDef(t *testing.T) {
 	mapper.MockKindsFor = mock.NewMockKindsFor("Abc", "v1", "v2")
 	gvk, err := util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com"})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "example.com",
 		Version: "v1",
 		Kind:    "Abc",
@@ -805,7 +805,7 @@ func TestGetGVKFromDef(t *testing.T) {
 
 	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com", Version: "v2"})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "example.com",
 		Version: "v2",
 		Kind:    "Abc",
@@ -813,7 +813,7 @@ func TestGetGVKFromDef(t *testing.T) {
 
 	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "",
 		Version: "",
 		Kind:    "",
@@ -821,7 +821,7 @@ func TestGetGVKFromDef(t *testing.T) {
 
 	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "dummy"})
 	assert.NoError(t, err)
-	assert.Equal(t, schema.GroupVersionKind{
+	assert.Equal(t, metav1.GroupVersionKind{
 		Group:   "",
 		Version: "",
 		Kind:    "",
@@ -2258,223 +2258,4 @@ func TestConvertDefinitionRevName(t *testing.T) {
 			assert.Equal(t, tt.wantRevName, revName)
 		}
 	}
-}
-
-func TestAppConfig2ComponentManifests(t *testing.T) {
-	testcases := []struct {
-		ac        string
-		comp      string
-		expectErr bool
-	}{
-		{
-			ac: `apiVersion: core.oam.dev/v1alpha2
-kind: ApplicationConfiguration
-metadata: {}
-spec:
-  components:
-  - componentName: demo-podinfo
-    revisionName: demo-podinfo-v2
-    traits:
-    - trait:
-        apiVersion: networking.k8s.io/v1beta1
-        kind: Ingress
-        metadata:
-          name: demo-podinfo
-        spec:
-          rules:
-          - host: localhost
-            http:
-              paths:
-              - backend:
-                  serviceName: demo-podinfo
-                  servicePort: 8000
-                path: /`,
-			comp: `apiVersion: core.oam.dev/v1alpha2
-kind: Component
-metadata:
-  name: demo-podinfo
-spec:
-  helm:
-    release:
-      apiVersion: helm.toolkit.fluxcd.io/v2beta1
-      kind: HelmRelease
-      metadata:
-        name: myapp-demo-podinfo
-        namespace: default
-      spec:
-        chart:
-          spec:
-            chart: podinfo
-            sourceRef:
-              kind: HelmRepository
-              name: myapp-demo-podinfo
-              namespace: default
-            version: 5.1.4
-        interval: 5m0s
-        values:
-          image:
-            tag: 5.1.2
-    repository:
-      apiVersion: source.toolkit.fluxcd.io/v1beta1
-      kind: HelmRepository
-      metadata:
-        name: myapp-demo-podinfo
-        namespace: default
-      spec:
-        interval: 5m0s
-        url: http://oam.dev/catalog/
-  workload:
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-    spec:
-      replicas: 2`,
-			expectErr: false,
-		},
-		{
-			ac:        `errBoom`,
-			comp:      "",
-			expectErr: true,
-		},
-		{
-			ac: `apiVersion: core.oam.dev/v1alpha2
-kind: ApplicationConfiguration
-metadata: {}
-spec:
-  components:
-  - componentName: demo-podinfo
-    revisionName: demo-podinfo-v2`,
-			comp:      `errBoom`,
-			expectErr: true,
-		},
-		{
-			ac: `apiVersion: core.oam.dev/v1alpha2
-kind: ApplicationConfiguration
-metadata: {}
-spec:
-  components:
-  - componentName: demo-podinfo
-    revisionName: demo-podinfo-v2`,
-			comp: `apiVersion: core.oam.dev/v1alpha2
-kind: Component
-metadata:
-  name: demo-podinfo
-spec:
-  workload:
-    errorBoom`,
-			expectErr: true,
-		},
-		{
-			ac: `apiVersion: core.oam.dev/v1alpha2
-kind: ApplicationConfiguration
-metadata: {}
-spec:
-  components:
-  - componentName: demo-podinfo
-    revisionName: demo-podinfo-v2`,
-			comp: `apiVersion: core.oam.dev/v1alpha2
-kind: Component
-metadata:
-  name: demo-podinfo
-spec:
-  helm:
-    release:
-      errorBoom
-    repository:
-      apiVersion: source.toolkit.fluxcd.io/v1beta1
-      kind: HelmRepository
-      metadata:
-        name: myapp-demo-podinfo
-        namespace: default
-      spec:
-        interval: 5m0s
-        url: http://oam.dev/catalog/
-  workload:
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-    spec:
-      replicas: 2`,
-			expectErr: true,
-		},
-		{
-			ac: `apiVersion: core.oam.dev/v1alpha2
-kind: ApplicationConfiguration
-metadata: {}
-spec:
-  components:
-  - componentName: demo-podinfo
-    revisionName: demo-podinfo-v2`,
-			comp: `apiVersion: core.oam.dev/v1alpha2
-kind: Component
-metadata:
-  name: demo-podinfo
-spec:
-  helm:
-    release:
-      apiVersion: helm.toolkit.fluxcd.io/v2beta1
-      kind: HelmRelease
-      metadata:
-        name: myapp-demo-podinfo
-        namespace: default
-      spec:
-        chart:
-          spec:
-            chart: podinfo
-            sourceRef:
-              kind: HelmRepository
-              name: myapp-demo-podinfo
-              namespace: default
-            version: 5.1.4
-        interval: 5m0s
-        values:
-          image:
-            tag: 5.1.2
-    repository:
-      errorBoom
-  workload:
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-    spec:
-      replicas: 2`,
-			expectErr: true,
-		},
-		{
-			ac: `apiVersion: core.oam.dev/v1alpha2
-kind: ApplicationConfiguration
-metadata: {}
-spec:
-  components:
-  - componentName: demo-podinfo
-    revisionName: demo-podinfo-v2
-    traits:
-    - trait:
-        errorBoom`,
-			comp: `apiVersion: core.oam.dev/v1alpha2
-kind: Component
-metadata:
-  name: demo-podinfo
-spec:
-  workload:
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-    spec:
-      replicas: 2`,
-			expectErr: true,
-		},
-	}
-	for _, tc := range testcases {
-		acJSON, _ := yaml.YAMLToJSON([]byte(tc.ac))
-		acRaw := runtime.RawExtension{Raw: acJSON}
-		compJSON, _ := yaml.YAMLToJSON([]byte(tc.comp))
-		compRaw := runtime.RawExtension{Raw: compJSON}
-		_, err := util.AppConfig2ComponentManifests(acRaw, []common.RawComponent{
-			{Raw: compRaw},
-		})
-		hasError := err != nil
-		assert.Equal(t, tc.expectErr, hasError, "err", err)
-	}
-
 }

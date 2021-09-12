@@ -19,7 +19,6 @@ package config
 import (
 	b64 "encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,7 +66,7 @@ func ReadConfig(envName, configName string) ([]byte, error) {
 		return nil, err
 	}
 	cfgFile := filepath.Join(d, configName)
-	b, err := ioutil.ReadFile(filepath.Clean(cfgFile))
+	b, err := os.ReadFile(filepath.Clean(cfgFile))
 	if os.IsNotExist(err) {
 		return []byte{}, nil
 	}
@@ -81,5 +80,5 @@ func WriteConfig(envName, configName string, data []byte) error {
 		return err
 	}
 	cfgFile := filepath.Join(d, configName)
-	return ioutil.WriteFile(cfgFile, data, 0600)
+	return os.WriteFile(cfgFile, data, 0600)
 }

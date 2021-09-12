@@ -164,7 +164,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 	})
 
-	It("rollout as a trait whole process e2e-test", func() {
+	PIt("rollout as a trait whole process e2e-test", func() {
 		By("first scale operation")
 		Expect(common.ReadYamlToObject("testdata/rollout/deployment/application.yaml", &app)).Should(BeNil())
 		app.Namespace = namespaceName

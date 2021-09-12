@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/utils/pointer"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,10 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -43,6 +43,7 @@ import (
 type rolloutHandler struct {
 	*Reconciler
 	appRollout *v1beta1.AppRollout
+	parser     *appfile.Parser
 
 	// source/targetRevName represent this round reconcile using source and target revision
 	// in most cases they are equal to appRollout.spec.target/sourceRevName but if roll forward or revert in middle of rollout
@@ -76,7 +77,7 @@ func (h *rolloutHandler) prepareWorkloads(ctx context.Context) error {
 	}
 
 	// construct a assemble manifest for targetAppRevision
-	targetAssemble := assemble.NewAppManifests(h.targetAppRevision).
+	targetAssemble := assemble.NewAppManifests(h.targetAppRevision, h.parser).
 		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
 		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent))
 
@@ -92,7 +93,7 @@ func (h *rolloutHandler) prepareWorkloads(ctx context.Context) error {
 			return err
 		}
 		// construct a assemble manifest for sourceAppRevision
-		sourceAssemble := assemble.NewAppManifests(h.sourceAppRevision).
+		sourceAssemble := assemble.NewAppManifests(h.sourceAppRevision, h.parser).
 			WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).
 			WithWorkloadOption(RolloutWorkloadName(h.needRollComponent))
 		h.sourceWorkloads, _, _, err = sourceAssemble.GroupAssembledManifests()
@@ -321,7 +322,7 @@ func (h *rolloutHandler) assembleManifest(ctx context.Context) error {
 	}
 	var err error
 	// construct a assemble manifest for targetAppRevision
-	targetAssemble := assemble.NewAppManifests(h.targetAppRevision).
+	targetAssemble := assemble.NewAppManifests(h.targetAppRevision, h.parser).
 		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
 		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).WithWorkloadOption(HandleReplicas(ctx, h.needRollComponent, h.Client))
 

@@ -22,11 +22,16 @@ spec:
         // +usage=Contains a JSON6902 patch
         #jsonPatchItem: {
         	target: #selector
-        	patch: {
-        		op:     string
-        		path:   string
+        	patch: [...{
+        		// +usage=operation to perform
+        		op: string | "add" | "remove" | "replace" | "move" | "copy" | "test"
+        		// +usage=operate path e.g. /foo/bar
+        		path: string
+        		// +usage=specify source path when op is copy/move
+        		from?:  string
+        		// +usage=specify opraation value when op is test/add/replace
         		value?: string
-        	}
+        	}]
         }
 
         // +usage=Selector specifies a set of resources

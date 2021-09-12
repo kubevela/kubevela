@@ -19,7 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,8 +53,8 @@ func initCommand(cmd *cobra.Command) {
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.Flags().StringP("env", "", "", "")
-	cmd.SetOut(ioutil.Discard)
-	cmd.SetErr(ioutil.Discard)
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
 }
 
 func createTrait(c common2.Args, t *testing.T) string {
@@ -119,7 +119,7 @@ func createLocalTrait(t *testing.T) (string, string) {
 }
 
 func createLocalTraits(t *testing.T) string {
-	dirname, err := ioutil.TempDir(os.TempDir(), "vela-def-test-*")
+	dirname, err := os.MkdirTemp(os.TempDir(), "vela-def-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temporary directory: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 	_ = os.Setenv(HelmChartFormatEnvName, "system")
 	dirname := createLocalTraits(t)
 	defer removeDir(dirname, t)
-	outputDir, err := ioutil.TempDir(os.TempDir(), "vela-def-tests-output-*")
+	outputDir, err := os.MkdirTemp(os.TempDir(), "vela-def-tests-output-*")
 	if err != nil {
 		t.Fatalf("failed to create temporary output dir: %v", err)
 	}

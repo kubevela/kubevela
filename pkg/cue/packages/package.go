@@ -24,8 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/stdlib"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
@@ -96,18 +94,6 @@ func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
 	if err = pd.RefreshKubePackagesFromCluster(); err != nil {
 		return pd, err
 	}
-
-	stdPkgs, err := stdlib.GetPackages()
-	if err != nil {
-		return nil, err
-	}
-	for path, content := range stdPkgs {
-		p := newPackage(path)
-		if err := p.AddFile("-", content); err != nil {
-			return nil, err
-		}
-		pd.mount(p, nil)
-	}
 	return pd, nil
 }
 
@@ -121,7 +107,6 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 // ImportPackagesAndBuildInstance Combine import built-in packages and build cue template together to avoid data race
 func (pd *PackageDiscover) ImportPackagesAndBuildInstance(bi *build.Instance) (inst *cue.Instance, err error) {
 	pd.ImportBuiltinPackagesFor(bi)
-
 	var r cue.Runtime
 	pd.mutex.Lock()
 	defer pd.mutex.Unlock()

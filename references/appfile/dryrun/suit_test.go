@@ -17,10 +17,12 @@ limitations under the License.
 package dryrun
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/oam-dev/kubevela/pkg/appfile"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -106,7 +108,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).Should(BeNil())
 
 	dryrunOpt = NewDryRunOption(k8sClient, dm, pd, []oam.Object{cdMyWorker, tdMyIngress, tdMyScaler})
-	diffOpt = &LiveDiffOption{dryrunOpt}
+	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, dm, pd)}
 
 	close(done)
 }, 60)
@@ -118,6 +120,6 @@ var _ = AfterSuite(func() {
 })
 
 func readDataFromFile(path string) string {
-	b, _ := ioutil.ReadFile(path)
+	b, _ := os.ReadFile(path)
 	return string(b)
 }

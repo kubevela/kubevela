@@ -21,16 +21,35 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
 // TaskRunner is a task runner.
-type TaskRunner func(ctx wfContext.Context) (common.WorkflowStepStatus, *Operation, error)
+type TaskRunner interface {
+	Name() string
+	Pending(ctx wfContext.Context) bool
+	Run(ctx wfContext.Context, options *TaskRunOptions) (common.WorkflowStepStatus, *Operation, error)
+}
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
 type TaskDiscover interface {
 	GetTaskGenerator(ctx context.Context, name string) (TaskGenerator, error)
 }
+
+// TaskRunOptions is the options for task run.
+type TaskRunOptions struct {
+	Data          *value.Value
+	PreStartHooks []TaskPreStartHook
+	PostStopHooks []TaskPostStopHook
+	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
+}
+
+// TaskPreStartHook run before task execution.
+type TaskPreStartHook func(ctx wfContext.Context, paramValue *value.Value, step v1beta1.WorkflowStep) error
+
+// TaskPostStopHook  run after task execution.
+type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error
 
 // Operation is workflow operation object.
 type Operation struct {
@@ -39,7 +58,14 @@ type Operation struct {
 }
 
 // TaskGenerator will generate taskRunner.
-type TaskGenerator func(wfStep v1beta1.WorkflowStep) (TaskRunner, error)
+type TaskGenerator func(wfStep v1beta1.WorkflowStep, options *GeneratorOptions) (TaskRunner, error)
+
+// GeneratorOptions is the options for generate task.
+type GeneratorOptions struct {
+	ID            string
+	PrePhase      common.WorkflowStepPhase
+	StepConvertor func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
+}
 
 // Action is that workflow provider can do.
 type Action interface {

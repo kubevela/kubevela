@@ -34,13 +34,9 @@ spec:
               "/": 8080
   policies:
     - name: app-healthscope
-      type: health-scope-binding
+      type: health
       properties:
         probeInterval: 5
-        boundComponents:
-          - my-server-1
-          - my-server-2
-          - boom # invalid component name will be omitted
   workflow:
     steps:
       - name: apply-my-server-1

@@ -68,8 +68,7 @@ const LabelPodSpecable = "workload.oam.dev/podspecable"
 
 // allBuiltinCapabilities includes all builtin controllers
 // TODO(zzxwill) needs to automatically discovery all controllers
-var allBuiltinCapabilities = mapset.NewSet(common.RolloutControllerName, common.PodspecWorkloadControllerName,
-	common.ContainerizedWorkloadControllerName, common.HealthScopeControllerName)
+var allBuiltinCapabilities = mapset.NewSet(common.RolloutControllerName, common.ContainerizedWorkloadControllerName, common.HealthScopeControllerName)
 
 // GetPodSpecPath get podSpec field and label
 func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
@@ -259,7 +258,7 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 // RefreshPackageDiscover help refresh package discover
 func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm discoverymapper.DiscoveryMapper,
 	pd *packages.PackageDiscover, definition runtime.Object) error {
-	var gvk schema.GroupVersionKind
+	var gvk metav1.GroupVersionKind
 	var err error
 	switch def := definition.(type) {
 	case *v1beta1.ComponentDefinition:
@@ -278,7 +277,11 @@ func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm dis
 			if err != nil {
 				return err
 			}
-			gvk = gv.WithKind(def.Spec.Workload.Definition.Kind)
+			gvk = metav1.GroupVersionKind{
+				Group:   gv.Group,
+				Version: gv.Version,
+				Kind:    def.Spec.Workload.Definition.Kind,
+			}
 		}
 	case *v1beta1.TraitDefinition:
 		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)

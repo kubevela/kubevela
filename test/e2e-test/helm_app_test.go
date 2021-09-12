@@ -131,7 +131,7 @@ var _ = Describe("Test application containing helm module", func() {
 		Expect(k8sClient.Patch(ctx, &scalerTd, client.Merge)).Should(Succeed())
 	})
 
-	It("Test deploy an application containing helm module", func() {
+	PIt("Test deploy an application containing helm module", func() {
 		app = v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appName,
@@ -258,7 +258,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 120*time.Second, 10*time.Second).Should(BeTrue())
 	})
 
-	It("Test deploy an application containing helm module defined by workloadDefinition", func() {
+	PIt("Test deploy an application containing helm module defined by workloadDefinition", func() {
 
 		workloaddef := v1beta1.WorkloadDefinition{}
 		workloaddef.SetName(wdName)
@@ -315,7 +315,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 240*time.Second, 5*time.Second).Should(Succeed())
 	})
 
-	It("Test deploy an application containing helm module and the componet refer to autodetect type workload", func() {
+	PIt("Test deploy an application containing helm module and the componet refer to autodetect type workload", func() {
 		cd := v1beta1.ComponentDefinition{}
 		cd.SetName("podinfo")
 		cd.SetNamespace(namespace)
@@ -369,7 +369,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 120*time.Second, 5*time.Second).Should(Succeed())
 	})
 
-	It("Test store JSON schema of Helm Chart in ConfigMap", func() {
+	PIt("Test store JSON schema of Helm Chart in ConfigMap", func() {
 		By("Get the ConfigMap")
 		cmName := fmt.Sprintf("schema-%s", cdName)
 		Eventually(func() error {

@@ -30,6 +30,6 @@ type Context interface {
 	GetVar(paths ...string) (*value.Value, error)
 	SetVar(v *value.Value, paths ...string) error
 	Commit() error
-	MakeParameter(parameter map[string]interface{}) (*value.Value, error)
+	MakeParameter(parameter interface{}) (*value.Value, error)
 	StoreRef() *corev1.ObjectReference
 }

@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -171,7 +170,7 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 
 	var objs []oam.Object
 	//nolint:gosec
-	fis, err := ioutil.ReadDir(path)
+	fis, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +194,7 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 
 func readApplicationFromFile(filename string) (*corev1beta1.Application, error) {
 
-	fileContent, err := ioutil.ReadFile(filepath.Clean(filename))
+	fileContent, err := os.ReadFile(filepath.Clean(filename))
 	if err != nil {
 		return nil, err
 	}

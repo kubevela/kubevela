@@ -25,7 +25,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workloads/containerizedworkload"
-	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/rollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
@@ -36,7 +35,6 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 	switch disableCaps {
 	case common.DisableNoneCaps:
 		functions = []func(ctrl.Manager, controller.Args) error{
-			podspecworkload.Setup,
 			manualscalertrait.Setup,
 			containerizedworkload.Setup,
 			healthscope.Setup,
@@ -46,9 +44,6 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 	case common.DisableAllCaps:
 	default:
 		disableCapsSet := utils.StoreInSet(disableCaps)
-		if !disableCapsSet.Contains(common.PodspecWorkloadControllerName) {
-			functions = append(functions, podspecworkload.Setup)
-		}
 		if !disableCapsSet.Contains(common.ContainerizedWorkloadControllerName) {
 			functions = append(functions, containerizedworkload.Setup)
 		}

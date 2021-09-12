@@ -1,20 +1,6 @@
 apiVersion: core.oam.dev/v1beta1
 kind: ApplicationRevision
 metadata:
-  annotations:
-    canPassAnno: Annotation-passed
-    filter.oam.dev/annotation-keys: notPassAnno1, notPassAnno2
-    filter.oam.dev/label-keys: notPassLabel
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"annotations":{"canPassAnno":"Annotation-passed","filter.oam.dev/annotation-keys":"notPassAnno1, notPassAnno2","filter.oam.dev/label-keys":"notPassLabel","notPassAnno1":"Annotation-filtered","notPassAnno2":"Annotation-filtered"},"labels":{"canPassLabel":"Label-passed","notPassLabel":"Label-filtered"},"name":"website","namespace":"default"},"spec":{"components":[{"name":"frontend","properties":{"image":"nginx"},"type":"webservice"}]}}
-    notPassAnno1: Annotation-filtered
-    notPassAnno2: Annotation-filtered
-    oam.dev/kubevela-version: UNKNOWN
-  labels:
-    app.oam.dev/app-revision-hash: 1a087b23fa07c15f
-    app.oam.dev/name: website
-    canPassLabel: Label-passed
-    notPassLabel: Label-filtered
   name: website-v1
   namespace: default
   ownerReferences:
@@ -23,6 +9,18 @@ metadata:
       kind: Application
       name: website
       uid: 5bd96a5d-f8fb-4d61-9345-0cca63869882
+  annotations:
+    canPassAnno: Annotation-passed
+    filter.oam.dev/annotation-keys: notPassAnno1, notPassAnno2
+    filter.oam.dev/label-keys: notPassLabel
+    notPassAnno1: Annotation-filtered
+    notPassAnno2: Annotation-filtered
+    oam.dev/kubevela-version: UNKNOWN
+  labels:
+    app.oam.dev/app-revision-hash: 1a087b23fa07c15f
+    app.oam.dev/name: website
+    canPassLabel: Label-passed
+    notPassLabel: Label-filtered
 spec:
   application:
     apiVersion: core.oam.dev/v1beta1

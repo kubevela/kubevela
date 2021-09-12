@@ -18,7 +18,6 @@ package plugins
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -96,7 +95,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	workloaddata, err := ioutil.ReadFile("testdata/workloadDef.yaml")
+	workloaddata, err := os.ReadFile("testdata/workloadDef.yaml")
 	Expect(err).Should(BeNil())
 
 	Expect(yaml.Unmarshal(workloaddata, &wd)).Should(BeNil())
@@ -105,7 +104,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("Creating workload definition", "data", wd)
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	componentdata, err := ioutil.ReadFile("testdata/componentDef.yaml")
+	componentdata, err := os.ReadFile("testdata/componentDef.yaml")
 	Expect(err).Should(BeNil())
 
 	Expect(yaml.Unmarshal(componentdata, &cd)).Should(BeNil())
@@ -114,7 +113,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("Creating component definition", "data", cd)
 	Expect(k8sClient.Create(ctx, &cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	websvcWorkloadData, err := ioutil.ReadFile("testdata/websvcWorkloadDef.yaml")
+	websvcWorkloadData, err := os.ReadFile("testdata/websvcWorkloadDef.yaml")
 	Expect(err).Should(BeNil())
 
 	Expect(yaml.Unmarshal(websvcWorkloadData, &websvcWD)).Should(BeNil())
@@ -122,7 +121,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("Creating workload definition whose CUE template from remote", "data", &websvcWD)
 	Expect(k8sClient.Create(ctx, &websvcWD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	websvcComponentDefData, err := ioutil.ReadFile("testdata/websvcComponentDef.yaml")
+	websvcComponentDefData, err := os.ReadFile("testdata/websvcComponentDef.yaml")
 	Expect(err).Should(BeNil())
 
 	Expect(yaml.Unmarshal(websvcComponentDefData, &websvcCD)).Should(BeNil())

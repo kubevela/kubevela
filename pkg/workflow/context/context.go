@@ -89,11 +89,15 @@ func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	return wf.vars.Error()
 }
 
-// MakeParameter make 'value' with map[string]interface{}
-func (wf *WorkflowContext) MakeParameter(parameter map[string]interface{}) (*value.Value, error) {
+// MakeParameter make 'value' with interface{}
+func (wf *WorkflowContext) MakeParameter(parameter interface{}) (*value.Value, error) {
 	var s = "{}"
 	if parameter != nil {
-		s = string(util.MustJSONMarshal(parameter))
+		bt, err := json.Marshal(parameter)
+		if err != nil {
+			return nil, err
+		}
+		s = string(bt)
 	}
 
 	return wf.vars.MakeValue(s)
@@ -159,7 +163,7 @@ func (wf *WorkflowContext) LoadFromConfigMap(cm corev1.ConfigMap) error {
 		wf.components[name] = cm
 	}
 	var err error
-	wf.vars, err = value.NewValue(data[ConfigMapKeyVars], nil)
+	wf.vars, err = value.NewValue(data[ConfigMapKeyVars], nil, "")
 	if err != nil {
 		return errors.WithMessage(err, "decode vars")
 	}
@@ -265,6 +269,16 @@ func NewContext(cli client.Client, ns, rev string) (Context, error) {
 	return wfCtx, wfCtx.Commit()
 }
 
+// NewEmptyContext new workflow context without initialize data.
+func NewEmptyContext(cli client.Client, ns, rev string) (Context, error) {
+	wfCtx, err := newContext(cli, ns, rev)
+	if err != nil {
+		return nil, err
+	}
+
+	return wfCtx, wfCtx.Commit()
+}
+
 func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 	var (
 		ctx   = context.Background()
@@ -290,7 +304,7 @@ func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 		components: map[string]*ComponentManifest{},
 	}
 	var err error
-	wfCtx.vars, err = value.NewValue("", nil)
+	wfCtx.vars, err = value.NewValue("", nil, "")
 
 	return wfCtx, err
 }

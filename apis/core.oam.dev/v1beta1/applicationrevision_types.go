@@ -43,14 +43,25 @@ type ApplicationRevisionSpec struct {
 	// ScopeDefinitions records the snapshot of the scopeDefinitions related with the created/modified Application
 	ScopeDefinitions map[string]ScopeDefinition `json:"scopeDefinitions,omitempty"`
 
+	// PolicyDefinitions records the snapshot of the PolicyDefinitions related with the created/modified Application
+	PolicyDefinitions map[string]PolicyDefinition `json:"policyDefinitions,omitempty"`
+
+	// WorkflowStepDefinitions records the snapshot of the WorkflowStepDefinitions related with the created/modified Application
+	WorkflowStepDefinitions map[string]WorkflowStepDefinition `json:"workflowStepDefinitions,omitempty"`
+
+	// ScopeGVK records the apiVersion to GVK mapping
+	ScopeGVK map[string]metav1.GroupVersionKind `json:"scopeGVK,omitempty"`
+
 	// Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
+	// +deprecated
 	Components []common.RawComponent `json:"components,omitempty"`
 
 	// ApplicationConfiguration records the rendered applicationConfiguration from Application,
 	// it will contains the whole K8s CR of trait and the reference component in it.
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
-	ApplicationConfiguration runtime.RawExtension `json:"applicationConfiguration"`
+	// +deprecated
+	ApplicationConfiguration runtime.RawExtension `json:"applicationConfiguration,omitempty"`
 
 	// ResourcesConfigMap references the ConfigMap that's generated to contain all final rendered resources.
 	ResourcesConfigMap corev1.LocalObjectReference `json:"resourcesConfigMap,omitempty"`
@@ -62,6 +73,8 @@ type ApplicationRevisionSpec struct {
 // +kubebuilder:storageversion
 // +kubebuilder:resource:categories={oam},shortName=apprev
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplicationRevision struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -72,6 +85,7 @@ type ApplicationRevision struct {
 // +kubebuilder:object:root=true
 
 // ApplicationRevisionList contains a list of ApplicationRevision
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplicationRevisionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -50,7 +49,7 @@ func main() {
 	writeOld := func(fileName string, data []byte) {
 		pathOld := fmt.Sprintf("%s/%s", oldDir, fileName)
 		/* #nosec */
-		if err := ioutil.WriteFile(pathOld, data, 0644); err != nil {
+		if err := os.WriteFile(pathOld, data, 0644); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -58,7 +57,7 @@ func main() {
 	writeNew := func(fileName string, data []byte) {
 		pathNew := fmt.Sprintf("%s/%s", newDir, fileName)
 		/* #nosec */
-		if err := ioutil.WriteFile(pathNew, data, 0644); err != nil {
+		if err := os.WriteFile(pathNew, data, 0644); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -66,7 +65,7 @@ func main() {
 	writeRuntime := func(subPath, fileName string, data []byte) {
 		pathRuntime := fmt.Sprintf("%s/%s/charts/crds/%s", runtimeDir, subPath, fileName)
 		/* #nosec */
-		if err := ioutil.WriteFile(pathRuntime, data, 0644); err != nil {
+		if err := os.WriteFile(pathRuntime, data, 0644); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -77,7 +76,7 @@ func main() {
 		}
 		resourceName := extractMainInfo(info.Name())
 		/* #nosec */
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "failed to read file", err)
 			return err

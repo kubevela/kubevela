@@ -77,7 +77,7 @@ myIP: value: "1.1.1.1"
 		{
 			Name: "output",
 			Type: "output",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				ExportKey: "myIP.value",
 				Name:      "podIP",
 			}},
@@ -85,7 +85,7 @@ myIP: value: "1.1.1.1"
 		{
 			Name: "input",
 			Type: "input",
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "podIP",
 				ParameterKey: "set.prefixIP",
 			}},
@@ -115,9 +115,9 @@ myIP: value: "1.1.1.1"
 	for _, step := range steps {
 		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 		assert.NilError(t, err)
-		run, err := gen(step)
+		run, err := gen(step, &types.GeneratorOptions{})
 		assert.NilError(t, err)
-		status, action, err := run(wfCtx)
+		status, action, err := run.Run(wfCtx, &types.TaskRunOptions{})
 		assert.NilError(t, err)
 		if step.Name == "wait" {
 			assert.Equal(t, status.Phase, common.WorkflowStepPhaseRunning)
@@ -152,7 +152,7 @@ func TestErrCases(t *testing.T) {
 close({
    x: 100
 })
-`, nil, value.TagFieldOrder)
+`, nil, "", value.TagFieldOrder)
 	assert.NilError(t, err)
 	err = wfCtx.SetVar(closeVar, "score")
 	assert.NilError(t, err)
@@ -182,7 +182,7 @@ close({
 			Properties: runtime.RawExtension{Raw: []byte(`
 {"score": {"y": 101}}
 `)},
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "score",
 				ParameterKey: "score",
 			}},
@@ -190,7 +190,7 @@ close({
 		{
 			Name: "input",
 			Type: "input",
-			Inputs: v1beta1.StepInputs{{
+			Inputs: common.StepInputs{{
 				From:         "podIP",
 				ParameterKey: "prefixIP",
 			}},
@@ -198,7 +198,7 @@ close({
 		{
 			Name: "output",
 			Type: "ok",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				Name:      "podIP",
 				ExportKey: "myIP",
 			}},
@@ -206,7 +206,7 @@ close({
 		{
 			Name: "output-var-conflict",
 			Type: "ok",
-			Outputs: v1beta1.StepOutputs{{
+			Outputs: common.StepOutputs{{
 				Name:      "score",
 				ExportKey: "name",
 			}},
@@ -223,9 +223,9 @@ close({
 	for _, step := range steps {
 		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 		assert.NilError(t, err)
-		run, err := gen(step)
+		run, err := gen(step, &types.GeneratorOptions{})
 		assert.NilError(t, err)
-		status, _, err := run(wfCtx)
+		status, _, err := run.Run(wfCtx, &types.TaskRunOptions{})
 		switch step.Name {
 		case "input":
 			assert.Equal(t, err != nil, true)
@@ -361,13 +361,44 @@ apply: {
 
 	for _, tc := range testCases {
 		echo = ""
-		v, err := value.NewValue(tc.base, nil, value.TagFieldOrder)
+		v, err := value.NewValue(tc.base, nil, "", value.TagFieldOrder)
 		assert.NilError(t, err)
 		err = exec.doSteps(wfCtx, v)
 		assert.Equal(t, err != nil, tc.hasErr)
 		assert.Equal(t, echo, tc.expected)
 	}
 
+}
+
+func TestPendingCheck(t *testing.T) {
+	wfCtx := newWorkflowContextForTest(t)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
+		},
+	})
+	step := v1beta1.WorkflowStep{
+		Name: "pending",
+		Type: "ok",
+		Inputs: common.StepInputs{{
+			From:         "score",
+			ParameterKey: "score",
+		}},
+	}
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
+	assert.NilError(t, err)
+	run, err := gen(step, &types.GeneratorOptions{})
+	assert.NilError(t, err)
+	assert.Equal(t, run.Pending(wfCtx), true)
+	score, err := value.NewValue(`
+100
+`, nil, "")
+	assert.NilError(t, err)
+	err = wfCtx.SetVar(score, "score")
+	assert.NilError(t, err)
+	assert.Equal(t, run.Pending(wfCtx), false)
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {
@@ -380,7 +411,7 @@ func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	wfCtx := new(wfContext.WorkflowContext)
 	err = wfCtx.LoadFromConfigMap(cm)
 	assert.NilError(t, err)
-	v, _ := value.NewValue(`name: "app"`, nil)
+	v, _ := value.NewValue(`name: "app"`, nil, "")
 	assert.NilError(t, wfCtx.SetVar(v, types.ContextKeyMetadata))
 	return wfCtx
 }

@@ -17,8 +17,6 @@ limitations under the License.
 package common
 
 const (
-	// PodspecWorkloadControllerName is the controller name of Workload podsepcworkload
-	PodspecWorkloadControllerName = "podspecworkload"
 	// RollingComponentsSep is the separator that divide the names in the newComponent annotation
 	RollingComponentsSep = ","
 	// DisableAllCaps disable all capabilities

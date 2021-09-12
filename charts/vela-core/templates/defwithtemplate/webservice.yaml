@@ -23,6 +23,7 @@ spec:
         				if parameter.addRevisionLabel {
         					"app.oam.dev/appRevision": context.appRevision
         				}
+        				"app.oam.dev/revision": context.revision
         			}
 
         			spec: {

@@ -17,7 +17,7 @@ limitations under the License.
 package cli
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/pkg/errors"
@@ -61,7 +61,7 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fileContent, err := ioutil.ReadFile(filepath.Clean(filePath))
+			fileContent, err := os.ReadFile(filepath.Clean(filePath))
 			if err != nil {
 				return err
 			}

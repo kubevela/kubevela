@@ -18,19 +18,15 @@ package applicationrollout
 
 import (
 	"context"
-	"fmt"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
-	"k8s.io/kubectl/pkg/util/slice"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/types"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
 
@@ -70,76 +66,23 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1beta1.AppRollout) field
 				allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceAppRevisionName"), sourceAppName))
 			}
 		} else {
+			// nolint
 			sourceAppRevision = nil
 		}
-		var sourceComps []*types.ComponentManifest
-		targetComps, err := oamutil.AppConfig2ComponentManifests(targetAppRevision.Spec.ApplicationConfiguration,
-			targetAppRevision.Spec.Components)
-		if err != nil {
-			allErrs = append(allErrs, field.Invalid(fldPath.Child("TargetAppRevisionName"), targetAppName,
-				fmt.Sprintf("the targeted app revision is corrupted,  err = `%s`", err)))
-		}
-		if sourceAppRevision != nil {
-			sourceComps, err = oamutil.AppConfig2ComponentManifests(sourceAppRevision.Spec.ApplicationConfiguration,
-				sourceAppRevision.Spec.Components)
-			if err != nil {
-				allErrs = append(allErrs, field.Invalid(fldPath.Child("SourceAppRevisionName"), sourceAppName,
-					fmt.Sprintf("the source app revision is corrupted,  err = `%s`", err)))
-			}
-		}
-		// validate the component spec
-		allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, targetComps, sourceComps,
-			fldPath.Child("componentList"))...)
+		/*
+
+			    // TODO(wonderflow): refactor it and add component validate using appRevision
+				// 1. there can only be one component or less
+				// 2. if there are no components, make sure the applications has only one common component so that's the default
+				// 3. it is contained in both source and target application
+				// 4. the common component has the same type
+
+		*/
 	}
 
 	// validate the rollout plan spec
 	allErrs = append(allErrs, rollout.ValidateCreate(h, &appRollout.Spec.RolloutPlan, fldPath.Child("rolloutPlan"))...)
 	return allErrs
-}
-
-// validateComponent validate the ComponentList
-// 1. there can only be one component or less
-// 2. if there are no components, make sure the applications has only one common component so that's the default
-// 3. it is contained in both source and target application
-// 4. the common component has the same type
-func validateComponent(componentList []string, targetApp, sourceApp []*types.ComponentManifest,
-	fldPath *field.Path) field.ErrorList {
-	var componentErrs field.ErrorList
-	var commonComponentName string
-	if len(componentList) > 1 {
-		componentErrs = append(componentErrs, field.TooLong(fldPath, componentList, 1))
-		return componentErrs
-	}
-	commons := FindCommonComponent(targetApp, sourceApp)
-	if len(componentList) == 0 {
-		// we need to find the default
-		if len(commons) != 1 {
-			// we cannot find a default component if there are multiple
-			klog.Error("there are more than one common component", "common component", commons)
-			componentErrs = append(componentErrs, field.TooMany(fldPath, len(commons), 1))
-			return componentErrs
-		}
-		commonComponentName = commons[0]
-	} else {
-		// the component need to be one of the common components
-		if !slice.ContainsString(commons, componentList[0], nil) {
-			klog.Error("The component does not belong to the application",
-				"common components", commons, "component to upgrade", componentList[0])
-			componentErrs = append(componentErrs, field.Invalid(fldPath, componentList[0],
-				"it is not a common component in the application"))
-			return componentErrs
-		}
-		commonComponentName = componentList[0]
-	}
-	// check if the workload type are the same in the source and target application
-	if len(commonComponentName) == 0 {
-		klog.Error("the common component have different types in the application",
-			"common component", commonComponentName)
-		componentErrs = append(componentErrs, field.Invalid(fldPath, componentList[0],
-			"the common component have different types in the application"))
-	}
-
-	return componentErrs
 }
 
 // ValidateUpdate validates the AppRollout on update

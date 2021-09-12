@@ -156,6 +156,8 @@ type AppDeploymentStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories={oam},shortName=appdeploy
 // +kubebuilder:subresource:status
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type AppDeployment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -166,6 +168,7 @@ type AppDeployment struct {
 
 // AppDeploymentList contains a list of AppDeployment
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type AppDeploymentList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

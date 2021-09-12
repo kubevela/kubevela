@@ -50,6 +50,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -64,6 +65,7 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
 var reconciler *Reconciler
+var appParser *appfile.Parser
 var controllerDone context.CancelFunc
 var mgr ctrl.Manager
 var appRevisionLimit = 5
@@ -134,6 +136,9 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).To(BeNil())
 	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
+
+	appParser = appfile.NewApplicationParser(k8sClient, dm, pd)
+
 	reconciler = &Reconciler{
 		Client:           k8sClient,
 		Scheme:           testScheme,
@@ -167,7 +172,9 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	controllerDone()
+	if controllerDone != nil {
+		controllerDone()
+	}
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })

@@ -73,6 +73,8 @@ type WorkloadDefinitionStatus struct {
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="DEFINITION-NAME",type=string,JSONPath=".spec.definitionRef.name"
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=".metadata.annotations.definition\\.oam\\.dev/description"
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -94,6 +96,7 @@ func (wd *WorkloadDefinition) GetCondition(conditionType condition.ConditionType
 // +kubebuilder:object:root=true
 
 // WorkloadDefinitionList contains a list of WorkloadDefinition.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type WorkloadDefinitionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -179,6 +182,8 @@ type TraitDefinitionStatus struct {
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="APPLIES-TO",type=string,JSONPath=".spec.appliesToWorkloads"
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=".metadata.annotations.definition\\.oam\\.dev/description"
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -198,6 +203,7 @@ func (td *TraitDefinition) GetCondition(conditionType condition.ConditionType) c
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // TraitDefinitionList contains a list of TraitDefinition.
 type TraitDefinitionList struct {
@@ -233,6 +239,8 @@ type ScopeDefinitionSpec struct {
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
 // +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=scope
 // +kubebuilder:storageversion
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ScopeDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -241,6 +249,7 @@ type ScopeDefinition struct {
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ScopeDefinitionList contains a list of ScopeDefinition.
 type ScopeDefinitionList struct {
@@ -251,6 +260,8 @@ type ScopeDefinitionList struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // An ResourceTracker represents a tracker for track cross namespace resources
 // +kubebuilder:resource:scope=Cluster,categories={oam},shortName=tracker
@@ -267,6 +278,7 @@ type ResourceTrackerStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ResourceTrackerList contains a list of ResourceTracker
 type ResourceTrackerList struct {

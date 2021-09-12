@@ -31,12 +31,10 @@ import (
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -44,7 +42,6 @@ import (
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -56,9 +53,14 @@ var _ = Describe("Test Helm schematic appfile", func() {
 
 	It("Test generate AppConfig resources from Helm schematic", func() {
 		appFile := &Appfile{
-			Name:         appName,
-			Namespace:    "default",
-			RevisionName: appName + "-v1",
+			Name:            appName,
+			Namespace:       "default",
+			AppRevisionName: appName + "-v1",
+			RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+				"scaler": {
+					Spec: v1beta1.TraitDefinitionSpec{},
+				},
+			},
 			Workloads: []*Workload{
 				{
 					Name:               compName,
@@ -228,9 +230,14 @@ spec:
 
 	var testAppfile = func() *Appfile {
 		return &Appfile{
-			RevisionName: appName + "-v1",
-			Name:         appName,
-			Namespace:    "default",
+			AppRevisionName: appName + "-v1",
+			Name:            appName,
+			Namespace:       "default",
+			RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+				"scaler": {
+					Spec: v1beta1.TraitDefinitionSpec{},
+				},
+			},
 			Workloads: []*Workload{
 				{
 					Name:               compName,
@@ -385,39 +392,17 @@ wait: op.#ConditionalWait & {
 		Expect(err).To(BeNil())
 
 		appfile := &Appfile{
-			WorkflowSteps: []v1beta1.WorkflowStep{
+			Components: []common.ApplicationComponent{
 				{
-					Name: "wait",
-					Type: "test-wait",
+					Name: "test1",
+				},
+				{
+					Name: "test2",
 				},
 			},
 		}
-		ctx := context.WithValue(context.Background(), util.AppDefinitionNamespace, "default")
-		runners, err := appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
-		Expect(err).To(BeNil())
-		Expect(len(runners)).Should(BeEquivalentTo(1))
-
-		appfile.WorkflowSteps = []v1beta1.WorkflowStep{
-			{
-				Name: "wait",
-				Type: "test-wait",
-			},
-			{
-				Name: "empty",
-				Type: "empty",
-			},
-		}
-		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
-		Expect(err).NotTo(BeNil())
-
-		appfile.WorkflowSteps = []v1beta1.WorkflowStep{
-			{
-				Name: "foo",
-				Type: "not-cue",
-			},
-		}
-		_, err = appfile.generateSteps(ctx, dm, k8sClient, pd, nil)
-		Expect(err).NotTo(BeNil())
+		appfile.generateSteps()
+		Expect(len(appfile.WorkflowSteps)).Should(Equal(2))
 	})
 })
 
@@ -468,8 +453,7 @@ spec:
 		apiVersion: "core.oam.dev/v1alpha2"
 		kind:       "HealthScope"
 		spec: {
-					for k, v in parameter.boundComponents
-					if context.artifacts[v].ready {
+					for k, v in parameter.boundComponents {
 						compName: v
 						workload: {
 							apiVersion: context.artifacts[v].workload.apiVersion
@@ -488,7 +472,7 @@ spec:
 		}
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
-		gotPolicies, _, err := testAppfile.GenerateWorkflowAndPolicy(context.Background(), dm, k8sClient, pd, nil)
+		gotPolicies, err := testAppfile.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))
 
@@ -596,10 +580,10 @@ variable "password" {
 		}
 
 		af := &Appfile{
-			Workloads:    []*Workload{wl},
-			Name:         appName,
-			RevisionName: revision,
-			Namespace:    ns,
+			Workloads:       []*Workload{wl},
+			Name:            appName,
+			AppRevisionName: revision,
+			Namespace:       ns,
 		}
 
 		variable := map[string]interface{}{"account_name": "oamtest"}
@@ -1048,18 +1032,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 	}
 }
 
-func TestGetUserConfigName(t *testing.T) {
-	wl1 := &Workload{Params: nil}
-	assert.Equal(t, wl1.GetUserConfigName(), "")
-
-	wl2 := &Workload{Params: map[string]interface{}{AppfileBuiltinConfig: 1}}
-	assert.Equal(t, wl2.GetUserConfigName(), "")
-
-	config := "abc"
-	wl3 := &Workload{Params: map[string]interface{}{AppfileBuiltinConfig: config}}
-	assert.Equal(t, wl3.GetUserConfigName(), config)
-}
-
 func TestGenerateCUETemplate(t *testing.T) {
 
 	var testCorrectTemplate = func() runtime.RawExtension {
@@ -1257,222 +1229,9 @@ output: {
 	}
 }
 
-func TestGetSecretAndConfigs(t *testing.T) {
-	secretData := map[string][]byte{
-		"username": []byte("test-name"),
-		"password": []byte("test-pwd"),
-	}
-
-	secretConsumerTemplate := `{
-	apiVersion: "apps/v1"
-	kind:       "Deployment"
-	spec: {
-		selector: matchLabels: {
-			"app.oam.dev/component": "test"
-		}
-		template: {
-			metadata: labels: {
-				"app.oam.dev/component": "test"
-			}
-			spec: {
-				containers: [{
-					name:  "test"
-					if parameter["dbSecret"] != _|_ {
-						env: [
-							{
-								name:  "username"
-								value: dbConn.username
-							},
-							{
-								name:  "DB_PASSWORD"
-								value: dbConn.password
-							},
-						]
-					}
-				}]
-			}
-		}
-	}
-}
-parameter: {
-	// +usage=Referred db secret
-	// +insertSecretTo=dbConn
-	dbSecret?: string
-}
-
-dbConn: {
-	username: string
-	password: string
-}
-`
-	userConfigTemplate := `
-output: {
-  apiVersion: "apps/v1"
-  kind:       "Deployment"
-  metadata: {
-	  annotations: {
-		  if context["config"] != _|_ {
-			  for _, v in context.config {
-				  "\(v.name)" : v.value
-			  }
-		  }
-	  }
-  }
-  spec: {
-	  selector: matchLabels: {
-		  "app.oam.dev/component": context.name
-	  }
-	  template: {
-		  metadata: labels: {
-			  "app.oam.dev/component": context.name
-		  }
-
-		  spec: {
-			  containers: [{
-				  name:  context.name
-				  image: parameter.image
-
-				  if parameter["cmd"] != _|_ {
-					  command: parameter.cmd
-				  }
-			  }]
-		  }
-	  }
-  }
-}
-
-parameter: {
-  // +usage=Which image would you like to use for your service
-  // +short=i
-  image: string
-
-  cmd?: [...string]
-}
-`
-
-	mockSecretClient := func(data map[string][]byte) *test.MockClient {
-		return &test.MockClient{
-			MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-				switch secret := obj.(type) {
-				case *v1.Secret:
-					t := secret.DeepCopy()
-					t.Data = data
-					*secret = *t
-				}
-				return nil
-			}),
-		}
-	}
-
-	mockConfigMapClient := func(data map[string]string) *test.MockClient {
-		return &test.MockClient{
-			MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
-				switch configMap := obj.(type) {
-				case *v1.ConfigMap:
-					t := configMap.DeepCopy()
-					t.Data = data
-					*configMap = *t
-				}
-				return nil
-			}),
-		}
-	}
-
-	testcases := map[string]struct {
-		namespace                string
-		name                     string
-		workload                 *Workload
-		client                   *test.MockClient
-		hasError                 bool
-		expectWorkloadSecretData []process.RequiredSecrets
-		expectTraitSecretData    [][]process.RequiredSecrets
-		expectConfigMapData      []map[string]string
-	}{
-		"workload is a secret consumer": {
-			workload: &Workload{
-				FullTemplate: &Template{
-					TemplateStr: "output:" + secretConsumerTemplate,
-				},
-				Params: map[string]interface{}{
-					"dbSecret": "test-workload",
-				},
-			},
-			client: mockSecretClient(secretData),
-			expectWorkloadSecretData: []process.RequiredSecrets{{
-				Namespace:   "test-workload",
-				Name:        "test-workload",
-				ContextName: "dbConn",
-				Data: map[string]interface{}{
-					"username": "test-name",
-					"password": "test-pwd",
-				},
-			}},
-			namespace: "test-workload",
-			name:      "test-workload",
-		},
-		"trait is a secret consumer": {
-			workload: &Workload{
-				FullTemplate: &Template{
-					TemplateStr: `
-output: parameter
-parameter: {}
-`,
-				},
-				Params: nil,
-				Traits: []*Trait{{
-					FullTemplate: &Template{
-						TemplateStr: "outputs:" + secretConsumerTemplate,
-					},
-					Params: map[string]interface{}{
-						"dbSecret": "test-trait",
-					},
-				}},
-			},
-			client: mockSecretClient(secretData),
-			expectTraitSecretData: [][]process.RequiredSecrets{{{
-				Namespace:   "test-trait",
-				Name:        "test-trait",
-				ContextName: "dbConn",
-				Data: map[string]interface{}{
-					"username": "test-name",
-					"password": "test-pwd",
-				},
-			}}},
-			namespace: "test-trait",
-			name:      "test-trait",
-		},
-		"workload get config from configMap": {
-			workload: &Workload{
-				FullTemplate: &Template{
-					TemplateStr: userConfigTemplate,
-				},
-				Params: map[string]interface{}{
-					"image":  "busybox",
-					"config": "test-config",
-				},
-			},
-			client: mockConfigMapClient(map[string]string{"username": "test-configMap"}),
-			expectConfigMapData: []map[string]string{{
-				"name":  "username",
-				"value": "test-configMap",
-			}},
-		},
-	}
-
-	for _, tc := range testcases {
-		err := GetSecretAndConfigs(tc.client, tc.workload, tc.name, tc.namespace)
-		assert.Equal(t, err != nil, tc.hasError)
-		assert.DeepEqual(t, tc.expectWorkloadSecretData, tc.workload.RequiredSecrets)
-		for i, tr := range tc.workload.Traits {
-			assert.DeepEqual(t, tc.expectTraitSecretData[i], tr.RequiredSecrets)
-		}
-		assert.DeepEqual(t, tc.expectConfigMapData, tc.workload.UserConfigs)
-	}
-}
-
 func TestPrepareArtifactsData(t *testing.T) {
 	compManifests := []*oamtypes.ComponentManifest{
-		&oamtypes.ComponentManifest{
+		{
 			Name:         "readyComp",
 			Namespace:    "ns",
 			RevisionName: "readyComp-v1",
@@ -1508,7 +1267,6 @@ spec:
 				_ = yaml.Unmarshal([]byte(svcYAML), svc)
 				return []*unstructured.Unstructured{ingress, svc}
 			}(),
-			InsertConfigNotReady: false,
 		},
 	}
 
@@ -1529,21 +1287,4 @@ spec:
 		t.Fatalf("cannot get service trait")
 	}
 
-	compManifests = []*oamtypes.ComponentManifest{
-		&oamtypes.ComponentManifest{
-			Name:                 "notReadyComp",
-			Namespace:            "ns",
-			RevisionName:         "notReadyComp-v1",
-			InsertConfigNotReady: true,
-		},
-	}
-
-	gotArtifacts = prepareArtifactsData(compManifests)
-	gotReady, _, err := unstructured.NestedBool(gotArtifacts, "notReadyComp", "ready")
-	assert.NilError(t, err)
-	assert.Equal(t, gotReady, false)
-
-	_, foundWorkload, err := unstructured.NestedMap(gotArtifacts, "notReadyComp", "workload")
-	assert.NilError(t, err)
-	assert.Equal(t, foundWorkload, false)
 }

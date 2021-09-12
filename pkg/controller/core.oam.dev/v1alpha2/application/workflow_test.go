@@ -31,12 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -123,9 +125,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Name:      appRev.Name,
 			Namespace: namespace,
-		}, cm)).Should(BeNil())
-
-		Expect(cm.Data[ConfigMapKeyComponents]).Should(Equal(testConfigMapComponentValue))
+		}, cm)).Should(util.NotFoundMatcher{})
 	})
 
 	It("should create workload in application when policy is specified", func() {
@@ -269,7 +269,6 @@ var _ = Describe("Test Workflow", func() {
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeFalse())
 		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
-		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
 	})
 
 	It("test workflow terminate a suspend workflow", func() {
@@ -282,7 +281,7 @@ var _ = Describe("Test Workflow", func() {
 				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
 			},
 			{
-				Name:       "suspend",
+				Name:       "suspend-1",
 				Type:       "suspend",
 				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
 			}}
@@ -316,10 +315,175 @@ var _ = Describe("Test Workflow", func() {
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
 		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
-		Expect(appObj.Status.Workflow.StepIndex).Should(BeEquivalentTo(1))
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
 
+	It("test application with input/output and workflow", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-inout-workflow",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+
+		healthComponentDef := &oamcore.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = ns.Name
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		appwithInputOutput := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-inout-workflow",
+				Namespace: "app-with-inout-workflow",
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Inputs: common.StepInputs{
+							{
+								From:         "message",
+								ParameterKey: "properties.enemies",
+							},
+							{
+								From:         "message",
+								ParameterKey: "properties.lives",
+							},
+						},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Outputs: common.StepOutputs{
+							{Name: "message", ExportKey: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
+						},
+					},
+				},
+				Workflow: &oamcore.Workflow{
+					Steps: []oamcore.WorkflowStep{{
+						Name:       "test-web2",
+						Type:       "apply-component",
+						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+					}, {
+						Name:       "test-web1",
+						Type:       "apply-component",
+						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+					}},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), appwithInputOutput)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: appwithInputOutput.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment := &appsv1.Deployment{}
+		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
+		web2Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb2"}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		checkApp := &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
+
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		expDeployment.Status.Conditions = []appsv1.DeploymentCondition{{
+			Message: "hello",
+		}}
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment = &appsv1.Deployment{}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Workflow.Mode).Should(BeEquivalentTo(common.WorkflowModeStep))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+
+		checkCM := &corev1.ConfigMap{}
+		cmKey := types.NamespacedName{
+			Name:      "myweb1game-config",
+			Namespace: ns.Name,
+		}
+		Expect(k8sClient.Get(ctx, cmKey, checkCM)).Should(BeNil())
+		Expect(checkCM.Data["enemies"]).Should(BeEquivalentTo("hello,i am lives"))
+		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
+	})
+
+	It("add workflow to an existing app ", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "existing-app-add-workflow",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+
+		webComponentDef := &oamcore.ComponentDefinition{}
+		webDefJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
+		Expect(json.Unmarshal(webDefJson, webComponentDef)).Should(BeNil())
+		webComponentDef.Namespace = ns.Name
+		Expect(k8sClient.Create(ctx, webComponentDef)).Should(BeNil())
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "existing-app-add-workflow",
+				Namespace: ns.Name,
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "webserver",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "webserver",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		updateApp := &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, appKey, updateApp)).Should(BeNil())
+		Expect(updateApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		updateApp.Spec.Workflow = &oamcore.Workflow{
+			Steps: []oamcore.WorkflowStep{{
+				Name:       "test-web2",
+				Type:       "apply-component",
+				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+			}},
+		}
+		Expect(k8sClient.Update(context.Background(), updateApp)).Should(BeNil())
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &oamcore.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+	})
 })
 
 func triggerWorkflowStepToSucceed(obj *unstructured.Unstructured) {
@@ -449,6 +613,4 @@ spec:
           continue: apply.value.spec.key != ""
         }
 `
-
-	testConfigMapComponentValue = `{"test-component":"{\"Scopes\":[],\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"apps/v1\\\",\\\"kind\\\":\\\"Deployment\\\",\\\"metadata\\\":{\\\"annotations\\\":{},\\\"labels\\\":{\\\"app.oam.dev/appRevision\\\":\\\"test-wf-policy-v1\\\",\\\"app.oam.dev/component\\\":\\\"test-component\\\",\\\"app.oam.dev/name\\\":\\\"test-wf-policy\\\",\\\"workload.oam.dev/type\\\":\\\"worker\\\"},\\\"name\\\":\\\"test-component\\\",\\\"namespace\\\":\\\"test-ns\\\"},\\\"spec\\\":{\\\"selector\\\":{\\\"matchLabels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"template\\\":{\\\"metadata\\\":{\\\"labels\\\":{\\\"app.oam.dev/component\\\":\\\"test-component\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"command\\\":[\\\"sleep\\\",\\\"1000\\\"],\\\"image\\\":\\\"busybox\\\",\\\"name\\\":\\\"test-component\\\"}]}}}}\",\"Traits\":[]}"}`
 )

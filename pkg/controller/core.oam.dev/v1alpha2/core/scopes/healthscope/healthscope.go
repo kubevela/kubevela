@@ -477,44 +477,25 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef core.Object
 	okToCheckTrait := false
 
 	func() {
-		if wl.ConfigNotReady {
-			wlHealth.HealthStatus = StatusUnhealthy
-			wlHealth.Diagnosis = "secrets or configs not ready"
-			return
-		}
 
-		var (
-			outputSecretName string
-			err              error
-		)
-		if wl.IsSecretProducer() {
-			outputSecretName, err = af.GetOutputSecretNames(wl)
-			if err != nil {
-				wlHealth.HealthStatus = StatusUnhealthy
-				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
-				return
-			}
-		}
 		switch wl.CapabilityCategory {
 		case oamtypes.TerraformCategory:
-			pCtx = af.NewBasicContext(wl, appfile.Name, appfile.RevisionName, appfile.Namespace)
-			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
+			pCtx = af.NewBasicContext(wl, appfile.Name, appfile.AppRevisionName, appfile.Namespace)
 			ctx := context.Background()
 			var configuration terraformapi.Configuration
 			if err := c.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: ns}, &configuration); err != nil {
 				wlHealth.HealthStatus = StatusUnhealthy
 				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 			}
-			if configuration.Status.State != terraformtypes.Available {
+			if configuration.Status.Apply.State != terraformtypes.Available {
 				wlHealth.HealthStatus = StatusUnhealthy
 			} else {
 				wlHealth.HealthStatus = StatusHealthy
 			}
-			wlHealth.Diagnosis = configuration.Status.Message
+			wlHealth.Diagnosis = configuration.Status.Apply.Message
 			okToCheckTrait = true
 		default:
-			pCtx = process.NewContext(ns, wl.Name, appfile.Name, appfile.RevisionName)
-			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
+			pCtx = process.NewContext(ns, wl.Name, appfile.Name, appfile.AppRevisionName)
 			if wl.CapabilityCategory != oamtypes.CUECategory {
 				templateStr, err := af.GenerateCUETemplate(wl)
 				if err != nil {

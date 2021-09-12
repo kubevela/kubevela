@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -420,7 +419,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 			}
 			for _, property := range properties {
-				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
+				refContent += ref.prepareParameter("###"+property.Name, property.Parameters, types.HelmCategory)
 			}
 		case types.KubeCategory:
 			properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &caps[i])
@@ -428,7 +427,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 			}
 			for _, property := range properties {
-				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.KubeCategory)
+				refContent += ref.prepareParameter("###"+property.Name, property.Parameters, types.KubeCategory)
 			}
 		case types.TerraformCategory:
 			refContent, err = ref.GenerateTerraformCapabilityProperties(c)
@@ -440,13 +439,13 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 		title := fmt.Sprintf("%s\n===============", capNameInTitle)
 
-		description := fmt.Sprintf("\n\n# Description\n\n%s", c.Description)
+		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
 		var sample string
 		sampleContent := ref.generateSample(capName)
 		if sampleContent != "" {
-			sample = fmt.Sprintf("\n\n# Samples\n\n%s", sampleContent)
+			sample = fmt.Sprintf("\n\n## Samples\n\n%s", sampleContent)
 		}
-		specification := fmt.Sprintf("\n\n# Specification\n%s", refContent)
+		specification := fmt.Sprintf("\n\n## Specification\n%s", refContent)
 
 		// it's fine if the conflict info files not found
 		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
@@ -541,7 +540,7 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		}
 		if arguments.Len() == 0 {
 			var param ReferenceParameter
-			param.Name = "undefined"
+			param.Name = "-"
 			param.Required = true
 			tl := paraValue.Template()
 			if tl != nil { // is map type
@@ -608,7 +607,7 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 
 	switch *displayFormat {
 	case "markdown":
-		tableName := fmt.Sprintf("%s %s", strings.Repeat("#", depth+2), paramKey)
+		tableName := fmt.Sprintf("%s %s", strings.Repeat("#", depth+3), paramKey)
 		ref := MarkdownReference{}
 		refContent = ref.prepareParameter(tableName, params, types.CUECategory) + refContent
 	case "console":
@@ -668,7 +667,7 @@ func (ref *MarkdownReference) generateConflictWithAndMore(capabilityName string,
 	if err != nil {
 		return "", fmt.Errorf("failed to locate conflictWith file: %w", err)
 	}
-	data, err := ioutil.ReadFile(filepath.Clean(conflictWithFile))
+	data, err := os.ReadFile(filepath.Clean(conflictWithFile))
 	if err != nil {
 		return "", err
 	}
@@ -760,7 +759,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	}
 	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
 
-	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), "Properties")
+	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 3), "Properties")
 	tables = append(tables, ReferenceParameterTable{
 		Name:       propertiesTableName,
 		Parameters: refParameterList,
@@ -783,7 +782,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeSecretRefNameSpaceParam.Usage = "The secret namespace which the cloud resource connection will be written to"
 
 	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
-	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 2), TerraformWriteConnectionSecretToRefName)
+	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 4), TerraformWriteConnectionSecretToRefName)
 
 	tables = append(tables, ReferenceParameterTable{
 		Name:       writeSecretTableName,

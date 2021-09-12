@@ -54,6 +54,10 @@ spec:
                 required:
                 - name
                 type: object
+              manageHealthCheck:
+                description: ManageHealthCheck means the policy will handle health
+                  checking and skip application controller built-in health checking.
+                type: boolean
               schematic:
                 description: Schematic defines the data format and template of the
                   encapsulation of the policy definition

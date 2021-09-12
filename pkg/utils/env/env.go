@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -43,7 +42,7 @@ func GetEnvDirByName(name string) string {
 
 // GetEnvByName will get env info by name
 func GetEnvByName(name string) (*types.EnvMeta, error) {
-	data, err := ioutil.ReadFile(filepath.Join(GetEnvDirByName(name), system.EnvConfigName))
+	data, err := os.ReadFile(filepath.Join(GetEnvDirByName(name), system.EnvConfigName))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("env %s not exist", name)
@@ -106,7 +105,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 		return message, err
 	}
 	// nolint:gosec
-	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
 		return message, err
 	}
 	curEnvPath, err := system.GetCurrentEnvPath()
@@ -114,7 +113,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 		return message, err
 	}
 	// nolint:gosec
-	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
+	if err = os.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return message, err
 	}
 
@@ -156,7 +155,7 @@ func UpdateEnv(ctx context.Context, c client.Client, envName string, namespace s
 	}
 	subEnvDir := filepath.Join(envdir, envName)
 	// nolint:gosec
-	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
 		return message, err
 	}
 	message = "Update env succeed"
@@ -181,7 +180,7 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 	if err != nil {
 		return envList, err
 	}
-	files, err := ioutil.ReadDir(envDir)
+	files, err := os.ReadDir(envDir)
 	if err != nil {
 		return envList, err
 	}
@@ -193,7 +192,7 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 		if !f.IsDir() {
 			continue
 		}
-		data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(envDir, f.Name(), system.EnvConfigName)))
+		data, err := os.ReadFile(filepath.Clean(filepath.Join(envDir, f.Name(), system.EnvConfigName)))
 		if err != nil {
 			continue
 		}
@@ -215,7 +214,7 @@ func GetCurrentEnvName() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := ioutil.ReadFile(filepath.Clean(currentEnvPath))
+	data, err := os.ReadFile(filepath.Clean(currentEnvPath))
 	if err != nil {
 		return "", err
 	}
@@ -264,7 +263,7 @@ func SetEnv(envName string) (string, error) {
 		return msg, err
 	}
 	//nolint:gosec
-	if err = ioutil.WriteFile(currentEnvPath, []byte(envName), 0644); err != nil {
+	if err = os.WriteFile(currentEnvPath, []byte(envName), 0644); err != nil {
 		return msg, err
 	}
 	msg = fmt.Sprintf("Set environment succeed, current environment is " + envName + ", namespace is " + envMeta.Namespace)

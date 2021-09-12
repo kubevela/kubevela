@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -85,7 +84,7 @@ type AddonInfo struct {
 }
 
 func walkAllAddons(path string) ([]string, error) {
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +111,7 @@ func newWalkFn(files *[]velaFile) filepath.WalkFunc {
 		if info.IsDir() {
 			return nil
 		}
-		content, err := ioutil.ReadFile(filepath.Clean(path))
+		content, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			return err
 		}

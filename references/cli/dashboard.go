@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -127,7 +126,7 @@ func (o *Options) GetStaticPath() error {
 	}
 	tgzpath := filepath.Join(o.staticPath, "frontend.tgz")
 	//nolint:gosec
-	err = ioutil.WriteFile(tgzpath, data, 0644)
+	err = os.WriteFile(tgzpath, data, 0644)
 	if err != nil {
 		return fmt.Errorf("write frontend.tgz to static path err %w", err)
 	}
@@ -139,7 +138,7 @@ func (o *Options) GetStaticPath() error {
 	if err = tgz.Unarchive(tgzpath, o.staticPath); err != nil {
 		return fmt.Errorf("write static files to fontend dir err %w", err)
 	}
-	files, err := ioutil.ReadDir(o.staticPath)
+	files, err := os.ReadDir(o.staticPath)
 	if err != nil {
 		return fmt.Errorf("read static file %s err %w", o.staticPath, err)
 	}

@@ -25,8 +25,17 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const (
+	// TypeHealthy application are believed to be determined as healthy by a health scope.
+	TypeHealthy condition.ConditionType = "Healthy"
+)
+
+// Reasons an application is or is not healthy
+const (
+	ReasonHealthy        condition.ConditionReason = "AllComponentsHealthy"
+	ReasonUnhealthy      condition.ConditionReason = "UnhealthyOrUnknownComponents"
+	ReasonHealthCheckErr condition.ConditionReason = "HealthCheckeError"
+)
 
 // AppPolicy defines a global policy for all components in the app.
 type AppPolicy struct {
@@ -48,26 +57,10 @@ type WorkflowStep struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
-	Inputs StepInputs `json:"inputs,omitempty"`
+	Inputs common.StepInputs `json:"inputs,omitempty"`
 
-	Outputs StepOutputs `json:"outputs,omitempty"`
+	Outputs common.StepOutputs `json:"outputs,omitempty"`
 }
-
-type inputItem struct {
-	ParameterKey string `json:"parameterKey"`
-	From         string `json:"from"`
-}
-
-// StepInputs defines variable input of WorkflowStep
-type StepInputs []inputItem
-
-type outputItem struct {
-	ExportKey string `json:"exportKey"`
-	Name      string `json:"name"`
-}
-
-// StepOutputs defines output variable of WorkflowStep
-type StepOutputs []outputItem
 
 // Workflow defines workflow steps and other attributes
 type Workflow struct {
@@ -110,6 +103,8 @@ type ApplicationSpec struct {
 // +kubebuilder:printcolumn:name="HEALTHY",type=boolean,JSONPath=`.status.services[*].healthy`
 // +kubebuilder:printcolumn:name="STATUS",type=string,JSONPath=`.status.services[*].message`
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Application struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -121,6 +116,7 @@ type Application struct {
 // +kubebuilder:object:root=true
 
 // ApplicationList contains a list of Application
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplicationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

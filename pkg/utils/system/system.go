@@ -18,7 +18,6 @@ package system
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -153,7 +152,7 @@ func InitDefaultEnv() error {
 	}
 	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultAppNamespace, Name: types.DefaultEnvName})
 	//nolint:gosec
-	if err = ioutil.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
 		return err
 	}
 	curEnvPath, err := GetCurrentEnvPath()
@@ -161,7 +160,7 @@ func InitDefaultEnv() error {
 		return err
 	}
 	//nolint:gosec
-	if err = ioutil.WriteFile(curEnvPath, []byte(types.DefaultEnvName), 0644); err != nil {
+	if err = os.WriteFile(curEnvPath, []byte(types.DefaultEnvName), 0644); err != nil {
 		return err
 	}
 	return nil
