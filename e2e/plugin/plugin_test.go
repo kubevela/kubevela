@@ -90,6 +90,12 @@ var _ = Describe("Test Kubectl Plugin", func() {
 				return err
 			}, 5*time.Second).Should(BeNil())
 
+			Eventually(func() bool {
+				var tempApp v1beta1.Application
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: app.Name}, &tempApp)
+				return tempApp.Status.LatestRevision != nil
+			}, 5*time.Second).Should(BeTrue())
+
 			By("live-diff application")
 			err := os.WriteFile("live-diff-app.yaml", []byte(newApplication), 0644)
 			Expect(err).NotTo(HaveOccurred())
@@ -99,6 +105,12 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		})
 
 		It("Test dry-run application use definitions in local", func() {
+			Eventually(func() bool {
+				var tempApp v1beta1.Application
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: app.Name}, &tempApp)
+				return tempApp.Status.LatestRevision != nil
+			}, 5*time.Second).Should(BeTrue())
+
 			output, err := e2e.Exec("kubectl-vela live-diff -f live-diff-app.yaml -d definitions")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring(livediffResult))
@@ -775,6 +787,8 @@ var livediffResult = `---
   kind: Application
   metadata:
     creationTimestamp: null
+-   finalizers:
+-   - app.oam.dev/resource-tracker-finalizer
     name: test-vela-app
     namespace: default
   spec:

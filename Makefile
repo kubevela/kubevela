@@ -95,7 +95,7 @@ compress:
 	)
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: fmt vet
+run:
 	go run ./cmd/core/main.go
 
 # Run go fmt against code
@@ -316,5 +316,5 @@ endif
 check-license-header:
 	./hack/licence/header-check.sh
 
-check-install-def:
+def-install:
 	./hack/utils/installdefinition.sh

@@ -122,6 +122,7 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = AfterSuite(func() {
 	By("delete application and definitions")
+
 	Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testCdDef)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testCdDefWithHelm)).Should(BeNil())
@@ -131,4 +132,8 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(ctx, &testTdDefWithKube)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testShowCdDef)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testShowTdDef)).Should(BeNil())
+
+	_ = os.RemoveAll("definitions/")
+	_ = os.Remove("dry-run-app.yaml")
+	_ = os.Remove("live-diff-app.yaml")
 })

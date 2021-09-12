@@ -42,7 +42,7 @@ import (
 // @contact.email NA
 // @license.name Apache 2.0
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
-// @host 127.0.0.1:38081
+// @host 127.0.0.1:37081
 // @BasePath /api
 func (s *APIServer) setupRoute(staticPath string) http.Handler {
 	// if deploying static Dashboard, set the mode to `release`, or to `debug`
