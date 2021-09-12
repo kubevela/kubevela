@@ -6,7 +6,6 @@ metadata:
 spec:
   appliesToWorkloads:
     - deployments.apps
-    - containerizedworkloads.core.oma.dev
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
