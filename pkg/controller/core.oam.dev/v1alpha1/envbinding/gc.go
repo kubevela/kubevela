@@ -39,8 +39,8 @@ func isEnvBindingPolicy(policy *unstructured.Unstructured) bool {
 	return policyKindAPIVersion == v1alpha1.EnvBindingKindAPIVersion
 }
 
-// GarbageCollectionForOutdatedResourceInSubClusters run garbage collection in sub clusters and remove outdated ResourceTrackers with their associated resources
-func GarbageCollectionForOutdatedResourceInSubClusters(ctx context.Context, c client.Client, policies []*unstructured.Unstructured, gcHandler func(context.Context) error) error {
+// GarbageCollectionForOutdatedResourcesInSubClusters run garbage collection in sub clusters and remove outdated ResourceTrackers with their associated resources
+func GarbageCollectionForOutdatedResourcesInSubClusters(ctx context.Context, c client.Client, policies []*unstructured.Unstructured, gcHandler func(context.Context) error) error {
 	subClusters := make(map[string]bool)
 	for _, raw := range policies {
 		if !isEnvBindingPolicy(raw) {
@@ -73,7 +73,7 @@ func GarbageCollectionForOutdatedResourceInSubClusters(ctx context.Context, c cl
 func GarbageCollectionForAllResourceTrackersInSubCluster(ctx context.Context, c client.Client, envBinding *v1alpha1.EnvBinding) error {
 	baseApp, err := util.RawExtension2Application(envBinding.Spec.AppTemplate.RawExtension)
 	if err != nil {
-		klog.ErrorS(err, "Failed to parse AppTemplate of EnvBinding")
+		klog.ErrorS(err, "failed to parse AppTemplate of EnvBinding")
 		return errors.WithMessage(err, "cannot remove finalizer")
 	}
 	// delete subCluster resourceTracker
@@ -86,12 +86,12 @@ func GarbageCollectionForAllResourceTrackersInSubCluster(ctx context.Context, c 
 			}}
 		rtList := &v1beta1.ResourceTrackerList{}
 		if err := c.List(subCtx, rtList, listOpts...); err != nil {
-			klog.ErrorS(err, "Failed to list resource tracker of app", "name", baseApp.Name, "env", decision.Env)
+			klog.ErrorS(err, "failed to list resource tracker of app", "name", baseApp.Name, "env", decision.Env)
 			return errors.WithMessage(err, "cannot remove finalizer")
 		}
 		for _, rt := range rtList.Items {
 			if err := c.Delete(subCtx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
-				klog.ErrorS(err, "Failed to delete resource tracker", "name", rt.Name)
+				klog.ErrorS(err, "failed to delete resource tracker", "name", rt.Name)
 				return errors.WithMessage(err, "cannot remove finalizer")
 			}
 		}

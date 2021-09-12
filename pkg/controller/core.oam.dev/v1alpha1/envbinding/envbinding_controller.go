@@ -271,7 +271,7 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, envBinding *v1alpha1.
 				return true, errors.WithMessage(err, "cannot remove finalizer")
 			}
 
-			if err := GarbageCollectionForAllResourceTrackersInSubCluster(ctx, r, envBinding); err != nil {
+			if err := GarbageCollectionForAllResourceTrackersInSubCluster(ctx, r.Client, envBinding); err != nil {
 				return true, err
 			}
 			meta.RemoveFinalizer(envBinding, resourceTrackerFinalizer)
