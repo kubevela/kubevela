@@ -124,7 +124,6 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 		traitChecker: WorkloadHealthCheckFn(CheckByHealthCheckTrait),
 		checkers: []WorloadHealthChecker{
 			WorkloadHealthCheckFn(CheckPodSpecWorkloadHealth),
-			WorkloadHealthCheckFn(CheckContainerziedWorkloadHealth),
 			WorkloadHealthCheckFn(CheckDeploymentHealth),
 			WorkloadHealthCheckFn(CheckStatefulsetHealth),
 			WorkloadHealthCheckFn(CheckDaemonsetHealth),
