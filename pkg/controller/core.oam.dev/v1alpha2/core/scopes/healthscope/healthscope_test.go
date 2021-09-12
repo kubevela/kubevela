@@ -36,8 +36,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -50,7 +48,6 @@ var (
 	errMockErr = errors.New("get error")
 	varInt1    = int32(1)
 )
-
 
 func TestCheckDeploymentHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
