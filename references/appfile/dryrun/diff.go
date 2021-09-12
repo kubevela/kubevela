@@ -23,7 +23,6 @@ import (
 
 	"github.com/aryann/difflib"
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -256,6 +255,7 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 		Name: app.Name,
 		Kind: AppKind,
 	}
+	removeRevisionRelatedLabelAndAnnotation(app)
 	b, err := yaml.Marshal(app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot marshal application %q", app.Name)
@@ -270,7 +270,7 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 			Name: comp.Name,
 			Kind: RawCompKind,
 		}
-		emptifyAppRevisionLabel(comp.StandardWorkload)
+		removeRevisionRelatedLabelAndAnnotation(comp.StandardWorkload)
 		b, err := yaml.Marshal(comp.StandardWorkload)
 		if err != nil {
 			return nil, errors.Wrapf(err, "cannot marshal component %q", comp.Name)
@@ -290,7 +290,7 @@ func generateManifest(app *v1beta1.Application, comps []*types.ComponentManifest
 		// get matched raw component and add it into appConfigComponent's subs
 		subs := []*manifest{rawCompManifests[comp.Name]}
 		for _, t := range comp.Traits {
-			emptifyAppRevisionLabel(t)
+			removeRevisionRelatedLabelAndAnnotation(t)
 
 			tType := t.GetLabels()[oam.TraitTypeLabel]
 			tResource := t.GetLabels()[oam.TraitResource]
@@ -345,9 +345,9 @@ func extractNameFromRevisionName(r string) string {
 	return strings.Join(s[0:len(s)-1], "-")
 }
 
-// emptifyAppRevisionLabel will set label oam.LabelAppRevision to empty
+// removeRevisionRelatedLabelAndAnnotation will set label oam.LabelAppRevision to empty
 // because dry-run cannot set value to this label
-func emptifyAppRevisionLabel(o *unstructured.Unstructured) {
+func removeRevisionRelatedLabelAndAnnotation(o client.Object) {
 	newLabels := map[string]string{}
 	labels := o.GetLabels()
 	for k, v := range labels {
@@ -358,6 +358,16 @@ func emptifyAppRevisionLabel(o *unstructured.Unstructured) {
 		newLabels[k] = v
 	}
 	o.SetLabels(newLabels)
+
+	newAnnotations := map[string]string{}
+	annotations := o.GetAnnotations()
+	for k, v := range annotations {
+		if k == oam.AnnotationKubeVelaVersion || k == oam.AnnotationAppRevision {
+			continue
+		}
+		newAnnotations[k] = v
+	}
+	o.SetAnnotations(newAnnotations)
 }
 
 // hasChanges checks whether existing change in diff records
