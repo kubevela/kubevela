@@ -96,7 +96,7 @@ compress:
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run:
-	go run ./cmd/core/main.go
+	go run ./cmd/core/main.go --application-revision-limit 5
 
 # Run go fmt against code
 fmt: goimports installcue

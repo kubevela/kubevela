@@ -137,11 +137,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Revision", err))
 	}
-
 	klog.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
+
+	if err := handler.UpdateAppLatestRevisionStatus(ctx); err != nil {
+		klog.ErrorS(err, "Failed to update application status", "application", klog.KObj(app))
+		return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
+	}
 	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
 
 	policies, err := appFile.PrepareWorkflowAndPolicy()
@@ -220,16 +224,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				}
 			}
 		}
+		app.Status.SetConditions(condition.ReadyCondition("Applied"))
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
+		klog.Info("Application manifests has applied by workflow successfully", "application", klog.KObj(app))
+	} else {
+		klog.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
 	}
-
-	if err := handler.UpdateAppLatestRevisionStatus(ctx); err != nil {
-		klog.ErrorS(err, "Failed to update application status", "application", klog.KObj(app))
-		return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err))
-	}
-	app.Status.SetConditions(condition.ReadyCondition("Applied"))
-	r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageApplied))
-	klog.Info("Successfully apply application manifests", "application", klog.KObj(app))
-
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if handler.app.Spec.RolloutPlan != nil {
 		res, err := handler.handleRollout(ctx)

@@ -94,7 +94,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 				var tempApp v1beta1.Application
 				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: app.Name}, &tempApp)
 				return tempApp.Status.LatestRevision != nil
-			}, 5*time.Second).Should(BeTrue())
+			}, 20*time.Second).Should(BeTrue())
 
 			By("live-diff application")
 			err := os.WriteFile("live-diff-app.yaml", []byte(newApplication), 0644)
@@ -109,7 +109,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 				var tempApp v1beta1.Application
 				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: app.Name}, &tempApp)
 				return tempApp.Status.LatestRevision != nil
-			}, 5*time.Second).Should(BeTrue())
+			}, 20*time.Second).Should(BeTrue())
 
 			output, err := e2e.Exec("kubectl-vela live-diff -f live-diff-app.yaml -d definitions")
 			Expect(err).NotTo(HaveOccurred())

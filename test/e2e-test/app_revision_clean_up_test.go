@@ -67,6 +67,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
+
 		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
@@ -118,11 +119,17 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			}
 			return nil
 		}, time.Second*10, time.Millisecond*500).Should(BeNil())
-		By("create new appRevision will remove appRevison1")
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 5)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
-		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		By("create new appRevision will remove appRevision v1")
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, appKey, checkApp)
+			if err != nil {
+				return err
+			}
+			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 5)
+			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			return k8sClient.Update(ctx, checkApp)
+		}, time.Second*10, time.Millisecond*500).Should(BeNil())
+
 		deletedRevison := new(v1beta1.ApplicationRevision)
 		revKey := types.NamespacedName{Namespace: namespace, Name: appName + "-v1"}
 		Eventually(func() error {
@@ -148,7 +155,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
+			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
 			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
 			if err := k8sClient.Update(ctx, checkApp); err != nil {
 				return err
