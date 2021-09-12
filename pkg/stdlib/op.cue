@@ -110,7 +110,7 @@ import (
 	} @step(3)
 
 	target: yaml.Unmarshal(configMap.value.data["\(env)"])
-	apply: #Steps & {
+	apply:  #Steps & {
 		for key, val in target {
 			"\(key)": kube.#Apply & {
 				value: val
