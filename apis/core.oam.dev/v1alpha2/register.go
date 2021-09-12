@@ -93,7 +93,6 @@ var (
 	ApplicationContextGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationContextKind)
 )
 
-
 // ManualScalerTrait type metadata.
 var (
 	ManualScalerTraitKind             = reflect.TypeOf(ManualScalerTrait{}).Name()

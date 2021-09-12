@@ -64,7 +64,6 @@ func (cm *Component) SetConditions(c ...condition.Condition) {
 	cm.Status.SetConditions(c...)
 }
 
-
 // GetCondition of this HealthScope.
 func (hs *HealthScope) GetCondition(ct condition.ConditionType) condition.Condition {
 	return hs.Status.GetCondition(ct)
