@@ -74,6 +74,10 @@ func main() {
 	var qps float64
 	var burst int
 	var pprofAddr string
+	var leaderElectionResourceLock string
+	var leaseDuration time.Duration
+	var renewDeadline time.Duration
+	var retryPeriod time.Duration
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
@@ -111,6 +115,13 @@ func main() {
 	flag.StringVar(&controllerArgs.OAMSpecVer, "oam-spec-ver", "v0.3", "oam-spec-ver is the oam spec version controller want to setup, available options: v0.2, v0.3, all")
 	flag.StringVar(&pprofAddr, "pprof-addr", "", "The address for pprof to use while exporting profiling results. The default value is empty which means do not expose it. Set it to address like :6666 to expose it.")
 	flag.BoolVar(&commonconfig.PerfEnabled, "perf-enabled", false, "Enable performance logging for controllers, disabled by default.")
+	flag.StringVar(&leaderElectionResourceLock, "leader-election-resource-lock", "configmapsleases", "The resource lock to use for leader election")
+	flag.DurationVar(&leaseDuration, "leader-election-lease-duration", 15*time.Second,
+		"The duration that non-leader candidates will wait to force acquire leadership")
+	flag.DurationVar(&renewDeadline, "leader-election-renew-deadline", 10*time.Second,
+		"The duration that the acting controlplane will retry refreshing leadership before giving up")
+	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
+		"The duration the LeaderElector clients should wait between tries of actions")
 
 	flag.Parse()
 	// setup logging
@@ -169,15 +180,19 @@ func main() {
 	restConfig.Burst = burst
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      metricsAddr,
-		LeaderElection:          enableLeaderElection,
-		LeaderElectionNamespace: leaderElectionNamespace,
-		LeaderElectionID:        kubevelaName,
-		Port:                    webhookPort,
-		CertDir:                 certDir,
-		HealthProbeBindAddress:  healthAddr,
-		SyncPeriod:              &syncPeriod,
+		Scheme:                     scheme,
+		MetricsBindAddress:         metricsAddr,
+		LeaderElection:             enableLeaderElection,
+		LeaderElectionNamespace:    leaderElectionNamespace,
+		LeaderElectionID:           kubevelaName,
+		Port:                       webhookPort,
+		CertDir:                    certDir,
+		HealthProbeBindAddress:     healthAddr,
+		SyncPeriod:                 &syncPeriod,
+		LeaderElectionResourceLock: leaderElectionResourceLock,
+		LeaseDuration:              &leaseDuration,
+		RenewDeadline:              &renewDeadline,
+		RetryPeriod:                &retryPeriod,
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
