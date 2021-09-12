@@ -19,14 +19,8 @@ limitations under the License.
 package v1alpha2
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // An OperatingSystem required by a containerised workload.
