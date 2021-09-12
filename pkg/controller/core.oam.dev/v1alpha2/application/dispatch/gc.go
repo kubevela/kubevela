@@ -60,15 +60,15 @@ func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.Re
 	}
 	klog.InfoS("Garbage collect for application", "old", h.oldRT.Name, "new", h.newRT.Name)
 	for _, oldRsc := range h.oldRT.Status.TrackedResources {
-		isRemoved := true
+		reused := false
 		for _, newRsc := range h.newRT.Status.TrackedResources {
 			if oldRsc.APIVersion == newRsc.APIVersion && oldRsc.Kind == newRsc.Kind &&
 				oldRsc.Namespace == newRsc.Namespace && oldRsc.Name == newRsc.Name {
-				isRemoved = false
+				reused = true
 				break
 			}
 		}
-		if isRemoved {
+		if !reused {
 			toBeDeleted := &unstructured.Unstructured{}
 			toBeDeleted.SetAPIVersion(oldRsc.APIVersion)
 			toBeDeleted.SetKind(oldRsc.Kind)

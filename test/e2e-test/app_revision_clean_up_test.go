@@ -67,16 +67,14 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
-
 		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
-
 		Expect(k8sClient.Delete(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	})
 
-	PIt("Test clean up appRevision", func() {
+	It("Test clean up appRevision", func() {
 		appName := "app-1"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")
@@ -101,6 +99,15 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				}
 				return nil
 			}, time.Second*10, time.Millisecond*500).Should(BeNil())
+			Eventually(func() error {
+				checkApp = new(v1beta1.Application)
+				Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+				if checkApp.Status.ObservedGeneration == checkApp.Generation && checkApp.Status.Phase == common.ApplicationRunning {
+					return nil
+				}
+				return fmt.Errorf("application is not observed or status %s is not running", checkApp.Status.Phase)
+			}, time.Second*10, time.Millisecond*500).Should(BeNil())
+
 		}
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
