@@ -32,5 +32,4 @@ var (
 
 func init() {
 	SchemeBuilder.Register(&Rollout{}, &RolloutList{})
-	SchemeBuilder.Register(&PodSpecWorkload{}, &PodSpecWorkloadList{})
 }
