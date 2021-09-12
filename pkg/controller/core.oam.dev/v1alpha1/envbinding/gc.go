@@ -20,13 +20,17 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -35,8 +39,8 @@ func isEnvBindingPolicy(policy *unstructured.Unstructured) bool {
 	return policyKindAPIVersion == v1alpha1.EnvBindingKindAPIVersion
 }
 
-// GarbageCollectionForSubClusters run garbage collection in sub clusters if envBinding policy exists
-func GarbageCollectionForSubClusters(ctx context.Context, c client.Client, policies []*unstructured.Unstructured, gcHandler func(context.Context) error) error {
+// GarbageCollectionForOutdatedResourceInSubClusters run garbage collection in sub clusters and remove outdated ResourceTrackers with their associated resources
+func GarbageCollectionForOutdatedResourceInSubClusters(ctx context.Context, c client.Client, policies []*unstructured.Unstructured, gcHandler func(context.Context) error) error {
 	subClusters := make(map[string]bool)
 	for _, raw := range policies {
 		if !isEnvBindingPolicy(raw) {
@@ -61,6 +65,36 @@ func GarbageCollectionForSubClusters(ctx context.Context, c client.Client, polic
 	}
 	if errs.HasError() {
 		return errs
+	}
+	return nil
+}
+
+// GarbageCollectionForAllResourceTrackersInSubCluster run garbage collection in sub clusters and remove all ResourceTrackers for the EnvBinding
+func GarbageCollectionForAllResourceTrackersInSubCluster(ctx context.Context, c client.Client, envBinding *v1alpha1.EnvBinding) error {
+	baseApp, err := util.RawExtension2Application(envBinding.Spec.AppTemplate.RawExtension)
+	if err != nil {
+		klog.ErrorS(err, "Failed to parse AppTemplate of EnvBinding")
+		return errors.WithMessage(err, "cannot remove finalizer")
+	}
+	// delete subCluster resourceTracker
+	for _, decision := range envBinding.Status.ClusterDecisions {
+		subCtx := multicluster.ContextWithClusterName(ctx, decision.Cluster)
+		listOpts := []client.ListOption{
+			client.MatchingLabels{
+				oam.LabelAppName:      baseApp.Name,
+				oam.LabelAppNamespace: baseApp.Namespace,
+			}}
+		rtList := &v1beta1.ResourceTrackerList{}
+		if err := c.List(subCtx, rtList, listOpts...); err != nil {
+			klog.ErrorS(err, "Failed to list resource tracker of app", "name", baseApp.Name, "env", decision.Env)
+			return errors.WithMessage(err, "cannot remove finalizer")
+		}
+		for _, rt := range rtList.Items {
+			if err := c.Delete(subCtx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to delete resource tracker", "name", rt.Name)
+				return errors.WithMessage(err, "cannot remove finalizer")
+			}
+		}
 	}
 	return nil
 }

@@ -204,7 +204,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if wfStatus != nil {
 				ref, err := handler.DispatchAndGC(ctx)
 				if err == nil {
-					err = envbinding.GarbageCollectionForSubClusters(ctx, r.Client, policies, func(c context.Context) error {
+					err = envbinding.GarbageCollectionForOutdatedResourceInSubClusters(ctx, r.Client, policies, func(c context.Context) error {
 						_, e := handler.DispatchAndGC(c)
 						return e
 					})
