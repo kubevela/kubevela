@@ -173,7 +173,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err), common.ApplicationRunningWorkflow)
 		}
 
-		workflowstate, err := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode).ExecuteSteps(ctx, handler.currentAppRev, steps)
+		workflowState, err := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode).ExecuteSteps(ctx, handler.currentAppRev, steps)
 		if err != nil {
 			klog.Error(err, "[handle workflow]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
@@ -184,7 +184,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		handler.addAppliedResource(app.Status.AppliedResources...)
 		app.Status.Services = handler.services
 		app.Status.AppliedResources = handler.appliedResources
-		switch workflowstate {
+		switch workflowState {
 		case common.WorkflowStateSuspended:
 			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowSuspending)
 		case common.WorkflowStateTerminated:
@@ -208,6 +208,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 		klog.Info("Application manifests has applied by workflow successfully", "application", klog.KObj(app))
 	} else {
+		var comps []*velatypes.ComponentManifest
+		comps, err = appFile.GenerateComponentManifests()
+		if err != nil {
+			klog.ErrorS(err, "Failed to render components", "application", klog.KObj(app))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
+		}
+
+		handler.handleCheckManageWorkloadTrait(handler.currentAppRev.Spec.TraitDefinitions, comps)
+
+		if err := handler.HandleComponentsRevision(ctx, comps); err != nil {
+			klog.ErrorS(err, "Failed to handle compoents revision", "application", klog.KObj(app))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
+		}
 		klog.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
 	}
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application

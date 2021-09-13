@@ -118,14 +118,13 @@ var _ = Describe("Test application containing helm module", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
-		/*
-			k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
-			k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
-			k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
-			k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
-			By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
-			Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		*/
+
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
+		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 		By("Remove 'deployments.apps' from scaler's appliesToWorkloads")
 		scalerTd := v1beta1.TraitDefinition{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler", Namespace: "vela-system"}, &scalerTd)).Should(Succeed())

@@ -351,7 +351,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		}, time.Second*5, time.Millisecond*300).Should(BeNil())
 	})
 
-	It("Test update application by add  a cross namespace trait resource ", func() {
+	It("Test update application by add a cross namespace trait resource ", func() {
 		var (
 			appName       = "test-app-2"
 			app           = new(v1beta1.Application)
@@ -394,7 +394,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
 				return fmt.Errorf("error to create application %v", err)
 			}
-			if app.Status.Phase != common.ApplicationRunning {
+			if app.Status.Phase != common.ApplicationRunning || app.Status.ObservedGeneration != app.Generation {
 				return fmt.Errorf("application status not running")
 			}
 			depolys := new(appsv1.DeploymentList)
@@ -461,7 +461,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("trait owner reference missmatch")
 			}
 			if len(resourceTracker.Status.TrackedResources) != 2 {
-				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Status.TrackedResources))
+				return fmt.Errorf("expect track %d resources, but got %d", 2, len(resourceTracker.Status.TrackedResources))
 			}
 			return nil
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())
@@ -516,7 +516,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
 				return fmt.Errorf("error to get application %v", err)
 			}
-			if app.Status.Phase != common.ApplicationRunning {
+			if app.Status.Phase != common.ApplicationRunning || app.Status.ObservedGeneration != app.Generation {
 				return fmt.Errorf("application status not running")
 			}
 			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker)

@@ -179,8 +179,6 @@ const (
 	ApplicationWorkflowFinished ApplicationPhase = "workflowFinished"
 	// ApplicationRunning means the app finished rendering and applied result to the cluster
 	ApplicationRunning ApplicationPhase = "running"
-	// ApplicationGarbageCollection means app is GCing
-	ApplicationGarbageCollection ApplicationPhase = "garbagecollection"
 	// ApplicationUnhealthy means the app finished rendering and applied result to the cluster, but still unhealthy
 	ApplicationUnhealthy ApplicationPhase = "unhealthy"
 )

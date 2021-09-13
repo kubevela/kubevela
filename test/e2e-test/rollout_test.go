@@ -51,10 +51,9 @@ import (
 
 var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", func() {
 	ctx := context.Background()
-	var namespaceName, compnentName, rolloutName string
+	var namespaceName, componentName, rolloutName string
 	var ns corev1.Namespace
 	var app v1beta1.Application
-	//var kc kruise.CloneSet
 	var rollout v1alpha1.Rollout
 	var kc kruise.CloneSet
 
@@ -186,7 +185,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		var newRollout v1alpha1.Rollout
 		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/comp-rollout.yaml", &newRollout)).Should(BeNil())
 		newRollout.Namespace = namespaceName
-		compRevName := utils.ConstructRevisionName(compnentName, 1)
+		compRevName := utils.ConstructRevisionName(componentName, 1)
 		newRollout.Spec.TargetRevisionName = compRevName
 		Expect(k8sClient.Create(ctx, &newRollout)).Should(BeNil())
 		rolloutName = newRollout.Name
@@ -230,7 +229,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 					return err
 				}
 				if len(appRevList.Items) != revision {
-					return fmt.Errorf("appRevision number mismatch acctually %d", len(appRevList.Items))
+					return fmt.Errorf("appRevision number mismatch actually %d", len(appRevList.Items))
 				}
 				return nil
 			},
@@ -242,13 +241,13 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		namespaceName = randomNamespaceName("comp-rollout-e2e-test")
 		CreateClonesetDef()
 		createNamespace()
-		compnentName = "metrics-provider"
+		componentName = "metrics-provider"
 	})
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
 		Eventually(func() error {
-			err := k8sClient.Delete(ctx, &app)
+			err := k8sClient.Delete(ctx, &ns)
 			if err == nil || apierrors.IsNotFound(err) {
 				return nil
 			}
@@ -266,7 +265,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 	})
 
-	PIt("Test component rollout cloneset", func() {
+	It("Test component rollout cloneset", func() {
 		var err error
 		applySourceApp("app-source.yaml")
 		updateApp("app-target.yaml", 2)
@@ -274,11 +273,11 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		ctlRevList := appsv1.ControllerRevisionList{}
 		Eventually(func() error {
 			if err = k8sClient.List(ctx, &ctlRevList, client.InNamespace(namespaceName),
-				client.MatchingLabels(map[string]string{oam.LabelControllerRevisionComponent: compnentName})); err != nil {
+				client.MatchingLabels(map[string]string{oam.LabelControllerRevisionComponent: componentName})); err != nil {
 				return err
 			}
 			if len(ctlRevList.Items) < 2 {
-				return fmt.Errorf("component revision missmatch acctually %d", len(ctlRevList.Items))
+				return fmt.Errorf("component revision missmatch actually %d", len(ctlRevList.Items))
 			}
 			return nil
 		}, time.Second*30, 300*time.Millisecond).Should(BeNil())
@@ -292,7 +291,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 				return err
 			}
 			// we needn't specify sourceRevision, rollout use lastTarget as source
-			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(compnentName, 2)
+			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(componentName, 2)
 			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
 				return err
@@ -306,7 +305,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
 				return err
 			}
-			if checkRollout.Status.LastUpgradedTargetRevision != utils.ConstructRevisionName(compnentName, 2) {
+			if checkRollout.Status.LastUpgradedTargetRevision != utils.ConstructRevisionName(componentName, 2) {
 				return fmt.Errorf("last target error")
 			}
 			if checkRollout.Status.RollingState != v1alpha1.RollingInBatchesState {
@@ -347,7 +346,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 			}
 			return nil
 		}, 30*time.Second, 15*time.Millisecond).Should(BeNil())
-		verifyRolloutSucceeded(utils.ConstructRevisionName(compnentName, 2))
+		verifyRolloutSucceeded(utils.ConstructRevisionName(componentName, 2))
 		By("continue rollout forward")
 		Eventually(func() error {
 			checkRollout := new(v1alpha1.Rollout)
@@ -355,12 +354,12 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 				return err
 			}
 			// we needn't specify sourceRevision, rollout use lastTarget as source
-			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(compnentName, 1)
+			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(componentName, 1)
 			if err = k8sClient.Update(ctx, checkRollout); err != nil {
 				return err
 			}
 			return nil
 		}, 30*time.Second, 15*time.Millisecond).Should(BeNil())
-		verifyRolloutSucceeded(utils.ConstructRevisionName(compnentName, 1))
+		verifyRolloutSucceeded(utils.ConstructRevisionName(componentName, 1))
 	})
 })
