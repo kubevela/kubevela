@@ -78,7 +78,7 @@ myIP: value: "1.1.1.1"
 			Name: "output",
 			Type: "output",
 			Outputs: common.StepOutputs{{
-				ExportKey: "myIP.value",
+				ValueFrom: "myIP.value",
 				Name:      "podIP",
 			}},
 		},
@@ -200,7 +200,7 @@ close({
 			Type: "ok",
 			Outputs: common.StepOutputs{{
 				Name:      "podIP",
-				ExportKey: "myIP",
+				ValueFrom: "myIP",
 			}},
 		},
 		{
@@ -208,7 +208,7 @@ close({
 			Type: "ok",
 			Outputs: common.StepOutputs{{
 				Name:      "score",
-				ExportKey: "name",
+				ValueFrom: "name",
 			}},
 		},
 		{

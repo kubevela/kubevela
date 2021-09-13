@@ -404,7 +404,7 @@ type inputItem struct {
 }
 
 type outputItem struct {
-	ExportKey string `json:"exportKey"`
+	ValueFrom string `json:"valueFrom"`
 	Name      string `json:"name"`
 }
 

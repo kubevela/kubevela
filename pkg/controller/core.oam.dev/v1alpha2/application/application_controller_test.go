@@ -1759,7 +1759,7 @@ var _ = Describe("Test Application Controller", func() {
 						Type:       "worker-with-health",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
-							{Name: "message", ExportKey: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
+							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
 					},
 				},
