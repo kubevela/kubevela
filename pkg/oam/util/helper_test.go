@@ -30,6 +30,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -374,20 +375,36 @@ func TestUtils(t *testing.T) {
 	ctx := context.Background()
 	namespace := "oamNS"
 	workloadName := "oamWorkload"
-	workloadKind := "ContainerizedWorkload"
-	workloadAPIVersion := "core.oam.dev/v1"
-	workloadDefinitionName := "containerizedworkloads.core.oam.dev"
+	imageV1 := "wordpress:4.6.1-apache"
+	workloadDefinitionName := "deployments.apps"
 	var workloadUID types.UID = "oamWorkloadUID"
 
-	// workload CR
-	workload := v1alpha2.ContainerizedWorkload{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      workloadName,
-			Namespace: namespace,
-		},
+	workload := appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: workloadAPIVersion,
-			Kind:       workloadKind,
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      workloadName,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "wordpress",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "wordpress",
+							Image: imageV1,
+						},
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "wordpress"}},
+			},
 		},
 	}
 	workload.SetUID(workloadUID)

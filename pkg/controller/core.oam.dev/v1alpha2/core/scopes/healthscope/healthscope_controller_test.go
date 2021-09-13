@@ -241,8 +241,8 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				},
 				wantScopeCondition: ScopeHealthCondition{
 					HealthStatus:       StatusHealthy,
-					Total:              int64(2),
-					HealthyWorkloads:   int64(2),
+					Total:              int64(1),
+					HealthyWorkloads:   int64(1),
 					UnhealthyWorkloads: 0,
 					UnknownWorkloads:   0,
 				},
@@ -287,7 +287,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				},
 				wantScopeCondition: ScopeHealthCondition{
 					HealthStatus:       StatusUnhealthy,
-					Total:              int64(2),
+					Total:              int64(1),
 					HealthyWorkloads:   0,
 					UnhealthyWorkloads: int64(1),
 					UnknownWorkloads:   0,
