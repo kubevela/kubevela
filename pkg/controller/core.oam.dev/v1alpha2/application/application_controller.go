@@ -57,7 +57,7 @@ const (
 
 const (
 	// WorkflowReconcileWaitTime is the time to wait before reconcile again workflow running
-	WorkflowReconcileWaitTime      = time.Second * 3
+	WorkflowReconcileWaitTime      = time.Second
 	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
 	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"

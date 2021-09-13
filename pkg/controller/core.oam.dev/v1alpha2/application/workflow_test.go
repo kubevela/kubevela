@@ -254,7 +254,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseSucceeded))
-
+		Expect(appObj.Status.Workflow.Steps[0].ID).ShouldNot(BeEquivalentTo(""))
 		// resume
 		appObj.Status.Workflow.Suspend = false
 		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())

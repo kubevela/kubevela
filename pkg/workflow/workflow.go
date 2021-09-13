@@ -91,7 +91,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 		wfCtx wfContext.Context
 	)
 
-	wfCtx, err = w.makeContext(appRev.Name)
+	wfCtx, err = w.makeContext(w.app.Name)
 	if err != nil {
 		return common.WorkflowStateExecuting, err
 	}
@@ -134,17 +134,17 @@ func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
 	return true
 }
 
-func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) {
+func (w *workflow) makeContext(appName string) (wfCtx wfContext.Context, err error) {
 	wfStatus := w.app.Status.Workflow
 	if wfStatus.ContextBackend != nil {
-		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
+		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, appName)
 		if err != nil {
 			err = errors.WithMessage(err, "load context")
 		}
 		return
 	}
 
-	wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, rev)
+	wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, appName)
 
 	if err != nil {
 		err = errors.WithMessage(err, "new context")

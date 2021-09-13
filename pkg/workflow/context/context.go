@@ -19,6 +19,7 @@ package context
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -270,8 +271,8 @@ func NewContext(cli client.Client, ns, rev string) (Context, error) {
 }
 
 // NewEmptyContext new workflow context without initialize data.
-func NewEmptyContext(cli client.Client, ns, rev string) (Context, error) {
-	wfCtx, err := newContext(cli, ns, rev)
+func NewEmptyContext(cli client.Client, ns, app string) (Context, error) {
+	wfCtx, err := newContext(cli, ns, app)
 	if err != nil {
 		return nil, err
 	}
@@ -279,12 +280,12 @@ func NewEmptyContext(cli client.Client, ns, rev string) (Context, error) {
 	return wfCtx, wfCtx.Commit()
 }
 
-func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
+func newContext(cli client.Client, ns, app string) (*WorkflowContext, error) {
 	var (
 		ctx   = context.Background()
 		store corev1.ConfigMap
 	)
-	store.Name = generateStoreName(rev)
+	store.Name = generateStoreName(app)
 	store.Namespace = ns
 	if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
 		if kerrors.IsNotFound(err) {
@@ -310,11 +311,11 @@ func newContext(cli client.Client, ns, rev string) (*WorkflowContext, error) {
 }
 
 // LoadContext load workflow context from store.
-func LoadContext(cli client.Client, ns, rev string) (Context, error) {
+func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	var store corev1.ConfigMap
 	if err := cli.Get(context.Background(), client.ObjectKey{
 		Namespace: ns,
-		Name:      generateStoreName(rev),
+		Name:      generateStoreName(app),
 	}, &store); err != nil {
 		return nil, err
 	}
@@ -328,6 +329,6 @@ func LoadContext(cli client.Client, ns, rev string) (Context, error) {
 	return ctx, nil
 }
 
-func generateStoreName(rev string) string {
-	return "workflow-" + rev
+func generateStoreName(app string) string {
+	return fmt.Sprintf("workflow-%s-context", app)
 }
