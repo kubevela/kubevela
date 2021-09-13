@@ -669,7 +669,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Status.TrackedResources))
 			}
 			return nil
-		}, time.Second*5, time.Millisecond*500).Should(BeNil())
+		}, time.Second*60, time.Millisecond*500).Should(BeNil())
 		By("update application by delete cross namespace workload")
 		Eventually(func() error {
 			app = new(v1beta1.Application)
@@ -714,7 +714,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("error : cross namespace workload still exist")
 			}
 			return nil
-		}, time.Second*5, time.Millisecond*300).Should(BeNil())
+		}, time.Second*60, time.Millisecond*300).Should(BeNil())
 	})
 
 	It("Update a cross namespace workload of application", func() {
@@ -833,7 +833,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("container image not match")
 			}
 			return nil
-		}, time.Second*5, time.Millisecond*500).Should(BeNil())
+		}, time.Second*30, time.Millisecond*500).Should(BeNil())
 
 		By("deleting application will remove resourceTracker and related workload will be removed")
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
@@ -854,7 +854,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return err
 			}
 			return nil
-		}, time.Second*5, time.Millisecond*500).Should(BeNil())
+		}, time.Second*30, time.Millisecond*500).Should(BeNil())
 	})
 
 	It("Test cross-namespace resource gc logic, delete a cross-ns component", func() {
@@ -944,7 +944,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, deploy2.Name)
 			}
 			return nil
-		}, time.Second*5, time.Millisecond*300).Should(BeNil())
+		}, time.Second*60, time.Millisecond*300).Should(BeNil())
 		By("update application by delete a cross namespace workload")
 		Eventually(func() error {
 			app = new(v1beta1.Application)
