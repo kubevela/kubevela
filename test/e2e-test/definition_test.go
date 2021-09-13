@@ -208,7 +208,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			}, 15*time.Second, time.Second).Should(BeNil())
 
 			newTd := oldTd.DeepCopy()
-			newTd.Spec.Schematic.CUE.Template = exposeV2Templae
+			newTd.Spec.Schematic.CUE.Template = exposeV2Template
 			Expect(k8sClient.Create(ctx, newTd)).Should(HaveOccurred())
 		})
 	})
