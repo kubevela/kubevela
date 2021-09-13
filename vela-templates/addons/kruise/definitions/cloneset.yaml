@@ -78,10 +78,6 @@ spec:
         						readinessProbe: parameter.readinessProbe
         					}
 
-        					if parameter["imagePullSecrets"] != _|_ {
-        						imagePullSecrets: [ for v in parameter.imagePullSecrets {name: v}]
-        					}
-
         					lifecycle: {
         						if parameter.postStart != _|_ {
         							postStart: exec: command: parameter.postStart
@@ -93,6 +89,9 @@ spec:
         				}]
         				if parameter.hostAliases != _|_ {
         					hostAliases: parameter.hostAliases
+        				}
+        				if parameter["imagePullSecrets"] != _|_ {
+        					imagePullSecrets: [ for v in parameter.imagePullSecrets {name: v}]
         				}
         			}
         		}
