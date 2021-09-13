@@ -189,40 +189,55 @@ func (am *AppManifests) assemble() {
 		return
 	}
 	for _, comp := range am.componentManifests {
-		if checkAutoDetectComponent(comp.StandardWorkload) {
-			klog.Warningf("component without specify workloadDef can not attach traits currently")
-			continue
-		}
-		compRevisionName := comp.RevisionName
-		compName := comp.Name
-		additionalLabel := map[string]string{
-			oam.LabelAppComponentRevision: compRevisionName,
-			oam.LabelAppRevisionHash:      am.AppRevision.Labels[oam.LabelAppRevisionHash],
-		}
-		klog.InfoS("Assemble manifests for component", "name", compName)
-		wl, err := am.assembleWorkload(compName, comp.StandardWorkload, additionalLabel, comp.PackagedWorkloadResources)
+		klog.InfoS("Assemble manifests for component", "name", comp.Name)
+		wl, traits, err := PrepareBeforeApply(comp, am.AppRevision, am.WorkloadOptions)
 		if err != nil {
 			am.finalizeAssemble(err)
 			return
 		}
-		am.assembledWorkloads[compName] = wl
+		if wl == nil {
+			klog.Warningf("component without specify workloadDef can not attach traits currently")
+			continue
+		}
+
+		am.assembledWorkloads[comp.Name] = wl
 		workloadRef := corev1.ObjectReference{
 			APIVersion: wl.GetAPIVersion(),
 			Kind:       wl.GetKind(),
 			Name:       wl.GetName(),
 		}
-		am.assembledTraits[compName] = make([]*unstructured.Unstructured, len(comp.Traits))
-		for i, trait := range comp.Traits {
-			am.setTraitLabels(trait, additionalLabel)
-			am.assembledTraits[compName][i] = trait
-		}
-
+		am.assembledTraits[comp.Name] = traits
 		am.referencedScopes[workloadRef] = make([]corev1.ObjectReference, len(comp.Scopes))
 		for i, scope := range comp.Scopes {
 			am.referencedScopes[workloadRef][i] = *scope
 		}
 	}
 	am.finalizeAssemble(nil)
+}
+
+// PrepareBeforeApply will prepare for some necessary info before apply
+func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, workloadOpt []WorkloadOption) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	if checkAutoDetectComponent(comp.StandardWorkload) {
+		return nil, nil, nil
+	}
+	compRevisionName := comp.RevisionName
+	compName := comp.Name
+	additionalLabel := map[string]string{
+		oam.LabelAppComponentRevision: compRevisionName,
+		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
+	}
+	wl, err := assembleWorkload(compName, comp.StandardWorkload, additionalLabel, comp.PackagedWorkloadResources, appRev, workloadOpt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	assembledTraits := make([]*unstructured.Unstructured, len(comp.Traits))
+	for i, trait := range comp.Traits {
+		setTraitLabels(trait, additionalLabel)
+		assembledTraits[i] = trait
+	}
+
+	return wl, assembledTraits, nil
 }
 
 func (am *AppManifests) complete() error {
@@ -275,20 +290,20 @@ func (am *AppManifests) validate() error {
 	return nil
 }
 
-func (am *AppManifests) assembleWorkload(compName string, wl *unstructured.Unstructured,
-	labels map[string]string, resources []*unstructured.Unstructured) (*unstructured.Unstructured, error) {
+func assembleWorkload(compName string, wl *unstructured.Unstructured,
+	labels map[string]string, resources []*unstructured.Unstructured, appRev *v1beta1.ApplicationRevision, wop []WorkloadOption) (*unstructured.Unstructured, error) {
 	// use component name as workload name
 	// override the name set in render phase if exist
 	wl.SetName(compName)
-	am.setWorkloadLabels(wl, labels)
+	setWorkloadLabels(wl, labels)
 
 	workloadType := wl.GetLabels()[oam.WorkloadTypeLabel]
-	compDefinition := am.AppRevision.Spec.ComponentDefinitions[workloadType]
+	compDefinition := appRev.Spec.ComponentDefinitions[workloadType]
 	copyPackagedResources := make([]*unstructured.Unstructured, len(resources))
 	for i, v := range resources {
 		copyPackagedResources[i] = v.DeepCopy()
 	}
-	for _, wo := range am.WorkloadOptions {
+	for _, wo := range wop {
 		if err := wo.ApplyToWorkload(wl, compDefinition.DeepCopy(), copyPackagedResources); err != nil {
 			klog.ErrorS(err, "Failed applying a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
 			return nil, errors.Wrapf(err, "cannot apply workload option for component %q", compName)
@@ -301,14 +316,14 @@ func (am *AppManifests) assembleWorkload(compName string, wl *unstructured.Unstr
 
 // component revision label added here
 // label key: app.oam.dev/revision
-func (am *AppManifests) setWorkloadLabels(wl *unstructured.Unstructured, additionalLabels map[string]string) {
+func setWorkloadLabels(wl *unstructured.Unstructured, additionalLabels map[string]string) {
 	// add more workload-specific labels here
 	util.AddLabels(wl, additionalLabels)
 }
 
 // component revision label added here
 // label key: app.oam.dev/revision
-func (am *AppManifests) setTraitLabels(trait *unstructured.Unstructured, additionalLabels map[string]string) {
+func setTraitLabels(trait *unstructured.Unstructured, additionalLabels map[string]string) {
 	// add more trait-specific labels here
 	util.AddLabels(trait, additionalLabels)
 }

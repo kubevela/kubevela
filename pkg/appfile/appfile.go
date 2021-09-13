@@ -353,9 +353,9 @@ func (af *Appfile) assembleWorkload(wl *unstructured.Unstructured, compName stri
 	// use component name as workload name
 	// override the name set in render phase if exist
 	wl.SetName(compName)
+	af.setNamespace(wl)
 	af.setWorkloadLabels(wl, labels)
 	af.filterAndSetAnnotations(wl)
-	af.setNamespace(wl)
 }
 
 /* NOTE a workload has these possible labels
@@ -785,6 +785,7 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 		ExternalRevision: wl.ExternalRevision,
 		StandardWorkload: &unstructured.Unstructured{},
 	}
+
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
 		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)
 		if err != nil {

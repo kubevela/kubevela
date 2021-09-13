@@ -74,7 +74,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			klog.InfoS("Could not discover the open api of the CRD", "err", err)
 			r.record.Event(&componentDefinition, event.Warning("Could not discover the open api of the CRD", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &componentDefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}

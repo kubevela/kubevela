@@ -79,7 +79,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			klog.ErrorS(err, "cannot refresh packageDiscover")
 			r.record.Event(&policydefinition, event.Warning("cannot refresh packageDiscover", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &policydefinition,
+			return ctrl.Result{}, util.EndReconcileWithNegativeCondition(ctx, r, &policydefinition,
 				condition.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}

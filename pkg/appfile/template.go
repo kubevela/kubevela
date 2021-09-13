@@ -149,7 +149,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 }
 
 // LoadTemplateFromRevision will load Definition template from app revision
-func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) (*Template, error) {
+func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper) (*Template, error) {
 	if apprev == nil {
 		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
 	}
@@ -164,6 +164,19 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			tmpl, err := newTemplateOfWorkloadDefinition(&wd)
 			if err != nil {
 				return nil, err
+			}
+			gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
+			if err != nil {
+				return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", capName)
+			}
+			tmpl.Reference = common.WorkloadTypeDescriptor{
+				Definition: common.WorkloadGVK{
+					APIVersion: metav1.GroupVersion{
+						Group:   gvk.Group,
+						Version: gvk.Version,
+					}.String(),
+					Kind: gvk.Kind,
+				},
 			}
 			return tmpl, nil
 		}

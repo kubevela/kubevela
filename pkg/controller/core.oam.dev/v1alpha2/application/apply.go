@@ -63,6 +63,9 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.
 	_, err := h.dispatcher.Dispatch(ctx, manifests)
 	if err == nil {
 		for _, mf := range manifests {
+			if mf == nil {
+				continue
+			}
 			ref := common.ClusterObjectReference{
 				Cluster: cluster,
 				Creator: owner,
