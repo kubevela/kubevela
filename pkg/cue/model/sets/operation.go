@@ -103,8 +103,8 @@ func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.Lis
 
 func strategyPatchHandle(baseNode ast.Node) interceptor {
 	return func(lnode ast.Node) (ast.Node, error) {
-		walker := newWalker(func(node ast.Node, ctx walkCtx) {
-			field, ok := node.(*ast.Field)
+		walker := newWalker(func(patchNode ast.Node, ctx walkCtx) {
+			field, ok := patchNode.(*ast.Field)
 			if !ok {
 				return
 			}
@@ -136,7 +136,7 @@ func strategyPatchHandle(baseNode ast.Node) interceptor {
 				}
 				listMergeProcess(field, key, baselist, val)
 
-			case *ast.StructLit:
+			default:
 				if !isStrategyRetainKeys(field) {
 					return
 				}
@@ -148,20 +148,19 @@ func strategyPatchHandle(baseNode ast.Node) interceptor {
 						for _, elt := range v.Elts {
 							if fe, ok := elt.(*ast.Field); ok &&
 								labelStr(fe.Label) == labelStr(field.Label) {
-								fe.Value = ast.NewStruct()
+								fe.Value = field.Value
 							}
 						}
-					case *ast.File:
+					case *ast.File: // For the top level element
 						for _, decl := range v.Decls {
 							if fe, ok := decl.(*ast.Field); ok &&
 								labelStr(fe.Label) == labelStr(field.Label) {
-								fe.Value = ast.NewStruct()
+								fe.Value = field.Value
 							}
 						}
 					}
 				}
 			}
-
 		})
 		walker.walk(lnode)
 		return lnode, nil
