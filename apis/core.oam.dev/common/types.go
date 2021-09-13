@@ -163,18 +163,38 @@ type ApplicationPhase string
 const (
 	// ApplicationRollingOut means the app is in the middle of rolling out
 	ApplicationRollingOut ApplicationPhase = "rollingOut"
+	// ApplicationStarting means the app is preparing for reconcile
+	ApplicationStarting ApplicationPhase = "starting"
 	// ApplicationRendering means the app is rendering
 	ApplicationRendering ApplicationPhase = "rendering"
+	// ApplicationPolicyGenerating means the app is generating policies
+	ApplicationPolicyGenerating ApplicationPhase = "generatingPolicy"
 	// ApplicationRunningWorkflow means the app is running workflow
 	ApplicationRunningWorkflow ApplicationPhase = "runningWorkflow"
 	// ApplicationWorkflowSuspending means the app's workflow is suspending
 	ApplicationWorkflowSuspending ApplicationPhase = "workflowSuspending"
 	// ApplicationWorkflowTerminated means the app's workflow is terminated
 	ApplicationWorkflowTerminated ApplicationPhase = "workflowTerminated"
+	// ApplicationWorkflowFinished means the app's workflow is finished
+	ApplicationWorkflowFinished ApplicationPhase = "workflowFinished"
 	// ApplicationRunning means the app finished rendering and applied result to the cluster
 	ApplicationRunning ApplicationPhase = "running"
-	// ApplicationHealthChecking means the app finished rendering and applied result to the cluster, but still unhealthy
-	ApplicationHealthChecking ApplicationPhase = "healthChecking"
+	// ApplicationUnhealthy means the app finished rendering and applied result to the cluster, but still unhealthy
+	ApplicationUnhealthy ApplicationPhase = "unhealthy"
+)
+
+// WorkflowState is a string that mark the workflow state
+type WorkflowState string
+
+const (
+	// WorkflowStateTerminated means workflow is terminated manually, and it won't be started unless the spec changed.
+	WorkflowStateTerminated WorkflowState = "terminated"
+	// WorkflowStateSuspended means workflow is suspended manually, and it can be resumed.
+	WorkflowStateSuspended WorkflowState = "suspended"
+	// WorkflowStateFinished means workflow is running successfully, all steps finished.
+	WorkflowStateFinished WorkflowState = "finished"
+	// WorkflowStateExecuting means workflow is still running or waiting some steps.
+	WorkflowStateExecuting WorkflowState = "executing"
 )
 
 // ApplicationComponentStatus record the health status of App component
@@ -272,11 +292,13 @@ type AppStatus struct {
 
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
-	AppRevision    string                  `json:"appRevision,omitempty"`
-	Mode           WorkflowMode            `json:"mode"`
-	Suspend        bool                    `json:"suspend"`
-	Terminated     bool                    `json:"terminated"`
-	ContextBackend *corev1.ObjectReference `json:"contextBackend"`
+	AppRevision string       `json:"appRevision,omitempty"`
+	Mode        WorkflowMode `json:"mode"`
+
+	Suspend    bool `json:"suspend"`
+	Terminated bool `json:"terminated"`
+
+	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
 }
 

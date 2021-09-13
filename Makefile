@@ -95,8 +95,8 @@ compress:
 	)
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: fmt vet
-	go run ./cmd/core/main.go
+run:
+	go run ./cmd/core/main.go --application-revision-limit 5
 
 # Run go fmt against code
 fmt: goimports installcue
@@ -316,5 +316,5 @@ endif
 check-license-header:
 	./hack/licence/header-check.sh
 
-check-install-def:
+def-install:
 	./hack/utils/installdefinition.sh

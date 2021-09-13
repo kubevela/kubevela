@@ -227,7 +227,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(BeNil())
 	})
 
-	PIt("apply an application config", func() {
+	It("apply an application config", func() {
 		logf.Log.Info("Creating workload definition")
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
 		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -325,7 +325,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 			time.Second*15, time.Millisecond*500).Should(BeTrue())
 	})
 
-	PIt("checking appConfig status changed outside of the controller loop is preserved", func() {
+	It("checking appConfig status changed outside of the controller loop is preserved", func() {
 		logf.Log.Info("Creating workload definition")
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
 		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))

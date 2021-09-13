@@ -26,7 +26,7 @@ import (
 )
 
 // DefaultDashboardPort refers to the default port number of dashboard
-var DefaultDashboardPort = ":38081"
+var DefaultDashboardPort = ":37081"
 
 // DefaultAPIServerPort refers to the default port number of APIServer
 const DefaultAPIServerPort = ":38081"

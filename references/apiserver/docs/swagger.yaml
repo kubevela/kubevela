@@ -466,7 +466,7 @@ definitions:
         description: Reference to a trait created by an ApplicationConfiguration.
         type: string
     type: object
-host: 127.0.0.1:38081
+host: 127.0.0.1:37081
 info:
   contact:
     email: NA

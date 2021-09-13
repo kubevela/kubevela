@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/types"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -116,13 +118,13 @@ var _ = Describe("Test application containing helm module", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
+
 		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-
 		By("Remove 'deployments.apps' from scaler's appliesToWorkloads")
 		scalerTd := v1beta1.TraitDefinition{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler", Namespace: "vela-system"}, &scalerTd)).Should(Succeed())
@@ -131,7 +133,7 @@ var _ = Describe("Test application containing helm module", func() {
 		Expect(k8sClient.Patch(ctx, &scalerTd, client.Merge)).Should(Succeed())
 	})
 
-	PIt("Test deploy an application containing helm module", func() {
+	It("Test deploy an application containing helm module", func() {
 		app = v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appName,
@@ -151,7 +153,7 @@ var _ = Describe("Test application containing helm module", func() {
 							{
 								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
-									"replicas": 2,
+									"replicas": 0,
 								}),
 							},
 							{
@@ -190,7 +192,7 @@ var _ = Describe("Test application containing helm module", func() {
 				return false
 			}
 			By("Verify scaler trait is applied")
-			if *deploy.Spec.Replicas != 2 {
+			if *deploy.Spec.Replicas != 0 {
 				return false
 			}
 			By("Verify application's settings override chart default values")
@@ -212,14 +214,14 @@ var _ = Describe("Test application containing helm module", func() {
 						Type: cdName,
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"image": map[string]interface{}{
-								"tag": "5.1.3", // change 5.1.4 => 5.1.3
+								"tag": "5.1.3", // change 5.1.2 => 5.1.3
 							},
 						}),
 						Traits: []common.ApplicationTrait{
 							{
 								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
-									"replicas": 3, // change 2 => 3
+									"replicas": 1, // change 0 => 1
 								}),
 							},
 							{
@@ -248,9 +250,7 @@ var _ = Describe("Test application containing helm module", func() {
 				return false
 			}
 			By("Verify new scaler trait is applied")
-			// TODO(roywang) how to enforce scaler controller reconcile
-			// immediately? e2e test cannot wait 5min for reconciliation.
-			if *deploy.Spec.Replicas == 2 {
+			if *deploy.Spec.Replicas != 1 {
 				return false
 			}
 			By("Verify new application's settings override chart default values")
@@ -258,7 +258,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 120*time.Second, 10*time.Second).Should(BeTrue())
 	})
 
-	PIt("Test deploy an application containing helm module defined by workloadDefinition", func() {
+	It("Test deploy an application containing helm module defined by workloadDefinition", func() {
 
 		workloaddef := v1beta1.WorkloadDefinition{}
 		workloaddef.SetName(wdName)
@@ -315,7 +315,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 240*time.Second, 5*time.Second).Should(Succeed())
 	})
 
-	PIt("Test deploy an application containing helm module and the componet refer to autodetect type workload", func() {
+	It("Test deploy an application containing helm module and the component refer to autodetect type workload", func() {
 		cd := v1beta1.ComponentDefinition{}
 		cd.SetName("podinfo")
 		cd.SetNamespace(namespace)
@@ -334,6 +334,7 @@ var _ = Describe("Test application containing helm module", func() {
 				}),
 			},
 		}
+		cd.Spec.Workload.Type = types.AutoDetectWorkloadDefinition
 		Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
 
 		newAppName := "test-autodetect"
@@ -369,7 +370,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 120*time.Second, 5*time.Second).Should(Succeed())
 	})
 
-	PIt("Test store JSON schema of Helm Chart in ConfigMap", func() {
+	It("Test store JSON schema of Helm Chart in ConfigMap", func() {
 		By("Get the ConfigMap")
 		cmName := fmt.Sprintf("schema-%s", cdName)
 		Eventually(func() error {

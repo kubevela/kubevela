@@ -70,8 +70,6 @@ var controllerDone context.CancelFunc
 var mgr ctrl.Manager
 var appRevisionLimit = 5
 
-// TODO: create a mock client and add UT to cover all the failure cases
-
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 

@@ -483,6 +483,17 @@ func EndReconcileWithNegativeCondition(ctx context.Context, r client.StatusClien
 	return errors.Errorf(ErrReconcileErrInCondition, condition[0].Type, condition[0].Message)
 }
 
+// PatchCondition will patch status with condition and return, it generally used by cases which don't want reconcile after patch
+func PatchCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
+	condition ...condition.Condition) error {
+	if len(condition) == 0 {
+		return nil
+	}
+	workloadPatch := client.MergeFrom(workload.DeepCopyObject().(client.Object))
+	workload.SetConditions(condition...)
+	return r.Status().Patch(ctx, workload, workloadPatch, client.FieldOwner(workload.GetUID()))
+}
+
 // IsConditionChanged will check if conditions in workload is changed compare to newCondition
 func IsConditionChanged(newCondition []condition.Condition, workload ConditionedObject) bool {
 	var conditionIsChanged bool

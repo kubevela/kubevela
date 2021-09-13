@@ -594,7 +594,7 @@ var _ = Describe("Component revision", func() {
 	}
 
 	Context("Attach a revision-enable trait the first time, workload should not be recreated", func() {
-		PIt("should create Component and ApplicationConfiguration", func() {
+		It("should create Component and ApplicationConfiguration", func() {
 			By("submit Component")
 			Expect(k8sClient.Create(ctx, &component)).Should(Succeed())
 			By("check Component exist")

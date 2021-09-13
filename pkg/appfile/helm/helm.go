@@ -36,6 +36,11 @@ var (
 	DefaultIntervalDuration = &metav1.Duration{Duration: 5 * time.Minute}
 )
 
+// ConstructHelmReleaseName will format helm release name in a fixed way
+func ConstructHelmReleaseName(appName, compName string) string {
+	return appName + "-" + compName
+}
+
 // RenderHelmReleaseAndHelmRepo constructs HelmRelease and HelmRepository in unstructured format
 func RenderHelmReleaseAndHelmRepo(helmSpec *common.Helm, compName, appName, ns string, values map[string]interface{}) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
 	releaseSpec, repoSpec, err := decodeHelmSpec(helmSpec)
@@ -57,7 +62,7 @@ func RenderHelmReleaseAndHelmRepo(helmSpec *common.Helm, compName, appName, ns s
 	}
 
 	// construct unstructured HelmRelease object
-	rlsName := fmt.Sprintf("%s-%s", appName, compName)
+	rlsName := ConstructHelmReleaseName(appName, compName)
 	helmRelease := commonutil.GenerateUnstructuredObj(rlsName, ns, helmapi.HelmReleaseGVK)
 
 	// construct HelmRelease chart values

@@ -82,7 +82,7 @@ func (h *MutatingHandler) Mutate(obj *v1beta1.ComponentDefinition) error {
 	klog.InfoS("mutate", "name", obj.Name)
 
 	// If the Type field is not empty, it means that ComponentDefinition refers to an existing WorkloadDefinition
-	if obj.Spec.Workload.Type != "" && obj.Spec.Workload.Definition == (common.WorkloadGVK{}) {
+	if obj.Spec.Workload.Type != types.AutoDetectWorkloadDefinition && (obj.Spec.Workload.Type != "" && obj.Spec.Workload.Definition == (common.WorkloadGVK{})) {
 		workloadDef := new(v1beta1.WorkloadDefinition)
 		return h.Client.Get(context.TODO(), client.ObjectKey{Name: obj.Spec.Workload.Type, Namespace: obj.Namespace}, workloadDef)
 	}

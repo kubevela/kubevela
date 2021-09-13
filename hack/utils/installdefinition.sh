@@ -21,6 +21,12 @@ function check_install() {
       rm $file
       mv $file".bak" $file
     done
+
+  cd -
 }
+
+check_install
+
+DEF_PATH="charts/vela-core/templates/definitions"
 
 check_install

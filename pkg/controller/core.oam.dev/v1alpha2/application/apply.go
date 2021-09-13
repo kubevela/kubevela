@@ -63,6 +63,9 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.
 	_, err := h.dispatcher.Dispatch(ctx, manifests)
 	if err == nil {
 		for _, mf := range manifests {
+			if mf == nil {
+				continue
+			}
 			ref := common.ClusterObjectReference{
 				Cluster: cluster,
 				Creator: owner,
@@ -390,7 +393,7 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	}
 
 	// construct a fake rollout object and call rollout.DoReconcile
-	r := applicationrollout.NewReconciler(h.r.Client, h.r.dm, h.r.Recorder, h.r.Scheme)
+	r := applicationrollout.NewReconciler(h.r.Client, h.r.dm, h.r.pd, h.r.Recorder, h.r.Scheme, h.r.concurrentReconciles)
 	res, err := r.DoReconcile(ctx, &appRollout)
 	if err != nil {
 		return reconcile.Result{}, err

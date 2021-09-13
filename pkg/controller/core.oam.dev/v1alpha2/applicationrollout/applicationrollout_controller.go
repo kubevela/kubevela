@@ -150,7 +150,6 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 	if len(appRollout.Spec.ComponentList) == 1 {
 		h.needRollComponent = appRollout.Spec.ComponentList[0]
 	}
-
 	// call assemble func generate source and target manifest
 	if err = h.prepareWorkloads(ctx); err != nil {
 		return reconcile.Result{}, err
@@ -282,12 +281,14 @@ func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRo
 }
 
 // NewReconciler render a applicationRollout reconciler
-func NewReconciler(c client.Client, dm discoverymapper.DiscoveryMapper, record event.Recorder, scheme *runtime.Scheme) *Reconciler {
+func NewReconciler(c client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, record event.Recorder, scheme *runtime.Scheme, concurrent int) *Reconciler {
 	return &Reconciler{
-		Client: c,
-		dm:     dm,
-		record: record,
-		Scheme: scheme,
+		Client:               c,
+		dm:                   dm,
+		pd:                   pd,
+		record:               record,
+		Scheme:               scheme,
+		concurrentReconciles: concurrent,
 	}
 }
 

@@ -709,7 +709,6 @@ spec:
                   terminated:
                     type: boolean
                 required:
-                - contextBackend
                 - mode
                 - suspend
                 - terminated
@@ -1493,7 +1492,6 @@ spec:
                   terminated:
                     type: boolean
                 required:
-                - contextBackend
                 - mode
                 - suspend
                 - terminated

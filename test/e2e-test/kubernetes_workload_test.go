@@ -75,7 +75,7 @@ var _ = Describe("Test kubernetes native workloads", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(BeNil())
 	})
 
-	PIt("use deployment workload", func() {
+	It("use deployment workload", func() {
 		label := map[string]string{"workload": "deployment"}
 		// create a workload definition for
 		wd := v1alpha2.WorkloadDefinition{
