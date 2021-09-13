@@ -298,6 +298,9 @@ type WorkflowStatus struct {
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
 
+	// WaitCount counts the reconcile times on conditional wait
+	WaitCount int `json:"waitCount"`
+
 	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
 }
