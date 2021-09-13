@@ -178,6 +178,17 @@ spec:
                               type: string
                           type: object
                       type: object
+                    selector:
+                      description: EnvSelector defines which components should this
+                        env contains
+                      properties:
+                        components:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - components
+                      type: object
                   required:
                   - name
                   - patch

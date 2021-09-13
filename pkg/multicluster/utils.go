@@ -15,7 +15,6 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -26,8 +25,6 @@ const (
 	ClusterContextKey = contextKey("ClusterName")
 	// ClusterLabelKey specifies which cluster the target k8s object should locate
 	ClusterLabelKey = "cluster.oam.dev/clusterName"
-	// ApplicationClusterLabelKey specifies which cluster the target application should place its resources
-	ApplicationClusterLabelKey = "app.cluster.oam.dev/clusterName"
 )
 
 var (
@@ -43,11 +40,6 @@ func Context(ctx context.Context, obj *unstructured.Unstructured) context.Contex
 // ContextWithClusterName create context with multi-cluster by cluster name
 func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
 	return context.WithValue(ctx, ClusterContextKey, clusterName)
-}
-
-// ContextForApplicationResource create context with multi-cluster for application resource
-func ContextForApplicationResource(ctx context.Context, application *v1beta1.Application) context.Context {
-	return context.WithValue(ctx, ClusterContextKey, application.GetLabels()[ApplicationClusterLabelKey])
 }
 
 // SetClusterName set cluster name for object

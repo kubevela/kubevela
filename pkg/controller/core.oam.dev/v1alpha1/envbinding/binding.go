@@ -19,6 +19,7 @@ package envbinding
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
@@ -63,6 +64,21 @@ func NewEnvBindApp(base *v1beta1.Application, envConfig *v1alpha1.EnvConfig) *En
 func (e *EnvBindApp) generateConfiguredApplication() error {
 	newApp := e.baseApp.DeepCopy()
 
+	// select which components to use
+	if e.envConfig.Selector != nil {
+		compMap := make(map[string]bool)
+		for _, comp := range e.envConfig.Selector.Components {
+			compMap[comp] = true
+		}
+		comps := make([]common.ApplicationComponent, 0)
+		for _, comp := range newApp.Spec.Components {
+			if _, ok := compMap[comp.Name]; ok {
+				comps = append(comps, comp)
+			}
+		}
+		newApp.Spec.Components = comps
+	}
+
 	var baseComponent *common.ApplicationComponent
 	var misMatchedIdxs []int
 	for patchIdx := range e.envConfig.Patch.Components {
@@ -70,8 +86,8 @@ func (e *EnvBindApp) generateConfiguredApplication() error {
 		isMatched := false
 		patchComponent := e.envConfig.Patch.Components[patchIdx]
 
-		for baseIdx := range e.baseApp.Spec.Components {
-			component := e.baseApp.Spec.Components[baseIdx]
+		for baseIdx := range newApp.Spec.Components {
+			component := newApp.Spec.Components[baseIdx]
 			if patchComponent.Name == component.Name && patchComponent.Type == component.Type {
 				matchedIdx, baseComponent = baseIdx, &component
 				isMatched = true
@@ -90,6 +106,9 @@ func (e *EnvBindApp) generateConfiguredApplication() error {
 	}
 	for _, idx := range misMatchedIdxs {
 		newApp.Spec.Components = append(newApp.Spec.Components, e.envConfig.Patch.Components[idx])
+	}
+	if len(newApp.Spec.Components) == 0 {
+		return fmt.Errorf("no component found in env %s", e.envConfig.Name)
 	}
 	e.patchedApp = newApp
 	return nil

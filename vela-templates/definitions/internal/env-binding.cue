@@ -49,6 +49,9 @@ template: {
 				name?: string
 			}
 		}
+		selector?: {
+			components: [...string]
+		}
 	}
 	parameter: {
 		clusterManagementEngine: *"cluster-gateway" | string

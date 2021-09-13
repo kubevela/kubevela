@@ -76,10 +76,16 @@ type EnvPlacement struct {
 	NamespaceSelector *NamespaceSelector      `json:"namespaceSelector,omitempty"`
 }
 
+// EnvSelector defines which components should this env contains
+type EnvSelector struct {
+	Components []string `json:"components"`
+}
+
 // EnvConfig is the configuration for different environments.
 type EnvConfig struct {
 	Name      string       `json:"name"`
 	Placement EnvPlacement `json:"placement,omitempty"`
+	Selector  *EnvSelector `json:"selector,omitempty"`
 	Patch     EnvPatch     `json:"patch"`
 }
 
