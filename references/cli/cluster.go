@@ -188,6 +188,9 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 			if clusterName == "" {
 				clusterName = ctx.Cluster
 			}
+			if clusterName == multicluster.ClusterLocalName {
+				return fmt.Errorf("cannot use `%s` as cluster name, it is reserved as the local cluster", multicluster.ClusterLocalName)
+			}
 
 			if err := ensureClusterNotExists(c.Client, clusterName); err != nil {
 				return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
@@ -259,6 +262,9 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			oldClusterName := args[0]
 			newClusterName := args[1]
+			if newClusterName == multicluster.ClusterLocalName {
+				return fmt.Errorf("cannot use `%s` as cluster name, it is reserved as the local cluster", multicluster.ClusterLocalName)
+			}
 			clusterSecret, err := getMutableClusterSecret(c.Client, oldClusterName)
 			if err != nil {
 				return errors.Wrapf(err, "cluster %s is not mutable now", oldClusterName)
@@ -293,6 +299,9 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 		Args:  cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
+			if clusterName == multicluster.ClusterLocalName {
+				return fmt.Errorf("cannot delete `%s` cluster, it is reserved as the local cluster", multicluster.ClusterLocalName)
+			}
 			clusterSecret, err := getMutableClusterSecret(c.Client, clusterName)
 			if err != nil {
 				return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)

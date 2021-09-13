@@ -189,6 +189,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				Namespace: envBinding.Namespace,
 				Name:      envBinding.Name,
 			}
+			envBinding.Spec.Engine = v1alpha1.OCMEngine
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -202,9 +203,10 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			}, 30*time.Second, 1*time.Second).Should(BeNil())
 
 			By("Check whether the parameter is patched")
-			mw := new(ocmworkv1.ManifestWork)
-			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
-			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
+			m := map[string]*ocmworkv1.ManifestWork{}
+			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
+			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
+			mw := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
 			workload1 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
 			Expect(workload1.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
@@ -236,6 +238,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				Namespace: envBinding.Namespace,
 				Name:      envBinding.Name,
 			}
+			envBinding.Spec.Engine = v1alpha1.OCMEngine
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			plName := fmt.Sprintf("%s-%s", appTemplate.Name, envBinding.Spec.Envs[0].Name)
@@ -252,9 +255,10 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			}, 30*time.Second, 1*time.Second).Should(BeNil())
 
 			By("Check whether the parameter is patched")
-			mw := new(ocmworkv1.ManifestWork)
-			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
-			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
+			m := map[string]*ocmworkv1.ManifestWork{}
+			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
+			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
+			mw := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
 			workload := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload)).Should(BeNil())
 			Expect(workload.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
@@ -306,6 +310,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				Namespace: envBinding.Namespace,
 				Name:      envBinding.Name,
 			}
+			envBinding.Spec.Engine = v1alpha1.OCMEngine
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -319,17 +324,19 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			}, 30*time.Second, 1*time.Second).Should(BeNil())
 
 			By("Check whether the parameter is patched")
-			mw1 := new(ocmworkv1.ManifestWork)
-			mw1Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
-			Expect(yaml.Unmarshal([]byte(mw1Yaml), mw1)).Should(BeNil())
+			m := map[string]*ocmworkv1.ManifestWork{}
+			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
+			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
+			mw1 := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
 			workload1 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw1.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
 			Expect(workload1.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
 			Expect(workload1.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
 
-			mw2 := new(ocmworkv1.ManifestWork)
-			mw2Yaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[1].Name, appTemplate.Name)]
-			Expect(yaml.Unmarshal([]byte(mw2Yaml), mw2)).Should(BeNil())
+			m2 := map[string]*ocmworkv1.ManifestWork{}
+			mw2Yaml := cm.Data[envBinding.Spec.Envs[1].Name]
+			Expect(yaml.Unmarshal([]byte(mw2Yaml), &m2)).Should(BeNil())
+			mw2 := m2[envBinding.Name + "-" + envBinding.Spec.Envs[1].Name + "-" + appTemplate.Name]
 			workload2 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw2.Spec.Workload.Manifests[0].Raw, workload2)).Should(BeNil())
 			Expect(workload2.Spec.Template.GetLabels()["hello"]).Should(Equal("patch-test"))
@@ -380,6 +387,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				Namespace: envBinding.Namespace,
 				Name:      envBinding.Name,
 			}
+			envBinding.Spec.Engine = v1alpha1.OCMEngine
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -392,9 +400,10 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				return k8sClient.Get(ctx, client.ObjectKey{Name: envBinding.Name, Namespace: namespace}, cm)
 			}, 30*time.Second, 1*time.Second).Should(BeNil())
 
-			mw := new(ocmworkv1.ManifestWork)
-			mwYaml := cm.Data[fmt.Sprintf("%s-%s-%s", envBinding.Name, envBinding.Spec.Envs[0].Name, appTemplate.Name)]
-			Expect(yaml.Unmarshal([]byte(mwYaml), mw)).Should(BeNil())
+			m := make(map[string]*ocmworkv1.ManifestWork)
+			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
+			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
+			mw := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
 			Expect(len(mw.Spec.Workload.Manifests)).Should(Equal(3))
 		})
 
@@ -410,6 +419,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				RawExtension: util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
+			envBinding.Spec.Engine = v1alpha1.OCMEngine
 
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Namespace: namespace, Name: envBinding.Name}}
 			By("Create envBinding")
@@ -504,12 +514,11 @@ var _ = Describe("EnvBinding Normal tests", func() {
 				return k8sClient.Get(ctx, cmKey, cm)
 			}, 3*time.Second, 1*time.Second).Should(BeNil())
 
-			appName := fmt.Sprintf("%s-%s-%s", envBinding.Name, "prod", appTemplate.Name)
-			appYaml := cm.Data[appName]
-
 			By("Check whether the parameter is patched")
-			app := new(v1beta1.Application)
-			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(BeNil())
+			m := make(map[string]*v1beta1.Application)
+			Expect(yaml.Unmarshal([]byte(cm.Data["prod"]), &m)).Should(BeNil())
+			appName := fmt.Sprintf("%s-%s-%s", envBinding.Name, "prod", appTemplate.Name)
+			app := m[appName]
 
 			componentParameter := make(map[string]string)
 			Expect(json.Unmarshal(app.Spec.Components[0].Properties.Raw, &componentParameter)).Should(BeNil())

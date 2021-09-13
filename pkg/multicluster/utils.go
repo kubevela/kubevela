@@ -25,6 +25,8 @@ const (
 	ClusterContextKey = contextKey("ClusterName")
 	// ClusterLabelKey specifies which cluster the target k8s object should locate
 	ClusterLabelKey = "cluster.oam.dev/clusterName"
+	// ClusterLocalName specifies the local cluster
+	ClusterLocalName = "local"
 )
 
 var (

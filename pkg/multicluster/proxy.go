@@ -47,7 +47,7 @@ func FormatProxyURL(clusterName, originalPath string) string {
 func (rt *secretMultiClusterRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	clusterName, ok := ctx.Value(ClusterContextKey).(string)
-	if !ok || clusterName == "" {
+	if !ok || clusterName == "" || clusterName == ClusterLocalName {
 		return rt.rt.RoundTrip(req)
 	}
 
