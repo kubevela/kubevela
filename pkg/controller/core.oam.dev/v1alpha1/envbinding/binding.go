@@ -94,8 +94,10 @@ func (e *EnvBindApp) generateConfiguredApplication() error {
 	// select which components to use
 	if e.envConfig.Selector != nil {
 		compMap := make(map[string]bool)
-		for _, comp := range e.envConfig.Selector.Components {
-			compMap[comp] = true
+		if len(e.envConfig.Selector.Components) > 0 {
+			for _, comp := range e.envConfig.Selector.Components {
+				compMap[comp] = true
+			}
 		}
 		comps := make([]common.ApplicationComponent, 0)
 		for _, comp := range newApp.Spec.Components {

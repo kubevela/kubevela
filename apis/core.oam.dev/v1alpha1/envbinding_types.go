@@ -78,7 +78,7 @@ type EnvPlacement struct {
 
 // EnvSelector defines which components should this env contains
 type EnvSelector struct {
-	Components []string `json:"components"`
+	Components []string `json:"components,omitempty"`
 }
 
 // EnvConfig is the configuration for different environments.

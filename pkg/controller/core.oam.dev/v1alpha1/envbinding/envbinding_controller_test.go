@@ -206,7 +206,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			m := map[string]*ocmworkv1.ManifestWork{}
 			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
 			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
-			mw := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
+			mw := m[envBinding.Name+"-"+envBinding.Spec.Envs[0].Name+"-"+appTemplate.Name]
 			workload1 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
 			Expect(workload1.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
@@ -258,7 +258,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			m := map[string]*ocmworkv1.ManifestWork{}
 			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
 			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
-			mw := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
+			mw := m[envBinding.Name+"-"+envBinding.Spec.Envs[0].Name+"-"+appTemplate.Name]
 			workload := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw.Spec.Workload.Manifests[0].Raw, workload)).Should(BeNil())
 			Expect(workload.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
@@ -327,7 +327,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			m := map[string]*ocmworkv1.ManifestWork{}
 			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
 			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
-			mw1 := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
+			mw1 := m[envBinding.Name+"-"+envBinding.Spec.Envs[0].Name+"-"+appTemplate.Name]
 			workload1 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw1.Spec.Workload.Manifests[0].Raw, workload1)).Should(BeNil())
 			Expect(workload1.Spec.Template.GetLabels()["hello"]).Should(Equal("patch"))
@@ -336,7 +336,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			m2 := map[string]*ocmworkv1.ManifestWork{}
 			mw2Yaml := cm.Data[envBinding.Spec.Envs[1].Name]
 			Expect(yaml.Unmarshal([]byte(mw2Yaml), &m2)).Should(BeNil())
-			mw2 := m2[envBinding.Name + "-" + envBinding.Spec.Envs[1].Name + "-" + appTemplate.Name]
+			mw2 := m2[envBinding.Name+"-"+envBinding.Spec.Envs[1].Name+"-"+appTemplate.Name]
 			workload2 := new(v1.Deployment)
 			Expect(yaml.Unmarshal(mw2.Spec.Workload.Manifests[0].Raw, workload2)).Should(BeNil())
 			Expect(workload2.Spec.Template.GetLabels()["hello"]).Should(Equal("patch-test"))
@@ -403,7 +403,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			m := make(map[string]*ocmworkv1.ManifestWork)
 			mw1Yaml := cm.Data[envBinding.Spec.Envs[0].Name]
 			Expect(yaml.Unmarshal([]byte(mw1Yaml), &m)).Should(BeNil())
-			mw := m[envBinding.Name + "-" + envBinding.Spec.Envs[0].Name + "-" + appTemplate.Name]
+			mw := m[envBinding.Name+"-"+envBinding.Spec.Envs[0].Name+"-"+appTemplate.Name]
 			Expect(len(mw.Spec.Workload.Manifests)).Should(Equal(3))
 		})
 
