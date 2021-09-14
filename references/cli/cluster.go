@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
+	"github.com/oam-dev/kubevela/references/a/preimport"
 )
 
 const (
@@ -65,7 +66,9 @@ func ClusterCommandGroup(c common.Args) *cobra.Command {
 			}
 			c.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 			c.Client = nil
+			preimport.SuppressLogging()
 			k8sClient, err := c.GetClient()
+			preimport.ResumeLogging()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
