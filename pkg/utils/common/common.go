@@ -34,6 +34,7 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -54,6 +55,7 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
@@ -76,6 +78,7 @@ func init() {
 	_ = terraformv1beta1.AddToScheme(Scheme)
 	_ = ocmclusterv1alpha1.Install(Scheme)
 	_ = ocmworkv1.Install(Scheme)
+	_ = clustergatewayapi.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -242,23 +245,51 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 
 // ClusterObject2Map convert ClusterObjectReference to a readable map
 func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
-	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | GVK: %s/%s | Name: %s"
+	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | Kind: %s | Name: %s"
 	objs := make(map[string]string, len(refs))
 	for _, r := range refs {
 		if r.Cluster == "" {
 			r.Cluster = "local"
 		}
-		objs[r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.APIVersion, r.Kind, r.Name)
+		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Kind, r.Name)
 	}
 	return objs
 }
 
-// AskToChooseOneAppliedResource will ask users to select one applied resource of the application if more than one
+// ResourceLocation indicates the resource location
+type ResourceLocation struct {
+	Cluster   string
+	Namespace string
+}
+
+func filterWorkload(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
+	var filteredOR []common.ClusterObjectReference
+	loggableWorkload := map[string]bool{
+		"Deployment":  true,
+		"StatefulSet": true,
+		"CloneSet":    true,
+		"Job":         true,
+	}
+	for _, r := range resources {
+		if _, ok := loggableWorkload[r.Kind]; ok {
+			filteredOR = append(filteredOR, r)
+		}
+	}
+	return filteredOR
+}
+
+// AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
 // resources is a map for component to applied resources
 // return the selected ClusterObjectReference
-func AskToChooseOneAppliedResource(resources []common.ClusterObjectReference) (*common.ClusterObjectReference, error) {
+func AskToChooseOneEnvResource(app *v1beta1.Application) (*common.ClusterObjectReference, error) {
+	resources := app.Status.AppliedResources
 	if len(resources) == 0 {
-		return nil, fmt.Errorf("no applied resources exist in the application")
+		return nil, fmt.Errorf("no resources in the application deployed yet")
+	}
+	resources = filterWorkload(resources)
+	// filter locations
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("no supported workload resources detected in deployed resources")
 	}
 	if len(resources) == 1 {
 		return &resources[0], nil
@@ -269,7 +300,7 @@ func AskToChooseOneAppliedResource(resources []common.ClusterObjectReference) (*
 		ops = append(ops, r)
 	}
 	prompt := &survey.Select{
-		Message: "You have multiple applied resources in your app. Please choose one:",
+		Message: fmt.Sprintf("You have %d deployed resources in your app. Please choose one:", len(ops)),
 		Options: ops,
 	}
 	var selectedRsc string
@@ -285,7 +316,7 @@ func AskToChooseOneAppliedResource(resources []common.ClusterObjectReference) (*
 	return nil, fmt.Errorf("choosing resource err %w", err)
 }
 
-// AskToChooseOneService will ask users to select one service of the application if more than one exidi
+// AskToChooseOneService will ask users to select one service of the application if more than one
 func AskToChooseOneService(svcNames []string) (string, error) {
 	if len(svcNames) == 0 {
 		return "", fmt.Errorf("no service exist in the application")
@@ -301,6 +332,26 @@ func AskToChooseOneService(svcNames []string) (string, error) {
 	err := survey.AskOne(prompt, &svcName)
 	if err != nil {
 		return "", fmt.Errorf("choosing service err %w", err)
+	}
+	return svcName, nil
+}
+
+// AskToChooseOnePods will ask users to select one pods of the resource if more than one
+func AskToChooseOnePods(podNames []string) (string, error) {
+	if len(podNames) == 0 {
+		return "", fmt.Errorf("no service exist in the application")
+	}
+	if len(podNames) == 1 {
+		return podNames[0], nil
+	}
+	prompt := &survey.Select{
+		Message: "You have multiple pods in the specified resource. Please choose one: ",
+		Options: podNames,
+	}
+	var svcName string
+	err := survey.AskOne(prompt, &svcName)
+	if err != nil {
+		return "", fmt.Errorf("choosing pod err %w", err)
 	}
 	return svcName, nil
 }
