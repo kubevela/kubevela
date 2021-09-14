@@ -27,6 +27,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,7 +53,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 	)
 	var (
 		ctx       = context.Background()
-		cw        v1alpha2.ContainerizedWorkload
+		cw        appsv1.Deployment
 		component v1alpha2.Component
 		fakeTrait *unstructured.Unstructured
 		appConfig v1alpha2.ApplicationConfiguration
@@ -73,23 +74,17 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 	)
 
 	BeforeEach(func() {
-		cw = v1alpha2.ContainerizedWorkload{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ContainerizedWorkload",
-				APIVersion: "core.oam.dev/v1alpha2",
-			},
+		cw = appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: image1,
-						Ports: []v1alpha2.ContainerPort{
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
-								Name: "wordpress",
-								Port: 80,
+								Image: image1,
+								Name:  "wordpress",
 							},
 						},
 					},
@@ -182,13 +177,13 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyOn
 
 			By("Get workload instance & Check workload spec")
-			cwObj := v1alpha2.ContainerizedWorkload{}
+			cwObj := appsv1.Deployment{}
 			Eventually(func() error {
 				By("Reconcile")
 				testutil.ReconcileRetry(reconciler, req)
 				return k8sClient.Get(ctx, cwObjKey, &cwObj)
 			}, 5*time.Second, time.Second).Should(BeNil())
-			Expect(cwObj.Spec.Containers[0].Image).Should(Equal(image1))
+			Expect(cwObj.Spec.Template.Spec.Containers[0].Image).Should(Equal(image1))
 
 			By("Get trait instance & Check trait spec")
 			fooObj := &unstructured.Unstructured{}
@@ -201,7 +196,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(fooObjV).Should(Equal(traitSpecValue1))
 
 			By("Modify workload spec & Apply changed workload")
-			cwObj.Spec.Containers[0].Image = image2
+			cwObj.Spec.Template.Spec.Containers[0].Image = image2
 			Expect(k8sClient.Patch(ctx, &cwObj, client.Merge)).Should(Succeed())
 
 			By("Modify trait spec & Apply changed trait")
@@ -209,12 +204,12 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(k8sClient.Patch(ctx, fooObj, client.Merge)).Should(Succeed())
 
 			By("Get updated workload instance & Check workload spec")
-			updateCwObj := v1alpha2.ContainerizedWorkload{}
+			updateCwObj := appsv1.Deployment{}
 			Eventually(func() string {
 				if err := k8sClient.Get(ctx, cwObjKey, &updateCwObj); err != nil {
 					return ""
 				}
-				return updateCwObj.Spec.Containers[0].Image
+				return updateCwObj.Spec.Template.Spec.Containers[0].Image
 			}, 3*time.Second, time.Second).Should(Equal(image2))
 
 			By("Get updated trait instance & Check trait spec")
@@ -234,12 +229,12 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is not changed by reconciliation")
-			updateCwObj = v1alpha2.ContainerizedWorkload{}
+			updateCwObj = appsv1.Deployment{}
 			Eventually(func() string {
 				if err := k8sClient.Get(ctx, cwObjKey, &updateCwObj); err != nil {
 					return ""
 				}
-				return updateCwObj.Spec.Containers[0].Image
+				return updateCwObj.Spec.Template.Spec.Containers[0].Image
 			}, 3*time.Second, time.Second).Should(Equal(image2))
 
 			By("Check trait is not changed by reconciliation")
@@ -259,12 +254,12 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 
 			By("Check workload is changed by reconciliation")
-			updateCwObj = v1alpha2.ContainerizedWorkload{}
+			updateCwObj = appsv1.Deployment{}
 			Eventually(func() string {
 				if err := k8sClient.Get(ctx, cwObjKey, &updateCwObj); err != nil {
 					return ""
 				}
-				return updateCwObj.Spec.Containers[0].Image
+				return updateCwObj.Spec.Template.Spec.Containers[0].Image
 			}, 3*time.Second, time.Second).Should(Equal(image1))
 
 			By("Check trait is changed by reconciliation")
@@ -285,7 +280,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyOn
 
 			By("Get workload instance & Check workload spec")
-			cwObj := v1alpha2.ContainerizedWorkload{}
+			cwObj := appsv1.Deployment{}
 			Eventually(func() error {
 				By("Reconcile")
 				testutil.ReconcileRetry(reconciler, req)
@@ -294,14 +289,14 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 			By("Delete the workload")
 			Expect(k8sClient.Delete(ctx, &cwObj)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, cwObjKey, &v1alpha2.ContainerizedWorkload{})).Should(util.NotFoundMatcher{})
+			Expect(k8sClient.Get(ctx, cwObjKey, &appsv1.Deployment{})).Should(util.NotFoundMatcher{})
 
 			By("Reconcile")
 			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is created by reconciliation")
-			recreatedCwObj := v1alpha2.ContainerizedWorkload{}
+			recreatedCwObj := appsv1.Deployment{}
 			Expect(k8sClient.Get(ctx, cwObjKey, &recreatedCwObj)).Should(Succeed())
 		})
 	})
@@ -658,11 +653,11 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			time.Sleep(2 * time.Second)
 
 			By("Get workload instance & Check workload spec")
-			cwObj := v1alpha2.ContainerizedWorkload{}
+			cwObj := appsv1.Deployment{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "mycomp2"}, &cwObj)
 			}, 5*time.Second, time.Second).Should(BeNil())
-			Expect(cwObj.Spec.Containers[0].Image).Should(Equal(image1))
+			Expect(cwObj.Spec.Template.Spec.Containers[0].Image).Should(Equal(image1))
 
 			By("Get trait instance & Check trait spec")
 			fooObj := &unstructured.Unstructured{}
@@ -681,13 +676,13 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce
 
 			By("Get workload instance & Check workload spec")
-			cwObj := v1alpha2.ContainerizedWorkload{}
+			cwObj := appsv1.Deployment{}
 			Eventually(func() error {
 				By("Reconcile")
 				testutil.ReconcileRetry(reconciler, req)
 				return k8sClient.Get(ctx, cwObjKey, &cwObj)
 			}, 5*time.Second, time.Second).Should(BeNil())
-			Expect(cwObj.Spec.Containers[0].Image).Should(Equal(image1))
+			Expect(cwObj.Spec.Template.Spec.Containers[0].Image).Should(Equal(image1))
 
 			By("Get trait instance & Check trait spec")
 			fooObj := &unstructured.Unstructured{}
@@ -700,7 +695,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(fooObjV).Should(Equal(traitSpecValue1))
 
 			By("Modify workload spec & Apply changed workload")
-			cwObj.Spec.Containers[0].Image = image2
+			cwObj.Spec.Template.Spec.Containers[0].Image = image2
 			Expect(k8sClient.Patch(ctx, &cwObj, client.Merge)).Should(Succeed())
 
 			By("Modify trait spec & Apply changed trait")
@@ -708,12 +703,12 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(k8sClient.Patch(ctx, fooObj, client.Merge)).Should(Succeed())
 
 			By("Get updated workload instance & Check workload spec")
-			updateCwObj := v1alpha2.ContainerizedWorkload{}
+			updateCwObj := appsv1.Deployment{}
 			Eventually(func() string {
 				if err := k8sClient.Get(ctx, cwObjKey, &updateCwObj); err != nil {
 					return ""
 				}
-				return updateCwObj.Spec.Containers[0].Image
+				return updateCwObj.Spec.Template.Spec.Containers[0].Image
 			}, 3*time.Second, time.Second).Should(Equal(image2))
 
 			By("Get updated trait instance & Check trait spec")
@@ -733,12 +728,12 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is not changed by reconciliation")
-			updateCwObj = v1alpha2.ContainerizedWorkload{}
+			updateCwObj = appsv1.Deployment{}
 			Eventually(func() string {
 				if err := k8sClient.Get(ctx, cwObjKey, &updateCwObj); err != nil {
 					return ""
 				}
-				return updateCwObj.Spec.Containers[0].Image
+				return updateCwObj.Spec.Template.Spec.Containers[0].Image
 			}, 3*time.Second, time.Second).Should(Equal(image2))
 
 			By("Check trait is not changed by reconciliation")
@@ -758,12 +753,12 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Expect(func() error { _, err := reconciler.Reconcile(context.TODO(), req); return err }()).Should(BeNil())
 
 			By("Check workload is changed by reconciliation")
-			updateCwObj = v1alpha2.ContainerizedWorkload{}
+			updateCwObj = appsv1.Deployment{}
 			Eventually(func() string {
 				if err := k8sClient.Get(ctx, cwObjKey, &updateCwObj); err != nil {
 					return ""
 				}
-				return updateCwObj.Spec.Containers[0].Image
+				return updateCwObj.Spec.Template.Spec.Containers[0].Image
 			}, 3*time.Second, time.Second).Should(Equal(image1))
 
 			By("Check trait is changed by reconciliation")
@@ -784,7 +779,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce
 
 			By("Get workload instance")
-			cwObj := v1alpha2.ContainerizedWorkload{}
+			cwObj := appsv1.Deployment{}
 			Eventually(func() error {
 				By("Reconcile")
 				testutil.ReconcileRetry(reconciler, req)
@@ -801,7 +796,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 			By("Delete the workload")
 			Expect(k8sClient.Delete(ctx, &cwObj)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, cwObjKey, &v1alpha2.ContainerizedWorkload{})).Should(util.NotFoundMatcher{})
+			Expect(k8sClient.Get(ctx, cwObjKey, &appsv1.Deployment{})).Should(util.NotFoundMatcher{})
 
 			By("Delete the trait")
 			Expect(k8sClient.Delete(ctx, &fooObj)).Should(Succeed())
@@ -812,7 +807,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			time.Sleep(3 * time.Second)
 
 			By("Check workload is not re-created by reconciliation")
-			recreatedCwObj := v1alpha2.ContainerizedWorkload{}
+			recreatedCwObj := appsv1.Deployment{}
 			Expect(k8sClient.Get(ctx, cwObjKey, &recreatedCwObj)).Should(util.NotFoundMatcher{})
 
 			By("Check trait is not re-created by reconciliation")
@@ -858,7 +853,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			Eventually(func() error {
 				By("Reconcile")
 				testutil.ReconcileRetry(reconciler, req)
-				recreatedCwObj = v1alpha2.ContainerizedWorkload{}
+				recreatedCwObj = appsv1.Deployment{}
 				return k8sClient.Get(ctx, cwObjKey, &recreatedCwObj)
 			}, 5*time.Second, time.Second).Should(SatisfyAll(util.NotFoundMatcher{}))
 
