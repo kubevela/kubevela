@@ -104,7 +104,7 @@ dependCheckWait: 30s
 OAMSpecVer: "v0.3"
 
 apiServer:
-  enabled: false
+  enabled: true
   port: 8000
   replicaCount: 1
   Service:

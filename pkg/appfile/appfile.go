@@ -353,9 +353,9 @@ func (af *Appfile) assembleWorkload(wl *unstructured.Unstructured, compName stri
 	// use component name as workload name
 	// override the name set in render phase if exist
 	wl.SetName(compName)
+	af.setNamespace(wl)
 	af.setWorkloadLabels(wl, labels)
 	af.filterAndSetAnnotations(wl)
-	af.setNamespace(wl)
 }
 
 /* NOTE a workload has these possible labels
@@ -410,6 +410,13 @@ func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *un
 	traitType := trait.GetLabels()[oam.TraitTypeLabel]
 	if traitType == definition.AuxiliaryWorkload {
 		return nil
+	}
+	if strings.Contains(traitType, "-") {
+		splitName := traitType[0:strings.LastIndex(traitType, "-")]
+		_, ok := af.RelatedTraitDefinitions[splitName]
+		if ok {
+			traitType = splitName
+		}
 	}
 	traitDef, ok := af.RelatedTraitDefinitions[traitType]
 	if !ok {
@@ -482,7 +489,7 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 			}
 		}
 		for _, aux := range auxiliaries {
-			if p, err := patcher.LookupByScript(fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil {
+			if p, err := patcher.LookupByScript(fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil && p.CueValue().Err() == nil {
 				pi, err := model.NewOther(p.CueValue())
 				if err != nil {
 					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
@@ -785,6 +792,7 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 		ExternalRevision: wl.ExternalRevision,
 		StandardWorkload: &unstructured.Unstructured{},
 	}
+
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
 		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)
 		if err != nil {

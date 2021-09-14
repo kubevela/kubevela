@@ -163,7 +163,7 @@ spec:
 		Expect(k8sClient.Patch(ctx, &scalerTd, client.Merge)).Should(Succeed())
 	})
 
-	PIt("Test deploy an application containing kube module", func() {
+	It("Test deploy an application containing kube module", func() {
 		app = v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appName,
@@ -286,7 +286,7 @@ spec:
 		}, 60*time.Second, 10*time.Second).Should(BeTrue())
 	})
 
-	PIt("Test deploy an application containing kube module defined by workloadDefinition", func() {
+	It("Test deploy an application containing kube module defined by workloadDefinition", func() {
 		workloaddef := v1beta1.WorkloadDefinition{}
 		workloaddef.SetName(wdName)
 		workloaddef.SetNamespace(namespace)
@@ -339,7 +339,7 @@ spec:
 		}, 15*time.Second, 3*time.Second).Should(Succeed())
 	})
 
-	PIt("Test store JSON schema of Kube parameter in ConfigMap", func() {
+	It("Test store JSON schema of Kube parameter in ConfigMap", func() {
 		By("Get the ConfigMap")
 		cmName := fmt.Sprintf("schema-%s", cdName)
 		Eventually(func() error {

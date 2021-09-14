@@ -45,7 +45,7 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error {
 	if phase == common.WorkflowStepPhaseSucceeded {
 		for _, output := range step.Outputs {
-			v, err := taskValue.LookupByScript(output.ExportKey)
+			v, err := taskValue.LookupByScript(output.ValueFrom)
 			if err != nil {
 				return err
 			}

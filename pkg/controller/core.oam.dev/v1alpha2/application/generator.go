@@ -19,6 +19,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -126,18 +128,27 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if err := af.SetOAMContract(manifest); err != nil {
 			return nil, nil, false, errors.WithMessage(err, "SetOAMContract")
 		}
-		if err := h.HandleComponentsRevision(context.Background(), []*types.ComponentManifest{manifest}); err != nil {
+		if err := h.HandleComponentsRevision(context.TODO(), []*types.ComponentManifest{manifest}); err != nil {
 			return nil, nil, false, errors.WithMessage(err, "HandleComponentsRevision")
+		}
+		if len(manifest.PackagedWorkloadResources) != 0 {
+			if err := h.Dispatch(context.TODO(), "", common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
+				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
+			}
+		}
+		readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), h.r.Client)})
+		if err != nil {
+			return nil, nil, false, errors.WithMessage(err, "assemble resources before apply fail")
 		}
 
 		skipStandardWorkload := skipApplyWorkload(wl)
 		if !skipStandardWorkload {
-			if err := h.Dispatch(context.Background(), "", common.WorkflowResourceCreator, manifest.StandardWorkload); err != nil {
+			if err := h.Dispatch(context.TODO(), "", common.WorkflowResourceCreator, readyWorkload); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "DispatchStandardWorkload")
 			}
 		}
 
-		if err := h.Dispatch(context.Background(), "", common.WorkflowResourceCreator, manifest.Traits...); err != nil {
+		if err := h.Dispatch(context.TODO(), "", common.WorkflowResourceCreator, readyTraits...); err != nil {
 			return nil, nil, false, errors.WithMessage(err, "DispatchTraits")
 		}
 

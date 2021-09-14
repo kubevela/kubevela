@@ -136,7 +136,7 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 	})
 
 	When("AppConfig has no scopes", func() {
-		PIt("should not register finalizer", func() {
+		It("should not register finalizer", func() {
 			appConfig.Spec.Components = []v1alpha2.ApplicationConfigurationComponent{
 				{
 					ComponentName: componentName,
@@ -166,7 +166,7 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 	})
 
 	When("AppConfig has scopes", func() {
-		PIt("should handle finalizer before being deleted", func() {
+		It("should handle finalizer before being deleted", func() {
 			// create health scope definition
 			sd := v1alpha2.ScopeDefinition{
 				ObjectMeta: metav1.ObjectMeta{

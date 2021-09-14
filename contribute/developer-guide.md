@@ -82,7 +82,7 @@ make core-install
 To ensure you have created vela-system namespace and install definitions of necessary module.
 you can run the command:
 ```shell script
-make check-install-def
+make def-install
 ```
 
 And then run locally:

@@ -42,7 +42,7 @@ spec:
         type: apply-base
         outputs:
         - name: baseIP
-          exportKey: clusterIP
+          valueFrom: clusterIP
         properties:
           component: base-service
       - name: apply-redis

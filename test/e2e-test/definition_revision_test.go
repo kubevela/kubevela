@@ -125,7 +125,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
 	})
 
-	PIt("Test deploy application which containing cue rendering module", func() {
+	It("Test deploy application which containing cue rendering module", func() {
 		var (
 			appName   = "test-website-app"
 			comp1Name = "front"
@@ -322,7 +322,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(HaveOccurred())
 	})
 
-	PIt("Test deploy application which specify the name of component", func() {
+	It("Test deploy application which specify the name of component", func() {
 		compName := "job"
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -352,7 +352,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 	})
 
-	PIt("Test deploy application which containing helm module", func() {
+	It("Test deploy application which containing helm module", func() {
 		var (
 			appName  = "test-helm"
 			compName = "worker"
@@ -513,7 +513,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}, 120*time.Second, 5*time.Second).Should(BeTrue())
 	})
 
-	PIt("Test deploy application which containing kube module", func() {
+	It("Test deploy application which containing kube module", func() {
 		var (
 			appName  = "test-kube-app"
 			compName = "worker"
@@ -686,7 +686,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 	})
 
 	// refer to https://github.com/oam-dev/kubevela/discussions/1810#discussioncomment-914295
-	PIt("Test k8s resources created by application whether with correct label", func() {
+	It("Test k8s resources created by application whether with correct label", func() {
 		var (
 			appName  = "test-resources-labels"
 			compName = "web"
@@ -708,7 +708,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 			if err != nil {
 				return err
 			}
-			exposeV2.Spec.Schematic.CUE.Template = exposeV2Templae
+			exposeV2.Spec.Schematic.CUE.Template = exposeV2Template
 			return k8sClient.Update(ctx, exposeV2)
 		}, 15*time.Second, time.Second).Should(BeNil())
 
@@ -1157,7 +1157,7 @@ parameter: {
 }
 `
 
-var exposeV2Templae = `
+var exposeV2Template = `
 outputs: service: {
 	apiVersion: "v1"
 	kind:       "Service"

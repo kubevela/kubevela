@@ -61,7 +61,7 @@ output: score: 99
 	assert.NilError(t, err)
 	Output(wfCtx, taskValue, v1beta1.WorkflowStep{
 		Outputs: common.StepOutputs{{
-			ExportKey: "output.score",
+			ValueFrom: "output.score",
 			Name:      "myscore",
 		}},
 	}, common.WorkflowStepPhaseSucceeded)

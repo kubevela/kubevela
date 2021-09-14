@@ -41,9 +41,9 @@ spec:
 
           echo "Waiting application is ready..."
 
-          echo "waiting for application being Applied"
-          kubectl -n vela-system wait --for=condition=Applied applications.core.oam.dev helm-test-vela-app --timeout=3m
-          echo "application being Applied"
+          echo "waiting for application being Ready"
+          kubectl -n vela-system wait --for=condition=Ready applications.core.oam.dev helm-test-vela-app --timeout=3m
+          echo "application is Ready"
 
           # wait for deploy being created
           echo "waiting for deployment being available"

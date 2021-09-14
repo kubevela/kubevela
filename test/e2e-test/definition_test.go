@@ -62,7 +62,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 
 	Context("Test dynamic admission control for componentDefinition", func() {
 
-		PIt("Test componentDefinition which only set type field", func() {
+		It("Test componentDefinition which only set type field", func() {
 			workDef := &v1beta1.WorkloadDefinition{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "ComponentDefinition",
@@ -95,7 +95,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			}).Should(BeNil())
 		})
 
-		PIt("Test componentDefinition only set definition field", func() {
+		It("Test componentDefinition only set definition field", func() {
 			testCd := webServiceWithNoTemplate.DeepCopy()
 			testCd.Spec.Schematic.CUE.Template = webServiceV1Template
 			testCd.SetName("test-componentdef-v1")
@@ -121,7 +121,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			Expect(newWd.Spec.Reference.Version).To(Equal("v1"))
 		})
 
-		PIt("Test componentDefinition which definition and type fields are all empty", func() {
+		It("Test componentDefinition which definition and type fields are all empty", func() {
 			testCd1 := webServiceWithNoTemplate.DeepCopy()
 			testCd1.SetName("test-componentdef-v2")
 			testCd1.Spec.Workload.Definition = common.WorkloadGVK{}
@@ -136,7 +136,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			Expect(newCd.Spec.Workload.Type).Should(Equal(types.AutoDetectWorkloadDefinition))
 		})
 
-		PIt("Test componentDefinition which definition and type point to same workload type", func() {
+		It("Test componentDefinition which definition and type point to same workload type", func() {
 			testCd2 := webServiceWithNoTemplate.DeepCopy()
 			testCd2.SetName("test-componentdef-v3")
 			testCd2.Spec.Workload.Type = "deployments.apps"
@@ -145,7 +145,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			Expect(k8sClient.Create(ctx, testCd2)).Should(Succeed())
 		})
 
-		PIt("Test componentDefinition which definition and type point to different workload type", func() {
+		It("Test componentDefinition which definition and type point to different workload type", func() {
 			testCd3 := webServiceWithNoTemplate.DeepCopy()
 			testCd3.SetName("test-componentdef-v4")
 			testCd3.Spec.Workload.Type = "jobs.batch"
@@ -154,7 +154,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			Expect(k8sClient.Create(ctx, testCd3)).Should(HaveOccurred())
 		})
 
-		PIt("Test componentDefinition which specify the name of definitionRevision", func() {
+		It("Test componentDefinition which specify the name of definitionRevision", func() {
 			By("create componentDefinition")
 			cd := webServiceWithNoTemplate.DeepCopy()
 			cd.SetNamespace(namespace)
@@ -184,7 +184,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 	})
 
 	Context("Test dynamic admission control for traitDefinition", func() {
-		PIt("Test traitDefinition which specify the name of definitionRevision", func() {
+		It("Test traitDefinition which specify the name of definitionRevision", func() {
 			By("create traitDefinition")
 			td := exposeWithNoTemplate.DeepCopy()
 			td.SetNamespace(namespace)
@@ -208,7 +208,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			}, 15*time.Second, time.Second).Should(BeNil())
 
 			newTd := oldTd.DeepCopy()
-			newTd.Spec.Schematic.CUE.Template = exposeV2Templae
+			newTd.Spec.Schematic.CUE.Template = exposeV2Template
 			Expect(k8sClient.Create(ctx, newTd)).Should(HaveOccurred())
 		})
 	})

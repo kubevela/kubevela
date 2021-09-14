@@ -228,6 +228,9 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}
 	for _, rsc := range manifests {
+		if rsc == nil {
+			continue
+		}
 
 		immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, ownerRef, applyOpts)
 		if immutable {
@@ -284,6 +287,9 @@ func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context
 		a.currentRT.Status.TrackedResources = make([]v1.ObjectReference, 0)
 	}
 	for _, rsc := range appliedManifests {
+		if rsc == nil {
+			continue
+		}
 		appliedRef := v1.ObjectReference{
 			APIVersion: rsc.GetAPIVersion(),
 			Kind:       rsc.GetKind(),

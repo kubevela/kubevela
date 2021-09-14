@@ -38,13 +38,14 @@ const (
 
 // event message for Application
 const (
-	MessageParsed      = "Parsed successfully"
-	MessageRendered    = "Rendered successfully"
-	MessageRevisioned  = "Revisioned successfully"
-	MessageApplied     = "Applied successfully"
-	MessageHealthCheck = "Health checked healthy"
-	MessageDeployed    = "Deployed successfully"
-	MessageRollout     = "Rollout successfully"
+	MessageParsed           = "Parsed successfully"
+	MessageRendered         = "Rendered successfully"
+	MessageRevisioned       = "Revisioned successfully"
+	MessageApplied          = "Applied successfully"
+	MessageWorkflowFinished = "Workflow finished"
+	MessageHealthCheck      = "Health checked healthy"
+	MessageDeployed         = "Deployed successfully"
+	MessageRollout          = "Rollout successfully"
 
 	MessageFailedParse       = "fail to parse application, err: %v"
 	MessageFailedRender      = "fail to render application, err: %v"
