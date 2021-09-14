@@ -29,7 +29,9 @@ spec:
                         }
 
                         traits: "virtualService": {
-                                spec: http: [
+                                spec:
+                                   // +patchStrategy=retainKeys
+                                   http: [
                                         {
                                                 route: [
                                                         for i, t in parameter.traffic.weightedTargets {
@@ -44,12 +46,15 @@ spec:
                         }
 
                         traits: "destinationRule": {
-                                 spec: subsets: [
+                                 // +patchStrategy=retainKeys
+                                 spec: {
+                                   host: comp__
+                                   subsets: [
                                         for i, t in parameter.traffic.weightedTargets {
                                                 name: t.revision
                                                 labels: {"app.oam.dev/revision": t.revision}
                                         },
-                                ]
+                                ]}
                         }
                 }
         }

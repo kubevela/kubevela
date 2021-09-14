@@ -20,7 +20,7 @@ spec:
 
 
       traits:
-        - type: expose
+        - type: canary-traffic
           properties:
             port:
             - 9080

@@ -20,11 +20,6 @@ spec:
 
 
       traits:
-        - type: expose
-          properties:
-            port:
-              - 9080
-
         - type: rollout
           properties:
             targetSize: 2
@@ -35,7 +30,8 @@ spec:
 
         - type: canary-traffic
           properties:
-            port: 9080
+            port:
+              - 9080
 
     - name: productpage
       type: webservice
