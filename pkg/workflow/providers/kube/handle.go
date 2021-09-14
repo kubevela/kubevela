@@ -73,7 +73,6 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	} else if err := val.UnmarshalTo(workload); err != nil {
 		return err
 	}
-	deployCtx := multicluster.Context(context.Background(), workload)
 	if workload.GetNamespace() == "" {
 		workload.SetNamespace("default")
 	}
@@ -81,6 +80,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if err != nil {
 		return err
 	}
+	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
@@ -102,8 +102,12 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	if key.Namespace == "" {
 		key.Namespace = "default"
 	}
-
-	if err := h.cli.Get(context.Background(), key, obj); err != nil {
+	cluster, err := v.GetString("cluster")
+	if err != nil {
+		return err
+	}
+	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if err := h.cli.Get(readCtx, key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
 	return v.FillObject(obj.Object, "value")
