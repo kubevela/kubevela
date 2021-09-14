@@ -21,7 +21,7 @@ import (
 	load:       oam.#LoadComponets @step(1)
 	components: #Steps & {
 		for name, c in load.value {
-			"\(name)": oam.#Apply & {
+			"\(name)": oam.#ApplyComponent & {
 				value: c
 			}
 		}
