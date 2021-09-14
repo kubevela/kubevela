@@ -411,6 +411,13 @@ func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *un
 	if traitType == definition.AuxiliaryWorkload {
 		return nil
 	}
+	if strings.Contains(traitType, "-") {
+		splitName := traitType[0:strings.LastIndex(traitType, "-")]
+		_, ok := af.RelatedTraitDefinitions[splitName]
+		if ok {
+			traitType = splitName
+		}
+	}
 	traitDef, ok := af.RelatedTraitDefinitions[traitType]
 	if !ok {
 		return errors.Errorf("TraitDefinition %s not found in appfile", traitType)
