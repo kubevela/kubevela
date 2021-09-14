@@ -21,7 +21,7 @@ spec:
           component: "server1"
         outputs:
           - name: server1IP
-            exportKey: "myIP"
+            valueFrom: "myIP"
       - name: deploy-server2
         type: apply-with-ip
         inputs:

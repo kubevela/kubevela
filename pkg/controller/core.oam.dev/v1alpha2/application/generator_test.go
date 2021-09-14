@@ -100,7 +100,7 @@ var _ = Describe("Test Application workflow generator", func() {
 						Outputs: common.StepOutputs{
 							{
 								Name:      "message",
-								ExportKey: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives",
+								ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives",
 							},
 						},
 					},

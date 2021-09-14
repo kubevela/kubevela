@@ -240,7 +240,7 @@ spec:
           component: ack-worker
         outputs:
           - name: connInfo
-            exportKey: connInfo
+            valueFrom: connInfo
 
       - name: register-ack
         type: register-cluster
