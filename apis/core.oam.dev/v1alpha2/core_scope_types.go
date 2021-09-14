@@ -87,6 +87,7 @@ type HealthScopeStatus struct {
 // AppHealthCondition represents health condition of an application
 type AppHealthCondition struct {
 	AppName    string                     `json:"appName"`
+	EnvName    string                     `json:"envName,omitempty"`
 	Components []*WorkloadHealthCondition `json:"components,omitempty"`
 }
 

@@ -402,6 +402,8 @@ spec:
                         - healthStatus
                         type: object
                       type: array
+                    envName:
+                      type: string
                   required:
                   - appName
                   type: object

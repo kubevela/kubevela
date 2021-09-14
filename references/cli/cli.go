@@ -108,6 +108,9 @@ func NewCommand() *cobra.Command {
 		// cue-packages
 		NewCUEPackageCommand(commandArgs, ioStream),
 
+		// cluster
+		ClusterCommandGroup(commandArgs),
+
 		// Helper
 		SystemCommandGroup(commandArgs, ioStream),
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),

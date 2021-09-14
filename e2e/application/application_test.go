@@ -54,7 +54,7 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	ApplicationStatusContext("status", applicationName, workloadType)
 	ApplicationStatusDeeplyContext("status", applicationName, workloadType, envName)
 	ApplicationExecContext("exec -- COMMAND", applicationName)
-	ApplicationPortForwardContext("port-forward", applicationName)
+	// ApplicationPortForwardContext("port-forward", applicationName)
 	e2e.WorkloadDeleteContext("delete", applicationName)
 
 	ApplicationInitIntercativeCliContext("test vela init app", appNameForInit, workloadType)
@@ -112,7 +112,7 @@ var ApplicationExecContext = func(context string, appName string) bool {
 var ApplicationPortForwardContext = func(context string, appName string) bool {
 	return ginkgo.Context(context, func() {
 		ginkgo.It("should get output of portward successfully", func() {
-			cli := fmt.Sprintf("vela port-forward %s 8080:8080 ", appName)
+			cli := fmt.Sprintf("vela port-forward %s 80:80 ", appName)
 			output, err := e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Forward successfully"))

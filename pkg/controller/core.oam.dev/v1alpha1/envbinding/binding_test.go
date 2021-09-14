@@ -161,9 +161,9 @@ func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 
 	for _, testcase := range testcases {
 		envBindApp := NewEnvBindApp(testcase.baseApp, testcase.envConfig)
-		err := envBindApp.generateConfiguredApplication()
+		err := envBindApp.GenerateConfiguredApplication()
 		assert.NoError(t, err)
-		assert.Equal(t, envBindApp.patchedApp, testcase.expectedApp)
+		assert.Equal(t, envBindApp.PatchedApp, testcase.expectedApp)
 	}
 }
 

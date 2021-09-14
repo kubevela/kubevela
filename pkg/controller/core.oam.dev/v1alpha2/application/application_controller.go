@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha1/envbinding"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -187,7 +188,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		handler.addServiceStatus(false, app.Status.Services...)
 		handler.addAppliedResource(app.Status.AppliedResources...)
-		app.Status.Services = handler.services
 		app.Status.AppliedResources = handler.appliedResources
 		switch workflowState {
 		case common.WorkflowStateSuspended:
@@ -202,6 +202,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			wfStatus := app.Status.Workflow
 			if wfStatus != nil {
 				ref, err := handler.DispatchAndGC(ctx)
+				if err == nil {
+					err = envbinding.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, r.Client, policies, func(c context.Context) error {
+						_, e := handler.DispatchAndGC(c)
+						return e
+					})
+				}
 				if err != nil {
 					klog.ErrorS(err, "Failed to gc after workflow",
 						"application", klog.KObj(app))
@@ -256,6 +262,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.Policies) {
+		app.Status.Services = handler.services
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
 		}
