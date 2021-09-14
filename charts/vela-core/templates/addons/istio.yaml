@@ -182,6 +182,7 @@ metadata:
   annotations:
     addons.oam.dev/description: istio Controller is a Kubernetes Controller for manage
       traffic.
+    addons.oam.dev/name: istio
   labels:
     addons.oam.dev/type: istio
   name: istio
