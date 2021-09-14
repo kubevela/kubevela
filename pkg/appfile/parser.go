@@ -260,7 +260,7 @@ func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType typ
 }
 
 func (p *Parser) makeWorkloadFromRevision(name, typ string, capType types.CapType, props runtime.RawExtension, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
-	templ, err := LoadTemplateFromRevision(typ, capType, appRev)
+	templ, err := LoadTemplateFromRevision(typ, capType, appRev, p.dm)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s from revision", name)
 	}
@@ -373,7 +373,7 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 }
 
 func (p *Parser) parseTraitFromRevision(name string, properties map[string]interface{}, appRev *v1beta1.ApplicationRevision) (*Trait, error) {
-	templ, err := LoadTemplateFromRevision(name, types.TypeTrait, appRev)
+	templ, err := LoadTemplateFromRevision(name, types.TypeTrait, appRev, p.dm)
 	if err != nil {
 		return nil, err
 	}

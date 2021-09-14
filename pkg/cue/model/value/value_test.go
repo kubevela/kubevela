@@ -460,6 +460,20 @@ close({provider: int})
 		return false, nil
 	})
 	assert.Equal(t, err != nil, true)
+
+	openSt := `
+#X: {...}
+x: #X & {
+   name: "xxx"
+   age: 12
+}
+`
+	val, err = NewValue(openSt, nil, "")
+	assert.NilError(t, err)
+	x, _ := val.LookupValue("x")
+	xs, _ := x.String()
+	_, err = val.MakeValue(xs)
+	assert.NilError(t, err)
 }
 
 func TestValueError(t *testing.T) {

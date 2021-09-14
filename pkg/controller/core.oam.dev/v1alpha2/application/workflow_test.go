@@ -228,7 +228,7 @@ var _ = Describe("Test Workflow", func() {
 		}, appObj)).Should(BeNil())
 
 		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
-		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
+		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 	})
 
 	It("test workflow suspend", func() {
@@ -253,10 +253,16 @@ var _ = Describe("Test Workflow", func() {
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
-
+		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseSucceeded))
+		Expect(appObj.Status.Workflow.Steps[0].ID).ShouldNot(BeEquivalentTo(""))
 		// resume
 		appObj.Status.Workflow.Suspend = false
 		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      suspendApp.Name,
+			Namespace: suspendApp.Namespace,
+		}, appObj)).Should(BeNil())
+		Expect(appObj.Status.Workflow.Suspend).Should(BeFalse())
 
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
@@ -268,7 +274,7 @@ var _ = Describe("Test Workflow", func() {
 		}, appObj)).Should(BeNil())
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeFalse())
-		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
+		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 	})
 
 	It("test workflow terminate a suspend workflow", func() {
@@ -363,7 +369,7 @@ var _ = Describe("Test Workflow", func() {
 						Type:       "worker-with-health",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
-							{Name: "message", ExportKey: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
+							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
 					},
 				},

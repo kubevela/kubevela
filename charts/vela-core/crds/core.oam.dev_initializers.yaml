@@ -113,13 +113,13 @@ spec:
                                 WorkflowStep
                               items:
                                 properties:
-                                  exportKey:
-                                    type: string
                                   name:
                                     type: string
+                                  valueFrom:
+                                    type: string
                                 required:
-                                - exportKey
                                 - name
+                                - valueFrom
                                 type: object
                               type: array
                             properties:
@@ -533,13 +533,13 @@ spec:
                                     of WorkflowStep
                                   items:
                                     properties:
-                                      exportKey:
-                                        type: string
                                       name:
                                         type: string
+                                      valueFrom:
+                                        type: string
                                     required:
-                                    - exportKey
                                     - name
+                                    - valueFrom
                                     type: object
                                   type: array
                                 properties:
@@ -1151,11 +1151,15 @@ spec:
                             type: boolean
                           terminated:
                             type: boolean
+                          waitCount:
+                            description: WaitCount counts the reconcile times on conditional
+                              wait
+                            type: integer
                         required:
-                        - contextBackend
                         - mode
                         - suspend
                         - terminated
+                        - waitCount
                         type: object
                     type: object
                 type: object

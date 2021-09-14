@@ -52,13 +52,13 @@ func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.Workfl
 }
 
 // ExecuteSteps process workflow step in order.
-func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.ApplicationRevision, taskRunners []wfTypes.TaskRunner) (done bool, pause bool, gerr error) {
+func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.ApplicationRevision, taskRunners []wfTypes.TaskRunner) (common.WorkflowState, error) {
 	revAndSpecHash, err := computeAppRevisionHash(appRev.Name, w.app)
 	if err != nil {
-		return false, false, err
+		return common.WorkflowStateExecuting, err
 	}
 	if len(taskRunners) == 0 {
-		return true, false, nil
+		return common.WorkflowStateFinished, nil
 	}
 
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
@@ -76,37 +76,24 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 	}
 
 	wfStatus := w.app.Status.Workflow
-
 	allTasksDone := w.allDone(taskRunners)
-
 	if wfStatus.Terminated {
-		done = true
-		if !allTasksDone {
-			w.app.Status.Phase = common.ApplicationWorkflowTerminated
-		}
-		return
+		return common.WorkflowStateTerminated, nil
 	}
-
-	w.app.Status.Phase = common.ApplicationRunningWorkflow
-
-	if allTasksDone {
-		done = true
-		return
-	}
-
 	if wfStatus.Suspend {
-		pause = true
-		w.app.Status.Phase = common.ApplicationWorkflowSuspending
-		return
+		return common.WorkflowStateSuspended, nil
+	}
+	if allTasksDone {
+		return common.WorkflowStateFinished, nil
 	}
 
 	var (
 		wfCtx wfContext.Context
 	)
 
-	wfCtx, gerr = w.makeContext(appRev.Name)
-	if gerr != nil {
-		return
+	wfCtx, err = w.makeContext(w.app.Name)
+	if err != nil {
+		return common.WorkflowStateExecuting, err
 	}
 
 	e := &engine{
@@ -114,20 +101,20 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 		dagMode: w.dagMode,
 	}
 
-	gerr = e.run(wfCtx, taskRunners)
-
-	if wfStatus.Suspend {
-		pause = true
-		w.app.Status.Phase = common.ApplicationWorkflowSuspending
+	err = e.run(wfCtx, taskRunners)
+	if err != nil {
+		return common.WorkflowStateExecuting, err
 	}
-
 	if wfStatus.Terminated {
-		done = true
-		w.app.Status.Phase = common.ApplicationWorkflowTerminated
-	} else {
-		done = w.allDone(taskRunners)
+		return common.WorkflowStateTerminated, nil
 	}
-	return done, pause, gerr
+	if wfStatus.Suspend {
+		return common.WorkflowStateSuspended, nil
+	}
+	if w.allDone(taskRunners) {
+		return common.WorkflowStateFinished, nil
+	}
+	return common.WorkflowStateExecuting, nil
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -147,17 +134,17 @@ func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
 	return true
 }
 
-func (w *workflow) makeContext(rev string) (wfCtx wfContext.Context, err error) {
+func (w *workflow) makeContext(appName string) (wfCtx wfContext.Context, err error) {
 	wfStatus := w.app.Status.Workflow
 	if wfStatus.ContextBackend != nil {
-		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, rev)
+		wfCtx, err = wfContext.LoadContext(w.cli, w.app.Namespace, appName)
 		if err != nil {
 			err = errors.WithMessage(err, "load context")
 		}
 		return
 	}
 
-	wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, rev)
+	wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, appName)
 
 	if err != nil {
 		err = errors.WithMessage(err, "new context")

@@ -689,7 +689,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 		Revision:     int64(revNum),
 		RevisionHash: h.currentRevHash,
 	}
-	if err := h.r.patchStatus(ctx, h.app); err != nil {
+	if err := h.r.patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
 		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err
@@ -758,6 +758,13 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 	for _, rt := range rtList.Items {
 		appRev := dispatch.ExtractAppRevisionName(rt.Name, ns)
 		usingRevision[appRev] = true
+	}
+	appRolloutRevision, err := utils.CheckAppRolloutUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
+	if err != nil {
+		return usingRevision, err
+	}
+	for _, revName := range appRolloutRevision {
+		usingRevision[revName] = true
 	}
 	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
 	if err != nil {

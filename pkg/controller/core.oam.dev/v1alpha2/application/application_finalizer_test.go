@@ -134,7 +134,8 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		checkApp = new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(Succeed())
-		Expect(checkApp.Status.ResourceTracker).Should(BeNil())
+		Expect(checkApp.Status.ResourceTracker).ShouldNot(BeNil())
+		Expect(checkApp.Status.ResourceTracker.Name).Should(BeEquivalentTo("app-1-v1-cross-namespace"))
 	})
 
 	It("Test error occurs in the middle of dispatching", func() {
@@ -148,10 +149,10 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 
-		// because error occurs in the middle of dispatching
-		// resource tracker for v1 is created but v1 is not recorded in app status
-		By("Verify latest app revision is not recorded in status")
-		Expect(checkApp.Status.LatestRevision).Should(BeNil())
+		// though error occurs in the middle of dispatching
+		// resource tracker for v1 is also created and recorded in app status
+		By("Verify latest app revision is also recorded in status")
+		Expect(checkApp.Status.LatestRevision).ShouldNot(BeNil())
 
 		By("Verify ResourceTracker is created")
 		rt := &v1beta1.ResourceTracker{}
@@ -222,7 +223,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		checkApp = new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.ResourceTracker).Should(BeNil())
+		Expect(checkApp.Status.ResourceTracker).ShouldNot(BeNil())
 		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v2"), rt)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})

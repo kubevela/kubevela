@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -149,10 +150,11 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 }
 
 // LoadTemplateFromRevision will load Definition template from app revision
-func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) (*Template, error) {
+func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper) (*Template, error) {
 	if apprev == nil {
 		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
 	}
+	capName = verifyRevisionName(capName, capType, apprev)
 	switch capType {
 	case types.TypeComponentDefinition:
 		cd, ok := apprev.Spec.ComponentDefinitions[capName]
@@ -164,6 +166,19 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			tmpl, err := newTemplateOfWorkloadDefinition(&wd)
 			if err != nil {
 				return nil, err
+			}
+			gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
+			if err != nil {
+				return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", capName)
+			}
+			tmpl.Reference = common.WorkloadTypeDescriptor{
+				Definition: common.WorkloadGVK{
+					APIVersion: metav1.GroupVersion{
+						Group:   gvk.Group,
+						Version: gvk.Version,
+					}.String(),
+					Kind: gvk.Kind,
+				},
 			}
 			return tmpl, nil
 		}
@@ -216,6 +231,34 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	default:
 		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 	}
+}
+
+func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) string {
+	if strings.Contains(capName, "@") {
+		splitName := capName[0:strings.LastIndex(capName, "@")]
+		ok := false
+
+		switch capType {
+		case types.TypeComponentDefinition:
+			_, ok = apprev.Spec.ComponentDefinitions[splitName]
+		case types.TypeTrait:
+			_, ok = apprev.Spec.TraitDefinitions[splitName]
+		case types.TypePolicy:
+			_, ok = apprev.Spec.PolicyDefinitions[splitName]
+		case types.TypeWorkflowStep:
+			_, ok = apprev.Spec.WorkflowStepDefinitions[splitName]
+		case types.TypeScope:
+			_, ok = apprev.Spec.ScopeDefinitions[splitName]
+		default:
+			return capName
+		}
+
+		if ok {
+			return splitName
+		}
+	}
+
+	return capName
 }
 
 // DryRunTemplateLoader return a function that do the same work as
