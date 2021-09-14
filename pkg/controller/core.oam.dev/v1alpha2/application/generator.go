@@ -99,8 +99,8 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 		return err
 	}
 	for _, c := range app.Spec.Components {
-		step.Inputs = c.Inputs
-		step.Outputs = c.Outputs
+		step.Inputs = append(step.Inputs, c.Inputs...)
+		step.Outputs = append(step.Outputs, c.Outputs...)
 		c.Inputs = nil
 		c.Outputs = nil
 		if c.Name == o.Component {
