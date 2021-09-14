@@ -19,16 +19,15 @@ package apply
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Applicator applies new state to an object or create it if not exist.
@@ -83,16 +82,6 @@ type APIApplicator struct {
 	c client.Client
 }
 
-// loggingApply will record a log with desired object applied
-func loggingApply(msg string, desired client.Object) {
-	d, ok := desired.(metav1.Object)
-	if !ok {
-		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
-		return
-	}
-	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
-}
-
 // Apply applies new state to an object or create it if not exist
 func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...ApplyOption) error {
 	existing, err := a.createOrGetExisting(ctx, a.c, desired, ao...)
@@ -107,7 +96,6 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	if err := executeApplyOptions(ctx, existing, desired, ao); err != nil {
 		return err
 	}
-	loggingApply("patching object", desired)
 	patch, err := a.patcher.patch(existing, desired)
 	if err != nil {
 		return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
@@ -126,7 +114,6 @@ func createOrGetExisting(ctx context.Context, c client.Client, desired client.Ob
 		if err := addLastAppliedConfigAnnotation(desired); err != nil {
 			return nil, err
 		}
-		loggingApply("creating object", desired)
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
 	}
 
