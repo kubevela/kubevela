@@ -362,7 +362,7 @@ func removeRevisionRelatedLabelAndAnnotation(o client.Object) {
 	newAnnotations := map[string]string{}
 	annotations := o.GetAnnotations()
 	for k, v := range annotations {
-		if k == oam.AnnotationKubeVelaVersion || k == oam.AnnotationAppRevision {
+		if k == oam.AnnotationKubeVelaVersion || k == oam.AnnotationAppRevision || k == "kubectl.kubernetes.io/last-applied-configuration" {
 			continue
 		}
 		newAnnotations[k] = v
