@@ -123,7 +123,6 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 		record:       event.NewNopRecorder(),
 		traitChecker: WorkloadHealthCheckFn(CheckByHealthCheckTrait),
 		checkers: []WorloadHealthChecker{
-			WorkloadHealthCheckFn(CheckPodSpecWorkloadHealth),
 			WorkloadHealthCheckFn(CheckDeploymentHealth),
 			WorkloadHealthCheckFn(CheckStatefulsetHealth),
 			WorkloadHealthCheckFn(CheckDaemonsetHealth),

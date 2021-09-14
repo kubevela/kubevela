@@ -67,10 +67,10 @@ const (
 )
 
 var (
-	kindDeployment            = reflect.TypeOf(apps.Deployment{}).Name()
-	kindService               = reflect.TypeOf(core.Service{}).Name()
-	kindStatefulSet           = reflect.TypeOf(apps.StatefulSet{}).Name()
-	kindDaemonSet             = reflect.TypeOf(apps.DaemonSet{}).Name()
+	kindDeployment  = reflect.TypeOf(apps.Deployment{}).Name()
+	kindService     = reflect.TypeOf(core.Service{}).Name()
+	kindStatefulSet = reflect.TypeOf(apps.StatefulSet{}).Name()
+	kindDaemonSet   = reflect.TypeOf(apps.DaemonSet{}).Name()
 )
 
 // AppHealthCondition holds health status of an application
@@ -122,44 +122,6 @@ func (fn WorkloadHealthCheckFn) Check(ctx context.Context, c client.Client, tr c
 		peerHCs.MergePeerWorkloadsConditions(r)
 	}
 	return r
-}
-
-func updateChildResourcesCondition(ctx context.Context, c client.Client, namespace string, r *WorkloadHealthCondition, ref core.ObjectReference, childRefs []core.ObjectReference) {
-	subConditions := []*WorkloadHealthCondition{}
-	if len(childRefs) != 2 {
-		// one deployment and one svc are required by containerizedworkload
-		r.Diagnosis = fmt.Sprintf(infoFmtNoChildRes, ref.Name)
-		r.HealthStatus = StatusUnhealthy
-		return
-	}
-	for _, childRef := range childRefs {
-		switch childRef.Kind {
-		case kindDeployment:
-			// reuse Deployment health checker
-			childCondition := CheckDeploymentHealth(ctx, c, childRef, namespace)
-			subConditions = append(subConditions, childCondition)
-		case kindService:
-			childCondition := &WorkloadHealthCondition{
-				TargetWorkload: childRef,
-				HealthStatus:   StatusHealthy,
-			}
-			o := unstructured.Unstructured{}
-			o.SetAPIVersion(childRef.APIVersion)
-			o.SetKind(childRef.Kind)
-			if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: childRef.Name}, &o); err != nil {
-				childCondition.HealthStatus = StatusUnhealthy
-				childCondition.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
-			}
-			subConditions = append(subConditions, childCondition)
-		}
-	}
-
-	for _, sc := range subConditions {
-		if sc.HealthStatus != StatusHealthy {
-			r.HealthStatus = StatusUnhealthy
-		}
-		r.Diagnosis = fmt.Sprintf("%s%s", r.Diagnosis, sc.Diagnosis)
-	}
 }
 
 // CheckDeploymentHealth checks health condition of Deployment

@@ -105,57 +105,36 @@ var _ = Describe("HealthScope", func() {
 		}, time.Second*30, time.Millisecond*500).Should(Equal(v1alpha2.StatusHealthy))
 
 		label := map[string]string{"workload": "containerized-workload"}
-		// create a workload definition
-		wd := v1alpha2.WorkloadDefinition{
+		wl := appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "containerizedworkloads.core.oam.dev",
 				Namespace: "vela-system",
-				Labels:    label,
 			},
-			Spec: v1alpha2.WorkloadDefinitionSpec{
-				Reference: common.DefinitionReference{
-					Name: "containerizedworkloads.core.oam.dev",
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: label,
 				},
-				ChildResourceKinds: []common.ChildResourceKind{
-					{
-						APIVersion: corev1.SchemeGroupVersion.String(),
-						Kind:       util.KindService,
-					},
-					{
-						APIVersion: appsv1.SchemeGroupVersion.String(),
-						Kind:       util.KindDeployment,
-					},
-				},
-			},
-		}
-		logf.Log.Info("Creating workload definition")
-		// For some reason, WorkloadDefinition is created as a Cluster scope object
-		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		// create a workload CR
-		wl := v1alpha2.ContainerizedWorkload{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Labels:    label,
-			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: "wordpress:4.6.1-apache",
-						Ports: []v1alpha2.ContainerPort{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
-								Name: "wordpress",
-								Port: 80,
+								Name:  "wordpress",
+								Image: "wordpress:4.6.1-apache",
 							},
 						},
 					},
+					ObjectMeta: metav1.ObjectMeta{Labels: label},
 				},
 			},
 		}
-		// reflect workload gvk from scheme
+
 		gvks, _, _ := scheme.ObjectKinds(&wl)
 		wl.APIVersion = gvks[0].GroupVersion().String()
 		wl.Kind = gvks[0].Kind
+
 		// Create a component definition
 		componentName := "example-component"
 		comp := v1alpha2.Component{
