@@ -34,7 +34,7 @@ spec:
               namespace: default
             spec:
               provider: alibaba
-              region: cn-beijing
+              region: '[[ index .Args "ALICLOUD_REGION" ]]'
               credentials:
                 source: Secret
                 secretRef:
