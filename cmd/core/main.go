@@ -81,7 +81,7 @@ func main() {
 	var leaseDuration time.Duration
 	var renewDeadline time.Duration
 	var retryPeriod time.Duration
-	var multiClusterEnabled bool
+	var enableClusterGateway bool
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
@@ -126,7 +126,7 @@ func main() {
 		"The duration that the acting controlplane will retry refreshing leadership before giving up")
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
-	flag.BoolVar(&multiClusterEnabled, "enable-cluster-gateway", false, "Enable multi-cluster, disabled by default.")
+	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
 
 	flag.Parse()
 	// setup logging
@@ -185,7 +185,7 @@ func main() {
 	restConfig.Burst = burst
 
 	// wrapper the round tripper by multi cluster rewriter
-	if multiClusterEnabled {
+	if enableClusterGateway {
 		if err := multicluster.Initialize(restConfig); err != nil {
 			klog.ErrorS(err, "failed to enable multicluster")
 			os.Exit(1)

@@ -60,7 +60,9 @@ func GarbageCollectionForOutdatedResourcesInSubClusters(ctx context.Context, c c
 	var errs errors2.ErrorList
 	for clusterName := range subClusters {
 		if err := gcHandler(multicluster.ContextWithClusterName(ctx, clusterName)); err != nil {
-			errs.Append(errors.Wrapf(err, "failed to run gc in subCluster %s", clusterName))
+			if !errors.As(err, &errors2.ResourceTrackerNotExistError{}) {
+				errs.Append(errors.Wrapf(err, "failed to run gc in subCluster %s", clusterName))
+			}
 		}
 	}
 	if errs.HasError() {
