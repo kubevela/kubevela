@@ -39,7 +39,7 @@ spec:
                 namespace: vela-system
               source: Secret
             provider: alibaba
-            region: cn-beijing
+            region: '[[ index .Args "ALICLOUD_REGION" ]]'
         type: raw
     status:
       rollout:
