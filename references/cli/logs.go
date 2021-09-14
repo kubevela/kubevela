@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 
-	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -94,10 +93,8 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	appliedResources := l.App.Status.AppliedResources
 
-	appliedResources = filterWorkload(appliedResources)
-	selectedRes, err := common.AskToChooseOneAppliedResource(appliedResources)
+	selectedRes, err := common.AskToChooseOneEnvResource(l.App)
 	if err != nil {
 		return err
 	}
@@ -194,20 +191,4 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	<-ctx.Done()
 
 	return nil
-}
-
-func filterWorkload(resources []apicommon.ClusterObjectReference) []apicommon.ClusterObjectReference {
-	var filteredOR []apicommon.ClusterObjectReference
-	loggableWorkload := map[string]bool{
-		"Deployment":  true,
-		"StatefulSet": true,
-		"CloneSet":    true,
-		"Job":         true,
-	}
-	for _, r := range resources {
-		if _, ok := loggableWorkload[r.Kind]; ok {
-			filteredOR = append(filteredOR, r)
-		}
-	}
-	return filteredOR
 }
