@@ -35,7 +35,7 @@ import (
 	exceptions: [...string]
 	_exceptions: {for c in exceptions {"\(c)": true}}
 
-	load:       ws.#Load @step(1)
+	load:       oam.#LoadComponets @step(1)
 	components: #Steps & {
 		for name, c in load.value {
 			if _exceptions[name] == _|_ {

@@ -59,6 +59,10 @@ spec:
                 }
         }
 
+        applyRemaining: op.#ApplyRemaining & {
+            exceptions: [comp__]
+        }
+
 
 
 
