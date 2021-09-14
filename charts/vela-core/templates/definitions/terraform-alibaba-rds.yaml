@@ -16,10 +16,11 @@ spec:
     terraform:
       configuration: |
         module "rds" {
-          source = "terraform-alicloud-modules/rds/alicloud"
+          source = "github.com/zzxwill/terraform-alicloud-rds"
           engine = "MySQL"
           engine_version = "8.0"
           instance_type = "rds.mysql.c1.large"
+          instance_storage_type = "local_ssd"
           instance_storage = "20"
           instance_name = var.instance_name
           account_name = var.account_name
