@@ -6071,16 +6071,20 @@ data:
                       \       }\n        git: {\n          checkout: ref: branch: parameter.git.branch\n
                       \         commit: {\n            author: {\n              email:
                       \"kubevelabot@users.noreply.github.com\"\n              name: \"kubevelabot\"\n
-                      \           }\n            messageTemplate: \"Update image automatically.\"\n
-                      \         }\n          push: branch: parameter.git.branch\n        }\n
-                      \       update: {\n          path:\tparameter.path\n          strategy:
-                      \"Setters\"\n        }\n      }\n    }\n  }\n}\n\n_secret: {\n\tif
-                      parameter.secretRef != _|_ {\n\t\tsecretRef: {\n\t\t\tname: parameter.secretRef\n\t\t}\n\t}\n}\n\n_sourceCommonArgs:
-                      {\n\tinterval: parameter.pullInterval\n\tif parameter.timeout !=
-                      _|_ {\n\t\ttimeout: parameter.timeout\n\t}\n}\n\nparameter: {\n\trepoType:
-                      *\"git\" | \"oss\"\n  // +usage=The image repository for automatically
-                      update image to git\n  imageRepository?: {\n    // +usage=The image
-                      url\n    image: string\n    // +usage=The name of the secret containing
+                      \           }\n            if parameter.imageRepository.commitMessage
+                      != _|_ {\n              messageTemplate: \"Update image automatically.\\n\"
+                      + parameter.imageRepository.commitMessage\n            }\n            if
+                      parameter.imageRepository.commitMessage == _|_ {\n              messageTemplate:
+                      \"Update image automatically.\"\n            }\n          }\n          push:
+                      branch: parameter.git.branch\n        }\n        update: {\n          path:\tparameter.path\n
+                      \         strategy: \"Setters\"\n        }\n      }\n    }\n  }\n}\n\n_secret:
+                      {\n\tif parameter.secretRef != _|_ {\n\t\tsecretRef: {\n\t\t\tname:
+                      parameter.secretRef\n\t\t}\n\t}\n}\n\n_sourceCommonArgs: {\n\tinterval:
+                      parameter.pullInterval\n\tif parameter.timeout != _|_ {\n\t\ttimeout:
+                      parameter.timeout\n\t}\n}\n\nparameter: {\n\trepoType: *\"git\"
+                      | \"oss\"\n  // +usage=The image repository for automatically update
+                      image to git\n  imageRepository?: {\n    // +usage=The image url\n
+                      \   image: string\n    // +usage=The name of the secret containing
                       authentication credentials\n    secretRef?: string\n    // +usage=Policy
                       gives the particulars of the policy to be followed in selecting
                       the most recent image.\n    policy: {\n      // +usage=Alphabetical
@@ -6105,11 +6109,12 @@ data:
                       from the specified regular expression pattern, useful before tag
                       evaluation.\n      extract?: string\n      // +usage=Pattern specifies
                       a regular expression pattern used to filter for image tags.\n      pattern?:
-                      string\n    }\n  }\n\t// +usage=The interval at which to check for
-                      repository/bucket and release updates, default to 5m\n\tpullInterval:
-                      *\"5m\" | string\n\t// +usage=The Git or Helm repository URL, OSS
-                      endpoint, accept HTTP/S or SSH address as git url,\n\turl: string\n\t//
-                      +usage=The name of the secret containing authentication credentials\n\tsecretRef?:
+                      string\n    }\n    // +usage=The image url\n    commitMessage?:
+                      string\n  }\n\t// +usage=The interval at which to check for repository/bucket
+                      and release updates, default to 5m\n\tpullInterval: *\"5m\" | string\n\t//
+                      +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S
+                      or SSH address as git url,\n\turl: string\n\t// +usage=The name
+                      of the secret containing authentication credentials\n\tsecretRef?:
                       string\n\t// +usage=The timeout for operations like download index/clone
                       repository, optional\n\ttimeout?: string\n\tgit?: {\n\t\t// +usage=The
                       Git reference to checkout and monitor for changes, defaults to master
