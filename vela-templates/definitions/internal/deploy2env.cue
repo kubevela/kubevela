@@ -2,11 +2,11 @@ import (
 	"vela/op"
 )
 
-"multi-env": {
+"deploy2env": {
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
-	description: "Apply env binding component"
+	description: "Deploy env binding component to target env"
 }
 template: {
 	app: op.#ApplyEnvBindApp & {
