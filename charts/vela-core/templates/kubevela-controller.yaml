@@ -189,7 +189,7 @@ metadata:
   name: kubevela-core
   namespace: {{ .Release.Namespace }}
   labels:
-    {{ - include "kubevela.labels" . | nindent 4 }}
+  {{- include "kubevela.labels" . | nindent 4 }}
 spec:
   ports:
     - name: service
@@ -197,5 +197,5 @@ spec:
       protocol: TCP
       targetPort: 8080
   selector:
-    {{ - include "kubevela.labels" . | nindent 4 }}
+  {{- include "kubevela.labels" . | nindent 4 }}
   type: ClusterIP
