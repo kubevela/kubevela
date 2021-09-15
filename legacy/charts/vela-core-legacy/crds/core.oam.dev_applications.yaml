@@ -955,15 +955,10 @@ spec:
                     type: boolean
                   terminated:
                     type: boolean
-                  waitCount:
-                    description: WaitCount counts the reconcile times on conditional
-                      wait
-                    type: integer
                 required:
                 - mode
                 - suspend
                 - terminated
-                - waitCount
                 type: object
             type: object
         type: object
@@ -2010,15 +2005,10 @@ spec:
                     type: boolean
                   terminated:
                     type: boolean
-                  waitCount:
-                    description: WaitCount counts the reconcile times on conditional
-                      wait
-                    type: integer
                 required:
                 - mode
                 - suspend
                 - terminated
-                - waitCount
                 type: object
             type: object
         type: object
