@@ -58,7 +58,7 @@ const (
 
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait before reconcile workflow again
-	baseWorkflowBackoffWaitTime = 100 * time.Millisecond
+	baseWorkflowBackoffWaitTime = 3000 * time.Millisecond
 
 	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
@@ -66,10 +66,6 @@ const (
 	// legacyOnlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
 	// out of the domain of app controller, e.g., AppRollout controller.
 	legacyOnlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
-)
-
-var (
-	exponentialBackoffBuckets = []int64{1, 2, 4, 8, 16, 16, 32, 32, 32, 64, 64, 64, 128, 128, 128, 256, 512}
 )
 
 // Reconciler reconciles a Application object
@@ -195,9 +191,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case common.WorkflowStateTerminated:
 			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowTerminated)
 		case common.WorkflowStateExecuting:
-			waitTime := computeBackoffWaitTime(app.Status.Workflow.WaitCount)
-			app.Status.Workflow.WaitCount++
-			return reconcile.Result{RequeueAfter: waitTime}, r.patchStatus(ctx, app, common.ApplicationRunningWorkflow)
+			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatus(ctx, app, common.ApplicationRunningWorkflow)
 		case common.WorkflowStateFinished:
 			wfStatus := app.Status.Workflow
 			if wfStatus != nil {
@@ -282,13 +276,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	return ctrl.Result{}, r.patchStatus(ctx, app, phase)
-}
-
-func computeBackoffWaitTime(cnt int) time.Duration {
-	if cnt >= len(exponentialBackoffBuckets) {
-		cnt = len(exponentialBackoffBuckets) - 1
-	}
-	return time.Duration(int64(baseWorkflowBackoffWaitTime) * exponentialBackoffBuckets[cnt])
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
