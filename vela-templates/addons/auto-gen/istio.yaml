@@ -50,7 +50,9 @@ spec:
                                   }
 
                                   traits: "virtualService": {
-                                          spec: http: [
+                                          spec:
+                                             // +patchStrategy=retainKeys
+                                             http: [
                                                   {
                                                           route: [
                                                                   for i, t in parameter.traffic.weightedTargets {
@@ -65,12 +67,15 @@ spec:
                                   }
 
                                   traits: "destinationRule": {
-                                           spec: subsets: [
+                                           // +patchStrategy=retainKeys
+                                           spec: {
+                                             host: comp__
+                                             subsets: [
                                                   for i, t in parameter.traffic.weightedTargets {
                                                           name: t.revision
                                                           labels: {"app.oam.dev/revision": t.revision}
                                                   },
-                                          ]
+                                          ]}
                                   }
                           }
                   }
@@ -123,35 +128,23 @@ spec:
             podDisruptive: true
             schematic:
               cue:
-                template: |2
-
-                  outputs: virtualService: {
-                      apiVersion: "networking.istio.io/v1alpha3"
-                      kind: "VirtualService"
-                      metadata: {
-                          name:      context.name
-                          namespace: context.namespace
-                      }
-                      spec: {
-                         hosts: [context.name]
-                      }
-                  }
-
-                  outputs: destinationRule: {
-                         apiVersion: "networking.istio.io/v1alpha3"
-                         kind: "DestinationRule"
-                         metadata: {
-                             name:      context.name
-                             namespace: context.namespace
-                         }
-                         spec: {
-                            host: context.name
-                         }
-                  }
-
-                  parameter: {
-                     port: [int]
-                  }
+                template: "outputs: service: {\n\t\tapiVersion: \"v1\"\n\t\tkind:
+                  \      \"Service\"\n\t\tmetadata: name: context.name\n\t\tspec:
+                  {\n\t\t\tselector: \"app.oam.dev/component\": context.name\n\t\t\tports:
+                  [\n\t\t\t\tfor p in parameter.port {\n\t\t\t\t\tport:       p\n\t\t\t\t\ttargetPort:
+                  p\n\t\t\t\t},\n\t\t\t]\n\t\t\ttype: \"ClusterIP\"\n\t\t}\n}\n\noutputs:
+                  virtualService: {\n    apiVersion: \"networking.istio.io/v1alpha3\"\n
+                  \   kind: \"VirtualService\"\n    metadata: {\n        name:      context.name\n
+                  \       namespace: context.namespace\n    }\n    spec: {\n       hosts:
+                  [context.name]\n       http: [{route: [\n       {destination: {\n
+                  \         host: context.name\n          port: {number: parameter.port[0]}\n
+                  \      }}]}]\n    }\n}\n\noutputs: destinationRule: {\n       apiVersion:
+                  \"networking.istio.io/v1alpha3\"\n       kind: \"DestinationRule\"\n
+                  \      metadata: {\n           name:      context.name\n           namespace:
+                  context.namespace\n       }\n       spec: {\n          host: context.name\n
+                  \         subsets: [{\n             name: context.revision\n             labels:
+                  {\"app.oam.dev/revision\": context.revision}\n          }]\n       }\n}\n\nparameter:
+                  {\n   port: [int]\n} \n"
         type: raw
     status:
       rollout:
