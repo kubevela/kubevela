@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue/parser"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
@@ -291,4 +293,28 @@ func OptBytesToString(node ast.Node) ast.Node {
 		}
 	})
 	return node
+}
+
+// OpenBaiscLit make that the basicLit can be modified.
+func OpenBaiscLit(s string) (string, error) {
+	f, err := parser.ParseFile("-", s, parser.ParseComments)
+	if err != nil {
+		return "", err
+	}
+	openBaiscLit(f)
+	b, err := format.Node(f)
+	return string(b), err
+}
+
+func openBaiscLit(root ast.Node) {
+	ast.Walk(root, func(node ast.Node) bool {
+		field, ok := node.(*ast.Field)
+		if ok {
+			v := field.Value
+			if lit, ok := v.(*ast.BasicLit); ok {
+				field.Value = ast.NewBinExpr(token.OR, &ast.UnaryExpr{X: lit, Op: token.MUL}, ast.NewIdent("_"))
+			}
+		}
+		return true
+	}, nil)
 }
