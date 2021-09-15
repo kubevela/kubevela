@@ -46,6 +46,7 @@ data:
                 - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
                 - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
                 - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/flux2/cluster.json
+                - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_application_logging.json
               type: import-grafana-dashboard
             type: helm
           - name: loki

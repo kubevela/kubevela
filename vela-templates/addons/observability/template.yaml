@@ -56,6 +56,7 @@ spec:
                   - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
                   - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
                   - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/flux2/cluster.json # fluxcd
+                  - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_application_logging.json # business application logging
         - name: loki
           type: helm
           properties:
