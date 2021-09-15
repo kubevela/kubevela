@@ -26,7 +26,7 @@ import (
 )
 
 func main() {
-	preimport.Start()
+	preimport.ResumeLogging()
 	rand.Seed(time.Now().UnixNano())
 
 	command := cli.NewCommand()
