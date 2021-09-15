@@ -79,6 +79,10 @@ spec:
                                   }
                           }
                   }
+
+                  applyRemaining: op.#ApplyRemaining & {
+                      exceptions: [comp__]
+                  }
         type: raw
       - name: istio-gateway
         properties:
