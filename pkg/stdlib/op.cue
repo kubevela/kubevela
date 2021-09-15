@@ -134,6 +134,8 @@ import (
 
 #Read: kube.#Read
 
+#Patch: ws.#Patch
+
 #Steps: {
 	#do: "steps"
 	...

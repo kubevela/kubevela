@@ -17,3 +17,9 @@
 	path:   string
 	value?: _
 }
+
+#Patch: {
+	#do: "patch"
+	value: {...}
+	patch: {...}
+}

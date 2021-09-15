@@ -68,6 +68,49 @@ component: "server"
 	}
 }
 
+func TestProvider_Patch(t *testing.T) {
+	p := &provider{}
+	v, err := value.NewValue(`value: {
+	c1: {
+		name: "c1" 
+		type: "web"
+		properties: {
+			image: "busybox"
+		}
+	}
+}
+patch: {
+	c1: {
+		// +patchStrategy=retainKeys
+		name: "c2"
+		foo: "bar"
+		// +patchStrategy=retainKeys
+		properties: image: "nginx"
+		properties: version: "v1"
+	}
+}
+`, nil, "")
+	assert.NilError(t, err)
+	err = p.Patch(nil, v, &mockAction{})
+	assert.NilError(t, err)
+	v, err = v.LookupValue("output")
+	assert.NilError(t, err)
+	str, err := v.String()
+	assert.NilError(t, err)
+	assert.Equal(t, str, `c1: {
+	// +patchStrategy=retainKeys
+	name: "c2"
+	type: "web"
+	properties: {
+		// +patchStrategy=retainKeys
+		image:   "nginx"
+		version: "v1"
+	}
+	foo: "bar"
+}
+`)
+}
+
 func TestProvider_Export(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
 	p := &provider{}

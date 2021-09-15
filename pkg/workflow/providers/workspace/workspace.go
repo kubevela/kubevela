@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -157,10 +158,39 @@ func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action
 	return nil
 }
 
+func (h *provider) Patch(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("value")
+	if err != nil {
+		return err
+	}
+	pv, err := v.Field("patch")
+	if err != nil {
+		return err
+	}
+	if !pv.Exists() {
+		return nil
+	}
+
+	base, err := model.NewBase(val.CueValue())
+	if err != nil {
+		return err
+	}
+
+	patcher, err := model.NewOther(pv)
+	if err != nil {
+		return err
+	}
+	if err := base.Unify(patcher); err != nil {
+		return err
+	}
+	return v.FillRaw(base.String(), "output")
+}
+
 // Install register handler to provider discover.
 func Install(p providers.Providers) {
 	prd := &provider{}
 	p.Register(ProviderName, map[string]providers.Handler{
+		"patch":  prd.Patch,
 		"load":   prd.Load,
 		"export": prd.Export,
 		"wait":   prd.Wait,
