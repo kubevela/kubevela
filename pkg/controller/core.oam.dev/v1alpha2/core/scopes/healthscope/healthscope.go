@@ -47,7 +47,6 @@ import (
 const (
 	infoFmtUnknownWorkload    = "APIVersion %v Kind %v workload is unknown for HealthScope "
 	infoFmtReady              = "Ready:%d/%d "
-	infoFmtNoChildRes         = "cannot get child resource references of workload %v"
 	errHealthCheck            = "error occurs in health check "
 	errGetVersioningWorkloads = "error occurs when get versioning peer workloads refs"
 
