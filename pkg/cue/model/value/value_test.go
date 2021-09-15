@@ -702,3 +702,18 @@ id: op.context.stepSessionID
 	assert.NilError(t, err)
 	assert.Equal(t, id, "3w9qkdgn5w")
 }
+
+func TestOpenCompleteValue(t *testing.T) {
+	v, err := NewValue(`
+x: 10
+y: "100"
+`, nil, "")
+	assert.NilError(t, err)
+	err = v.OpenCompleteValue()
+	assert.NilError(t, err)
+	s, err := v.String()
+	assert.NilError(t, err)
+	assert.Equal(t, s, `x: *10 | _
+y: *"100" | _
+`)
+}
