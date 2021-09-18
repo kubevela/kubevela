@@ -138,8 +138,16 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		&rollout.Status.RolloutStatus, h.targetWorkload, h.sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	rollout.Status.RolloutStatus = *rolloutStatus
-	// do not update the last with new revision if we are still trying to abandon the previous rollout
-	if rolloutStatus.RollingState != v1alpha1.RolloutAbandoningState {
+
+	switch rolloutStatus.RollingState {
+	case v1alpha1.LocatingTargetAppState:
+		// when revert in middle of rollout, will meet this situation
+		rollout.Status.LastUpgradedTargetRevision = rollout.Spec.TargetRevisionName
+		rollout.Status.LastSourceRevision = h.targetRevName
+	case v1alpha1.RolloutAbandoningState:
+		// do noting
+		// do not update the last with new revision if we are still trying to abandon the previous rollout
+	default:
 		rollout.Status.LastUpgradedTargetRevision = h.targetRevName
 		rollout.Status.LastSourceRevision = h.sourceRevName
 	}

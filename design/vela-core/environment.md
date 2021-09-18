@@ -75,7 +75,7 @@ For example, we can deploy an application to dev env first, then verify the app 
 We can use the following Definition to achieve that:
 
 - env-binding Policy: This defines the config patch and placement strategy per env.
-- multi-env WorkflowStep: This picks which policy and env to deploy the app to.
+- deploy2env WorkflowStep: This picks which policy and env to deploy the app to.
 - suspend WorkflowStep: This will pause the workflow for some manual validation.
 
 Below is an example:
@@ -122,7 +122,7 @@ spec:
   workflow:
     steps:
       - name: deploy-test-env
-        type: multi-env
+        type: deploy2env
         properties:
           policy: my-binding-policy
           env: test
@@ -131,7 +131,7 @@ spec:
         type: suspend
 
       - name: deploy-prod-env
-        type: multi-env
+        type: deploy2env
         properties:
           policy: my-binding-policy
           env: prod
@@ -143,12 +143,12 @@ Here're more details for above example:
   In each env, it defines the config patch and placement strategy specific to this env.
 - When the application runs, it triggers the following workflow:
   - First it picks the policy, and picks the `test` env which is also defined inside the policy.
-  - Then the `multi-env` step will loads the policy data, picks the `test` env specific config section.
+  - Then the `deploy2env` step will load the policy data, picks the `test` env specific config section.
     This step will render the final Application with patch data,
     and picks the cluster to deploy to based on given placement strategy,
     and finally deploys the Application to the cluster.
   - Then it runs `suspend` step, which acts as an approval gate until user validation 
-  - Finally, it runs `multi-env` step again. Only this time it picks the `prod` env.
+  - Finally, it runs `deploy2env` step again. Only this time it picks the `prod` env.
     This step will render the final Application with patch data,
     and picks the cluster to deploy to based on given placement strategy,
     and finally deploys the Application to the cluster.

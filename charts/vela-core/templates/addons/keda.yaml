@@ -38,6 +38,7 @@ kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: KEDA is a Kubernetes-based Event Driven Autoscaler.
+    addons.oam.dev/name: keda
   labels:
     addons.oam.dev/type: keda
   name: keda

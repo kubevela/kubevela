@@ -19,6 +19,8 @@ package oam
 import (
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -92,7 +94,11 @@ func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTy
 		if err != nil {
 			return err
 		}
-		if err := v.FillRaw(string(jt), "value", comp.Name); err != nil {
+		vs := string(jt)
+		if s, err := sets.OpenBaiscLit(vs); err == nil {
+			vs = s
+		}
+		if err := v.FillRaw(vs, "value", comp.Name); err != nil {
 			return err
 		}
 	}

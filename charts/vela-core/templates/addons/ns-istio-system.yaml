@@ -33,6 +33,7 @@ kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: Create namespace for istio-system
+    addons.oam.dev/name: ns-istio-system
   labels:
     addons.oam.dev/type: ns-istio-system
   name: ns-istio-system

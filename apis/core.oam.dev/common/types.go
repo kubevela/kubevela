@@ -200,6 +200,7 @@ const (
 // ApplicationComponentStatus record the health status of App component
 type ApplicationComponentStatus struct {
 	Name string `json:"name"`
+	Env  string `json:"env,omitempty"`
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
 	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
 	Healthy            bool                     `json:"healthy"`
@@ -297,9 +298,6 @@ type WorkflowStatus struct {
 
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
-
-	// WaitCount counts the reconcile times on conditional wait
-	WaitCount int `json:"waitCount"`
 
 	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`

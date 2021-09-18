@@ -18,8 +18,7 @@ package application
 import (
 	"context"
 	"encoding/json"
-
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -29,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -98,19 +98,26 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 	if err := json.Unmarshal(js, &o); err != nil {
 		return err
 	}
+
 	for _, c := range app.Spec.Components {
-		step.Inputs = c.Inputs
-		step.Outputs = c.Outputs
-		c.Inputs = nil
-		c.Outputs = nil
 		if c.Name == o.Component {
+			step.Inputs = append(step.Inputs, c.Inputs...)
+			for index := range step.Inputs {
+				parameterKey := strings.TrimSpace(step.Inputs[index].ParameterKey)
+				if !strings.HasPrefix(parameterKey, "properties") {
+					parameterKey = "properties." + parameterKey
+				}
+				step.Inputs[index].ParameterKey = parameterKey
+			}
+			step.Outputs = append(step.Outputs, c.Outputs...)
+			c.Inputs = nil
+			c.Outputs = nil
 			step.Properties = util.Object2RawExtension(c)
 			return nil
 		}
 
 	}
-
-	return nil
+	return errors.Errorf("component %s not found", o.Component)
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile, cli client.Client) oamProvider.ComponentApply {

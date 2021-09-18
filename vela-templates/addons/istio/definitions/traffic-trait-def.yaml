@@ -14,6 +14,21 @@ spec:
   schematic:
     cue:
       template: |
+        outputs: service: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [
+        				for p in parameter.port {
+        					port:       p
+        					targetPort: p
+        				},
+        			]
+        			type: "ClusterIP"
+        		}
+        }
 
         outputs: virtualService: {
             apiVersion: "networking.istio.io/v1alpha3"
@@ -24,6 +39,11 @@ spec:
             }
             spec: {
                hosts: [context.name]
+               http: [{route: [
+               {destination: {
+                  host: context.name
+                  port: {number: parameter.port[0]}
+               }}]}]
             }
         }
 
@@ -36,10 +56,13 @@ spec:
                }
                spec: {
                   host: context.name
+                  subsets: [{
+                     name: context.revision
+                     labels: {"app.oam.dev/revision": context.revision}
+                  }]
                }
         }
 
         parameter: {
            port: [int]
         }
-

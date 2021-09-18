@@ -39,7 +39,7 @@ var (
 	workloadScopeFinalizer = "scope.finalizer.core.oam.dev"
 )
 
-var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func() {
+var _ = PDescribe("Finalizer for HealthScope in ApplicationConfiguration", func() {
 	ctx := context.Background()
 	namespace := "finalizer-test"
 	ns := corev1.Namespace{
@@ -106,7 +106,7 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 			func() error {
 				return k8sClient.Get(ctx, objectKey, res)
 			},
-			time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
+			time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)

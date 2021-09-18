@@ -97,8 +97,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
 	case v1alpha1.SingleClusterEngine:
 		engine = NewSingleClusterEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
+	case v1alpha1.ClusterGatewayEngine:
+		engine = NewClusterGatewayEngine(r.Client, envBinding.Name)
 	default:
-		engine = NewOCMEngine(r.Client, baseApp.Name, baseApp.Namespace, envBinding.Name)
+		engine = NewClusterGatewayEngine(r.Client, envBinding.Name)
 	}
 
 	// prepare the pre-work for cluster scheduling
@@ -267,6 +269,10 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, envBinding *v1alpha1.
 			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
 				klog.ErrorS(err, "Failed to delete resource tracker of envBinding", "envBinding", klog.KObj(envBinding))
 				return true, errors.WithMessage(err, "cannot remove finalizer")
+			}
+
+			if err := GarbageCollectionForAllResourceTrackersInSubCluster(ctx, r.Client, envBinding); err != nil {
+				return true, err
 			}
 			meta.RemoveFinalizer(envBinding, resourceTrackerFinalizer)
 			return true, errors.Wrap(r.Client.Update(ctx, envBinding), "cannot update envBinding finalizer")

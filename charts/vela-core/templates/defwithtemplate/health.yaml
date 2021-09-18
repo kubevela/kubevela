@@ -20,18 +20,9 @@ spec:
         		"probe-interval": parameter.probeInterval
         		appReferences: [{
         			appName: context.appName
-        			compReferences: [
-        				for v in context.components {
-        					compName: v.name
-        					workload: {
-        						apiVersion: context.artifacts[compName].workload.apiVersion
-        						kind:       context.artifacts[compName].workload.kind
-        						name:       compName
-        					}
-        				},
-        			]
         		}]
         		workloadRefs: []
+        		manageHealthCheck: true
         	}
         }
         parameter: {

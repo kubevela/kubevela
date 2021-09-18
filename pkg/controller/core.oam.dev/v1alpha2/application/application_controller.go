@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha1/envbinding"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -57,7 +58,7 @@ const (
 
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait before reconcile workflow again
-	baseWorkflowBackoffWaitTime = 100 * time.Millisecond
+	baseWorkflowBackoffWaitTime = 3000 * time.Millisecond
 
 	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
@@ -65,10 +66,6 @@ const (
 	// legacyOnlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
 	// out of the domain of app controller, e.g., AppRollout controller.
 	legacyOnlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
-)
-
-var (
-	exponentialBackoffBuckets = []int64{1, 2, 4, 8, 16, 16, 32, 32, 32, 64, 64, 64, 128, 128, 128, 256, 512}
 )
 
 // Reconciler reconciles a Application object
@@ -187,7 +184,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		handler.addServiceStatus(false, app.Status.Services...)
 		handler.addAppliedResource(app.Status.AppliedResources...)
-		app.Status.Services = handler.services
 		app.Status.AppliedResources = handler.appliedResources
 		switch workflowState {
 		case common.WorkflowStateSuspended:
@@ -195,13 +191,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case common.WorkflowStateTerminated:
 			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowTerminated)
 		case common.WorkflowStateExecuting:
-			waitTime := computeBackoffWaitTime(app.Status.Workflow.WaitCount)
-			app.Status.Workflow.WaitCount++
-			return reconcile.Result{RequeueAfter: waitTime}, r.patchStatus(ctx, app, common.ApplicationRunningWorkflow)
+			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatus(ctx, app, common.ApplicationRunningWorkflow)
 		case common.WorkflowStateFinished:
 			wfStatus := app.Status.Workflow
 			if wfStatus != nil {
 				ref, err := handler.DispatchAndGC(ctx)
+				if err == nil {
+					err = envbinding.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, r.Client, policies, func(c context.Context) error {
+						_, e := handler.DispatchAndGC(c)
+						return e
+					})
+				}
 				if err != nil {
 					klog.ErrorS(err, "Failed to gc after workflow",
 						"application", klog.KObj(app))
@@ -256,6 +256,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.Policies) {
+		app.Status.Services = handler.services
 		if !isHealthy(handler.services) {
 			phase = common.ApplicationUnhealthy
 		}
@@ -275,13 +276,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	return ctrl.Result{}, r.patchStatus(ctx, app, phase)
-}
-
-func computeBackoffWaitTime(cnt int) time.Duration {
-	if cnt >= len(exponentialBackoffBuckets) {
-		cnt = len(exponentialBackoffBuckets) - 1
-	}
-	return time.Duration(int64(baseWorkflowBackoffWaitTime) * exponentialBackoffBuckets[cnt])
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
