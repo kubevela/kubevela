@@ -11,17 +11,20 @@ spec:
         parameter: {
            component: string
         }
+        load: op.#Load
+
         apply: op.#ApplyComponent & {
-           component: parameter.component
+           value: load.value[parameter.component]
         }
 
+        workload: apply.output
         // wait until deployment ready
         wait: op.#ConditionalWait & {
-           continue: apply.workload.status.readyReplicas == apply.workload.status.replicas && apply.workload.status.observedGeneration == apply.workload.metadata.generation
+           continue: workload.status.readyReplicas == workload.status.replicas && workload.status.observedGeneration == workload.metadata.generation
         }
 
         // export service ClusterIP
-        clusterIP: apply.traits["service"].value.spec.clusterIP
+        clusterIP: apply.outputs["service"].value.spec.clusterIP
 ---
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
@@ -36,8 +39,10 @@ spec:
         parameter: {
            component: string
         }
+        load: op.#Load
+
         apply: op.#ApplyComponent & {
-           component: parameter.component
+           value: load.value[parameter.component]
         }
 
         // wait redis ready
@@ -67,10 +72,12 @@ spec:
         // 往三方配置中心apollo读取配置
         // config: op.#HTTPGet
 
+        load: op.#Load
+
         apply: op.#ApplyComponent & {
-           component: parameter.component
+           value: load.value[parameter.component]
            // 给环境变量中注入BackendIP
-           workload: patch: spec: template: spec: {
+           patch: workload: spec: template: spec: {
              containers: [{
                 // patchKey=name
                 env: [{name: "BackendIP",value: parameter.backendIP}]
@@ -78,9 +85,10 @@ spec:
            }
         }
 
+        workload: apply.output
         // wait until argo.rollout ready
         wait: op.#ConditionalWait & {
-           continue: apply.workload.status.readyReplicas == apply.workload.status.replicas && apply.workload.status.observedGeneration == apply.workload.metadata.generation
+           continue: workload.status.readyReplicas == workload.status.replicas && workload.status.observedGeneration == workload.metadata.generation
         }
 
         message: {...}
