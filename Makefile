@@ -145,7 +145,6 @@ e2e-setup:
 	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
 	bin/vela addon enable fluxcd
 	bin/vela addon enable terraform
-	bin/vela addon enable ocm-cluster-manager
 	ginkgo version
 	ginkgo -v -r e2e/setup
 
@@ -153,7 +152,6 @@ e2e-setup:
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
-	kubectl wait --for=condition=Ready pod -l app=cluster-manager -n open-cluster-management --timeout=600s
 	bin/vela dashboard &
 
 e2e-api-test:
