@@ -63,12 +63,23 @@ var _ = Describe("Test apply changes to trait", func() {
 		req = reconcile.Request{NamespacedName: appConfigKey}
 	)
 
+	metataDataLabels := make(map[string]string)
+	metataDataLabels["app"] = "wordpress"
+
+	var labelSelector = new(metav1.LabelSelector)
+	labelSelector.MatchLabels = metataDataLabels
+
 	BeforeEach(func() {
 		cw = appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 			},
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			},
 			Spec: appsv1.DeploymentSpec{
+				Selector: labelSelector,
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
@@ -77,6 +88,9 @@ var _ = Describe("Test apply changes to trait", func() {
 								Name:  "wordpress",
 							},
 						},
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: metataDataLabels,
 					},
 				},
 			},

@@ -80,28 +80,30 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     metadata:
-      name: nginx-deployment
+      name: backend
       labels:
         app: nginx
     spec:
-      metadata:
-	  replicas: 1
-      selector:
-    	matchLabels:
-          app: nginx
-      template:
-        spec:
-		  containers:
-			- name: nginx
-			  image: nginx:1.9.4
-			  ports:
-				- containerPort: 80
-				  name: nginx
-			  env:
-				- name: TEST_ENV
-				  value: test
-			  command: [ "/bin/bash", "-c", "--" ]
-			  args: [ "while true; do sleep 30; done;" ]
+     replicas: 1
+     selector:
+       matchLabels:
+         app: nginx
+     template:
+       metadata:
+         labels:
+           app: nginx
+       spec:
+         containers:
+          - name: nginx
+            image: nginx:1.9.4
+            ports:
+            - containerPort: 80
+              name: nginx
+              env:
+              - name: TEST_ENV
+                value: test
+              command: [ "/bin/bash", "-c", "--" ]
+              args: [ "while true; do sleep 30; done;" ]
 `
 
 		var appConfigStr = `

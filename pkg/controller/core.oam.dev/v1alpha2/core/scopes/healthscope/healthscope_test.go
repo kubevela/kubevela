@@ -1,11 +1,11 @@
 /*
-Copyright 2021 The KubeVela Authors.
+Copyright 2021 The Crossplane Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,313 +18,579 @@ package healthscope
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
-	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
-
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	apps "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
-	"github.com/oam-dev/kubevela/pkg/oam/mock"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var (
-	errNotFound = errors.New("HealthScope not found")
-	// errGetResources = errors.New("cannot get resources")
+const (
+	namespace = "ns"
 )
 
-func TestHealthScope(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "HealthScope Suite")
-}
+var (
+	ctx        = context.Background()
+	errMockErr = errors.New("get error")
+	varInt1    = int32(1)
+)
 
-var _ = Describe("HealthScope Controller Reconcile Test", func() {
-	mockMgr := &mock.Manager{
-		Client: &test.MockClient{},
-	}
-	MockHealthyChecker := WorkloadHealthCheckFn(
-		func(context.Context, client.Client, corev1.ObjectReference, string) *WorkloadHealthCondition {
-			return &WorkloadHealthCondition{HealthStatus: StatusHealthy}
-		})
-	MockUnhealthyChecker := WorkloadHealthCheckFn(
-		func(context.Context, client.Client, corev1.ObjectReference, string) *WorkloadHealthCondition {
-			return &WorkloadHealthCondition{HealthStatus: StatusUnhealthy}
-		})
-	reconciler := NewReconciler(mockMgr,
-		WithRecorder(event.NewNopRecorder()),
-		WithChecker(MockHealthyChecker),
-	)
+func TestCheckDeploymentHealth(t *testing.T) {
+	mockClient := test.NewMockClient()
+	deployRef := corev1.ObjectReference{}
+	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
+	deployRef.Name = "deploy"
 
-	hs := v1alpha2.HealthScope{Spec: v1alpha2.HealthScopeSpec{WorkloadReferences: []corev1.ObjectReference{
-		// add one wlRef to trigger mockChecker
+	tests := []struct {
+		caseName  string
+		mockGetFn test.MockGetFn
+		wlRef     corev1.ObjectReference
+		expect    *WorkloadHealthCondition
+	}{
 		{
-			APIVersion: "mock",
-			Kind:       "mock",
+			caseName: "not matched checker",
+			wlRef:    corev1.ObjectReference{},
+			expect:   nil,
 		},
-	}}}
-
-	BeforeEach(func() {
-		logf.Log.Info("Set up resources before an unit test")
-		// remove built-in checkers then fulfill mock checkers
-		reconciler.checkers = []WorloadHealthChecker{}
-	})
-
-	AfterEach(func() {
-		logf.Log.Info("Clean up resources after an unit test")
-	})
-
-	It("Test HealthScope Not Found", func() {
-		reconciler.client = &test.MockClient{
-			MockGet: func(ctx context.Context,
-				key client.ObjectKey, obj client.Object) error {
-				return errNotFound
-			},
-		}
-		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
-		Expect(result).Should(Equal(reconcile.Result{}))
-		Expect(err).Should(util.BeEquivalentToError(errors.Wrap(errNotFound, errGetHealthScope)))
-	})
-
-	It("Test Reconcile UpdateHealthStatus Error", func() {
-		reconciler.checkers = append(reconciler.checkers, MockHealthyChecker)
-		reconciler.client = &test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				if o, ok := obj.(*v1alpha2.HealthScope); ok {
-					*o = hs
-				}
-				if o, ok := obj.(*v1beta1.Application); ok {
-					*o = v1beta1.Application{}
+		{
+			caseName: "healthy workload",
+			wlRef:    deployRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 1, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
+					}
+					return nil
 				}
 				return nil
 			},
-			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusHealthy,
+			},
+		},
+		{
+			caseName: "unhealthy for deployment not ready",
+			wlRef:    deployRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "deploy" {
+						deployObj, err := util.Object2Unstructured(apps.Deployment{
+							Spec: apps.DeploymentSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.DeploymentStatus{
+								ReadyReplicas: 0, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *deployObj
+					}
+					return nil
+				}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
+			},
+		},
+		{
+			caseName: "unhealthy for deployment not found",
+			wlRef:    deployRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 				return errMockErr
 			},
-			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-				return nil
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
 			},
-		}
-		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
-		Expect(err).Should(util.BeEquivalentToError(errors.Wrap(errMockErr, errUpdateHealthScopeStatus)))
-	})
-
-	It("Test Reconcile Success with healthy scope", func() {
-		reconciler.checkers = append(reconciler.checkers, MockHealthyChecker)
-		reconciler.client = &test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				if o, ok := obj.(*v1alpha2.HealthScope); ok {
-					*o = hs
-				}
-				if o, ok := obj.(*v1beta1.Application); ok {
-					*o = v1beta1.Application{}
-				}
-				return nil
-			},
-			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
-				return nil
-			},
-			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-				return nil
-			},
-		}
-		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
-		Expect(err).Should(BeNil())
-	})
-
-	It("Test Reconcile Success with unhealthy scope", func() {
-		reconciler.checkers = append(reconciler.checkers, MockUnhealthyChecker)
-		reconciler.client = &test.MockClient{
-			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				if o, ok := obj.(*v1alpha2.HealthScope); ok {
-					*o = hs
-				}
-				if o, ok := obj.(*v1beta1.Application); ok {
-					*o = v1beta1.Application{}
-				}
-				return nil
-			},
-			MockStatusUpdate: func(_ context.Context, obj client.Object, opts ...client.UpdateOption) error {
-				return nil
-			},
-			MockStatusPatch: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-				return nil
-			},
-		}
-		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
-		Expect(err).Should(BeNil())
-	})
-})
-
-var _ = Describe("Test GetScopeHealthStatus", func() {
-	ctx := context.Background()
-	mockMgr := &mock.Manager{
-		Client: &test.MockClient{},
+		},
 	}
-	reconciler := NewReconciler(mockMgr,
-		WithRecorder(event.NewNopRecorder()),
-	)
-	reconciler.client = test.NewMockClient()
 
-	hs := v1alpha2.HealthScope{}
+	for _, tc := range tests {
+		func(t *testing.T) {
+			mockClient.MockGet = tc.mockGetFn
+			result := CheckDeploymentHealth(ctx, mockClient, tc.wlRef, namespace)
+			if tc.expect == nil {
+				assert.Nil(t, result, tc.caseName)
+			} else {
+				assert.Equal(t, tc.expect.HealthStatus, result.HealthStatus, tc.caseName)
+			}
+		}(t)
+	}
+}
 
-	var deployRef, svcRef corev1.ObjectReference
-	deployRef.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindDeployment))
-	deployRef.Name = "deploy"
-	svcRef.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindService))
+func TestCheckStatefulsetHealth(t *testing.T) {
+	mockClient := test.NewMockClient()
+	stsRef := corev1.ObjectReference{}
+	stsRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindStatefulSet))
+	stsRef.Name = "sts"
 
-	hDeploy := appsv1.Deployment{
-		Spec: appsv1.DeploymentSpec{
+	tests := []struct {
+		caseName  string
+		mockGetFn test.MockGetFn
+		wlRef     corev1.ObjectReference
+		expect    *WorkloadHealthCondition
+	}{
+		{
+			caseName: "not matched checker",
+			wlRef:    corev1.ObjectReference{},
+			expect:   nil,
+		},
+		{
+			caseName: "healthy workload",
+			wlRef:    stsRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "sts" {
+						stsObj, err := util.Object2Unstructured(apps.StatefulSet{
+							Spec: apps.StatefulSetSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.StatefulSetStatus{
+								ReadyReplicas: 1, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *stsObj
+					}
+					return nil
+				}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusHealthy,
+			},
+		},
+		{
+			caseName: "unhealthy for statefulset not ready",
+			wlRef:    stsRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "sts" {
+						stsObj, err := util.Object2Unstructured(apps.StatefulSet{
+							Spec: apps.StatefulSetSpec{
+								Replicas: &varInt1,
+							},
+							Status: apps.StatefulSetStatus{
+								ReadyReplicas: 0, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *stsObj
+					}
+					return nil
+				}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
+			},
+		},
+		{
+			caseName: "unhealthy for statefulset not found",
+			wlRef:    stsRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				return errMockErr
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		func(t *testing.T) {
+			mockClient.MockGet = tc.mockGetFn
+			result := CheckStatefulsetHealth(ctx, mockClient, tc.wlRef, namespace)
+			if tc.expect == nil {
+				assert.Nil(t, result, tc.caseName)
+			} else {
+				assert.Equal(t, tc.expect.HealthStatus, result.HealthStatus, tc.caseName)
+			}
+		}(t)
+	}
+}
+
+func TestCheckDaemonsetHealth(t *testing.T) {
+	mockClient := test.NewMockClient()
+	dstRef := corev1.ObjectReference{}
+	dstRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDaemonSet))
+	dstRef.Name = "dst"
+
+	tests := []struct {
+		caseName  string
+		mockGetFn test.MockGetFn
+		wlRef     corev1.ObjectReference
+		expect    *WorkloadHealthCondition
+	}{
+		{
+			caseName: "not matched checker",
+			wlRef:    corev1.ObjectReference{},
+			expect:   nil,
+		},
+		{
+			caseName: "healthy workload",
+			wlRef:    dstRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "dst" {
+						dstObj, err := util.Object2Unstructured(apps.DaemonSet{
+							Status: apps.DaemonSetStatus{
+								NumberUnavailable: 0, // healthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *dstObj
+					}
+					return nil
+				}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusHealthy,
+			},
+		},
+		{
+			caseName: "unhealthy for daemonset not ready",
+			wlRef:    dstRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "dst" {
+						dstObj, err := util.Object2Unstructured(apps.DaemonSet{
+							Status: apps.DaemonSetStatus{
+								NumberUnavailable: 1, // unhealthy
+							},
+						})
+						if err != nil {
+							return err
+						}
+						*o = *dstObj
+					}
+					return nil
+				}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
+			},
+		},
+		{
+			caseName: "unhealthy for daemonset not found",
+			wlRef:    dstRef,
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				return errMockErr
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		func(t *testing.T) {
+			mockClient.MockGet = tc.mockGetFn
+			result := CheckDaemonsetHealth(ctx, mockClient, tc.wlRef, namespace)
+			if tc.expect == nil {
+				assert.Nil(t, result, tc.caseName)
+			} else {
+				assert.Equal(t, tc.expect.HealthStatus, result.HealthStatus, tc.caseName)
+			}
+		}(t)
+	}
+}
+
+func TestCheckUnknownWorkload(t *testing.T) {
+	mockError := errors.New("mock error")
+	mockClient := test.NewMockClient()
+	unknownWL := corev1.ObjectReference{}
+	tests := []struct {
+		caseName  string
+		mockGetFn test.MockGetFn
+		expect    *WorkloadHealthCondition
+	}{
+		{
+			caseName: "cannot get workload",
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				return mockError
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnknown,
+				Diagnosis:    errors.Wrap(mockError, errHealthCheck).Error(),
+			},
+		},
+		{
+			caseName: "unknown workload with status",
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				o, _ := obj.(*unstructured.Unstructured)
+				*o = unstructured.Unstructured{}
+				o.Object = make(map[string]interface{})
+				fieldpath.Pave(o.Object).SetValue("status.unknown", 1)
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus:   StatusUnknown,
+				Diagnosis:      fmt.Sprintf(infoFmtUnknownWorkload, "", ""),
+				WorkloadStatus: "{\"unknown\":1}",
+			},
+		},
+		{
+			caseName: "unknown workload without status",
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				o, _ := obj.(*unstructured.Unstructured)
+				*o = unstructured.Unstructured{}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus:   StatusUnknown,
+				Diagnosis:      fmt.Sprintf(infoFmtUnknownWorkload, "", ""),
+				WorkloadStatus: "null",
+			},
+		},
+	}
+	for _, tc := range tests {
+		func(t *testing.T) {
+			mockClient.MockGet = tc.mockGetFn
+			result := CheckUnknownWorkload(ctx, mockClient, unknownWL, namespace)
+			if tc.expect == nil {
+				assert.Nil(t, result, tc.caseName)
+			} else {
+				assert.Equal(t, tc.expect, result, tc.caseName)
+			}
+		}(t)
+	}
+}
+
+func TestCheckVersionEnabledComponent(t *testing.T) {
+	deployRef := corev1.ObjectReference{}
+	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
+	deployRef.Name = "main-workload"
+	deployObj := apps.Deployment{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "main-workload",
+		},
+		Spec: apps.DeploymentSpec{
 			Replicas: &varInt1,
 		},
-		Status: appsv1.DeploymentStatus{
+		Status: apps.DeploymentStatus{
 			ReadyReplicas: 1, // healthy
+		}}
+
+	peerDeployObj := apps.Deployment{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "peer-workload",
+		},
+		Spec: apps.DeploymentSpec{
+			Replicas: &varInt1,
+		},
+		Status: apps.DeploymentStatus{
+			ReadyReplicas: 1, // healthy
+		}}
+
+	mockClient := test.NewMockClient()
+	tests := []struct {
+		caseName   string
+		mockGetFn  test.MockGetFn
+		mockListFn test.MockListFn
+		expect     *WorkloadHealthCondition
+	}{
+		{
+			caseName: "peer workload is healthy",
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "main-workload" {
+						deploy, err := util.Object2Unstructured(deployObj)
+						if err != nil {
+							return err
+						}
+						*o = *deploy
+					} else if key.Name == "peer-workload" {
+						peerDeploy, err := util.Object2Unstructured(peerDeployObj)
+						if err != nil {
+							return err
+						}
+						*o = *peerDeploy
+					} else {
+						o.SetLabels(map[string]string{
+							oam.LabelAppComponent: "test-comp",
+							oam.LabelAppName:      "test-app",
+						})
+					}
+					return nil
+				}
+				return nil
+			},
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+				l, _ := list.(*unstructured.UnstructuredList)
+				u := unstructured.Unstructured{}
+				u.SetAPIVersion("apps/v1")
+				u.SetKind("Deployment")
+				u.SetName("peer-workload")
+				l.Items = []unstructured.Unstructured{u}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusHealthy,
+			},
+		},
+		{
+			caseName: "peer workload is unhealthy",
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "main-workload" {
+						deploy, err := util.Object2Unstructured(deployObj)
+						if err != nil {
+							return err
+						}
+						*o = *deploy
+						o.SetLabels(map[string]string{
+							oam.LabelAppComponent: "test-comp",
+							oam.LabelAppName:      "test-app",
+						})
+					} else if key.Name == "peer-workload" {
+						peerDeployCopy := peerDeployObj.DeepCopy()
+						peerDeployCopy.Status.ReadyReplicas = int32(0)
+						peerDeploy, err := util.Object2Unstructured(peerDeployCopy)
+						if err != nil {
+							return err
+						}
+						*o = *peerDeploy
+					}
+					return nil
+				}
+				return nil
+			},
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+				l, _ := list.(*unstructured.UnstructuredList)
+				u := unstructured.Unstructured{}
+				u.SetAPIVersion("apps/v1")
+				u.SetKind("Deployment")
+				u.SetName("peer-workload")
+				l.Items = []unstructured.Unstructured{u}
+				return nil
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
+			},
+		},
+		{
+			caseName: "error occurs when get peer workload",
+			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *unstructured.Unstructured:
+					if key.Name == "main-workload" {
+						deploy, err := util.Object2Unstructured(deployObj)
+						if err != nil {
+							return err
+						}
+						*o = *deploy
+						o.SetLabels(map[string]string{
+							oam.LabelAppComponent: "test-comp",
+							oam.LabelAppName:      "test-app",
+						})
+					}
+					return nil
+				}
+				return nil
+			},
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+				return errMockErr
+			},
+			expect: &WorkloadHealthCondition{
+				HealthStatus: StatusUnhealthy,
+			},
 		},
 	}
-	hDeploy.SetName("deploy")
-	hDeploy.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindDeployment))
 
-	uhGeneralRef := corev1.ObjectReference{
-		APIVersion: "unknown",
-		Kind:       "unknown",
-		Name:       "unhealthyGeneral",
+	for _, tc := range tests {
+		func(t *testing.T) {
+			mockClient.MockGet = tc.mockGetFn
+			mockClient.MockList = tc.mockListFn
+			checker := WorkloadHealthCheckFn(CheckDeploymentHealth)
+			result := checker.Check(ctx, mockClient, deployRef, namespace)
+			if tc.expect == nil {
+				assert.Nil(t, result, tc.caseName)
+			} else {
+				assert.Equal(t, tc.expect.HealthStatus, result.HealthStatus, tc.caseName)
+			}
+		}(t)
 	}
-	uhDeploy := hDeploy
-	uhDeploy.Status.ReadyReplicas = 0 // unhealthy
-	uhGeneralWL := &unstructured.Unstructured{Object: make(map[string]interface{})}
-	fieldpath.Pave(uhGeneralWL.Object).SetValue("status.readyReplicas", 0)           // healthy
-	fieldpath.Pave(uhGeneralWL.Object).SetValue("metadata.name", "unhealthyGeneral") // healthy
-	unsupporttedWL := &unstructured.Unstructured{Object: make(map[string]interface{})}
-	fieldpath.Pave(unsupporttedWL.Object).SetValue("status.unknown", 1) // healthy
+}
 
-	BeforeEach(func() {
-		logf.Log.Info("Set up resources before an unit test")
-		hs.Spec.WorkloadReferences = []corev1.ObjectReference{}
-	})
-
-	AfterEach(func() {
-		logf.Log.Info("Clean up resources after an unit test")
-	})
-
-	// use ContainerizedWorkload and Deployment checker
-	It("Test healthy scope", func() {
-		tests := []struct {
-			caseName           string
-			hsWorkloadRefs     []corev1.ObjectReference
-			mockGetFn          test.MockGetFn
-			wantScopeCondition ScopeHealthCondition
-		}{
-			{
-				caseName:       "1 supportted workload(deploy)",
-				hsWorkloadRefs: []corev1.ObjectReference{deployRef},
-				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-					if o, ok := obj.(*appsv1.Deployment); ok {
-						*o = hDeploy
-					}
-					return nil
-				},
-				wantScopeCondition: ScopeHealthCondition{
-					HealthStatus:       StatusHealthy,
-					Total:              int64(1),
-					HealthyWorkloads:   int64(1),
-					UnhealthyWorkloads: 0,
-					UnknownWorkloads:   0,
-				},
-			},
-		}
-		for _, tc := range tests {
-			By("Running: " + tc.caseName)
-			mockClient := &test.MockClient{
-				MockGet: tc.mockGetFn,
+func TestPeerHealthConditionsSort(t *testing.T) {
+	tests := []struct {
+		caseName string
+		d        []string
+		w        []string
+	}{
+		{
+			caseName: "all has qualified revision name",
+			d:        []string{"comp-v1", "comp-v2", "comp-v12"},
+			w:        []string{"comp-v12", "comp-v2", "comp-v1"},
+		},
+		{
+			caseName: "part has qualified revision name",
+			d:        []string{"comp-v1", "comp", "comp-v2", "comp-v12"},
+			w:        []string{"comp-v12", "comp-v2", "comp-v1", "comp"},
+		},
+	}
+	for _, tc := range tests {
+		func(t *testing.T) {
+			data := make(PeerHealthConditions, len(tc.d))
+			want := make(PeerHealthConditions, len(tc.w))
+			for i, v := range tc.d {
+				data[i] = WorkloadHealthCondition{
+					TargetWorkload: corev1.ObjectReference{Name: v},
+				}
 			}
-			reconciler.client = mockClient
-			hs.Spec.WorkloadReferences = tc.hsWorkloadRefs
-			result, _ := reconciler.GetScopeHealthStatus(ctx, &hs)
-			Expect(result).ShouldNot(BeNil())
-			Expect(result).Should(Equal(tc.wantScopeCondition))
-		}
-	})
-
-	// use Deployment checker
-	It("Test unhealthy scope", func() {
-		tests := []struct {
-			caseName           string
-			hsWorkloadRefs     []corev1.ObjectReference
-			mockGetFn          test.MockGetFn
-			wantScopeCondition ScopeHealthCondition
-		}{
-			{
-				caseName:       "1 unhealthy workload",
-				hsWorkloadRefs: []corev1.ObjectReference{deployRef},
-				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						*o = hDeploy
-					case *unstructured.Unstructured:
-						// return err when get svc of cw, then check fails
-						if key.Name == "cw" || key.Name == "deploy" {
-							return nil
-						}
-						return errMockErr
-					}
-					return nil
-				},
-				wantScopeCondition: ScopeHealthCondition{
-					HealthStatus:       StatusUnhealthy,
-					Total:              int64(1),
-					HealthyWorkloads:   0,
-					UnhealthyWorkloads: int64(1),
-					UnknownWorkloads:   0,
-				},
-			},
-			{
-				caseName:       "1 unsupportted workloads",
-				hsWorkloadRefs: []corev1.ObjectReference{uhGeneralRef},
-				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						*o = hDeploy
-					case *unstructured.Unstructured:
-						*o = *unsupporttedWL
-					}
-					return nil
-				},
-				wantScopeCondition: ScopeHealthCondition{
-					HealthStatus:       StatusUnhealthy,
-					Total:              int64(2),
-					HealthyWorkloads:   int64(1),
-					UnhealthyWorkloads: 0,
-					UnknownWorkloads:   int64(1),
-				},
-			},
-		}
-
-		for _, tc := range tests {
-			By("Running: " + tc.caseName)
-			mockClient := &test.MockClient{
-				MockGet: tc.mockGetFn,
+			for i, v := range tc.w {
+				want[i] = WorkloadHealthCondition{
+					TargetWorkload: corev1.ObjectReference{Name: v},
+				}
 			}
-			reconciler.client = mockClient
-			hs.Spec.WorkloadReferences = tc.hsWorkloadRefs
-			result, _ := reconciler.GetScopeHealthStatus(ctx, &hs)
-			Expect(result).ShouldNot(BeNil())
-			Expect(result).Should(Equal(tc.wantScopeCondition))
-		}
-	})
-})
+			sort.Sort(data)
+			if diff := cmp.Diff(data, want); diff != "" {
+				t.Errorf("didn't get expected sorted result %s", diff)
+			}
+		}(t)
+	}
+
+}

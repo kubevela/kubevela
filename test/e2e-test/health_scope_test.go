@@ -104,7 +104,7 @@ var _ = Describe("HealthScope", func() {
 			return hs.Status.ScopeHealthCondition.HealthStatus
 		}, time.Second*30, time.Millisecond*500).Should(Equal(v1alpha2.StatusHealthy))
 
-		label := map[string]string{"workload": "containerized-workload"}
+		label := map[string]string{"workload": "deployment-workload"}
 		wl := appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "apps/v1",
@@ -112,6 +112,7 @@ var _ = Describe("HealthScope", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "vela-system",
+				Labels: label,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{

@@ -234,8 +234,16 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				caseName:       "1 supportted workload(deploy)",
 				hsWorkloadRefs: []corev1.ObjectReference{deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-					if o, ok := obj.(*appsv1.Deployment); ok {
-						*o = hDeploy
+					switch o := obj.(type) {
+					case *unstructured.Unstructured:
+						if key.Name == "deploy" {
+							deployObj, err := util.Object2Unstructured(hDeploy)
+							if err != nil {
+								return err
+							}
+							*o = *deployObj
+						}
+						return nil
 					}
 					return nil
 				},
@@ -274,11 +282,14 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				hsWorkloadRefs: []corev1.ObjectReference{deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						*o = hDeploy
 					case *unstructured.Unstructured:
 						// return err when get svc of cw, then check fails
-						if key.Name == "cw" || key.Name == "deploy" {
+						if key.Name == "deploy" {
+							deployObj, err := util.Object2Unstructured(uhDeploy)
+							if err != nil {
+								return err
+							}
+							*o = *deployObj
 							return nil
 						}
 						return errMockErr
@@ -298,17 +309,23 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				hsWorkloadRefs: []corev1.ObjectReference{uhGeneralRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						*o = hDeploy
 					case *unstructured.Unstructured:
+						if key.Name == "deploy" {
+							deployObj, err := util.Object2Unstructured(hDeploy)
+							if err != nil {
+								return err
+							}
+							*o = *deployObj
+							return nil
+						}
 						*o = *unsupporttedWL
 					}
 					return nil
 				},
 				wantScopeCondition: ScopeHealthCondition{
 					HealthStatus:       StatusUnhealthy,
-					Total:              int64(2),
-					HealthyWorkloads:   int64(1),
+					Total:              int64(1),
+					HealthyWorkloads:   0,
 					UnhealthyWorkloads: 0,
 					UnknownWorkloads:   int64(1),
 				},
