@@ -112,7 +112,7 @@ var _ = Describe("HealthScope", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "vela-system",
-				Labels: label,
+				Labels:    label,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{

@@ -63,6 +63,11 @@ var _ = Describe("Versioning mechanism of components", func() {
 				Namespace: namespace,
 			},
 			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "wordpress",
+					},
+				},
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
@@ -71,6 +76,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 							},
 						},
 					},
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "wordpress"}},
 				},
 			},
 		}
@@ -79,6 +85,11 @@ var _ = Describe("Versioning mechanism of components", func() {
 				Namespace: namespace,
 			},
 			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "wordpress",
+					},
+				},
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
@@ -87,6 +98,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 							},
 						},
 					},
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "wordpress"}},
 				},
 			},
 		}
@@ -514,8 +526,10 @@ var _ = Describe("Component revision", func() {
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						{Name: "nginx",
-							Image: "nginx:1.9.4"},
+						{
+							Name:  "nginx",
+							Image: "nginx:1.9.4",
+						},
 					},
 				},
 				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "nginx"}},

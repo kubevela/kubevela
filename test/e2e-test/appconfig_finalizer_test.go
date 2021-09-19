@@ -83,7 +83,7 @@ var _ = PDescribe("Finalizer for HealthScope in ApplicationConfiguration", func(
 									Containers: []corev1.Container{
 										{
 											Image: "nginx:v3",
-											Name: "nginx"
+											Name:  "nginx",
 										},
 									},
 								},

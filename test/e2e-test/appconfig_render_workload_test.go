@@ -92,6 +92,11 @@ var _ = Describe("AppConfig renders workloads", func() {
 				Name:      wdName,
 			},
 			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "test",
+					},
+				},
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
@@ -115,6 +120,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 							},
 						},
 					},
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
 				},
 			},
 		}
