@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Set up Go 1.17
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v2
         env:
           GO_VERSION: '1.17'
           GOLANGCI_VERSION: 'v1.38'
