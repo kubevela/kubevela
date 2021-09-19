@@ -73,14 +73,21 @@ var _ = PDescribe("Finalizer for HealthScope in ApplicationConfiguration", func(
 				Workload: runtime.RawExtension{
 					Object: &appsv1.Deployment{
 						Spec: appsv1.DeploymentSpec{
+							Selector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"app": "nginx",
+								},
+							},
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
 									Containers: []corev1.Container{
 										{
 											Image: "nginx:v3",
+											Name: "nginx"
 										},
 									},
 								},
+								ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "nginx"}},
 							},
 						},
 					},
