@@ -144,9 +144,13 @@ func (a *AppManifestsDispatcher) validateAndComplete(ctx context.Context) error 
 		klog.InfoS("Validate previous resource tracker exists", "previous", klog.KObj(a.previousRT))
 		gotPreviousRT := &v1beta1.ResourceTracker{}
 		if err := a.c.Get(ctx, client.ObjectKey{Name: a.previousRT.Name}, gotPreviousRT); err != nil {
-			return errors.Errorf("given resource tracker %q doesn't exist", a.previousRT.Name)
+			if !kerrors.IsNotFound(err) {
+				return errors.Wrapf(err, "failed to get previous resource tracker")
+			}
+			a.previousRT = nil // if resourcetracker has been removed, ignore it
+		} else {
+			a.previousRT = gotPreviousRT
 		}
-		a.previousRT = gotPreviousRT
 	}
 	klog.InfoS("Given previous resource tracker is nil or same as current one, so skip GC", "appRevision", klog.KObj(a.appRev))
 	return nil

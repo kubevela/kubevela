@@ -249,6 +249,7 @@ value: {
   kind: "Pod"
   apiVersion: "v1"
 }
+cluster: "test"
 `, nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)

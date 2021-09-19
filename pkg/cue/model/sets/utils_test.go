@@ -237,3 +237,26 @@ wait: {
 		assert.Equal(t, string(bt), tCase.expectJson)
 	}
 }
+
+func TestOpenBasicLit(t *testing.T) {
+	s, err := OpenBaiscLit(`
+a: 10
+a1: int
+b: "foo"
+b1: string
+c: true
+c1: bool
+top: _
+bottom: _|_
+`)
+	assert.NilError(t, err)
+	assert.Equal(t, s, `a:      *10 | _
+a1:     int
+b:      *"foo" | _
+b1:     string
+c:      *true | _
+c1:     bool
+top:    _
+bottom: _|_
+`)
+}

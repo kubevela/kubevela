@@ -21,7 +21,7 @@ import (
 	load:       oam.#LoadComponets @step(1)
 	components: #Steps & {
 		for name, c in load.value {
-			"\(name)": oam.#Apply & {
+			"\(name)": oam.#ApplyComponent & {
 				value: c
 			}
 		}
@@ -35,11 +35,11 @@ import (
 	exceptions: [...string]
 	_exceptions: {for c in exceptions {"\(c)": true}}
 
-	load:       ws.#Load @step(1)
+	load:       oam.#LoadComponets @step(1)
 	components: #Steps & {
 		for name, c in load.value {
 			if _exceptions[name] == _|_ {
-				"\(name)": oam.#Apply & {
+				"\(name)": oam.#ApplyComponent & {
 					value: c
 				}
 			}
@@ -109,30 +109,15 @@ import (
 		}
 	} @step(3)
 
-	target: "\(policy)-\(env)-\(app)"
-	apply:  kube.#Apply & {
-		value: {
-			yaml.Unmarshal(configMap.value.data[target])
-		}
-	} @step(4)
-
-	if apply.value.kind == "Application" {
-		"wait-app": #ConditionalWait & {
-			continue: apply.value.status.status == "running"
-		} @step(5)
-	}
-
-	if apply.value.kind == "ManifestWork" {
-		"wait-manifestWork": #ConditionalWait & {
-			continue: len(apply.value.status.resourceStatus) != 0
-		} @step(6)
-
-		for manifest in apply.value.status.resourceStatus.manifests {
-			for condition in manifest.conditions {
-				"wait-\(manifest.resourceMeta.kind)-\(condition.reason)": #ConditionalWait & {
-					continue: condition.status == "True"
-				} @step(7)
-			}
+	target: yaml.Unmarshal(configMap.value.data["\(env)"])
+	apply:  #Steps & {
+		for key, val in target {
+			"\(key)": kube.#Apply & {
+				value: val
+				if val.metadata.labels != _|_ && val.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
+					cluster: val.metadata.labels["cluster.oam.dev/clusterName"]
+				}
+			} @step(4)
 		}
 	}
 }

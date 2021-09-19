@@ -1,0 +1,53 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Initializer
+metadata:
+  annotations:
+    addons.oam.dev/description: terraform provider (alibaba)
+    addons.oam.dev/name: terraform/provider-alibaba
+  name: terraform-provider-alibaba
+  namespace: default
+spec:
+  appTemplate:
+    spec:
+      components:
+        - name: alibaba-account-creds
+          properties:
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: alibaba-provider-secret
+              namespace: vela-system
+            type: Opaque
+            stringData:
+              credentials: |
+                accessKeyID: [[ index .Args "ALICLOUD_ACCESS_KEY" ]]
+                accessKeySecret: [[ index .Args "ALICLOUD_SECRET_KEY" ]]
+                securityToken: [[ index .Args "ALICLOUD_SECURITY_TOKEN" ]]
+          type: raw
+        - name: default
+          type: raw
+          properties:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Provider
+            metadata:
+              name: default
+              namespace: default
+            spec:
+              provider: alibaba
+              region: '[[ index .Args "ALICLOUD_REGION" ]]'
+              credentials:
+                source: Secret
+                secretRef:
+                  namespace: vela-system
+                  name: alibaba-account-creds
+                  key: credentials
+{{ range .ResourceFiles }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}
+{{ range .DefinitionFiles }}
+        - name: {{ .Name }}
+          type: raw
+          properties:
+{{ .Content | indent 12 }} {{ end }}

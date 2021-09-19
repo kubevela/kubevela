@@ -19,6 +19,10 @@ package oam
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"gotest.tools/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -75,6 +79,38 @@ metadata: {
 	_, err = value.NewValue("", nil, "")
 	assert.NilError(t, err)
 	assert.Equal(t, act.phase, "")
+}
+
+func TestLoadComponent(t *testing.T) {
+	p := &provider{
+		app: &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "c1",
+						Type:       "web",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+					},
+				},
+			},
+		},
+	}
+	v, err := value.NewValue(``, nil, "")
+	assert.NilError(t, err)
+	err = p.LoadComponent(nil, v, nil)
+	assert.NilError(t, err)
+	s, err := v.String()
+	assert.NilError(t, err)
+	assert.Equal(t, s, `value: {
+	c1: {
+		name: *"c1" | _
+		type: *"web" | _
+		properties: {
+			image: *"busybox" | _
+		}
+	}
+}
+`)
 }
 
 var testHealthy bool

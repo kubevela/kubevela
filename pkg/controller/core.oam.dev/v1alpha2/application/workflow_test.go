@@ -477,11 +477,25 @@ var _ = Describe("Test Workflow", func() {
 		updateApp := &oamcore.Application{}
 		Expect(k8sClient.Get(ctx, appKey, updateApp)).Should(BeNil())
 		Expect(updateApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		updateApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{}`)}
 		updateApp.Spec.Workflow = &oamcore.Workflow{
 			Steps: []oamcore.WorkflowStep{{
 				Name:       "test-web2",
 				Type:       "apply-component",
 				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+				Outputs: common.StepOutputs{
+					{Name: "image", ValueFrom: "output.spec.template.spec.containers[0].image"},
+				},
+			}, {
+				Name:       "test-web1",
+				Type:       "apply-component",
+				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+				Inputs: common.StepInputs{
+					{
+						From:         "image",
+						ParameterKey: "image",
+					},
+				},
 			}},
 		}
 		Expect(k8sClient.Update(context.Background(), updateApp)).Should(BeNil())

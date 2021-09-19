@@ -53,7 +53,9 @@ data:
                                       }
 
                                       traits: "virtualService": {
-                                              spec: http: [
+                                              spec:
+                                                 // +patchStrategy=retainKeys
+                                                 http: [
                                                       {
                                                               route: [
                                                                       for i, t in parameter.traffic.weightedTargets {
@@ -68,14 +70,21 @@ data:
                                       }
 
                                       traits: "destinationRule": {
-                                               spec: subsets: [
+                                               // +patchStrategy=retainKeys
+                                               spec: {
+                                                 host: comp__
+                                                 subsets: [
                                                       for i, t in parameter.traffic.weightedTargets {
                                                               name: t.revision
                                                               labels: {"app.oam.dev/revision": t.revision}
                                                       },
-                                              ]
+                                              ]}
                                       }
                               }
+                      }
+
+                      applyRemaining: op.#ApplyRemaining & {
+                          exceptions: [comp__]
                       }
             type: raw
           - name: istio-gateway
@@ -111,6 +120,82 @@ data:
                       \   port: int\n}\n\n#uri: {\n   exact?: string\n   prefix?: string\n}
                       \n"
             type: raw
+          - name: canary-rollback
+            properties:
+              apiVersion: core.oam.dev/v1beta1
+              kind: WorkflowStepDefinition
+              metadata:
+                name: canary-rollback
+                namespace: vela-system
+              spec:
+                schematic:
+                  cue:
+                    template: |-
+                      import ("vela/op")
+
+                      parameter: {...}
+
+                      comps: op.#Load
+                      compNames: [ for name, c in comps.value {name}]
+                      firstcomp: compNames[0]
+
+                      rolloutObj: op.#Read & {
+                        value: {
+                          apiVersion: "standard.oam.dev/v1alpha1"
+                          kind:       "Rollout"
+                          metadata: {
+                            name:      firstcomp
+                            namespace: context.namespace
+                          }
+                        }
+                      }
+
+                      _sourceRevision: rolloutObj.value.status.LastSourceRevision
+
+                      apply: op.#ApplyComponent & {
+                        value: comps.value[firstcomp]
+                        patch: {
+                          traits: "rollout": {
+                            spec: {
+                              targetRevisionName: _sourceRevision
+                            }
+                          }
+
+                          traits: "virtualService": {
+                            spec:
+                              // +patchStrategy=retainKeys
+                              http: [
+                                {
+                                  route: [{
+                                    destination: {
+                                      host:   firstcomp
+                                      subset: _sourceRevision
+                                    }
+                                    weight: 100
+                                  }]
+                                },
+                              ]
+                          }
+
+                          traits: "destinationRule": {
+                            // +patchStrategy=retainKeys
+                            spec: {
+                              host: firstcomp
+                              subsets: [
+                                {
+                                  name: _sourceRevision
+                                  labels: {"app.oam.dev/revision": _sourceRevision}
+                                },
+                              ]
+                            }
+                          }
+                        }
+                      }
+
+                      applyRemaining: op.#ApplyRemaining & {
+                          exceptions: [firstcomp]
+                      }
+            type: raw
           - name: canary-traffic
             properties:
               apiVersion: core.oam.dev/v1beta1
@@ -126,35 +211,23 @@ data:
                 podDisruptive: true
                 schematic:
                   cue:
-                    template: |2
-
-                      outputs: virtualService: {
-                          apiVersion: "networking.istio.io/v1alpha3"
-                          kind: "VirtualService"
-                          metadata: {
-                              name:      context.name
-                              namespace: context.namespace
-                          }
-                          spec: {
-                             hosts: [context.name]
-                          }
-                      }
-
-                      outputs: destinationRule: {
-                             apiVersion: "networking.istio.io/v1alpha3"
-                             kind: "DestinationRule"
-                             metadata: {
-                                 name:      context.name
-                                 namespace: context.namespace
-                             }
-                             spec: {
-                                host: context.name
-                             }
-                      }
-
-                      parameter: {
-                         port: [int]
-                      }
+                    template: "outputs: service: {\n\t\tapiVersion: \"v1\"\n\t\tkind:
+                      \      \"Service\"\n\t\tmetadata: name: context.name\n\t\tspec:
+                      {\n\t\t\tselector: \"app.oam.dev/component\": context.name\n\t\t\tports:
+                      [\n\t\t\t\tfor p in parameter.port {\n\t\t\t\t\tport:       p\n\t\t\t\t\ttargetPort:
+                      p\n\t\t\t\t},\n\t\t\t]\n\t\t\ttype: \"ClusterIP\"\n\t\t}\n}\n\noutputs:
+                      virtualService: {\n    apiVersion: \"networking.istio.io/v1alpha3\"\n
+                      \   kind: \"VirtualService\"\n    metadata: {\n        name:      context.name\n
+                      \       namespace: context.namespace\n    }\n    spec: {\n       hosts:
+                      [context.name]\n       http: [{route: [\n       {destination: {\n
+                      \         host: context.name\n          port: {number: parameter.port[0]}\n
+                      \      }}]}]\n    }\n}\n\noutputs: destinationRule: {\n       apiVersion:
+                      \"networking.istio.io/v1alpha3\"\n       kind: \"DestinationRule\"\n
+                      \      metadata: {\n           name:      context.name\n           namespace:
+                      context.namespace\n       }\n       spec: {\n          host: context.name\n
+                      \         subsets: [{\n             name: context.revision\n             labels:
+                      {\"app.oam.dev/revision\": context.revision}\n          }]\n       }\n}\n\nparameter:
+                      {\n   port: [int]\n} \n"
             type: raw
         status:
           rollout:
@@ -182,6 +255,7 @@ metadata:
   annotations:
     addons.oam.dev/description: istio Controller is a Kubernetes Controller for manage
       traffic.
+    addons.oam.dev/name: istio
   labels:
     addons.oam.dev/type: istio
   name: istio

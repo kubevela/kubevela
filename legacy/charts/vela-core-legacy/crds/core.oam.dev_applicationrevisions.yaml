@@ -773,6 +773,8 @@ spec:
                           description: ApplicationComponentStatus record the health
                             status of App component
                           properties:
+                            env:
+                              type: string
                             healthy:
                               type: boolean
                             message:
@@ -1040,15 +1042,10 @@ spec:
                             type: boolean
                           terminated:
                             type: boolean
-                          waitCount:
-                            description: WaitCount counts the reconcile times on conditional
-                              wait
-                            type: integer
                         required:
                         - mode
                         - suspend
                         - terminated
-                        - waitCount
                         type: object
                     type: object
                 type: object
@@ -2851,6 +2848,8 @@ spec:
                           description: ApplicationComponentStatus record the health
                             status of App component
                           properties:
+                            env:
+                              type: string
                             healthy:
                               type: boolean
                             message:
@@ -3118,15 +3117,10 @@ spec:
                             type: boolean
                           terminated:
                             type: boolean
-                          waitCount:
-                            description: WaitCount counts the reconcile times on conditional
-                              wait
-                            type: integer
                         required:
                         - mode
                         - suspend
                         - terminated
-                        - waitCount
                         type: object
                     type: object
                 type: object

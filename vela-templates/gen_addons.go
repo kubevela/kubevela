@@ -39,6 +39,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/references/cli"
 )
 
 const (
@@ -62,10 +63,13 @@ const (
 
 	// ChartTemplateNamespace is placeholder for helm chart
 	ChartTemplateNamespace = "{{.Values.systemDefinitionNamespace}}"
+
+	// NameAnnotation marked the addon's name if exist, or initializer's name
+	NameAnnotation = "addons.oam.dev/name"
 )
 
 // DefaultEnableAddons is default enabled addons
-var DefaultEnableAddons = []string{"terraform"}
+var DefaultEnableAddons = []string{""}
 
 type velaFile struct {
 	RelativePath string
@@ -79,6 +83,7 @@ type AddonInfo struct {
 	DefinitionFiles []velaFile
 	HasDefs         bool
 	Name            string
+	StoreName       string
 	Description     string
 	TemplatePath    string
 }
@@ -136,7 +141,6 @@ func getAddonInfo(addon string, addonsPath string) (*AddonInfo, error) {
 	resourcesFiles := make([]velaFile, 0)
 	defFiles := make([]velaFile, 0)
 	addInfo := &AddonInfo{
-		Name:         addon,
 		TemplatePath: filepath.Join(addonRoot, InitializerTemplateName),
 	}
 	// raw resources directory
@@ -186,7 +190,7 @@ func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
 	var buf bytes.Buffer
 	err = t.Execute(&buf, addon)
 	if err != nil {
-		return nil, errors.Wrapf(err, "generate Initializer %s fail", addon.Name)
+		return nil, errors.Wrapf(err, "generate Initializer %s fail", addon.TemplatePath)
 	}
 
 	init := new(v1beta1.Initializer)
@@ -199,11 +203,12 @@ func generateInitializer(addon *AddonInfo) (*v1beta1.Initializer, error) {
 
 func setConfigMapLabels(addonInfo *AddonInfo) map[string]string {
 	return map[string]string{
-		MarkLabel: addonInfo.Name,
+		MarkLabel: addonInfo.StoreName,
 	}
 }
 func setConfigMapAnnotations(addonInfo *AddonInfo) map[string]string {
 	return map[string]string{
+		NameAnnotation: addonInfo.Name,
 		DescAnnotation: addonInfo.Description,
 	}
 }
@@ -226,7 +231,7 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 		},
 	}
 	addonInfo.Description = initializer.GetAnnotations()[DescAnnotation]
-	configMap.SetName(addonInfo.Name)
+	configMap.SetName(addonInfo.StoreName)
 	configMap.SetNamespace(ChartTemplateNamespace)
 	configMap.SetAnnotations(setConfigMapAnnotations(addonInfo))
 	configMap.SetLabels(setConfigMapLabels(addonInfo))
@@ -245,7 +250,7 @@ func storeConfigMap(addonInfo *AddonInfo, initializer *v1beta1.Initializer, stor
 	raw := string(content)
 	removeTimestampInplace(&raw)
 	raw = strings.ReplaceAll(raw, fmt.Sprintf("'%s'", ChartTemplateNamespace), ChartTemplateNamespace)
-	filename := storePath + "/" + addonInfo.Name + ".yaml"
+	filename := storePath + "/" + addonInfo.StoreName + ".yaml"
 	return WriteToFile(filename, raw)
 }
 
@@ -305,7 +310,8 @@ func main() {
 		dealErr(addon, err)
 		init, err := generateInitializer(addInfo)
 		dealErr(addon, err)
-		err = storeInitializer(init, addonsPath, addInfo.Name)
+		setAddonName(addInfo, init)
+		err = storeInitializer(init, addonsPath, addInfo.StoreName)
 		dealErr(addon, err)
 		err = storeConfigMap(addInfo, init, configMapStorePath)
 		dealErr(addon, err)
@@ -314,4 +320,15 @@ func main() {
 			dealErr(addon, err)
 		}
 	}
+}
+
+func setAddonName(addInfo *AddonInfo, init *v1beta1.Initializer) {
+	var name string
+	if val, ok := init.Annotations[NameAnnotation]; ok {
+		name = val
+	} else {
+		name = init.Name
+	}
+	addInfo.Name = name
+	addInfo.StoreName = cli.TransAddonName(name)
 }

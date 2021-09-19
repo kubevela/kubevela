@@ -40,6 +40,7 @@ metadata:
   annotations:
     addons.oam.dev/description: Prometheus is an open-source systems monitoring and
       alerting toolkit
+    addons.oam.dev/name: prometheus
   labels:
     addons.oam.dev/type: prometheus
   name: prometheus

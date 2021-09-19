@@ -362,4 +362,103 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		}, 30*time.Second, 15*time.Millisecond).Should(BeNil())
 		verifyRolloutSucceeded(utils.ConstructRevisionName(componentName, 1))
 	})
+
+	It("Test component rollout cloneset revert in middle of rollout", func() {
+		var err error
+		applySourceApp("app-source.yaml")
+		updateApp("app-target.yaml", 2)
+		By("verify generate two controller revisions")
+		ctlRevList := appsv1.ControllerRevisionList{}
+		Eventually(func() error {
+			if err = k8sClient.List(ctx, &ctlRevList, client.InNamespace(namespaceName),
+				client.MatchingLabels(map[string]string{oam.LabelControllerRevisionComponent: componentName})); err != nil {
+				return err
+			}
+			if len(ctlRevList.Items) < 2 {
+				return fmt.Errorf("component revision missmatch acctually %d", len(ctlRevList.Items))
+			}
+			return nil
+		}, time.Second*30, 300*time.Millisecond).Should(BeNil())
+		By("initial scale component revision")
+		initialScale()
+		clonesetName := rollout.Spec.ComponentName
+		By("rollout to compRev 2")
+		Eventually(func() error {
+			checkRollout := new(v1alpha1.Rollout)
+			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
+				return err
+			}
+			// we needn't specify sourceRevision, rollout use lastTarget as source
+			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(componentName, 2)
+			checkRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
+			if err = k8sClient.Update(ctx, checkRollout); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 15*time.Millisecond).Should(BeNil())
+		By("verify rollout pause in first batch")
+		checkRollout := new(v1alpha1.Rollout)
+		Eventually(func() error {
+			checkRollout = new(v1alpha1.Rollout)
+			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
+				return err
+			}
+			if checkRollout.Status.LastUpgradedTargetRevision != utils.ConstructRevisionName(componentName, 2) {
+				return fmt.Errorf("last target error")
+			}
+			if checkRollout.Status.RollingState != v1alpha1.RollingInBatchesState {
+				return fmt.Errorf("rollout state error")
+			}
+			if checkRollout.Status.CurrentBatch != 0 {
+				return fmt.Errorf("current batch missmatch")
+			}
+			return nil
+		}, 60*time.Second, 300*time.Millisecond).Should(BeNil())
+		Eventually(
+			func() error {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
+				if err != nil {
+					return err
+				}
+				if len(kc.OwnerReferences) != 1 {
+					return fmt.Errorf("cloneset owner missmatch")
+				}
+				if kc.OwnerReferences[0].UID != checkRollout.UID || kc.OwnerReferences[0].Kind != v1alpha1.RolloutKind {
+					return fmt.Errorf("cloneset owner missmatch not rollout Uid %s", checkRollout.UID)
+				}
+				if kc.Status.UpdatedReplicas != 3 {
+					return fmt.Errorf("expect cloneset updated replicas %d, but got %d",
+						3, *kc.Spec.Replicas)
+				}
+				return nil
+			},
+			time.Second*120, time.Millisecond*500).Should(BeNil())
+		Eventually(func() error {
+			checkRollout := new(v1alpha1.Rollout)
+			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
+				return err
+			}
+			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(componentName, 1)
+			checkRollout.Spec.RolloutPlan.BatchPartition = nil
+			if err = k8sClient.Update(ctx, checkRollout); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 15*time.Millisecond).Should(BeNil())
+		verifyRolloutSucceeded(utils.ConstructRevisionName(componentName, 1))
+		By("continue rollout forward")
+		Eventually(func() error {
+			checkRollout := new(v1alpha1.Rollout)
+			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: rolloutName}, checkRollout); err != nil {
+				return err
+			}
+			// we needn't specify sourceRevision, rollout use lastTarget as source
+			checkRollout.Spec.TargetRevisionName = utils.ConstructRevisionName(componentName, 2)
+			if err = k8sClient.Update(ctx, checkRollout); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 15*time.Millisecond).Should(BeNil())
+		verifyRolloutSucceeded(utils.ConstructRevisionName(componentName, 2))
+	})
 })

@@ -12,18 +12,20 @@ spec:
            prefixIP?: string
         }
 
+        load: op.#Load
+
         // apply workload to kubernetes cluster
         apply: op.#ApplyComponent & {
-           component: parameter.component
+           value: load.value[parameter.component]
         }
 
         // wait until workload.status equal "Running"
         wait: op.#ConditionalWait & {
-           continue: apply.status.phase =="Running"
+           continue: apply.output.status.phase =="Running"
         }
 
         // export podIP
-        myIP: apply.status.podIP
+        myIP: apply.output.status.podIP
 ---
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
