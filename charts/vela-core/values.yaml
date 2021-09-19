@@ -119,7 +119,7 @@ multicluster:
       repository: oamdev/cluster-gateway
       tag: v1.1.1
       pullPolicy: Always
-    resource:
+    resources:
       limits:
         cpu: 100m
-        memory: 10Mi
+        memory: 200Mi
