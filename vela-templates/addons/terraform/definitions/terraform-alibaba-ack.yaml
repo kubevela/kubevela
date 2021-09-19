@@ -2,7 +2,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: alibaba-ack
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud ACK cluster
   labels:

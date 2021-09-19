@@ -2,7 +2,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
   name: alibaba-oss
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud OSS object
   labels:

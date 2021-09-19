@@ -69,7 +69,7 @@ const (
 )
 
 // DefaultEnableAddons is default enabled addons
-var DefaultEnableAddons = []string{"terraform"}
+var DefaultEnableAddons = []string{""}
 
 type velaFile struct {
 	RelativePath string
