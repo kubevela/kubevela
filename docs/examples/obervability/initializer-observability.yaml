@@ -54,7 +54,8 @@ spec:
           properties:
             chart: grafana
             version: 6.14.1
-            type: helm
+            repoType: helm
+            # original url: https://grafana.github.io/helm-charts
             url: https://charts.kubevela.net/addons
             targetNamespace: observability
             releaseName: grafana
@@ -83,7 +84,8 @@ spec:
           properties:
             chart: loki-stack
             version: 2.4.1
-            type: helm
+            repoType: helm
+            # original url: https://grafana.github.io/helm-charts
             url: https://charts.kubevela.net/addons
             targetNamespace: observability
             releaseName: loki
@@ -106,7 +108,8 @@ spec:
           properties:
             chart: prometheus
             version: 14.4.1
-            type: helm
+            repoType: helm
+            # original url: https://prometheus-community.github.io/helm-charts
             url: https://charts.kubevela.net/addons
             targetNamespace: observability
             releaseName: prometheus
@@ -119,12 +122,6 @@ spec:
                 persistentVolume:
                   storageClass: "alicloud-disk-available"
                   size: "20Gi"
-              extraScrapeConfigs: |
-                - job_name: 'kubevela'
-                  metrics_path: /metrics
-                  static_configs:
-                    - targets:
-                        - kubevela-core.vela-system.svc.cluster.local:8080
 
           traits:
             - type: register-grafana-datasource # register Prometheus datasource to Grafana
@@ -145,9 +142,14 @@ spec:
           properties:
             chart: kube-state-metrics
             version: 3.4.1
-            type: helm
+            repoType: helm
+            # original url: https://prometheus-community.github.io/helm-charts
             url: https://charts.kubevela.net/addons
             targetNamespace: observability
+            values:
+              image:
+                repository: oamdev/kube-state-metrics
+                tag: v2.1.0
 
   dependsOn:
     - ref:

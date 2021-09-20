@@ -31,6 +31,8 @@ spec:
             targetNamespace: observability
             values:
               replicaCount: 1
+
+        # install Grafana
         - name: grafana
           properties:
             chart: grafana
@@ -58,6 +60,8 @@ spec:
                   - https://charts.kubevela.net/addons/dashboards/kubevela_core_monitoring.json
                   - https://charts.kubevela.net/addons/dashboards/kubevela_application_logging.json
                   - https://charts.kubevela.net/addons/dashboards/flux2/cluster.json # fluxcd
+
+        # install loki
         - name: loki
           type: helm
           properties:
@@ -80,6 +84,8 @@ spec:
                 namespace: observability
                 type: loki
                 access: proxy
+
+          # install Prometheus
         - name: prometheus-server
           type: helm
           properties:
@@ -113,6 +119,8 @@ spec:
                 namespace: observability
                 type: prometheus
                 access: proxy
+
+        # install kube-state-metrics
         - name: kube-state-metrics
           type: helm
           properties:
@@ -126,16 +134,6 @@ spec:
               image:
                 repository: oamdev/kube-state-metrics
                 tag: v2.1.0
-
-        - name: kube-prometheus-stack
-          type: helm
-          properties:
-            chart: kube-prometheus-stack
-            version: 18.0.0
-            repoType: helm
-            # original url: https://prometheus-community.github.io/helm-charts
-            url: https://charts.kubevela.net/addons
-            targetNamespace: observability
 
 {{ range .ResourceFiles }}
         - name: {{ .Name }}
