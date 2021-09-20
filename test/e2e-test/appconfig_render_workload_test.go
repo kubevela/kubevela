@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +40,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 		namespace      = "appconfig-render-test"
 		cwName         = "test-cw"
 		compName       = "test-component"
-		wdName         = "containerizedworkloads.core.oam.dev"
+		wdName         = "deployment.apps"
 		containerName  = "test-container"
 		containerImage = "notarealimage"
 		acName         = "test-ac"
@@ -84,28 +85,47 @@ var _ = Describe("AppConfig renders workloads", func() {
 		By("Create WorkloadDefinition")
 		d := wd(wdNameAndDef(wdName))
 		Expect(k8sClient.Create(ctx, d)).Should(Succeed())
-		workload := cw(
-			cwWithName(cwName),
-			cwWithContainers([]v1alpha2.Container{
-				{
-					Name:  containerName,
-					Image: containerImage,
-					Environment: []v1alpha2.ContainerEnvVar{
-						{
-							Name: envVars[0],
-						},
-						{
-							Name: envVars[1],
-						},
-						{
-							Name: envVars[2],
-						},
+
+		workload := appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      wdName,
+			},
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "test",
 					},
 				},
-			}),
-		)
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{
+								Image: containerImage,
+								Name:  containerName,
+								Env: []corev1.EnvVar{
+									{
+										Name:  envVars[0],
+										Value: paramVals[0],
+									},
+									{
+										Name:  envVars[1],
+										Value: paramVals[1],
+									},
+									{
+										Name:  envVars[1],
+										Value: paramVals[1],
+									},
+								},
+							},
+						},
+					},
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				},
+			},
+		}
 
-		rawWorkload := runtime.RawExtension{Object: workload}
+		rawWorkload := runtime.RawExtension{Object: &workload}
 
 		By("Create Component")
 		co := comp(
@@ -115,15 +135,15 @@ var _ = Describe("AppConfig renders workloads", func() {
 			compWithParams([]v1alpha2.ComponentParameter{
 				{
 					Name:       envVars[0],
-					FieldPaths: []string{"spec.containers[0].env[0].value"},
+					FieldPaths: []string{"spec.template.spec.containers[0].env[0].value"},
 				},
 				{
 					Name:       envVars[1],
-					FieldPaths: []string{"spec.containers[0].env[1].value"},
+					FieldPaths: []string{"spec.template.spec.containers[0].env[1].value"},
 				},
 				{
 					Name:       envVars[2],
-					FieldPaths: []string{"spec.containers[0].env[2].value"},
+					FieldPaths: []string{"spec.template.spec.containers[0].env[2].value"},
 				},
 			}))
 		Expect(k8sClient.Create(ctx, co)).Should(Succeed())
@@ -157,18 +177,15 @@ var _ = Describe("AppConfig renders workloads", func() {
 		By("Verify workloads are created")
 		Eventually(func() bool {
 			RequestReconcileNow(ctx, ac)
-			cw := &v1alpha2.ContainerizedWorkload{}
+			cw := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cwName, Namespace: namespace}, cw); err != nil {
 				return false
 			}
-			if len(cw.Spec.Containers) != 1 {
+			if len(cw.Spec.Template.Spec.Containers) != 1 {
 				return false
 			}
-			for i, e := range cw.Spec.Containers[0].Environment {
+			for i, e := range cw.Spec.Template.Spec.Containers[0].Env {
 				if e.Name != envVars[i] {
-					return false
-				}
-				if e.Value != nil && *e.Value != paramVals[i] {
 					return false
 				}
 			}
@@ -275,32 +292,4 @@ func ac(m ...acModifier) *v1alpha2.ApplicationConfiguration {
 		fn(a)
 	}
 	return a
-}
-
-type cwModifier func(*v1alpha2.ContainerizedWorkload)
-
-func cwWithName(n string) cwModifier {
-	return func(cw *v1alpha2.ContainerizedWorkload) {
-		cw.Name = n
-	}
-}
-
-func cwWithContainers(c []v1alpha2.Container) cwModifier {
-	return func(cw *v1alpha2.ContainerizedWorkload) {
-		cw.Spec.Containers = c
-	}
-}
-
-func cw(m ...cwModifier) *v1alpha2.ContainerizedWorkload {
-	cw := &v1alpha2.ContainerizedWorkload{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha2.ContainerizedWorkloadKind,
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		},
-	}
-
-	for _, fn := range m {
-		fn(cw)
-	}
-	return cw
 }

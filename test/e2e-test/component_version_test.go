@@ -53,55 +53,52 @@ var _ = Describe("Versioning mechanism of components", func() {
 	imageV1 := "wordpress:4.6.1-apache"
 	imageV2 := "wordpress:4.6.2-apache"
 
-	var cwV1, cwV2 v1alpha2.ContainerizedWorkload
+	var cwV1, cwV2 appsv1.Deployment
 	var componentV1 v1alpha2.Component
 	var appConfig v1alpha2.ApplicationConfiguration
 
 	BeforeEach(func() {
-		cwV1 = v1alpha2.ContainerizedWorkload{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ContainerizedWorkload",
-				APIVersion: "core.oam.dev/v1alpha2",
-			},
+		cwV1 = appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: imageV1,
-						Ports: []v1alpha2.ContainerPort{
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "wordpress",
+					},
+				},
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
-								Name: "wordpress",
-								Port: 80,
+								Image: imageV1,
 							},
 						},
 					},
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "wordpress"}},
 				},
 			},
 		}
-
-		cwV2 = v1alpha2.ContainerizedWorkload{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ContainerizedWorkload",
-				APIVersion: "core.oam.dev/v1alpha2",
-			},
+		cwV2 = appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: imageV2,
-						Ports: []v1alpha2.ContainerPort{
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "wordpress",
+					},
+				},
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
-								Name: "wordpress",
-								Port: 80,
+								Image: imageV2,
 							},
 						},
 					},
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "wordpress"}},
 				},
 			},
 		}
@@ -241,23 +238,23 @@ var _ = Describe("Versioning mechanism of components", func() {
 			By("Apply appConfig")
 			Expect(k8sClient.Create(ctx, &appConfigWithRevisionName)).Should(Succeed())
 
-			cwWlV1 := v1alpha2.ContainerizedWorkload{}
-			By("Check ContainerizedWorkload workload's image field is v1")
+			cwWlV1 := appsv1.Deployment{}
+			By("Check Deployment workload's image field is v1")
 			Eventually(
 				func() error {
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &cwWlV1)
 				},
 				time.Second*15, time.Millisecond*500).Should(BeNil())
-			Expect(cwWlV1.Spec.Containers[0].Image).Should(Equal(imageV1))
+			Expect(cwWlV1.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageV1))
 
 			cwV2raw, _ := json.Marshal(cwV2)
 			cmpV1.Spec.Workload.Raw = cwV2raw
 			By("Update Component to revision v2")
 			Expect(k8sClient.Update(ctx, cmpV1)).Should(Succeed())
 
-			By("Check ContainerizedWorkload workload's image field is still v1")
+			By("Check Deployment workload's image field is still v1")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &cwWlV1)).Should(Succeed())
-			Expect(cwWlV1.Spec.Containers[0].Image).Should(Equal(imageV1))
+			Expect(cwWlV1.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageV1))
 		})
 	})
 
@@ -285,14 +282,14 @@ var _ = Describe("Versioning mechanism of components", func() {
 			By("Apply appConfig")
 			Expect(k8sClient.Create(ctx, &appConfigWithRevisionName)).Should(Succeed())
 
-			cwWlV1 := &v1alpha2.ContainerizedWorkload{}
-			By("Check ContainerizedWorkload workload's image field is v1")
+			cwWlV1 := &appsv1.Deployment{}
+			By("Check Deployment workload's image field is v1")
 			Eventually(
 				func() error {
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cwWlV1)
 				},
 				time.Second*15, time.Millisecond*500).Should(BeNil())
-			Expect(cwWlV1.Spec.Containers[0].Image).Should(Equal(imageV1))
+			Expect(cwWlV1.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageV1))
 
 			cwV2raw, _ := json.Marshal(cwV2)
 			cmpV1.Spec.Workload.Raw = cwV2raw
@@ -309,12 +306,12 @@ var _ = Describe("Versioning mechanism of components", func() {
 				},
 				time.Second*30, time.Millisecond*500).ShouldNot(Equal(revisionNameV1))
 
-			By("Check ContainerizedWorkload workload's image field has been changed to v2")
-			cwWlV2 := &v1alpha2.ContainerizedWorkload{}
+			By("Check Deployment workload's image field has been changed to v2")
+			cwWlV2 := &appsv1.Deployment{}
 			Eventually(func() string {
 				RequestReconcileNow(ctx, &appConfigWithRevisionName)
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cwWlV2)
-				return cwWlV2.Spec.Containers[0].Image
+				return cwWlV2.Spec.Template.Spec.Containers[0].Image
 			}, time.Second*60, time.Microsecond*500).Should(Equal(imageV2))
 		})
 	})
@@ -529,8 +526,10 @@ var _ = Describe("Component revision", func() {
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						{Name: "nginx",
-							Image: "nginx:1.9.4"},
+						{
+							Name:  "nginx",
+							Image: "nginx:1.9.4",
+						},
 					},
 				},
 				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "nginx"}},

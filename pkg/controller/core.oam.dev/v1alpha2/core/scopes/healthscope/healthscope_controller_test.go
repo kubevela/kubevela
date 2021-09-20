@@ -184,16 +184,10 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 
 	hs := v1alpha2.HealthScope{}
 
-	var cwRef, deployRef, svcRef corev1.ObjectReference
-	cwRef.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	cwRef.Name = "cw"
+	var deployRef, svcRef corev1.ObjectReference
 	deployRef.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindDeployment))
 	deployRef.Name = "deploy"
 	svcRef.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindService))
-
-	cw := v1alpha2.ContainerizedWorkload{}
-	cw.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	cw.Status.Resources = []corev1.ObjectReference{deployRef, svcRef}
 
 	hDeploy := appsv1.Deployment{
 		Spec: appsv1.DeploymentSpec{
@@ -237,18 +231,11 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			wantScopeCondition ScopeHealthCondition
 		}{
 			{
-				caseName:       "2 supportted workloads(cw,deploy)",
-				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
+				caseName:       "1 supportted workload(deploy)",
+				hsWorkloadRefs: []corev1.ObjectReference{deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *unstructured.Unstructured:
-						if key.Name == "cw" {
-							cwObj, err := util.Object2Unstructured(cw)
-							if err != nil {
-								return err
-							}
-							*o = *cwObj
-						}
 						if key.Name == "deploy" {
 							deployObj, err := util.Object2Unstructured(hDeploy)
 							if err != nil {
@@ -262,8 +249,8 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				},
 				wantScopeCondition: ScopeHealthCondition{
 					HealthStatus:       StatusHealthy,
-					Total:              int64(2),
-					HealthyWorkloads:   int64(2),
+					Total:              int64(1),
+					HealthyWorkloads:   int64(1),
 					UnhealthyWorkloads: 0,
 					UnknownWorkloads:   0,
 				},
@@ -282,7 +269,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 		}
 	})
 
-	// use ContainerizedWorkload and Deployment checker
+	// use Deployment checker
 	It("Test unhealthy scope", func() {
 		tests := []struct {
 			caseName           string
@@ -291,22 +278,14 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			wantScopeCondition ScopeHealthCondition
 		}{
 			{
-				caseName:       "2 supportted workloads but one is unhealthy",
-				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
+				caseName:       "1 unhealthy workload",
+				hsWorkloadRefs: []corev1.ObjectReference{deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *unstructured.Unstructured:
 						// return err when get svc of cw, then check fails
-						if key.Name == "cw" {
-							cwObj, err := util.Object2Unstructured(cw)
-							if err != nil {
-								return err
-							}
-							*o = *cwObj
-							return nil
-						}
 						if key.Name == "deploy" {
-							deployObj, err := util.Object2Unstructured(hDeploy)
+							deployObj, err := util.Object2Unstructured(uhDeploy)
 							if err != nil {
 								return err
 							}
@@ -319,26 +298,18 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				},
 				wantScopeCondition: ScopeHealthCondition{
 					HealthStatus:       StatusUnhealthy,
-					Total:              int64(2),
-					HealthyWorkloads:   int64(1),
+					Total:              int64(1),
+					HealthyWorkloads:   0,
 					UnhealthyWorkloads: int64(1),
 					UnknownWorkloads:   0,
 				},
 			},
 			{
-				caseName:       "1 healthy supportted workload and 1 unsupportted workloads",
-				hsWorkloadRefs: []corev1.ObjectReference{cwRef, uhGeneralRef},
+				caseName:       "1 unsupportted workloads",
+				hsWorkloadRefs: []corev1.ObjectReference{uhGeneralRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *unstructured.Unstructured:
-						if key.Name == "cw" {
-							cwObj, err := util.Object2Unstructured(cw)
-							if err != nil {
-								return err
-							}
-							*o = *cwObj
-							return nil
-						}
 						if key.Name == "deploy" {
 							deployObj, err := util.Object2Unstructured(hDeploy)
 							if err != nil {
@@ -353,8 +324,8 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				},
 				wantScopeCondition: ScopeHealthCondition{
 					HealthStatus:       StatusUnhealthy,
-					Total:              int64(2),
-					HealthyWorkloads:   int64(1),
+					Total:              int64(1),
+					HealthyWorkloads:   0,
 					UnhealthyWorkloads: 0,
 					UnknownWorkloads:   int64(1),
 				},

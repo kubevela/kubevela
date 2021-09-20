@@ -48,7 +48,6 @@ import (
 const (
 	infoFmtUnknownWorkload    = "APIVersion %v Kind %v workload is unknown for HealthScope "
 	infoFmtReady              = "Ready:%d/%d "
-	infoFmtNoChildRes         = "cannot get child resource references of workload %v"
 	errHealthCheck            = "error occurs in health check "
 	errGetVersioningWorkloads = "error occurs when get versioning peer workloads refs"
 
@@ -68,7 +67,6 @@ const (
 )
 
 var (
-	kindContainerizedWorkload = v1alpha2.ContainerizedWorkloadKind
 	kindDeployment            = reflect.TypeOf(apps.Deployment{}).Name()
 	kindService               = reflect.TypeOf(core.Service{}).Name()
 	kindStatefulSet           = reflect.TypeOf(apps.StatefulSet{}).Name()
@@ -124,74 +122,6 @@ func (fn WorkloadHealthCheckFn) Check(ctx context.Context, c client.Client, tr c
 		peerHCs.MergePeerWorkloadsConditions(r)
 	}
 	return r
-}
-
-// CheckContainerziedWorkloadHealth check health condition of ContainerizedWorkload
-func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref core.ObjectReference, namespace string) *WorkloadHealthCondition {
-	if ref.GroupVersionKind() != v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload) {
-		return nil
-	}
-	r := &WorkloadHealthCondition{
-		HealthStatus:   StatusHealthy,
-		TargetWorkload: ref,
-	}
-
-	unstructuredCW := &unstructured.Unstructured{}
-	unstructuredCW.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ref.Name}, unstructuredCW); err != nil {
-		r.HealthStatus = StatusUnhealthy
-		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
-		return r
-	}
-	cwObj := &v1alpha2.ContainerizedWorkload{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredCW.Object, cwObj); err != nil {
-		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
-		return r
-	}
-	r.ComponentName = getComponentNameFromLabel(cwObj)
-	r.TargetWorkload.UID = cwObj.GetUID()
-
-	childRefs := cwObj.Status.Resources
-	updateChildResourcesCondition(ctx, c, namespace, r, ref, childRefs)
-	return r
-}
-
-func updateChildResourcesCondition(ctx context.Context, c client.Client, namespace string, r *WorkloadHealthCondition, ref core.ObjectReference, childRefs []core.ObjectReference) {
-	subConditions := []*WorkloadHealthCondition{}
-	if len(childRefs) != 2 {
-		// one deployment and one svc are required by containerizedworkload
-		r.Diagnosis = fmt.Sprintf(infoFmtNoChildRes, ref.Name)
-		r.HealthStatus = StatusUnhealthy
-		return
-	}
-	for _, childRef := range childRefs {
-		switch childRef.Kind {
-		case kindDeployment:
-			// reuse Deployment health checker
-			childCondition := CheckDeploymentHealth(ctx, c, childRef, namespace)
-			subConditions = append(subConditions, childCondition)
-		case kindService:
-			childCondition := &WorkloadHealthCondition{
-				TargetWorkload: childRef,
-				HealthStatus:   StatusHealthy,
-			}
-			o := unstructured.Unstructured{}
-			o.SetAPIVersion(childRef.APIVersion)
-			o.SetKind(childRef.Kind)
-			if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: childRef.Name}, &o); err != nil {
-				childCondition.HealthStatus = StatusUnhealthy
-				childCondition.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
-			}
-			subConditions = append(subConditions, childCondition)
-		}
-	}
-
-	for _, sc := range subConditions {
-		if sc.HealthStatus != StatusHealthy {
-			r.HealthStatus = StatusUnhealthy
-		}
-		r.Diagnosis = fmt.Sprintf("%s%s", r.Diagnosis, sc.Diagnosis)
-	}
 }
 
 // CheckDeploymentHealth checks health condition of Deployment

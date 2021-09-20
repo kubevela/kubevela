@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/yaml"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,7 +51,7 @@ var _ = Describe("Test apply changes to trait", func() {
 	)
 	var (
 		ctx          = context.Background()
-		cw           v1alpha2.ContainerizedWorkload
+		cw           appsv1.Deployment
 		component    v1alpha2.Component
 		traitDef     v1alpha2.TraitDefinition
 		appConfig    v1alpha2.ApplicationConfiguration
@@ -62,26 +63,34 @@ var _ = Describe("Test apply changes to trait", func() {
 		req = reconcile.Request{NamespacedName: appConfigKey}
 	)
 
+	metataDataLabels := make(map[string]string)
+	metataDataLabels["app"] = "wordpress"
+
+	var labelSelector = new(metav1.LabelSelector)
+	labelSelector.MatchLabels = metataDataLabels
+
 	BeforeEach(func() {
-		cw = v1alpha2.ContainerizedWorkload{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ContainerizedWorkload",
-				APIVersion: "core.oam.dev/v1alpha2",
-			},
+		cw = appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: "wordpress:4.6.1-apache",
-						Ports: []v1alpha2.ContainerPort{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			},
+			Spec: appsv1.DeploymentSpec{
+				Selector: labelSelector,
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
-								Name: "wordpress",
-								Port: 80,
+								Image: "wordpress:4.6.1-apache",
+								Name:  "wordpress",
 							},
 						},
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: metataDataLabels,
 					},
 				},
 			},
