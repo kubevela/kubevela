@@ -67,10 +67,10 @@ const (
 )
 
 var (
-	kindDeployment            = reflect.TypeOf(apps.Deployment{}).Name()
-	kindService               = reflect.TypeOf(core.Service{}).Name()
-	kindStatefulSet           = reflect.TypeOf(apps.StatefulSet{}).Name()
-	kindDaemonSet             = reflect.TypeOf(apps.DaemonSet{}).Name()
+	kindDeployment  = reflect.TypeOf(apps.Deployment{}).Name()
+	kindService     = reflect.TypeOf(core.Service{}).Name()
+	kindStatefulSet = reflect.TypeOf(apps.StatefulSet{}).Name()
+	kindDaemonSet   = reflect.TypeOf(apps.DaemonSet{}).Name()
 )
 
 // AppHealthCondition holds health status of an application
