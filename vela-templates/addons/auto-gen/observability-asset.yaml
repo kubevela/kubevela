@@ -22,7 +22,7 @@ spec:
           kind: TraitDefinition
           metadata:
             annotations:
-              definition.oam.dev/description: Add a datasource to Grafana
+              definition.oam.dev/description: Import dashboards to Grafana
             name: import-grafana-dashboard
             namespace: vela-system
           spec:
