@@ -434,7 +434,7 @@ func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c common
 
 // Run starts an application according to Appfile
 func (o *AppfileOptions) Run(filePath, namespace string, c common.Args) error {
-	result, data, err := o.Export(filePath, namespace, false, c)
+	result, _, err := o.Export(filePath, namespace, false, c)
 	if err != nil {
 		return err
 	}
