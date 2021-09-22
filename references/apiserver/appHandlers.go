@@ -128,7 +128,7 @@ func (s *APIServer) CreateApplication(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	err = o.BaseAppFileRun(buildResult, data, s.c)
+	err = o.BaseAppFileRun(buildResult, s.c)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

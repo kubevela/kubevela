@@ -12,8 +12,4 @@ echo "========"
 cd examples/testapp
 vela up
 
-echo "cat deploy yaml"
-echo "========"
-cat .vela/deploy.yaml
-
 cd ../..

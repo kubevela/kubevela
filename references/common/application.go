@@ -438,21 +438,11 @@ func (o *AppfileOptions) Run(filePath, namespace string, c common.Args) error {
 	if err != nil {
 		return err
 	}
-	return o.BaseAppFileRun(result, data, c)
+	return o.BaseAppFileRun(result, c)
 }
 
 // BaseAppFileRun starts an application according to Appfile
-func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte, args common.Args) error {
-	deployFilePath := ".vela/deploy.yaml"
-	o.IO.Infof("Writing deploy config to (%s)\n", deployFilePath)
-	if err := os.MkdirAll(filepath.Dir(deployFilePath), 0700); err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(deployFilePath, data, 0600); err != nil {
-		return errors.Wrap(err, "write deploy config manifests failed")
-	}
-
+func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) error {
 	if err := o.saveToAppDir(result.appFile); err != nil {
 		return errors.Wrap(err, "save to app dir failed")
 	}
