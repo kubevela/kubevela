@@ -112,14 +112,6 @@ spec:
               tag: v2.1.0
           version: 3.4.1
         type: helm
-      - name: kube-prometheus-stack
-        properties:
-          chart: kube-prometheus-stack
-          repoType: helm
-          targetNamespace: observability
-          url: https://charts.kubevela.net/addons
-          version: 18.0.0
-        type: helm
     status:
       rollout:
         batchRollingState: ""
