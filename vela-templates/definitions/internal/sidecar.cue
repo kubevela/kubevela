@@ -17,6 +17,9 @@ template: {
 			if parameter.cmd != _|_ {
 				command: parameter.cmd
 			}
+			if parameter.args != _|_ {
+				args: parameter.args
+			}
 			if parameter["volumes"] != _|_ {
 				volumeMounts: [ for v in parameter.volumes {
 					{
@@ -36,6 +39,9 @@ template: {
 
 		// +usage=Specify the commands run in the sidecar
 		cmd?: [...string]
+
+		// +usage=Specify the args in the sidecar
+		args?: [...string]
 
 		// +usage=Specify the shared volume path
 		volumes?: [...{
