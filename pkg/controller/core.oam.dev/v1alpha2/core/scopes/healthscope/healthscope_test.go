@@ -48,7 +48,6 @@ var (
 	varInt1    = int32(1)
 )
 
-
 func TestCheckDeploymentHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
 	deployRef := corev1.ObjectReference{}
