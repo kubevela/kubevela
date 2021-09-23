@@ -25,9 +25,7 @@ require (
 	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
 	github.com/gin-gonic/gin v1.7.0
 	github.com/go-logr/logr v0.4.0
-	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/spec v0.19.8
-	github.com/go-openapi/swag v0.19.11 // indirect
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
