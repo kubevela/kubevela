@@ -351,7 +351,7 @@ func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {
 
 func (af *Appfile) assembleWorkload(wl *unstructured.Unstructured, compName string, labels map[string]string) {
 	// use component name as workload name if workload name is not specified
-	// override the name set in render phase if exist
+	// don't override the name set in render phase if exist
 	if len(wl.GetName()) == 0 {
 		wl.SetName(compName)
 	}
