@@ -75,6 +75,7 @@ admissionWebhooks:
     tolerations: []
   certManager:
     enabled: false
+    revisionHistoryLimit: 3
   # If autoGenWorkloadDefinition is true, webhook will auto generated workloadDefinition which componentDefinition refers to
   autoGenWorkloadDefinition: true
 

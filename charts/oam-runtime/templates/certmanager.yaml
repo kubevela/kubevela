@@ -18,6 +18,7 @@ metadata:
 spec:
   secretName: {{ template "oam-runtime.fullname" . }}-root-cert
   duration: 43800h # 5y
+  revisionHistoryLimit: {{ .Values.admissionWebhooks.certManager.revisionHistoryLimit }}
   issuerRef:
     name: {{ template "oam-runtime.fullname" . }}-self-signed-issuer
   commonName: "ca.webhook.oam-runtime"
@@ -44,6 +45,7 @@ metadata:
 spec:
   secretName: {{ template "oam-runtime.fullname" . }}-admission
   duration: 8760h # 1y
+  revisionHistoryLimit: {{ .Values.admissionWebhooks.certManager.revisionHistoryLimit }}
   issuerRef:
     name: {{ template "oam-runtime.fullname" . }}-root-issuer
   dnsNames:

@@ -18,6 +18,7 @@ metadata:
 spec:
   secretName: {{ template "kubevela.fullname" . }}-root-cert
   duration: 43800h # 5y
+  revisionHistoryLimit: {{ .Values.admissionWebhooks.certManager.revisionHistoryLimit }}
   issuerRef:
     name: {{ template "kubevela.fullname" . }}-self-signed-issuer
   commonName: "ca.webhook.kubevela"
@@ -44,6 +45,7 @@ metadata:
 spec:
   secretName: {{ template "kubevela.fullname" . }}-admission
   duration: 8760h # 1y
+  revisionHistoryLimit: {{ .Values.admissionWebhooks.certManager.revisionHistoryLimit }}
   issuerRef:
     name: {{ template "kubevela.fullname" . }}-root-issuer
   dnsNames:
