@@ -123,12 +123,12 @@ func (s *APIServer) CreateApplication(c *gin.Context) {
 		IO:      ioStream,
 		Env:     env,
 	}
-	buildResult, data, err := o.ExportFromAppFile(&body, env.Namespace, false, s.c)
+	buildResult, _, err := o.ExportFromAppFile(&body, env.Namespace, false, s.c)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	err = o.BaseAppFileRun(buildResult, data, s.c)
+	err = o.BaseAppFileRun(buildResult, s.c)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
