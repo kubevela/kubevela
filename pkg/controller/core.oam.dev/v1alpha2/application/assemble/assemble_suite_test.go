@@ -147,7 +147,8 @@ var _ = Describe("Test Assemble Options", func() {
 
 	It("test annotation and label filter", func() {
 		var (
-			compName = "frontend"
+			compName     = "frontend"
+			workloadName = "test-workload"
 		)
 		appRev := &v1beta1.ApplicationRevision{}
 		b, err := os.ReadFile("./testdata/filter_annotations.yaml")
@@ -197,5 +198,8 @@ var _ = Describe("Test Assemble Options", func() {
 		annotationKeys := getKeys(wl.GetAnnotations())
 		Expect(annotationKeys).ShouldNot(ContainElements("notPassAnno1", "notPassAnno2"))
 		Expect(annotationKeys).Should(ContainElements("canPassAnno"))
+
+		By("Verify workload metadata (name)")
+		Expect(wl.GetName()).Should(Equal(workloadName))
 	})
 })

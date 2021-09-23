@@ -47,8 +47,9 @@ import (
 
 var _ = Describe("Test Helm schematic appfile", func() {
 	var (
-		appName  = "test-app"
-		compName = "test-comp"
+		appName      = "test-app"
+		compName     = "test-comp"
+		workloadName = "test-workload"
 	)
 
 	It("Test generate AppConfig resources from Helm schematic", func() {
@@ -63,7 +64,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 			},
 			Workloads: []*Workload{
 				{
-					Name:               compName,
+					Name:               workloadName,
 					Type:               "webapp-chart",
 					CapabilityCategory: oamtypes.HelmCategory,
 					Params: map[string]interface{}{
@@ -123,7 +124,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 		Expect(err).To(BeNil())
 
 		expectCompManifest := &oamtypes.ComponentManifest{
-			Name: compName,
+			Name: workloadName,
 			StandardWorkload: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"apiVersion": "apps/v1",
@@ -240,7 +241,6 @@ spec:
 			},
 			Workloads: []*Workload{
 				{
-					Name:               compName,
 					Type:               "kube-worker",
 					CapabilityCategory: oamtypes.KubeCategory,
 					Params: map[string]interface{}{
