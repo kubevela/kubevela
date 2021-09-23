@@ -292,9 +292,11 @@ func (am *AppManifests) validate() error {
 
 func assembleWorkload(compName string, wl *unstructured.Unstructured,
 	labels map[string]string, resources []*unstructured.Unstructured, appRev *v1beta1.ApplicationRevision, wop []WorkloadOption) (*unstructured.Unstructured, error) {
-	// use component name as workload name
+	// use component name as workload name if workload name is not specified
 	// override the name set in render phase if exist
-	wl.SetName(compName)
+	if len(wl.GetName()) == 0 {
+		wl.SetName(compName)
+	}
 	setWorkloadLabels(wl, labels)
 
 	workloadType := wl.GetLabels()[oam.WorkloadTypeLabel]
