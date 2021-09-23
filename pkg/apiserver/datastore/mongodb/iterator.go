@@ -14,9 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package database
+package mongodb
 
-// Database Data storage layer for API server
-// Storage drivers include：kube-apiserver and mysql or others
-type Database interface {
+import (
+	"context"
+
+	"go.mongodb.org/mongo-driver/mongo"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+)
+
+var _ datastore.Iterator = &Iterator{}
+
+type Iterator struct {
+	cur *mongo.Cursor
+}
+
+func (i *Iterator) Close(ctx context.Context) {
+	i.cur.Close(ctx)
+}
+
+func (i *Iterator) Next(ctx context.Context) bool {
+	return i.cur.Next(ctx)
+}
+
+func (i *Iterator) Decode(entity interface{}) error {
+	return i.cur.Decode(entity)
 }

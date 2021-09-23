@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha2
+package v1beta1
 
 import (
 	"time"
@@ -32,8 +32,8 @@ type CreateClusterRequest struct {
 	Labels           map[string]string `json:"labels,omitempty"`
 }
 
-// DeatilClusterResponse cluster detail information model
-type DeatilClusterResponse struct {
+// DetailClusterResponse cluster detail information model
+type DetailClusterResponse struct {
 	ClusterBase
 	ResourceInfo ClusterResourceInfo `json:"resourceInfo"`
 	// remote manage url, eg. ACK cluster manage url.

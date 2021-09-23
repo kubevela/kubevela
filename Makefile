@@ -95,7 +95,7 @@ compress:
 run:
 	go run ./cmd/core/main.go --application-revision-limit 5
 
-run-server:
+run-apiserver:
 	go run ./cmd/apiserver/main.go
 
 # Run go fmt against code

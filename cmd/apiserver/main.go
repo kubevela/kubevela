@@ -31,9 +31,8 @@ import (
 
 func main() {
 	s := &server{}
-	flag.IntVar(&s.restCfg.Port, "port", 8000, "The port number used to serve the http APIs.")
-	flag.StringVar(&s.restCfg.BindHost, "bind", "0.0.0.0", "The bind address used to serve the http APIs.")
-	flag.StringVar(&s.restCfg.MetricPath, "metricpath", "/metric", "The metric path of the apiserver.")
+	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8000", "The bind address used to serve the http APIs.")
+	flag.StringVar(&s.restCfg.MetricPath, "metric-path", "/metric", "The metric path of the apiserver.")
 	flag.Parse()
 
 	srvc := make(chan struct{})

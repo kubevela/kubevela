@@ -18,13 +18,13 @@ package rest
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 )
@@ -33,12 +33,13 @@ var _ APIServer = &restServer{}
 
 // Config config for server
 type Config struct {
-	// openapi server listen port
-	Port int
-	// openapi server bind host
-	BindHost string
+	// openapi server bind address
+	BindAddr string
 	// monitor metric path
 	MetricPath string
+
+	// Datastore config
+	Datastore datastore.Config
 }
 
 // APIServer interface for call api server
@@ -125,8 +126,7 @@ func enrichSwaggerObject(swo *spec.Swagger) {
 
 func (s *restServer) startHTTP(ctx context.Context) error {
 	// Start HTTP apiserver
-	log.Logger.Infof("HTTP APIs are being served on: %s:%d, ctx: %s", s.cfg.BindHost, s.cfg.Port, ctx)
-	addr := fmt.Sprintf("%s:%d", s.cfg.BindHost, s.cfg.Port)
-	server := &http.Server{Addr: addr, Handler: s.webContainer}
+	log.Logger.Infof("HTTP APIs are being served on: %s, ctx: %s", s.cfg.BindAddr, ctx)
+	server := &http.Server{Addr: s.cfg.BindAddr, Handler: s.webContainer}
 	return server.ListenAndServe()
 }

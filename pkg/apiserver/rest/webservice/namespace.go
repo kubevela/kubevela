@@ -20,7 +20,7 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1beta1"
 )
 
 type namespaceWebService struct {
@@ -38,18 +38,18 @@ func (c *namespaceWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(noop).
 		Doc("list all namespaces").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(v1alpha2.ListNamespaceResponse{}))
+		Writes(v1beta1.ListNamespaceResponse{}))
 
 	ws.Route(ws.POST("/").To(noop).
 		Doc("create namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(v1alpha2.CreateNamespaceRequest{}).
-		Writes(v1alpha2.NamesapceDetailResponse{}))
+		Reads(v1beta1.CreateNamespaceRequest{}).
+		Writes(v1beta1.NamesapceDetailResponse{}))
 
 	ws.Route(ws.GET("/{namespace}").To(noop).
 		Doc("get one namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
-		Writes(v1alpha2.NamesapceDetailResponse{}))
+		Writes(v1beta1.NamesapceDetailResponse{}))
 	return ws
 }

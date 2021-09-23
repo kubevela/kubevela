@@ -20,7 +20,7 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1beta1"
 )
 
 type clusterWebService struct {
@@ -39,30 +39,30 @@ func (c *clusterWebService) GetWebService() *restful.WebService {
 		Doc("list all clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
-		Writes(v1alpha2.ListClusterResponse{}).Do(returns200, returns500))
+		Writes(v1beta1.ListClusterResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(noop).
 		Doc("create cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(&v1alpha2.CreateClusterRequest{}).
-		Writes(v1alpha2.DeatilClusterResponse{}))
+		Reads(&v1beta1.CreateClusterRequest{}).
+		Writes(v1beta1.DetailClusterResponse{}))
 
 	ws.Route(ws.GET("/{clusterName}").To(noop).
 		Doc("detail cluster info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(v1alpha2.DeatilClusterResponse{}))
+		Writes(v1beta1.DetailClusterResponse{}))
 
 	ws.Route(ws.GET("/{clusterName}/addons").To(noop).
 		Doc("list cluster addons info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(v1alpha2.ListClusterAddonResponse{}))
+		Writes(v1beta1.ListClusterAddonResponse{}))
 
 	ws.Route(ws.POST("/{clusterName}/addons").To(noop).
 		Doc("add addon for the cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(v1alpha2.DeatilClusterAddonResponse{}).Returns(200, "", v1alpha2.DeatilClusterAddonResponse{}))
+		Writes(v1beta1.DeatilClusterAddonResponse{}).Returns(200, "", v1beta1.DeatilClusterAddonResponse{}))
 	return ws
 }

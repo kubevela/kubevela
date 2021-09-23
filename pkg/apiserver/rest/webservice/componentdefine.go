@@ -20,7 +20,7 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1beta1"
 )
 
 type componentDefineWebservice struct {
@@ -40,6 +40,6 @@ func (c *componentDefineWebservice) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("appName", "if specified, query the componentdefinition supported by the cluster where the application resides.").DataType("string")).
 		Param(ws.QueryParameter("clusterName", "if specified, query the componentdefinition supported by the cluster.").DataType("string")).
-		Writes(v1alpha2.ListComponentDefinitionResponse{}))
+		Writes(v1beta1.ListComponentDefinitionResponse{}))
 	return ws
 }
