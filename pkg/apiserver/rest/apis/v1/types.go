@@ -18,8 +18,6 @@ package v1beta1
 
 import (
 	"time"
-
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // CreateClusterRequest request parameters to create a cluster
@@ -175,13 +173,13 @@ type ComponentListResponse struct {
 
 // CreateComponentRequest create component request model
 type CreateComponentRequest struct {
-	ApplicationName string               `json:"appName" validate:"required"`
-	Name            string               `json:"name" validate:"required"`
-	Description     string               `json:"description"`
-	Labels          map[string]string    `json:"labels,omitempty"`
-	ComponentType   string               `json:"componentType" validate:"required"`
-	BindClusters    []string             `json:"bindClusters"`
-	Properties      runtime.RawExtension `json:"properties,omitempty"`
+	ApplicationName string            `json:"appName" validate:"required"`
+	Name            string            `json:"name" validate:"required"`
+	Description     string            `json:"description"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	ComponentType   string            `json:"componentType" validate:"required"`
+	BindClusters    []string          `json:"bindClusters"`
+	Properties      string            `json:"properties,omitempty"`
 }
 
 // CreateApplicationTemplateRequest create app template request model

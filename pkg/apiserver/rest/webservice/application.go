@@ -20,7 +20,7 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1beta1"
+	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
 type applicationWebService struct {
@@ -41,43 +41,50 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("namespace", "Namespace-based search").DataType("string")).
 		Param(ws.QueryParameter("cluster", "Cluster-based search").DataType("string")).
-		Writes(v1beta1.ListApplicationResponse{}))
+		Writes(apis.ListApplicationResponse{}))
 
 	ws.Route(ws.POST("/").To(noop).
 		Doc("create one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(v1beta1.CreateApplicationRequest{}).
-		Writes(v1beta1.ApplicationBase{}))
+		Reads(apis.CreateApplicationRequest{}).
+		Writes(apis.ApplicationBase{}))
 
 	ws.Route(ws.DELETE("/{name}").To(noop).
 		Doc("delete one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(v1beta1.ApplicationBase{}))
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Writes(apis.ApplicationBase{}))
 
 	ws.Route(ws.GET("/{name}").To(noop).
 		Doc("detail one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(v1beta1.DetailApplicationResponse{}))
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Writes(apis.DetailApplicationResponse{}))
 
 	ws.Route(ws.POST("/{name}/template").To(noop).
 		Doc("create one application template").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(v1beta1.ApplicationTemplateBase{}))
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Reads(apis.CreateApplicationTemplateRequest{}).
+		Writes(apis.ApplicationTemplateBase{}))
 
 	ws.Route(ws.POST("/{name}/deploy").To(noop).
 		Doc("deploy or update the application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(v1beta1.ApplicationBase{}))
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Writes(apis.ApplicationBase{}))
 
 	ws.Route(ws.GET("/{name}/components").To(noop).
 		Doc("gets the component topology of the application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(v1beta1.ComponentListResponse{}))
+		Writes(apis.ComponentListResponse{}))
 
 	ws.Route(ws.POST("/{name}/components").To(noop).
 		Doc("create component for application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(v1beta1.CreateComponentRequest{}).
-		Writes(v1beta1.ComponentBase{}))
+		Reads(apis.CreateComponentRequest{}).
+		Writes(apis.ComponentBase{}))
 	return ws
 }

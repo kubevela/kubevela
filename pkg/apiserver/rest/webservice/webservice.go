@@ -58,5 +58,5 @@ func Init(ctx context.Context) {
 	RegistWebService(&clusterWebService{})
 	RegistWebService(&applicationWebService{})
 	RegistWebService(&namespaceWebService{})
-	RegistWebService(&componentDefineWebservice{})
+	RegistWebService(&componentDefinitionWebservice{})
 }

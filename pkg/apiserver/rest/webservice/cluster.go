@@ -19,8 +19,7 @@ package webservice
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1beta1"
+	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
 type clusterWebService struct {
@@ -39,30 +38,30 @@ func (c *clusterWebService) GetWebService() *restful.WebService {
 		Doc("list all clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
-		Writes(v1beta1.ListClusterResponse{}).Do(returns200, returns500))
+		Writes(apis.ListClusterResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(noop).
 		Doc("create cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(&v1beta1.CreateClusterRequest{}).
-		Writes(v1beta1.DetailClusterResponse{}))
+		Reads(&apis.CreateClusterRequest{}).
+		Writes(apis.DetailClusterResponse{}))
 
 	ws.Route(ws.GET("/{clusterName}").To(noop).
 		Doc("detail cluster info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(v1beta1.DetailClusterResponse{}))
+		Writes(apis.DetailClusterResponse{}))
 
 	ws.Route(ws.GET("/{clusterName}/addons").To(noop).
 		Doc("list cluster addons info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(v1beta1.ListClusterAddonResponse{}))
+		Writes(apis.ListClusterAddonResponse{}))
 
 	ws.Route(ws.POST("/{clusterName}/addons").To(noop).
 		Doc("add addon for the cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(v1beta1.DeatilClusterAddonResponse{}).Returns(200, "", v1beta1.DeatilClusterAddonResponse{}))
+		Writes(apis.DeatilClusterAddonResponse{}).Returns(200, "", apis.DeatilClusterAddonResponse{}))
 	return ws
 }
