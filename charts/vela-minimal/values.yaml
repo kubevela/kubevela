@@ -1,0 +1,125 @@
+# Default values for kubevela.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+# Valid applyOnceOnly values: true/false/on/off/force
+applyOnceOnly: "off"
+
+disableCaps: "manualscalertrait,containerizedwokrload,envbinding"
+image:
+  repository: oamdev/vela-core
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 50m
+    memory: 20Mi
+
+webhookService:
+  type: ClusterIP
+  port: 9443
+
+healthCheck:
+  port: 9440
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+rbac:
+  create: true
+
+admissionWebhooks:
+  enabled: true
+  failurePolicy: Fail
+  certificate:
+    mountPath: /etc/k8s-webhook-certs
+  patch:
+    enabled: true
+    image:
+      repository: oamdev/kube-webhook-certgen
+      tag: v2.2
+      pullPolicy: IfNotPresent
+    affinity: {}
+    tolerations: []
+  certManager:
+    enabled: false
+  # If autoGenWorkloadDefinition is true, webhook will auto generated workloadDefinition which componentDefinition refers to
+  autoGenWorkloadDefinition: true
+
+#Enable debug logs for development purpose
+logDebug: false
+
+#If non-empty, write log files in this path
+logFilePath: ""
+
+#Defines the maximum size a log file can grow to. Unit is megabytes.
+#If the value is 0, the maximum file size is unlimited.
+logFileMaxSize: 1024
+
+systemDefinitionNamespace: vela-system
+
+applicationRevisionLimit: 10
+
+definitionRevisionLimit: 20
+
+# concurrentReconciles is the concurrent reconcile number of the controller
+concurrentReconciles: 4
+
+# dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
+dependCheckWait: 30s
+
+# OAMSpecVer is the oam spec version controller want to setup
+OAMSpecVer: "minimal"
+
+apiServer:
+  enabled: true
+  port: 8000
+  replicaCount: 1
+  Service:
+    type: ClusterIP
+
+multicluster:
+  enabled: false
+  clusterGateway:
+    replicaCount: 1
+    port: 9443
+    image:
+      repository: oamdev/cluster-gateway
+      tag: v1.1.1
+      pullPolicy: Always
+    resources:
+      limits:
+        cpu: 100m
+        memory: 200Mi

@@ -33,7 +33,26 @@ import (
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args) error {
-	if args.OAMSpecVer == "v0.3" || args.OAMSpecVer == "all" {
+	switch args.OAMSpecVer {
+	case "all":
+		for _, setup := range []func(ctrl.Manager, controller.Args) error{
+			application.Setup, applicationrollout.Setup, appdeployment.Setup,
+			traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
+			initializer.Setup, applicationconfiguration.Setup,
+		} {
+			if err := setup(mgr, args); err != nil {
+				return err
+			}
+		}
+	case "minimal":
+		for _, setup := range []func(ctrl.Manager, controller.Args) error{
+			application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
+		} {
+			if err := setup(mgr, args); err != nil {
+				return err
+			}
+		}
+	case "v0.3":
 		for _, setup := range []func(ctrl.Manager, controller.Args) error{
 			application.Setup, applicationrollout.Setup, appdeployment.Setup,
 			traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
@@ -43,10 +62,13 @@ func Setup(mgr ctrl.Manager, args controller.Args) error {
 				return err
 			}
 		}
-	}
-	if args.OAMSpecVer == "v0.2" || args.OAMSpecVer == "all" {
-		if err := applicationconfiguration.Setup(mgr, args); err != nil {
-			return err
+	case "v0.2":
+		for _, setup := range []func(ctrl.Manager, controller.Args) error{
+			applicationconfiguration.Setup,
+		} {
+			if err := setup(mgr, args); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
