@@ -21,20 +21,24 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	restfulspec "github.com/emicklei/go-restful-openapi/v2"
+	restful "github.com/emicklei/go-restful/v3"
+	"github.com/go-openapi/spec"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/services"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 )
 
 var _ APIServer = &restServer{}
 
 // Config config for server
 type Config struct {
+	// openapi server listen port
 	Port int
+	// openapi server bind host
+	BindHost string
+	// monitor metric path
+	MetricPath string
 }
 
 // APIServer interface for call api server
@@ -43,45 +47,21 @@ type APIServer interface {
 }
 
 type restServer struct {
-	server    *echo.Echo
-	k8sClient client.Client
-	cfg       Config
+	webContainer *restful.Container
+	cfg          Config
 }
 
 // New create restserver with config data
 func New(cfg Config) (APIServer, error) {
-	client, err := common.NewK8sClient()
-	if err != nil {
-		return nil, fmt.Errorf("create client for clusterService failed")
-	}
 	s := &restServer{
-		server:    newEchoInstance(),
-		k8sClient: client,
-		cfg:       cfg,
+		webContainer: restful.NewContainer(),
+		cfg:          cfg,
 	}
-
 	return s, nil
 }
 
-func newEchoInstance() *echo.Echo {
-	e := echo.New()
-	e.HideBanner = true
-
-	e.Use(middleware.Gzip())
-	e.Use(middleware.Logger())
-	e.Pre(middleware.RemoveTrailingSlash())
-
-	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{http.MethodGet, http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodPost, http.MethodDelete},
-		AllowCredentials: true,
-		MaxAge:           86400,
-	}))
-
-	return e
-}
-
 func (s *restServer) Run(ctx context.Context) error {
+	webservice.Init(ctx)
 	err := s.registerServices()
 	if err != nil {
 		return err
@@ -94,28 +74,59 @@ func (s *restServer) registerServices() error {
 	/* **************************************************************  */
 	/* *************       Open API Route Group     *****************  */
 	/* **************************************************************  */
-	openapi := s.server.Group("/v1")
 
-	// catalog
-	catalogService := services.NewCatalogService(s.k8sClient)
-	openapi.GET("/catalogs", catalogService.ListCatalogs)
-	openapi.POST("/catalogs", catalogService.AddCatalog)
-	openapi.PUT("/catalogs", catalogService.UpdateCatalog)
-	openapi.GET("/catalogs/:catalogName", catalogService.GetCatalog)
-	openapi.DELETE("/catalogs/:catalogName", catalogService.DelCatalog)
+	// Add container filter to enable CORS
+	cors := restful.CrossOriginResourceSharing{
+		ExposeHeaders:  []string{"X-My-Header"},
+		AllowedHeaders: []string{"Content-Type", "Accept"},
+		AllowedMethods: []string{"GET", "POST"},
+		CookiesAllowed: false,
+		Container:      s.webContainer}
+	s.webContainer.Filter(cors.Filter)
 
-	// application
-	applicationService := services.NewApplicationService(s.k8sClient)
-	openapi.GET("/namespaces/:namespace/applications/:appname", applicationService.GetApplication)
-	openapi.POST("/namespaces/:namespace/applications/:appname", applicationService.CreateOrUpdateApplication)
-	openapi.DELETE("/namespaces/:namespace/applications/:appname", applicationService.DeleteApplication)
+	// Add container filter to respond to OPTIONS
+	s.webContainer.Filter(s.webContainer.OPTIONSFilter)
 
+	// Regist all custom webservice
+	for _, handler := range webservice.GetRegistedWebService() {
+		s.webContainer.Add(handler.GetWebService())
+	}
+
+	config := restfulspec.Config{
+		WebServices:                   s.webContainer.RegisteredWebServices(), // you control what services are visible
+		APIPath:                       "/apidocs.json",
+		PostBuildSwaggerObjectHandler: enrichSwaggerObject}
+	s.webContainer.Add(restfulspec.NewOpenAPIService(config))
 	return nil
+}
+
+func enrichSwaggerObject(swo *spec.Swagger) {
+	swo.Info = &spec.Info{
+		InfoProps: spec.InfoProps{
+			Title:       "Kubevela openapi doc",
+			Description: "Kubevela openapi doc",
+			Contact: &spec.ContactInfo{
+				ContactInfoProps: spec.ContactInfoProps{
+					Name:  "kubevela",
+					Email: "zengqg@yiyun.pro",
+					URL:   "https://kubevela.io/",
+				},
+			},
+			License: &spec.License{
+				LicenseProps: spec.LicenseProps{
+					Name: "Apache License 2.0",
+					URL:  "https://github.com/oam-dev/kubevela/blob/master/LICENSE",
+				},
+			},
+			Version: "v1alpha2",
+		},
+	}
 }
 
 func (s *restServer) startHTTP(ctx context.Context) error {
 	// Start HTTP apiserver
-	log.Logger.Infof("HTTP APIs are being served on port: %d, ctx: %s", s.cfg.Port, ctx)
-	addr := fmt.Sprintf(":%d", s.cfg.Port)
-	return s.server.Start(addr)
+	log.Logger.Infof("HTTP APIs are being served on: %s:%d, ctx: %s", s.cfg.BindHost, s.cfg.Port, ctx)
+	addr := fmt.Sprintf("%s:%d", s.cfg.BindHost, s.cfg.Port)
+	server := &http.Server{Addr: addr, Handler: s.webContainer}
+	return server.ListenAndServe()
 }

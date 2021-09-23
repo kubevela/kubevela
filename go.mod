@@ -17,6 +17,8 @@ require (
 	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
+	github.com/emicklei/go-restful-openapi/v2 v2.3.0
+	github.com/emicklei/go-restful/v3 v3.0.0-rc2
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/fatih/color v1.12.0
 	github.com/gertd/go-pluralize v0.1.7
@@ -25,7 +27,7 @@ require (
 	github.com/gin-gonic/gin v1.7.0
 	github.com/go-logr/logr v0.4.0
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
-	github.com/go-openapi/spec v0.19.8 // indirect
+	github.com/go-openapi/spec v0.19.8
 	github.com/go-openapi/swag v0.19.11 // indirect
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0

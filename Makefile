@@ -58,9 +58,6 @@ vela-cli:
 kubectl-vela:
 	$(GOBUILD_ENV) go build -o bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
 
-dashboard-build:
-	cd references/dashboard && npm install && cd ..
-
 doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
@@ -97,6 +94,9 @@ compress:
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run:
 	go run ./cmd/core/main.go --application-revision-limit 5
+
+run-server:
+	go run ./cmd/apiserver/main.go
 
 # Run go fmt against code
 fmt: goimports installcue

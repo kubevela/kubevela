@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package webservice
 
 import (
 	"context"
@@ -31,7 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/apis"
+	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1alpha2"
 )
 
 // CatalogService catalog service
