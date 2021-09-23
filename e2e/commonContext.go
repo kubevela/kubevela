@@ -17,18 +17,11 @@ limitations under the License.
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"strings"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
-
-	"github.com/oam-dev/kubevela/references/apiserver/apis"
-	"github.com/oam-dev/kubevela/references/apiserver/util"
 )
 
 var (
@@ -171,26 +164,6 @@ var (
 				if traitAlias != "" {
 					gomega.Expect(output).To(gomega.ContainSubstring(traitAlias))
 				}
-			})
-		})
-	}
-
-	// APIEnvInitContext used for test api env
-	APIEnvInitContext = func(context string, envMeta apis.Environment) bool {
-		return ginkgo.Context("Post /envs/", func() {
-			ginkgo.It("should create an env", func() {
-				data, err := json.Marshal(&envMeta)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				resp, err := http.Post(util.URL("/envs/"), "application/json", strings.NewReader(string(data)))
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				defer resp.Body.Close()
-				result, err := io.ReadAll(resp.Body)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				var r apis.Response
-				err = json.Unmarshal(result, &r)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(r.Code).Should(gomega.Equal(http.StatusOK))
-				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("created"))
 			})
 		})
 	}
