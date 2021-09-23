@@ -24,7 +24,7 @@ import (
 )
 
 // versionPrifix API version prefix.
-var versionPrifix = "/api/v1alpha2"
+var versionPrifix = "/api/v1beta1"
 
 // WebService webservice interface
 type WebService interface {

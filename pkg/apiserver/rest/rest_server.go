@@ -118,7 +118,7 @@ func enrichSwaggerObject(swo *spec.Swagger) {
 					URL:  "https://github.com/oam-dev/kubevela/blob/master/LICENSE",
 				},
 			},
-			Version: "v1alpha2",
+			Version: "v1beta1",
 		},
 	}
 }
