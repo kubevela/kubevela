@@ -409,13 +409,42 @@ func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover)
 	if err != nil {
 		return nil, err
 	}
+	schema = filterIgnoreSchema(schema)
 	fixOpenAPISchema("", schema)
-
 	parameter, err := schema.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
 	return parameter, nil
+}
+
+// filterIgnoreSchema skip the schemas with +ignore tag
+func filterIgnoreSchema(schema *openapi3.Schema) *openapi3.Schema {
+	description := schema.Description
+	if strings.Contains(description, appfile.IgnoreTag) {
+		return nil
+	}
+	switch schema.Type {
+	case "object":
+		for k, v := range schema.Properties {
+			v.Value = filterIgnoreSchema(v.Value)
+			if v.Value == nil {
+				delete(schema.Properties, k)
+				if len(schema.Required) > 0 {
+					for idx, requiredItem := range schema.Required {
+						if requiredItem == k {
+							schema.Required = append(schema.Required[0:idx], schema.Required[idx+1:]...)
+						}
+					}
+				}
+			}
+		}
+	case "array":
+		if schema.Items != nil {
+			schema.Items.Value = filterIgnoreSchema(schema.Items.Value)
+		}
+	}
+	return schema
 }
 
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format

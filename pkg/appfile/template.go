@@ -42,6 +42,8 @@ const (
 	UsageTag = "+usage="
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
+	// IgnoreTag is to skip annotation
+	IgnoreTag = "+ignore"
 )
 
 // Template is a helper struct for processing capability including

@@ -224,6 +224,29 @@ func TestFixOpenAPISchema(t *testing.T) {
 	}
 }
 
+func TestIgnoreSchema(t *testing.T) {
+	cases := map[string]struct {
+		inputFile string
+		fixedFile string
+	}{
+		"IgnoreSchema": {
+			inputFile: "ignoreTagSchema.json",
+			fixedFile: "ignoreTagSchemaFixed.json",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, tc.inputFile))
+			schema := swagger.Components.Schemas[model.ParameterFieldName].Value
+			schema = filterIgnoreSchema(schema)
+			fixedSchema, _ := schema.MarshalJSON()
+			expectedSchema, _ := os.ReadFile(filepath.Join(TestDir, tc.fixedFile))
+			assert.Equal(t, string(fixedSchema), string(expectedSchema))
+		})
+	}
+}
+
 func TestNewCapabilityComponentDef(t *testing.T) {
 	terraform := &common.Terraform{
 		Configuration: "test",
