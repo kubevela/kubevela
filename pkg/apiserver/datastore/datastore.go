@@ -50,5 +50,5 @@ type Iterator interface {
 	// Decode will unmarshal the current item into given entity.
 	Decode(entity interface{}) error
 
-	Close(ctx context.Context)
+	Close(ctx context.Context) error
 }

@@ -34,6 +34,7 @@ type mongodb struct {
 	database string
 }
 
+// New new mongodb datastore instance
 func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error) {
 	url := fmt.Sprintf("mongodb://%s", cfg.URL)
 	clientOpts := options.Client().ApplyURI(url)
@@ -49,6 +50,7 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 	return m, nil
 }
 
+// Add add data model
 func (m *mongodb) Add(ctx context.Context, kind string, entity interface{}) error {
 	collection := m.client.Database(m.database).Collection(kind)
 	_, err := collection.InsertOne(ctx, entity)
@@ -58,11 +60,13 @@ func (m *mongodb) Add(ctx context.Context, kind string, entity interface{}) erro
 	return nil
 }
 
+// Get get data model
 func (m *mongodb) Get(ctx context.Context, kind, name string, decodeTo interface{}) error {
 	collection := m.client.Database(m.database).Collection(kind)
 	return collection.FindOne(ctx, makeNameFilter(name)).Decode(decodeTo)
 }
 
+// Put update data model
 func (m *mongodb) Put(ctx context.Context, kind, name string, entity interface{}) error {
 	collection := m.client.Database(m.database).Collection(kind)
 	_, err := collection.UpdateOne(ctx, makeNameFilter(name), makeEntityUpdate(entity))
@@ -72,6 +76,7 @@ func (m *mongodb) Put(ctx context.Context, kind, name string, entity interface{}
 	return nil
 }
 
+// Find find data model
 func (m *mongodb) Find(ctx context.Context, kind string) (datastore.Iterator, error) {
 	collection := m.client.Database(m.database).Collection(kind)
 	// bson.D{{}} specifies 'all documents'
@@ -83,6 +88,7 @@ func (m *mongodb) Find(ctx context.Context, kind string) (datastore.Iterator, er
 	return &Iterator{cur: cur}, nil
 }
 
+// FindOne find one data model
 func (m *mongodb) FindOne(ctx context.Context, kind, name string) (datastore.Iterator, error) {
 	collection := m.client.Database(m.database).Collection(kind)
 	filter := bson.M{"name": name}
@@ -93,6 +99,7 @@ func (m *mongodb) FindOne(ctx context.Context, kind, name string) (datastore.Ite
 	return &Iterator{cur: cur}, nil
 }
 
+// IsExist determine whether data exists.
 func (m *mongodb) IsExist(ctx context.Context, kind, name string) (bool, error) {
 	collection := m.client.Database(m.database).Collection(kind)
 	err := collection.FindOne(ctx, makeNameFilter(name)).Err()
@@ -105,6 +112,7 @@ func (m *mongodb) IsExist(ctx context.Context, kind, name string) (bool, error) 
 	return true, nil
 }
 
+// Delete delete data
 func (m *mongodb) Delete(ctx context.Context, kind, name string) error {
 	collection := m.client.Database(m.database).Collection(kind)
 	// delete at most one document in which the "name" field is "Bob" or "bob"
