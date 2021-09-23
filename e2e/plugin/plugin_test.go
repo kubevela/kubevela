@@ -809,14 +809,7 @@ var livediffResult = `---
 +           /: 8080
         type: test-ingress
       type: test-webservice
-  status:
-    rollout:
-      batchRollingState: ""
-      currentBatch: 0
-      lastTargetAppRevision: ""
-      rollingState: ""
-      upgradedReadyReplicas: 0
-      upgradedReplicas: 0
+  status: {}
   
 ---
 ## Component (express-server) has been removed(-)

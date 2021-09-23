@@ -389,7 +389,7 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 			ComponentList:         comps,
 			RolloutPlan:           *h.app.Spec.RolloutPlan,
 		},
-		Status: h.app.Status.Rollout,
+		Status: *h.app.Status.Rollout,
 	}
 
 	// construct a fake rollout object and call rollout.DoReconcile
@@ -400,6 +400,6 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	}
 
 	// write back rollout status to application
-	h.app.Status.Rollout = appRollout.Status
+	h.app.Status.Rollout = &appRollout.Status
 	return res, nil
 }
