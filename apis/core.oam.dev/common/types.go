@@ -107,7 +107,7 @@ type Terraform struct {
 
 	// Type specifies which Terraform configuration it is, HCL or JSON syntax
 	// +kubebuilder:default:=hcl
-	// +kubebuilder:validation:Enum:=hcl;json
+	// +kubebuilder:validation:Enum:=hcl;json;remote
 	Type string `json:"type,omitempty"`
 }
 
