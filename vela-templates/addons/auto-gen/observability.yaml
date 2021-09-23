@@ -26,7 +26,7 @@ spec:
           releaseName: grafana
           repoType: helm
           targetNamespace: observability
-          url: https://grafana.github.io/helm-charts
+          url: https://charts.kubevela.net/addons
           version: 6.14.1
         traits:
         - properties:
@@ -40,9 +40,10 @@ spec:
             grafanaServiceName: grafana
             grafanaServiceNamespace: observability
             urls:
-            - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_logging.json
-            - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/kubevela_core_monitoring.json
-            - https://raw.githubusercontent.com/oam-dev/grafana-registration/master/dashboards/flux2/cluster.json
+            - https://charts.kubevela.net/addons/dashboards/kubevela_core_logging.json
+            - https://charts.kubevela.net/addons/dashboards/kubevela_core_monitoring.json
+            - https://charts.kubevela.net/addons/dashboards/kubevela_application_logging.json
+            - https://charts.kubevela.net/addons/dashboards/flux2/cluster.json
           type: import-grafana-dashboard
         type: helm
       - name: loki
@@ -51,7 +52,7 @@ spec:
           releaseName: loki
           repoType: helm
           targetNamespace: observability
-          url: https://grafana.github.io/helm-charts
+          url: https://charts.kubevela.net/addons
           version: 2.4.1
         traits:
         - properties:
@@ -72,7 +73,7 @@ spec:
           releaseName: prometheus
           repoType: helm
           targetNamespace: observability
-          url: https://prometheus-community.github.io/helm-charts
+          url: https://charts.kubevela.net/addons
           values:
             alertmanager:
               persistentVolume:
@@ -104,20 +105,12 @@ spec:
           chart: kube-state-metrics
           repoType: helm
           targetNamespace: observability
-          url: https://prometheus-community.github.io/helm-charts
+          url: https://charts.kubevela.net/addons
           values:
             image:
               repository: oamdev/kube-state-metrics
               tag: v2.1.0
           version: 3.4.1
-        type: helm
-      - name: kube-prometheus-stack
-        properties:
-          chart: kube-prometheus-stack
-          repoType: helm
-          targetNamespace: observability
-          url: https://prometheus-community.github.io/helm-charts
-          version: 18.0.0
         type: helm
     status:
       rollout:

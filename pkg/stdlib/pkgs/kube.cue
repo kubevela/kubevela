@@ -9,6 +9,7 @@
 #Read: {
 	#do:       "read"
 	#provider: "kube"
+	cluster:   *"" | string
 	value?: {...}
 	...
 }

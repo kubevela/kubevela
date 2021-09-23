@@ -426,6 +426,23 @@ func (val *Value) GetBool(paths ...string) (bool, error) {
 	return v.CueValue().Bool()
 }
 
+// OpenCompleteValue make that the complete value can be modified.
+func (val *Value) OpenCompleteValue() error {
+	s, err := val.String()
+	if err != nil {
+		return err
+	}
+	newS, err := sets.OpenBaiscLit(s)
+	if err != nil {
+		return err
+	}
+	v, err := val.MakeValue(newS)
+	if err != nil {
+		return err
+	}
+	val.v = v.CueValue()
+	return nil
+}
 func isDef(s string) bool {
 	return strings.HasPrefix(s, "#")
 }

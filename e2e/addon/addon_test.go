@@ -64,7 +64,7 @@ var _ = Describe("Addon Test", func() {
 		})
 	})
 	Context("Disable addon", func() {
-		It("Disable addon fluxcd", func() {
+		It("Disable addon test-addon", func() {
 			output, err := e2e.LongTimeExec("vela addon disable test-addon", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully disable addon"))
@@ -106,6 +106,7 @@ kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: This is a addon for e2e test
+    addons.oam.dev/name: test-addon
   labels:
     addons.oam.dev/type: test-addon
   name: test-addon
@@ -142,6 +143,7 @@ kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: This is a test addon for test addon input
+    addons.oam.dev/name: test-input-addon
   labels:
     addons.oam.dev/type: test
   name: test-input-addon

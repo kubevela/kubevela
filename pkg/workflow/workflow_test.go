@@ -70,7 +70,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateExecuting))
 		workflowStatus := app.Status.Workflow
-		Expect(workflowStatus.ContextBackend.Name).Should(BeEquivalentTo("workflow-" + revision.Name))
+		Expect(workflowStatus.ContextBackend.Name).Should(BeEquivalentTo("workflow-" + app.Name + "-context"))
 		workflowStatus.ContextBackend = nil
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
@@ -171,7 +171,7 @@ var _ = Describe("Test Workflow", func() {
 		// check resume
 		app.Status.Workflow.Suspend = false
 		// check app meta changed
-		app.Name = "changed"
+		app.Labels = map[string]string{"for-test": "changed"}
 		state, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateFinished))

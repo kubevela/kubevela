@@ -18,6 +18,7 @@ package envbinding
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
@@ -28,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -42,7 +42,7 @@ import (
 // EnvBindApp describes the app bound to the environment
 type EnvBindApp struct {
 	baseApp    *v1beta1.Application
-	patchedApp *v1beta1.Application
+	PatchedApp *v1beta1.Application
 	envConfig  *v1alpha1.EnvConfig
 
 	componentManifests []*types.ComponentManifest
@@ -59,8 +59,8 @@ func NewEnvBindApp(base *v1beta1.Application, envConfig *v1alpha1.EnvConfig) *En
 	}
 }
 
-// generateConfiguredApplication patch component parameters to base Application
-func (e *EnvBindApp) generateConfiguredApplication() error {
+// GenerateConfiguredApplication patch component parameters to base Application
+func (e *EnvBindApp) GenerateConfiguredApplication() error {
 	newApp := e.baseApp.DeepCopy()
 
 	var baseComponent *common.ApplicationComponent
@@ -91,16 +91,32 @@ func (e *EnvBindApp) generateConfiguredApplication() error {
 	for _, idx := range misMatchedIdxs {
 		newApp.Spec.Components = append(newApp.Spec.Components, e.envConfig.Patch.Components[idx])
 	}
-	e.patchedApp = newApp
+	// select which components to use
+	if e.envConfig.Selector != nil {
+		compMap := make(map[string]bool)
+		if len(e.envConfig.Selector.Components) > 0 {
+			for _, comp := range e.envConfig.Selector.Components {
+				compMap[comp] = true
+			}
+		}
+		comps := make([]common.ApplicationComponent, 0)
+		for _, comp := range newApp.Spec.Components {
+			if _, ok := compMap[comp.Name]; ok {
+				comps = append(comps, comp)
+			}
+		}
+		newApp.Spec.Components = comps
+	}
+	e.PatchedApp = newApp
 	return nil
 }
 
 func (e *EnvBindApp) render(ctx context.Context, appParser *appfile.Parser) error {
-	if e.patchedApp == nil {
+	if e.PatchedApp == nil {
 		return errors.New("EnvBindApp must has been generated a configured Application")
 	}
-	ctx = util.SetNamespaceInCtx(ctx, e.patchedApp.Namespace)
-	appFile, err := appParser.GenerateAppFile(ctx, e.patchedApp)
+	ctx = util.SetNamespaceInCtx(ctx, e.PatchedApp.Namespace)
+	appFile, err := appParser.GenerateAppFile(ctx, e.PatchedApp)
 	if err != nil {
 		return err
 	}
@@ -123,10 +139,12 @@ func (e *EnvBindApp) assemble() error {
 		workload := comp.StandardWorkload
 		workload.SetName(comp.Name)
 		e.SetNamespace(workload)
+		util.AddLabels(workload, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeWorkload})
 		resources[0] = workload
 
 		for i := 0; i < len(comp.Traits); i++ {
 			trait := comp.Traits[i]
+			util.AddLabels(trait, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeTrait})
 			e.SetTraitName(comp.Name, trait)
 			e.SetNamespace(trait)
 			resources[i+1] = trait
@@ -155,7 +173,7 @@ func (e *EnvBindApp) SetNamespace(resource *unstructured.Unstructured) {
 	if len(resource.GetNamespace()) != 0 {
 		return
 	}
-	appNs := e.patchedApp.Namespace
+	appNs := e.PatchedApp.Namespace
 	if len(appNs) == 0 {
 		appNs = "default"
 	}
@@ -168,7 +186,7 @@ func CreateEnvBindApps(envBinding *v1alpha1.EnvBinding, baseApp *v1beta1.Applica
 	for i := range envBinding.Spec.Envs {
 		env := envBinding.Spec.Envs[i]
 		envBindApp := NewEnvBindApp(baseApp, &env)
-		err := envBindApp.generateConfiguredApplication()
+		err := envBindApp.GenerateConfiguredApplication()
 		if err != nil {
 			return nil, errors.WithMessagef(err, "failed to patch parameter for env %s", env.Name)
 		}
@@ -270,13 +288,15 @@ func StoreManifest2ConfigMap(ctx context.Context, cli client.Client, envBinding 
 	cm := new(corev1.ConfigMap)
 	data := make(map[string]string)
 	for _, app := range apps {
+		m := make(map[string]map[string]interface{})
 		for name, manifest := range app.ScheduledManifests {
-			objYaml, err := yaml.Marshal(manifest.UnstructuredContent())
-			if err != nil {
-				return err
-			}
-			data[name] = string(objYaml)
+			m[name] = manifest.UnstructuredContent()
 		}
+		d, err := json.Marshal(m)
+		if err != nil {
+			return errors.Wrapf(err, "fail to marshal patched application for env %s", app.envConfig.Name)
+		}
+		data[app.envConfig.Name] = string(d)
 	}
 	cm.Data = data
 	cm.SetName(envBinding.Spec.OutputResourcesTo.Name)

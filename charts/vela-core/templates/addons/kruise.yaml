@@ -58,14 +58,14 @@ data:
                       \  parameter.memory\n\t\t\t\t\t\t\trequests: memory: parameter.memory\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\n\t\t\t\t\tif
                       parameter[\"livenessProbe\"] != _|_ {\n\t\t\t\t\t\tlivenessProbe:
                       parameter.livenessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter[\"readinessProbe\"]
-                      != _|_ {\n\t\t\t\t\t\treadinessProbe: parameter.readinessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tif
-                      parameter[\"imagePullSecrets\"] != _|_ {\n\t\t\t\t\t\timagePullSecrets:
-                      [ for v in parameter.imagePullSecrets {name: v}]\n\t\t\t\t\t}\n\n\t\t\t\t\tlifecycle:
+                      != _|_ {\n\t\t\t\t\t\treadinessProbe: parameter.readinessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tlifecycle:
                       {\n\t\t\t\t\t\tif parameter.postStart != _|_ {\n\t\t\t\t\t\t\tpostStart:
                       exec: command: parameter.postStart\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif
                       parameter.preStop != _|_ {\n\t\t\t\t\t\t\tpreStop: exec: command:
                       parameter.preStop\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}]\n\t\t\t\tif
-                      parameter.hostAliases != _|_ {\n\t\t\t\t\thostAliases: parameter.hostAliases\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif
+                      parameter.hostAliases != _|_ {\n\t\t\t\t\thostAliases: parameter.hostAliases\n\t\t\t\t}\n\t\t\t\tif
+                      parameter[\"imagePullSecrets\"] != _|_ {\n\t\t\t\t\timagePullSecrets:
+                      [ for v in parameter.imagePullSecrets {name: v}]\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif
                       parameter.updateStrategyType != _|_ {\n\t\t\tupdateStrategy: {\n\t\t\t\ttype:
                       parameter.updateStrategyType\n\t\t\t}\n\t\t}\n\t}\n}\nparameter:
                       {\n\t// +usage=Which image would you like to use for your service\n\t//
@@ -191,6 +191,7 @@ metadata:
   annotations:
     addons.oam.dev/description: Kruise is a Kubernetes extended suite for application
       automations
+    addons.oam.dev/name: kruise
   labels:
     addons.oam.dev/type: kruise
   name: kruise

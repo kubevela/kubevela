@@ -1,0 +1,83 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: book-info
+  namespace: default
+spec:
+  components:
+    - name: reviews
+      type: webservice
+      properties:
+        image: docker.io/istio/examples-bookinfo-reviews-v2:1.16.2
+        port: 9080
+        volumes:
+            - name: wlp-output
+              type: emptyDir
+              mountPath: /opt/ibm/wlp/output
+            - name: tmp
+              type: emptyDir
+              mountPath: /tmp
+
+
+      traits:
+        - type: canary-traffic
+          properties:
+            port:
+            - 9080
+
+        - type: rollout
+          properties:
+            targetSize: 2
+            # This means to rollout two more replicas in two batches.
+            rolloutBatches:
+              - replicas: 2
+
+    - name: productpage
+      type: webservice
+      properties:
+        image: docker.io/istio/examples-bookinfo-productpage-v1:1.16.2
+        port: 9080
+
+      traits:
+        - type: expose
+          properties:
+            port:
+            - 9080
+
+        - type: istio-gateway
+          properties:
+            hosts:
+            - "*"
+            gateway: ingressgateway
+            match:
+               - exact: /productpage
+               - prefix: /static
+               - exact: /login
+               - prefix: /api/v1/products
+            port: 9080
+
+    - name: ratings
+      type: webservice
+      properties:
+        image: docker.io/istio/examples-bookinfo-ratings-v1:1.16.2
+        port: 9080
+
+      traits:
+        - type: expose
+          properties:
+            port:
+            - 9080
+
+    - name: details
+      type: webservice
+      properties:
+        image: docker.io/istio/examples-bookinfo-details-v1:1.16.2
+        port: 9080
+
+      traits:
+        - type: expose
+          properties:
+            port:
+            - 9080
+
+

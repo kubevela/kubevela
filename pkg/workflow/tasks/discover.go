@@ -60,8 +60,9 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 	return nil, errors.Errorf("can't find task generator: %s", name)
 }
 
-func suspend(step v1beta1.WorkflowStep, _ *types.GeneratorOptions) (types.TaskRunner, error) {
+func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
 	return &suspendTaskRunner{
+		id:   opt.ID,
 		name: step.Name,
 	}, nil
 }
@@ -82,6 +83,7 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 }
 
 type suspendTaskRunner struct {
+	id   string
 	name string
 }
 
@@ -93,6 +95,7 @@ func (tr *suspendTaskRunner) Name() string {
 // Run make workflow suspend.
 func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
 	return common.WorkflowStepStatus{
+		ID:    tr.id,
 		Name:  tr.name,
 		Type:  "suspend",
 		Phase: common.WorkflowStepPhaseSucceeded,

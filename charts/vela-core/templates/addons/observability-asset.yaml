@@ -25,7 +25,7 @@ data:
               kind: TraitDefinition
               metadata:
                 annotations:
-                  definition.oam.dev/description: Add a datasource to Grafana
+                  definition.oam.dev/description: Import dashboards to Grafana
                 name: import-grafana-dashboard
                 namespace: vela-system
               spec:
@@ -121,6 +121,7 @@ kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: Preparations that observability need
+    addons.oam.dev/name: observability-asset
   labels:
     addons.oam.dev/type: observability-asset
   name: observability-asset

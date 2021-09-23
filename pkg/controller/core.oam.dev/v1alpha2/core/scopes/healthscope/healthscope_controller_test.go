@@ -240,11 +240,23 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				caseName:       "2 supportted workloads(cw,deploy)",
 				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-					if o, ok := obj.(*v1alpha2.ContainerizedWorkload); ok {
-						*o = cw
-					}
-					if o, ok := obj.(*appsv1.Deployment); ok {
-						*o = hDeploy
+					switch o := obj.(type) {
+					case *unstructured.Unstructured:
+						if key.Name == "cw" {
+							cwObj, err := util.Object2Unstructured(cw)
+							if err != nil {
+								return err
+							}
+							*o = *cwObj
+						}
+						if key.Name == "deploy" {
+							deployObj, err := util.Object2Unstructured(hDeploy)
+							if err != nil {
+								return err
+							}
+							*o = *deployObj
+						}
+						return nil
 					}
 					return nil
 				},
@@ -283,13 +295,22 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				hsWorkloadRefs: []corev1.ObjectReference{cwRef, deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
-					case *v1alpha2.ContainerizedWorkload:
-						*o = cw
-					case *appsv1.Deployment:
-						*o = hDeploy
 					case *unstructured.Unstructured:
 						// return err when get svc of cw, then check fails
-						if key.Name == "cw" || key.Name == "deploy" {
+						if key.Name == "cw" {
+							cwObj, err := util.Object2Unstructured(cw)
+							if err != nil {
+								return err
+							}
+							*o = *cwObj
+							return nil
+						}
+						if key.Name == "deploy" {
+							deployObj, err := util.Object2Unstructured(hDeploy)
+							if err != nil {
+								return err
+							}
+							*o = *deployObj
 							return nil
 						}
 						return errMockErr
@@ -309,11 +330,23 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				hsWorkloadRefs: []corev1.ObjectReference{cwRef, uhGeneralRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
-					case *v1alpha2.ContainerizedWorkload:
-						*o = cw
-					case *appsv1.Deployment:
-						*o = hDeploy
 					case *unstructured.Unstructured:
+						if key.Name == "cw" {
+							cwObj, err := util.Object2Unstructured(cw)
+							if err != nil {
+								return err
+							}
+							*o = *cwObj
+							return nil
+						}
+						if key.Name == "deploy" {
+							deployObj, err := util.Object2Unstructured(hDeploy)
+							if err != nil {
+								return err
+							}
+							*o = *deployObj
+							return nil
+						}
 						*o = *unsupporttedWL
 					}
 					return nil

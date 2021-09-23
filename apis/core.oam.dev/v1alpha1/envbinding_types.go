@@ -34,6 +34,9 @@ const (
 
 	// SingleClusterEngine represents single cluster ClusterManagerEngine
 	SingleClusterEngine ClusterManagementEngine = "single-cluster"
+
+	// ClusterGatewayEngine represents multi-cluster management solution with cluster-gateway
+	ClusterGatewayEngine ClusterManagementEngine = "cluster-gateway"
 )
 
 // EnvBindingPhase is a label for the condition of a EnvBinding at the current time
@@ -73,10 +76,16 @@ type EnvPlacement struct {
 	NamespaceSelector *NamespaceSelector      `json:"namespaceSelector,omitempty"`
 }
 
+// EnvSelector defines which components should this env contains
+type EnvSelector struct {
+	Components []string `json:"components,omitempty"`
+}
+
 // EnvConfig is the configuration for different environments.
 type EnvConfig struct {
 	Name      string       `json:"name"`
 	Placement EnvPlacement `json:"placement,omitempty"`
+	Selector  *EnvSelector `json:"selector,omitempty"`
 	Patch     EnvPatch     `json:"patch"`
 }
 

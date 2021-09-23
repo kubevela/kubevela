@@ -42,6 +42,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -51,9 +52,6 @@ import (
 const (
 	// DescAnnotation records the description of addon
 	DescAnnotation = "addons.oam.dev/description"
-
-	// MarkLabel is annotation key marks configMap as an addon
-	MarkLabel = "addons.oam.dev/type"
 )
 
 var statusUninstalled = "uninstalled"
@@ -217,7 +215,7 @@ func disableAddon(name string) error {
 }
 func newAddon(data *v1.ConfigMap) *Addon {
 	description := data.ObjectMeta.Annotations[DescAnnotation]
-	a := Addon{name: data.Name, description: description, initYaml: data.Data["initializer"]}
+	a := Addon{name: data.Annotations[oam.AnnotationAddonsName], description: description, initYaml: data.Data["initializer"]}
 	init, _ := a.renderInitializer()
 	a.addonNamespace = init.GetNamespace()
 	return &a
@@ -234,7 +232,7 @@ func NewAddonRepo() (AddonRepo, error) {
 	list := v1.ConfigMapList{}
 	matchLabels := metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{{
-			Key:      MarkLabel,
+			Key:      oam.LabelAddonsName,
 			Operator: metav1.LabelSelectorOpExists,
 		}},
 	}
@@ -255,7 +253,7 @@ type configMapAddonRepo struct {
 
 func (c configMapAddonRepo) getAddon(name string) (Addon, error) {
 	for i := range c.maps {
-		if c.maps[i].Name == name {
+		if addonName, ok := c.maps[i].Annotations[oam.AnnotationAddonsName]; ok && name == addonName {
 			return *newAddon(&c.maps[i]), nil
 		}
 	}
@@ -415,7 +413,7 @@ func (a *Addon) getStatus() string {
 	var initializer v1beta1.Initializer
 	err := clt.Get(context.Background(), client.ObjectKey{
 		Namespace: a.addonNamespace,
-		Name:      a.name,
+		Name:      TransAddonName(a.name),
 	}, &initializer)
 	if err != nil {
 		return statusUninstalled
@@ -425,4 +423,9 @@ func (a *Addon) getStatus() string {
 
 func (a *Addon) setArgs(args map[string]string) {
 	a.Args = args
+}
+
+// TransAddonName will turn addon's name from xxx/yyy to xxx-yyy
+func TransAddonName(name string) string {
+	return strings.ReplaceAll(name, "/", "-")
 }

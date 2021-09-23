@@ -20,6 +20,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
 
@@ -59,4 +62,24 @@ func TestDiscover(t *testing.T) {
 	_, err = discover.GetTaskGenerator(context.Background(), "fly")
 	assert.Equal(t, err.Error(), makeErr("fly").Error())
 
+}
+
+func TestSuspendStep(t *testing.T) {
+	discover := &taskDiscover{
+		builtins: map[string]types.TaskGenerator{
+			"suspend": suspend,
+		},
+	}
+	gen, err := discover.GetTaskGenerator(context.Background(), "suspend")
+	assert.NilError(t, err)
+	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124"})
+	assert.NilError(t, err)
+	assert.Equal(t, runner.Name(), "test")
+	assert.Equal(t, runner.Pending(nil), false)
+	status, act, err := runner.Run(nil, nil)
+	assert.NilError(t, err)
+	assert.Equal(t, act.Suspend, true)
+	assert.Equal(t, status.ID, "124")
+	assert.Equal(t, status.Name, "test")
+	assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
 }

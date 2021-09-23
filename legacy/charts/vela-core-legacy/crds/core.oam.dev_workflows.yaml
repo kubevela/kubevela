@@ -70,13 +70,13 @@ spec:
                       description: StepOutputs defines output variable of WorkflowStep
                       items:
                         properties:
-                          exportKey:
-                            type: string
                           name:
                             type: string
+                          valueFrom:
+                            type: string
                         required:
-                        - exportKey
                         - name
+                        - valueFrom
                         type: object
                       type: array
                     properties:
@@ -318,13 +318,13 @@ spec:
                   description: StepOutputs defines output variable of WorkflowStep
                   items:
                     properties:
-                      exportKey:
-                        type: string
                       name:
                         type: string
+                      valueFrom:
+                        type: string
                     required:
-                    - exportKey
                     - name
+                    - valueFrom
                     type: object
                   type: array
                 properties:

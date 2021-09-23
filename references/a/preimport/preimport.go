@@ -28,14 +28,19 @@ var _flagSet *flag.FlagSet
 
 // disable logging during import
 func init() {
-	log.L.Logger.SetLevel(logrus.PanicLevel)
 	_flagSet = flag.CommandLine
 	klog.InitFlags(_flagSet)
+	SuppressLogging()
+}
+
+// SuppressLogging disable logging
+func SuppressLogging() {
+	log.L.Logger.SetLevel(logrus.PanicLevel)
 	_ = _flagSet.Set("v", "-1")
 }
 
-// Start recover logging
-func Start() {
+// ResumeLogging enable logging
+func ResumeLogging() {
 	log.L.Logger.SetLevel(logrus.InfoLevel)
 	_ = _flagSet.Set("v", "0")
 }

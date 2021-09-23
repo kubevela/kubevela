@@ -254,7 +254,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseSucceeded))
-
+		Expect(appObj.Status.Workflow.Steps[0].ID).ShouldNot(BeEquivalentTo(""))
 		// resume
 		appObj.Status.Workflow.Suspend = false
 		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
@@ -369,7 +369,7 @@ var _ = Describe("Test Workflow", func() {
 						Type:       "worker-with-health",
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
-							{Name: "message", ExportKey: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
+							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
 					},
 				},
@@ -477,11 +477,25 @@ var _ = Describe("Test Workflow", func() {
 		updateApp := &oamcore.Application{}
 		Expect(k8sClient.Get(ctx, appKey, updateApp)).Should(BeNil())
 		Expect(updateApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		updateApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{}`)}
 		updateApp.Spec.Workflow = &oamcore.Workflow{
 			Steps: []oamcore.WorkflowStep{{
 				Name:       "test-web2",
 				Type:       "apply-component",
 				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+				Outputs: common.StepOutputs{
+					{Name: "image", ValueFrom: "output.spec.template.spec.containers[0].image"},
+				},
+			}, {
+				Name:       "test-web1",
+				Type:       "apply-component",
+				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+				Inputs: common.StepInputs{
+					{
+						From:         "image",
+						ParameterKey: "image",
+					},
+				},
 			}},
 		}
 		Expect(k8sClient.Update(context.Background(), updateApp)).Should(BeNil())

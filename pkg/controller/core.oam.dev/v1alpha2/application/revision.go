@@ -150,7 +150,7 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 	return nil
 }
 
-// gatherRevisionSpec will gather all revision spec withouth metadata and rendered result.
+// gatherRevisionSpec will gather all revision spec without metadata and rendered result.
 // the gathered Revision spec will be enough to calculate the hash and compare with the old revision
 func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
 	copiedApp := h.app.DeepCopy()

@@ -428,8 +428,32 @@ spec: {
 		envs: [{
 			name:  "e1"
 			value: "v2"
-		}]
-	}]
+		}, ...]
+	}, ...]
+}
+`}, {
+			base: `
+kind: "Old"
+metadata: {
+	name: "Old"
+	labels: keep: "true"
+}
+`,
+			patch: `// +patchStrategy=retainKeys
+kind: "New"
+metadata: {
+	// +patchStrategy=retainKeys
+	name: "New"
+}
+`,
+			result: `	// +patchStrategy=retainKeys
+kind: "New"
+metadata: {
+	// +patchStrategy=retainKeys
+	name: "New"
+	labels: {
+		keep: "true"
+	}
 }
 `},
 	}

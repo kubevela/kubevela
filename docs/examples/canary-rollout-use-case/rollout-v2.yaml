@@ -1,0 +1,112 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: book-info
+  namespace: default
+spec:
+  components:
+    - name: reviews
+      type: webservice
+      properties:
+        image: docker.io/istio/examples-bookinfo-reviews-v3:1.16.2
+        port: 9080
+        volumes:
+          - name: wlp-output
+            type: emptyDir
+            mountPath: /opt/ibm/wlp/output
+          - name: tmp
+            type: emptyDir
+            mountPath: /tmp
+
+
+      traits:
+        - type: rollout
+          properties:
+            targetSize: 2
+            # This means to rollout two more replicas in two batches.
+            rolloutBatches:
+              - replicas: 1
+              - replicas: 1
+
+        - type: canary-traffic
+          properties:
+            port:
+              - 9080
+
+    - name: productpage
+      type: webservice
+      properties:
+          image: docker.io/istio/examples-bookinfo-productpage-v1:1.16.2
+          port: 9080
+
+      traits:
+          - type: expose
+            properties:
+              port:
+                - 9080
+
+          - type: istio-gateway
+            properties:
+              hosts:
+                - "*"
+              gateway: ingressgateway
+              match:
+                - exact: /productpage
+                - prefix: /static
+                - exact: /login
+                - prefix: /api/v1/products
+              port: 9080
+
+    - name: ratings
+      type: webservice
+      properties:
+          image: docker.io/istio/examples-bookinfo-ratings-v1:1.16.2
+          port: 9080
+
+      traits:
+          - type: expose
+            properties:
+              port:
+                - 9080
+
+    - name: details
+      type: webservice
+      properties:
+          image: docker.io/istio/examples-bookinfo-details-v1:1.16.2
+          port: 9080
+
+      traits:
+        - type: expose
+          properties:
+            port:
+              - 9080
+
+
+
+  workflow:
+    steps:
+      - name: rollout-1st-batch
+        type: canary-rollout
+        properties:
+          # just upgrade first batch of component
+          batchPartition: 0
+          traffic:
+            weightedTargets:
+              - revision: reviews-v1
+                weight: 90 # 90% shift to new version
+              - revision: reviews-v2
+                weight: 10 # 10% shift to new version
+
+      # give user time to verify part of traffic shifting to newRevision
+      - name: manual-approval
+        type: suspend
+
+      - name: rollout-rest
+        type: canary-rollout
+        properties:
+          # upgrade all batches of component
+          batchPartition: 1
+          traffic:
+            weightedTargets:
+              - revision: reviews-v2
+                weight: 100 # 100% shift to new version

@@ -5,7 +5,6 @@ go 1.16
 require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
@@ -35,15 +34,14 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
-	github.com/klauspost/compress v1.10.5 // indirect
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/labstack/echo/v4 v4.5.0
-	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/oam-dev/cluster-gateway v0.0.0-20210907072424-2f8720b116f8
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.1.18
-	github.com/olekukonko/tablewriter v0.0.4
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.14.0
 	github.com/openkruise/kruise-api v0.9.0
@@ -67,16 +65,17 @@ require (
 	helm.sh/helm/v3 v3.6.1
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
-	k8s.io/api v0.21.3
+	k8s.io/api v0.22.1
 	k8s.io/apiextensions-apiserver v0.21.3
-	k8s.io/apimachinery v0.21.3
+	k8s.io/apimachinery v0.22.1
 	k8s.io/cli-runtime v0.21.0
-	k8s.io/client-go v0.21.3
+	k8s.io/client-go v0.22.1
 	k8s.io/klog v1.0.0
-	k8s.io/klog/v2 v2.8.0
-	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
+	k8s.io/klog/v2 v2.9.0
+	k8s.io/kube-aggregator v0.22.1
+	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
 	k8s.io/kubectl v0.21.0
-	k8s.io/utils v0.0.0-20210722164352-7f3ee0f31471
+	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
 	open-cluster-management.io/api v0.0.0-20210804091127-340467ff6239
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.9.5

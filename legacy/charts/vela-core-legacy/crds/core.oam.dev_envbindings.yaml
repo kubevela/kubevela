@@ -98,13 +98,13 @@ spec:
                                   WorkflowStep
                                 items:
                                   properties:
-                                    exportKey:
-                                      type: string
                                     name:
                                       type: string
+                                    valueFrom:
+                                      type: string
                                   required:
-                                  - exportKey
                                   - name
+                                  - valueFrom
                                   type: object
                                 type: array
                               properties:
@@ -177,6 +177,15 @@ spec:
                               description: Name is the name of the namespace.
                               type: string
                           type: object
+                      type: object
+                    selector:
+                      description: EnvSelector defines which components should this
+                        env contains
+                      properties:
+                        components:
+                          items:
+                            type: string
+                          type: array
                       type: object
                   required:
                   - name
