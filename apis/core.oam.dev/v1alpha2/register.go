@@ -91,7 +91,6 @@ var (
 	ApplicationContextGroupKind        = schema.GroupKind{Group: Group, Kind: ApplicationContextKind}.String()
 	ApplicationContextKindAPIVersion   = ApplicationContextKind + "." + SchemeGroupVersion.String()
 	ApplicationContextGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationContextKind)
-)
 
 // ManualScalerTrait type metadata.
 var (
@@ -145,5 +144,4 @@ func init() {
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
-	SchemeBuilder.Register(&ApplicationContext{}, &ApplicationContextList{})
 }
