@@ -148,7 +148,6 @@ jobs:
       - name: add artifacthub stuff to the repo
         run: |
           rsync README.md $HELM_CHART/README.md
-          rsync README.md $MINIMAL_HELM_CHART/README.md
           rsync README.md $LEGACY_HELM_CHART/README.md
           rsync README.md $OAM_RUNTIME_HELM_CHART/README.md
           rsync README.md $VELA_ROLLOUT_HELM_CHART/README.md
