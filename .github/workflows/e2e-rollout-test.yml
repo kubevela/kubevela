@@ -80,9 +80,6 @@ jobs:
           helm lint ./charts/vela-core
           helm test -n vela-system kubevela --timeout 5m
 
-      - name: Run api e2e tests
-        run: make e2e-api-test
-
       - name: Run e2e tests
         run: make e2e-rollout-test
 
