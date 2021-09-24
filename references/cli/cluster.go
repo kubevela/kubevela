@@ -202,8 +202,14 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 			data := map[string][]byte{
 				"endpoint": []byte(cluster.Server),
 				"ca.crt":   cluster.CertificateAuthorityData,
-				"tls.crt":  authInfo.ClientCertificateData,
-				"tls.key":  authInfo.ClientKeyData,
+			}
+			if len(authInfo.Token) > 0 {
+				credentialType = v1.ServiceAccountTokenKey
+				data["token"] = []byte(authInfo.Token)
+			} else {
+				credentialType = v1.SecretTypeTLS
+				data["tls.crt"] = authInfo.ClientCertificateData
+				data["tls.key"] = authInfo.ClientKeyData
 			}
 			secret := &v1.Secret{
 				ObjectMeta: v12.ObjectMeta{
@@ -211,7 +217,7 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 					Namespace: multicluster.ClusterGatewaySecretNamespace,
 					Labels:    map[string]string{ClusterCredentialLabelKey: strings.Split(string(credentialType), "/")[1]},
 				},
-				Type: credentialType,
+				Type: v1.SecretTypeOpaque,
 				Data: data,
 			}
 			if err := c.Client.Create(context.Background(), secret); err != nil {
