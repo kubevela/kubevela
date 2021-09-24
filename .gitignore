@@ -44,17 +44,5 @@ charts/vela-core/crds/_.yaml
 
 .vela/
 
-# Dashboard
-node_modules/
-.eslintcache
-references/dashboard/dist/
-references/dashboard/package-lock.json
-references/dashboard/src/.umi/
-package-lock.json
-references/dashboard/src/.umi-production/
-
-# Swagger: generate Restful API
-references/apiserver/docs/index.html
-
 # check docs
 git-page/
