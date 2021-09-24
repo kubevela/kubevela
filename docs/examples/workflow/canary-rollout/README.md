@@ -2,14 +2,17 @@
 
 ## Prerequisite
 
-Your cluster must have installed [istio](https://istio.io/latest/docs/setup/install/)
+enable istio addon in you cluster
+```shell
+vela addon enable istio
+```
 
-## Install definitions
+enable label istio injection in `default namespace`
 
 ```shell
-kubectl apply -f ./traffic-trait-def.yaml
-kubectl apply -f ./rollout-wf-def.yaml
+kubectl label namespace default istio-injection=enabled
 ```
+
 
 ## Canary rollout workflow
 
@@ -28,12 +31,12 @@ kubectl port-forward -n istio-system service/istio-ingressgateway 9082:80
 
 Wait a few minutes, when rollout have finished. Request back-end service by gateway several times.
 ```shell
-curl  -HHost:back-end.example.com  "http://127.0.0.1:9082/"
+curl  http://127.0.0.1:9082/server
 ```
 
 Will always see return page of `httpd` like this.
 ```shell
-<html><body><h1>It works!</h1></body></html>
+Demo: v1
 ```
 
 ### Canary rollout part of traffic and replicas to new revision
@@ -43,41 +46,27 @@ kubectl apply -f rollout-v2.yaml
 
 Request back-end service by gateway several times.
 ```shell
-curl  -HHost:back-end.example.com  "http://127.0.0.1:9082/"
+curl http://127.0.0.1:9082/server
 ```
 
-This's a 90% chance still see return page of `httpd`, and 10% see return page of `nginx` like this.
+This's a 90% chance still see return page of `v1`, and 10% see return page of `v2` like this.
 
 ```shell
-<!DOCTYPE html>
-<html>
-<head>
-<title>Welcome to nginx!</title>
-<style>
-    body {
-        width: 35em;
-        margin: 0 auto;
-        font-family: Tahoma, Verdana, Arial, sans-serif;
-    }
-</style>
-</head>
-<body>
-<h1>Welcome to nginx!</h1>
-<p>If you see this page, the nginx web server is successfully installed and
+Demo: v2
 ```
 
 ### Rollout rest traffic and replicas to new revision
 
 ```shell
-vela workflow resume  rollout-test
+vela workflow resume  canary-test
 ```
 
 Wait a few minutes, when rollout have finished. Request back-end service by gateway several times.
 ```shell
-curl  -HHost:back-end.example.com  "http://127.0.0.1:9082/"
+curl http://127.0.0.1:9082/server
 ```
 
-Will always see return page of `nginx`.
+Will always see return page of `v2`.
 
 
 
