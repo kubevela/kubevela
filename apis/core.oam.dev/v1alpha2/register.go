@@ -91,6 +91,7 @@ var (
 	ApplicationContextGroupKind        = schema.GroupKind{Group: Group, Kind: ApplicationContextKind}.String()
 	ApplicationContextKindAPIVersion   = ApplicationContextKind + "." + SchemeGroupVersion.String()
 	ApplicationContextGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationContextKind)
+)
 
 // ManualScalerTrait type metadata.
 var (
