@@ -222,7 +222,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 		logf.Log.Info("Clean up resources after an unit test")
 	})
 
-	// use ContainerizedWorkload and Deployment checker
+	// use Deployment checker
 	It("Test healthy scope", func() {
 		tests := []struct {
 			caseName           string

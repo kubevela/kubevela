@@ -61,6 +61,7 @@ func Setup(mgr ctrl.Manager, args controller.Args) error {
 		Scheme:          mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)
+
 }
 
 // Reconciler reconciles a ManualScalarTrait object
