@@ -1,0 +1,88 @@
+{{ if .Values.multicluster.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-cluster-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.multicluster.clusterGateway.replicaCount }}
+  selector:
+    matchLabels:
+    {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+      {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
+      securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "kubevela.fullname" . }}-cluster-gateway
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - "apiserver"
+            - "--secure-port={{ .Values.multicluster.clusterGateway.port }}"
+            - "--secret-namespace={{ .Release.Namespace }}"
+            - "--feature-gates=APIPriorityAndFairness=false"
+          image: {{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
+          imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
+          resources:
+          {{- toYaml .Values.multicluster.clusterGateway.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.multicluster.clusterGateway.port }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{ end }}
+---
+{{ if .Values.multicluster.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-cluster-gateway-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+  {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 4 }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.multicluster.clusterGateway.port }}
+      targetPort: {{ .Values.multicluster.clusterGateway.port }}
+{{ end }}
+---
+{{ if .Values.multicluster.enabled }}
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1alpha1.cluster.core.oam.dev
+  labels:
+    api: cluster-extension-apiserver
+    apiserver: "true"
+spec:
+  version: v1alpha1
+  group: cluster.core.oam.dev
+  groupPriorityMinimum: 2000
+  service:
+    name: {{ .Release.Name }}-cluster-gateway-service
+    namespace: {{ .Release.Namespace }}
+    port: {{ .Values.multicluster.clusterGateway.port }}
+  versionPriority: 10
+  insecureSkipTLSVerify: true
+{{ end }}

@@ -42,6 +42,10 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 	case common.DisableAllCaps:
 	default:
 		disableCapsSet := utils.StoreInSet(disableCaps)
+
+		if !disableCapsSet.Contains(common.ManualScalerTraitControllerName) {
+			functions = append(functions, manualscalertrait.Setup)
+		}
 		if !disableCapsSet.Contains(common.HealthScopeControllerName) {
 			functions = append(functions, healthscope.Setup)
 		}
