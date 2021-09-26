@@ -7,7 +7,6 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
@@ -22,8 +21,6 @@ require (
 	github.com/fatih/color v1.12.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.34.0
-	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
-	github.com/gin-gonic/gin v1.7.0
 	github.com/go-logr/logr v0.4.0
 	github.com/go-openapi/spec v0.19.8
 	github.com/google/go-cmp v0.5.6
@@ -41,23 +38,19 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.14.0
+	github.com/opencontainers/runc v1.0.0-rc95 // indirect
 	github.com/openkruise/kruise-api v0.9.0
 	github.com/pkg/errors v0.9.1
-	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
-	github.com/swaggo/gin-swagger v1.3.0
-	github.com/swaggo/swag v1.6.7
 	github.com/tidwall/gjson v1.6.8
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.mongodb.org/mongo-driver v1.3.2
 	go.uber.org/zap v1.18.1
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
-	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.6.1

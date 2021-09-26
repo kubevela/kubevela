@@ -156,8 +156,7 @@ e2e-setup:
 
 e2e-api-test:
 	# Run e2e test
-	ginkgo -v -skipPackage capability,setup,apiserver,application -r e2e
-	ginkgo -v -r e2e/apiserver
+	ginkgo -v -skipPackage capability,setup,application -r e2e
 	ginkgo -v -r e2e/application
 
 e2e-test:

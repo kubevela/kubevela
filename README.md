@@ -39,6 +39,9 @@ Full documentation is available on the [KubeVela website](https://kubevela.io/).
 - Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel (*English*)
 - Gitter: [oam-dev](https://gitter.im/oam-dev/community) (*English*)
 - [DingTalk Group](https://page.dingtalk.com/wow/dingtalk/act/en-home): `23310022` (*Chinese*)
+- Wechat Group (*Chinese*) : Add developer‘s wechat to join the user group.
+ 
+  <img src="https://static.kubevela.net/images/barnett-wechat.jpg" width="200" />
 - Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
 
 ## Talks and Conferences
