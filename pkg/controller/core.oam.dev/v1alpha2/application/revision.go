@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -816,6 +818,66 @@ func (h historiesByRevision) Less(i, j int) bool {
 }
 
 func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
+	if appWillRollout(h.app) {
+		return cleanUpRollOutComponentRevision(ctx, h)
+	}
+	return cleanUpWorkflowComponentRevision(ctx, h)
+}
+
+func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
+	// collect component revision in use
+	compRevisionInUse := map[string]map[string]struct{}{}
+
+	for _, resource := range h.app.Status.AppliedResources {
+		compName := resource.Name
+		ns := resource.Namespace
+		r := &unstructured.Unstructured{}
+		r.GetObjectKind().SetGroupVersionKind(resource.GroupVersionKind())
+		err := h.r.Get(ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
+		if err != nil {
+			return err
+		}
+		compRevision, ok := r.GetLabels()[oam.LabelAppComponentRevision]
+		if !ok {
+			return fmt.Errorf("missing revision in component")
+		}
+		if compRevisionInUse[compName] == nil {
+			compRevisionInUse[compName] = map[string]struct{}{}
+		}
+		compRevisionInUse[compName][compRevision] = struct{}{}
+	}
+
+	for _, curComp := range h.app.Status.AppliedResources {
+		crList := &appsv1.ControllerRevisionList{}
+		listOpts := []client.ListOption{client.MatchingLabels{
+			oam.LabelControllerRevisionComponent: curComp.Name,
+		}, client.InNamespace(h.app.Namespace)}
+		if err := h.r.List(ctx, crList, listOpts...); err != nil {
+			return err
+		}
+		needKill := len(crList.Items) - h.r.appRevisionLimit - len(compRevisionInUse[curComp.Name])
+		if needKill < 1 {
+			continue
+		}
+		sortedRevision := crList.Items
+		sort.Sort(historiesByComponentRevision(sortedRevision))
+		for _, rev := range sortedRevision {
+			if needKill <= 0 {
+				break
+			}
+			if _, inUse := compRevisionInUse[curComp.Name][rev.Name]; inUse {
+				continue
+			}
+			if err := h.r.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			needKill--
+		}
+	}
+	return nil
+}
+
+func cleanUpRollOutComponentRevision(ctx context.Context, h *AppHandler) error {
 	appRevInUse, err := gatherUsingAppRevision(ctx, h)
 	if err != nil {
 		return err
