@@ -147,7 +147,7 @@ type Appfile struct {
 	AppLabels       map[string]string
 	AppAnnotations  map[string]string
 
-	RelatedTraitDefinitions     map[string]*v1beta1.TraitDefinition
+	RelatedTraitDefinitions     map[string]v1beta1.TraitDefinition
 	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition
 	RelatedScopeDefinitions     map[string]*v1beta1.ScopeDefinition
 

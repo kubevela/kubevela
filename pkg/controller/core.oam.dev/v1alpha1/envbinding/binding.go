@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -124,6 +125,7 @@ func (e *EnvBindApp) render(ctx context.Context, appParser *appfile.Parser) erro
 	if err != nil {
 		return err
 	}
+	utils.HandleCheckManageWorkloadTrait(appFile.RelatedTraitDefinitions, comps)
 	e.componentManifests = comps
 	return nil
 }
@@ -135,20 +137,29 @@ func (e *EnvBindApp) assemble() error {
 
 	assembledManifests := make(map[string][]*unstructured.Unstructured, len(e.componentManifests))
 	for _, comp := range e.componentManifests {
-		resources := make([]*unstructured.Unstructured, len(comp.Traits)+1)
-		workload := comp.StandardWorkload
-		workload.SetName(comp.Name)
-		e.SetNamespace(workload)
-		util.AddLabels(workload, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeWorkload})
-		resources[0] = workload
+		var resources []*unstructured.Unstructured
 
-		for i := 0; i < len(comp.Traits); i++ {
+		skipApplyWorkload := false
+		i := 0
+		for ; i < len(comp.Traits); i++ {
 			trait := comp.Traits[i]
 			util.AddLabels(trait, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeTrait})
 			e.SetTraitName(comp.Name, trait)
 			e.SetNamespace(trait)
-			resources[i+1] = trait
+			resources = append(resources, trait)
+			if v := trait.GetLabels()[oam.LabelManageWorkloadTrait]; v == "true" {
+				skipApplyWorkload = true
+			}
 		}
+
+		if !skipApplyWorkload {
+			workload := comp.StandardWorkload
+			workload.SetName(comp.Name)
+			e.SetNamespace(workload)
+			util.AddLabels(workload, map[string]string{oam.LabelOAMResourceType: oam.ResourceTypeWorkload})
+			resources = append(resources, workload)
+		}
+
 		assembledManifests[comp.Name] = resources
 
 		if len(comp.PackagedWorkloadResources) != 0 {

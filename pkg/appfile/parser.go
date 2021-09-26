@@ -114,7 +114,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 			if t.FullTemplate.TraitDefinition != nil {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
-				appfile.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
+				appfile.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = *td
 			}
 		}
 		for _, s := range w.ScopeDefinition {
@@ -141,7 +141,7 @@ func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfi
 
 		AppLabels:                   make(map[string]string),
 		AppAnnotations:              make(map[string]string),
-		RelatedTraitDefinitions:     make(map[string]*v1beta1.TraitDefinition),
+		RelatedTraitDefinitions:     make(map[string]v1beta1.TraitDefinition),
 		RelatedComponentDefinitions: make(map[string]*v1beta1.ComponentDefinition),
 		RelatedScopeDefinitions:     make(map[string]*v1beta1.ScopeDefinition),
 
@@ -214,7 +214,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 		appfile.RelatedComponentDefinitions[k] = v.DeepCopy()
 	}
 	for k, v := range appRev.Spec.TraitDefinitions {
-		appfile.RelatedTraitDefinitions[k] = v.DeepCopy()
+		appfile.RelatedTraitDefinitions[k] = *v.DeepCopy()
 	}
 	for k, v := range appRev.Spec.ScopeDefinitions {
 		appfile.RelatedScopeDefinitions[k] = v.DeepCopy()

@@ -22,6 +22,10 @@ import (
 	"strconv"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	velatypes "github.com/oam-dev/kubevela/apis/types"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -237,4 +241,35 @@ func TestGetAppRevison(t *testing.T) {
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v4")
 	assert.Equal(t, latestRevision, int64(4))
+}
+
+func TestHandleCheckManageWorkloadTrait(t *testing.T) {
+	traitDefs := map[string]v1beta1.TraitDefinition{
+		"rollout": v1beta1.TraitDefinition{
+			Spec: v1beta1.TraitDefinitionSpec{
+				ManageWorkload: true,
+			},
+		},
+		"normal": v1beta1.TraitDefinition{
+			Spec: v1beta1.TraitDefinitionSpec{},
+		},
+	}
+	rolloutTrait := &unstructured.Unstructured{}
+	rolloutTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "rollout"})
+
+	normalTrait := &unstructured.Unstructured{}
+	normalTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "normal"})
+	comps := []*velatypes.ComponentManifest{
+		{
+			Traits: []*unstructured.Unstructured{
+				rolloutTrait,
+				normalTrait,
+			},
+		},
+	}
+	HandleCheckManageWorkloadTrait(traitDefs, comps)
+	assert.Equal(t, len(rolloutTrait.GetLabels()), 2)
+	assert.Equal(t, rolloutTrait.GetLabels()[oam.LabelManageWorkloadTrait], "true")
+	assert.Equal(t, len(normalTrait.GetLabels()), 1)
+	assert.Equal(t, normalTrait.GetLabels()[oam.LabelManageWorkloadTrait], "")
 }

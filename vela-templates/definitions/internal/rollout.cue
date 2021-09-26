@@ -14,6 +14,9 @@ template: {
 		metadata: {
 			name:      context.name
 			namespace: context.namespace
+			labels: {
+				"trait.oam.dev/rely-on-comp-rev": parameter.targetRevision
+			}
 		}
 		spec: {
 			targetRevisionName: parameter.targetRevision

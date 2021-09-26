@@ -57,7 +57,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 			Name:            appName,
 			Namespace:       "default",
 			AppRevisionName: appName + "-v1",
-			RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+			RelatedTraitDefinitions: map[string]v1beta1.TraitDefinition{
 				"scaler": {
 					Spec: v1beta1.TraitDefinitionSpec{},
 				},
@@ -234,7 +234,7 @@ spec:
 			AppRevisionName: appName + "-v1",
 			Name:            appName,
 			Namespace:       "default",
-			RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+			RelatedTraitDefinitions: map[string]v1beta1.TraitDefinition{
 				"scaler": {
 					Spec: v1beta1.TraitDefinitionSpec{},
 				},

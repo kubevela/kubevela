@@ -484,3 +484,24 @@ func GetBuildInInitializer(ctx context.Context, cli client.Client, name string) 
 
 	return init, nil
 }
+
+// HandleCheckManageWorkloadTrait check if can manage-workload, if yes set label on it.
+func HandleCheckManageWorkloadTrait(traitDefs map[string]v1beta1.TraitDefinition, comps []*velatypes.ComponentManifest) {
+	manageWorkloadTrait := map[string]bool{}
+	for traitName, definition := range traitDefs {
+		if definition.Spec.ManageWorkload {
+			manageWorkloadTrait[traitName] = true
+		}
+	}
+	if len(manageWorkloadTrait) == 0 {
+		return
+	}
+	for _, comp := range comps {
+		for _, trait := range comp.Traits {
+			traitType := trait.GetLabels()[oam.TraitTypeLabel]
+			if manageWorkloadTrait[traitType] {
+				trait.SetLabels(util.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.LabelManageWorkloadTrait: "true"}))
+			}
+		}
+	}
+}

@@ -318,7 +318,7 @@ var _ = Describe("Test appFile parser", func() {
 			AppRevisionName: "test-v1",
 			Name:            "test",
 			Namespace:       "default",
-			RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+			RelatedTraitDefinitions: map[string]v1beta1.TraitDefinition{
 				"scaler": {
 					Spec: v1beta1.TraitDefinitionSpec{},
 				},

@@ -61,6 +61,8 @@ const (
 
 	// LabelAddonsName records the name of initializer stored in configMap
 	LabelAddonsName = "addons.oam.dev/type"
+
+	LabelRelyOnCompRev = "trait.oam.dev/rely-on-comp-rev"
 )
 
 const (

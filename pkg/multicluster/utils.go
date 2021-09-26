@@ -49,7 +49,7 @@ const (
 
 var (
 	// ClusterGatewaySecretNamespace the namespace where cluster-gateway secret locates
-	ClusterGatewaySecretNamespace string
+	ClusterGatewaySecretNamespace string = "vela-system"
 )
 
 // Context create context with multi-cluster
