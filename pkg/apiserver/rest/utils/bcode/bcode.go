@@ -38,18 +38,26 @@ func (b *Bcode) Error() string {
 // ReturnError Unified handling of all types of errors, generating a standard return structure.
 func ReturnError(req *restful.Request, res *restful.Response, err error) {
 	if bcode, ok := err.(*Bcode); ok {
-		res.WriteEntity(bcode)
+		if err := res.WriteEntity(bcode); err != nil {
+			log.Logger.Error("write entity failure %s", err.Error())
+		}
 		return
 	}
 	if serviceError, ok := err.(*restful.ServiceError); ok {
-		res.WriteEntity(Bcode{HTTPCode: int32(serviceError.Code), BusinessCode: int32(serviceError.Code), Message: serviceError.Message})
+		if err := res.WriteEntity(Bcode{HTTPCode: int32(serviceError.Code), BusinessCode: int32(serviceError.Code), Message: serviceError.Message}); err != nil {
+			log.Logger.Error("write entity failure %s", err.Error())
+		}
 		return
 	}
 
 	if validation, ok := err.(*validator.ValidationErrors); ok {
-		res.WriteEntity(Bcode{HTTPCode: 400, BusinessCode: 400, Message: validation.Error()})
+		if err := res.WriteEntity(Bcode{HTTPCode: 400, BusinessCode: 400, Message: validation.Error()}); err != nil {
+			log.Logger.Error("write entity failure %s", err.Error())
+		}
 		return
 	}
 	log.Logger.Errorf("Business exceptions, message %s, path:%s method:%s", err.Error(), req.Request.URL, req.Request.Method)
-	res.WriteEntity(Bcode{HTTPCode: 500, BusinessCode: 500, Message: err.Error()})
+	if err := res.WriteEntity(Bcode{HTTPCode: 500, BusinessCode: 500, Message: err.Error()}); err != nil {
+		log.Logger.Error("write entity failure %s", err.Error())
+	}
 }

@@ -23,6 +23,7 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
+// ClusterUsecase cluster manage
 type ClusterUsecase interface {
 	CreateKubeCluster(context.Context, apis.CreateClusterRequest) (*apis.ClusterBase, error)
 }
@@ -31,6 +32,7 @@ type clusterUsecaseImpl struct {
 	ds datastore.DataStore
 }
 
+// NewClusterUsecase new cluster usecase
 func NewClusterUsecase(ds datastore.DataStore) ClusterUsecase {
 	return &clusterUsecaseImpl{ds: ds}
 }

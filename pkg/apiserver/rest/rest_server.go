@@ -65,7 +65,7 @@ func New(cfg Config) (a APIServer, err error) {
 			return nil, fmt.Errorf("create mongodb datastore instance failure %s", err.Error())
 		}
 	case "kubeapi":
-		//TODO
+		// TODO
 	default:
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
 	}

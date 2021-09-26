@@ -22,36 +22,18 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-type namespaceWebService struct {
+type oamApplicationWebService struct {
 }
 
-func (c *namespaceWebService) GetWebService() *restful.WebService {
+func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/namespaces").
+	ws.Path("/v1").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
-		Doc("api for namespace manage")
+		Doc("api for oam application manage")
 
-	tags := []string{"namespace"}
+	tags := []string{"oam"}
 
-	ws.Route(ws.GET("/").To(noop).
-		Doc("list all namespaces").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(apis.ListNamespaceResponse{}))
-
-	ws.Route(ws.POST("/").To(noop).
-		Doc("create namespace").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(apis.CreateNamespaceRequest{}).
-		Writes(apis.NamesapceDetailResponse{}))
-
-	ws.Route(ws.GET("/{namespace}").To(noop).
-		Doc("get one namespace").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
-		Writes(apis.NamesapceDetailResponse{}))
-
-	// Compatible with historical apis
 	ws.Route(ws.GET("/{namespace}/applications/:appname").To(noop).
 		Doc("get the specified oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -59,7 +41,7 @@ func (c *namespaceWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
 		Writes(apis.ApplicationResponse{}))
 
-	ws.Route(ws.POST("/{namespace}/applications/:appname").To(noop).
+	ws.Route(ws.POST("/{namespace}/applications/{appname}").To(noop).
 		Doc("create or update oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).

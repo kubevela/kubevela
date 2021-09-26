@@ -24,8 +24,8 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-// versionPrifix API version prefix.
-var versionPrifix = "/api/v1"
+// versionPrefix API version prefix.
+var versionPrefix = "/api/v1"
 
 var validate = validator.New()
 
@@ -62,4 +62,6 @@ func Init(ctx context.Context) {
 	RegistWebService(&applicationWebService{})
 	RegistWebService(&namespaceWebService{})
 	RegistWebService(&componentDefinitionWebservice{})
+	RegistWebService(&catalogWebService{})
+	RegistWebService(&oamApplicationWebService{})
 }

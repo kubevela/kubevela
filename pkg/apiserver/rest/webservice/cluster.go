@@ -30,7 +30,7 @@ type clusterWebService struct {
 
 func (c *clusterWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrifix+"/clusters").
+	ws.Path(versionPrefix+"/clusters").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for cluster manage")
@@ -55,17 +55,18 @@ func (c *clusterWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Writes(apis.DetailClusterResponse{}))
 
-	ws.Route(ws.GET("/{clusterName}/addons").To(noop).
-		Doc("list cluster addons info").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(apis.ListClusterAddonResponse{}))
+	// Do not implement this dimension for now.
+	// ws.Route(ws.GET("/{clusterName}/addons").To(noop).
+	// 	Doc("list cluster addons info").
+	// 	Metadata(restfulspec.KeyOpenAPITags, tags).
+	// 	Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
+	// 	Writes(apis.ListClusterAddonResponse{}))
 
-	ws.Route(ws.POST("/{clusterName}/addons").To(noop).
-		Doc("add addon for the cluster").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Writes(apis.DeatilClusterAddonResponse{}).Returns(200, "", apis.DeatilClusterAddonResponse{}))
+	// ws.Route(ws.POST("/{clusterName}/addons").To(noop).
+	// 	Doc("add addon for the cluster").
+	// 	Metadata(restfulspec.KeyOpenAPITags, tags).
+	// 	Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
+	// 	Writes(apis.DeatilClusterAddonResponse{}).Returns(200, "", apis.DeatilClusterAddonResponse{}))
 	return ws
 }
 

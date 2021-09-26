@@ -28,7 +28,7 @@ type applicationWebService struct {
 
 func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrifix+"/applications").
+	ws.Path(versionPrefix+"/applications").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for application manage")

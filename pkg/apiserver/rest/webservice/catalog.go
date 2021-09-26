@@ -22,23 +22,23 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-type componentDefinitionWebservice struct {
+type catalogWebService struct {
 }
 
-func (c *componentDefinitionWebservice) GetWebService() *restful.WebService {
+func (c *catalogWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/componentdefinitions").
+	ws.Path("/v1/catalogs").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
-		Doc("api for componentdefinition manage")
+		Doc("api for cluster manage")
 
-	tags := []string{"componentdefinition"}
+	tags := []string{"cluster"}
 
 	ws.Route(ws.GET("/").To(noop).
-		Doc("list all componentdefinition").
+		Doc("list all clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("appName", "if specified, query the componentdefinition supported by the cluster where the application resides.").DataType("string")).
-		Param(ws.QueryParameter("clusterName", "if specified, query the componentdefinition supported by the cluster.").DataType("string")).
-		Writes(apis.ListComponentDefinitionResponse{}))
+		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
+		Writes(apis.ListClusterResponse{}).Do(returns200, returns500))
+
 	return ws
 }
