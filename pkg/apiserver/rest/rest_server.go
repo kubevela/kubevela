@@ -63,12 +63,12 @@ func New(cfg Config) (a APIServer, err error) {
 	case "mongodb":
 		ds, err = mongodb.New(context.Background(), cfg.Datastore)
 		if err != nil {
-			return nil, fmt.Errorf("create mongodb datastore instance failure %s", err.Error())
+			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
 		}
 	case "kubeapi":
 		ds, err = kubeapi.New(context.Background(), cfg.Datastore)
 		if err != nil {
-			return nil, fmt.Errorf("create mongodb datastore instance failure %s", err.Error())
+			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
 		}
 	default:
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)

@@ -18,6 +18,7 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"cuelang.org/go/pkg/strings"
@@ -104,7 +105,7 @@ func (m *mongodb) FindOne(ctx context.Context, kind, name string) (datastore.Ite
 func (m *mongodb) IsExist(ctx context.Context, kind, name string) (bool, error) {
 	collection := m.client.Database(m.database).Collection(kind)
 	err := collection.FindOne(ctx, makeNameFilter(name)).Err()
-	if err == mongo.ErrNoDocuments {
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return false, nil
 	} else if err != nil {
 		return false, err

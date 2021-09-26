@@ -17,6 +17,7 @@ limitations under the License.
 package bcode
 
 import (
+	"errors"
 	"fmt"
 
 	restful "github.com/emicklei/go-restful/v3"
@@ -38,21 +39,23 @@ func (b *Bcode) Error() string {
 
 // ReturnError Unified handling of all types of errors, generating a standard return structure.
 func ReturnError(req *restful.Request, res *restful.Response, err error) {
-	if bcode, ok := err.(*Bcode); ok {
-		if err := res.WriteEntity(bcode); err != nil {
+	var bcode *Bcode
+	if errors.As(err, &bcode) {
+		if err := res.WriteEntity(err); err != nil {
 			log.Logger.Error("write entity failure %s", err.Error())
 		}
 		return
 	}
-	if serviceError, ok := err.(*restful.ServiceError); ok {
-		if err := res.WriteEntity(Bcode{HTTPCode: int32(serviceError.Code), BusinessCode: int32(serviceError.Code), Message: serviceError.Message}); err != nil {
+	var restfulerr *restful.ServiceError
+	if errors.As(err, restfulerr) {
+		if err := res.WriteEntity(Bcode{HTTPCode: int32(restfulerr.Code), BusinessCode: int32(restfulerr.Code), Message: restfulerr.Message}); err != nil {
 			log.Logger.Error("write entity failure %s", err.Error())
 		}
 		return
 	}
-
-	if validation, ok := err.(*validator.ValidationErrors); ok {
-		if err := res.WriteEntity(Bcode{HTTPCode: 400, BusinessCode: 400, Message: validation.Error()}); err != nil {
+	var validErr *validator.ValidationErrors
+	if errors.As(err, validErr) {
+		if err := res.WriteEntity(Bcode{HTTPCode: 400, BusinessCode: 400, Message: err.Error()}); err != nil {
 			log.Logger.Error("write entity failure %s", err.Error())
 		}
 		return
