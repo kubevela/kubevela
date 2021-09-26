@@ -14,30 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mongodb
+package usecase
 
 import (
 	"context"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-// Iterator mongo iterator implementation
-type Iterator struct {
-	cur *mongo.Cursor
+type ClusterUsecase interface {
+	CreateKubeCluster(context.Context, apis.CreateClusterRequest) (*apis.ClusterBase, error)
 }
 
-// Close iterator close
-func (i *Iterator) Close(ctx context.Context) error {
-	return i.cur.Close(ctx)
+type clusterUsecaseImpl struct {
+	ds datastore.DataStore
 }
 
-// Next read next data
-func (i *Iterator) Next(ctx context.Context) bool {
-	return i.cur.Next(ctx)
+func NewClusterUsecase(ds datastore.DataStore) ClusterUsecase {
+	return &clusterUsecaseImpl{ds: ds}
 }
 
-// Decode decode data
-func (i *Iterator) Decode(entity interface{}) error {
-	return i.cur.Decode(entity)
+func (c *clusterUsecaseImpl) CreateKubeCluster(context.Context, apis.CreateClusterRequest) (*apis.ClusterBase, error) {
+	return nil, nil
 }

@@ -16,10 +16,13 @@ limitations under the License.
 
 package datastore
 
-import "context"
+import (
+	"context"
+)
 
 // Config datastore config
 type Config struct {
+	Type     string
 	URL      string
 	Database string
 }

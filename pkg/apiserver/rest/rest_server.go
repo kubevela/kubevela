@@ -18,6 +18,7 @@ package rest
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
@@ -25,6 +26,7 @@ import (
 	"github.com/go-openapi/spec"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 )
@@ -33,7 +35,7 @@ var _ APIServer = &restServer{}
 
 // Config config for server
 type Config struct {
-	// openapi server bind address
+	// api server bind address
 	BindAddr string
 	// monitor metric path
 	MetricPath string
@@ -50,13 +52,27 @@ type APIServer interface {
 type restServer struct {
 	webContainer *restful.Container
 	cfg          Config
+	dataStore    datastore.DataStore
 }
 
 // New create restserver with config data
-func New(cfg Config) (APIServer, error) {
+func New(cfg Config) (a APIServer, err error) {
+	var ds datastore.DataStore
+	switch cfg.Datastore.Type {
+	case "mongodb":
+		ds, err = mongodb.New(context.Background(), cfg.Datastore)
+		if err != nil {
+			return nil, fmt.Errorf("create mongodb datastore instance failure %s", err.Error())
+		}
+	case "kubeapi":
+		//TODO
+	default:
+		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
+	}
 	s := &restServer{
 		webContainer: restful.NewContainer(),
 		cfg:          cfg,
+		dataStore:    ds,
 	}
 	return s, nil
 }
@@ -78,10 +94,10 @@ func (s *restServer) registerServices() error {
 
 	// Add container filter to enable CORS
 	cors := restful.CrossOriginResourceSharing{
-		ExposeHeaders:  []string{"X-My-Header"},
+		ExposeHeaders:  []string{},
 		AllowedHeaders: []string{"Content-Type", "Accept"},
-		AllowedMethods: []string{"GET", "POST"},
-		CookiesAllowed: false,
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		CookiesAllowed: true,
 		Container:      s.webContainer}
 	s.webContainer.Filter(cors.Filter)
 
@@ -104,12 +120,12 @@ func (s *restServer) registerServices() error {
 func enrichSwaggerObject(swo *spec.Swagger) {
 	swo.Info = &spec.Info{
 		InfoProps: spec.InfoProps{
-			Title:       "Kubevela openapi doc",
-			Description: "Kubevela openapi doc",
+			Title:       "Kubevela api doc",
+			Description: "Kubevela api doc",
 			Contact: &spec.ContactInfo{
 				ContactInfoProps: spec.ContactInfoProps{
 					Name:  "kubevela",
-					Email: "zengqg@yiyun.pro",
+					Email: "feedback@mail.kubevela.io",
 					URL:   "https://kubevela.io/",
 				},
 			},

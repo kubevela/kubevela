@@ -20,14 +20,13 @@ import (
 	"context"
 	"fmt"
 
+	"cuelang.org/go/pkg/strings"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 )
-
-var _ datastore.DataStore = &mongodb{}
 
 type mongodb struct {
 	client   *mongo.Client
@@ -36,8 +35,10 @@ type mongodb struct {
 
 // New new mongodb datastore instance
 func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error) {
-	url := fmt.Sprintf("mongodb://%s", cfg.URL)
-	clientOpts := options.Client().ApplyURI(url)
+	if strings.HasPrefix(cfg.URL, "mongodb://") {
+		cfg.URL = fmt.Sprintf("mongodb://%s", cfg.URL)
+	}
+	clientOpts := options.Client().ApplyURI(cfg.URL)
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		return nil, err

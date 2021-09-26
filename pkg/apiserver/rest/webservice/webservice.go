@@ -21,10 +21,13 @@ import (
 	"net/http"
 
 	restful "github.com/emicklei/go-restful/v3"
+	"github.com/go-playground/validator/v10"
 )
 
 // versionPrifix API version prefix.
 var versionPrifix = "/api/v1"
+
+var validate = validator.New()
 
 // WebService webservice interface
 type WebService interface {
