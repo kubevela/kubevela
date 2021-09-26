@@ -23,6 +23,7 @@ require (
 	github.com/getkin/kin-openapi v0.34.0
 	github.com/go-logr/logr v0.4.0
 	github.com/go-openapi/spec v0.19.8
+	github.com/go-playground/validator/v10 v10.9.0
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
@@ -30,7 +31,6 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
 	github.com/kyokomi/emoji v2.2.4+incompatible
-	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v0.0.0-20210907072424-2f8720b116f8
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
