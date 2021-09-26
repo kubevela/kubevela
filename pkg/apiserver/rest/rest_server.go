@@ -26,6 +26,7 @@ import (
 	"github.com/go-openapi/spec"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
@@ -65,7 +66,10 @@ func New(cfg Config) (a APIServer, err error) {
 			return nil, fmt.Errorf("create mongodb datastore instance failure %s", err.Error())
 		}
 	case "kubeapi":
-		// TODO
+		ds, err = kubeapi.New(context.Background(), cfg.Datastore)
+		if err != nil {
+			return nil, fmt.Errorf("create mongodb datastore instance failure %s", err.Error())
+		}
 	default:
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
 	}
