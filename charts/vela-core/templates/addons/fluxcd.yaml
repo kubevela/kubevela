@@ -5917,9 +5917,10 @@ data:
                 schematic:
                   cue:
                     template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata:
-                      {\n\t\tname: context.name\n\t}\n\tif parameter.repoType == \"git\"
-                      {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.url\n\t\t\tif
-                      parameter.git.branch != _|_ {\n\t\t\t\tref: branch: parameter.git.branch\n\t\t\t}\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n\tif
+                      {\n\t\tname: context.name + \"-repo\"\n\t}\n\tif parameter.repoType
+                      == \"git\" {\n\t\tkind: \"GitRepository\"\n\t\tspec: {\n\t\t\turl:
+                      parameter.url\n\t\t\tif parameter.git.branch != _|_ {\n\t\t\t\tref:
+                      branch: parameter.git.branch\n\t\t\t}\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n\tif
                       parameter.repoType == \"oss\" {\n\t\tkind: \"Bucket\"\n\t\tspec:
                       {\n\t\t\tendpoint:   parameter.url\n\t\t\tbucketName: parameter.oss.bucketName\n\t\t\tprovider:
                       \  parameter.oss.provider\n\t\t\tif parameter.oss.region != _|_
@@ -5927,12 +5928,12 @@ data:
                       parameter.repoType == \"helm\" {\n\t\tkind: \"HelmRepository\"\n\t\tspec:
                       {\n\t\t\turl: parameter.url\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n}\n\noutputs:
                       release: {\n\tapiVersion: \"helm.toolkit.fluxcd.io/v2beta1\"\n\tkind:
-                      \      \"HelmRelease\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec:
-                      {\n\t\tinterval: parameter.pullInterval\n\t\tchart: {\n\t\t\tspec:
-                      {\n\t\t\t\tchart:   parameter.chart\n\t\t\t\tversion: parameter.version\n\t\t\t\tsourceRef:
-                      {\n\t\t\t\t\tif parameter.repoType == \"git\" {\n\t\t\t\t\t\tkind:
-                      \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.repoType
-                      == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      \      \"HelmRelease\"\n\tmetadata: {\n\t\tname: context.name +
+                      \"-release\"\n\t}\n\tspec: {\n\t\tinterval: parameter.pullInterval\n\t\tchart:
+                      {\n\t\t\tspec: {\n\t\t\t\tchart:   parameter.chart\n\t\t\t\tversion:
+                      parameter.version\n\t\t\t\tsourceRef: {\n\t\t\t\t\tif parameter.repoType
+                      == \"git\" {\n\t\t\t\t\t\tkind: \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif
+                      parameter.repoType == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif
                       parameter.repoType == \"oss\" {\n\t\t\t\t\t\tkind: \"Bucket\"\n\t\t\t\t\t}\n\t\t\t\t\tname:
                       \     context.name\n\t\t\t\t\tnamespace: context.namespace\n\t\t\t\t}\n\t\t\t\tinterval:
                       parameter.pullInterval\n\t\t\t}\n\t\t}\n\t\tif parameter.targetNamespace

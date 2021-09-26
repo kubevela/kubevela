@@ -14,7 +14,7 @@ spec:
         output: {
         	apiVersion: "source.toolkit.fluxcd.io/v1beta1"
         	metadata: {
-        		name: context.name
+        		name: context.name + "-repo"
         	}
         	if parameter.repoType == "git" {
         		kind: "GitRepository"
@@ -54,7 +54,7 @@ spec:
         	apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
         	kind:       "HelmRelease"
         	metadata: {
-        		name: context.name
+        		name: context.name + "-release"
         	}
         	spec: {
         		interval: parameter.pullInterval
