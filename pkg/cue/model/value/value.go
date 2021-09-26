@@ -20,7 +20,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+
+	"cuelang.org/go/cue/token"
 
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 
@@ -216,6 +219,39 @@ func (val *Value) FillRaw(x string, paths ...string) error {
 		return v.Err()
 	}
 	val.v = v
+	return nil
+}
+
+// FillValueByScript unify the value x at the given script path.
+func (val *Value) FillValueByScript(x *Value, path string) error {
+	if !strings.Contains(path, "[") {
+		return val.FillObject(x, strings.Split(path, ".")...)
+	}
+	s, err := x.String()
+	if err != nil {
+		return err
+	}
+	return val.fillRawByScript(s, path)
+}
+
+func (val *Value) fillRawByScript(x string, path string) error {
+	a := newAssembler(x)
+	pathExpr, err := parser.ParseExpr("path", path)
+	if err != nil {
+		return errors.WithMessage(err, "parse path")
+	}
+	if err := a.installTo(pathExpr); err != nil {
+		return err
+	}
+	raw, err := val.String()
+	if err != nil {
+		return err
+	}
+	v, err := val.MakeValue(raw + "\n" + a.v)
+	if err != nil {
+		return errors.WithMessage(err, "remake value")
+	}
+	*val = *v
 	return nil
 }
 
@@ -445,4 +481,59 @@ func (val *Value) OpenCompleteValue() error {
 }
 func isDef(s string) bool {
 	return strings.HasPrefix(s, "#")
+}
+
+type assembler struct {
+	v string
+}
+
+func newAssembler(v string) *assembler {
+	return &assembler{v: v}
+}
+
+func (a *assembler) fill2Path(p string) {
+	a.v = fmt.Sprintf("%s: %s", p, a.v)
+}
+
+func (a *assembler) fill2Array(i int) {
+	s := ""
+	for j := 0; j < i; j++ {
+		s += "_,"
+	}
+	if strings.Contains(a.v, ":") && !strings.HasPrefix(a.v, "{") {
+		a.v = fmt.Sprintf("{ %s }", a.v)
+	}
+	a.v = fmt.Sprintf("[%s%s,...]", s, a.v)
+}
+
+func (a *assembler) installTo(expr ast.Expr) error {
+	switch v := expr.(type) {
+	case *ast.IndexExpr:
+		if err := a.installTo(v.Index); err != nil {
+			return err
+		}
+		if err := a.installTo(v.X); err != nil {
+			return err
+		}
+	case *ast.SelectorExpr:
+		if err := a.installTo(v.Sel); err != nil {
+			return err
+		}
+		if err := a.installTo(v.X); err != nil {
+			return err
+		}
+	case *ast.Ident:
+		a.fill2Path(v.String())
+	case *ast.BasicLit:
+		if v.Kind == token.STRING {
+			a.fill2Path(v.Value)
+		}
+		if v.Kind == token.INT {
+			idex, _ := strconv.Atoi(v.Value)
+			a.fill2Array(idex)
+		}
+	default:
+		return errors.New("invalid path")
+	}
+	return nil
 }
