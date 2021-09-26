@@ -15,11 +15,15 @@ require (
 	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
+	github.com/emicklei/go-restful-openapi/v2 v2.3.0
+	github.com/emicklei/go-restful/v3 v3.0.0-rc2
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/fatih/color v1.12.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.34.0
 	github.com/go-logr/logr v0.4.0
+	github.com/go-openapi/spec v0.19.8
+	github.com/go-playground/validator/v10 v10.9.0
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
@@ -27,7 +31,6 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
 	github.com/kyokomi/emoji v2.2.4+incompatible
-	github.com/labstack/echo/v4 v4.5.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v0.0.0-20210907072424-2f8720b116f8
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
@@ -45,6 +48,7 @@ require (
 	github.com/tidwall/gjson v1.6.8
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
+	go.mongodb.org/mongo-driver v1.3.2
 	go.uber.org/zap v1.18.1
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
