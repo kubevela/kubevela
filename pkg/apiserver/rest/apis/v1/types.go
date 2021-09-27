@@ -20,6 +20,81 @@ import (
 	"time"
 )
 
+// AddonPhase defines the phase of an addon
+type AddonPhase string
+
+const (
+	// AddonPhaseDisabled indicates the addon is disabled
+	AddonPhaseDisabled AddonPhase = "disabled"
+	// AddonPhaseDisabling indicates the addon is disabling
+	AddonPhaseDisabling AddonPhase = "disabling"
+	// AddonPhaseEnabled indicates the addon is enabled
+	AddonPhaseEnabled AddonPhase = "enabled"
+	// AddonPhaseEnabling indicates the addon is enabling
+	AddonPhaseEnabling AddonPhase = "enabling"
+)
+
+// CreateAddonRequest defines the format for addon create request
+type CreateAddonRequest struct {
+	Name string `json:"name" validate:"required"`
+
+	Version string `json:"version" validate:"required"`
+
+	// Short description about the addon.
+	Description string `json:"description,omitempty"`
+
+	Icon string `json:"icon"`
+
+	Tags []string `json:"tags"`
+
+	// The detail of the addon. Could be the entire README data.
+	Detail string `json:"detail,omitempty"`
+
+	// DeployData is the object to deploy to the cluster to enable addon
+	DeployData string `json:"deploy_data,omitempty" validate:"required_without=deploy_url"`
+
+	// DeployURL is the URL to the data file location in a Git repository
+	DeployURL string `json:"deploy_url,omitempty"  validate:"required_without=deploy_data"`
+}
+
+// ListAddonResponse defines the format for addon list response
+type ListAddonResponse struct {
+	Addons []AddonMeta `json:"addons"`
+}
+
+// AddonMeta defines the format for a single addon
+type AddonMeta struct {
+	Name string `json:"name"`
+
+	Version string `json:"version"`
+
+	Description string `json:"description"`
+
+	Icon string `json:"icon"`
+
+	Tags []string `json:"tags"`
+
+	Phase AddonPhase `json:"phase"`
+}
+
+// DetailAddonResponse defines the format for showing the addon details
+type DetailAddonResponse struct {
+	AddonMeta
+
+	Detail string `json:"detail,omitempty"`
+
+	// DeployData is the object to deploy to the cluster to enable addon
+	DeployData string `json:"deploy_data,omitempty"`
+
+	// DeployURL is the URL to the data file location in a Git repository
+	DeployURL string `json:"deploy_url,omitempty"`
+}
+
+// AddonStatusResponse defines the format of addon status response
+type AddonStatusResponse struct {
+	Phase AddonPhase `json:"phase"`
+}
+
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
 	Name             string            `json:"name" validate:"required"`
@@ -63,23 +138,6 @@ type ClusterBase struct {
 	Labels      map[string]string `json:"labels"`
 	Status      string            `json:"status"`
 	Reason      string            `json:"reason"`
-}
-
-// ListClusterAddonResponse list all addon of the cluster
-type ListClusterAddonResponse struct {
-	Addons []ClusterAddonBase `json:"addons"`
-}
-
-// ClusterAddonBase cluster addon base model
-type ClusterAddonBase struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
-}
-
-// DeatilClusterAddonResponse detail addon info
-type DeatilClusterAddonResponse struct {
-	ClusterAddonBase
 }
 
 // ListApplicationResponse list applications by query params
