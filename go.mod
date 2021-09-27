@@ -48,7 +48,7 @@ require (
 	github.com/tidwall/gjson v1.6.8
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
-	go.mongodb.org/mongo-driver v1.3.2
+	go.mongodb.org/mongo-driver v1.5.1
 	go.uber.org/zap v1.18.1
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
