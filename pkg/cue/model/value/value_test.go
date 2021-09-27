@@ -824,6 +824,13 @@ func TestFillByScript(t *testing.T) {
 			err:  "invalid path",
 		},
 		{
+			name: "invalid path [float]",
+			raw:  `a: b: [{x: 100},...]`,
+			path: "a.b[0.1]",
+			v:    `{name: "foo"}`,
+			err:  "invalid path",
+		},
+		{
 			name: "invalid value",
 			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
 			path: "a.b[0].x.y[0].value",
@@ -838,7 +845,7 @@ func TestFillByScript(t *testing.T) {
 			err:  "a.b.0.x.y.0.name: conflicting values \"foo\" and \"key\"",
 		},
 		{
-			name: "wrong cue format",
+			name: "filled value with wrong cue format",
 			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
 			path: "a.b[0].x.y[0].value",
 			v:    `*+-`,

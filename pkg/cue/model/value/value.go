@@ -486,6 +486,7 @@ func isDef(s string) bool {
 	return strings.HasPrefix(s, "#")
 }
 
+// assembler put value under parsed expression as path.
 type assembler struct {
 	v string
 }
@@ -528,12 +529,14 @@ func (a *assembler) installTo(expr ast.Expr) error {
 	case *ast.Ident:
 		a.fill2Path(v.String())
 	case *ast.BasicLit:
-		if v.Kind == token.STRING {
+		switch v.Kind {
+		case token.STRING:
 			a.fill2Path(v.Value)
-		}
-		if v.Kind == token.INT {
+		case token.INT:
 			idex, _ := strconv.Atoi(v.Value)
 			a.fill2Array(idex)
+		default:
+			return errors.New("invalid path")
 		}
 	default:
 		return errors.New("invalid path")
