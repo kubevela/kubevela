@@ -138,6 +138,11 @@ docker-build-runtime-rollout:
 docker-push:
 	docker push $(VELA_CORE_IMAGE)
 
+e2e-setup-core:
+	sh ./hack/e2e/modify_charts.sh
+	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --set multicluster.enabled=true --wait kubevela ./charts/vela-core
+	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
+
 e2e-setup:
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.9.0/kruise-chart.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
 	sh ./hack/e2e/modify_charts.sh
@@ -167,6 +172,10 @@ e2e-rollout-test:
 	ginkgo -v  --focus="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
 
+e2e-multicluster-test:
+	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_multicluster_test.out ./test/e2e-multicluster-test
+	@$(OK) tests pass
+
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
 	# Run compatibility test with old crd
 	COMPATIBILITY_TEST=TRUE go test -race ./pkg/...
@@ -188,6 +197,9 @@ image-cleanup:
 ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
 	docker rmi -f $(VELA_CORE_TEST_IMAGE)
 endif
+
+end-e2e-core:
+	sh ./hack/e2e/end_e2e_core.sh
 
 end-e2e:
 	sh ./hack/e2e/end_e2e.sh
