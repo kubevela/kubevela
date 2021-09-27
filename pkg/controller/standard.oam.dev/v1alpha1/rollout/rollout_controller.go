@@ -50,6 +50,7 @@ type reconciler struct {
 	Scheme               *runtime.Scheme
 	record               event.Recorder
 	concurrentReconciles int
+	runtimeClusterMode   bool
 }
 
 func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -185,6 +186,7 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		concurrentReconciles: args.ConcurrentReconciles,
+		runtimeClusterMode:   args.RolloutRuntimeClusterMode,
 	}
 	r.applicator = apply.NewAPIApplicator(r.Client)
 	return r.SetupWithManager(mgr)

@@ -138,10 +138,10 @@ import (
 				} @step(5)
 
 				dispatch: kube.#Apply & {
-					value:   compRev
-					 if val.metadata.labels != _|_ && val.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
-						 cluster: val.metadata.labels["cluster.oam.dev/clusterName"]
-           }
+					value: compRev
+					if val.metadata.labels != _|_ && val.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
+						cluster: val.metadata.labels["cluster.oam.dev/clusterName"]
+					}
 				} @step(6)
 			}
 

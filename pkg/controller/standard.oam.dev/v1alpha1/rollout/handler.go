@@ -155,6 +155,12 @@ func (h *handler) handleFinalizeSucceed(ctx context.Context) error {
 		klog.InfoS("gc rollout source workload", "namespace", h.rollout.Namespace,
 			"rollout", h.rollout.Name, "sourceWorkload", h.sourceWorkload.GetName())
 	}
+	if h.runtimeClusterMode {
+		cr := &v1.ControllerRevision{ObjectMeta: metav1.ObjectMeta{Name: h.sourceRevName, Namespace: h.rollout.Namespace}}
+		if err := h.Delete(ctx, cr); err != nil {
+			return errors.Wrap(err, "runtime controller work on runtime cluster mode, failed to delete source compRev")
+		}
+	}
 	return nil
 }
 

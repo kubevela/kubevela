@@ -80,4 +80,7 @@ type Args struct {
 
 	// OAMSpecVer is the oam spec version controller want to setup
 	OAMSpecVer string
+
+	// RolloutRuntimeClusterMode means rollout controller work on runtime-cluster
+	RolloutRuntimeClusterMode bool
 }

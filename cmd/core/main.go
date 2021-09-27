@@ -127,6 +127,7 @@ func main() {
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
+	flag.BoolVar(&controllerArgs.RolloutRuntimeClusterMode, "rollout-runtime-cluster-mode", false, "Let rollout controller work on runtime-cluster, default is false")
 
 	flag.Parse()
 	// setup logging
