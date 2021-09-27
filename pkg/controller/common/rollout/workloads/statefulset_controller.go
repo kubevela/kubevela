@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 type statefulSetController struct {
@@ -40,7 +41,8 @@ type statefulSetController struct {
 // before kicking start the update and start from every pod in the old version
 func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet) (bool, error) {
 	if controller := metav1.GetControllerOf(statefulSet); controller != nil &&
-		controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		(controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() ||
+			controller.Kind == v1alpha1.RolloutKind && controller.APIVersion == v1alpha1.SchemeGroupVersion.String()) {
 		// it's already there
 		return true, nil
 	}
@@ -48,7 +50,7 @@ func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSe
 	statefulSetPatch := client.MergeFrom(statefulSet.DeepCopy())
 
 	// add the parent controller to the owner of the StatefulSet
-	ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
+	ref := metav1.NewControllerRef(c.parentController, c.parentController.GetObjectKind().GroupVersionKind())
 	statefulSet.SetOwnerReferences(append(statefulSet.GetOwnerReferences(), *ref))
 
 	// patch the StatefulSet
