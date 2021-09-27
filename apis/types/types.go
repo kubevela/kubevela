@@ -85,4 +85,5 @@ var DefaultFilterAnnots = []string{
 	oam.AnnotationInplaceUpgrade,
 	oam.AnnotationFilterLabelKeys,
 	oam.AnnotationFilterAnnotationKeys,
+	"kubectl.kubernetes.io/last-applied-configuration",
 }
