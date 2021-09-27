@@ -51,8 +51,7 @@ func RolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 		// we support is cloneset/statefulset for now. We can easily add more later.
 		supportInplaceUpgrade := false
 		if w.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {
-			if w.GetKind() == reflect.TypeOf(v1alpha1.CloneSet{}).Name() ||
-				w.GetKind() == reflect.TypeOf(v1alpha1.StatefulSet{}).Name() {
+			if w.GetKind() == reflect.TypeOf(v1alpha1.CloneSet{}).Name() {
 				supportInplaceUpgrade = true
 			}
 		} else if w.GroupVersionKind().Group == appsv1.GroupName {
