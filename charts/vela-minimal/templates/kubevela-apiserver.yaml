@@ -29,7 +29,7 @@ spec:
           {{- toYaml .Values.securityContext | nindent 12 }}
           args:
             - "apiserver"
-            - "--port={{ .Values.apiServer.port }}"
+            - "--bind-addr=0.0.0.0:{{ .Values.apiServer.port }}"
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
