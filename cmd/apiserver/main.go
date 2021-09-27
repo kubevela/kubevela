@@ -21,6 +21,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
@@ -29,14 +31,30 @@ import (
 
 func main() {
 	s := &server{}
-
-	flag.IntVar(&s.restCfg.Port, "port", 8000, "The port number used to serve the http APIs.")
+	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8000", "The bind address used to serve the http APIs.")
+	flag.StringVar(&s.restCfg.MetricPath, "metrics-path", "/metrics", "The path to expose the metrics.")
+	flag.StringVar(&s.restCfg.Datastore.Type, "datastore-type", "kubeapi", "Metadata storage driver type, support kubeapi and mongodb")
+	flag.StringVar(&s.restCfg.Datastore.Database, "datastore-database", "kubevela", "Metadata storage database name, takes effect when the storage driver is mongodb.")
+	flag.StringVar(&s.restCfg.Datastore.URL, "datastore-url", "", "Metadata storage database url,takes effect when the storage driver is mongodb.")
 	flag.Parse()
 
-	if err := s.run(); err != nil {
-		log.Logger.Errorf("failed to run apiserver: %v", err)
+	srvc := make(chan struct{})
+
+	go func() {
+		if err := s.run(); err != nil {
+			log.Logger.Errorf("failed to run apiserver: %v", err)
+		}
+		close(srvc)
+	}()
+	var term = make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	select {
+	case <-term:
+		log.Logger.Infof("Received SIGTERM, exiting gracefully...")
+	case <-srvc:
 		os.Exit(1)
 	}
+	log.Logger.Infof("See you next time!")
 }
 
 type server struct {
