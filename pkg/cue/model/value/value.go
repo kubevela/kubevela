@@ -251,6 +251,9 @@ func (val *Value) fillRawByScript(x string, path string) error {
 	if err != nil {
 		return errors.WithMessage(err, "remake value")
 	}
+	if err := v.Error(); err != nil {
+		return err
+	}
 	*val = *v
 	return nil
 }

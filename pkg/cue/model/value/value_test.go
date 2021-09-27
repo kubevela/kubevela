@@ -776,6 +776,25 @@ func TestFillByScript(t *testing.T) {
 }
 `,
 		},
+		{
+			name: "path with string index",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.c[\"x\"]",
+			v:    `"foo"`,
+			expected: `a: {
+	b: [{
+		x: {
+			y: [{
+				name: "key"
+			}]
+		}
+	}]
+	c: {
+		x: "foo"
+	}
+}
+`,
+		},
 	}
 
 	for _, tCase := range testCases {
@@ -810,6 +829,20 @@ func TestFillByScript(t *testing.T) {
 			path: "a.b[0].x.y[0].value",
 			v:    `foo`,
 			err:  "remake value: a.b.x.y.value: reference \"foo\" not found",
+		},
+		{
+			name: "conflict merge",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.b[0].x.y[0].name",
+			v:    `"foo"`,
+			err:  "a.b.0.x.y.0.name: conflicting values \"foo\" and \"key\"",
+		},
+		{
+			name: "wrong cue format",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.b[0].x.y[0].value",
+			v:    `*+-`,
+			err:  "remake value: expected operand, found '}'",
 		},
 	}
 
