@@ -1098,7 +1098,7 @@ var _ = Describe("Test Application Controller", func() {
 				},
 			},
 			"spec": map[string]interface{}{
-				"clusterIP": "10.0.0.4",
+				"clusterIP": "10.0.0.64",
 				"ports": []interface{}{
 					map[string]interface{}{
 						"port": 80,
@@ -1154,7 +1154,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Type:    "ingress",
 						Healthy: true,
-						Message: "type: ClusterIP,\t clusterIP:10.0.0.4,\t ports:80,\t domainexample.com",
+						Message: "type: ClusterIP,\t clusterIP:10.0.0.64,\t ports:80,\t domainexample.com",
 					},
 				},
 			},
