@@ -153,13 +153,15 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {
-		err := h.handleFinalizeSucceed(ctx)
-		if err != nil {
+		if err := h.handleFinalizeSucceed(ctx); err != nil {
 			return reconcile.Result{}, err
 		}
 		klog.InfoS("rollout succeeded, record the source and target  revision", "source", rollout.Spec.SourceRevisionName,
 			"target", rollout.Spec.TargetRevisionName)
 	} else if rolloutStatus.RollingState == v1alpha1.RolloutFailedState {
+		if err := h.handleFinalizeFailed(ctx); err != nil {
+			return reconcile.Result{}, err
+		}
 		klog.InfoS("rollout failed, record the source and target app revision", "source", rollout.Spec.SourceRevisionName,
 			"target", rollout.Spec.TargetRevisionName)
 	}
