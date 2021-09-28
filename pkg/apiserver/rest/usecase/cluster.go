@@ -37,6 +37,6 @@ func NewClusterUsecase(ds datastore.DataStore) ClusterUsecase {
 	return &clusterUsecaseImpl{ds: ds}
 }
 
-func (c *clusterUsecaseImpl) CreateKubeCluster(context.Context, apis.CreateClusterRequest) (*apis.ClusterBase, error) {
+func (c *clusterUsecaseImpl) CreateKubeCluster(ctx context.Context, req apis.CreateClusterRequest) (*apis.ClusterBase, error) {
 	return nil, nil
 }
