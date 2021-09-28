@@ -1,6 +1,7 @@
 #ApplyComponent: {
 	#provider: "oam"
 	#do:       "component-apply"
+	cluster:   *"" | string
 	value: {...}
 	patch?: {...}
 	...

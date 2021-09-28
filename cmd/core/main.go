@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -206,7 +207,7 @@ func main() {
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
-		ClientDisableCacheFor:      []client.Object{&v1beta1.ResourceTracker{}},
+		ClientDisableCacheFor:      []client.Object{&v1beta1.ResourceTracker{}, &appsv1.ControllerRevision{}},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
