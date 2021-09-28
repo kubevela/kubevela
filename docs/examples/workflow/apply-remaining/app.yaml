@@ -19,4 +19,4 @@ spec:
         type: apply-remaining
         properties:
           exceptions:
-            "server1": {}
+            - "server1"
