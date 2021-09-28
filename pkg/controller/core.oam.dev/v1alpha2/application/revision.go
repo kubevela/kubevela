@@ -819,6 +819,7 @@ func (h historiesByRevision) Less(i, j int) bool {
 
 func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 	if appWillRollout(h.app) {
+		fmt.Println(22222)
 		return cleanUpRollOutComponentRevision(ctx, h)
 	}
 	return cleanUpWorkflowComponentRevision(ctx, h)
@@ -827,7 +828,6 @@ func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
 	// collect component revision in use
 	compRevisionInUse := map[string]map[string]struct{}{}
-
 	for _, resource := range h.app.Status.AppliedResources {
 		compName := resource.Name
 		ns := resource.Namespace
@@ -837,14 +837,13 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 		if err != nil {
 			return err
 		}
-		compRevision, ok := r.GetLabels()[oam.LabelAppComponentRevision]
-		if !ok {
-			return fmt.Errorf("missing revision in component")
-		}
 		if compRevisionInUse[compName] == nil {
 			compRevisionInUse[compName] = map[string]struct{}{}
 		}
-		compRevisionInUse[compName][compRevision] = struct{}{}
+		compRevision, ok := r.GetLabels()[oam.LabelAppComponentRevision]
+		if ok {
+			compRevisionInUse[compName][compRevision] = struct{}{}
+		}
 	}
 
 	for _, curComp := range h.app.Status.AppliedResources {
