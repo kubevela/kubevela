@@ -736,7 +736,7 @@ func TestFillByScript(t *testing.T) {
 		x: 100
 	}, {
 		name: "foo"
-	}, ...]
+	}]
 }
 `,
 		},
@@ -786,9 +786,9 @@ func TestFillByScript(t *testing.T) {
 		x: {
 			y: [{
 				name: "key"
-			}]
+			}, ...]
 		}
-	}]
+	}, ...]
 	c: {
 		x: "foo"
 	}
@@ -842,7 +842,7 @@ func TestFillByScript(t *testing.T) {
 			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
 			path: "a.b[0].x.y[0].name",
 			v:    `"foo"`,
-			err:  "a.b.0.x.y.0.name: conflicting values \"foo\" and \"key\"",
+			err:  "a.b.0.x.y.0.name: conflicting values \"key\" and \"foo\"",
 		},
 		{
 			name: "filled value with wrong cue format",

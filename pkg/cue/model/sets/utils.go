@@ -318,3 +318,40 @@ func openBaiscLit(root ast.Node) {
 		return true
 	}, nil)
 }
+
+// ListOpen enable the cue list can add elements.
+func ListOpen(expr ast.Node) ast.Node {
+	listOpen(expr)
+	return expr
+}
+
+func listOpen(expr ast.Node) {
+	switch v := expr.(type) {
+	case *ast.File:
+		for _, decl := range v.Decls {
+			listOpen(decl)
+		}
+	case *ast.Field:
+		listOpen(v.Value)
+	case *ast.StructLit:
+		for _, elt := range v.Elts {
+			listOpen(elt)
+		}
+	case *ast.BinaryExpr:
+		listOpen(v.X)
+		listOpen(v.Y)
+	case *ast.EmbedDecl:
+		listOpen(v.Expr)
+	case *ast.Comprehension:
+		listOpen(v.Value)
+	case *ast.ListLit:
+		for _, elt := range v.Elts {
+			listOpen(elt)
+		}
+		if len(v.Elts) > 0 {
+			if _, ok := v.Elts[len(v.Elts)-1].(*ast.Ellipsis); !ok {
+				v.Elts = append(v.Elts, &ast.Ellipsis{})
+			}
+		}
+	}
+}
