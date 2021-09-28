@@ -33,7 +33,7 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
           concurrent_skipping: false
 
-  e2e-tests:
+  e2e-multi-cluster-tests:
     runs-on: aliyun
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
