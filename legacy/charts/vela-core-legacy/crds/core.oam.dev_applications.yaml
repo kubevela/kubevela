@@ -1009,6 +1009,10 @@ spec:
                 items:
                   description: ApplicationComponent describe the component of application
                   properties:
+                    dependsOn:
+                      items:
+                        type: string
+                      type: array
                     externalRevision:
                       description: ExternalRevision specified the component revisionName
                       type: string
@@ -1405,6 +1409,10 @@ spec:
                       description: WorkflowStep defines how to execute a workflow
                         step.
                       properties:
+                        dependsOn:
+                          items:
+                            type: string
+                          type: array
                         inputs:
                           description: StepInputs defines variable input of WorkflowStep
                           items:
