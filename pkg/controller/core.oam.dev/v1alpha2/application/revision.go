@@ -23,8 +23,6 @@ import (
 	"sort"
 	"strings"
 
-	types2 "k8s.io/apimachinery/pkg/types"
-
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 
 	"github.com/pkg/errors"
@@ -588,7 +586,7 @@ func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error)
 func (h *AppHandler) createOrGetResourceTracker(ctx context.Context) (*v1beta1.ResourceTracker, error) {
 	rt := &v1beta1.ResourceTracker{}
 	rtName := h.app.Name + "-" + h.app.Namespace
-	if err := h.r.Get(ctx, types2.NamespacedName{Name: rtName}, rt); err != nil {
+	if err := h.r.Get(ctx, ktypes.NamespacedName{Name: rtName}, rt); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}
