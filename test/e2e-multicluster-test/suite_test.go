@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -32,7 +31,7 @@ import (
 )
 
 const (
-	WorkerClusterName = "cluster-worker"
+	WorkerClusterName           = "cluster-worker"
 	WorkerClusterKubeConfigPath = "/tmp/worker.kubeconfig"
 )
 
