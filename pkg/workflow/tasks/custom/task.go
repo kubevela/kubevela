@@ -135,6 +135,11 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		tRunner := new(taskRunner)
 		tRunner.name = wfStep.Name
 		tRunner.checkPending = func(ctx wfContext.Context) bool {
+			for _, depend := range wfStep.DependsOn {
+				if _, err := ctx.GetVar(hooks.ReadyComponent, depend); err != nil {
+					return true
+				}
+			}
 			for _, input := range wfStep.Inputs {
 				if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
 					return true

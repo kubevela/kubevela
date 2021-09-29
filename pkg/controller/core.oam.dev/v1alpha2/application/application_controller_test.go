@@ -1810,7 +1810,180 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkCM.Data["enemies"]).Should(BeEquivalentTo("hello,i am lives"))
 		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
 	})
-	It("test applicaiton applied resource in workflow step status", func() {
+
+	It("application with depends on run as dag workflow", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-depends-on",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		healthComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = "app-with-depends-on"
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		appwithDependsOn := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-depends-on",
+				Namespace: "app-with-depends-on",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						DependsOn:  []string{"myweb2"},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), appwithDependsOn)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: appwithDependsOn.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment := &v1.Deployment{}
+		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
+		web2Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb2"}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
+
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		expDeployment.Status.Conditions = []v1.DeploymentCondition{{
+			Message: "hello",
+		}}
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment = &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+	})
+
+	It("application with input/output and depends on", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-input-output-depends-on",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		healthComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
+		healthComponentDef.Name = "worker-with-health"
+		healthComponentDef.Namespace = "app-with-input-output-depends-on"
+		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		appwithInputOutputDependsOn := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-input-output-depends-on",
+				Namespace: "app-with-input-output-depends-on",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						DependsOn:  []string{"myweb2"},
+						Inputs: common.StepInputs{
+							{
+								From:         "message",
+								ParameterKey: "properties.enemies",
+							},
+							{
+								From:         "message",
+								ParameterKey: "properties.lives",
+							},
+						},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Outputs: common.StepOutputs{
+							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(context.Background(), appwithInputOutputDependsOn)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: appwithInputOutputDependsOn.Name}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment := &v1.Deployment{}
+		web1Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb1"}
+		web2Key := types.NamespacedName{Namespace: ns.Name, Name: "myweb2"}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(util.NotFoundMatcher{})
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
+
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		expDeployment.Status.Conditions = []v1.DeploymentCondition{{
+			Message: "hello",
+		}}
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		expDeployment = &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+
+		checkCM := &corev1.ConfigMap{}
+		cmKey := types.NamespacedName{
+			Name:      "myweb1game-config",
+			Namespace: ns.Name,
+		}
+		Expect(k8sClient.Get(ctx, cmKey, checkCM)).Should(BeNil())
+		Expect(checkCM.Data["enemies"]).Should(BeEquivalentTo("hello,i am lives"))
+		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
+	})
+
+	It("test application applied resource in workflow step status", func() {
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-applied-resources",
