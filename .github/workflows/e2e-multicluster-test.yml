@@ -64,6 +64,7 @@ jobs:
           kubectl version
           kubectl cluster-info
           kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
+          kind get kubeconfig --name worker > /tmp/worker.client.kubeconfig
 
       - name: Setup Kind Cluster (Hub)
         run: |

@@ -37,7 +37,7 @@ require (
 	github.com/oam-dev/terraform-controller v0.2.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.14.0
+	github.com/onsi/gomega v1.16.0
 	github.com/opencontainers/runc v1.0.0-rc95 // indirect
 	github.com/openkruise/kruise-api v0.9.0
 	github.com/pkg/errors v0.9.1
