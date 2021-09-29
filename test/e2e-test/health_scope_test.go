@@ -105,13 +105,29 @@ var _ = Describe("HealthScope", func() {
 		}, time.Second*30, time.Millisecond*500).Should(Equal(v1alpha2.StatusHealthy))
 
 		label := map[string]string{"workload": "deployment-workload"}
+		wd := v1alpha2.WorkloadDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "deployments.apps",
+				Namespace: "vela-system",
+			},
+			Spec: v1alpha2.WorkloadDefinitionSpec{
+				Reference: common.DefinitionReference{
+					Name: "deployments.apps",
+				},
+			},
+		}
+
+		logf.Log.Info("Creating workload definition")
+		// For some reason, WorkloadDefinition is created as a Cluster scope object
+		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		wl := appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "apps/v1",
 				Kind:       "Deployment",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "vela-system",
+				Namespace: namespace,
 				Labels:    label,
 			},
 			Spec: appsv1.DeploymentSpec{
@@ -131,6 +147,7 @@ var _ = Describe("HealthScope", func() {
 				},
 			},
 		}
+		// reflect workload gvk from scheme
 
 		gvks, _, _ := scheme.ObjectKinds(&wl)
 		wl.APIVersion = gvks[0].GroupVersion().String()
