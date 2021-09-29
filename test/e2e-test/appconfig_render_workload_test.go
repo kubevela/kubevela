@@ -91,6 +91,10 @@ var _ = Describe("AppConfig renders workloads", func() {
 				Namespace: namespace,
 				Name:      wdName,
 			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+			},
 			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
