@@ -18,6 +18,8 @@ package sets
 import (
 	"testing"
 
+	"cuelang.org/go/cue/format"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/literal"
@@ -259,4 +261,23 @@ c1:     bool
 top:    _
 bottom: _|_
 `)
+}
+
+func TestListOpen(t *testing.T) {
+	f, err := parser.ParseFile("-", `
+x: ["a","b"]
+y: [...string]
+z: []
+`)
+	assert.NilError(t, err)
+	ListOpen(f)
+
+	bt, err := format.Node(f)
+	assert.NilError(t, err)
+	s := string(bt)
+	assert.Equal(t, s, `x: ["a", "b", ...]
+y: [...string]
+z: []
+`)
+
 }

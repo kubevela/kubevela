@@ -153,7 +153,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 			for _, hook := range options.PreStartHooks {
 				if err := hook(ctx, paramsValue, wfStep); err != nil {
-					return common.WorkflowStepStatus{}, nil, err
+					return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "do preStartHook")
 				}
 			}
 

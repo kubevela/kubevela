@@ -1742,7 +1742,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
 						Inputs: common.StepInputs{
 							{
 								From:         "message",
@@ -1752,6 +1752,10 @@ var _ = Describe("Test Application Controller", func() {
 								From:         "message",
 								ParameterKey: "properties.lives",
 							},
+							{
+								From:         "sleepTime",
+								ParameterKey: "properties.cmd[1]",
+							},
 						},
 					},
 					{
@@ -1760,6 +1764,7 @@ var _ = Describe("Test Application Controller", func() {
 						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
+							{Name: "sleepTime", ValueFrom: "\"100\""},
 						},
 					},
 				},
@@ -1788,13 +1793,12 @@ var _ = Describe("Test Application Controller", func() {
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-
 		expDeployment = &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
 		expDeployment.Status.Replicas = 1
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
-
+		Expect(expDeployment.Spec.Template.Spec.Containers[0].Command).Should(BeEquivalentTo([]string{"sleep", "100"}))
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}

@@ -23,19 +23,17 @@ import (
 	"strconv"
 	"strings"
 
-	"cuelang.org/go/cue/token"
-
-	"github.com/oam-dev/kubevela/pkg/stdlib"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/parser"
+	"cuelang.org/go/cue/token"
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/stdlib"
 )
 
 // Value is an object with cue.runtime and vendors
@@ -46,8 +44,9 @@ type Value struct {
 }
 
 // String return value's cue format string
-func (val *Value) String() (string, error) {
-	return sets.ToString(val.v, sets.OptBytesToString)
+func (val *Value) String(opts ...func(node ast.Node) ast.Node) (string, error) {
+	opts = append(opts, sets.OptBytesToString)
+	return sets.ToString(val.v, opts...)
 }
 
 // Error return value's error information.
@@ -243,7 +242,7 @@ func (val *Value) fillRawByScript(x string, path string) error {
 	if err := a.installTo(pathExpr); err != nil {
 		return err
 	}
-	raw, err := val.String()
+	raw, err := val.String(sets.ListOpen)
 	if err != nil {
 		return err
 	}
@@ -507,7 +506,7 @@ func (a *assembler) fill2Array(i int) {
 	if strings.Contains(a.v, ":") && !strings.HasPrefix(a.v, "{") {
 		a.v = fmt.Sprintf("{ %s }", a.v)
 	}
-	a.v = fmt.Sprintf("[%s%s,...]", s, a.v)
+	a.v = fmt.Sprintf("[%s%s]", s, strings.TrimSpace(a.v))
 }
 
 func (a *assembler) installTo(expr ast.Expr) error {
