@@ -17,6 +17,7 @@ pushd "$SCRIPT_DIR" &> /dev/null
 INTERNAL_DEFINITION_DIR="definitions/internal"
 REGISTRY_DEFINITION_DIR="definitions/registry"
 INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
+MINIMAL_TEMPLATE_DIR="../charts/vela-minimal/templates"
 REGISTRY_TEMPLATE_DIR="registry/auto-gen"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -54,10 +55,21 @@ function render {
   fi
 }
 
+function renderMinimal {
+  inputDir=$1
+  outputDir=$2
+
+  cp -r $inputDir $outputDir 
+
+  rm -f $outputDir/defwithtemplate/env-binding.yaml
+  rm -f $outputDir/defwithtemplate/deploy2env.yaml  
+}
+
 echo -e "${HEAD_PROMPT}Start generating definitions at ${LIGHTGRAY}${SCRIPT_DIR}${NC} ..."
 echo -ne "${HEAD_PROMPT}${YELLOW}(0/2) Generating internal definitions from ${LIGHTGRAY}${INTERNAL_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
 export AS_HELM_CHART=true
 render $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
+renderMinimal $INTERNAL_TEMPLATE_DIR $MINIMAL_TEMPLATE_DIR
 echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${YELLOW}(1/2) Generating registry definitions from ${LIGHTGRAY}${REGISTRY_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${REGISTRY_TEMPLATE_DIR}${YELLOW} ... "
 export AS_HELM_CHART=system
 render $REGISTRY_DEFINITION_DIR $REGISTRY_TEMPLATE_DIR
