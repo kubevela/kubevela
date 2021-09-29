@@ -109,6 +109,7 @@ var _ = Describe("HealthScope", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "deployments.apps",
 				Namespace: "vela-system",
+				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
 				Reference: common.DefinitionReference{
@@ -121,6 +122,7 @@ var _ = Describe("HealthScope", func() {
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
 		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+		workloadName := "example-deployment-workload"
 		wl := appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "apps/v1",
@@ -129,12 +131,17 @@ var _ = Describe("HealthScope", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 				Labels:    label,
+				Name:      workloadName,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: label,
 				},
 				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespace,
+						Labels:    label,
+					},
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{
@@ -143,7 +150,6 @@ var _ = Describe("HealthScope", func() {
 							},
 						},
 					},
-					ObjectMeta: metav1.ObjectMeta{Labels: label},
 				},
 			},
 		}
