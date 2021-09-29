@@ -89,7 +89,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 		workload := appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
-				Name:      wdName,
+				Name:      cwName,
 			},
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Deployment",
