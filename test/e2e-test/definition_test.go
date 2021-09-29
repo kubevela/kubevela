@@ -80,6 +80,10 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			}
 			workDef.SetNamespace(namespace)
 			Expect(k8sClient.Create(ctx, workDef)).Should(BeNil())
+			getWd := new(v1beta1.WorkloadDefinition)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: workDef.Name, Namespace: namespace}, getWd)
+			}, 15*time.Second, time.Second).Should(BeNil())
 
 			cd := webServiceWithNoTemplate.DeepCopy()
 			cd.Spec.Workload.Definition = common.WorkloadGVK{}

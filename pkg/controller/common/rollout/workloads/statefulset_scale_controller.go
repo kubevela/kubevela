@@ -126,7 +126,7 @@ func (s *StatefulSetScaleController) Initialize(ctx context.Context) (bool, erro
 		return false, nil
 	}
 
-	claimedBefore, err := s.claimStatefulSet(ctx, s.statefulSet, nil)
+	claimedBefore, err := s.claimStatefulSet(ctx, s.statefulSet)
 	if err != nil {
 		// nolint:nilerr
 		return false, nil

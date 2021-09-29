@@ -49,17 +49,26 @@ func RolloutWorkloadName(rolloutComp string) assemble.WorkloadOption {
 
 		// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
 		// we support is cloneset/statefulset for now. We can easily add more later.
+		supportInplaceUpgrade := false
 		if w.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {
-			if w.GetKind() == reflect.TypeOf(v1alpha1.CloneSet{}).Name() ||
-				w.GetKind() == reflect.TypeOf(v1alpha1.StatefulSet{}).Name() {
-				// we use the component name alone for those resources that do support in-place upgrade
-				klog.InfoS("we reuse the component name for resources that support in-place upgrade",
-					"GVK", w.GroupVersionKind(), "instance name", w.GetName())
-				// assemble use component name as workload name by default
-				// so no need to re-set name
-				return nil
+			if w.GetKind() == reflect.TypeOf(v1alpha1.CloneSet{}).Name() {
+				supportInplaceUpgrade = true
+			}
+		} else if w.GroupVersionKind().Group == appsv1.GroupName {
+			if w.GetKind() == reflect.TypeOf(appsv1.StatefulSet{}).Name() {
+				supportInplaceUpgrade = true
 			}
 		}
+
+		if supportInplaceUpgrade {
+			// we use the component name alone for those resources that do support in-place upgrade
+			klog.InfoS("we reuse the component name for resources that support in-place upgrade",
+				"GVK", w.GroupVersionKind(), "instance name", w.GetName())
+			// assemble use component name as workload name by default
+			// so no need to re-set name
+			return nil
+		}
+
 		// we assume that the rest of the resources do not support in-place upgrade
 		compRevName := w.GetLabels()[oam.LabelAppComponentRevision]
 		w.SetName(compRevName)
@@ -82,7 +91,7 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 		// we hard code here, but we can easily support more types of workload by add more cases logic in switch
 		var replicasFieldPath string
 		switch u.GetKind() {
-		case reflect.TypeOf(v1alpha1.CloneSet{}).Name(), reflect.TypeOf(appsv1.Deployment{}).Name():
+		case reflect.TypeOf(v1alpha1.CloneSet{}).Name(), reflect.TypeOf(appsv1.Deployment{}).Name(), reflect.TypeOf(appsv1.StatefulSet{}).Name():
 			replicasFieldPath = "spec.replicas"
 		default:
 			klog.Errorf("rollout meet a workload we cannot support yet", "Kind", u.GetKind(), "name", u.GetName())

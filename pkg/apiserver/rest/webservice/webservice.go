@@ -20,7 +20,7 @@ import (
 	"context"
 	"net/http"
 
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -62,6 +62,6 @@ func Init(ctx context.Context) {
 	RegistWebService(&applicationWebService{})
 	RegistWebService(&namespaceWebService{})
 	RegistWebService(&componentDefinitionWebservice{})
-	RegistWebService(&catalogWebService{})
+	RegistWebService(&addonWebService{})
 	RegistWebService(&oamApplicationWebService{})
 }
