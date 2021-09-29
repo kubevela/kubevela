@@ -131,9 +131,12 @@ func CreateEnv(envName string, envArgs *types.EnvMeta) error {
 		return err
 	}
 	e := envArgs
-	_, err = GetEnvByName(envName)
+	nowEnv, err := GetEnvByName(envName)
 	if err == nil {
-		return errors.Errorf("env %s has existed", envName)
+		if nowEnv.Namespace != envArgs.Namespace {
+			return errors.Errorf("env %s has existed", envName)
+		}
+		return nil
 	}
 	if e.Namespace == "" {
 		e.Namespace = "default"

@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -146,9 +147,8 @@ func (o *appInitOptions) CheckEnv() error {
 	if o.Env.Namespace == "" {
 		o.Env.Namespace = "default"
 	}
-	o.Infof("Environment: %s, namespace: %s will be created\n\n", o.Env.Name, o.Env.Namespace)
 	if err := env.CreateEnv(o.Env.Name, o.Env); err != nil {
-		return err
+		return errors.Wrap(err, "app init create namespace err")
 	}
 	return nil
 }
