@@ -102,6 +102,8 @@ func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
 func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {
 	return ref1.Cluster == ref2.Cluster &&
 		ref1.Namespace == ref2.Namespace &&
+		ref1.APIVersion == ref2.APIVersion &&
+		ref1.Kind == ref2.Kind &&
 		ref1.Name == ref2.Name
 }
 
