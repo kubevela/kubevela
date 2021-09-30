@@ -73,7 +73,6 @@ const LabelPodSpecable = "workload.oam.dev/podspecable"
 var allBuiltinCapabilities = mapset.NewSet(
 	common.ManualScalerTraitControllerName,
 	common.RolloutControllerName,
-	common.ContainerizedWorkloadControllerName,
 	common.HealthScopeControllerName,
 	common.EnvBindingControllerName,
 )

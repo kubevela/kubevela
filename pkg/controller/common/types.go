@@ -25,8 +25,6 @@ const (
 	DisableNoneCaps = ""
 	// ManualScalerTraitControllerName is the controller name of manual scaler trait
 	ManualScalerTraitControllerName = "manualscalertrait"
-	// ContainerizedWorkloadControllerName is the controller name of containerized workload
-	ContainerizedWorkloadControllerName = "containerizedwokrload"
 	// HealthScopeControllerName is the controller name of healthScope controller
 	HealthScopeControllerName = "healthscope"
 	// RolloutControllerName is the controller name of rollout controller

@@ -31,8 +31,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -154,34 +152,6 @@ var _ = BeforeSuite(func(done Done) {
 	extendedmanualscalertrait.Namespace = "oam-runtime-system"
 	Expect(k8sClient.Create(context.Background(), &extendedmanualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created extended manualscalertraits.core.oam.dev")
-
-	// For some reason, workloadDefinition is created as a Cluster scope object
-	label := map[string]string{"workload": "containerized-workload"}
-	// create workload definition for 'containerizedworkload'
-	wd := v1alpha2.WorkloadDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "containerizedworkloads.core.oam.dev",
-			Namespace: "vela-system",
-			Labels:    label,
-		},
-		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: commontypes.DefinitionReference{
-				Name: "containerizedworkloads.core.oam.dev",
-			},
-			ChildResourceKinds: []commontypes.ChildResourceKind{
-				{
-					APIVersion: corev1.SchemeGroupVersion.String(),
-					Kind:       util.KindService,
-				},
-				{
-					APIVersion: appsv1.SchemeGroupVersion.String(),
-					Kind:       util.KindDeployment,
-				},
-			},
-		},
-	}
-	Expect(k8sClient.Create(context.Background(), &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created containerizedworkload.core.oam.dev")
 
 	// create workload definition for 'deployments'
 	wdDeploy := v1alpha2.WorkloadDefinition{

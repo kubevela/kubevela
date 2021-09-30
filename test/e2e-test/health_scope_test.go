@@ -104,48 +104,49 @@ var _ = Describe("HealthScope", func() {
 			return hs.Status.ScopeHealthCondition.HealthStatus
 		}, time.Second*30, time.Millisecond*500).Should(Equal(v1alpha2.StatusHealthy))
 
-		label := map[string]string{"workload": "containerized-workload"}
-		// create a workload definition
+		label := map[string]string{"workload": "deployment-workload"}
 		wd := v1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "containerizedworkloads.core.oam.dev",
-				Namespace: "vela-system",
+				Name:      "deployments.apps",
+				Namespace: namespace,
 				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
 				Reference: common.DefinitionReference{
-					Name: "containerizedworkloads.core.oam.dev",
-				},
-				ChildResourceKinds: []common.ChildResourceKind{
-					{
-						APIVersion: corev1.SchemeGroupVersion.String(),
-						Kind:       util.KindService,
-					},
-					{
-						APIVersion: appsv1.SchemeGroupVersion.String(),
-						Kind:       util.KindDeployment,
-					},
+					Name: "deployments.apps",
 				},
 			},
 		}
+
 		logf.Log.Info("Creating workload definition")
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
 		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		// create a workload CR
-		wl := v1alpha2.ContainerizedWorkload{
+
+		workloadName := "example-deployment-workload"
+		wl := appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 				Labels:    label,
+				Name:      workloadName,
 			},
-			Spec: v1alpha2.ContainerizedWorkloadSpec{
-				Containers: []v1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: "wordpress:4.6.1-apache",
-						Ports: []v1alpha2.ContainerPort{
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: label,
+				},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespace,
+						Labels:    label,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
-								Name: "wordpress",
-								Port: 80,
+								Name:  "wordpress",
+								Image: "wordpress:php7.2",
 							},
 						},
 					},
@@ -156,6 +157,7 @@ var _ = Describe("HealthScope", func() {
 		gvks, _, _ := scheme.ObjectKinds(&wl)
 		wl.APIVersion = gvks[0].GroupVersion().String()
 		wl.Kind = gvks[0].Kind
+
 		// Create a component definition
 		componentName := "example-component"
 		comp := v1alpha2.Component{
@@ -219,7 +221,7 @@ var _ = Describe("HealthScope", func() {
 						Scopes: []v1alpha2.ComponentScope{
 							{
 								ScopeReference: corev1.ObjectReference{
-									APIVersion: gvks[0].GroupVersion().String(),
+									APIVersion: "core.oam.dev/v1alpha2",
 									Kind:       v1alpha2.HealthScopeGroupVersionKind.Kind,
 									Name:       healthScopeName,
 								},
@@ -241,7 +243,7 @@ var _ = Describe("HealthScope", func() {
 						Scopes: []v1alpha2.ComponentScope{
 							{
 								ScopeReference: corev1.ObjectReference{
-									APIVersion: gvks[0].GroupVersion().String(),
+									APIVersion: "core.oam.dev/v1alpha2",
 									Kind:       v1alpha2.HealthScopeGroupVersionKind.Kind,
 									Name:       healthScopeName,
 								},
@@ -283,16 +285,6 @@ var _ = Describe("HealthScope", func() {
 
 		By("Verify that the parameter substitute works")
 		Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageName))
-
-		// Verification
-		By("Checking service is created")
-		service := &corev1.Service{}
-		logf.Log.Info("Checking on service", "Key", objectKey)
-		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, objectKey, service)
-			},
-			time.Second*15, time.Millisecond*500).Should(BeNil())
 
 		healthScopeObject := client.ObjectKey{
 			Name:      healthScopeName,
