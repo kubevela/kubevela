@@ -108,7 +108,7 @@ var _ = Describe("HealthScope", func() {
 		wd := v1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "deployments.apps",
-				Namespace: "vela-system",
+				Namespace: namespace,
 				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
