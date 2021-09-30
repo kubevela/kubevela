@@ -58,9 +58,6 @@ vela-cli:
 kubectl-vela:
 	$(GOBUILD_ENV) go build -o bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
 
-dashboard-build:
-	cd references/dashboard && npm install && cd ..
-
 doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
@@ -97,6 +94,9 @@ compress:
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run:
 	go run ./cmd/core/main.go --application-revision-limit 5
+
+run-apiserver:
+	go run ./cmd/apiserver/main.go
 
 # Run go fmt against code
 fmt: goimports installcue
@@ -138,6 +138,11 @@ docker-build-runtime-rollout:
 docker-push:
 	docker push $(VELA_CORE_IMAGE)
 
+e2e-setup-core:
+	sh ./hack/e2e/modify_charts.sh
+	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --set multicluster.enabled=true --wait kubevela ./charts/vela-core
+	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
+
 e2e-setup:
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.9.0/kruise-chart.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
 	sh ./hack/e2e/modify_charts.sh
@@ -152,7 +157,6 @@ e2e-setup:
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
-	bin/vela dashboard &
 
 e2e-api-test:
 	# Run e2e test
@@ -166,6 +170,10 @@ e2e-test:
 
 e2e-rollout-test:
 	ginkgo -v  --focus="rollout related e2e-test." ./test/e2e-test
+	@$(OK) tests pass
+
+e2e-multicluster-test:
+	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_multicluster_test.out ./test/e2e-multicluster-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
@@ -189,6 +197,9 @@ image-cleanup:
 ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
 	docker rmi -f $(VELA_CORE_TEST_IMAGE)
 endif
+
+end-e2e-core:
+	sh ./hack/e2e/end_e2e_core.sh
 
 end-e2e:
 	sh ./hack/e2e/end_e2e.sh
@@ -234,12 +245,12 @@ manifests: installcue kustomize
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	./hack/crd/cleanup.sh
-	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/
+	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/ charts/vela-minimal/crds
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
 	go run ./vela-templates/gen_addons.go
 
-GOLANGCILINT_VERSION ?= v1.31.0
+GOLANGCILINT_VERSION ?= v1.38.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 HOSTARCH := $(shell uname -m)
 ifeq ($(HOSTARCH),x86_64)

@@ -23,22 +23,24 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 func TestTaskLoader(t *testing.T) {
-
 	wfCtx := newWorkflowContextForTest(t)
+	r := require.New(t)
 	discover := providers.NewProviders()
 	discover.Register("test", map[string]providers.Handler{
 		"output": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -49,10 +51,10 @@ myIP: value: "1.1.1.1"
 		},
 		"input": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
 			val, err := v.LookupValue("set", "prefixIP")
-			assert.NilError(t, err)
+			r.NoError(err)
 			str, err := val.CueValue().String()
-			assert.NilError(t, err)
-			assert.Equal(t, str, "1.1.1.1")
+			r.NoError(err)
+			r.Equal(str, "1.1.1.1")
 			return nil
 		},
 		"wait": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -114,56 +116,57 @@ myIP: value: "1.1.1.1"
 
 	for _, step := range steps {
 		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
-		assert.NilError(t, err)
+		r.NoError(err)
 		run, err := gen(step, &types.GeneratorOptions{})
-		assert.NilError(t, err)
+		r.NoError(err)
 		status, action, err := run.Run(wfCtx, &types.TaskRunOptions{})
-		assert.NilError(t, err)
+		r.NoError(err)
 		if step.Name == "wait" {
-			assert.Equal(t, status.Phase, common.WorkflowStepPhaseRunning)
-			assert.Equal(t, status.Reason, StatusReasonWait)
-			assert.Equal(t, status.Message, "I am waiting")
+			r.Equal(status.Phase, common.WorkflowStepPhaseRunning)
+			r.Equal(status.Reason, StatusReasonWait)
+			r.Equal(status.Message, "I am waiting")
 			continue
 		}
 		if step.Name == "terminate" {
-			assert.Equal(t, action.Terminated, true)
-			assert.Equal(t, status.Reason, StatusReasonTerminate)
-			assert.Equal(t, status.Message, "I am terminated")
+			r.Equal(action.Terminated, true)
+			r.Equal(status.Reason, StatusReasonTerminate)
+			r.Equal(status.Message, "I am terminated")
 			continue
 		}
 		if step.Name == "rendering" {
-			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
-			assert.Equal(t, status.Reason, StatusReasonRendering)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Reason, StatusReasonRendering)
 			continue
 		}
 		if step.Name == "execute" {
-			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
-			assert.Equal(t, status.Reason, StatusReasonExecute)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Reason, StatusReasonExecute)
 			continue
 		}
-		assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
+		r.Equal(status.Phase, common.WorkflowStepPhaseSucceeded)
 	}
 
 }
 
 func TestErrCases(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
+	r := require.New(t)
 	closeVar, err := value.NewValue(`
 close({
    x: 100
 })
 `, nil, "", value.TagFieldOrder)
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = wfCtx.SetVar(closeVar, "score")
-	assert.NilError(t, err)
+	r.NoError(err)
 	discover := providers.NewProviders()
 	discover.Register("test", map[string]providers.Handler{
 		"input": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
 			val, err := v.LookupValue("prefixIP")
-			assert.NilError(t, err)
+			r.NoError(err)
 			str, err := val.CueValue().String()
-			assert.NilError(t, err)
-			assert.Equal(t, str, "1.1.1.1")
+			r.NoError(err)
+			r.Equal(str, "1.1.1.1")
 			return nil
 		},
 		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -222,18 +225,18 @@ close({
 	}
 	for _, step := range steps {
 		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
-		assert.NilError(t, err)
+		r.NoError(err)
 		run, err := gen(step, &types.GeneratorOptions{})
-		assert.NilError(t, err)
+		r.NoError(err)
 		status, _, err := run.Run(wfCtx, &types.TaskRunOptions{})
 		switch step.Name {
 		case "input":
-			assert.Equal(t, err != nil, true)
+			r.Equal(err != nil, true)
 		case "ouput", "output-var-conflict":
-			assert.Equal(t, status.Reason, StatusReasonOutput)
-			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Reason, StatusReasonOutput)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		default:
-			assert.Equal(t, status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		}
 	}
 }
@@ -246,6 +249,7 @@ func TestSteps(t *testing.T) {
 	)
 
 	wfCtx := newWorkflowContextForTest(t)
+	r := require.New(t)
 	discover := providers.NewProviders()
 	discover.Register("test", map[string]providers.Handler{
 		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -362,16 +366,17 @@ apply: {
 	for _, tc := range testCases {
 		echo = ""
 		v, err := value.NewValue(tc.base, nil, "", value.TagFieldOrder)
-		assert.NilError(t, err)
+		r.NoError(err)
 		err = exec.doSteps(wfCtx, v)
-		assert.Equal(t, err != nil, tc.hasErr)
-		assert.Equal(t, echo, tc.expected)
+		r.Equal(err != nil, tc.hasErr)
+		r.Equal(echo, tc.expected)
 	}
 
 }
 
-func TestPendingCheck(t *testing.T) {
+func TestPendingInputCheck(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
+	r := require.New(t)
 	discover := providers.NewProviders()
 	discover.Register("test", map[string]providers.Handler{
 		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -388,31 +393,59 @@ func TestPendingCheck(t *testing.T) {
 	}
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
-	assert.NilError(t, err)
+	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
-	assert.NilError(t, err)
-	assert.Equal(t, run.Pending(wfCtx), true)
+	r.NoError(err)
+	r.Equal(run.Pending(wfCtx), true)
 	score, err := value.NewValue(`
 100
 `, nil, "")
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = wfCtx.SetVar(score, "score")
-	assert.NilError(t, err)
-	assert.Equal(t, run.Pending(wfCtx), false)
+	r.NoError(err)
+	r.Equal(run.Pending(wfCtx), false)
+}
+
+func TestPendingDependsOnCheck(t *testing.T) {
+	wfCtx := newWorkflowContextForTest(t)
+	r := require.New(t)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
+		},
+	})
+	step := v1beta1.WorkflowStep{
+		Name:      "pending",
+		Type:      "ok",
+		DependsOn: []string{"depend"},
+	}
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
+	r.NoError(err)
+	run, err := gen(step, &types.GeneratorOptions{})
+	r.NoError(err)
+	r.Equal(run.Pending(wfCtx), true)
+	ready, err := value.NewValue("true", nil, "")
+	r.NoError(err)
+	err = wfCtx.SetVar(ready, hooks.ReadyComponent, "depend")
+	r.NoError(err)
+	r.Equal(run.Pending(wfCtx), false)
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {
+	r := require.New(t)
 	cm := corev1.ConfigMap{}
 	testCaseJson, err := yaml.YAMLToJSON([]byte(testCaseYaml))
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = json.Unmarshal(testCaseJson, &cm)
-	assert.NilError(t, err)
+	r.NoError(err)
 
 	wfCtx := new(wfContext.WorkflowContext)
 	err = wfCtx.LoadFromConfigMap(cm)
-	assert.NilError(t, err)
+	r.NoError(err)
 	v, _ := value.NewValue(`name: "app"`, nil, "")
-	assert.NilError(t, wfCtx.SetVar(v, types.ContextKeyMetadata))
+	r.NoError(wfCtx.SetVar(v, types.ContextKeyMetadata))
 	return wfCtx
 }
 func mockLoadTemplate(_ context.Context, name string) (string, error) {

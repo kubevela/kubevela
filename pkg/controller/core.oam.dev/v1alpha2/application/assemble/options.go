@@ -155,15 +155,21 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 				return nil
 			}
-		} else if assembledWorkload.GroupVersionKind().Group == appsv1.GroupName &&
-			assembledWorkload.GetKind() == reflect.TypeOf(appsv1.Deployment{}).Name() {
-			err := pv.SetBool(deploymentDisablePath, true)
-			if err != nil {
-				return err
+		}
+
+		if assembledWorkload.GroupVersionKind().Group == appsv1.GroupName {
+			switch assembledWorkload.GetKind() {
+			case reflect.TypeOf(appsv1.Deployment{}).Name():
+				if err := pv.SetBool(deploymentDisablePath, true); err != nil {
+					return err
+				}
+				klog.InfoS("we render a deployment assembledWorkload.paused on the first time",
+					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
+				return nil
+			case reflect.TypeOf(appsv1.StatefulSet{}).Name():
+				// TODO: Pause StatefulSet here.
+				return nil
 			}
-			klog.InfoS("we render a deployment assembledWorkload.paused on the first time",
-				"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
-			return nil
 		}
 
 		klog.InfoS("we encountered an unknown resource, we don't know how to prepare it",

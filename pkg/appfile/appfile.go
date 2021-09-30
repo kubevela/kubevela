@@ -667,6 +667,8 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration
 	case "json":
 		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
+	case "remote":
+		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
 	}
 
 	// 1. parse writeConnectionSecretToRef

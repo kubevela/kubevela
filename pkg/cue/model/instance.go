@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/format"
 	"github.com/pkg/errors"
@@ -128,7 +127,7 @@ func openPrint(v cue.Value) (string, error) {
 		return "", err
 	}
 	for _, decl := range f.Decls {
-		listOpen(decl)
+		sets.ListOpen(decl)
 	}
 
 	ret, err := format.Node(f)
@@ -155,31 +154,4 @@ func IndexMatchLine(ret, target string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func listOpen(expr ast.Node) {
-	switch v := expr.(type) {
-	case *ast.Field:
-		listOpen(v.Value)
-	case *ast.StructLit:
-		for _, elt := range v.Elts {
-			listOpen(elt)
-		}
-	case *ast.BinaryExpr:
-		listOpen(v.X)
-		listOpen(v.Y)
-	case *ast.EmbedDecl:
-		listOpen(v.Expr)
-	case *ast.Comprehension:
-		listOpen(v.Value)
-	case *ast.ListLit:
-		for _, elt := range v.Elts {
-			listOpen(elt)
-		}
-		if len(v.Elts) > 0 {
-			if _, ok := v.Elts[len(v.Elts)-1].(*ast.Ellipsis); !ok {
-				v.Elts = append(v.Elts, &ast.Ellipsis{})
-			}
-		}
-	}
 }

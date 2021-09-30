@@ -186,6 +186,7 @@ spec:
                         enum:
                         - hcl
                         - json
+                        - remote
                         type: string
                     required:
                     - configuration
@@ -455,6 +456,7 @@ spec:
                         enum:
                         - hcl
                         - json
+                        - remote
                         type: string
                     required:
                     - configuration

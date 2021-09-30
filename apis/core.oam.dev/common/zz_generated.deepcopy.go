@@ -93,6 +93,11 @@ func (in *AppStatus) DeepCopy() *AppStatus {
 func (in *ApplicationComponent) DeepCopyInto(out *ApplicationComponent) {
 	*out = *in
 	in.Properties.DeepCopyInto(&out.Properties)
+	if in.DependsOn != nil {
+		in, out := &in.DependsOn, &out.DependsOn
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Inputs != nil {
 		in, out := &in.Inputs, &out.Inputs
 		*out = make(StepInputs, len(*in))

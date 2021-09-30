@@ -907,6 +907,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		writeConnectionSecretToRef *terraformtypes.SecretReference
 		json                       string
 		hcl                        string
+		remote                     string
 		params                     map[string]interface{}
 	}
 
@@ -938,6 +939,15 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		"valid hcl workload": {
 			args: args{
 				hcl: "abc",
+				params: map[string]interface{}{"acl": "private",
+					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
+				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
+			},
+			want: want{err: nil}},
+
+		"remote hcl workload": {
+			args: args{
+				remote: "https://xxx/a.git",
 				params: map[string]interface{}{"acl": "private",
 					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
 				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
@@ -994,7 +1004,20 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
 			}
 		}
-		if tc.args.hcl == "" && tc.args.json == "" {
+		if tc.args.remote != "" {
+			template = &Template{
+				Terraform: &common.Terraform{
+					Configuration: tc.args.remote,
+					Type:          "remote",
+				},
+			}
+			configSpec = terraformapi.ConfigurationSpec{
+				Remote:                           tc.args.remote,
+				Variable:                         raw,
+				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+			}
+		}
+		if tc.args.hcl == "" && tc.args.json == "" && tc.args.remote == "" {
 			template = &Template{
 				Terraform: &common.Terraform{},
 			}

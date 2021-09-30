@@ -14,7 +14,7 @@ spec:
         properties:
           chart: istio
           repoType: helm
-          url: https://getindata.github.io/helm-charts/
+          url: https://charts.kubevela.net/addons
           version: 1.11.1
         type: helm
       - name: canary-rollout
