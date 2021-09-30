@@ -19,7 +19,6 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -819,7 +818,6 @@ func (h historiesByRevision) Less(i, j int) bool {
 
 func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
 	if appWillRollout(h.app) {
-		fmt.Println(22222)
 		return cleanUpRollOutComponentRevision(ctx, h)
 	}
 	return cleanUpWorkflowComponentRevision(ctx, h)
