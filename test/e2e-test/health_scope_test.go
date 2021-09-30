@@ -146,7 +146,7 @@ var _ = Describe("HealthScope", func() {
 						Containers: []corev1.Container{
 							{
 								Name:  "wordpress",
-								Image: "wordpress:4.6.1-apache",
+								Image: "wordpress:php7.2",
 							},
 						},
 					},
