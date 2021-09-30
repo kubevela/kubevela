@@ -40,7 +40,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 		namespace      = "appconfig-render-test"
 		cwName         = "test-cw"
 		compName       = "test-component"
-		wdName         = "deployment.apps"
+		wdName         = "deployments.apps"
 		containerName  = "test-container"
 		containerImage = "notarealimage"
 		acName         = "test-ac"
@@ -129,8 +129,8 @@ var _ = Describe("AppConfig renders workloads", func() {
 										Value: paramVals[1],
 									},
 									{
-										Name:  envVars[1],
-										Value: paramVals[1],
+										Name:  envVars[2],
+										Value: paramVals[2],
 									},
 								},
 							},
