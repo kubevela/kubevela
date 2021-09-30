@@ -21,8 +21,10 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"gotest.tools/assert"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -32,43 +34,63 @@ import (
 
 func TestInput(t *testing.T) {
 	wfCtx := mockContext(t)
-
+	r := require.New(t)
 	paramValue, err := wfCtx.MakeParameter(map[string]interface{}{
 		"name": "foo",
 	})
-	assert.NilError(t, err)
+	r.NoError(err)
 	score, err := paramValue.MakeValue(`score: 99`)
-	assert.NilError(t, err)
-	wfCtx.SetVar(score, "foo")
-	Input(wfCtx, paramValue, v1beta1.WorkflowStep{
+	r.NoError(err)
+	err = wfCtx.SetVar(score, "foo")
+	r.NoError(err)
+	ready, err := value.NewValue(`true`, nil, "")
+	r.NoError(err)
+	err = wfCtx.SetVar(ready, ReadyComponent, "mystep")
+	r.NoError(err)
+	err = Input(wfCtx, paramValue, v1beta1.WorkflowStep{
+		DependsOn: []string{"mystep"},
 		Inputs: common.StepInputs{{
 			From:         "foo.score",
 			ParameterKey: "myscore",
 		}},
 	})
+	r.NoError(err)
 	result, err := paramValue.LookupValue("myscore")
-	assert.NilError(t, err)
-	s, _ := result.String()
-	assert.Equal(t, s, `99
+	r.NoError(err)
+	s, err := result.String()
+	r.NoError(err)
+	r.Equal(s, `99
 `)
 }
 
 func TestOutput(t *testing.T) {
 	wfCtx := mockContext(t)
+	r := require.New(t)
 	taskValue, err := value.NewValue(`
 output: score: 99 
 `, nil, "")
-	assert.NilError(t, err)
-	Output(wfCtx, taskValue, v1beta1.WorkflowStep{
+	r.NoError(err)
+	err = Output(wfCtx, taskValue, v1beta1.WorkflowStep{
+		Properties: runtime.RawExtension{
+			Raw: []byte("{\"name\":\"mystep\"}"),
+		},
 		Outputs: common.StepOutputs{{
 			ValueFrom: "output.score",
 			Name:      "myscore",
 		}},
 	}, common.WorkflowStepPhaseSucceeded)
+	r.NoError(err)
 	result, err := wfCtx.GetVar("myscore")
-	assert.NilError(t, err)
-	s, _ := result.String()
-	assert.Equal(t, s, `99
+	r.NoError(err)
+	s, err := result.String()
+	r.NoError(err)
+	r.Equal(s, `99
+`)
+	ready, err := wfCtx.GetVar(ReadyComponent, "mystep")
+	r.NoError(err)
+	s, err = ready.String()
+	r.NoError(err)
+	r.Equal(s, `true
 `)
 }
 
@@ -85,6 +107,6 @@ func mockContext(t *testing.T) wfContext.Context {
 		},
 	}
 	wfCtx, err := wfContext.NewEmptyContext(cli, "default", "v1")
-	assert.NilError(t, err)
+	require.NoError(t, err)
 	return wfCtx
 }

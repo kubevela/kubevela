@@ -381,8 +381,9 @@ type ApplicationComponent struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
-	Inputs  StepInputs  `json:"inputs,omitempty"`
-	Outputs StepOutputs `json:"outputs,omitempty"`
+	DependsOn []string    `json:"dependsOn,omitempty"`
+	Inputs    StepInputs  `json:"inputs,omitempty"`
+	Outputs   StepOutputs `json:"outputs,omitempty"`
 
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`

@@ -110,8 +110,10 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 				step.Inputs[index].ParameterKey = parameterKey
 			}
 			step.Outputs = append(step.Outputs, c.Outputs...)
+			step.DependsOn = append(step.DependsOn, c.DependsOn...)
 			c.Inputs = nil
 			c.Outputs = nil
+			c.DependsOn = nil
 			step.Properties = util.Object2RawExtension(c)
 			return nil
 		}
