@@ -154,7 +154,6 @@ var _ = Describe("HealthScope", func() {
 			},
 		}
 		// reflect workload gvk from scheme
-
 		gvks, _, _ := scheme.ObjectKinds(&wl)
 		wl.APIVersion = gvks[0].GroupVersion().String()
 		wl.Kind = gvks[0].Kind
@@ -222,7 +221,7 @@ var _ = Describe("HealthScope", func() {
 						Scopes: []v1alpha2.ComponentScope{
 							{
 								ScopeReference: corev1.ObjectReference{
-									APIVersion: gvks[0].GroupVersion().String(),
+									APIVersion: "core.oam.dev/v1alpha2",
 									Kind:       v1alpha2.HealthScopeGroupVersionKind.Kind,
 									Name:       healthScopeName,
 								},
@@ -244,7 +243,7 @@ var _ = Describe("HealthScope", func() {
 						Scopes: []v1alpha2.ComponentScope{
 							{
 								ScopeReference: corev1.ObjectReference{
-									APIVersion: gvks[0].GroupVersion().String(),
+									APIVersion: "core.oam.dev/v1alpha2",
 									Kind:       v1alpha2.HealthScopeGroupVersionKind.Kind,
 									Name:       healthScopeName,
 								},
@@ -286,16 +285,6 @@ var _ = Describe("HealthScope", func() {
 
 		By("Verify that the parameter substitute works")
 		Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageName))
-
-		// Verification
-		By("Checking service is created")
-		service := &corev1.Service{}
-		logf.Log.Info("Checking on service", "Key", objectKey)
-		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, objectKey, service)
-			},
-			time.Second*15, time.Millisecond*500).Should(BeNil())
 
 		healthScopeObject := client.ObjectKey{
 			Name:      healthScopeName,

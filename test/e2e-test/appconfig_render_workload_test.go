@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -83,13 +84,28 @@ var _ = Describe("AppConfig renders workloads", func() {
 
 	It("Test AppConfig controller renders workloads", func() {
 		By("Create WorkloadDefinition")
-		d := wd(wdNameAndDef(wdName))
-		Expect(k8sClient.Create(ctx, d)).Should(Succeed())
+
+		label := map[string]string{"workload": "deployment-workload"}
+		d := v1alpha2.WorkloadDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      wdName,
+				Namespace: namespace,
+				Labels:    label,
+			},
+			Spec: v1alpha2.WorkloadDefinitionSpec{
+				Reference: common.DefinitionReference{
+					Name: "deployments.apps",
+				},
+			},
+		}
+		logf.Log.Info("Creating workload definition")
+		Expect(k8sClient.Create(ctx, &d)).Should(Succeed())
 
 		workload := appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 				Name:      cwName,
+				Labels:    label,
 			},
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Deployment",
@@ -97,9 +113,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 			},
 			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": "test",
-					},
+					MatchLabels: label,
 				},
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
@@ -124,7 +138,10 @@ var _ = Describe("AppConfig renders workloads", func() {
 							},
 						},
 					},
-					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespace,
+						Labels:    label,
+					},
 				},
 			},
 		}
@@ -135,6 +152,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 		co := comp(
 			compWithName(compName),
 			compWithNamespace(namespace),
+			compWithLabels(label),
 			compWithWorkload(rawWorkload),
 			compWithParams([]v1alpha2.ComponentParameter{
 				{
@@ -157,6 +175,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 		ac := ac(
 			acWithName(acName),
 			acWithNamspace(namespace),
+			acWithLabels(label),
 			acWithComps([]v1alpha2.ApplicationConfigurationComponent{
 				{
 					ComponentName: compName,
@@ -180,6 +199,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 
 		By("Verify workloads are created")
 		Eventually(func() bool {
+
 			RequestReconcileNow(ctx, ac)
 			cw := &appsv1.Deployment{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cwName, Namespace: namespace}, cw); err != nil {
@@ -198,32 +218,6 @@ var _ = Describe("AppConfig renders workloads", func() {
 	})
 })
 
-type wdModifier func(*v1alpha2.WorkloadDefinition)
-
-func wdNameAndDef(n string) wdModifier {
-	return func(wd *v1alpha2.WorkloadDefinition) {
-		wd.ObjectMeta.Name = n
-		wd.ObjectMeta.Namespace = "appconfig-render-test"
-		wd.Spec.Reference = common.DefinitionReference{
-			Name: n,
-		}
-	}
-}
-
-func wd(m ...wdModifier) *v1alpha2.WorkloadDefinition {
-	w := &v1alpha2.WorkloadDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha2.WorkloadDefinitionKind,
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		},
-	}
-
-	for _, fn := range m {
-		fn(w)
-	}
-	return w
-}
-
 type compModifier func(*v1alpha2.Component)
 
 func compWithName(n string) compModifier {
@@ -235,6 +229,12 @@ func compWithName(n string) compModifier {
 func compWithNamespace(n string) compModifier {
 	return func(c *v1alpha2.Component) {
 		c.Namespace = n
+	}
+}
+
+func compWithLabels(labels map[string]string) compModifier {
+	return func(c *v1alpha2.Component) {
+		c.Labels = labels
 	}
 }
 
@@ -275,6 +275,12 @@ func acWithName(n string) acModifier {
 func acWithNamspace(n string) acModifier {
 	return func(a *v1alpha2.ApplicationConfiguration) {
 		a.Namespace = n
+	}
+}
+
+func acWithLabels(labels map[string]string) acModifier {
+	return func(a *v1alpha2.ApplicationConfiguration) {
+		a.Labels = labels
 	}
 }
 
