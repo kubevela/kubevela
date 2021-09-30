@@ -98,7 +98,6 @@ var _ = Describe("AppConfig renders workloads", func() {
 				},
 			},
 		}
-		logf.Log.Info("Creating workload definition")
 		Expect(k8sClient.Create(ctx, &d)).Should(Succeed())
 
 		workload := appsv1.Deployment{
@@ -145,6 +144,11 @@ var _ = Describe("AppConfig renders workloads", func() {
 				},
 			},
 		}
+
+		// reflect workload gvk from scheme
+		gvks, _, _ := scheme.ObjectKinds(&workload)
+		workload.APIVersion = gvks[0].GroupVersion().String()
+		workload.Kind = gvks[0].Kind
 
 		rawWorkload := runtime.RawExtension{Object: &workload}
 
