@@ -1,0 +1,482 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  name: rollouts.standard.oam.dev
+spec:
+  group: standard.oam.dev
+  names:
+    categories:
+    - oam
+    kind: Rollout
+    listKind: RolloutList
+    plural: rollouts
+    shortNames:
+    - rollout
+    singular: rollout
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.rolloutTargetSize
+      name: TARGET
+      type: string
+    - jsonPath: .status.upgradedReplicas
+      name: UPGRADED
+      type: string
+    - jsonPath: .status.upgradedReadyReplicas
+      name: READY
+      type: string
+    - jsonPath: .status.batchRollingState
+      name: BATCH-STATE
+      type: string
+    - jsonPath: .status.rollingState
+      name: ROLLING-STATE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Rollout is the Schema for the Rollout API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RolloutSpec defines how to describe an update between different
+              compRevision
+            properties:
+              componentName:
+                description: ComponentName specify the component name
+                type: string
+              rolloutPlan:
+                description: RolloutPlan is the details on how to rollout the resources
+                properties:
+                  batchPartition:
+                    description: All pods in the batches up to the batchPartition
+                      (included) will have the target resource specification while
+                      the rest still have the source resource This is designed for
+                      the operators to manually rollout Default is the the number
+                      of batches which will rollout all the batches
+                    format: int32
+                    type: integer
+                  canaryMetric:
+                    description: CanaryMetric provides a way for the rollout process
+                      to automatically check certain metrics before complete the process
+                    items:
+                      description: CanaryMetric holds the reference to metrics used
+                        for canary analysis
+                      properties:
+                        interval:
+                          description: Interval represents the windows size
+                          type: string
+                        metricsRange:
+                          description: Range value accepted for this metric
+                          properties:
+                            max:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: Maximum value
+                              x-kubernetes-int-or-string: true
+                            min:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: Minimum value
+                              x-kubernetes-int-or-string: true
+                          type: object
+                        name:
+                          description: Name of the metric
+                          type: string
+                        templateRef:
+                          description: TemplateRef references a metric template object
+                          properties:
+                            apiVersion:
+                              description: API version of the referent.
+                              type: string
+                            fieldPath:
+                              description: 'If referring to a piece of an object instead
+                                of an entire object, this string should contain a
+                                valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                                For example, if the object reference is to a container
+                                within a pod, this would take on a value like: "spec.containers{name}"
+                                (where "name" refers to the name of the container
+                                that triggered the event) or if no container name
+                                is specified "spec.containers[2]" (container with
+                                index 2 in this pod). This syntax is chosen only to
+                                have some well-defined way of referencing a part of
+                                an object. TODO: this design is not final and this
+                                field is subject to change in the future.'
+                              type: string
+                            kind:
+                              description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                              type: string
+                            name:
+                              description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                              type: string
+                            namespace:
+                              description: 'Namespace of the referent. More info:
+                                https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                              type: string
+                            resourceVersion:
+                              description: 'Specific resourceVersion to which this
+                                reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                              type: string
+                            uid:
+                              description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                              type: string
+                          type: object
+                      required:
+                      - name
+                      type: object
+                    type: array
+                  numBatches:
+                    description: The number of batches, default = 1
+                    format: int32
+                    type: integer
+                  paused:
+                    description: Paused the rollout, default is false
+                    type: boolean
+                  rolloutBatches:
+                    description: The exact distribution among batches. its size has
+                      to be exactly the same as the NumBatches (if set) The total
+                      number cannot exceed the targetSize or the size of the source
+                      resource We will IGNORE the last batch's replica field if it's
+                      a percentage since round errors can lead to inaccurate sum We
+                      highly recommend to leave the last batch's replica field empty
+                    items:
+                      description: RolloutBatch is used to describe how the each batch
+                        rollout should be
+                      properties:
+                        batchRolloutWebhooks:
+                          description: RolloutWebhooks provides a way for the batch
+                            rollout to interact with an external process
+                          items:
+                            description: RolloutWebhook holds the reference to external
+                              checks used for canary analysis
+                            properties:
+                              expectedStatus:
+                                description: ExpectedStatus contains all the expected
+                                  http status code that we will accept as success
+                                items:
+                                  type: integer
+                                type: array
+                              metadata:
+                                additionalProperties:
+                                  type: string
+                                description: Metadata (key-value pairs) for this webhook
+                                type: object
+                              method:
+                                description: Method the HTTP call method, default
+                                  is POST
+                                type: string
+                              name:
+                                description: Name of this webhook
+                                type: string
+                              type:
+                                description: Type of this webhook
+                                type: string
+                              url:
+                                description: URL address of this webhook
+                                type: string
+                            required:
+                            - name
+                            - type
+                            - url
+                            type: object
+                          type: array
+                        canaryMetric:
+                          description: CanaryMetric provides a way for the batch rollout
+                            process to automatically check certain metrics before
+                            moving to the next batch
+                          items:
+                            description: CanaryMetric holds the reference to metrics
+                              used for canary analysis
+                            properties:
+                              interval:
+                                description: Interval represents the windows size
+                                type: string
+                              metricsRange:
+                                description: Range value accepted for this metric
+                                properties:
+                                  max:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: Maximum value
+                                    x-kubernetes-int-or-string: true
+                                  min:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: Minimum value
+                                    x-kubernetes-int-or-string: true
+                                type: object
+                              name:
+                                description: Name of the metric
+                                type: string
+                              templateRef:
+                                description: TemplateRef references a metric template
+                                  object
+                                properties:
+                                  apiVersion:
+                                    description: API version of the referent.
+                                    type: string
+                                  fieldPath:
+                                    description: 'If referring to a piece of an object
+                                      instead of an entire object, this string should
+                                      contain a valid JSON/Go field access statement,
+                                      such as desiredState.manifest.containers[2].
+                                      For example, if the object reference is to a
+                                      container within a pod, this would take on a
+                                      value like: "spec.containers{name}" (where "name"
+                                      refers to the name of the container that triggered
+                                      the event) or if no container name is specified
+                                      "spec.containers[2]" (container with index 2
+                                      in this pod). This syntax is chosen only to
+                                      have some well-defined way of referencing a
+                                      part of an object. TODO: this design is not
+                                      final and this field is subject to change in
+                                      the future.'
+                                    type: string
+                                  kind:
+                                    description: 'Kind of the referent. More info:
+                                      https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                                    type: string
+                                  namespace:
+                                    description: 'Namespace of the referent. More
+                                      info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                                    type: string
+                                  resourceVersion:
+                                    description: 'Specific resourceVersion to which
+                                      this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                                    type: string
+                                  uid:
+                                    description: 'UID of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                                    type: string
+                                type: object
+                            required:
+                            - name
+                            type: object
+                          type: array
+                        instanceInterval:
+                          description: The wait time, in seconds, between instances
+                            upgrades, default = 0
+                          format: int32
+                          type: integer
+                        maxUnavailable:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: MaxUnavailable is the max allowed number of
+                            pods that is unavailable during the upgrade. We will mark
+                            the batch as ready as long as there are less or equal
+                            number of pods unavailable than this number. default =
+                            0
+                          x-kubernetes-int-or-string: true
+                        podList:
+                          description: The list of Pods to get upgraded it is mutually
+                            exclusive with the Replicas field
+                          items:
+                            type: string
+                          type: array
+                        replicas:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'Replicas is the number of pods to upgrade
+                            in this batch it can be an absolute number (ex: 5) or
+                            a percentage of total pods we will ignore the percentage
+                            of the last batch to just fill the gap it is mutually
+                            exclusive with the PodList field'
+                          x-kubernetes-int-or-string: true
+                      type: object
+                    type: array
+                  rolloutStrategy:
+                    description: RolloutStrategy defines strategies for the rollout
+                      plan The default is IncreaseFirstRolloutStrategyType
+                    type: string
+                  rolloutWebhooks:
+                    description: RolloutWebhooks provide a way for the rollout to
+                      interact with an external process
+                    items:
+                      description: RolloutWebhook holds the reference to external
+                        checks used for canary analysis
+                      properties:
+                        expectedStatus:
+                          description: ExpectedStatus contains all the expected http
+                            status code that we will accept as success
+                          items:
+                            type: integer
+                          type: array
+                        metadata:
+                          additionalProperties:
+                            type: string
+                          description: Metadata (key-value pairs) for this webhook
+                          type: object
+                        method:
+                          description: Method the HTTP call method, default is POST
+                          type: string
+                        name:
+                          description: Name of this webhook
+                          type: string
+                        type:
+                          description: Type of this webhook
+                          type: string
+                        url:
+                          description: URL address of this webhook
+                          type: string
+                      required:
+                      - name
+                      - type
+                      - url
+                      type: object
+                    type: array
+                  targetSize:
+                    description: The size of the target resource. The default is the
+                      same as the size of the source resource.
+                    format: int32
+                    type: integer
+                type: object
+              sourceRevisionName:
+                description: SourceRevisionName contains the name of the componentRevisionName  that
+                  we need to upgrade from. it can be empty only when it's the first
+                  time to deploy the application
+                type: string
+              targetRevisionName:
+                description: TargetRevisionName contains the name of the componentRevisionName
+                  that we need to upgrade to.
+                type: string
+            required:
+            - componentName
+            - rolloutPlan
+            - targetRevisionName
+            type: object
+          status:
+            description: CompRolloutStatus defines the observed state of rollout
+            properties:
+              LastSourceRevision:
+                description: LastSourceRevision contains the name of the componentRevisionName
+                  that we need to upgrade from. We will restart the rollout if this
+                  is not the same as the spec
+                type: string
+              batchRollingState:
+                description: BatchRollingState only meaningful when the Status is
+                  rolling
+                type: string
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime is the last time this condition
+                        transitioned from one status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A Message containing details about this condition's
+                        last transition from one status to another, if any.
+                      type: string
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: Type of this condition. At most one of each condition
+                        type may apply to a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              currentBatch:
+                description: The current batch the rollout is working on/blocked it
+                  starts from 0
+                format: int32
+                type: integer
+              lastAppliedPodTemplateIdentifier:
+                description: lastAppliedPodTemplateIdentifier is a string that uniquely
+                  represent the last pod template each workload type could use different
+                  ways to identify that so we cannot compare between resources We
+                  update this field only after a successful rollout
+                type: string
+              lastTargetRevision:
+                description: LastUpgradedTargetRevision contains the name of the componentRevisionName
+                  that we upgraded to We will restart the rollout if this is not the
+                  same as the spec
+                type: string
+              rollingState:
+                description: RollingState is the Rollout State
+                type: string
+              rolloutOriginalSize:
+                description: RolloutTargetSize is the size of the target resources.
+                  This is determined once the initial spec verification and does not
+                  change until the rollout is restarted
+                format: int32
+                type: integer
+              rolloutTargetSize:
+                description: RolloutTargetSize is the size of the target resources.
+                  This is determined once the initial spec verification and does not
+                  change until the rollout is restarted
+                format: int32
+                type: integer
+              targetGeneration:
+                description: NewPodTemplateIdentifier is a string that uniquely represent
+                  the new pod template each workload type could use different ways
+                  to identify that so we cannot compare between resources
+                type: string
+              upgradedReadyReplicas:
+                description: UpgradedReadyReplicas is the number of Pods upgraded
+                  by the rollout controller that have a Ready Condition.
+                format: int32
+                type: integer
+              upgradedReplicas:
+                description: UpgradedReplicas is the number of Pods upgraded by the
+                  rollout controller
+                format: int32
+                type: integer
+            required:
+            - currentBatch
+            - lastTargetRevision
+            - rollingState
+            - upgradedReadyReplicas
+            - upgradedReplicas
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

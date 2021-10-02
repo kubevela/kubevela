@@ -1239,6 +1239,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration
@@ -1627,6 +1628,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration
@@ -1913,6 +1915,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration
@@ -2053,6 +2056,10 @@ spec:
                           description: ApplicationComponent describe the component
                             of application
                           properties:
+                            dependsOn:
+                              items:
+                                type: string
+                              type: array
                             externalRevision:
                               description: ExternalRevision specified the component
                                 revisionName
@@ -2474,6 +2481,10 @@ spec:
                               description: WorkflowStep defines how to execute a workflow
                                 step.
                               properties:
+                                dependsOn:
+                                  items:
+                                    type: string
+                                  type: array
                                 inputs:
                                   description: StepInputs defines variable input of
                                     WorkflowStep
@@ -3314,6 +3325,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration
@@ -3595,6 +3607,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration
@@ -3965,6 +3978,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration
@@ -4214,6 +4228,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration
@@ -4479,6 +4494,7 @@ spec:
                                   enum:
                                   - hcl
                                   - json
+                                  - remote
                                   type: string
                               required:
                               - configuration

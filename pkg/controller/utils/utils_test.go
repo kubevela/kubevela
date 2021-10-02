@@ -27,6 +27,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
@@ -91,26 +92,30 @@ func TestCompareWithRevision(t *testing.T) {
 	latestRevision := "revision"
 	imageV1 := "wordpress:4.6.1-apache"
 	namespaceName := "test"
-	cwV1 := v1alpha2.ContainerizedWorkload{
+	cwV1 := v12.Deployment{
 		TypeMeta: v1.TypeMeta{
-			Kind:       "ContainerizedWorkload",
-			APIVersion: "core.oam.dev/v1alpha2",
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
 		},
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: namespaceName,
 		},
-		Spec: v1alpha2.ContainerizedWorkloadSpec{
-			Containers: []v1alpha2.Container{
-				{
-					Name:  "wordpress",
-					Image: imageV1,
-					Ports: []v1alpha2.ContainerPort{
+		Spec: v12.DeploymentSpec{
+			Selector: &v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "wordpress",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
 						{
-							Name: "wordpress",
-							Port: 80,
+							Name:  "wordpress",
+							Image: imageV1,
 						},
 					},
 				},
+				ObjectMeta: v1.ObjectMeta{Labels: map[string]string{"app": "wordpress"}},
 			},
 		},
 	}

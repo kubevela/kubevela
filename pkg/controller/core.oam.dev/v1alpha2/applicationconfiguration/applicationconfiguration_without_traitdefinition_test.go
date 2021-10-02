@@ -27,6 +27,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,7 +47,7 @@ var _ = Describe("Test Deploying ApplicationConfiguration without TraitDefinitio
 	)
 	var (
 		ctx         = context.Background()
-		workload    v1alpha2.ContainerizedWorkload
+		workload    appsv1.Deployment
 		component   v1alpha2.Component
 		workloadKey = client.ObjectKey{
 			Name:      componentName,
@@ -76,20 +77,33 @@ metadata:
   namespace: definition-test
 spec:
   workload:
-    apiVersion: core.oam.dev/v1alpha2
-    kind: ContainerizedWorkload
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: backend
+      labels:
+        app: nginx
     spec:
-      containers:
-        - name: nginx
-          image: nginx:1.9.4
-          ports:
+     replicas: 1
+     selector:
+       matchLabels:
+         app: nginx
+     template:
+       metadata:
+         labels:
+           app: nginx
+       spec:
+         containers:
+          - name: nginx
+            image: nginx:1.9.4
+            ports:
             - containerPort: 80
               name: nginx
-          env:
-            - name: TEST_ENV
-              value: test
-          command: [ "/bin/bash", "-c", "--" ]
-          args: [ "while true; do sleep 30; done;" ]
+              env:
+              - name: TEST_ENV
+                value: test
+              command: [ "/bin/bash", "-c", "--" ]
+              args: [ "while true; do sleep 30; done;" ]
 `
 
 		var appConfigStr = `
@@ -108,8 +122,8 @@ spec:
             spec:
               replicaCount: 2
               workloadRef:
-                apiVersion: core.oam.dev/v1alpha2
-                kind: ContainerizedWorkload
+                apiVersion: apps/v1
+                kind: Deployment
                 name: backend
 `
 
@@ -192,8 +206,8 @@ spec:
 			Spec: v1alpha2.ManualScalerTraitSpec{
 				ReplicaCount: 3,
 				WorkloadReference: corev1.ObjectReference{
-					APIVersion: "core.oam.dev/v1alpha2",
-					Kind:       "ContainerizedWorkload",
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
 					Name:       componentName,
 				},
 			},

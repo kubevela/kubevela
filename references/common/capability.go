@@ -42,7 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/apiserver/apis"
+	"github.com/oam-dev/kubevela/references/apis"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 

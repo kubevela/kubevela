@@ -102,6 +102,8 @@ func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
 func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {
 	return ref1.Cluster == ref2.Cluster &&
 		ref1.Namespace == ref2.Namespace &&
+		ref1.APIVersion == ref2.APIVersion &&
+		ref1.Kind == ref2.Kind &&
 		ref1.Name == ref2.Name
 }
 
@@ -389,9 +391,12 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 			ComponentList:         comps,
 			RolloutPlan:           *h.app.Spec.RolloutPlan,
 		},
-		Status: h.app.Status.Rollout,
 	}
-
+	if h.app.Status.Rollout != nil {
+		appRollout.Status = *h.app.Status.Rollout
+	} else {
+		appRollout.Status = common.AppRolloutStatus{}
+	}
 	// construct a fake rollout object and call rollout.DoReconcile
 	r := applicationrollout.NewReconciler(h.r.Client, h.r.dm, h.r.pd, h.r.Recorder, h.r.Scheme, h.r.concurrentReconciles)
 	res, err := r.DoReconcile(ctx, &appRollout)
@@ -400,6 +405,6 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	}
 
 	// write back rollout status to application
-	h.app.Status.Rollout = appRollout.Status
+	h.app.Status.Rollout = &appRollout.Status
 	return res, nil
 }

@@ -47,8 +47,9 @@ import (
 
 var _ = Describe("Test Helm schematic appfile", func() {
 	var (
-		appName  = "test-app"
-		compName = "test-comp"
+		appName      = "test-app"
+		compName     = "test-comp"
+		workloadName = "test-workload"
 	)
 
 	It("Test generate AppConfig resources from Helm schematic", func() {
@@ -63,7 +64,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 			},
 			Workloads: []*Workload{
 				{
-					Name:               compName,
+					Name:               workloadName,
 					Type:               "webapp-chart",
 					CapabilityCategory: oamtypes.HelmCategory,
 					Params: map[string]interface{}{
@@ -123,7 +124,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 		Expect(err).To(BeNil())
 
 		expectCompManifest := &oamtypes.ComponentManifest{
-			Name: compName,
+			Name: workloadName,
 			StandardWorkload: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"apiVersion": "apps/v1",
@@ -240,7 +241,6 @@ spec:
 			},
 			Workloads: []*Workload{
 				{
-					Name:               compName,
 					Type:               "kube-worker",
 					CapabilityCategory: oamtypes.KubeCategory,
 					Params: map[string]interface{}{
@@ -907,6 +907,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		writeConnectionSecretToRef *terraformtypes.SecretReference
 		json                       string
 		hcl                        string
+		remote                     string
 		params                     map[string]interface{}
 	}
 
@@ -938,6 +939,15 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		"valid hcl workload": {
 			args: args{
 				hcl: "abc",
+				params: map[string]interface{}{"acl": "private",
+					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
+				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
+			},
+			want: want{err: nil}},
+
+		"remote hcl workload": {
+			args: args{
+				remote: "https://xxx/a.git",
 				params: map[string]interface{}{"acl": "private",
 					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
 				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
@@ -994,7 +1004,20 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
 			}
 		}
-		if tc.args.hcl == "" && tc.args.json == "" {
+		if tc.args.remote != "" {
+			template = &Template{
+				Terraform: &common.Terraform{
+					Configuration: tc.args.remote,
+					Type:          "remote",
+				},
+			}
+			configSpec = terraformapi.ConfigurationSpec{
+				Remote:                           tc.args.remote,
+				Variable:                         raw,
+				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+			}
+		}
+		if tc.args.hcl == "" && tc.args.json == "" && tc.args.remote == "" {
 			template = &Template{
 				Terraform: &common.Terraform{},
 			}

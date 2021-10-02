@@ -176,98 +176,6 @@ func TestLocateParentAppConfig(t *testing.T) {
 	}
 }
 
-func TestFetchWorkloadTraitReference(t *testing.T) {
-
-	t.Log("Setting up variables")
-	noRefNameTrait := v1alpha2.ManualScalerTrait{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-			Kind:       v1alpha2.ManualScalerTraitKind,
-		},
-		Spec: v1alpha2.ManualScalerTraitSpec{
-			ReplicaCount: 3,
-			WorkloadReference: corev1.ObjectReference{
-				APIVersion: "apiversion",
-				Kind:       "Kind",
-			},
-		},
-	}
-	// put the workload name back
-	manualScalar := noRefNameTrait
-	manualScalar.Spec.WorkloadReference.Name = "wokload-example"
-	ctx := context.Background()
-	wl := v1alpha2.ContainerizedWorkload{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-			Kind:       v1alpha2.ContainerizedWorkloadKind,
-		},
-	}
-	uwl, _ := util.Object2Unstructured(wl)
-	refErr := errors.New("no workload reference")
-	workloadErr := fmt.Errorf("workload errr")
-
-	type fields struct {
-		trait   oam.Trait
-		getFunc test.ObjectFn
-	}
-	type want struct {
-		wl  *unstructured.Unstructured
-		err error
-	}
-	cases := map[string]struct {
-		fields fields
-		want   want
-	}{
-		"FetchWorkload fail with mal-structured workloadRef": {
-			fields: fields{
-				trait: &noRefNameTrait,
-			},
-			want: want{
-				wl:  nil,
-				err: refErr,
-			},
-		},
-		"FetchWorkload fails when getWorkload fails": {
-			fields: fields{
-				trait: &manualScalar,
-				getFunc: func(obj client.Object) error {
-					return workloadErr
-				},
-			},
-			want: want{
-				wl:  nil,
-				err: workloadErr,
-			},
-		},
-		"FetchWorkload succeeds when getWorkload succeeds": {
-			fields: fields{
-				trait: &manualScalar,
-				getFunc: func(obj client.Object) error {
-					o, _ := obj.(*unstructured.Unstructured)
-					*o = *uwl
-					return nil
-				},
-			},
-			want: want{
-				wl:  uwl,
-				err: nil,
-			},
-		},
-	}
-	for name, tc := range cases {
-		tclient := test.NewMockClient()
-		tclient.MockGet = test.NewMockGetFn(nil, tc.fields.getFunc)
-		gotWL, err := util.FetchWorkload(ctx, tclient, tc.fields.trait)
-		t.Log(fmt.Sprint("Running test: ", name))
-		if tc.want.err == nil {
-			assert.NoError(t, err)
-		} else {
-			assert.Equal(t, tc.want.err.Error(), err.Error())
-		}
-		assert.Equal(t, tc.want.wl, gotWL)
-	}
-}
-
 func TestScopeRelatedUtils(t *testing.T) {
 
 	ctx := context.Background()
@@ -467,20 +375,36 @@ func TestUtils(t *testing.T) {
 	ctx := context.Background()
 	namespace := "oamNS"
 	workloadName := "oamWorkload"
-	workloadKind := "ContainerizedWorkload"
-	workloadAPIVersion := "core.oam.dev/v1"
-	workloadDefinitionName := "containerizedworkloads.core.oam.dev"
+	imageV1 := "wordpress:4.6.1-apache"
+	workloadDefinitionName := "deployments.apps"
 	var workloadUID types.UID = "oamWorkloadUID"
 
-	// workload CR
-	workload := v1alpha2.ContainerizedWorkload{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      workloadName,
-			Namespace: namespace,
-		},
+	workload := appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: workloadAPIVersion,
-			Kind:       workloadKind,
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      workloadName,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "wordpress",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "wordpress",
+							Image: imageV1,
+						},
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "wordpress"}},
+			},
 		},
 	}
 	workload.SetUID(workloadUID)
@@ -547,188 +471,6 @@ func TestUtils(t *testing.T) {
 
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.wld, got)
-	}
-}
-
-func TestChildResources(t *testing.T) {
-	var workloadUID types.UID = "oamWorkloadUID"
-	workloadDefinitionName := "containerizedworkloads.core.oam.dev"
-	namespace := "oamNS"
-	workloadName := "oamWorkload"
-	workloadKind := "ContainerizedWorkload"
-	workloadAPIVersion := "core.oam.dev/v1"
-	// workload CR
-	workload := v1alpha2.ContainerizedWorkload{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      workloadName,
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: workloadAPIVersion,
-			Kind:       workloadKind,
-		},
-	}
-	workload.SetUID(workloadUID)
-	unstructuredWorkload, _ := util.Object2Unstructured(workload)
-	ctx := context.Background()
-	getErr := fmt.Errorf("get failed")
-	// workload Definition
-	workloadDefinition := v1alpha2.WorkloadDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: workloadDefinitionName,
-		},
-		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: common.DefinitionReference{
-				Name: workloadDefinitionName,
-			},
-		},
-	}
-
-	crkl := []common.ChildResourceKind{
-		{
-			Kind:       "Deployment",
-			APIVersion: "apps/v1",
-		},
-		{
-			Kind:       "Service",
-			APIVersion: "v1",
-		},
-	}
-	// cdResource is the child deployment owned by the workload
-	cdResource := unstructured.Unstructured{}
-	cdResource.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			Kind: util.KindDeployment,
-			UID:  workloadUID,
-		},
-	})
-	// cdResource is the child service owned by the workload
-	cSResource := unstructured.Unstructured{}
-	cSResource.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			Kind: util.KindService,
-			UID:  workloadUID,
-		},
-	})
-	// oResource is not owned by the workload
-	oResource := unstructured.Unstructured{}
-	oResource.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			UID: "NotWorkloadUID",
-		},
-	})
-	var nilListFunc test.ObjectListFn = func(o client.ObjectList) error {
-		u := &unstructured.Unstructured{}
-		l := o.(*unstructured.UnstructuredList)
-		l.Items = []unstructured.Unstructured{*u}
-		return nil
-	}
-	type fields struct {
-		getFunc  test.ObjectFn
-		listFunc test.ObjectListFn
-	}
-	type want struct {
-		crks []*unstructured.Unstructured
-		err  error
-	}
-
-	cases := map[string]struct {
-		fields fields
-		want   want
-	}{
-		"FetchWorkloadChildResources fail when getWorkloadDefinition fails": {
-			fields: fields{
-				getFunc: func(obj client.Object) error {
-					return getErr
-				},
-				listFunc: nilListFunc,
-			},
-			want: want{
-				crks: nil,
-				err:  getErr,
-			},
-		},
-		"FetchWorkloadChildResources return nothing when the workloadDefinition doesn't have child list": {
-			fields: fields{
-				getFunc: func(obj client.Object) error {
-					o, _ := obj.(*v1alpha2.WorkloadDefinition)
-					*o = workloadDefinition
-					return nil
-				},
-				listFunc: nilListFunc,
-			},
-			want: want{
-				crks: nil,
-				err:  nil,
-			},
-		},
-		"FetchWorkloadChildResources Success": {
-			fields: fields{
-				getFunc: func(obj client.Object) error {
-					o, _ := obj.(*v1alpha2.WorkloadDefinition)
-					w := workloadDefinition
-					w.Spec.ChildResourceKinds = crkl
-					*o = w
-					return nil
-				},
-				listFunc: func(o client.ObjectList) error {
-					l := o.(*unstructured.UnstructuredList)
-					switch l.GetKind() {
-					case util.KindDeployment:
-						l.Items = append(l.Items, cdResource)
-					case util.KindService:
-						l.Items = append(l.Items, cSResource)
-					default:
-						return getErr
-					}
-					return nil
-				},
-			},
-			want: want{
-				crks: []*unstructured.Unstructured{
-					&cdResource, &cSResource,
-				},
-				err: nil,
-			},
-		},
-		"FetchWorkloadChildResources with many resources only pick the child one": {
-			fields: fields{
-				getFunc: func(obj client.Object) error {
-					o, _ := obj.(*v1alpha2.WorkloadDefinition)
-					w := workloadDefinition
-					w.Spec.ChildResourceKinds = crkl
-					*o = w
-					return nil
-				},
-				listFunc: func(o client.ObjectList) error {
-					l := o.(*unstructured.UnstructuredList)
-					l.Items = []unstructured.Unstructured{oResource, oResource, oResource, oResource,
-						oResource, oResource, oResource}
-					if l.GetKind() == util.KindDeployment {
-						l.Items = append(l.Items, cdResource)
-					} else if l.GetKind() != util.KindService {
-						return getErr
-					}
-					return nil
-				},
-			},
-			want: want{
-				crks: []*unstructured.Unstructured{
-					&cdResource,
-				},
-				err: nil,
-			},
-		},
-	}
-	for name, tc := range cases {
-		tclient := test.MockClient{
-			MockGet:  test.NewMockGetFn(nil, tc.fields.getFunc),
-			MockList: test.NewMockListFn(nil, tc.fields.listFunc),
-		}
-		got, err := util.FetchWorkloadChildResources(ctx, &tclient, mock.NewMockDiscoveryMapper(), unstructuredWorkload)
-		t.Log(fmt.Sprint("Running test: ", name))
-		assert.Equal(t, tc.want.err, err)
-		assert.Equal(t, tc.want.crks, got)
 	}
 }
 

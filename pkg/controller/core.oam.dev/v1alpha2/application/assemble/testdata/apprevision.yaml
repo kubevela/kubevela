@@ -36,14 +36,7 @@ spec:
         - properties:
             replicas: 3
           type: manualscaler
-    status:
-      rollout:
-        batchRollingState: ""
-        currentBatch: 0
-        lastTargetAppRevision: ""
-        rollingState: ""
-        upgradedReadyReplicas: 0
-        upgradedReplicas: 0
+    status: {}
   componentDefinitions:
     webservice:
       apiVersion: core.oam.dev/v1beta1

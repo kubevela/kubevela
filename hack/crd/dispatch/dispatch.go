@@ -26,22 +26,27 @@ import (
 
 var (
 	common = map[string]bool{"workloaddefinitions": true, "traitdefinitions": true, "scopedefinitions": true, "healthscopes": true,
-		"manualscalertraits": true, "containerizedworkloads": true}
+		"manualscalertraits": true}
 	oldCRD = map[string]bool{"components": true, "applicationconfigurations": true}
 	// when controller need to run in runtime cluster, just add them in this map, key=crdName, value=subPath
 	runtimeCRD = map[string]string{"rollouts": "rollout"}
+	minimalCRD = map[string]bool{"applicationrevisions": true, "applications": true, "definitionrevisions": true, "healthscopes": true,
+		"policydefinitions": true, "resourcetrackers": true, "scopedefinitions": true, "traitdefinitions": true, "workflowstepdefinitions": true,
+		"workloaddefinitions": true, "rollouts": true}
 )
 
 func main() {
 	var dir string
 	var oldDir string
 	var newDir string
+	var minimalDir string
 	var runtimeDir string
 	if len(os.Args) > 2 {
 		dir = os.Args[1]
 		newDir = os.Args[2]
 		oldDir = os.Args[3]
 		runtimeDir = os.Args[4]
+		minimalDir = os.Args[5]
 	} else {
 		log.Fatal(fmt.Errorf("not enough args"))
 	}
@@ -58,6 +63,14 @@ func main() {
 		pathNew := fmt.Sprintf("%s/%s", newDir, fileName)
 		/* #nosec */
 		if err := os.WriteFile(pathNew, data, 0644); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	writeMinimal := func(fileName string, data []byte) {
+		pathMinimal := fmt.Sprintf("%s/%s", minimalDir, fileName)
+		/* #nosec */
+		if err := os.WriteFile(pathMinimal, data, 0644); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -87,6 +100,9 @@ func main() {
 		}
 		if common[resourceName] {
 			writeOld(info.Name(), data)
+		}
+		if minimalCRD[resourceName] {
+			writeMinimal(info.Name(), data)
 		}
 		if subPath, exist := runtimeCRD[resourceName]; exist {
 			writeRuntime(subPath, info.Name(), data)

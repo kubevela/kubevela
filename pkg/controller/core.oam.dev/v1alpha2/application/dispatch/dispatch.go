@@ -346,7 +346,7 @@ func setOrOverrideOAMControllerOwner(obj ObjectOwner, controllerOwner metav1.Own
 			continue
 		}
 		// delete the old appContext owner
-		if owner.Kind == v1alpha2.ApplicationContextKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+		if owner.Kind == "ApplicationContext" && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
 			continue
 		}
 		if owner.Controller != nil && *owner.Controller &&

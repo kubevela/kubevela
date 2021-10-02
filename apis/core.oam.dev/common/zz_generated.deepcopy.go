@@ -44,7 +44,11 @@ func (in *AppRolloutStatus) DeepCopy() *AppRolloutStatus {
 func (in *AppStatus) DeepCopyInto(out *AppStatus) {
 	*out = *in
 	in.ConditionedStatus.DeepCopyInto(&out.ConditionedStatus)
-	in.Rollout.DeepCopyInto(&out.Rollout)
+	if in.Rollout != nil {
+		in, out := &in.Rollout, &out.Rollout
+		*out = new(AppRolloutStatus)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Components != nil {
 		in, out := &in.Components, &out.Components
 		*out = make([]v1.ObjectReference, len(*in))
@@ -93,6 +97,11 @@ func (in *AppStatus) DeepCopy() *AppStatus {
 func (in *ApplicationComponent) DeepCopyInto(out *ApplicationComponent) {
 	*out = *in
 	in.Properties.DeepCopyInto(&out.Properties)
+	if in.DependsOn != nil {
+		in, out := &in.DependsOn, &out.DependsOn
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Inputs != nil {
 		in, out := &in.Inputs, &out.Inputs
 		*out = make(StepInputs, len(*in))

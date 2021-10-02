@@ -64,16 +64,6 @@ func (cm *Component) SetConditions(c ...condition.Condition) {
 	cm.Status.SetConditions(c...)
 }
 
-// GetCondition of this ContainerizedWorkload.
-func (wl *ContainerizedWorkload) GetCondition(ct condition.ConditionType) condition.Condition {
-	return wl.Status.GetCondition(ct)
-}
-
-// SetConditions of this ContainerizedWorkload.
-func (wl *ContainerizedWorkload) SetConditions(c ...condition.Condition) {
-	wl.Status.SetConditions(c...)
-}
-
 // GetCondition of this HealthScope.
 func (hs *HealthScope) GetCondition(ct condition.ConditionType) condition.Condition {
 	return hs.Status.GetCondition(ct)

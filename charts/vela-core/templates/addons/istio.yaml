@@ -17,7 +17,7 @@ data:
             properties:
               chart: istio
               repoType: helm
-              url: https://getindata.github.io/helm-charts/
+              url: https://charts.kubevela.net/addons
               version: 1.11.1
             type: helm
           - name: canary-rollout
@@ -229,14 +229,7 @@ data:
                       {\"app.oam.dev/revision\": context.revision}\n          }]\n       }\n}\n\nparameter:
                       {\n   port: [int]\n} \n"
             type: raw
-        status:
-          rollout:
-            batchRollingState: ""
-            currentBatch: 0
-            lastTargetAppRevision: ""
-            rollingState: ""
-            upgradedReadyReplicas: 0
-            upgradedReplicas: 0
+        status: {}
       dependsOn:
       - ref:
           apiVersion: core.oam.dev/v1beta1

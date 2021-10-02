@@ -350,9 +350,11 @@ func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {
 }
 
 func (af *Appfile) assembleWorkload(wl *unstructured.Unstructured, compName string, labels map[string]string) {
-	// use component name as workload name
-	// override the name set in render phase if exist
-	wl.SetName(compName)
+	// use component name as workload name if workload name is not specified
+	// don't override the name set in render phase if exist
+	if len(wl.GetName()) == 0 {
+		wl.SetName(compName)
+	}
 	af.setNamespace(wl)
 	af.setWorkloadLabels(wl, labels)
 	af.filterAndSetAnnotations(wl)
@@ -665,6 +667,8 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration
 	case "json":
 		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
+	case "remote":
+		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
 	}
 
 	// 1. parse writeConnectionSecretToRef

@@ -25,7 +25,7 @@ data:
               kind: TraitDefinition
               metadata:
                 annotations:
-                  definition.oam.dev/description: Add a datasource to Grafana
+                  definition.oam.dev/description: Import dashboards to Grafana
                 name: import-grafana-dashboard
                 namespace: vela-system
               spec:
@@ -107,14 +107,7 @@ data:
                       | string\n\tservice:                   string\n\tnamespace:                 *\"default\"
                       | string\n}\n"
             type: raw
-        status:
-          rollout:
-            batchRollingState: ""
-            currentBatch: 0
-            lastTargetAppRevision: ""
-            rollingState: ""
-            upgradedReadyReplicas: 0
-            upgradedReplicas: 0
+        status: {}
     status:
       observedGeneration: 0
 kind: ConfigMap

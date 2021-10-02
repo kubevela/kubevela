@@ -16,13 +16,6 @@ spec:
           metadata:
             name: istio-system
         type: raw
-    status:
-      rollout:
-        batchRollingState: ""
-        currentBatch: 0
-        lastTargetAppRevision: ""
-        rollingState: ""
-        upgradedReadyReplicas: 0
-        upgradedReplicas: 0
+    status: {}
 status:
   observedGeneration: 0

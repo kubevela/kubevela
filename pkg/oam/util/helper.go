@@ -173,20 +173,6 @@ func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject 
 				return eventObj, nil
 			}
 		}
-		if o.Kind == v1alpha2.ApplicationContextKind {
-			var eventObj = &v1alpha2.ApplicationContext{}
-			appName := o.Name
-			if len(appName) > 0 {
-				nn := types.NamespacedName{
-					Name:      appName,
-					Namespace: oamObject.GetNamespace(),
-				}
-				if err := client.Get(ctx, nn, eventObj); err != nil {
-					return nil, err
-				}
-				return eventObj, nil
-			}
-		}
 	}
 	return nil, errors.Errorf(ErrLocateAppConfig)
 }

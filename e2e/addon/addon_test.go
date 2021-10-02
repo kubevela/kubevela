@@ -168,14 +168,7 @@ data:
               repoType: helm
               url: [[ index .Args "url" ]]
             type: helm
-        status:
-          rollout:
-            batchRollingState: ""
-            currentBatch: 0
-            lastTargetAppRevision: ""
-            rollingState: ""
-            upgradedReadyReplicas: 0
-            upgradedReplicas: 0
+        status: {}
       dependsOn:
       - ref:
           apiVersion: core.oam.dev/v1beta1

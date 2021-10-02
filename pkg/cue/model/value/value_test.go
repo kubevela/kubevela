@@ -717,3 +717,147 @@ y: "100"
 y: *"100" | _
 `)
 }
+
+func TestFillByScript(t *testing.T) {
+	testCases := []struct {
+		name     string
+		raw      string
+		path     string
+		v        string
+		expected string
+	}{
+		{
+			name: "insert array",
+			raw:  `a: b: [{x: 100},...]`,
+			path: "a.b[1]",
+			v:    `{name: "foo"}`,
+			expected: `a: {
+	b: [{
+		x: 100
+	}, {
+		name: "foo"
+	}]
+}
+`,
+		},
+		{
+			name: "insert nest array ",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.b[0].x.y[0].value",
+			v:    `"foo"`,
+			expected: `a: {
+	b: [{
+		x: {
+			y: [{
+				name:  "key"
+				value: "foo"
+			}]
+		}
+	}]
+}
+`,
+		},
+		{
+			name: "insert without array",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.c.x",
+			v:    `"foo"`,
+			expected: `a: {
+	b: [{
+		x: {
+			y: [{
+				name: "key"
+			}]
+		}
+	}]
+	c: {
+		x: "foo"
+	}
+}
+`,
+		},
+		{
+			name: "path with string index",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.c[\"x\"]",
+			v:    `"foo"`,
+			expected: `a: {
+	b: [{
+		x: {
+			y: [{
+				name: "key"
+			}, ...]
+		}
+	}, ...]
+	c: {
+		x: "foo"
+	}
+}
+`,
+		},
+	}
+
+	for _, tCase := range testCases {
+		v, err := NewValue(tCase.raw, nil, "")
+		assert.NilError(t, err, tCase.name)
+		val, err := v.MakeValue(tCase.v)
+		assert.NilError(t, err, tCase.name)
+		err = v.FillValueByScript(val, tCase.path)
+		assert.NilError(t, err, tCase.name)
+		s, err := v.String()
+		assert.NilError(t, err, tCase.name)
+		assert.Equal(t, s, tCase.expected, tCase.name)
+	}
+
+	errCases := []struct {
+		name string
+		raw  string
+		path string
+		v    string
+		err  string
+	}{
+		{
+			name: "invalid path",
+			raw:  `a: b: [{x: 100},...]`,
+			path: "a.b[1]+1",
+			v:    `{name: "foo"}`,
+			err:  "invalid path",
+		},
+		{
+			name: "invalid path [float]",
+			raw:  `a: b: [{x: 100},...]`,
+			path: "a.b[0.1]",
+			v:    `{name: "foo"}`,
+			err:  "invalid path",
+		},
+		{
+			name: "invalid value",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.b[0].x.y[0].value",
+			v:    `foo`,
+			err:  "remake value: a.b.x.y.value: reference \"foo\" not found",
+		},
+		{
+			name: "conflict merge",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.b[0].x.y[0].name",
+			v:    `"foo"`,
+			err:  "a.b.0.x.y.0.name: conflicting values \"key\" and \"foo\"",
+		},
+		{
+			name: "filled value with wrong cue format",
+			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
+			path: "a.b[0].x.y[0].value",
+			v:    `*+-`,
+			err:  "remake value: expected operand, found '}'",
+		},
+	}
+
+	for _, errCase := range errCases {
+		v, err := NewValue(errCase.raw, nil, "")
+		assert.NilError(t, err, errCase.name)
+		err = v.fillRawByScript(errCase.v, errCase.path)
+		assert.Equal(t, errCase.err, err.Error(), errCase.name)
+	}
+
+}

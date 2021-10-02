@@ -17,6 +17,7 @@ limitations under the License.
 package hooks
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -27,14 +28,24 @@ import (
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
+const (
+	// ReadyComponent is the key for depends on in workflow context
+	ReadyComponent = "readyComponent__"
+)
+
 // Input set data to parameter.
 func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.WorkflowStep) error {
+	for _, depend := range step.DependsOn {
+		if _, err := ctx.GetVar(ReadyComponent, depend); err != nil {
+			return errors.WithMessagef(err, "the depends on component [%s] is not ready", depend)
+		}
+	}
 	for _, input := range step.Inputs {
 		inputValue, err := ctx.GetVar(strings.Split(input.From, ".")...)
 		if err != nil {
 			return errors.WithMessagef(err, "get input from [%s]", input.From)
 		}
-		if err := paramValue.FillObject(inputValue, strings.Split(input.ParameterKey, ".")...); err != nil {
+		if err := paramValue.FillValueByScript(inputValue, input.ParameterKey); err != nil {
 			return err
 		}
 	}
@@ -44,6 +55,25 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 // Output get data from task value.
 func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error {
 	if phase == common.WorkflowStepPhaseSucceeded {
+		ready, err := value.NewValue(`true`, nil, "")
+		if err != nil {
+			return err
+		}
+
+		o := struct {
+			Name string `json:"name"`
+		}{}
+		js, err := step.Properties.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(js, &o); err != nil {
+			return err
+		}
+		if err := ctx.SetVar(ready, ReadyComponent, o.Name); err != nil {
+			return err
+		}
+
 		for _, output := range step.Outputs {
 			v, err := taskValue.LookupByScript(output.ValueFrom)
 			if err != nil {

@@ -19,7 +19,7 @@ package common
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/references/apiserver/apis"
+	"github.com/oam-dev/kubevela/references/apis"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

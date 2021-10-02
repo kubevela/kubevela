@@ -5,7 +5,7 @@ data:
     kind: Initializer
     metadata:
       annotations:
-        addons.oam.dev/description: terraform provider (alibaba)
+        addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
         addons.oam.dev/name: terraform/provider-alibaba
       name: terraform-provider-alibaba
       namespace: default
@@ -18,7 +18,7 @@ data:
               apiVersion: v1
               kind: Secret
               metadata:
-                name: alibaba-provider-secret
+                name: alibaba-account-creds
                 namespace: vela-system
               stringData:
                 credentials: |
@@ -44,20 +44,13 @@ data:
                 provider: alibaba
                 region: '[[ index .Args "ALICLOUD_REGION" ]]'
             type: raw
-        status:
-          rollout:
-            batchRollingState: ""
-            currentBatch: 0
-            lastTargetAppRevision: ""
-            rollingState: ""
-            upgradedReadyReplicas: 0
-            upgradedReplicas: 0
+        status: {}
     status:
       observedGeneration: 0
 kind: ConfigMap
 metadata:
   annotations:
-    addons.oam.dev/description: terraform provider (alibaba)
+    addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
     addons.oam.dev/name: terraform/provider-alibaba
   labels:
     addons.oam.dev/type: terraform-provider-alibaba

@@ -1,0 +1,64 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-app
+  namespace: default
+spec:
+  components:
+    - name: hello-world-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
+    - name: data-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
+  policies:
+    - name: example-multi-env-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: staging
+            placement: # selecting the cluster to deploy to
+              clusterSelector:
+                name: local
+            selector:
+              components:
+                - data-worker
+
+          - name: prod
+            placement:
+              clusterSelector:
+                name: cluster-worker
+            patch: # overlay patch on above components
+              components:
+                - name: hello-world-server
+                  type: webservice
+                  traits:
+                    - type: scaler
+                      properties:
+                        replicas: 3
+
+  workflow:
+    steps:
+      # deploy to staging env
+      - name: deploy-staging
+        type: deploy2env
+        properties:
+          policy: example-multi-env-policy
+          env: staging
+
+      # deploy to prod env
+      - name: deploy-prod
+        type: deploy2env
+        properties:
+          policy: example-multi-env-policy
+          env: prod

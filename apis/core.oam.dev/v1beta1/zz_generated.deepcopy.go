@@ -1451,6 +1451,11 @@ func (in *Workflow) DeepCopy() *Workflow {
 func (in *WorkflowStep) DeepCopyInto(out *WorkflowStep) {
 	*out = *in
 	in.Properties.DeepCopyInto(&out.Properties)
+	if in.DependsOn != nil {
+		in, out := &in.DependsOn, &out.DependsOn
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Inputs != nil {
 		in, out := &in.Inputs, &out.Inputs
 		*out = make(common.StepInputs, len(*in))

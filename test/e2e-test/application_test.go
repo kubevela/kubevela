@@ -248,6 +248,7 @@ var _ = Describe("Application Normal tests", func() {
 		firstApp.Name = "first-app"
 		Expect(k8sClient.Create(ctx, &firstApp)).Should(BeNil())
 
+		time.Sleep(time.Second)
 		var secondApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app9.yaml", &secondApp)).Should(BeNil())
 		secondApp.Namespace = namespaceName

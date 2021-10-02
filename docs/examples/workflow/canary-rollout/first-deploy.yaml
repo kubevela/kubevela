@@ -1,44 +1,46 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: rollout-test
+  name: canary-test
   namespace: default
 spec:
   components:
-    - name: back-end
+    - name: canarydemo
       type: webservice
       properties:
-        image: httpd:2.4.48
-        port: 80
+        image: docker.io/barnett/canarydemo:v1
+        port: 8090
 
       traits:
+        - type: canary-traffic
+          properties:
+            port:
+              - 8090
+
         - type: rollout
           properties:
             targetSize: 2
+            # This means to rollout two more replicas in two batches.
             rolloutBatches:
               - replicas: 2
 
+    - name: gateway
+      type: webservice
+      properties:
+        image: docker.io/barnett/canarydemo-gateway:v2
+        port: 8091
+
+      traits:
         - type: expose
           properties:
             port:
-            - 80
+              - 8091
 
-        - type: traffic-gateway
+        - type: istio-gateway
           properties:
             hosts:
-              - back-end.example.com
-            gateways: ingressgateway   # use istio default gateway
-
-
-
-  workflow:
-    steps:
-      - name: deploy
-        type: canary-rollout
-        properties:
-          batchPartition: 0
-          traffic:
-            weightedTargets:
-              - revision: back-end-v1
-                port: 80
-                weight: 100 # 100% shift to new version
+              - "*"
+            gateway: ingressgateway
+            match:
+              - exact: /server
+            port: 8091

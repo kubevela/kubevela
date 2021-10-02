@@ -57,6 +57,8 @@ type WorkflowStep struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
+	DependsOn []string `json:"dependsOn,omitempty"`
+
 	Inputs common.StepInputs `json:"inputs,omitempty"`
 
 	Outputs common.StepOutputs `json:"outputs,omitempty"`

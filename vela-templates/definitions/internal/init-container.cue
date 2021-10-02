@@ -20,9 +20,15 @@ template: {
 			}]
 		}]
 		initContainers: [{
-			name:    parameter.name
-			image:   parameter.image
-			command: parameter.command
+			name:  parameter.name
+			image: parameter.image
+			if parameter.cmd != _|_ {
+				command: parameter.cmd
+			}
+			if parameter.args != _|_ {
+				args: parameter.args
+			}
+
 			// +patchKey=name
 			volumeMounts: [{
 				name:      parameter.mountName
@@ -36,11 +42,25 @@ template: {
 		}]
 	}
 	parameter: {
-		name:  string
+		// +usage=Specify the name of init container
+		name: string
+
+		// +usage=Specify the image of init container
 		image: string
-		command?: [...string]
-		mountName:     *"workdir" | string
-		appMountPath:  string
+
+		// +usage=Specify the commands run in the init container
+		cmd?: [...string]
+
+		// +usage=Specify the args run in the init container
+		args?: [...string]
+
+		// +usage=Specify the mount name of shared volume
+		mountName: *"workdir" | string
+
+		// +usage=Specify the mount path of app container
+		appMountPath: string
+
+		// +usage=Specify the mount path of init container
 		initMountPath: string
 	}
 }

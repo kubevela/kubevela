@@ -502,14 +502,7 @@ data:
                         runAsNonRoot: true
                     serviceAccountName: cluster-manager-service-account
             type: raw
-        status:
-          rollout:
-            batchRollingState: ""
-            currentBatch: 0
-            lastTargetAppRevision: ""
-            rollingState: ""
-            upgradedReadyReplicas: 0
-            upgradedReplicas: 0
+        status: {}
     status:
       observedGeneration: 0
 kind: ConfigMap

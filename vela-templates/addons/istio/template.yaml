@@ -24,7 +24,7 @@ spec:
           type: helm
           properties:
             repoType: helm
-            url: https://getindata.github.io/helm-charts/
+            url:  https://charts.kubevela.net/addons
             chart: istio
             version: 1.11.1
 {{ range .ResourceFiles }}

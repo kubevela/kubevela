@@ -133,19 +133,8 @@ func (h *handler) applyTargetWorkload(ctx context.Context) error {
 // handleFinalizeSucceed gc source workload if target and source are not same one
 func (h *handler) handleFinalizeSucceed(ctx context.Context) error {
 	// patch target workload to pass rollout owner to workload
-	targetWl := h.targetWorkload.DeepCopy()
-	if err := h.Get(ctx, types.NamespacedName{Namespace: targetWl.GetNamespace(), Name: targetWl.GetName()}, targetWl); err != nil {
-		return errors.Wrap(err, "fail to get targetWorkload")
-	}
-	wlPatch := client.MergeFrom(targetWl.DeepCopy())
-	h.passOwnerToTargetWorkload(targetWl)
-	if err := h.Patch(ctx, targetWl, wlPatch); err != nil {
-		return errors.Wrap(err, "fail to patch workload to pass rollout owners to workload")
-	}
-
-	// recode targetWorkload
-	if err := h.recordWorkloadInResourceTracker(ctx); err != nil {
-		return errors.Wrap(err, "fail to add resourceTracker as owner for workload")
+	if err := h.passResourceTrackerToWorkload(ctx, h.targetWorkload); err != nil {
+		return errors.Wrap(err, "fail to pass resourceTracker to target workload")
 	}
 
 	if h.sourceWorkload != nil && (h.sourceWorkload.GetName() != h.targetWorkload.GetName()) {
@@ -155,6 +144,45 @@ func (h *handler) handleFinalizeSucceed(ctx context.Context) error {
 		klog.InfoS("gc rollout source workload", "namespace", h.rollout.Namespace,
 			"rollout", h.rollout.Name, "sourceWorkload", h.sourceWorkload.GetName())
 	}
+	return nil
+}
+
+func (h *handler) handleFinalizeFailed(ctx context.Context) error {
+	if err := h.passResourceTrackerToWorkload(ctx, h.targetWorkload); err != nil {
+		return errors.Wrap(err, "fail to pass resourceTracker to target workload")
+	}
+
+	// patch target workload to pass rollout owner to source workload
+	if h.sourceWorkload != nil && (h.sourceWorkload.GetName() != h.targetWorkload.GetName()) {
+
+		if err := h.passResourceTrackerToWorkload(ctx, h.sourceWorkload); err != nil {
+			return errors.Wrap(err, "fail to pass resourceTracker to source workload")
+		}
+
+		klog.Info("rollout failed set resourceTracker as source Workload's owner", "namespace", h.rollout.Namespace,
+			"rollout", h.rollout.Name, "sourceWorkload", h.sourceWorkload.GetName())
+	}
+
+	return nil
+}
+
+func (h *handler) passResourceTrackerToWorkload(ctx context.Context, workload *unstructured.Unstructured) error {
+	// patch target workload to pass rollout owner to workload
+	wl := workload.DeepCopy()
+	if err := h.Get(ctx, types.NamespacedName{Namespace: wl.GetNamespace(), Name: wl.GetName()}, wl); err != nil {
+		return errors.Wrap(err, "fail to get targetWorkload")
+	}
+	wlPatch := client.MergeFrom(wl.DeepCopy())
+	h.passOwnerToTargetWorkload(wl)
+	if err := h.Patch(ctx, wl, wlPatch); err != nil {
+		return errors.Wrap(err, "fail to patch workload to pass rollout owners to workload")
+	}
+
+	// recode targetWorkload
+	if err := h.recordWorkloadInResourceTracker(ctx, workload); err != nil {
+		return errors.Wrap(err, "fail to add resourceTracker as owner for workload")
+	}
+
 	return nil
 }
 
@@ -248,7 +276,7 @@ func (h *handler) isRolloutModified(rollout v1alpha1.Rollout) bool {
 				rollout.Status.RolloutTargetSize != *rollout.Spec.RolloutPlan.TargetSize))
 }
 
-func (h *handler) recordWorkloadInResourceTracker(ctx context.Context) error {
+func (h *handler) recordWorkloadInResourceTracker(ctx context.Context, workload *unstructured.Unstructured) error {
 	var resourceTrackerName string
 	for _, reference := range h.rollout.OwnerReferences {
 		if reference.Kind == v1beta1.ResourceTrackerKind && reference.APIVersion == v1beta1.SchemeGroupVersion.String() {
@@ -265,11 +293,11 @@ func (h *handler) recordWorkloadInResourceTracker(ctx context.Context) error {
 		return err
 	}
 	recordedWorkload := corev1.ObjectReference{
-		APIVersion: h.targetWorkload.GetAPIVersion(),
-		Kind:       h.targetWorkload.GetKind(),
-		UID:        h.targetWorkload.GetUID(),
-		Namespace:  h.targetWorkload.GetNamespace(),
-		Name:       h.targetWorkload.GetName(),
+		APIVersion: workload.GetAPIVersion(),
+		Kind:       workload.GetKind(),
+		UID:        workload.GetUID(),
+		Namespace:  workload.GetNamespace(),
+		Name:       workload.GetName(),
 	}
 	rt.Status.TrackedResources = append(rt.Status.TrackedResources, recordedWorkload)
 	if err := h.Status().Update(ctx, &rt); err != nil {

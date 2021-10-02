@@ -104,14 +104,16 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 			step.Inputs = append(step.Inputs, c.Inputs...)
 			for index := range step.Inputs {
 				parameterKey := strings.TrimSpace(step.Inputs[index].ParameterKey)
-				if !strings.HasPrefix(parameterKey, "properties") {
+				if !strings.HasPrefix(parameterKey, "properties") && !strings.HasPrefix(parameterKey, "traits[") {
 					parameterKey = "properties." + parameterKey
 				}
 				step.Inputs[index].ParameterKey = parameterKey
 			}
 			step.Outputs = append(step.Outputs, c.Outputs...)
+			step.DependsOn = append(step.DependsOn, c.DependsOn...)
 			c.Inputs = nil
 			c.Outputs = nil
+			c.DependsOn = nil
 			step.Properties = util.Object2RawExtension(c)
 			return nil
 		}

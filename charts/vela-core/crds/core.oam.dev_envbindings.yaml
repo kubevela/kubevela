@@ -73,6 +73,10 @@ spec:
                             description: ApplicationComponent describe the component
                               of application
                             properties:
+                              dependsOn:
+                                items:
+                                  type: string
+                                type: array
                               externalRevision:
                                 description: ExternalRevision specified the component
                                   revisionName

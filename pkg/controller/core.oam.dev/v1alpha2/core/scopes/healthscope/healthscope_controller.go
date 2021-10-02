@@ -140,8 +140,6 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 		record:       event.NewNopRecorder(),
 		traitChecker: WorkloadHealthCheckFn(CheckByHealthCheckTrait),
 		checkers: []WorloadHealthChecker{
-			WorkloadHealthCheckFn(CheckPodSpecWorkloadHealth),
-			WorkloadHealthCheckFn(CheckContainerziedWorkloadHealth),
 			WorkloadHealthCheckFn(CheckDeploymentHealth),
 			WorkloadHealthCheckFn(CheckStatefulsetHealth),
 			WorkloadHealthCheckFn(CheckDaemonsetHealth),
@@ -603,14 +601,25 @@ func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.App
 	}
 
 	if application.Status.AppliedResources != nil {
-		workloads := application.Status.AppliedResources
-		for _, wl := range workloads {
-			if wl.Creator == commonapis.WorkflowResourceCreator {
-				wlRefs = append(wlRefs, WorkloadReference{
-					ObjectReference: wl.ObjectReference,
-					clusterName:     wl.Cluster,
-					envName:         decisionsMap[wl.Cluster],
-				})
+		resources := application.Status.AppliedResources
+		for _, rs := range resources {
+			if rs.Creator == commonapis.WorkflowResourceCreator {
+				o := new(unstructured.Unstructured)
+				o.SetKind(rs.Kind)
+				o.SetAPIVersion(rs.APIVersion)
+				if err := r.client.Get(multicluster.ContextWithClusterName(ctx, rs.Cluster), client.ObjectKey{
+					Name:      rs.Name,
+					Namespace: rs.Namespace,
+				}, o); err != nil {
+					continue
+				}
+				if labels := o.GetLabels(); labels != nil && labels[oam.WorkloadTypeLabel] != "" {
+					wlRefs = append(wlRefs, WorkloadReference{
+						ObjectReference: rs.ObjectReference,
+						clusterName:     rs.Cluster,
+						envName:         decisionsMap[rs.Cluster],
+					})
+				}
 			}
 		}
 	}
