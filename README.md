@@ -16,13 +16,15 @@
 
 KubeVela is a modern application platform that makes deploying and managing applications across today's hybrid, multi-cloud environments easier and faster.
 
+![](docs/resources/arch.png)
+
 ## Features
 
 **Application Centric** - KubeVela introduces [Open Application Model (OAM)](https://oam.dev/) as the consistent yet higher level API to capture a full deployment of microservices on top of hybrid environments. Placement strategy, traffic shifting and rolling update are declared at application level. No infrastructure level concern, simply deploy.
 
-**Programmable Workflow** - KubeVela leverages [CUE](https://cuelang.org/) to implement its model layer. This allows you to declare application deployment workflow as a DAG, with all steps and application's needs glued together in programmable approach. No restrictions, natively extensible.
+**Programmable Workflow** - KubeVela models application delivery as DAG (Directed Acyclic Graph) and expresses it with [CUE](https://cuelang.org/), a modern data configuration language. This allows you to declare application deployment workflow with all steps and delivery needs assembled together in programmable approach. No restrictions, natively extensible.
 
-**Runtime Agnostic** - KubeVela works as an application delivery control plane that is fully runtime agnostic. It can deploy and manage any application components including containers, cloud functions, databases, or even EC2 instances across hybrid environments, following the workflow you defined.
+**Infrastructure Agnostic** - KubeVela works as an application delivery control plane that is fully decoupled from runtime infrastructure. Hence it can deploy and manage any application types including containers, cloud services, databases, or even EC2 instances across hybrid environments, following the workflow you designed.
 
 ## Getting Started
 
