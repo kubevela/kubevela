@@ -760,13 +760,6 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 		appRev := dispatch.ExtractAppRevisionName(rt.Name, ns)
 		usingRevision[appRev] = true
 	}
-	appRolloutRevision, err := utils.CheckAppRolloutUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
-	if err != nil {
-		return usingRevision, err
-	}
-	for _, revName := range appRolloutRevision {
-		usingRevision[revName] = true
-	}
 	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
 	if err != nil {
 		return usingRevision, err

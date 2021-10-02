@@ -41,8 +41,7 @@ type statefulSetController struct {
 // before kicking start the update and start from every pod in the old version
 func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet) (bool, error) {
 	if controller := metav1.GetControllerOf(statefulSet); controller != nil &&
-		(controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() ||
-			controller.Kind == v1alpha1.RolloutKind && controller.APIVersion == v1alpha1.SchemeGroupVersion.String()) {
+		(controller.Kind == v1alpha1.RolloutKind && controller.APIVersion == v1alpha1.SchemeGroupVersion.String()) {
 		// it's already there
 		return true, nil
 	}
