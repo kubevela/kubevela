@@ -267,7 +267,7 @@ type AppStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	Rollout AppRolloutStatus `json:"rollout,omitempty"`
+	Rollout *AppRolloutStatus `json:"rollout,omitempty"`
 
 	Phase ApplicationPhase `json:"status,omitempty"`
 

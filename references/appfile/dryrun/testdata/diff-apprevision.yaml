@@ -41,14 +41,7 @@ spec:
           image: busybox
           lives: "3"
         type: myworker
-    status:
-      rollout:
-        batchRollingState: ""
-        currentBatch: 0
-        lastTargetAppRevision: ""
-        rollingState: ""
-        upgradedReadyReplicas: 0
-        upgradedReplicas: 0
+    status: {}
   applicationConfiguration:
     apiVersion: core.oam.dev/v1alpha2
     kind: ApplicationConfiguration

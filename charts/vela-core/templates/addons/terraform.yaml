@@ -354,14 +354,7 @@ data:
                     apiVersion: terraform.core.oam.dev/v1beta1
                     kind: Configuration
             type: raw
-        status:
-          rollout:
-            batchRollingState: ""
-            currentBatch: 0
-            lastTargetAppRevision: ""
-            rollingState: ""
-            upgradedReadyReplicas: 0
-            upgradedReplicas: 0
+        status: {}
       dependsOn:
       - ref:
           apiVersion: core.oam.dev/v1beta1
