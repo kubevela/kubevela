@@ -1,0 +1,19 @@
+{{- if .Values.metrics.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "kubevela.name" . }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.metrics.type }}
+  ports:
+    - port: 8080
+      targetPort: {{ .Values.metrics.port }}
+      protocol: TCP
+      name: metrics
+  selector:
+    {{ include "kubevela.selectorLabels" . | nindent 6 }}
+
+{{- end -}}

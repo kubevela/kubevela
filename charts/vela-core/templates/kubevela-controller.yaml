@@ -103,7 +103,9 @@ spec:
           securityContext:
           {{- toYaml .Values.securityContext | nindent 12 }}
           args:
-            - "--metrics-addr=:8080"
+            {{ if .Values.metrics.enabled }}
+            - "--metrics-addr=:{{ .Values.metrics.port }}"
+            {{ end }}
             - "--enable-leader-election"
             {{ if ne .Values.logFilePath "" }}
             - "--log-file-path={{ .Values.logFilePath }}"
@@ -134,14 +136,22 @@ spec:
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
-          {{ if .Values.admissionWebhooks.enabled }}
+          {{ if or (.Values.admissionWebhooks.enabled) (.Values.metrics.enabled) }}
           ports:
+            {{ if .Values.admissionWebhooks.enabled }}
             - containerPort: {{ .Values.webhookService.port }}
               name: webhook-server
               protocol: TCP
             - containerPort: {{ .Values.healthCheck.port }}
               name: healthz
               protocol: TCP
+            {{ end }}
+            {{ if .Values.metrics.enabled }}
+            - containerPort: {{ .Values.metrics.port }}
+              name: metrics
+              protocol: TCP
+            {{ end }}
+          {{ if .Values.admissionWebhooks.enabled }}
           readinessProbe:
             httpGet:
               path: /readyz
@@ -158,6 +168,7 @@ spec:
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
               readOnly: true
+          {{ end }}
           {{ end }}
       {{ if .Values.admissionWebhooks.enabled }}
       volumes:

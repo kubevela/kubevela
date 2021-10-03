@@ -51,6 +51,11 @@ webhookService:
 healthCheck:
   port: 9440
 
+metrics:
+  enabled: false
+  type: ClusterIP
+  port: 8080
+
 nodeSelector: {}
 
 tolerations: []
