@@ -1,36 +1,37 @@
-<!--
 
-Thank you for sending a pull request! Here are some tips:
-
-1. If this is your first time, please read our contribution guide at https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md
-
-2. Ensure you include and run the appropriate tests as part of your Pull Request.
-
-3. In a new feature or configuration option, an update to the documentation is necessary. Everything related to the documentation is under the docs folder in the root of the repository.
-
-4. If the Pull Request is a work in progress, make use of GitHub's "Draft PR" feature and mark it as such.
-
-5. If you can not merge your Pull Request due to a merge conflict, Rebase it. This gets it in sync with the master branch.
-
-6. Name your PR as "<FeatureArea>: Describe your change", e.g. Application: Add health check for application.
-   If it's a fix or feature relevant for the changelog describe the user impact in the title.
-   The PR title is used to auto-generate the changelog for issues marked with the "add to changelog" label.
-
--->
-
-**What this PR does / why we need it**:
-
-**Which issue(s) this PR fixes**:
+### Description of your changes
 
 <!--
 
-- Automatically closes linked issue when the Pull Request is merged.
-
-Usage: "Fixes #<issue number>", or "Fixes (paste link of issue)"
+Briefly describe what this pull request does. We love pull requests that resolve an open KubeVela issue. If yours does, you
+can uncomment the below line to indicate which issue your PR fixes, for example
+"Fixes #500":
 
 -->
 
 Fixes #
 
-**Special notes for your reviewer**:
+I have:
 
+- [ ] Read and followed KubeVela's [contribution process](https://github.com/oam-dev/kubevela/blob/master/contribute/create-pull-request.md).
+- [ ] [Related Docs](https://github.com/oam-dev/kubevela.io) updated properly. In a new feature or configuration option, an update to the documentation is necessary. 
+- [ ] Run `make reviewable` to ensure this PR is ready for review.
+- [ ] Added `backport release-x.y` labels to auto-backport this PR if necessary.
+
+### How has this code been tested
+
+<!--
+Before reviewers can be confident in the correctness of this pull request, it
+needs to tested and shown to be correct. Briefly describe the testing that has
+already been done or which is planned for this change.
+-->
+
+
+### Special notes for your reviewer
+
+<!--
+
+Be sure to direct your reviewers'
+attention to anything that needs special consideration.
+
+-->
