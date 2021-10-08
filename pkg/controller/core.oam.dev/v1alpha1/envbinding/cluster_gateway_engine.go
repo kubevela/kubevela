@@ -89,7 +89,7 @@ func (engine *ClusterGatewayEngine) schedule(ctx context.Context, apps []*EnvBin
 		clusterName := engine.clusterDecisions[app.envConfig.Name].Cluster
 		raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(app.PatchedApp)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to convert app into unstructured")
+			return nil, errors.Wrapf(err, "failed to convert app [Env: %s](%s/%s) into unstructured", app.envConfig.Name, app.PatchedApp.Namespace, app.PatchedApp.Name)
 		}
 		patchedApp := &unstructured.Unstructured{Object: raw}
 		multicluster.SetClusterName(patchedApp, clusterName)
