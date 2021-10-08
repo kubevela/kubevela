@@ -19,7 +19,7 @@ spec:
   workflow:
     steps:
       - name: apply-pvc
-        type: apply-raw
+        type: apply-object
         properties:
           apiVersion: v1
           kind: PersistentVolumeClaim
