@@ -115,10 +115,8 @@ var _ = Describe("Test multicluster scenario", func() {
 				Expect(k8sClient.Delete(workerCtx, clusterRoleBinding)).Should(Succeed())
 			}()
 			serviceAccount = &v1.ServiceAccount{}
-			Eventually(func(g Gomega) {
-				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
-				Expect(len(serviceAccount.Secrets)).Should(Equal(1))
-			}, time.Second*30).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
+			Expect(len(serviceAccount.Secrets)).Should(Equal(1))
 			secret := &v1.Secret{}
 			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccount.Secrets[0].Name, Namespace: "kube-system"}, secret)).Should(Succeed())
 			token, ok := secret.Data["token"]
@@ -157,14 +155,10 @@ var _ = Describe("Test multicluster scenario", func() {
 
 		BeforeEach(func() {
 			hubCtx, workerCtx, namespace = initializeContextAndNamespace()
-			_, _, testNamespace = initializeContextAndNamespace()
-			_, _, prodNamespace = initializeContextAndNamespace()
 		})
 
 		AfterEach(func() {
 			cleanUpNamespace(hubCtx, workerCtx, namespace)
-			cleanUpNamespace(hubCtx, workerCtx, testNamespace)
-			cleanUpNamespace(hubCtx, workerCtx, prodNamespace)
 		})
 
 		It("Test create EnvBinding Application", func() {
