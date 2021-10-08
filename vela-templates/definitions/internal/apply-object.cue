@@ -2,7 +2,7 @@ import (
 	"vela/op"
 )
 
-"apply-raw": {
+"apply-object": {
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
