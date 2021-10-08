@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	errors2 "github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 type contextKey string
@@ -51,11 +53,6 @@ var (
 	// ClusterGatewaySecretNamespace the namespace where cluster-gateway secret locates
 	ClusterGatewaySecretNamespace string
 )
-
-// Context create context with multi-cluster
-func Context(ctx context.Context, obj *unstructured.Unstructured) context.Context {
-	return ContextWithClusterName(ctx, obj.GetLabels()[ClusterLabelKey])
-}
 
 // ContextWithClusterName create context with multi-cluster by cluster name
 func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
@@ -129,5 +126,34 @@ func Initialize(restConfig *rest.Config) error {
 	ClusterGatewaySecretNamespace = svc.Namespace
 	klog.Infof("find cluster gateway service %s/%s:%d", svc.Namespace, svc.Name, *svc.Port)
 	restConfig.Wrap(NewSecretModeMultiClusterRoundTripper)
+	if err = UpgradeExistingClusterSecret(context.Background(), c); err != nil {
+		// this error do not affect the running of current version
+		klog.ErrorS(err, "error encountered while grading existing cluster secret to the latest version")
+	}
+	return nil
+}
+
+// UpgradeExistingClusterSecret upgrade outdated cluster secrets in v1.1.1 to latest
+func UpgradeExistingClusterSecret(ctx context.Context, c client.Client) error {
+	const outdatedClusterCredentialLabelKey = "cluster.core.oam.dev/cluster-credential"
+	secrets := &v1.SecretList{}
+	if err := c.List(ctx, secrets, client.InNamespace(ClusterGatewaySecretNamespace), client.HasLabels{outdatedClusterCredentialLabelKey}); err != nil {
+		if err != nil {
+			return errors2.Wrapf(err, "failed to find outdated cluster secrets to do upgrade")
+		}
+	}
+	errs := errors3.ErrorList{}
+	for _, item := range secrets.Items {
+		credType := item.Labels[v1alpha1.LabelKeyClusterCredentialType]
+		if credType == "" && item.Type == v1.SecretTypeTLS {
+			item.Labels[v1alpha1.LabelKeyClusterCredentialType] = string(v1alpha1.CredentialTypeX509Certificate)
+			if err := c.Update(ctx, item.DeepCopy()); err != nil {
+				errs.Append(errors2.Wrapf(err, "failed to update outdated secret %s", item.Name))
+			}
+		}
+	}
+	if errs.HasError() {
+		return errs
+	}
 	return nil
 }

@@ -19,8 +19,8 @@ package cli
 import (
 	"context"
 	"fmt"
-	"strings"
 
+	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -42,8 +42,6 @@ import (
 )
 
 const (
-	// ClusterCredentialLabelKey identifies the cluster secrets
-	ClusterCredentialLabelKey = "cluster.core.oam.dev/cluster-credential"
 	// FlagClusterName specifies the cluster name
 	FlagClusterName = "name"
 )
@@ -99,12 +97,12 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			secrets := v1.SecretList{}
-			if err := c.Client.List(context.Background(), &secrets, client.HasLabels{ClusterCredentialLabelKey}, client.InNamespace(multicluster.ClusterGatewaySecretNamespace)); err != nil {
+			if err := c.Client.List(context.Background(), &secrets, client.HasLabels{v1alpha12.LabelKeyClusterCredentialType}, client.InNamespace(multicluster.ClusterGatewaySecretNamespace)); err != nil {
 				return errors.Wrapf(err, "failed to get cluster secrets")
 			}
 			table := newUITable().AddRow("CLUSTER", "TYPE", "ENDPOINT")
 			for _, secret := range secrets.Items {
-				table.AddRow(secret.Name, secret.GetLabels()[ClusterCredentialLabelKey], string(secret.Data["endpoint"]))
+				table.AddRow(secret.Name, secret.GetLabels()[v1alpha12.LabelKeyClusterCredentialType], string(secret.Data["endpoint"]))
 			}
 			if len(table.Rows) == 1 {
 				cmd.Println("No managed cluster found.")
@@ -198,20 +196,28 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 			if err := ensureClusterNotExists(c.Client, clusterName); err != nil {
 				return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
 			}
-			credentialType := v1.SecretTypeTLS
+			var credentialType v1alpha12.CredentialType
 			data := map[string][]byte{
 				"endpoint": []byte(cluster.Server),
 				"ca.crt":   cluster.CertificateAuthorityData,
-				"tls.crt":  authInfo.ClientCertificateData,
-				"tls.key":  authInfo.ClientKeyData,
+			}
+			if len(authInfo.Token) > 0 {
+				credentialType = v1alpha12.CredentialTypeServiceAccountToken
+				data["token"] = []byte(authInfo.Token)
+			} else {
+				credentialType = v1alpha12.CredentialTypeX509Certificate
+				data["tls.crt"] = authInfo.ClientCertificateData
+				data["tls.key"] = authInfo.ClientKeyData
 			}
 			secret := &v1.Secret{
 				ObjectMeta: v12.ObjectMeta{
 					Name:      clusterName,
 					Namespace: multicluster.ClusterGatewaySecretNamespace,
-					Labels:    map[string]string{ClusterCredentialLabelKey: strings.Split(string(credentialType), "/")[1]},
+					Labels: map[string]string{
+						v1alpha12.LabelKeyClusterCredentialType: string(credentialType),
+					},
 				},
-				Type: credentialType,
+				Type: v1.SecretTypeOpaque,
 				Data: data,
 			}
 			if err := c.Client.Create(context.Background(), secret); err != nil {
@@ -235,8 +241,8 @@ func getMutableClusterSecret(c client.Client, clusterName string) (*v1.Secret, e
 		return nil, errors.Wrapf(err, "failed to find target cluster secret %s", clusterName)
 	}
 	labels := clusterSecret.GetLabels()
-	if labels == nil || labels[ClusterCredentialLabelKey] == "" {
-		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, ClusterCredentialLabelKey)
+	if labels == nil || labels[v1alpha12.LabelKeyClusterCredentialType] == "" {
+		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, v1alpha12.LabelKeyClusterCredentialType)
 	}
 	ebs := &v1alpha1.EnvBindingList{}
 	if err := c.List(context.Background(), ebs); err != nil {
