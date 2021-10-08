@@ -39,7 +39,7 @@ func TestUpgradeExistingClusterSecret(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 	secret := &v1.Secret{
 		ObjectMeta: v12.ObjectMeta{
-			Name: "example-outdated-cluster-secret",
+			Name:      "example-outdated-cluster-secret",
 			Namespace: "default",
 			Labels: map[string]string{
 				"cluster.core.oam.dev/cluster-credential": "tls",
