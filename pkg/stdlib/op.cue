@@ -109,13 +109,14 @@ import (
 		}
 	} @step(3)
 
-	target: yaml.Unmarshal(configMap.value.data["\(env)"])
-	apply:  #Steps & {
-		for key, val in target {
-			"\(key)": kube.#Apply & {
-				value: val
-				if val.metadata.labels != _|_ && val.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
-					cluster: val.metadata.labels["cluster.oam.dev/clusterName"]
+	patchedApp: yaml.Unmarshal(configMap.value.data["\(env)"])[context.name]
+	components: patchedApp.spec.components
+	apply:      #Steps & {
+		for key, comp in components {
+			"\(key)": #ApplyComponent & {
+				value: comp
+				if patchedApp.metadata.labels != _|_ && patchedApp.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
+					cluster: patchedApp.metadata.labels["cluster.oam.dev/clusterName"]
 				}
 			} @step(4)
 		}

@@ -117,6 +117,9 @@ const (
 	// AnnotationDefinitionRevisionName is used to specify the name of DefinitionRevision in component/trait definition
 	AnnotationDefinitionRevisionName = "definitionrevision.oam.dev/name"
 
+	// AnnotationResourceTrackerLifeLong is used to identify life-long resourcetracker which should only be recycled when application is deleted
+	AnnotationResourceTrackerLifeLong = "resourcetracker.oam.dev/life-long"
+
 	// AnnotationAddonsName records the name of initializer stored in configMap
 	AnnotationAddonsName = "addons.oam.dev/name"
 )
