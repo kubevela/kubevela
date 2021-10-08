@@ -30,7 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -137,7 +136,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 			In:  os.Stdin,
 			Out: os.Stdout,
 		}, tm, false)
-		assert.Equal(t, nil, err)
+		assert.NoError(t, err)
 		assert.Equal(t, tcase.expectApp, o)
 	}
 }
@@ -166,19 +165,6 @@ services:
       docker:
         file: Dockerfile
     cmd: ["node", "server.js"]
-`
-
-	yamlWithConfig := `name: myapp
-services:
-  express-server:
-    type: withconfig
-    image: oamdev/testapp:v1
-    cmd: ["node", "server.js"]
-    route:
-      domain: example.com
-      http:
-        "/": 8080
-    config: test
 `
 
 	templateWebservice := `parameter: #webservice
@@ -216,25 +202,6 @@ output: {
     command: parameter.cmd
   }
 }`
-	templateWithConfig := `parameter: #withconfig
-#withconfig: {
-  cmd: [...string]
-  image: string
-}
-
-output: {
-  apiVersion: "test.oam.dev/v1"
-  kind: "WebService"
-  metadata: {
-    name: context.name
-  }
-  spec: {
-    image: parameter.image
-    command: parameter.cmd
-    env: context.config
-  }
-}
-`
 	templateRoute := `parameter: #route
 #route: {
   domain: string
@@ -324,22 +291,6 @@ outputs: ingress: {
 	// TODO application 那边补测试:
 	// 2. 1对多的情况，多对1 的情况
 
-	fakeConfigData2 := []map[string]string{{
-		"name":  "test",
-		"value": "test-value",
-	}}
-
-	ac3cm := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ConfigMap",
-		},
-		Data: map[string]string{
-			"test": "test-value",
-		},
-	}
-	ac3cm.SetName("kubevela-myapp-express-server-test")
-
 	health := &v1alpha2.HealthScope{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),
@@ -402,21 +353,6 @@ outputs: ingress: {
 				err: ErrImageNotDefined,
 			},
 		},
-		"config data should be set, add return configmap objects": {
-			args: args{
-				appfileData: yamlWithConfig,
-				workloadTemplates: map[string]string{
-					"withconfig": templateWithConfig,
-				},
-				traitTemplates: map[string]string{
-					"route": templateRoute,
-				},
-			},
-			want: want{
-				app:  ac3,
-				objs: []oam.Object{ac3cm, health},
-			},
-		},
 	}
 
 	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
@@ -424,9 +360,6 @@ outputs: ingress: {
 		t.Run(caseName, func(t *testing.T) {
 
 			app := NewAppFile()
-			app.configGetter = &config.Fake{
-				Data: fakeConfigData2,
-			}
 			err := yaml.Unmarshal([]byte(c.args.appfileData), app)
 			if err != nil {
 				t.Fatal(err)

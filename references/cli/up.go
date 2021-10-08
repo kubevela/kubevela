@@ -31,12 +31,9 @@ import (
 	"github.com/oam-dev/kubevela/references/common"
 )
 
-var (
-	appFilePath string
-)
-
 // NewUpCommand will create command for applying an AppFile
 func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	appFilePath := new(string)
 	cmd := &cobra.Command{
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
@@ -49,7 +46,7 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetEnv(cmd)
+			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -57,11 +54,7 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			filePath, err := cmd.Flags().GetString(appFilePath)
-			if err != nil {
-				return err
-			}
-			fileContent, err := os.ReadFile(filepath.Clean(filePath))
+			fileContent, err := os.ReadFile(filepath.Clean(*appFilePath))
 			if err != nil {
 				return err
 			}
@@ -81,12 +74,12 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 					IO:      ioStream,
 					Env:     velaEnv,
 				}
-				return o.Run(filePath, velaEnv.Namespace, c)
+				return o.Run(*appFilePath, velaEnv.Namespace, c)
 			}
 			return nil
 		},
 	}
 	cmd.SetOut(ioStream.Out)
-	cmd.Flags().StringP(appFilePath, "f", "", "specify file path for appfile")
+	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile")
 	return cmd
 }

@@ -60,7 +60,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -99,7 +99,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -148,7 +148,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -187,7 +187,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}

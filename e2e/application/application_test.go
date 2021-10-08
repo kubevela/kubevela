@@ -111,7 +111,7 @@ var ApplicationExecContext = func(context string, appName string) bool {
 
 var ApplicationPortForwardContext = func(context string, appName string) bool {
 	return ginkgo.Context(context, func() {
-		ginkgo.It("should get output of portward successfully", func() {
+		ginkgo.It("should get output of port-forward successfully", func() {
 			cli := fmt.Sprintf("vela port-forward %s 80:80 ", appName)
 			output, err := e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -128,14 +128,6 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 				data := []struct {
 					q, a string
 				}{
-					{
-						q: "What is the domain of your application service (optional): ",
-						a: "testdomain",
-					},
-					{
-						q: "What is your email (optional, used to generate certification): ",
-						a: "test@mail",
-					},
 					{
 						q: "What would you like to name your application (required): ",
 						a: appName,

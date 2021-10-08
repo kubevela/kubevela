@@ -73,7 +73,7 @@ func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetEnv(cmd)
+			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}

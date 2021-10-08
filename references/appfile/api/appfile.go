@@ -32,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/builtin"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -64,16 +63,14 @@ type AppFile struct {
 	Services   map[string]Service `json:"services"`
 	Secrets    map[string]string  `json:"secrets,omitempty"`
 
-	configGetter config.Store
-	initialized  bool
+	initialized bool
 }
 
 // NewAppFile init an empty AppFile struct
 func NewAppFile() *AppFile {
 	return &AppFile{
-		Services:     make(map[string]Service),
-		Secrets:      make(map[string]string),
-		configGetter: &config.Local{},
+		Services: make(map[string]Service),
+		Secrets:  make(map[string]string),
 	}
 }
 
@@ -158,26 +155,10 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 	servApp.SetNamespace(env.Namespace)
 	servApp.SetName(app.Name)
 	servApp.Spec.Components = []common.ApplicationComponent{}
+	if !silence {
+		io.Infof("parsing application components")
+	}
 	for serviceName, svc := range app.GetServices() {
-		if !silence {
-			io.Infof("\nRendering configs for service (%s)...\n", serviceName)
-		}
-		configname := svc.GetUserConfigName()
-		if configname != "" {
-			configData, err := app.configGetter.GetConfigData(configname, env.Name)
-			if err != nil {
-				return nil, nil, err
-			}
-			decodedData, err := config.DecodeConfigFormat(configData)
-			if err != nil {
-				return nil, nil, err
-			}
-			cm, err := config.ToConfigMap(app.configGetter, config.GenConfigMapName(app.Name, serviceName, configname), env.Name, decodedData)
-			if err != nil {
-				return nil, nil, err
-			}
-			auxiliaryObjects = append(auxiliaryObjects, cm)
-		}
 		comp, err := svc.RenderServiceToApplicationComponent(tm, serviceName)
 		if err != nil {
 			return nil, nil, err

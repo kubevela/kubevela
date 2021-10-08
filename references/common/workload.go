@@ -139,5 +139,5 @@ func BaseComplete(env *types.EnvMeta, c common.Args, workloadName string, appNam
 	if err = appfile.SetWorkload(app, workloadName, tp, workloadData); err != nil {
 		return app, err
 	}
-	return app, appfile.Save(app, env.Name)
+	return app, nil
 }

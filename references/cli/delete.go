@@ -54,7 +54,7 @@ func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			C: c,
 		}
 		o.Client = newClient
-		o.Env, err = GetEnv(cmd)
+		o.Env, err = GetFlagEnvOrCurrent(cmd, c)
 		if err != nil {
 			return err
 		}
