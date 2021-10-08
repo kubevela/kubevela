@@ -21,9 +21,10 @@ import (
 	"fmt"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 )
 
 var _ = Describe("Test new entity function", func() {

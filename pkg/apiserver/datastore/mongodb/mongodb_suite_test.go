@@ -20,9 +20,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 )
 
 func TestMongodb(t *testing.T) {
