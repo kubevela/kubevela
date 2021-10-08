@@ -77,6 +77,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{name}/components").To(noop).
 		Doc("gets the component topology of the application").
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("cluster", "list components that deployed in define cluster").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Writes(apis.ComponentListResponse{}))
 
@@ -86,5 +87,26 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateComponentRequest{}).
 		Writes(apis.ComponentBase{}))
+
+	ws.Route(ws.POST("/{name}/policies").To(noop).
+		Doc("create policy for application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreatePolicyRequest{}).
+		Writes(apis.DetailPolicyResponse{}))
+
+	ws.Route(ws.GET("/{name}/policies/{policyName}").To(noop).
+		Doc("detail policy for application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Writes(apis.DetailPolicyResponse{}))
+
+	ws.Route(ws.DELETE("/{name}/policies/{policyName}").To(noop).
+		Doc("detail policy for application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Writes(apis.DetailPolicyResponse{}))
 	return ws
 }

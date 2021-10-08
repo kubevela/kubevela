@@ -22,6 +22,9 @@ import (
 
 	"github.com/emicklei/go-restful/v3"
 	"github.com/go-playground/validator/v10"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 )
 
 // versionPrefix API version prefix.
@@ -57,11 +60,15 @@ func returns500(b *restful.RouteBuilder) {
 }
 
 // Init init all webservice, pass in the required parameter object.
-func Init(ctx context.Context) {
-	RegistWebService(&clusterWebService{})
+// It can be implemented using the idea of dependency injection.
+func Init(ctx context.Context, ds datastore.DataStore) {
+	clusterUsecase := usecase.NewClusterUsecase(ds)
+	RegistWebService(NewClusterWebService(clusterUsecase))
 	RegistWebService(&applicationWebService{})
 	RegistWebService(&namespaceWebService{})
 	RegistWebService(&componentDefinitionWebservice{})
 	RegistWebService(&addonWebService{})
 	RegistWebService(&oamApplicationWebService{})
+	RegistWebService(&policyDefinitionWebservice{})
+	RegistWebService(&workflowWebService{})
 }

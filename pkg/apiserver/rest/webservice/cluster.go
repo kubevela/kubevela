@@ -25,11 +25,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
-type clusterWebService struct {
+// ClusterWebService cluster manage webservice
+type ClusterWebService struct {
 	clusterUsecase usecase.ClusterUsecase
 }
 
-func (c *clusterWebService) GetWebService() *restful.WebService {
+// NewClusterWebService new cluster webservice
+func NewClusterWebService(clusterUsecase usecase.ClusterUsecase) *ClusterWebService {
+	return &ClusterWebService{clusterUsecase: clusterUsecase}
+}
+
+// GetWebService -
+func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/clusters").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -71,7 +78,7 @@ func (c *clusterWebService) GetWebService() *restful.WebService {
 	return ws
 }
 
-func (c *clusterWebService) createKubeCluster(req *restful.Request, res *restful.Response) {
+func (c *ClusterWebService) createKubeCluster(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateClusterRequest
 	if err := req.ReadEntity(&createReq); err != nil {
