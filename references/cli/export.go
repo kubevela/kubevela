@@ -27,6 +27,7 @@ import (
 
 // NewExportCommand will create command for exporting deploy manifests from an AppFile
 func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	appFilePath := new(string)
 	cmd := &cobra.Command{
 		Use:                   "export",
 		DisableFlagsInUseLine: true,
@@ -36,7 +37,7 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeStart,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetEnv(cmd)
+			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -44,11 +45,7 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 				IO:  ioStream,
 				Env: velaEnv,
 			}
-			filePath, err := cmd.Flags().GetString(appFilePath)
-			if err != nil {
-				return err
-			}
-			_, data, err := o.Export(filePath, velaEnv.Namespace, true, c)
+			_, data, err := o.Export(*appFilePath, velaEnv.Namespace, true, c)
 			if err != nil {
 				return err
 			}
@@ -58,6 +55,6 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 	}
 	cmd.SetOut(ioStream.Out)
 
-	cmd.Flags().StringP(appFilePath, "f", "", "specify file path for appfile")
+	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile")
 	return cmd
 }

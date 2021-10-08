@@ -154,7 +154,7 @@ func NewCapUninstallCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.
 				}
 				name = l[1]
 			}
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -199,7 +199,7 @@ func NewCapListCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			if len(args) > 0 {
 				repoName = args[0]
 			}
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}

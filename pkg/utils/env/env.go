@@ -18,151 +18,150 @@ package env
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"cuelang.org/go/pkg/strings"
+
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
-// GetEnvDirByName will get env dir from name
-func GetEnvDirByName(name string) string {
-	envdir, _ := system.GetEnvDir()
-	return filepath.Join(envdir, name)
+const (
+	// IndicatingLabel is label key indicating application is an env
+	IndicatingLabel = "cli.env.oam.dev/name"
+	// RawType is component type of raw
+	RawType = "raw"
+	// DefaultEnvName is name of default env
+	DefaultEnvName = "default"
+	// DefaultEnvNamespace is namespace of default env
+	DefaultEnvNamespace = "default"
+	// AppNameSchema is used to generate env app name
+	AppNameSchema = "vela-env-%s"
+	// AppNamePrefix is prefix of AppNameSchema
+	AppNamePrefix = "vela-env-"
+)
+
+// app2Env and env2App are helper convert functions
+func app2Env(app *v1beta1.Application) (*types.EnvMeta, error) {
+	namespace := getEnvNamespace(app)
+	env := types.EnvMeta{
+		Name:      strings.Replace(app.Name, AppNamePrefix, "", 1),
+		Namespace: namespace,
+		Current:   "",
+	}
+	return &env, nil
+}
+
+func env2App(meta *types.EnvMeta) *v1beta1.Application {
+	app := v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1beta1.ApplicationKind,
+			APIVersion: v1beta1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf(AppNameSchema, meta.Name),
+			Namespace: types.DefaultKubeVelaNS,
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common2.ApplicationComponent{},
+		},
+	}
+
+	addNamespaceObjectIfNeeded(meta, &app)
+	labels := map[string]string{
+		IndicatingLabel: meta.Name,
+	}
+	app.SetLabels(labels)
+
+	return &app
+}
+
+// getEnvAppByName and deleteAppByName are application operation helper functions
+func getEnvAppByName(envName string) (*v1beta1.Application, error) {
+	list, err := getEnvAppList()
+	if err != nil {
+		return nil, err
+	}
+	// match envName
+	for _, app := range list {
+		if app.Name == fmt.Sprintf(AppNameSchema, envName) {
+			return &app, nil
+		}
+	}
+	if envName == DefaultEnvName {
+		_ = initDefaultEnv()
+		return getEnvAppByName(envName)
+	}
+	return nil, errors.Errorf("application %s not found", envName)
+}
+
+func deleteAppByName(name string) error {
+	clt, err := common.GetClient()
+	if err != nil {
+		return errors.Wrap(err, "get client fail")
+	}
+	app, err := getEnvAppByName(name)
+	if err != nil {
+		return err
+	}
+	err = clt.Delete(context.Background(), app)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// following functions are CRUD of env
+
+// CreateEnv will create e env.
+// Because Env equals to namespace, one env should not be updated
+func CreateEnv(envName string, envArgs *types.EnvMeta) error {
+	c, err := common.GetClient()
+	if err != nil {
+		return err
+	}
+	e := envArgs
+	nowEnv, err := GetEnvByName(envName)
+	if err == nil {
+		if nowEnv.Namespace != envArgs.Namespace {
+			return errors.Errorf("env %s has existed", envName)
+		}
+		return nil
+	}
+	if e.Namespace == "" {
+		e.Namespace = "default"
+	}
+
+	app := env2App(envArgs)
+	err = applyApp(context.TODO(), app, c)
+	if err != nil {
+		return err
+	}
+	return nil
+
 }
 
 // GetEnvByName will get env info by name
 func GetEnvByName(name string) (*types.EnvMeta, error) {
-	data, err := os.ReadFile(filepath.Join(GetEnvDirByName(name), system.EnvConfigName))
+	init, err := getEnvAppByName(name)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("env %s not exist", name)
-		}
-		return nil, err
+		return nil, errors.Wrap(err, "Env not exist")
 	}
-	var meta types.EnvMeta
-	if err = json.Unmarshal(data, &meta); err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
-// CreateOrUpdateEnv will create or update env.
-// If it does not exist, create it and set to the new env.
-// If it exists, update it and set to the new env.
-func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
-
-	createOrUpdated := "created"
-	old, err := GetEnvByName(envName)
-	if err == nil {
-		createOrUpdated = "updated"
-		if envArgs.Domain == "" {
-			envArgs.Domain = old.Domain
-		}
-		if envArgs.Email == "" {
-			envArgs.Email = old.Email
-		}
-		if envArgs.Namespace == "" {
-			envArgs.Namespace = old.Namespace
-		}
-	}
-
-	if envArgs.Namespace == "" {
-		envArgs.Namespace = "default"
-	}
-
-	var message = ""
-	// Check If Namespace Exists
-	if err := c.Get(ctx, k8stypes.NamespacedName{Name: envArgs.Namespace}, &corev1.Namespace{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return message, err
-		}
-		// Create Namespace if not found
-		if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil {
-			return message, err
-		}
-	}
-
-	data, err := json.Marshal(envArgs)
-	if err != nil {
-		return message, err
-	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return message, err
-	}
-	subEnvDir := filepath.Join(envdir, envName)
-	if _, err = system.CreateIfNotExist(subEnvDir); err != nil {
-		return message, err
-	}
-	// nolint:gosec
-	if err = os.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
-		return message, err
-	}
-	curEnvPath, err := system.GetCurrentEnvPath()
-	if err != nil {
-		return message, err
-	}
-	// nolint:gosec
-	if err = os.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
-		return message, err
-	}
-
-	message = fmt.Sprintf("environment %s %s, Namespace: %s", envName, createOrUpdated, envArgs.Namespace)
-	if envArgs.Email != "" {
-		message += fmt.Sprintf(", Email: %s", envArgs.Email)
-	}
-	return message, nil
-}
-
-// CreateEnv will only create. If env already exists, return error
-func CreateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
-	_, err := GetEnvByName(envName)
-	if err == nil {
-		message := fmt.Sprintf("Env %s already exist", envName)
-		return message, errors.New(message)
-	}
-	return CreateOrUpdateEnv(ctx, c, envName, envArgs)
-}
-
-// UpdateEnv will update Env, if env does not exist, return error
-func UpdateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
-	var message = ""
-	envMeta, err := GetEnvByName(envName)
-	if err != nil {
-		return err.Error(), err
-	}
-	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envMeta.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return message, err
-	}
-	envMeta.Namespace = namespace
-	data, err := json.Marshal(envMeta)
-	if err != nil {
-		return message, err
-	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return message, err
-	}
-	subEnvDir := filepath.Join(envdir, envName)
-	// nolint:gosec
-	if err = os.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
-		return message, err
-	}
-	message = "Update env succeed"
-	return message, err
+	return app2Env(init)
 }
 
 // ListEnvs will list all envs
+// if envName specified, return list that only contains one env
 func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 	var envList []*types.EnvMeta
 	if envName != "" {
@@ -176,40 +175,59 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 		envList = append(envList, env)
 		return envList, err
 	}
-	envDir, err := system.GetEnvDir()
+	apps, err := getEnvAppList()
 	if err != nil {
-		return envList, err
+		return nil, err
 	}
-	files, err := os.ReadDir(envDir)
-	if err != nil {
-		return envList, err
+	// if even one env is not exist, create a default env
+	if len(apps) == 0 {
+		err := initDefaultEnv()
+		if err != nil {
+			return nil, err
+		}
+		return ListEnvs(envName)
 	}
-	curEnv, err := GetCurrentEnvName()
+
+	curEnv, err := getCurrentEnvName()
 	if err != nil {
 		curEnv = types.DefaultEnvName
 	}
-	for _, f := range files {
-		if !f.IsDir() {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Clean(filepath.Join(envDir, f.Name(), system.EnvConfigName)))
+	for i := range apps {
+		env, err := app2Env(&apps[i])
 		if err != nil {
+			fmt.Printf("error occurred while listing env:" + err.Error())
 			continue
 		}
-		var envMeta types.EnvMeta
-		if err = json.Unmarshal(data, &envMeta); err != nil {
-			continue
+		if curEnv == env.Name {
+			env.Current = "*"
 		}
-		if curEnv == f.Name() {
-			envMeta.Current = "*"
-		}
-		envList = append(envList, &envMeta)
+		envList = append(envList, env)
 	}
 	return envList, nil
 }
 
-// GetCurrentEnvName will get current env name
-func GetCurrentEnvName() (string, error) {
+// DeleteEnv will delete env and its application
+func DeleteEnv(envName string) (string, error) {
+	var message string
+	var err error
+	curEnv, err := getCurrentEnvName()
+	if err != nil {
+		return message, err
+	}
+	if envName == curEnv {
+		err = fmt.Errorf("you can't delete current using environment %s", curEnv)
+		return message, err
+	}
+	err = deleteAppByName(envName)
+	if err != nil {
+		return message, errors.Wrap(err, fmt.Sprintf("error deleting env %s", envName))
+	}
+	message = "env" + envName + " deleted"
+	return message, err
+}
+
+// getCurrentEnvName will get current env name
+func getCurrentEnvName() (string, error) {
 	currentEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
 		return "", err
@@ -221,34 +239,19 @@ func GetCurrentEnvName() (string, error) {
 	return string(data), nil
 }
 
-// DeleteEnv will delete env locally
-func DeleteEnv(envName string) (string, error) {
-	var message string
-	var err error
-	curEnv, err := GetCurrentEnvName()
+// GetCurrentEnv will get current env, create default env if not exist
+func GetCurrentEnv() (*types.EnvMeta, error) {
+	envName, err := getCurrentEnvName()
 	if err != nil {
-		return message, err
-	}
-	if envName == curEnv {
-		err = fmt.Errorf("you can't delete current using environment %s", curEnv)
-		return message, err
-	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return message, err
-	}
-	envPath := filepath.Join(envdir, envName)
-	if _, err := os.Stat(envPath); err != nil {
-		if os.IsNotExist(err) {
-			err = fmt.Errorf("%s does not exist", envName)
-			return message, err
+		if !os.IsNotExist(err) {
+			return nil, err
 		}
+		if err = initDefaultEnv(); err != nil {
+			return nil, err
+		}
+		envName = types.DefaultEnvName
 	}
-	if err = os.RemoveAll(envPath); err != nil {
-		return message, err
-	}
-	message = envName + " deleted"
-	return message, err
+	return GetEnvByName(envName)
 }
 
 // SetEnv will set the current env to the specified one
@@ -268,4 +271,35 @@ func SetEnv(envName string) (string, error) {
 	}
 	msg = fmt.Sprintf("Set environment succeed, current environment is " + envName + ", namespace is " + envMeta.Namespace)
 	return msg, nil
+}
+
+// applyApp helps apply app
+func applyApp(ctx context.Context, app *v1beta1.Application, c client.Client) error {
+	applicator := apply.NewAPIApplicator(c)
+	err := applicator.Apply(ctx, app)
+	return err
+}
+
+// initDefaultEnv create default env if not exist
+func initDefaultEnv() error {
+	fmt.Println("Initializing default vela env...")
+	defaultEnv := &types.EnvMeta{Name: DefaultEnvName, Namespace: DefaultEnvNamespace}
+	app := env2App(defaultEnv)
+	clt, err := common.GetClient()
+	if err != nil {
+		return err
+	}
+	err = applyApp(context.Background(), app, clt)
+	if err != nil {
+		return err
+	}
+	currentEnvPath, err := system.GetCurrentEnvPath()
+	if err != nil {
+		return err
+	}
+	//nolint:gosec
+	if err = os.WriteFile(currentEnvPath, []byte(DefaultEnvName), 0644); err != nil {
+		return err
+	}
+	return nil
 }

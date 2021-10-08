@@ -17,11 +17,10 @@ limitations under the License.
 package system
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 
-	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/pkg/errors"
 )
 
 const defaultVelaHome = ".vela"
@@ -35,14 +34,23 @@ const (
 
 // GetVelaHomeDir return vela home dir
 func GetVelaHomeDir() (string, error) {
+	var velaHome string
 	if custom := os.Getenv(VelaHomeEnv); custom != "" {
-		return custom, nil
+		velaHome = custom
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		velaHome = filepath.Join(home, defaultVelaHome)
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	if _, err := os.Stat(velaHome); err != nil && os.IsNotExist(err) {
+		err := os.MkdirAll(velaHome, 0750)
+		if err != nil {
+			return "", errors.Wrap(err, "error when create vela home directory")
+		}
 	}
-	return filepath.Join(home, defaultVelaHome), nil
+	return velaHome, nil
 }
 
 // GetDefaultFrontendDir return default vela frontend dir
@@ -81,22 +89,14 @@ func GetCapabilityDir() (string, error) {
 	return filepath.Join(home, "capabilities"), nil
 }
 
-// GetEnvDir return KubeVela environments dir
-func GetEnvDir() (string, error) {
-	homedir, err := GetVelaHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(homedir, "envs"), nil
-}
-
 // GetCurrentEnvPath return current env config
 func GetCurrentEnvPath() (string, error) {
 	homedir, err := GetVelaHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(homedir, "curenv"), nil
+	envPath := filepath.Join(homedir, "curenv")
+	return envPath, nil
 }
 
 // InitDirs create dir if not exits
@@ -105,9 +105,6 @@ func InitDirs() error {
 		return err
 	}
 	if err := InitCapCenterDir(); err != nil {
-		return err
-	}
-	if err := InitDefaultEnv(); err != nil {
 		return err
 	}
 	return nil
@@ -131,39 +128,6 @@ func InitCapabilityDir() error {
 	}
 	_, err = CreateIfNotExist(dir)
 	return err
-}
-
-// EnvConfigName defines config
-const EnvConfigName = "config.json"
-
-// InitDefaultEnv create dir if not exits
-func InitDefaultEnv() error {
-	envDir, err := GetEnvDir()
-	if err != nil {
-		return err
-	}
-	defaultEnvDir := filepath.Join(envDir, types.DefaultEnvName)
-	exist, err := CreateIfNotExist(defaultEnvDir)
-	if err != nil {
-		return err
-	}
-	if exist {
-		return nil
-	}
-	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultAppNamespace, Name: types.DefaultEnvName})
-	//nolint:gosec
-	if err = os.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
-		return err
-	}
-	curEnvPath, err := GetCurrentEnvPath()
-	if err != nil {
-		return err
-	}
-	//nolint:gosec
-	if err = os.WriteFile(curEnvPath, []byte(types.DefaultEnvName), 0644); err != nil {
-		return err
-	}
-	return nil
 }
 
 // CreateIfNotExist create dir if not exist

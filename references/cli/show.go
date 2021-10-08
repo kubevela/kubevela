@@ -74,7 +74,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			}
 			ctx := context.Background()
 			capabilityName := args[0]
-			velaEnv, err := GetEnv(cmd)
+			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}

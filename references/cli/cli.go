@@ -87,7 +87,6 @@ func NewCommand() *cobra.Command {
 		NewPortForwardCommand(commandArgs, ioStream),
 		NewLogsCommand(commandArgs, ioStream),
 		NewEnvCommand(commandArgs, ioStream),
-		NewConfigCommand(ioStream),
 
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),

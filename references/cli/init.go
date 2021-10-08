@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,7 +73,7 @@ func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 				return err
 			}
 			o.client = newClient
-			o.Env, err = GetEnv(cmd)
+			o.Env, err = GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -146,27 +147,8 @@ func (o *appInitOptions) CheckEnv() error {
 	if o.Env.Namespace == "" {
 		o.Env.Namespace = "default"
 	}
-	o.Infof("Environment: %s, namespace: %s\n\n", o.Env.Name, o.Env.Namespace)
-	if o.Env.Domain == "" {
-		prompt := &survey.Input{
-			Message: "What is the domain of your application service (optional): ",
-		}
-		err := survey.AskOne(prompt, &o.Env.Domain)
-		if err != nil {
-			return fmt.Errorf("read domain err %w", err)
-		}
-	}
-	if o.Env.Email == "" {
-		prompt := &survey.Input{
-			Message: "What is your email (optional, used to generate certification): ",
-		}
-		err := survey.AskOne(prompt, &o.Env.Email)
-		if err != nil {
-			return fmt.Errorf("read email err %w", err)
-		}
-	}
-	if _, err := env.CreateOrUpdateEnv(context.Background(), o.client, o.Env.Name, o.Env); err != nil {
-		return err
+	if err := env.CreateEnv(o.Env.Name, o.Env); err != nil {
+		return errors.Wrap(err, "app init create namespace err")
 	}
 	return nil
 }
