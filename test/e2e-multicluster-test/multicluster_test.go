@@ -19,20 +19,48 @@ package e2e_multicluster_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v13 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	v14 "k8s.io/api/rbac/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
+
+func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
+	hubCtx = context.Background()
+	workerCtx = multicluster.ContextWithClusterName(hubCtx, WorkerClusterName)
+	return
+}
+
+func initializeContextAndNamespace() (hubCtx context.Context, workerCtx context.Context, namespace string) {
+	hubCtx, workerCtx = initializeContext()
+	// initialize test namespace
+	namespace = fmt.Sprintf("test-%d", time.Now().UnixNano())
+	ns := &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: namespace}}
+	Expect(k8sClient.Create(hubCtx, ns.DeepCopy())).Should(Succeed())
+	Expect(k8sClient.Create(workerCtx, ns.DeepCopy())).Should(Succeed())
+	return
+}
+
+func cleanUpNamespace(hubCtx context.Context, workerCtx context.Context, namespace string) {
+	hubNs := &v1.Namespace{}
+	Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: namespace}, hubNs)).Should(Succeed())
+	Expect(k8sClient.Delete(hubCtx, hubNs)).Should(Succeed())
+	workerNs := &v1.Namespace{}
+	Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: namespace}, workerNs)).Should(Succeed())
+	Expect(k8sClient.Delete(workerCtx, workerNs)).Should(Succeed())
+}
 
 var _ = Describe("Test multicluster scenario", func() {
 
@@ -60,6 +88,59 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(out).ShouldNot(ContainSubstring(newClusterName))
 		})
 
+		It("Test generate service account kubeconfig", func() {
+			_, workerCtx := initializeContext()
+			// create service account kubeconfig in worker cluster
+			key := time.Now().UnixNano()
+			serviceAccountName := fmt.Sprintf("test-service-account-%d", key)
+			serviceAccount := &v1.ServiceAccount{
+				ObjectMeta: v12.ObjectMeta{Namespace: "kube-system", Name: serviceAccountName},
+			}
+			Expect(k8sClient.Create(workerCtx, serviceAccount)).Should(Succeed())
+			defer func() {
+				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: "kube-system", Name: serviceAccountName}, serviceAccount)).Should(Succeed())
+				Expect(k8sClient.Delete(workerCtx, serviceAccount)).Should(Succeed())
+			}()
+			clusterRoleBindingName := fmt.Sprintf("test-cluster-role-binding-%d", key)
+			clusterRoleBinding := &v14.ClusterRoleBinding{
+				ObjectMeta: v12.ObjectMeta{Name: clusterRoleBindingName},
+				Subjects:   []v14.Subject{{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: "kube-system"}},
+				RoleRef:    v14.RoleRef{Name: "cluster-admin", APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole"},
+			}
+			Expect(k8sClient.Create(workerCtx, clusterRoleBinding)).Should(Succeed())
+			defer func() {
+				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: "kube-system", Name: clusterRoleBindingName}, clusterRoleBinding)).Should(Succeed())
+				Expect(k8sClient.Delete(workerCtx, clusterRoleBinding)).Should(Succeed())
+			}()
+			serviceAccount = &v1.ServiceAccount{}
+			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
+			Expect(len(serviceAccount.Secrets)).Should(Equal(1))
+			secret := &v1.Secret{}
+			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccount.Secrets[0].Name, Namespace: "kube-system"}, secret)).Should(Succeed())
+			token, ok := secret.Data["token"]
+			Expect(ok).Should(BeTrue())
+			config, err := clientcmd.LoadFromFile(WorkerClusterKubeConfigPath)
+			Expect(err).Should(Succeed())
+			currentContext, ok := config.Contexts[config.CurrentContext]
+			Expect(ok).Should(BeTrue())
+			authInfo, ok := config.AuthInfos[currentContext.AuthInfo]
+			Expect(ok).Should(BeTrue())
+			authInfo.Token = string(token)
+			authInfo.ClientKeyData = nil
+			authInfo.ClientCertificateData = nil
+			kubeconfigFilePath := fmt.Sprintf("/tmp/worker.sa-%d.kubeconfig", key)
+			Expect(clientcmd.WriteToFile(*config, kubeconfigFilePath)).Should(Succeed())
+			defer func() {
+				Expect(os.Remove(kubeconfigFilePath)).Should(Succeed())
+			}()
+			// try to join cluster with service account token based kubeconfig
+			clusterName := fmt.Sprintf("cluster-sa-%d", key)
+			_, err = execCommand("cluster", "join", kubeconfigFilePath, "--name", clusterName)
+			Expect(err).Should(Succeed())
+			_, err = execCommand("cluster", "detach", clusterName)
+			Expect(err).Should(Succeed())
+		})
+
 	})
 
 	Context("Test EnvBinding Application", func() {
@@ -69,23 +150,11 @@ var _ = Describe("Test multicluster scenario", func() {
 		var workerCtx context.Context
 
 		BeforeEach(func() {
-			hubCtx = context.Background()
-			workerCtx = multicluster.ContextWithClusterName(hubCtx, WorkerClusterName)
-			// initialize test namespace
-			namespace = fmt.Sprintf("test-%d", time.Now().UnixNano())
-			ns := &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: namespace}}
-			Expect(k8sClient.Create(hubCtx, ns.DeepCopy())).Should(Succeed())
-			Expect(k8sClient.Create(workerCtx, ns.DeepCopy())).Should(Succeed())
+			hubCtx, workerCtx, namespace = initializeContextAndNamespace()
 		})
 
 		AfterEach(func() {
-			// clean up test namespaces
-			hubNs := &v1.Namespace{}
-			Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: namespace}, hubNs)).Should(Succeed())
-			Expect(k8sClient.Delete(hubCtx, hubNs)).Should(Succeed())
-			workerNs := &v1.Namespace{}
-			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: namespace}, workerNs)).Should(Succeed())
-			Expect(k8sClient.Delete(workerCtx, workerNs)).Should(Succeed())
+			cleanUpNamespace(hubCtx, workerCtx, namespace)
 		})
 
 		It("Test create EnvBinding Application", func() {

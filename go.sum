@@ -580,7 +580,6 @@ github.com/go-openapi/swag v0.19.5/go.mod h1:POnQmlKehdgb5mhVOsnJFsivZCEZ/vjK9gh
 github.com/go-openapi/swag v0.19.6/go.mod h1:ao+8BpOPyKdpQz3AOJfbeEVpLmWAvlT1IfTe5McPyhY=
 github.com/go-openapi/swag v0.19.7/go.mod h1:ao+8BpOPyKdpQz3AOJfbeEVpLmWAvlT1IfTe5McPyhY=
 github.com/go-openapi/swag v0.19.9/go.mod h1:ao+8BpOPyKdpQz3AOJfbeEVpLmWAvlT1IfTe5McPyhY=
-github.com/go-openapi/swag v0.19.11/go.mod h1:Uc0gKkdR+ojzsEpjh39QChyu92vPgIr72POcgHMAgSY=
 github.com/go-openapi/swag v0.19.14 h1:gm3vOOXfiuw5i9p5N9xJvfjvuofpyvLA9Wr6QfK5Fng=
 github.com/go-openapi/swag v0.19.14/go.mod h1:QYRuS/SOXUCsnplDa677K7+DxSOj6IPNl/eQntq43wQ=
 github.com/go-openapi/validate v0.17.2/go.mod h1:Uh4HdOzKt19xGIGm1qHf/ofbX1YQ4Y+MYsct2VUrAJ4=
@@ -1201,8 +1200,8 @@ github.com/nishanths/predeclared v0.2.1/go.mod h1:HvkGJcA3naj4lOwnFXFDkFxVtSqQMB
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
-github.com/oam-dev/cluster-gateway v0.0.0-20210907072424-2f8720b116f8 h1:aTfUhMr6DC+jTiBvCzv+fcgqBvIoGLvrnmXjIUgib7I=
-github.com/oam-dev/cluster-gateway v0.0.0-20210907072424-2f8720b116f8/go.mod h1:ZB7/tubU3MtdQ9bzQjksjO8UK+9e0Wrw3HAqKdY/lZY=
+github.com/oam-dev/cluster-gateway v1.1.2 h1:sxC8Uyx/d3Yu8nIFSz31i+4JKhJfDAS9XVIPEWa1y+Q=
+github.com/oam-dev/cluster-gateway v1.1.2/go.mod h1:EjPUZwTYBe+gFtPV/yGohLE19fDr3CUg4tfSRY72fkM=
 github.com/oam-dev/stern v1.13.0-alpha h1:EVjM8Qvh6LssB6t4RZrjf9DtCq1cz+/cy6OF7fpy9wk=
 github.com/oam-dev/stern v1.13.0-alpha/go.mod h1:AOkvfFUv0Arz7GBi0jz7S0Jsu4K/kdvSjNsnRt1+BIg=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28 h1:tD8HiFKnt0jnwdTWjeqUnfnUYLD/+Nsmj8ZGIxqDWiU=
@@ -2523,8 +2522,8 @@ sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.15/go.mod h1:LEScyz
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.19/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.22 h1:fmRfl9WJ4ApJn7LxNuED4m0t18qivVQOxP6aAYG9J6c=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.22/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=
-sigs.k8s.io/apiserver-runtime v1.0.3-0.20210906132642-810075b08b5f h1:RM+QxWPIZi3mo3i4fiUSvyFELyKr7jjMSJ5EEmt+i6M=
-sigs.k8s.io/apiserver-runtime v1.0.3-0.20210906132642-810075b08b5f/go.mod h1:ynhMgoDTl6cihO5OpeV95iG+3bzKfHwWQU2VSbmoNmk=
+sigs.k8s.io/apiserver-runtime v1.0.3-0.20210913073608-0663f60bfee2 h1:c6RYHA1wUg9IEsfjnxg0WsPwvDC2Qw2eryXKXgSEF1c=
+sigs.k8s.io/apiserver-runtime v1.0.3-0.20210913073608-0663f60bfee2/go.mod h1:gvPfh5FX3Wi3kIRpkh7qvY0i/DQl3SDpRtvqMGZE3Vo=
 sigs.k8s.io/controller-runtime v0.6.0/go.mod h1:CpYf5pdNY/B352A1TFLAS2JVSlnGQ5O2cftPHndTroo=
 sigs.k8s.io/controller-runtime v0.6.2/go.mod h1:vhcq/rlnENJ09SIRp3EveTaZ0yqH526hjf9iJdbUJ/E=
 sigs.k8s.io/controller-runtime v0.9.2/go.mod h1:TxzMCHyEUpaeuOiZx/bIdc2T81vfs/aKdvJt9wuu0zk=
