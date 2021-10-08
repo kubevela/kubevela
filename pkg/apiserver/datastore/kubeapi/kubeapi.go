@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -70,9 +69,9 @@ func generateName(entity datastore.Entity) string {
 	return strings.ReplaceAll(name, "_", "-")
 }
 
-func (m *kubeapi) generateConfigMap(entity datastore.Entity) *v1.ConfigMap {
+func (m *kubeapi) generateConfigMap(entity datastore.Entity) *corev1.ConfigMap {
 	data, _ := json.Marshal(entity)
-	var configMap = v1.ConfigMap{
+	var configMap = corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      generateName(entity),
 			Namespace: m.namespace,
