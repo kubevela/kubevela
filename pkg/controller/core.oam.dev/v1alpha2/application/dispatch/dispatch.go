@@ -199,7 +199,7 @@ func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Cont
 	}
 	for _, rt := range rtList.Items {
 		if rt.Name != a.currentRTName &&
-			(a.previousRT != nil && rt.Name != a.previousRT.Name) {
+			(a.previousRT != nil && rt.Name != a.previousRT.Name) && !IsLifeLongResourceTracker(rt) {
 			a.legacyRTs = append(a.legacyRTs, rt.DeepCopy())
 		}
 	}
@@ -356,4 +356,10 @@ func setOrOverrideOAMControllerOwner(obj ObjectOwner, controllerOwner metav1.Own
 		newOwnerRefs = append(newOwnerRefs, owner)
 	}
 	obj.SetOwnerReferences(newOwnerRefs)
+}
+
+// IsLifeLongResourceTracker check if resourcetracker shares the same whole life with the entire application
+func IsLifeLongResourceTracker(rt v1beta1.ResourceTracker) bool {
+	_, ok := rt.GetAnnotations()[oam.AnnotationResourceTrackerLifeLong]
+	return ok
 }
