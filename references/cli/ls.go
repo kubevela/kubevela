@@ -44,7 +44,7 @@ func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetEnv(cmd)
+			env, err := GetFlagEnvOrCurrent(cmd, c)
 			if err != nil {
 				return err
 			}

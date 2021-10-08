@@ -47,12 +47,13 @@ const (
 	StatusStaging = "Staging"
 )
 
-// EnvMeta stores the info for app environment
+// Config contains key/value pairs
+type Config map[string]string
+
+// EnvMeta stores the namespace for app environment
 type EnvMeta struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
-	Email     string `json:"email,omitempty"`
-	Domain    string `json:"domain,omitempty"`
 
 	Current string `json:"current,omitempty"`
 }
