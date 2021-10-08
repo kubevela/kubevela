@@ -649,7 +649,7 @@ func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string)
 }
 
 func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructured.Unstructured, error) {
-	if wl.FullTemplate.Terraform.Configuration == "" {
+	if wl.FullTemplate == nil || wl.FullTemplate.Terraform == nil || wl.FullTemplate.Terraform.Configuration == "" {
 		return nil, errors.New(errTerraformConfigurationIsNotSet)
 	}
 	params, err := json.Marshal(wl.Params)
@@ -669,6 +669,10 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
 	case "remote":
 		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
+	}
+
+	if wl.FullTemplate.Terraform.ProviderReference != nil {
+		configuration.Spec.ProviderReference = wl.FullTemplate.Terraform.ProviderReference
 	}
 
 	// 1. parse writeConnectionSecretToRef

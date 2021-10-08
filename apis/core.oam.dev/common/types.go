@@ -20,6 +20,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -109,6 +111,9 @@ type Terraform struct {
 	// +kubebuilder:default:=hcl
 	// +kubebuilder:validation:Enum:=hcl;json;remote
 	Type string `json:"type,omitempty"`
+
+	// ProviderReference specifies the reference to Provider
+	ProviderReference *types.Reference `json:"providerRef,omitempty"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type

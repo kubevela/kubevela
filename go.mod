@@ -34,7 +34,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v0.0.0-20210907072424-2f8720b116f8
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.2.0
+	github.com/oam-dev/terraform-controller v0.2.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0

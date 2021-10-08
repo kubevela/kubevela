@@ -909,6 +909,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		hcl                        string
 		remote                     string
 		params                     map[string]interface{}
+		providerRef                *terraformtypes.Reference
 	}
 
 	type want struct {
@@ -967,7 +968,18 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				params: badParam,
 				hcl:    "abc",
 			},
-			want: want{err: errors.Wrap(badParamMarshalError, errFailToConvertTerraformComponentProperties)}},
+			want: want{err: errors.Wrap(badParamMarshalError, errFailToConvertTerraformComponentProperties)},
+		},
+
+		"terraform workload has a provider reference": {
+
+			args: args{
+				params:      badParam,
+				hcl:         "abc",
+				providerRef: &terraformtypes.Reference{Name: "azure", Namespace: "default"},
+			},
+			want: want{err: errors.Wrap(badParamMarshalError, errFailToConvertTerraformComponentProperties)},
+		},
 	}
 
 	for tcName, tc := range testcases {
@@ -1026,6 +1038,9 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				Variable:                         raw,
 				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
 			}
+		}
+		if tc.args.providerRef != nil {
+			template.Terraform.ProviderReference = tc.args.providerRef
 		}
 
 		wl := &Workload{
