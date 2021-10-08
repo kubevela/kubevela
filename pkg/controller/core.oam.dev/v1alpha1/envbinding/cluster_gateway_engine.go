@@ -22,6 +22,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -79,30 +80,20 @@ func (engine *ClusterGatewayEngine) prepare(ctx context.Context, configs []v1alp
 }
 
 func (engine *ClusterGatewayEngine) initEnvBindApps(ctx context.Context, envBinding *v1alpha1.EnvBinding, baseApp *v1beta1.Application, appParser *appfile.Parser) ([]*EnvBindApp, error) {
-	envBindApps, err := CreateEnvBindApps(envBinding, baseApp)
-	if err != nil {
-		return nil, err
-	}
-	if err = RenderEnvBindApps(ctx, envBindApps, appParser); err != nil {
-		return nil, err
-	}
-	if err = AssembleEnvBindApps(envBindApps); err != nil {
-		return nil, err
-	}
-	return envBindApps, nil
+	return CreateEnvBindApps(envBinding, baseApp)
 }
 
 func (engine *ClusterGatewayEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha1.ClusterDecision, error) {
 	for _, app := range apps {
 		app.ScheduledManifests = make(map[string]*unstructured.Unstructured)
 		clusterName := engine.clusterDecisions[app.envConfig.Name].Cluster
-		for _, component := range app.PatchedApp.Spec.Components {
-			for _, manifest := range app.assembledManifests[component.Name] {
-				manifestName := component.Name + "/" + manifest.GetName()
-				multicluster.SetClusterName(manifest, clusterName)
-				app.ScheduledManifests[manifestName] = manifest
-			}
+		raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(app.PatchedApp)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to convert app [Env: %s](%s/%s) into unstructured", app.envConfig.Name, app.PatchedApp.Namespace, app.PatchedApp.Name)
 		}
+		patchedApp := &unstructured.Unstructured{Object: raw}
+		multicluster.SetClusterName(patchedApp, clusterName)
+		app.ScheduledManifests[patchedApp.GetName()] = patchedApp
 	}
 	var decisions []v1alpha1.ClusterDecision
 	for _, decision := range engine.clusterDecisions {

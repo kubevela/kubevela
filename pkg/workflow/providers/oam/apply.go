@@ -39,7 +39,7 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 type provider struct {
 	apply ComponentApply
@@ -58,7 +58,11 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 		return err
 	}
 	patcher, _ := v.LookupValue("patch")
-	workload, traits, healthy, err := p.apply(comp, patcher)
+	clusterName, err := v.GetString("cluster")
+	if err != nil {
+		clusterName = ""
+	}
+	workload, traits, healthy, err := p.apply(comp, patcher, clusterName)
 	if err != nil {
 		return err
 	}
