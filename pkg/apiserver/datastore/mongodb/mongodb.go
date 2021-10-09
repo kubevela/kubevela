@@ -156,7 +156,7 @@ func (m *mongodb) Delete(ctx context.Context, entity datastore.Entity) error {
 	return nil
 }
 
-// TableName() can't return zero value.
+// List list entity function
 func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datastore.ListOptions) ([]datastore.Entity, error) {
 	if entity.TableName() == "" {
 		return nil, datastore.ErrTableNameEmpty

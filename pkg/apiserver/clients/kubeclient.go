@@ -48,7 +48,6 @@ func GetKubeClient() (client.Client, error) {
 	if err := oamcore.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
-
 	k8sClient, err := client.New(conf, client.Options{Scheme: scheme})
 	if err != nil {
 		return nil, err
