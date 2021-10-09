@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: kruise
+  namespace: vela-system
+spec:
+  components:
+  - name: kruise
+    type: helm
+    properties:
+      branch: master
+      chart: ./charts/kruise/v0.9.0
+      version: "*"
+      repoType: git
+      url: https://github.com/openkruise/kruise
+  workflow:
+    steps:
+    - name: check-flux
+      type: depends-on-app
+      properties:
+        name: fluxcd
+        namespace: vela-system
+    - name: apply-kruise
+      type: apply-component
+      properties:
+        component: kruise
