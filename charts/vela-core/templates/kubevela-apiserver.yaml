@@ -29,9 +29,9 @@ spec:
           {{- toYaml .Values.securityContext | nindent 12 }}
           args:
             - "apiserver"
-            - "--bind-addr=0.0.0.0:{{ .Values.apiServer.port }}"
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{ quote .Values.image.pullPolicy }}
+            - "--port={{ .Values.apiServer.port }}"
+          image: {{ .Values.apiserverImage.repository }}:{{ .Values.apiserverImage.tag }}
+          imagePullPolicy: {{ quote .Values.apiserverImage.pullPolicy }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
           ports:
