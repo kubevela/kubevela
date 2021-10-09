@@ -10,6 +10,7 @@ disableCaps: ""
 image:
   repository: oamdev/vela-core
   tag: latest
+  apiserverTag: v1.1.2
   pullPolicy: Always
 
 imagePullSecrets: []
