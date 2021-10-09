@@ -23,7 +23,7 @@ template: {
 	}
 
 	load: op.#Steps & {
-		if dependsOn.err != _|_ {
+		if dependsOn.err != _|_ && dependsOn.value == _|_ {
 			configMap: op.#Read & {
 				value: {
 					apiVersion: "v1"
@@ -39,20 +39,16 @@ template: {
 					yaml.Unmarshal(configMap.value.data[parameter.name])
 				}
 			}
-		}
-		if dependsOn.err == _|_ {
-			apply: op.#Apply & {
-				value: {
-					dependsOn.value
-				}
+			wait: op.#ConditionalWait & {
+				continue: load.apply.value.status.status == "running"
 			}
 		}
-	}
 
-	phase: load.apply.value.status.status
-
-	wait: op.#ConditionalWait & {
-		continue: phase == "running"
+		if dependsOn.value != _|_ {
+			wait: op.#ConditionalWait & {
+				continue: dependsOn.value.status.status == "running"
+			}
+		}
 	}
 
 	parameter: {
