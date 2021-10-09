@@ -137,7 +137,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
-	klog.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
+	klog.InfoS("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
@@ -146,7 +146,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		klog.ErrorS(err, "Failed to update application status", "application", klog.KObj(app))
 		return r.endWithNegativeCondition(ctx, app, condition.ReconcileError(err), common.ApplicationRendering)
 	}
-	klog.Info("Successfully apply application revision", "application", klog.KObj(app))
+	klog.InfoS("Successfully apply application revision", "application", klog.KObj(app))
 
 	policies, err := appFile.PrepareWorkflowAndPolicy()
 	if err != nil {
