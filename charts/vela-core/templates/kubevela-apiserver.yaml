@@ -30,8 +30,8 @@ spec:
           args:
             - "apiserver"
             - "--bind-addr=0.0.0.0:{{ .Values.apiServer.port }}"
-          image: {{ .Values.image.repository }}:{{ .Values.image.apiserverTag }}
-          imagePullPolicy: {{ quote .Values.image.pullPolicy }}
+          image: {{ .Values.apiserverImage.repository }}:{{ .Values.apiserverImage.tag }}
+          imagePullPolicy: {{ quote .Values.apiserverImage.pullPolicy }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
           ports:
