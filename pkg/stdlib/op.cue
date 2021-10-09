@@ -118,6 +118,9 @@ import (
 				if patchedApp.metadata.labels != _|_ && patchedApp.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
 					cluster: patchedApp.metadata.labels["cluster.oam.dev/clusterName"]
 				}
+				if patchedApp.metadata.labels != _|_ && patchedApp.metadata.labels["envbinding.oam.dev/override-namespace"] != _|_ {
+					namespace: patchedApp.metadata.labels["envbinding.oam.dev/override-namespace"]
+				}
 			} @step(4)
 		}
 	}

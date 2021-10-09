@@ -19,7 +19,9 @@ package e2e_multicluster_test
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -31,10 +33,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
@@ -146,36 +148,49 @@ var _ = Describe("Test multicluster scenario", func() {
 	Context("Test EnvBinding Application", func() {
 
 		var namespace string
+		var testNamespace string
+		var prodNamespace string
 		var hubCtx context.Context
 		var workerCtx context.Context
 
 		BeforeEach(func() {
 			hubCtx, workerCtx, namespace = initializeContextAndNamespace()
+			_, _, testNamespace = initializeContextAndNamespace()
+			_, _, prodNamespace = initializeContextAndNamespace()
 		})
 
 		AfterEach(func() {
 			cleanUpNamespace(hubCtx, workerCtx, namespace)
+			cleanUpNamespace(hubCtx, workerCtx, testNamespace)
+			cleanUpNamespace(hubCtx, workerCtx, prodNamespace)
 		})
 
 		It("Test create EnvBinding Application", func() {
 			// This test is going to cover multiple functions, including
-			// 1. Multiple stage deployment for two environment, involving suspend
-			// 2. A special cluster: local cluster
-			// 3. Component selector.
+			// 1. Multiple stage deployment for three environment
+			// 2. Namespace selector.
+			// 3. A special cluster: local cluster
+			// 4. Component selector.
 			app := &v1beta1.Application{}
-			Expect(common.ReadYamlToObject("./testdata/app/example-envbinding-app.yaml", app)).Should(BeNil())
+			bs, err := ioutil.ReadFile("./testdata/app/example-envbinding-app.yaml")
+			Expect(err).Should(Succeed())
+			appYaml := strings.ReplaceAll(strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace), "PROD_NAMESPACE", prodNamespace)
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
 			app.SetNamespace(namespace)
-			err := k8sClient.Create(hubCtx, app)
+			err = k8sClient.Create(hubCtx, app)
 			Expect(err).Should(Succeed())
 			var hubDeployName string
 			Eventually(func(g Gomega) {
 				// check deployments in clusters
 				deploys := &v13.DeploymentList{}
-				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
+				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(1))
 				hubDeployName = deploys.Items[0].Name
 				deploys = &v13.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(2))
+				deploys = &v13.DeploymentList{}
+				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(2))
 			}, 2*time.Minute).Should(Succeed())
 			Expect(hubDeployName).Should(Equal("data-worker"))
