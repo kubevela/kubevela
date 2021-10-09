@@ -16,4 +16,4 @@ limitations under the License.
 
 package model
 
-var databasePrefix = "vela_"
+var tableNamePrefix = "vela_"

@@ -24,7 +24,7 @@ type Application struct {
 
 // TableName return custom table name
 func (a *Application) TableName() string {
-	return databasePrefix + "application"
+	return tableNamePrefix + "application"
 }
 
 // PrimaryKey return custom primary key
