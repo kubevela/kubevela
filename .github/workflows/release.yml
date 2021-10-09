@@ -127,3 +127,15 @@ jobs:
           asset_content_type: text/plain
       - name: Update kubectl plugin version in krew-index
         uses: rajatjindal/krew-release-bot@v0.0.38
+
+  homebrew:
+    runs-on: macos-latest
+    steps:
+      - name: Update Homebrew formula
+        uses: dawidd6/action-homebrew-bump-formula@v3
+        with:
+          token: ${{secrets.TOKEN}}
+          formula: kubevela
+          tag: ${{github.ref}}
+          revision: ${{github.sha}}
+          force: false
