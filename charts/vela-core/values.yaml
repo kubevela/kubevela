@@ -11,6 +11,10 @@ image:
   repository: oamdev/vela-core
   tag: latest
   pullPolicy: Always
+apiserverImage:
+  repository: oamdev/vela-apiserver
+  tag: v1.1.2
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
