@@ -134,8 +134,8 @@ jobs:
       - name: Update Homebrew formula
         uses: dawidd6/action-homebrew-bump-formula@v3
         with:
-          token: ${{secrets.TOKEN}}
+          token: ${{ secrets.GITHUB_TOKEN }}
           formula: kubevela
-          tag: ${{github.ref}}
-          revision: ${{github.sha}}
+          tag: ${{ github.ref }}
+          revision: ${{ github.sha }}
           force: false
