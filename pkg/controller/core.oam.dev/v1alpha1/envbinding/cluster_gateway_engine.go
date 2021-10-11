@@ -32,6 +32,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
+const (
+	// OverrideNamespaceLabelKey identifies the override namespace for patched Application
+	OverrideNamespaceLabelKey = "envbinding.oam.dev/override-namespace"
+)
+
 // ClusterGatewayEngine construct the multicluster engine of using cluster-gateway
 type ClusterGatewayEngine struct {
 	client.Client
@@ -47,34 +52,43 @@ func NewClusterGatewayEngine(cli client.Client, envBindingName string) ClusterMa
 	}
 }
 
-// TODO only support cluster name now, should support selector and namespace later
+// TODO only support single cluster name and namespace name now, should support label selector
 func (engine *ClusterGatewayEngine) prepare(ctx context.Context, configs []v1alpha1.EnvConfig) error {
 	engine.clusterDecisions = make(map[string]v1alpha1.ClusterDecision)
-	clusterNameToConfig := make(map[string]string)
+	locationToConfig := make(map[string]string)
 	for _, config := range configs {
+		var namespace, clusterName string
+		// check if namespace selector is valid
 		if config.Placement.NamespaceSelector != nil {
-			return errors.Errorf("invalid env %s: namespace selector in cluster-gateway is not supported now", config.Name)
+			if len(config.Placement.NamespaceSelector.Labels) != 0 {
+				return errors.Errorf("invalid env %s: namespace selector in cluster-gateway does not support label selector for now", config.Name)
+			}
+			namespace = config.Placement.NamespaceSelector.Name
 		}
-		if config.Placement.ClusterSelector == nil {
-			return errors.Errorf("invalid env %s: cluster selector must be set for now", config.Name)
+		// check if cluster selector is valid
+		if config.Placement.ClusterSelector != nil {
+			if len(config.Placement.ClusterSelector.Labels) != 0 {
+				return errors.Errorf("invalid env %s: cluster selector does not support label selector for now", config.Name)
+			}
+			clusterName = config.Placement.ClusterSelector.Name
 		}
-		if len(config.Placement.ClusterSelector.Labels) != 0 {
-			return errors.Errorf("invalid env %s: cluster selector does not support label selector for now", config.Name)
+		// set fallback cluster
+		if clusterName == "" {
+			clusterName = multicluster.ClusterLocalName
 		}
-		if len(config.Placement.ClusterSelector.Name) == 0 {
-			return errors.Errorf("invalid env %s: cluster selector must set cluster name for now", config.Name)
+		// check if current environment uses the same cluster and namespace as resource destination with other environment, if yes, a conflict occurs
+		location := clusterName + "/" + namespace
+		if dupConfigName, ok := locationToConfig[location]; ok {
+			return errors.Errorf("invalid env %s: location %s conflict with env %s", config.Name, location, dupConfigName)
 		}
-		clusterName := config.Placement.ClusterSelector.Name
-		if dupConfigName, ok := clusterNameToConfig[clusterName]; ok {
-			return errors.Errorf("invalid env %s: cluster name %s is conflict with env %s", config.Name, clusterName, dupConfigName)
-		}
-		clusterNameToConfig[clusterName] = config.Name
+		locationToConfig[clusterName] = config.Name
+		// check if target cluster exists
 		if clusterName != multicluster.ClusterLocalName {
 			if err := engine.Get(ctx, types.NamespacedName{Namespace: multicluster.ClusterGatewaySecretNamespace, Name: clusterName}, &v1.Secret{}); err != nil {
 				return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, config.Name)
 			}
 		}
-		engine.clusterDecisions[config.Name] = v1alpha1.ClusterDecision{Env: config.Name, Cluster: clusterName}
+		engine.clusterDecisions[config.Name] = v1alpha1.ClusterDecision{Env: config.Name, Cluster: clusterName, Namespace: namespace}
 	}
 	return nil
 }
@@ -87,12 +101,14 @@ func (engine *ClusterGatewayEngine) schedule(ctx context.Context, apps []*EnvBin
 	for _, app := range apps {
 		app.ScheduledManifests = make(map[string]*unstructured.Unstructured)
 		clusterName := engine.clusterDecisions[app.envConfig.Name].Cluster
+		namespace := engine.clusterDecisions[app.envConfig.Name].Namespace
 		raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(app.PatchedApp)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to convert app [Env: %s](%s/%s) into unstructured", app.envConfig.Name, app.PatchedApp.Namespace, app.PatchedApp.Name)
 		}
 		patchedApp := &unstructured.Unstructured{Object: raw}
 		multicluster.SetClusterName(patchedApp, clusterName)
+		SetOverrideNamespace(patchedApp, namespace)
 		app.ScheduledManifests[patchedApp.GetName()] = patchedApp
 	}
 	var decisions []v1alpha1.ClusterDecision
@@ -100,4 +116,16 @@ func (engine *ClusterGatewayEngine) schedule(ctx context.Context, apps []*EnvBin
 		decisions = append(decisions, decision)
 	}
 	return decisions, nil
+}
+
+// SetOverrideNamespace set the override namespace for object in its label
+func SetOverrideNamespace(obj *unstructured.Unstructured, overrideNamespace string) {
+	if overrideNamespace != "" {
+		labels := obj.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[OverrideNamespaceLabelKey] = overrideNamespace
+		obj.SetLabels(labels)
+	}
 }

@@ -29,7 +29,7 @@ spec:
           - name: test
             placement: # selecting the namespace (in local cluster) to deploy to
               namespaceSelector:
-                name: TEST_NAMESPACE
+                name: test
             selector:
               components:
                 - data-worker
@@ -44,7 +44,7 @@ spec:
               clusterSelector:
                 name: cluster-worker
               namespaceSelector:
-                name: PROD_NAMESPACE
+                name: prod
             patch: # overlay patch on above components
               components:
                 - name: hello-world-server
