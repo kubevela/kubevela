@@ -14,23 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package model
+package bcode
 
-// Application database model
-type Application struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Icon        string            `json:"icon"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	ClusterList []string          `json:"clusterList,omitempty"`
-}
+// ErrApplicationConfig application config does not comply with OAM specification
+var ErrApplicationConfig = NewBcode(400, 10000, "application config does not comply with OAM specification")
 
-// TableName return custom table name
-func (a *Application) TableName() string {
-	return tableNamePrefix + "application"
-}
+// ErrComponentTypeNotSupport an unsupported component type was used.
+var ErrComponentTypeNotSupport = NewBcode(400, 10001, "An unsupported component type was used.")
 
-// PrimaryKey return custom primary key
-func (a *Application) PrimaryKey() string {
-	return a.Name
-}
+// ErrApplicationExist application is exist
+var ErrApplicationExist = NewBcode(400, 10002, "application name is exist")

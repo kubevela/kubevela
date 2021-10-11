@@ -39,7 +39,7 @@ const (
 
 // CreateAddonRequest defines the format for addon create request
 type CreateAddonRequest struct {
-	Name string `json:"name" validate:"required"`
+	Name string `json:"name" validate:"name"`
 
 	Version string `json:"version" validate:"required"`
 
@@ -100,7 +100,7 @@ type AddonStatusResponse struct {
 
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
-	Name             string            `json:"name" validate:"required"`
+	Name             string            `json:"name" validate:"name"`
 	Description      string            `json:"description,omitempty"`
 	Icon             string            `json:"icon"`
 	KubeConfig       string            `json:"kubeConfig" validate:"required_without=kubeConfigSecret"`
@@ -183,8 +183,8 @@ type GatewayRule struct {
 
 // CreateApplicationRequest create application request body
 type CreateApplicationRequest struct {
-	Name        string            `json:"name" validate:"required"`
-	Namespace   string            `json:"namespace" validate:"required"`
+	Name        string            `json:"name" validate:"checkname"`
+	Namespace   string            `json:"namespace" validate:"checkname"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
@@ -236,7 +236,7 @@ type ComponentListResponse struct {
 
 // CreateComponentRequest create component request model
 type CreateComponentRequest struct {
-	ApplicationName string            `json:"appName" validate:"required"`
+	ApplicationName string            `json:"appName" validate:"name"`
 	Name            string            `json:"name" validate:"required"`
 	Description     string            `json:"description"`
 	Labels          map[string]string `json:"labels,omitempty"`
@@ -280,7 +280,7 @@ type NamesapceBase struct {
 
 // CreateNamespaceRequest create namespace request body
 type CreateNamespaceRequest struct {
-	Name        string `json:"name" validate:"required"`
+	Name        string `json:"name" validate:"name"`
 	Description string `json:"description"`
 }
 
@@ -306,7 +306,7 @@ type ComponentDefinitionBase struct {
 // CreatePolicyRequest create app policy
 type CreatePolicyRequest struct {
 	// Name is the unique name of the policy.
-	Name string `json:"name" validate:"required"`
+	Name string `json:"name" validate:"name"`
 
 	Type string `json:"type" validate:"required"`
 

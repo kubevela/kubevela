@@ -18,6 +18,7 @@ package kubeapi
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -26,8 +27,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/scale/scheme"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -70,6 +71,12 @@ var _ = BeforeSuite(func(done Done) {
 	close(done)
 }, 240)
 
+var _ = AfterSuite(func() {
+	By("tearing down the test environment")
+	err := testEnv.Stop()
+	Expect(err).ToNot(HaveOccurred())
+})
+
 var _ = Describe("Test kubeapi datastore driver", func() {
 
 	clients.SetKubeClient(k8sClient)
@@ -103,6 +110,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		var app model.Application
 		list, err := kubeStore.List(context.TODO(), &app, &datastore.ListOptions{Page: -1})
 		Expect(err).ShouldNot(HaveOccurred())
+		fmt.Printf("%+v", list[0])
 		diff := cmp.Diff(len(list), 3)
 		Expect(diff).Should(BeEmpty())
 

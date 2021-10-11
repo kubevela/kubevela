@@ -14,23 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package model
+package webservice
 
-// Application database model
-type Application struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Icon        string            `json:"icon"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	ClusterList []string          `json:"clusterList,omitempty"`
+import (
+	"regexp"
+
+	"github.com/go-playground/validator/v10"
+)
+
+var validate = validator.New()
+
+var nameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+
+func init() {
+	if err := validate.RegisterValidation("checkname", ValidateName); err != nil {
+		panic(err)
+	}
 }
 
-// TableName return custom table name
-func (a *Application) TableName() string {
-	return tableNamePrefix + "application"
-}
-
-// PrimaryKey return custom primary key
-func (a *Application) PrimaryKey() string {
-	return a.Name
+// ValidateName custom check name field
+func ValidateName(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if len(value) > 32 || len(value) < 2 {
+		return false
+	}
+	return nameRegexp.MatchString(value)
 }

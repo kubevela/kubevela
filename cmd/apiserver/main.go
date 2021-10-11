@@ -30,7 +30,7 @@ import (
 )
 
 func main() {
-	s := &server{}
+	s := &Server{}
 	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8000", "The bind address used to serve the http APIs.")
 	flag.StringVar(&s.restCfg.MetricPath, "metrics-path", "/metrics", "The path to expose the metrics.")
 	flag.StringVar(&s.restCfg.Datastore.Type, "datastore-type", "kubeapi", "Metadata storage driver type, support kubeapi and mongodb")
@@ -57,11 +57,12 @@ func main() {
 	log.Logger.Infof("See you next time!")
 }
 
-type server struct {
+// Server apiserver
+type Server struct {
 	restCfg rest.Config
 }
 
-func (s *server) run() error {
+func (s *Server) run() error {
 	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
 
 	ctx := context.Background()
