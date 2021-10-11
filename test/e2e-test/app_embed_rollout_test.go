@@ -158,6 +158,9 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 				if app.Status.Rollout.RollingState != v1alpha1.RolloutSucceedState {
 					return fmt.Errorf("app status rollingStatus not succeed acctually %s", app.Status.Rollout.RollingState)
 				}
+				if app.Status.Rollout.LastUpgradedTargetAppRevision != app.Status.LatestRevision.Name {
+					return fmt.Errorf("rollout controller haven't handle this change, targetRevision isn't right")
+				}
 				if app.Status.Phase != apicommon.ApplicationRunning {
 					return fmt.Errorf("app status not running acctually %s", app.Status.Phase)
 				}
@@ -252,8 +255,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
 
-	// TODO(@wangyikewxgm): pending this test as it's flaky, will fix it soon
-	PIt("Test application only upgrade batchPartition", func() {
+	It("Test application only upgrade batchPartition", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{
@@ -510,8 +512,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 3)))
 	})
 
-	// TODO(@wangyikewxgm): pending this test as it's flaky, will fix it soon
-	PIt("Test rollout with another component only rollout first component", func() {
+	It("Test rollout with another component only rollout first component", func() {
 		plan := &v1alpha1.RolloutPlan{
 			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
 			RolloutBatches: []v1alpha1.RolloutBatch{

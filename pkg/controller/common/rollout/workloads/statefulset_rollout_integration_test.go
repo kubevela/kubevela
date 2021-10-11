@@ -145,7 +145,7 @@ var _ = Describe("StatefulSet controller", func() {
 			targetHash := statefulSet.Status.UpdateRevision
 			c.rolloutStatus.LastAppliedPodTemplateIdentifier = targetHash
 			consistent, err := c.VerifySpec(ctx)
-			Expect(err).Should(Equal(fmt.Errorf("there is no difference between the source and target, hash = ")))
+			Expect(err).ShouldNot(Equal(fmt.Errorf("there is no difference between the source and target, hash = ")))
 			Expect(consistent).Should(BeFalse())
 		})
 
@@ -203,7 +203,8 @@ var _ = Describe("StatefulSet controller", func() {
 			Expect(err).Should(BeNil())
 			Expect(consistent).Should(BeTrue())
 			Expect(c.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(*statefulSet.Spec.Replicas))
-			Expect(c.rolloutStatus.NewPodTemplateIdentifier).Should(BeEmpty())
+			// NewPodTemplateIdenifier should be fill with computed hash
+			Expect(c.rolloutStatus.NewPodTemplateIdentifier).ShouldNot(BeEmpty())
 		})
 	})
 
