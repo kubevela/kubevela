@@ -137,14 +137,14 @@ var _ = Describe("cloneset controller", func() {
 			Expect(consistent).Should(BeFalse())
 		})
 
-		It("there is no difference between the source and target", func() {
+		It("verify rollout spec hash", func() {
 			By("Create a CloneSet")
+			cloneSet.Spec.UpdateStrategy.Paused = true
 			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
 
-			By("Verify should fail because the cloneset hash is not computed without kruise controller")
 			consistent, err := c.VerifySpec(ctx)
-			Expect(err).Should(Equal(fmt.Errorf("there is no difference between the source and target, hash = ")))
-			Expect(consistent).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			Expect(consistent).Should(BeTrue())
 		})
 
 		It("the cloneset is in the middle of updating", func() {
