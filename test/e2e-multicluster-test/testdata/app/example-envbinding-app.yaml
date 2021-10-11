@@ -27,7 +27,7 @@ spec:
       properties:
         envs:
           - name: test
-            placement: # selecting the namespace to deploy to
+            placement: # selecting the namespace (in local cluster) to deploy to
               namespaceSelector:
                 name: TEST_NAMESPACE
             selector:
