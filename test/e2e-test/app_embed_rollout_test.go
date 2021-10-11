@@ -158,6 +158,9 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 				if app.Status.Rollout == nil {
 					return fmt.Errorf("application is under creating, app status rollout is nil, %v", app.Status)
 				}
+				if app.Status.Rollout.LastUpgradedTargetAppRevision != app.Status.LatestRevision.Name {
+					return fmt.Errorf("rollout controller haven't handle this change, targetRevision isn't right")
+				}
 				if app.Status.Rollout.RollingState != v1alpha1.RolloutSucceedState {
 					return fmt.Errorf("app status rollingStatus not succeed acctually %s", app.Status.Rollout.RollingState)
 				}
