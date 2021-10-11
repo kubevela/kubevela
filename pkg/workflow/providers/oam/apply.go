@@ -39,7 +39,7 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 type provider struct {
 	apply ComponentApply
@@ -62,7 +62,11 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 	if err != nil {
 		clusterName = ""
 	}
-	workload, traits, healthy, err := p.apply(comp, patcher, clusterName)
+	overrideNamespace, err := v.GetString("namespace")
+	if err != nil {
+		overrideNamespace = ""
+	}
+	workload, traits, healthy, err := p.apply(comp, patcher, clusterName, overrideNamespace)
 	if err != nil {
 		return err
 	}

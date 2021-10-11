@@ -124,7 +124,7 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile, cli client.Client) oamProvider.ComponentApply {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 
 		wl, err := appParser.ParseWorkloadFromRevision(comp, appRev)
@@ -151,7 +151,12 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if err != nil {
 			return nil, nil, false, errors.WithMessage(err, "assemble resources before apply fail")
 		}
-
+		if overrideNamespace != "" {
+			readyWorkload.SetNamespace(overrideNamespace)
+			for _, readyTrait := range readyTraits {
+				readyTrait.SetNamespace(overrideNamespace)
+			}
+		}
 		skipStandardWorkload := skipApplyWorkload(wl)
 		if !skipStandardWorkload {
 			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyWorkload); err != nil {
