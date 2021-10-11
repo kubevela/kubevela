@@ -58,26 +58,31 @@ func (engine *ClusterGatewayEngine) prepare(ctx context.Context, configs []v1alp
 	locationToConfig := make(map[string]string)
 	for _, config := range configs {
 		var namespace, clusterName string
+		// check if namespace selector is valid
 		if config.Placement.NamespaceSelector != nil {
 			if len(config.Placement.NamespaceSelector.Labels) != 0 {
 				return errors.Errorf("invalid env %s: namespace selector in cluster-gateway does not support label selector for now", config.Name)
 			}
 			namespace = config.Placement.NamespaceSelector.Name
 		}
+		// check if cluster selector is valid
 		if config.Placement.ClusterSelector != nil {
 			if len(config.Placement.ClusterSelector.Labels) != 0 {
 				return errors.Errorf("invalid env %s: cluster selector does not support label selector for now", config.Name)
 			}
 			clusterName = config.Placement.ClusterSelector.Name
 		}
+		// set fallback cluster
 		if clusterName == "" {
 			clusterName = multicluster.ClusterLocalName
 		}
+		// check if current environment uses the same cluster and namespace as resource destination with other environment, if yes, a conflict occurs
 		location := clusterName + "/" + namespace
 		if dupConfigName, ok := locationToConfig[location]; ok {
 			return errors.Errorf("invalid env %s: location %s conflict with env %s", config.Name, location, dupConfigName)
 		}
 		locationToConfig[clusterName] = config.Name
+		// check if target cluster exists
 		if clusterName != multicluster.ClusterLocalName {
 			if err := engine.Get(ctx, types.NamespacedName{Namespace: multicluster.ClusterGatewaySecretNamespace, Name: clusterName}, &v1.Secret{}); err != nil {
 				return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, config.Name)
