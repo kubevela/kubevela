@@ -30,6 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -84,7 +85,14 @@ func (c *CloneSetRolloutController) VerifySpec(ctx context.Context) (bool, error
 	}
 
 	// make sure that the updateRevision is different from what we have already done
-	targetHash := c.cloneSet.Status.UpdateRevision
+	targetHash, verifyErr := utils.ComputeSpecHash(c.cloneSet.Spec)
+	if verifyErr != nil {
+		// do not fail the rollout because we can't compute the hash value for some reason
+		c.rolloutStatus.RolloutRetry(verifyErr.Error())
+		// nolint:nilerr
+		return false, nil
+	}
+
 	if targetHash == c.rolloutStatus.LastAppliedPodTemplateIdentifier {
 		return false, fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
 	}

@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -80,7 +82,14 @@ func (s *StatefulSetRolloutController) VerifySpec(ctx context.Context) (bool, er
 	s.rolloutStatus.RolloutOriginalSize = currentReplicas
 
 	// make sure that the updateRevision is different from what we have already done
-	targetHash := s.statefulSet.Status.UpdateRevision
+	targetHash, verifyErr := utils.ComputeSpecHash(s.statefulSet.Spec)
+	if verifyErr != nil {
+		// do not fail the rollout because we can't compute the hash value for some reason
+		s.rolloutStatus.RolloutRetry(verifyErr.Error())
+		// nolint:nilerr
+		return false, nil
+	}
+
 	if targetHash == s.rolloutStatus.LastAppliedPodTemplateIdentifier {
 		return false, fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
 	}
