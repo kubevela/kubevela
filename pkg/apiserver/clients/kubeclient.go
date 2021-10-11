@@ -17,12 +17,10 @@ limitations under the License.
 package clients
 
 import (
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var kubeClient client.Client
@@ -41,14 +39,7 @@ func GetKubeClient() (client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	scheme := k8sruntime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	if err := oamcore.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	k8sClient, err := client.New(conf, client.Options{Scheme: scheme})
+	k8sClient, err := client.New(conf, client.Options{Scheme: common.Scheme})
 	if err != nil {
 		return nil, err
 	}
