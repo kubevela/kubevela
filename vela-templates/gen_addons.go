@@ -292,10 +292,6 @@ func storeDefaultAddon(app *v1beta1.Application, storePath, addonName string) er
 	return WriteToFile(filename, raw)
 }
 
-type stackTracer interface {
-	StackTrace() errors.StackTrace
-}
-
 func main() {
 	var addonsPath string
 	var configMapStorePath string
@@ -308,14 +304,7 @@ func main() {
 	addons, err := walkAllAddons(addonsPath)
 	dealErr := func(addonName string, err error) {
 		if err != nil {
-			err, ok := err.(stackTracer) // ok is false if errors doesn't implement stackTracer
-
-			if ok {
-				stack := err.StackTrace()
-				fmt.Println(stack)
-			} else {
-				fmt.Printf("%s gen_addon err:%e", addonName, err)
-			}
+			fmt.Printf("%s gen_addon err:%+v", addonName, err)
 			os.Exit(1)
 		}
 	}
