@@ -24,6 +24,8 @@ import (
 	"text/template"
 	"time"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"github.com/Masterminds/sprig"
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
@@ -319,26 +321,30 @@ func (a *Addon) enable() error {
 	}
 	err = applicator.Apply(ctx, obj)
 	if err != nil {
-		return errors.Wrapf(err, "Error occurs when enableing addon: %s\n", a.name)
+		return errors.Wrapf(err, "Error occurs when apply addon application: %s\n", a.name)
+	}
+	err = waitApplicationRunning(a.application)
+	if err != nil {
+		return errors.Wrap(err, "Error occurs when waiting addon applicatoin running")
 	}
 	return nil
 }
 
-func _(obj *unstructured.Unstructured) error {
+func waitApplicationRunning(obj *unstructured.Unstructured) error {
 	ctx := context.Background()
 	period := 20 * time.Second
 	timeout := 10 * time.Minute
-	var init v1beta1.Initializer
+	var app v1beta1.Application
 	return wait.PollImmediate(period, timeout, func() (done bool, err error) {
-		err = clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &init)
+		err = clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &app)
 		if err != nil {
 			return false, client.IgnoreNotFound(err)
 		}
-		phase := init.Status.Phase
-		if phase == v1beta1.InitializerSuccess {
+		phase := app.Status.Phase
+		if phase == common2.ApplicationRunning {
 			return true, nil
 		}
-		fmt.Printf("Initializer %s is in phase:%s...\n", obj.GetName(), phase)
+		fmt.Printf("Application %s is in phase:%s...\n", obj.GetName(), phase)
 		return false, nil
 	})
 }
