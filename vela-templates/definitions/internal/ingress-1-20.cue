@@ -46,7 +46,12 @@ template: {
 	outputs: ingress: {
 		apiVersion: "networking.k8s.io/v1"
 		kind:       "Ingress"
-		metadata: name: context.name
+		metadata: {
+			name: context.name
+			annotations: {
+				"kubernetes.io/ingress.class": parameter.class
+			}
+		}
 		spec: rules: [{
 			host: parameter.domain
 			http: paths: [
@@ -68,5 +73,8 @@ template: {
 
 		// +usage=Specify the mapping relationship between the http path and the workload port
 		http: [string]: int
+
+		// +usage=Specify the class of ingress to use
+		class?: *"nginx" | string
 	}
 }
