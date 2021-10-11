@@ -115,8 +115,10 @@ var _ = Describe("Test multicluster scenario", func() {
 				Expect(k8sClient.Delete(workerCtx, clusterRoleBinding)).Should(Succeed())
 			}()
 			serviceAccount = &v1.ServiceAccount{}
-			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
-			Expect(len(serviceAccount.Secrets)).Should(Equal(1))
+			Eventually(func(g Gomega) {
+				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
+				Expect(len(serviceAccount.Secrets)).Should(Equal(1))
+			}, time.Second*30).Should(Succeed())
 			secret := &v1.Secret{}
 			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccount.Secrets[0].Name, Namespace: "kube-system"}, secret)).Should(Succeed())
 			token, ok := secret.Data["token"]
