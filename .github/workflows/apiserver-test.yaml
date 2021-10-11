@@ -1,4 +1,4 @@
-name: Unit-Test
+name: apiServer-test
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
           concurrent_skipping: false
 
-  unit-tests:
+  apiserver-unit-tests:
     runs-on: ubuntu-20.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
