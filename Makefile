@@ -43,10 +43,13 @@ VELA_RUNTIME_ROLLOUT_IMAGE       ?= vela-runtime-rollout:latest
 all: build
 
 # Run tests
-test: vet lint staticcheck
-	go test -coverprofile=coverage.txt ./pkg/... ./cmd/...
-	go test ./references/appfile/... ./references/cli/... ./references/common/... ./references/plugins/...
+test: vet lint staticcheck unit-test-core
 	@$(OK) unit-tests pass
+
+unit-test-core:
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./references/...  | grep -v apiserver)
+unit-test-apiserver:
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep apiserver)
 
 # Build vela cli binary
 build: fmt vet lint staticcheck vela-cli kubectl-vela
@@ -163,6 +166,10 @@ e2e-api-test:
 	ginkgo -v -skipPackage capability,setup,application -r e2e
 	ginkgo -v -r e2e/application
 
+e2e-apiserver-test:
+	ginkgo -v  ./test/e2e-apiserver-test
+	@$(OK) tests pass
+
 e2e-test:
 	# Run e2e test
 	ginkgo -v  --skip="rollout related e2e-test." ./test/e2e-test
@@ -178,7 +185,7 @@ e2e-multicluster-test:
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
 	# Run compatibility test with old crd
-	COMPATIBILITY_TEST=TRUE go test -race ./pkg/...
+	COMPATIBILITY_TEST=TRUE go test -race $(shell go list ./pkg/...  | grep -v apiserver)
 	@$(OK) compatibility-test pass
 
 generate-compatibility-testdata:

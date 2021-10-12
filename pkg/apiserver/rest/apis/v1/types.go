@@ -18,6 +18,9 @@ package v1
 
 import (
 	"time"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 // AddonPhase defines the phase of an addon
@@ -36,7 +39,7 @@ const (
 
 // CreateAddonRequest defines the format for addon create request
 type CreateAddonRequest struct {
-	Name string `json:"name" validate:"required"`
+	Name string `json:"name" validate:"name"`
 
 	Version string `json:"version" validate:"required"`
 
@@ -97,7 +100,7 @@ type AddonStatusResponse struct {
 
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
-	Name             string            `json:"name" validate:"required"`
+	Name             string            `json:"name" validate:"name"`
 	Description      string            `json:"description,omitempty"`
 	Icon             string            `json:"icon"`
 	KubeConfig       string            `json:"kubeConfig" validate:"required_without=kubeConfigSecret"`
@@ -180,13 +183,15 @@ type GatewayRule struct {
 
 // CreateApplicationRequest create application request body
 type CreateApplicationRequest struct {
-	Name        string            `json:"name" validate:"required"`
-	Namespace   string            `json:"namespace" validate:"required"`
+	Name        string            `json:"name" validate:"checkname"`
+	Namespace   string            `json:"namespace" validate:"checkname"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	ClusterList []string          `json:"clusterList,omitempty"`
 	YamlConfig  string            `json:"yamlConfig,omitempty"`
+	// Deploy Setting this to true means that the application is deployed directly after creation.
+	Deploy bool `json:"deploy,omitempty"`
 }
 
 // DetailApplicationResponse application detail
@@ -219,7 +224,7 @@ type ComponentBase struct {
 	ComponentType string            `json:"componentType"`
 	BindClusters  []string          `json:"bindClusters"`
 	Icon          string            `json:"icon,omitempty"`
-	DependOn      []string          `json:"dependOn"`
+	DependsOn     []string          `json:"dependsOn"`
 	Creator       string            `json:"creator,omitempty"`
 	DeployVersion string            `json:"deployVersion"`
 }
@@ -231,7 +236,7 @@ type ComponentListResponse struct {
 
 // CreateComponentRequest create component request model
 type CreateComponentRequest struct {
-	ApplicationName string            `json:"appName" validate:"required"`
+	ApplicationName string            `json:"appName" validate:"name"`
 	Name            string            `json:"name" validate:"required"`
 	Description     string            `json:"description"`
 	Labels          map[string]string `json:"labels,omitempty"`
@@ -275,7 +280,7 @@ type NamesapceBase struct {
 
 // CreateNamespaceRequest create namespace request body
 type CreateNamespaceRequest struct {
-	Name        string `json:"name" validate:"required"`
+	Name        string `json:"name" validate:"name"`
 	Description string `json:"description"`
 }
 
@@ -292,17 +297,79 @@ type ListComponentDefinitionResponse struct {
 
 // ComponentDefinitionBase component definition base model
 type ComponentDefinitionBase struct {
-	Name           string  `json:"name"`
-	Description    string  `json:"description"`
-	Icon           string  `json:"icon"`
-	RequiredParams []Param `json:"requiredParams"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Icon        string            `json:"icon"`
+	Parameter   []types.Parameter `json:"requiredParams"`
 }
 
-// Param For rendering forms
-type Param struct {
-	Key          string      `json:"key"`
-	Name         string      `json:"name"`
-	DefaultValue interface{} `json:"defaultValue"`
-	Type         string      `json:"type"`
-	Description  string      `json:"description"`
+// CreatePolicyRequest create app policy
+type CreatePolicyRequest struct {
+	// Name is the unique name of the policy.
+	Name string `json:"name" validate:"name"`
+
+	Type string `json:"type" validate:"required"`
+
+	// Properties json data
+	Properties string `json:"properties"`
+}
+
+// DetailPolicyResponse app policy detail model
+type DetailPolicyResponse struct {
+	// Name is the unique name of the policy.
+	Name string `json:"name"`
+
+	Type string `json:"type"`
+
+	// Properties json data
+	Properties string `json:"properties"`
+}
+
+// ListPolicyDefinitionResponse list available
+type ListPolicyDefinitionResponse struct {
+	PolicyDefinitions []PolicyDefinition `json:"policyDefinitions"`
+}
+
+// PolicyDefinition application policy definition
+type PolicyDefinition struct {
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Parameters  []types.Parameter `json:"parameters"`
+}
+
+// UpdateWorkflowRequest update or create application workflow
+type UpdateWorkflowRequest struct {
+	Steps  []WorkflowStep `json:"steps,omitempty"`
+	Enable bool           `json:"enable"`
+}
+
+// WorkflowStep workflow step config
+type WorkflowStep struct {
+	// Name is the unique name of the workflow step.
+	Name string `json:"name"`
+
+	Type string `json:"type"`
+
+	Properties string `json:"properties,omitempty"`
+
+	Inputs common.StepInputs `json:"inputs,omitempty"`
+
+	Outputs common.StepOutputs `json:"outputs,omitempty"`
+}
+
+// DetailWorkflowResponse detail workflow response
+type DetailWorkflowResponse struct {
+	Steps      []WorkflowStep  `json:"steps,omitempty"`
+	Enable     bool            `json:"enable"`
+	LastRecord *WorkflowRecord `json:"workflowRecord"`
+}
+
+// ListWorkflowRecordsResponse list workflow execution record
+type ListWorkflowRecordsResponse struct {
+	Records []WorkflowRecord `json:"records"`
+	Total   int64            `json:"total"`
+}
+
+// WorkflowRecord workflow record
+type WorkflowRecord struct {
 }

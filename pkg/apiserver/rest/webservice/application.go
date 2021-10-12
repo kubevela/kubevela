@@ -21,9 +21,19 @@ import (
 	restful "github.com/emicklei/go-restful/v3"
 
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 type applicationWebService struct {
+	applicationUsecase usecase.ApplicationUsecase
+}
+
+// NewApplicationWebService new application manage webservice
+func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase) WebService {
+	return &applicationWebService{
+		applicationUsecase: applicationUsecase,
+	}
 }
 
 func (c *applicationWebService) GetWebService() *restful.WebService {
@@ -35,7 +45,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 
 	tags := []string{"application"}
 
-	ws.Route(ws.GET("/").To(noop).
+	ws.Route(ws.GET("/").To(c.listApplications).
 		Doc("list all applications").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
@@ -43,7 +53,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("cluster", "Cluster-based search").DataType("string")).
 		Writes(apis.ListApplicationResponse{}))
 
-	ws.Route(ws.POST("/").To(noop).
+	ws.Route(ws.POST("/").To(c.createApplication).
 		Doc("create one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateApplicationRequest{}).
@@ -77,6 +87,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{name}/components").To(noop).
 		Doc("gets the component topology of the application").
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("cluster", "list components that deployed in define cluster").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Writes(apis.ComponentListResponse{}))
 
@@ -86,5 +97,55 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateComponentRequest{}).
 		Writes(apis.ComponentBase{}))
+
+	ws.Route(ws.POST("/{name}/policies").To(noop).
+		Doc("create policy for application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreatePolicyRequest{}).
+		Writes(apis.DetailPolicyResponse{}))
+
+	ws.Route(ws.GET("/{name}/policies/{policyName}").To(noop).
+		Doc("detail policy for application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Writes(apis.DetailPolicyResponse{}))
+
+	ws.Route(ws.DELETE("/{name}/policies/{policyName}").To(noop).
+		Doc("detail policy for application").
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Writes(apis.DetailPolicyResponse{}))
 	return ws
+}
+
+func (c *applicationWebService) createApplication(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.CreateApplicationRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the usecase layer code
+	appBase, err := c.applicationUsecase.CreateApplication(req.Request.Context(), createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(appBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
+
 }

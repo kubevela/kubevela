@@ -27,6 +27,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 )
 
 type mongodb struct {
@@ -36,7 +37,7 @@ type mongodb struct {
 
 // New new mongodb datastore instance
 func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error) {
-	if strings.HasPrefix(cfg.URL, "mongodb://") {
+	if !strings.HasPrefix(cfg.URL, "mongodb://") {
 		cfg.URL = fmt.Sprintf("mongodb://%s", cfg.URL)
 	}
 	clientOpts := options.Client().ApplyURI(cfg.URL)
@@ -53,70 +54,93 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 }
 
 // Add add data model
-func (m *mongodb) Add(ctx context.Context, kind string, entity interface{}) error {
-	collection := m.client.Database(m.database).Collection(kind)
+func (m *mongodb) Add(ctx context.Context, entity datastore.Entity) error {
+	if entity.PrimaryKey() == "" {
+		return datastore.ErrPrimaryEmpty
+	}
+	if entity.TableName() == "" {
+		return datastore.ErrTableNameEmpty
+	}
+	if err := m.Get(ctx, entity); err == nil {
+		return datastore.ErrRecordExist
+	}
+	collection := m.client.Database(m.database).Collection(entity.TableName())
 	_, err := collection.InsertOne(ctx, entity)
 	if err != nil {
-		return err
+		return datastore.NewDBError(err)
 	}
 	return nil
 }
 
 // Get get data model
-func (m *mongodb) Get(ctx context.Context, kind, name string, decodeTo interface{}) error {
-	collection := m.client.Database(m.database).Collection(kind)
-	return collection.FindOne(ctx, makeNameFilter(name)).Decode(decodeTo)
-}
-
-// Put update data model
-func (m *mongodb) Put(ctx context.Context, kind, name string, entity interface{}) error {
-	collection := m.client.Database(m.database).Collection(kind)
-	_, err := collection.UpdateOne(ctx, makeNameFilter(name), makeEntityUpdate(entity))
-	if err != nil {
-		return err
+func (m *mongodb) Get(ctx context.Context, entity datastore.Entity) error {
+	if entity.PrimaryKey() == "" {
+		return datastore.ErrPrimaryEmpty
+	}
+	if entity.TableName() == "" {
+		return datastore.ErrTableNameEmpty
+	}
+	collection := m.client.Database(m.database).Collection(entity.TableName())
+	if err := collection.FindOne(ctx, makeNameFilter(entity.PrimaryKey())).Decode(entity); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return datastore.ErrRecordNotExist
+		}
+		return datastore.NewDBError(err)
 	}
 	return nil
 }
 
-// Find find data model
-func (m *mongodb) Find(ctx context.Context, kind string) (datastore.Iterator, error) {
-	collection := m.client.Database(m.database).Collection(kind)
-	// bson.D{{}} specifies 'all documents'
-	filter := bson.D{}
-	cur, err := collection.Find(ctx, filter)
-	if err != nil {
-		return nil, err
+// Put update data model
+func (m *mongodb) Put(ctx context.Context, entity datastore.Entity) error {
+	if entity.PrimaryKey() == "" {
+		return datastore.ErrPrimaryEmpty
 	}
-	return &Iterator{cur: cur}, nil
-}
-
-// FindOne find one data model
-func (m *mongodb) FindOne(ctx context.Context, kind, name string) (datastore.Iterator, error) {
-	collection := m.client.Database(m.database).Collection(kind)
-	filter := bson.M{"name": name}
-	cur, err := collection.Find(ctx, filter)
-	if err != nil {
-		return nil, err
+	if entity.TableName() == "" {
+		return datastore.ErrTableNameEmpty
 	}
-	return &Iterator{cur: cur}, nil
+	collection := m.client.Database(m.database).Collection(entity.TableName())
+	_, err := collection.UpdateOne(ctx, makeNameFilter(entity.PrimaryKey()), makeEntityUpdate(entity))
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return datastore.ErrRecordNotExist
+		}
+		return datastore.NewDBError(err)
+	}
+	return nil
 }
 
 // IsExist determine whether data exists.
-func (m *mongodb) IsExist(ctx context.Context, kind, name string) (bool, error) {
-	collection := m.client.Database(m.database).Collection(kind)
-	err := collection.FindOne(ctx, makeNameFilter(name)).Err()
+func (m *mongodb) IsExist(ctx context.Context, entity datastore.Entity) (bool, error) {
+	if entity.PrimaryKey() == "" {
+		return false, datastore.ErrPrimaryEmpty
+	}
+	if entity.TableName() == "" {
+		return false, datastore.ErrTableNameEmpty
+	}
+	collection := m.client.Database(m.database).Collection(entity.TableName())
+	err := collection.FindOne(ctx, makeNameFilter(entity.PrimaryKey())).Err()
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return false, nil
 	} else if err != nil {
-		return false, err
+		return false, datastore.NewDBError(err)
 	}
 
 	return true, nil
 }
 
 // Delete delete data
-func (m *mongodb) Delete(ctx context.Context, kind, name string) error {
-	collection := m.client.Database(m.database).Collection(kind)
+func (m *mongodb) Delete(ctx context.Context, entity datastore.Entity) error {
+	if entity.PrimaryKey() == "" {
+		return datastore.ErrPrimaryEmpty
+	}
+	if entity.TableName() == "" {
+		return datastore.ErrTableNameEmpty
+	}
+	// check entity is exist
+	if err := m.Get(ctx, entity); err != nil {
+		return err
+	}
+	collection := m.client.Database(m.database).Collection(entity.TableName())
 	// delete at most one document in which the "name" field is "Bob" or "bob"
 	// specify the SetCollation option to provide a collation that will ignore case for string comparisons
 	opts := options.Delete().SetCollation(&options.Collation{
@@ -124,8 +148,51 @@ func (m *mongodb) Delete(ctx context.Context, kind, name string) error {
 		Strength:  1,
 		CaseLevel: false,
 	})
-	_, err := collection.DeleteOne(ctx, makeNameFilter(name), opts)
-	return err
+	_, err := collection.DeleteOne(ctx, makeNameFilter(entity.PrimaryKey()), opts)
+	if err != nil {
+		log.Logger.Errorf("delete document failure %w", err)
+		return datastore.NewDBError(err)
+	}
+	return nil
+}
+
+// List list entity function
+func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datastore.ListOptions) ([]datastore.Entity, error) {
+	if entity.TableName() == "" {
+		return nil, datastore.ErrTableNameEmpty
+	}
+	collection := m.client.Database(m.database).Collection(entity.TableName())
+	// bson.D{{}} specifies 'all documents'
+	filter := bson.D{}
+	var findOptions options.FindOptions
+	if op != nil && op.PageSize > 0 && op.Page > 0 {
+		findOptions.SetSkip(int64(op.PageSize * (op.Page - 1)))
+		findOptions.SetLimit(int64(op.PageSize))
+	}
+	cur, err := collection.Find(ctx, filter, &findOptions)
+	if err != nil {
+		return nil, datastore.NewDBError(err)
+	}
+	defer func() {
+		if err := cur.Close(ctx); err != nil {
+			log.Logger.Warnf("close mongodb cursor failure %s", err.Error())
+		}
+	}()
+	var list []datastore.Entity
+	for cur.Next(ctx) {
+		item, err := datastore.NewEntity(entity)
+		if err != nil {
+			return nil, datastore.NewDBError(err)
+		}
+		if err := cur.Decode(item); err != nil {
+			return nil, datastore.NewDBError(fmt.Errorf("decode entity failure %w", err))
+		}
+		list = append(list, item)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, datastore.NewDBError(err)
+	}
+	return list, nil
 }
 
 func makeNameFilter(name string) bson.D {

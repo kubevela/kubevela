@@ -82,7 +82,7 @@ func New(cfg Config) (a APIServer, err error) {
 }
 
 func (s *restServer) Run(ctx context.Context) error {
-	webservice.Init(ctx)
+	webservice.Init(ctx, s.dataStore)
 	err := s.registerServices()
 	if err != nil {
 		return err

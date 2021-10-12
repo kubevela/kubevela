@@ -115,6 +115,12 @@ You can try use your local built binaries follow [the documentation](https://kub
 make test
 ```
 
+To execute the unit test of the API module, the mongodb service needs to exist locally.
+
+```shell script
+make unit-test-apiserver
+```
+
 ### E2E test
 
 **Before e2e test start, make sure you have vela-core running.**
@@ -125,8 +131,14 @@ make core-run
 
 Start to test.
 
-```
+```shell script
 make e2e-test
+```
+
+To execute the e2e test of the API module, the mongodb service needs to exist locally.
+
+```shell script
+make e2e-apiserver-test
 ```
 
 ## Contribute Docs

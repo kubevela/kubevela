@@ -21,13 +21,13 @@ import (
 	"net/http"
 
 	"github.com/emicklei/go-restful/v3"
-	"github.com/go-playground/validator/v10"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 )
 
 // versionPrefix API version prefix.
 var versionPrefix = "/api/v1"
-
-var validate = validator.New()
 
 // WebService webservice interface
 type WebService interface {
@@ -57,11 +57,16 @@ func returns500(b *restful.RouteBuilder) {
 }
 
 // Init init all webservice, pass in the required parameter object.
-func Init(ctx context.Context) {
-	RegistWebService(&clusterWebService{})
-	RegistWebService(&applicationWebService{})
+// It can be implemented using the idea of dependency injection.
+func Init(ctx context.Context, ds datastore.DataStore) {
+	clusterUsecase := usecase.NewClusterUsecase(ds)
+	applicationUsecase := usecase.NewApplicationUsecase(ds)
+	RegistWebService(NewClusterWebService(clusterUsecase))
+	RegistWebService(NewApplicationWebService(applicationUsecase))
 	RegistWebService(&namespaceWebService{})
 	RegistWebService(&componentDefinitionWebservice{})
 	RegistWebService(&addonWebService{})
 	RegistWebService(&oamApplicationWebService{})
+	RegistWebService(&policyDefinitionWebservice{})
+	RegistWebService(&workflowWebService{})
 }
