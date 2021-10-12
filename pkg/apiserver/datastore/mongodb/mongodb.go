@@ -72,6 +72,29 @@ func (m *mongodb) Add(ctx context.Context, entity datastore.Entity) error {
 	return nil
 }
 
+// BatchAdd batch add entity, this operation has some atomicity.
+func (m *mongodb) BatchAdd(ctx context.Context, entitys []datastore.Entity) error {
+	donotRollback := make(map[string]int)
+	for i, saveEntity := range entitys {
+		if err := m.Add(ctx, saveEntity); err != nil {
+			if errors.Is(err, datastore.ErrRecordExist) {
+				donotRollback[saveEntity.PrimaryKey()] = 1
+			}
+			for _, deleteEntity := range entitys[:i] {
+				if _, exit := donotRollback[deleteEntity.PrimaryKey()]; !exit {
+					if err := m.Delete(ctx, deleteEntity); err != nil {
+						if !errors.Is(err, datastore.ErrRecordNotExist) {
+							log.Logger.Errorf("rollback delete component failure %w", err)
+						}
+					}
+				}
+			}
+			return datastore.NewDBError(fmt.Errorf("save components occur error, %w", err))
+		}
+	}
+	return nil
+}
+
 // Get get data model
 func (m *mongodb) Get(ctx context.Context, entity datastore.Entity) error {
 	if entity.PrimaryKey() == "" {
@@ -164,6 +187,14 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 	collection := m.client.Database(m.database).Collection(entity.TableName())
 	// bson.D{{}} specifies 'all documents'
 	filter := bson.D{}
+	if entity.Index() != nil {
+		for k, v := range entity.Index() {
+			filter = append(filter, bson.E{
+				Key:   k,
+				Value: v,
+			})
+		}
+	}
 	var findOptions options.FindOptions
 	if op != nil && op.PageSize > 0 && op.Page > 0 {
 		findOptions.SetSkip(int64(op.PageSize * (op.Page - 1)))
