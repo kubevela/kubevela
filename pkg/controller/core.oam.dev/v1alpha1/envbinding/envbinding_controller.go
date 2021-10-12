@@ -284,7 +284,7 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, envBinding *v1alpha1.
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, envBinding *v1alpha1.EnvBinding, cond condition.Condition) (ctrl.Result, error) {
 	envBinding.SetConditions(cond)
 	if err := r.Client.Status().Patch(ctx, envBinding, client.Merge); err != nil {
-		return ctrl.Result{}, errors.WithMessage(err, "cannot update initializer status")
+		return ctrl.Result{}, errors.WithMessage(err, "cannot update envbinding status")
 	}
 	// if any condition is changed, patching status can trigger requeue the resource and we should return nil to
 	// avoid requeue it again

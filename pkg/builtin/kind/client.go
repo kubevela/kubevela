@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/kind/pkg/cluster"
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
 	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
@@ -137,7 +138,11 @@ func loadImage(imageTarName string, node nodes.Node) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to open image")
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			klog.Error(err, "Failed to close file")
+		}
+	}()
 	return nodeutils.LoadImageArchive(node, f)
 }
 

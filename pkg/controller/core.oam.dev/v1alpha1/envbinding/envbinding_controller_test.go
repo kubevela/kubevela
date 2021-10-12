@@ -663,7 +663,6 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			By("Create envBinding")
 			Expect(k8sClient.Create(ctx, envBinding)).Should(BeNil())
 
-			testutil.ReconcileOnce(&r, req)
 			testutil.ReconcileRetry(&r, req)
 
 			By("Check the Application created by EnvBinding Controller")
