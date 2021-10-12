@@ -18,6 +18,7 @@ package testutil
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/onsi/gomega"
@@ -46,16 +47,20 @@ func ReconcileRetryAndExpectErr(r reconcile.Reconciler, req reconcile.Request) {
 
 // ReconcileOnce will just reconcile once
 func ReconcileOnce(r reconcile.Reconciler, req reconcile.Request) {
-	//nolint:errcheck
-	r.Reconcile(context.TODO(), req)
+	if _, err := r.Reconcile(context.TODO(), req); err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 // ReconcileOnceAfterFinalizer will reconcile for finalizer
-//nolint:errcheck
 func ReconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) (reconcile.Result, error) {
 	// 1st and 2nd time reconcile to add finalizer
-	r.Reconcile(context.TODO(), req)
-	r.Reconcile(context.TODO(), req)
+	if result, err := r.Reconcile(context.TODO(), req); err != nil {
+		return result, err
+	}
+	if result, err := r.Reconcile(context.TODO(), req); err != nil {
+		return result, err
+	}
 
 	return r.Reconcile(context.TODO(), req)
 }

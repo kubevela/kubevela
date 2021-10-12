@@ -326,8 +326,11 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 				if err != nil {
 					return false
 				}
-				// nolint
-				defer f.Close()
+				defer func() {
+					if err := f.Close(); err != nil {
+						klog.Error(err, "Failed to close file")
+					}
+				}()
 				// check if dir is empty
 				if _, err := f.Readdir(1); errors.Is(err, io.EOF) {
 					return false
