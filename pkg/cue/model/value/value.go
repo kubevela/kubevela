@@ -93,9 +93,9 @@ func NewValue(s string, pd *packages.PackageDiscover, tagTempl string, opts ...f
 	}
 	addImports := func(inst *build.Instance) error {
 		if pd != nil {
-			pd.ImportBuiltinPackagesFor(builder)
+			pd.ImportBuiltinPackagesFor(inst)
 		}
-		if err := stdlib.AddImportsFor(builder, tagTempl); err != nil {
+		if err := stdlib.AddImportsFor(inst, tagTempl); err != nil {
 			return err
 		}
 		return nil

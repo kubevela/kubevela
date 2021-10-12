@@ -58,6 +58,10 @@ func (nwk *nodewalker) walk(node ast.Node) {
 		if n.Value != nil {
 			origin := nwk.pos
 			oriTags := nwk.tags
+			nwk.tags = map[string]string{}
+			for k, v := range oriTags {
+				nwk.tags[k] = v
+			}
 			nwk.pos = append(nwk.pos, labelStr(n.Label))
 			tags := findCommentTag(n.Comments())
 			for tk, tv := range tags {
