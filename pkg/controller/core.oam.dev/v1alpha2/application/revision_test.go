@@ -336,7 +336,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(BeNil())
 		expectWorkload = comps[0].StandardWorkload.DeepCopy()
 		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
-		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
+		Expect(cmp.Diff(gotComp.Spec.Workload, *util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
 
 		By("Verify component revision is not changed")
 		expectCompRevName = "express-server-v1"
@@ -400,7 +400,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(BeNil())
 		expectWorkload = comps[0].StandardWorkload.DeepCopy()
 		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
-		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
+		Expect(cmp.Diff(gotComp.Spec.Workload, *util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
 
 		By("Change the application same as v1 and apply again")
 		// bump the image tag
@@ -465,7 +465,7 @@ var _ = Describe("test generate revision ", func() {
 		expectWorkload = comps[0].StandardWorkload.DeepCopy()
 		util.RemoveLabels(expectWorkload, []string{oam.LabelAppRevision, oam.LabelAppRevisionHash, oam.LabelAppComponentRevision})
 		expectWorkload.SetAnnotations(map[string]string{"testKey1": "true"})
-		Expect(cmp.Diff(gotComp.Spec.Workload, util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
+		Expect(cmp.Diff(gotComp.Spec.Workload, *util.Object2RawExtension(expectWorkload))).Should(BeEmpty())
 	})
 
 	It("Test App with rollout template", func() {
