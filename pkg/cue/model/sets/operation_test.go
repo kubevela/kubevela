@@ -242,6 +242,46 @@ containers: [{
 	}, ...]
 }, ...]
 `},
+
+		{
+			base: `
+             containers: [{
+               volumeMounts: [{name: "k1", path: "p1"},{name: "k1", path: "p2"},...]
+             },...]
+			volumes: [{name: "x1",value: "v1"},{name: "x2",value: "v2"},...]
+`,
+
+			patch: `
+			 // +patchKey=name
+             volumes: [{name: "x1",value: "v1"},{name: "x3",value: "x2"}]
+             
+             containers: [{
+               volumeMounts: [{name: "k1", path: "p1"},{name: "k1", path: "p2"},{ name:"k2", path: "p3"}]
+             },...]`,
+			result: `containers: [{
+	volumeMounts: [{
+		path: "p1"
+		name: "k1"
+	}, {
+		path: "p2"
+		name: "k1"
+	}, {
+		path: "p3"
+		name: "k2"
+	}]
+}, ...]
+// +patchKey=name
+volumes: [{
+	name:  "x1"
+	value: "v1"
+}, {
+	name:  "x2"
+	value: "v2"
+}, {
+	name:  "x3"
+	value: "x2"
+}, ...]
+`},
 	}
 
 	for i, tcase := range testCase {
