@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
@@ -250,6 +251,10 @@ type WorkflowStepStatus struct {
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
 	Reason   string          `json:"reason,omitempty"`
 	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
+	// FirstExecuteTime is the first time this step execution.
+	FirstExecuteTime metav1.Time `json:"firstExecuteTime"`
+	// LastExecuteTime is the last time this step execution.
+	LastExecuteTime metav1.Time `json:"lastExecuteTime"`
 }
 
 // WorkflowSubStepStatus record the status of a workflow step
@@ -308,6 +313,8 @@ type WorkflowStatus struct {
 
 	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
+
+	StartTime metav1.Time `json:"startTime"`
 }
 
 // SubStepsStatus record the status of workflow steps.
