@@ -366,7 +366,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}
 		helmworkerV1.Spec.Schematic = &common.Schematic{
 			HELM: &common.Helm{
-				Release: util.Object2RawExtension(map[string]interface{}{
+				Release: *util.Object2RawExtension(map[string]interface{}{
 					"chart": map[string]interface{}{
 						"spec": map[string]interface{}{
 							"chart":   "podinfo",
@@ -374,7 +374,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 						},
 					},
 				}),
-				Repository: util.Object2RawExtension(map[string]interface{}{
+				Repository: *util.Object2RawExtension(map[string]interface{}{
 					"url": "https://stefanprodan.github.io/podinfo",
 				}),
 			},
@@ -399,7 +399,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 			helmworkerV2.Spec.Workload.Type = "deployments.apps"
 			helmworkerV2.Spec.Schematic = &common.Schematic{
 				HELM: &common.Helm{
-					Release: util.Object2RawExtension(map[string]interface{}{
+					Release: *util.Object2RawExtension(map[string]interface{}{
 						"chart": map[string]interface{}{
 							"spec": map[string]interface{}{
 								"chart":   "podinfo",
@@ -407,7 +407,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 							},
 						},
 					}),
-					Repository: util.Object2RawExtension(map[string]interface{}{
+					Repository: *util.Object2RawExtension(map[string]interface{}{
 						"url": "https://stefanprodan.github.io/podinfo",
 					}),
 				},

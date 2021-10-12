@@ -118,13 +118,13 @@ var _ = Describe("test generate revision ", func() {
 						Type:   cd.Name,
 						Name:   "express-server",
 						Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
-						Properties: runtime.RawExtension{
+						Properties: &runtime.RawExtension{
 							Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 						},
 						Traits: []common.ApplicationTrait{
 							{
 								Type: td.Name,
-								Properties: runtime.RawExtension{
+								Properties: &runtime.RawExtension{
 									Raw: []byte(`{"replicas": 5}`),
 								},
 							},
@@ -232,7 +232,7 @@ var _ = Describe("test generate revision ", func() {
 	It("Test appliction contain a SkipAppRevision tait will have same hash", func() {
 		rolloutTrait := common.ApplicationTrait{
 			Type: "rollout",
-			Properties: runtime.RawExtension{
+			Properties: &runtime.RawExtension{
 				Raw: []byte(`{"targetRevision":"myrev-v1"}`),
 			},
 		}
@@ -348,7 +348,7 @@ var _ = Describe("test generate revision ", func() {
 		By("Change the application and apply again")
 		// bump the image tag
 		app.ResourceVersion = curApp.ResourceVersion
-		app.Spec.Components[0].Properties = runtime.RawExtension{
+		app.Spec.Components[0].Properties = &runtime.RawExtension{
 			Raw: []byte(`{"image": "oamdev/testapp:v2", "cmd": ["node", "server.js"]}`),
 		}
 		// persist the app
@@ -405,7 +405,7 @@ var _ = Describe("test generate revision ", func() {
 		By("Change the application same as v1 and apply again")
 		// bump the image tag
 		app.ResourceVersion = curApp.ResourceVersion
-		app.Spec.Components[0].Properties = runtime.RawExtension{
+		app.Spec.Components[0].Properties = &runtime.RawExtension{
 			Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 		}
 		// persist the app
@@ -546,7 +546,7 @@ var _ = Describe("test generate revision ", func() {
 		// bump the image tag
 		app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
 		app.ResourceVersion = curApp.ResourceVersion
-		app.Spec.Components[0].Properties = runtime.RawExtension{
+		app.Spec.Components[0].Properties = &runtime.RawExtension{
 			Raw: []byte(`{"image": "oamdev/testapp:v2", "cmd": ["node", "server.js"]}`),
 		}
 		// persist the app

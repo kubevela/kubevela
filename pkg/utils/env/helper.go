@@ -59,7 +59,7 @@ func getEnvNamespace(application *v1beta1.Application) string {
 	namespace := DefaultEnvNamespace
 	for _, comp := range application.Spec.Components {
 		if comp.Type == RawType {
-			obj, err := util.RawExtension2Unstructured(&comp.Properties)
+			obj, err := util.RawExtension2Unstructured(comp.Properties)
 			if err != nil {
 				return ""
 			}

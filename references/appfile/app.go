@@ -108,7 +108,9 @@ func GetApplicationSettings(app *v1beta1.Application, componentName string) (str
 	for _, comp := range app.Spec.Components {
 		if comp.Name == componentName {
 			data := map[string]interface{}{}
-			_ = json.Unmarshal(comp.Properties.Raw, &data)
+			if comp.Properties != nil {
+				_ = json.Unmarshal(comp.Properties.Raw, &data)
+			}
 			return comp.Type, data
 		}
 	}

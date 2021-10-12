@@ -103,7 +103,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 							},
 						},
 						Helm: &common.Helm{
-							Release: util.Object2RawExtension(map[string]interface{}{
+							Release: *util.Object2RawExtension(map[string]interface{}{
 								"chart": map[string]interface{}{
 									"spec": map[string]interface{}{
 										"chart":   "podinfo",
@@ -111,7 +111,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 									},
 								},
 							}),
-							Repository: util.Object2RawExtension(map[string]interface{}{
+							Repository: *util.Object2RawExtension(map[string]interface{}{
 								"url": "http://oam.dev/catalog/",
 							}),
 						},
@@ -1061,7 +1061,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				Spec:       configSpec,
 			}
 			rawConf := util.Object2RawExtension(tfConfiguration)
-			wantWL, _ := util.RawExtension2Unstructured(&rawConf)
+			wantWL, _ := util.RawExtension2Unstructured(rawConf)
 
 			if diff := cmp.Diff(wantWL, got); diff != "" {
 				t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want, +got:\n%s\n", tcName, diff)

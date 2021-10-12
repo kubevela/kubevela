@@ -73,7 +73,7 @@ var _ = Describe("Test Application Controller", func() {
 				{
 					Name:       "myweb1",
 					Type:       "worker",
-					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","config":"myconfig"}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","config":"myconfig"}`)},
 				},
 			},
 		},
@@ -91,7 +91,7 @@ var _ = Describe("Test Application Controller", func() {
 				{
 					Name:       "myweb2",
 					Type:       "worker",
-					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 				},
 			},
 		},
@@ -103,7 +103,7 @@ var _ = Describe("Test Application Controller", func() {
 
 	appFailRender := appwithNoTrait.DeepCopy()
 	appFailRender.SetName("app-fail-to-render")
-	appFailRender.Spec.Components[0].Properties = runtime.RawExtension{
+	appFailRender.Spec.Components[0].Properties = &runtime.RawExtension{
 		Raw: []byte(`{"cmd1":["sleep","1000"],"image1":"busybox"}`),
 	}
 
@@ -120,11 +120,11 @@ var _ = Describe("Test Application Controller", func() {
 				{
 					Name:       "myweb",
 					Type:       "worker-import",
-					Properties: runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
 					Traits: []common.ApplicationTrait{
 						{
 							Type:       "ingress-import",
-							Properties: runtime.RawExtension{Raw: []byte("{\"http\":{\"/\":80},\"domain\":\"abc.com\"}")},
+							Properties: &runtime.RawExtension{Raw: []byte("{\"http\":{\"/\":80},\"domain\":\"abc.com\"}")},
 						},
 					},
 				},
@@ -176,7 +176,7 @@ var _ = Describe("Test Application Controller", func() {
 	appWithTrait.Spec.Components[0].Traits = []common.ApplicationTrait{
 		{
 			Type:       "scaler",
-			Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
 		},
 	}
 	appWithTrait.Spec.Components[0].Name = "myweb3"
@@ -220,7 +220,7 @@ var _ = Describe("Test Application Controller", func() {
 	appWithTwoComp.Spec.Components = append(appWithTwoComp.Spec.Components, common.ApplicationComponent{
 		Name:       "myweb6",
 		Type:       "worker",
-		Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2","config":"myconfig"}`)},
+		Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox2","config":"myconfig"}`)},
 		Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 	})
 
@@ -457,7 +457,7 @@ var _ = Describe("Test Application Controller", func() {
 		appWithComposedWorkload.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "scaler",
-				Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
 			},
 		}
 		appWithComposedWorkload.Spec.Components[0].Name = compName
@@ -702,13 +702,13 @@ var _ = Describe("Test Application Controller", func() {
 		curApp.Spec.Components[0] = common.ApplicationComponent{
 			Name:       "myweb5",
 			Type:       "worker",
-			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3"}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3"}`)},
 			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 		}
 		curApp.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "myweb7",
 			Type:       "worker",
-			Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 		}
 		Expect(k8sClient.Update(ctx, curApp)).Should(BeNil())
@@ -1029,9 +1029,9 @@ var _ = Describe("Test Application Controller", func() {
 		app := appWithTraitHealthStatus.DeepCopy()
 		app.Spec.Components[0].Name = compName
 		app.Spec.Components[0].Type = "nworker"
-		app.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3","lives":"3","enemies":"alien"}`)}
+		app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3","lives":"3","enemies":"alien"}`)}
 		app.Spec.Components[0].Traits[0].Type = "ingress"
-		app.Spec.Components[0].Traits[0].Properties = runtime.RawExtension{Raw: []byte(`{"domain":"example.com","http":{"/":80}}`)}
+		app.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"domain":"example.com","http":{"/":80}}`)}
 
 		expDeployment.Name = app.Name
 		expDeployment.Namespace = ns.Name
@@ -1167,7 +1167,7 @@ var _ = Describe("Test Application Controller", func() {
 		appRefertoWd.Spec.Components[0] = common.ApplicationComponent{
 			Name:       "mytask",
 			Type:       "task",
-			Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
 		}
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1217,7 +1217,7 @@ var _ = Describe("Test Application Controller", func() {
 		appMix.Spec.Components[1] = common.ApplicationComponent{
 			Name:       "mytask",
 			Type:       "task",
-			Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
 		}
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1438,11 +1438,10 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Traits: []common.ApplicationTrait{
 							{
-								Type:       "rollout",
-								Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+								Type: "rollout",
 							},
 						},
 					},
@@ -1463,7 +1462,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
 
 		By("update component targetComponentRev will change")
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","2000"],"image":"nginx"}`)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","2000"],"image":"nginx"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -1518,11 +1517,10 @@ var _ = Describe("Test Application Controller", func() {
 						Name:             "myweb1",
 						Type:             "worker",
 						ExternalRevision: externalRevision,
-						Properties:       runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties:       &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Traits: []common.ApplicationTrait{
 							{
-								Type:       "rollout",
-								Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+								Type: "rollout",
 							},
 						},
 					},
@@ -1570,7 +1568,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-revision",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -1619,7 +1617,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:             "myweb1",
 						Type:             "worker-revision",
 						ExternalRevision: externalRevision,
-						Properties:       runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties:       &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -1676,11 +1674,10 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Traits: []common.ApplicationTrait{
 							{
-								Type:       "rollout",
-								Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+								Type: "rollout",
 							},
 						},
 					},
@@ -1690,7 +1687,7 @@ var _ = Describe("Test Application Controller", func() {
 						{
 							Name:       "apply",
 							Type:       "apply-component",
-							Properties: runtime.RawExtension{Raw: []byte(`{"component" : "myweb1"}`)},
+							Properties: &runtime.RawExtension{Raw: []byte(`{"component" : "myweb1"}`)},
 						},
 					},
 				},
@@ -1742,7 +1739,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
 						Inputs: common.StepInputs{
 							{
 								From:         "message",
@@ -1761,7 +1758,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb2",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 							{Name: "sleepTime", ValueFrom: "\"100\""},
@@ -1842,13 +1839,13 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						DependsOn:  []string{"myweb2"},
 					},
 					{
 						Name:       "myweb2",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 					},
 				},
 			},
@@ -1917,7 +1914,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						DependsOn:  []string{"myweb2"},
 						Inputs: common.StepInputs{
 							{
@@ -1933,7 +1930,7 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb2",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
@@ -2016,12 +2013,12 @@ var _ = Describe("Test Application Controller", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 					},
 					{
 						Name:       "myweb2",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 					},
 				},
 			},

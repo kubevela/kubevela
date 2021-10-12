@@ -55,23 +55,24 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 // Output get data from task value.
 func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error {
 	if phase == common.WorkflowStepPhaseSucceeded {
-		ready, err := value.NewValue(`true`, nil, "")
-		if err != nil {
-			return err
-		}
-
-		o := struct {
-			Name string `json:"name"`
-		}{}
-		js, err := step.Properties.MarshalJSON()
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(js, &o); err != nil {
-			return err
-		}
-		if err := ctx.SetVar(ready, ReadyComponent, o.Name); err != nil {
-			return err
+		if step.Properties != nil {
+			o := struct {
+				Name string `json:"name"`
+			}{}
+			js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(js, &o); err != nil {
+				return err
+			}
+			ready, err := value.NewValue(`true`, nil, "")
+			if err != nil {
+				return err
+			}
+			if err := ctx.SetVar(ready, ReadyComponent, o.Name); err != nil {
+				return err
+			}
 		}
 
 		for _, output := range step.Outputs {

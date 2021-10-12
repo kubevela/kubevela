@@ -75,7 +75,7 @@ func SetTrait(app *v1beta1.Application, componentName, traitType string, traitDa
 			app.Spec.Components[idx].Traits[j].Properties.Raw = data
 		}
 		if !added {
-			app.Spec.Components[idx].Traits = append(app.Spec.Components[idx].Traits, common.ApplicationTrait{Type: traitType, Properties: runtime.RawExtension{Raw: data}})
+			app.Spec.Components[idx].Traits = append(app.Spec.Components[idx].Traits, common.ApplicationTrait{Type: traitType, Properties: &runtime.RawExtension{Raw: data}})
 		}
 	}
 	if !foundComp {

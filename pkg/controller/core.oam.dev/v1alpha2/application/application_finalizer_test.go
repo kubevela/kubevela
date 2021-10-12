@@ -107,7 +107,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		updateApp.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "cross-scaler",
-				Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 			},
 		}
 		Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
@@ -236,7 +236,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		app.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Type:       "cross-scaler",
-				Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 			},
 		}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
@@ -284,7 +284,7 @@ func getApp(appName, namespace, comptype string) *v1beta1.Application {
 				{
 					Name:       "comp1",
 					Type:       comptype,
-					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 				},
 			},
 		},
