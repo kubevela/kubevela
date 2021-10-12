@@ -117,7 +117,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 					{
 						Name: appName,
 						Type: compType,
-						Properties: runtime.RawExtension{
+						Properties: &runtime.RawExtension{
 							Raw: []byte(initialProperty),
 						},
 					},
@@ -496,7 +496,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		appName = "app-rollout-5"
 		app := generateNewApp(appName, namespaceName, "clonesetservice", plan)
 		ingressProperties := `{"domain":"test-1.example.com","http":{"/":8080}}`
-		app.Spec.Components[0].Traits = []apicommon.ApplicationTrait{{Type: "ingress", Properties: runtime.RawExtension{Raw: []byte(ingressProperties)}}}
+		app.Spec.Components[0].Traits = []apicommon.ApplicationTrait{{Type: "ingress", Properties: &runtime.RawExtension{Raw: []byte(ingressProperties)}}}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 1), "1")
 		updateAppWithCpuAndPlan(app, "2", plan)
@@ -530,7 +530,7 @@ var _ = Describe("rollout related e2e-test,Cloneset based app embed rollout test
 		annotherComp := apicommon.ApplicationComponent{
 			Name: "another-comp",
 			Type: "clonesetservice",
-			Properties: runtime.RawExtension{
+			Properties: &runtime.RawExtension{
 				Raw: []byte(initialProperty),
 			},
 		}

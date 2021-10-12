@@ -328,7 +328,7 @@ spec:
 			cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
 			cd.Spec.Schematic = &common.Schematic{
 				HELM: &common.Helm{
-					Release: util.Object2RawExtension(map[string]interface{}{
+					Release: *util.Object2RawExtension(map[string]interface{}{
 						"chart": map[string]interface{}{
 							"spec": map[string]interface{}{
 								"chart":   "podinfo",
@@ -336,7 +336,7 @@ spec:
 							},
 						},
 					}),
-					Repository: util.Object2RawExtension(map[string]interface{}{
+					Repository: *util.Object2RawExtension(map[string]interface{}{
 						"url": "http://oam.dev/catalog/",
 					}),
 				},

@@ -122,8 +122,8 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 		params := map[string]interface{}{}
 
-		if len(wfStep.Properties.Raw) > 0 {
-			bt, err := wfStep.Properties.MarshalJSON()
+		if wfStep.Properties != nil && len(wfStep.Properties.Raw) > 0 {
+			bt, err := common.RawExtensionPointer{RawExtension: wfStep.Properties}.MarshalJSON()
 			if err != nil {
 				return nil, err
 			}

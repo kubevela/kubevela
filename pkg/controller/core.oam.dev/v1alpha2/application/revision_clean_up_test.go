@@ -79,7 +79,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
@@ -104,7 +104,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("create new appRevision will remove appRevison1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -131,7 +131,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("update app again will gc appRevision2")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -164,7 +164,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
@@ -189,7 +189,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("create new appRevision will remove revision v1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -216,7 +216,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("update app again will gc revision v2")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -242,7 +242,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("update app with comp as latest revision will not gc revision v3")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -273,7 +273,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
@@ -298,7 +298,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("create new appRevision will remove revision v1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -325,7 +325,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("update app again will gc revision v2")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -351,7 +351,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("update app with comp as latest revision will not gc revision v3")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -382,7 +382,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
@@ -407,7 +407,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("create new appRevision will remove appRevison1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -437,7 +437,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("update app again will gc appRevision2")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -475,7 +475,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
@@ -500,7 +500,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("create new appRevision will remove appRevison1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -530,7 +530,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("update app again will gc appRevision2")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 7)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -568,7 +568,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		for i := 0; i < appRevisionLimit+1; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 			testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 		}
@@ -593,7 +593,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		By("create new appRevision will remove appRevison1")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-		checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		_, err := reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 		Expect(err).Should(BeNil())
@@ -644,7 +644,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		for i := 7; i < 9; i++ {
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 			_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
 			Expect(err).Should(BeNil())

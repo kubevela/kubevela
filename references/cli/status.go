@@ -193,7 +193,7 @@ func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 			var message string
 			for _, v := range comp.Traits {
 				if v.Type == tr.Type {
-					traitData, _ := util.RawExtension2Map(&v.Properties)
+					traitData, _ := util.RawExtension2Map(v.Properties)
 					for k, v := range traitData {
 						message += fmt.Sprintf("%v=%v\n\t\t", k, v)
 					}

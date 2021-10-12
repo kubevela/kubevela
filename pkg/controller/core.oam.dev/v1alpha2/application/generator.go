@@ -92,7 +92,7 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 	o := struct {
 		Component string `json:"component"`
 	}{}
-	js, err := step.Properties.MarshalJSON()
+	js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
 	if err != nil {
 		return err
 	}

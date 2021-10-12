@@ -99,10 +99,10 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
 						Traits: []common.ApplicationTrait{{
 							Type:       "cluster-scope-trait",
-							Properties: runtime.RawExtension{Raw: []byte("{}")},
+							Properties: &runtime.RawExtension{Raw: []byte("{}")},
 						}},
 					},
 				},
@@ -177,15 +177,15 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
 						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cluster-scope-trait",
-								Properties: runtime.RawExtension{Raw: []byte("{}")},
+								Properties: &runtime.RawExtension{Raw: []byte("{}")},
 							},
 							{
 								Type:       "cross-scaler",
-								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 							},
 						},
 					},
@@ -217,7 +217,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
 						Traits: []common.ApplicationTrait{
 							// remove the cluster-scoped trait and keep the
 							// cross-namespaced trait.
@@ -226,7 +226,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 							// not cascading deletion
 							{
 								Type:       "cross-scaler",
-								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 							}},
 					},
 				},
@@ -274,7 +274,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -379,7 +379,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "normal-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -426,7 +426,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			app.Spec.Components[0].Traits = []common.ApplicationTrait{
 				{
 					Type:       "cross-scaler",
-					Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 				},
 			}
 			return k8sClient.Update(ctx, app)
@@ -495,11 +495,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "normal-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cross-scaler",
-								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
 							},
 						},
 					},
@@ -607,12 +607,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       component1Name,
 						Type:       "normal-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 					{
 						Name:       component2Name,
 						Type:       "cross-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -738,7 +738,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -799,7 +799,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err != nil {
 				return err
 			}
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"nginx"}`)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"nginx"}`)}
 			err = k8sClient.Update(ctx, checkApp)
 			if err != nil {
 				return err
@@ -882,12 +882,12 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       component1Name,
 						Type:       "cross-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 					{
 						Name:       component2Name,
 						Type:       "cross-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -1036,11 +1036,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cross-scaler",
-								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 0}`)},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 0}`)},
 							},
 						},
 					},
@@ -1194,7 +1194,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
