@@ -89,7 +89,7 @@ func TestLoadComponent(t *testing.T) {
 					{
 						Name:       "c1",
 						Type:       "web",
-						Properties: runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
 					},
 				},
 			},

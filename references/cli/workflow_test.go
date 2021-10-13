@@ -36,13 +36,13 @@ var workflowSpec = v1beta1.ApplicationSpec{
 	Components: []common.ApplicationComponent{{
 		Name:       "test-component",
 		Type:       "worker",
-		Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+		Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 	}},
 	Workflow: &v1beta1.Workflow{
 		Steps: []v1beta1.WorkflowStep{{
 			Name:       "test-wf1",
 			Type:       "foowf",
-			Properties: runtime.RawExtension{Raw: []byte(`{"namespace":"default"}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"default"}`)},
 		}},
 	},
 }

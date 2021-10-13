@@ -251,7 +251,7 @@ func (p *Parser) parsePoliciesFromRevision(policies []v1beta1.AppPolicy, appRev 
 	return ws, nil
 }
 
-func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
+func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension) (*Workload, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
@@ -259,7 +259,7 @@ func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType typ
 	return p.convertTemplate2Workload(name, typ, props, templ)
 }
 
-func (p *Parser) makeWorkloadFromRevision(name, typ string, capType types.CapType, props runtime.RawExtension, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
+func (p *Parser) makeWorkloadFromRevision(name, typ string, capType types.CapType, props *runtime.RawExtension, appRev *v1beta1.ApplicationRevision) (*Workload, error) {
 	templ, err := LoadTemplateFromRevision(typ, capType, appRev, p.dm)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s from revision", name)
@@ -268,8 +268,8 @@ func (p *Parser) makeWorkloadFromRevision(name, typ string, capType types.CapTyp
 	return p.convertTemplate2Workload(name, typ, props, templ)
 }
 
-func (p *Parser) convertTemplate2Workload(name, typ string, props runtime.RawExtension, templ *Template) (*Workload, error) {
-	settings, err := util.RawExtension2Map(&props)
+func (p *Parser) convertTemplate2Workload(name, typ string, props *runtime.RawExtension, templ *Template) (*Workload, error) {
+	settings, err := util.RawExtension2Map(props)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
 	}
@@ -299,7 +299,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp common.ApplicationCompo
 	workload.ExternalRevision = comp.ExternalRevision
 
 	for _, traitValue := range comp.Traits {
-		properties, err := util.RawExtension2Map(&traitValue.Properties)
+		properties, err := util.RawExtension2Map(traitValue.Properties)
 		if err != nil {
 			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
 		}
@@ -335,7 +335,7 @@ func (p *Parser) ParseWorkloadFromRevision(comp common.ApplicationComponent, app
 	workload.ExternalRevision = comp.ExternalRevision
 
 	for _, traitValue := range comp.Traits {
-		properties, err := util.RawExtension2Map(&traitValue.Properties)
+		properties, err := util.RawExtension2Map(traitValue.Properties)
 		if err != nil {
 			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
 		}

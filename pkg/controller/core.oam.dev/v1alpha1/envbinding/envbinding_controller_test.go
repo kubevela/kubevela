@@ -182,7 +182,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-select-cluster-by-name")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
 			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
@@ -229,7 +229,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-select-cluster-by-label")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Labels = map[string]string{
 				"purpose": "test",
@@ -277,7 +277,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-with-two-env-config")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
 
@@ -361,7 +361,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-with-app-has-helm")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 
 			envBinding.Spec.Envs = []v1alpha1.EnvConfig{{
@@ -416,7 +416,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-apply-resources-with-ocm")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
 			envBinding.Spec.Engine = v1alpha1.OCMEngine
@@ -458,7 +458,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-apply-resources")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 
@@ -494,7 +494,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-store2configmap")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 			envBinding.Spec.OutputResourcesTo = &v1alpha1.ConfigMapReference{
@@ -538,7 +538,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-specify-ns")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 			envBinding.Spec.Envs[0].Placement = v1alpha1.EnvPlacement{
@@ -579,7 +579,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetNamespace(namespace)
 			envBinding.SetName("envbinding-select-ns-label")
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 			envBinding.Spec.Envs[0].Placement = v1alpha1.EnvPlacement{
@@ -624,7 +624,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetName("test-envbinding-gc-single-cluster")
 			envBinding.SetNamespace(namespace)
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Engine = v1alpha1.SingleClusterEngine
 			envBinding.Spec.Envs[0].Placement = v1alpha1.EnvPlacement{
@@ -742,7 +742,7 @@ var _ = Describe("EnvBinding Normal tests", func() {
 			envBinding.SetName("test-envbinding-gc-multi-cluster")
 			envBinding.SetNamespace(namespace)
 			envBinding.Spec.AppTemplate = v1alpha1.AppTemplate{
-				RawExtension: util.Object2RawExtension(appTemplate),
+				RawExtension: *util.Object2RawExtension(appTemplate),
 			}
 			envBinding.Spec.Envs[0].Placement.ClusterSelector.Name = spokeClusterName
 
@@ -1007,7 +1007,7 @@ var podInfo = &v1beta1.ComponentDefinition{
 		},
 		Schematic: &commontype.Schematic{
 			HELM: &commontype.Helm{
-				Release: util.Object2RawExtension(map[string]interface{}{
+				Release: *util.Object2RawExtension(map[string]interface{}{
 					"chart": map[string]interface{}{
 						"spec": map[string]interface{}{
 							"chart":   "podinfo",
@@ -1015,7 +1015,7 @@ var podInfo = &v1beta1.ComponentDefinition{
 						},
 					},
 				}),
-				Repository: util.Object2RawExtension(map[string]interface{}{
+				Repository: *util.Object2RawExtension(map[string]interface{}{
 					"url": "http://oam.dev/catalog/",
 				}),
 			},
