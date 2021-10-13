@@ -465,6 +465,59 @@ var _ = Describe("Test handleSkipGC func", func() {
 	})
 })
 
+var _ = Describe("Test compatibility code", func() {
+	var namespaceName string
+	var appName string
+	ctx := context.Background()
+	BeforeEach(func() {
+		namespaceName = fmt.Sprintf("%s-%s", "compatibility-code-test", strconv.FormatInt(rand.Int63(), 16))
+		appName = "test-app"
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceName}}))
+	})
+
+	It("Test GC skip func ", func() {
+		a := AppManifestsDispatcher{c: k8sClient, currentRTName: appName + "-v4-" + namespaceName, namespace: namespaceName}
+		resourceTracker_old := v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: appName + "-v1-" + namespaceName,
+				Labels: map[string]string{
+					oam.LabelAppNamespace: namespaceName,
+					oam.LabelAppName:      appName,
+				},
+			},
+		}
+		resourceTracker_new := v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: appName + "-v2-" + namespaceName,
+				Labels: map[string]string{
+					"app.oam.dev/namesapce": namespaceName,
+					oam.LabelAppName:        appName,
+				},
+			},
+		}
+		resourceTracker_previous := v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: appName + "-v3-" + namespaceName,
+				Labels: map[string]string{
+					oam.LabelAppNamespace: namespaceName,
+					oam.LabelAppName:      appName,
+				},
+			},
+		}
+		a.previousRT = &resourceTracker_previous
+		Expect(a.c.Create(ctx, &resourceTracker_old)).Should(BeNil())
+		Expect(a.c.Create(ctx, &resourceTracker_new)).Should(BeNil())
+		Expect(a.retrieveLegacyResourceTrackers(ctx)).Should(BeNil())
+		Expect(len(a.legacyRTs)).Should(BeEquivalentTo(2))
+		res := map[types.UID]bool{}
+		for _, rt := range a.legacyRTs {
+			res[rt.UID] = true
+		}
+		Expect(res[resourceTracker_old.UID]).Should(BeTrue())
+		Expect(res[resourceTracker_new.UID]).Should(BeTrue())
+	})
+})
+
 // in envtest, no gc controller can delete PersistentVolume because of its finalizer
 // so we just use deletion timestamp to verify its deletion
 func persistentVolumeIsDeleted(pv *corev1.PersistentVolume) bool {

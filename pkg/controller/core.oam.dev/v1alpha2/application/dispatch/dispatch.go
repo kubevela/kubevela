@@ -203,6 +203,25 @@ func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Cont
 			a.legacyRTs = append(a.legacyRTs, rt.DeepCopy())
 		}
 	}
+
+	// compatibility code for label typo. more info: https://github.com/oam-dev/kubevela/issues/2464
+	// TODO(wangyikewxgm)  delete after appRollout deprecated.
+	oldRtList := &v1beta1.ResourceTrackerList{}
+	if err := a.c.List(ctx, oldRtList, client.MatchingLabels{
+		oam.LabelAppName:        ExtractAppName(a.currentRTName, a.namespace),
+		"app.oam.dev/namesapce": a.namespace,
+	}); err != nil {
+		return errors.Wrap(err, "cannot retrieve legacy resource trackers with miss-spell label")
+	}
+	if len(oldRtList.Items) != 0 {
+		for _, rt := range oldRtList.Items {
+			if rt.Name != a.currentRTName &&
+				(a.previousRT != nil && rt.Name != a.previousRT.Name) && !IsLifeLongResourceTracker(rt) {
+				a.legacyRTs = append(a.legacyRTs, rt.DeepCopy())
+			}
+		}
+	}
+
 	return nil
 }
 
