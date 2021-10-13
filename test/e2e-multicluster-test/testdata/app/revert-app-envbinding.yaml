@@ -1,0 +1,38 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-app
+  namespace: default
+spec:
+  components:
+    - name: hello-world-server
+      type: webservice
+      properties:
+        image: stefanprodan/podinfo:5.0.2
+      traits:
+        - type: rollout
+          properties:
+            targetRevision: hello-world-server-v1
+            targetSize: 2
+            rolloutBatches:
+              - replicas: 1
+              - replicas: 1
+
+  policies:
+    - name: example-multi-env-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: staging
+            placement: # selecting the cluster to deploy to
+              clusterSelector:
+                name: cluster-worker
+
+  workflow:
+    steps:
+      # deploy to staging env
+      - name: deploy-staging
+        type: deploy2env
+        properties:
+          policy: example-multi-env-policy
+          env: staging
