@@ -1,0 +1,54 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: mysql-pvc
+spec:
+  components:
+  - name: mysql
+    type: webservice
+    properties:
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: root
+      image: mysql:5.7
+      port: 3306
+      cpu: 1000m
+      memory: 500M
+    traits:
+      - type: ingress
+        properties:
+          http:
+            /: 13666
+          domain: com.zdww1
+      - type: scaler
+        properties:
+          replicas: 1
+      - type: cpuscaler
+        properties:
+          cpuUtil: 70
+          min: 1
+          max: 3
+      - type: pvc
+        properties:
+          claimName: aaa
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: nfs-dynamic-sc
+          resources:
+            requests:
+              storage: 1Gi
+          volumesToMount:
+            - mountPath: /aaa
+              name: aaa
+      - type: pvc
+        properties:
+          claimName: bbb
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: nfs-dynamic-sc
+          resources:
+            requests:
+              storage: 1Gi
+          volumesToMount:
+            - mountPath: /bbb
+              name: bbb

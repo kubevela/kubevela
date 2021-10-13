@@ -45,7 +45,7 @@ template: {
 			},
 		]
 	}
-	outputs: pvc: {
+	outputs: "\(parameter.claimName)": {
 		apiVersion: "v1"
 		kind:       "PersistentVolumeClaim"
 		metadata: {
