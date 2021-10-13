@@ -19,8 +19,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -50,56 +48,45 @@ func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDiscover, _ := cmd.Flags().GetBool("discover")
-			env, err := GetFlagEnvOrCurrent(cmd, c)
-			if err != nil {
-				return err
-			}
-			label, err := cmd.Flags().GetString(types.LabelArg)
-			if err != nil {
-				return err
-			}
-			if label != "" && len(strings.Split(label, "=")) != 2 {
-				return fmt.Errorf("label %s is not in the right format", label)
-
-			}
-			if !isDiscover {
-				return printTraitList(env.Namespace, c, ioStreams, label)
-			}
-			option := types.TypeTrait
-			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option, label)
-			if err != nil {
-				return err
-			}
-
-			return nil
+			url, _ := cmd.PersistentFlags().GetString("url")
+			err := PrintTraitListFromRegistry(isDiscover, url, ioStreams)
+			return err
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
-	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
+	cmd.SetOut(ioStreams.Out)
+	cmd.AddCommand(
+		NewTraitGetCommand(c, ioStreams),
+	)
+	cmd.Flags().Bool("discover", false, "discover traits in registries")
+	cmd.PersistentFlags().String("url", DefaultRegistry, "specify the registry URL")
+
 	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams, label string) error {
-	table := newUITable()
-	table.Wrap = true
+// NewTraitGetCommand creates `trait get` command
+func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "get <trait>",
+		Short:   "get trait from registry",
+		Long:    "get trait from registry",
+		Example: "vela trait get <trait>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				ioStreams.Error("you must specify the trait name")
+				return nil
+			}
+			name := args[0]
+			url, _ := cmd.Flags().GetString("url")
 
-	traitDefinitionList, err := common.ListRawTraitDefinitions(userNamespace, c)
-	if err != nil {
-		return err
+			return InstallTraitByName(c, ioStreams, name, url)
+		},
 	}
-	table.AddRow("NAME", "NAMESPACE", "APPLIES-TO", "CONFLICTS-WITH", "POD-DISRUPTIVE", "DESCRIPTION")
-	for _, t := range traitDefinitionList {
-		if label != "" && !common.CheckLabelExistence(t.Labels, label) {
-			continue
-		}
-		table.AddRow(t.Name, t.Namespace, strings.Join(t.Spec.AppliesToWorkloads, ","), strings.Join(t.Spec.ConflictsWith, ","), t.Spec.PodDisruptive, plugins.GetDescription(t.Annotations))
-	}
-	ioStreams.Info(table.String())
-	return nil
+	return cmd
 }
 
 // PrintTraitListFromRegistry print a table which shows all traits from registry

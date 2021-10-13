@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
@@ -236,34 +235,3 @@ func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 	return success
 }
 
-// LoadCapabilityFromSyncedCenter will load capability from dir
-func LoadCapabilityFromSyncedCenter(mapper discoverymapper.DiscoveryMapper, dir string) ([]types.Capability, error) {
-	var tmps []types.Capability
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-		if strings.HasSuffix(f.Name(), ".cue") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, f.Name())))
-		if err != nil {
-			fmt.Printf("read file %s err %v\n", f.Name(), err)
-			continue
-		}
-		tmp, err := ParseCapability(mapper, data)
-		if err != nil {
-			fmt.Printf("get definition of %s err %v\n", f.Name(), err)
-			continue
-		}
-		tmps = append(tmps, tmp)
-	}
-	return tmps, nil
-}

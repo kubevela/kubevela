@@ -19,8 +19,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -30,7 +28,6 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
@@ -51,73 +48,45 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			isDiscover, _ := cmd.Flags().GetBool("discover")
-			env, err := GetFlagEnvOrCurrent(cmd, c)
-			if err != nil {
-				return err
-			}
-
-			label, err := cmd.Flags().GetString(types.LabelArg)
-			if err != nil {
-				return err
-			}
-			if label != "" && len(strings.Split(label, "=")) != 2 {
-				return fmt.Errorf("label %s is not in the right format", label)
-			}
-
-			if !isDiscover {
-				return printComponentList(env.Namespace, c, ioStreams, label)
-			}
-			option := types.TypeComponentDefinition
-			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option, label)
-			if err != nil {
-				return err
-			}
-
-			return nil
+			url, _ := cmd.PersistentFlags().GetString("url")
+			err := PrintComponentListFromRegistry(isDiscover, url, ioStreams)
+			return err
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
-	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
+	cmd.SetOut(ioStreams.Out)
+	cmd.AddCommand(
+		NewCompGetCommand(c, ioStreams),
+	)
+	cmd.Flags().Bool("discover", false, "discover traits in registries")
+	cmd.PersistentFlags().String("url", DefaultRegistry, "specify the registry URL")
 	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams, label string) error {
-	def, err := common.ListRawComponentDefinitions(userNamespace, c)
-	if err != nil {
-		return err
-	}
-
-	dm, err := c.GetDiscoveryMapper()
-	if err != nil {
-		return fmt.Errorf("get discoveryMapper error %w", err)
-	}
-
-	table := newUITable()
-	table.AddRow("NAME", "NAMESPACE", "WORKLOAD", "DESCRIPTION")
-
-	for _, r := range def {
-		if label != "" && !common.CheckLabelExistence(r.Labels, label) {
-			continue
-		}
-		var workload string
-		if r.Spec.Workload.Type != "" {
-			workload = r.Spec.Workload.Type
-		} else {
-			definition, err := oamutil.ConvertWorkloadGVK2Definition(dm, r.Spec.Workload.Definition)
-			if err != nil {
-				return fmt.Errorf("get workload definitionReference error %w", err)
+// NewCompGetCommand creates `comp get` command
+func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "get <component>",
+		Short:   "get component from registry",
+		Long:    "get component from registry",
+		Example: "vela comp get <component>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				ioStreams.Error("you must specify a component name")
+				return nil
 			}
-			workload = definition.Name
-		}
-		table.AddRow(r.Name, r.Namespace, workload, plugins.GetDescription(r.Annotations))
+			name := args[0]
+			url, _ := cmd.Flags().GetString("url")
+			return InstallCompByName(c, ioStreams, name, url)
+		},
 	}
-	ioStreams.Info(table.String())
-	return nil
+	return cmd
 }
+
 
 // PrintComponentListFromRegistry print a table which shows all components from registry
 func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
