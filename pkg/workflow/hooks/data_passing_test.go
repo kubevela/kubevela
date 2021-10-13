@@ -71,7 +71,7 @@ output: score: 99
 `, nil, "")
 	r.NoError(err)
 	err = Output(wfCtx, taskValue, v1beta1.WorkflowStep{
-		Properties: runtime.RawExtension{
+		Properties: &runtime.RawExtension{
 			Raw: []byte("{\"name\":\"mystep\"}"),
 		},
 		Outputs: common.StepOutputs{{

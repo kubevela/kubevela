@@ -113,7 +113,7 @@ var _ = Describe("Test Application apply", func() {
 			Components: []common.ApplicationComponent{{
 				Type: "test-worker",
 				Name: "test-app",
-				Properties: runtime.RawExtension{
+				Properties: &runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
 			}},

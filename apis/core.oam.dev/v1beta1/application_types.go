@@ -44,7 +44,7 @@ type AppPolicy struct {
 
 	Type string `json:"type"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties,omitempty"`
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
 }
 
 // WorkflowStep defines how to execute a workflow step.
@@ -55,7 +55,7 @@ type WorkflowStep struct {
 	Type string `json:"type"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties,omitempty"`
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
 	DependsOn []string `json:"dependsOn,omitempty"`
 

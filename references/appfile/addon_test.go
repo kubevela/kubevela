@@ -37,7 +37,7 @@ var _ = It("Test ApplyTerraform", func() {
 		Spec: v1beta1.ApplicationSpec{Components: []commontype.ApplicationComponent{{
 			Name:       "test-terraform-svc",
 			Type:       "aliyun-oss",
-			Properties: runtime.RawExtension{Raw: []byte("{\"bucket\": \"oam-website\"}")},
+			Properties: &runtime.RawExtension{Raw: []byte("{\"bucket\": \"oam-website\"}")},
 		},
 		}},
 	}

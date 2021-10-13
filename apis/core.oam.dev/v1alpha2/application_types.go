@@ -54,7 +54,7 @@ type AppStatus struct {
 type ApplicationTrait struct {
 	Name string `json:"name"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties,omitempty"`
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
 }
 
 // ApplicationComponent describe the component of application

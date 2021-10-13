@@ -55,13 +55,13 @@ var _ = Describe("Test Workflow", func() {
 			Components: []common.ApplicationComponent{{
 				Name:       "test-component",
 				Type:       "worker",
-				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 			}},
 			Workflow: &oamcore.Workflow{
 				Steps: []oamcore.WorkflowStep{{
 					Name:       "test-wf1",
 					Type:       "foowf",
-					Properties: runtime.RawExtension{Raw: []byte(`{"namespace":"test-ns"}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"test-ns"}`)},
 				}},
 			},
 		},
@@ -71,7 +71,7 @@ var _ = Describe("Test Workflow", func() {
 	appWithWorkflowAndPolicy.Spec.Policies = []oamcore.AppPolicy{{
 		Name:       "test-policy",
 		Type:       "foopolicy",
-		Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+		Properties: &runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
 	}}
 
 	appWithPolicy := &oamcore.Application{
@@ -83,12 +83,12 @@ var _ = Describe("Test Workflow", func() {
 			Components: []common.ApplicationComponent{{
 				Name:       "test-component",
 				Type:       "worker",
-				Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 			}},
 			Policies: []oamcore.AppPolicy{{
 				Name:       "test-policy",
 				Type:       "foopolicy",
-				Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
 			}},
 		},
 	}
@@ -160,7 +160,7 @@ var _ = Describe("Test Workflow", func() {
 		appWithPolicyAndWorkflow.Spec.Policies = []oamcore.AppPolicy{{
 			Name:       "test-foo-policy",
 			Type:       "foopolicy",
-			Properties: runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
 		}}
 
 		Expect(k8sClient.Create(ctx, appWithPolicyAndWorkflow)).Should(BeNil())
@@ -237,7 +237,7 @@ var _ = Describe("Test Workflow", func() {
 		suspendApp.Spec.Workflow.Steps = []oamcore.WorkflowStep{{
 			Name:       "suspend",
 			Type:       "suspend",
-			Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(`{}`)},
 		}}
 		Expect(k8sClient.Create(ctx, suspendApp)).Should(BeNil())
 
@@ -284,12 +284,12 @@ var _ = Describe("Test Workflow", func() {
 			{
 				Name:       "suspend",
 				Type:       "suspend",
-				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{}`)},
 			},
 			{
 				Name:       "suspend-1",
 				Type:       "suspend",
-				Properties: runtime.RawExtension{Raw: []byte(`{}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{}`)},
 			}}
 		Expect(k8sClient.Create(ctx, suspendApp)).Should(BeNil())
 
@@ -352,7 +352,7 @@ var _ = Describe("Test Workflow", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						Inputs: common.StepInputs{
 							{
 								From:         "message",
@@ -367,7 +367,7 @@ var _ = Describe("Test Workflow", func() {
 					{
 						Name:       "myweb2",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
@@ -377,11 +377,11 @@ var _ = Describe("Test Workflow", func() {
 					Steps: []oamcore.WorkflowStep{{
 						Name:       "test-web2",
 						Type:       "apply-component",
-						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 					}, {
 						Name:       "test-web1",
 						Type:       "apply-component",
-						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 					}},
 				},
 			},
@@ -461,24 +461,24 @@ var _ = Describe("Test Workflow", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						DependsOn:  []string{"myweb2"},
 					},
 					{
 						Name:       "myweb2",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 					},
 				},
 				Workflow: &oamcore.Workflow{
 					Steps: []oamcore.WorkflowStep{{
 						Name:       "test-web2",
 						Type:       "apply-component",
-						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 					}, {
 						Name:       "test-web1",
 						Type:       "apply-component",
-						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 					}},
 				},
 			},
@@ -549,7 +549,7 @@ var _ = Describe("Test Workflow", func() {
 					{
 						Name:       "myweb1",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						DependsOn:  []string{"myweb2"},
 						Inputs: common.StepInputs{
 							{
@@ -565,7 +565,7 @@ var _ = Describe("Test Workflow", func() {
 					{
 						Name:       "myweb2",
 						Type:       "worker-with-health",
-						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
 						Outputs: common.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
@@ -575,11 +575,11 @@ var _ = Describe("Test Workflow", func() {
 					Steps: []oamcore.WorkflowStep{{
 						Name:       "test-web2",
 						Type:       "apply-component",
-						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 					}, {
 						Name:       "test-web1",
 						Type:       "apply-component",
-						Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 					}},
 				},
 			},
@@ -649,12 +649,12 @@ var _ = Describe("Test Workflow", func() {
 					{
 						Name:       "myweb1",
 						Type:       "webserver",
-						Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
 					},
 					{
 						Name:       "myweb2",
 						Type:       "webserver",
-						Properties: runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox"}`)},
 					},
 				},
 			},
@@ -666,19 +666,19 @@ var _ = Describe("Test Workflow", func() {
 		updateApp := &oamcore.Application{}
 		Expect(k8sClient.Get(ctx, appKey, updateApp)).Should(BeNil())
 		Expect(updateApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
-		updateApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{}`)}
+		updateApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{}`)}
 		updateApp.Spec.Workflow = &oamcore.Workflow{
 			Steps: []oamcore.WorkflowStep{{
 				Name:       "test-web2",
 				Type:       "apply-component",
-				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 				Outputs: common.StepOutputs{
 					{Name: "image", ValueFrom: "output.spec.template.spec.containers[0].image"},
 				},
 			}, {
 				Name:       "test-web1",
 				Type:       "apply-component",
-				Properties: runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 				Inputs: common.StepInputs{
 					{
 						From:         "image",

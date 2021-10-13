@@ -633,7 +633,7 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 			},
 		},
 		Revision: int64(revision),
-		Data:     util.Object2RawExtension(comp),
+		Data:     *util.Object2RawExtension(comp),
 	}
 	return h.r.Create(ctx, cr)
 }
@@ -651,15 +651,15 @@ func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Compone
 		wl = cm.StandardWorkload.DeepCopy()
 		util.RemoveLabels(wl, []string{oam.LabelAppRevision})
 	}
-	component.Spec.Workload = util.Object2RawExtension(wl)
+	component.Spec.Workload = *util.Object2RawExtension(wl)
 	if len(cm.PackagedWorkloadResources) > 0 {
 		helm := &common.Helm{}
 		for _, helmResource := range cm.PackagedWorkloadResources {
 			if helmResource.GetKind() == helmapi.HelmReleaseGVK.Kind {
-				helm.Release = util.Object2RawExtension(helmResource)
+				helm.Release = *util.Object2RawExtension(helmResource)
 			}
 			if helmResource.GetKind() == helmapi.HelmRepositoryGVK.Kind {
-				helm.Repository = util.Object2RawExtension(helmResource)
+				helm.Repository = *util.Object2RawExtension(helmResource)
 			}
 		}
 		component.Spec.Helm = helm

@@ -17,6 +17,8 @@ limitations under the License.
 package common
 
 import (
+	"encoding/json"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -374,7 +376,7 @@ type AppRolloutStatus struct {
 type ApplicationTrait struct {
 	Type string `json:"type"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties,omitempty"`
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
 }
 
 // ApplicationComponent describe the component of application
@@ -384,7 +386,7 @@ type ApplicationComponent struct {
 	// ExternalRevision specified the component revisionName
 	ExternalRevision string `json:"externalRevision,omitempty"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties,omitempty"`
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
 	DependsOn []string    `json:"dependsOn,omitempty"`
 	Inputs    StepInputs  `json:"inputs,omitempty"`
@@ -456,4 +458,30 @@ type ClusterObjectReference struct {
 	Cluster                string              `json:"cluster,omitempty"`
 	Creator                ResourceCreatorRole `json:"creator,omitempty"`
 	corev1.ObjectReference `json:",inline"`
+}
+
+// RawExtensionPointer is the pointer of raw extension
+type RawExtensionPointer struct {
+	RawExtension *runtime.RawExtension
+}
+
+// MarshalJSON may get called on pointers or values, so implement MarshalJSON on value.
+// http://stackoverflow.com/questions/21390979/custom-marshaljson-never-gets-called-in-go
+func (re RawExtensionPointer) MarshalJSON() ([]byte, error) {
+	if re.RawExtension == nil {
+		return nil, nil
+	}
+	if re.RawExtension.Raw == nil {
+		// TODO: this is to support legacy behavior of JSONPrinter and YAMLPrinter, which
+		// expect to call json.Marshal on arbitrary versioned objects (even those not in
+		// the scheme). pkg/kubectl/resource#AsVersionedObjects and its interaction with
+		// kubectl get on objects not in the scheme needs to be updated to ensure that the
+		// objects that are not part of the scheme are correctly put into the right form.
+		if re.RawExtension.Object != nil {
+			return json.Marshal(re.RawExtension.Object)
+		}
+		return []byte("null"), nil
+	}
+	// TODO: Check whether ContentType is actually JSON before returning it.
+	return re.RawExtension.Raw, nil
 }

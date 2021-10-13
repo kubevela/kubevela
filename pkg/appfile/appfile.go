@@ -708,7 +708,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	}
 	configuration.Spec.Variable = &runtime.RawExtension{Raw: data}
 	raw := util.Object2RawExtension(&configuration)
-	return util.RawExtension2Unstructured(&raw)
+	return util.RawExtension2Unstructured(raw)
 }
 
 // a helper map whose key is parameter name

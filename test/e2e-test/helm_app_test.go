@@ -66,7 +66,7 @@ var _ = Describe("Test application containing helm module", func() {
 		cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
 		cd.Spec.Schematic = &common.Schematic{
 			HELM: &common.Helm{
-				Release: util.Object2RawExtension(map[string]interface{}{
+				Release: *util.Object2RawExtension(map[string]interface{}{
 					"chart": map[string]interface{}{
 						"spec": map[string]interface{}{
 							"chart":   "podinfo",
@@ -74,7 +74,7 @@ var _ = Describe("Test application containing helm module", func() {
 						},
 					},
 				}),
-				Repository: util.Object2RawExtension(map[string]interface{}{
+				Repository: *util.Object2RawExtension(map[string]interface{}{
 					"url": "http://oam.dev/catalog/",
 				}),
 			},
@@ -266,7 +266,7 @@ var _ = Describe("Test application containing helm module", func() {
 		workloaddef.Spec.Reference = common.DefinitionReference{Name: "deployments.apps", Version: "v1"}
 		workloaddef.Spec.Schematic = &common.Schematic{
 			HELM: &common.Helm{
-				Release: util.Object2RawExtension(map[string]interface{}{
+				Release: *util.Object2RawExtension(map[string]interface{}{
 					"chart": map[string]interface{}{
 						"spec": map[string]interface{}{
 							"chart":   "podinfo",
@@ -274,7 +274,7 @@ var _ = Describe("Test application containing helm module", func() {
 						},
 					},
 				}),
-				Repository: util.Object2RawExtension(map[string]interface{}{
+				Repository: *util.Object2RawExtension(map[string]interface{}{
 					"url": "http://oam.dev/catalog/",
 				}),
 			},
@@ -321,7 +321,7 @@ var _ = Describe("Test application containing helm module", func() {
 		cd.SetNamespace(namespace)
 		cd.Spec.Schematic = &common.Schematic{
 			HELM: &common.Helm{
-				Release: util.Object2RawExtension(map[string]interface{}{
+				Release: *util.Object2RawExtension(map[string]interface{}{
 					"chart": map[string]interface{}{
 						"spec": map[string]interface{}{
 							"chart":   "podinfo",
@@ -329,7 +329,7 @@ var _ = Describe("Test application containing helm module", func() {
 						},
 					},
 				}),
-				Repository: util.Object2RawExtension(map[string]interface{}{
+				Repository: *util.Object2RawExtension(map[string]interface{}{
 					"url": "http://oam.dev/catalog/",
 				}),
 			},

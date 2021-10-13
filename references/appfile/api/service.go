@@ -90,7 +90,7 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 			if err := pts.UnmarshalJSON(jt); err != nil {
 				return comp, err
 			}
-			trait.Properties = *pts
+			trait.Properties = pts
 			traits = append(traits, trait)
 			continue
 		}
@@ -106,7 +106,7 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 	if err := settings.UnmarshalJSON(pt); err != nil {
 		return comp, err
 	}
-	comp.Properties = *settings
+	comp.Properties = settings
 
 	if len(traits) > 0 {
 		comp.Traits = traits
