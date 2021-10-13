@@ -78,7 +78,10 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		appName := "app-1"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			err := k8sClient.Create(ctx, app)
+			return err
+		}, 15*time.Second, 300*time.Millisecond).Should(BeNil())
 		checkApp := new(v1beta1.Application)
 		for i := 0; i < appRevisionLimit; i++ {
 			Eventually(func() error {
