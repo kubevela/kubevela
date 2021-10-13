@@ -19,6 +19,7 @@ package kubeapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,11 +27,13 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 )
 
 type kubeapi struct {
@@ -71,14 +74,17 @@ func generateName(entity datastore.Entity) string {
 
 func (m *kubeapi) generateConfigMap(entity datastore.Entity) *corev1.ConfigMap {
 	data, _ := json.Marshal(entity)
+	lables := entity.Index()
+	if lables == nil {
+		lables = make(map[string]string)
+	}
+	lables["table"] = entity.TableName()
+	lables["primaryKey"] = entity.PrimaryKey()
 	var configMap = corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      generateName(entity),
 			Namespace: m.namespace,
-			Labels: map[string]string{
-				"table":      entity.TableName(),
-				"primaryKey": entity.PrimaryKey(),
-			},
+			Labels:    lables,
 		},
 		BinaryData: map[string][]byte{
 			"data": data,
@@ -101,6 +107,29 @@ func (m *kubeapi) Add(ctx context.Context, entity datastore.Entity) error {
 			return datastore.ErrRecordExist
 		}
 		return datastore.NewDBError(err)
+	}
+	return nil
+}
+
+// BatchAdd batch add entity, this operation has some atomicity.
+func (m *kubeapi) BatchAdd(ctx context.Context, entitys []datastore.Entity) error {
+	donotRollback := make(map[string]int)
+	for i, saveEntity := range entitys {
+		if err := m.Add(ctx, saveEntity); err != nil {
+			if errors.Is(err, datastore.ErrRecordExist) {
+				donotRollback[saveEntity.PrimaryKey()] = 1
+			}
+			for _, deleteEntity := range entitys[:i] {
+				if _, exit := donotRollback[deleteEntity.PrimaryKey()]; !exit {
+					if err := m.Delete(ctx, deleteEntity); err != nil {
+						if !errors.Is(err, datastore.ErrRecordNotExist) {
+							log.Logger.Errorf("rollback delete component failure %w", err)
+						}
+					}
+				}
+			}
+			return datastore.NewDBError(fmt.Errorf("save components occur error, %w", err))
+		}
 	}
 	return nil
 }
@@ -192,9 +221,17 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 	if entity.TableName() == "" {
 		return nil, datastore.ErrTableNameEmpty
 	}
+
 	selector, err := labels.Parse(fmt.Sprintf("table=%s", entity.TableName()))
 	if err != nil {
 		return nil, datastore.NewDBError(err)
+	}
+	for k, v := range entity.Index() {
+		rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
+		if err != nil {
+			return nil, datastore.ErrIndexInvalid
+		}
+		selector = selector.Add(*rq)
 	}
 	options := &client.ListOptions{
 		LabelSelector: selector,

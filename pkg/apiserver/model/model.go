@@ -16,4 +16,24 @@ limitations under the License.
 
 package model
 
+import (
+	"encoding/json"
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/runtime"
+)
+
 var tableNamePrefix = "vela_"
+
+// JSONStruct json struct, same with runtime.RawExtension
+type JSONStruct map[string]interface{}
+
+// NewJSONStruct new jsonstruct from runtime.RawExtension
+func NewJSONStruct(raw runtime.RawExtension) (*JSONStruct, error) {
+	var data JSONStruct
+	err := json.Unmarshal(raw.Raw, &data)
+	if err != nil {
+		return nil, fmt.Errorf("parse raw data failure %w", err)
+	}
+	return &data, nil
+}
