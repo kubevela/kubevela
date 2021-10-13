@@ -50,7 +50,7 @@ spec:
         		},
         	]
         }
-        outputs: pvc: {
+        outputs: "\(parameter.claimName)": {
         	apiVersion: "v1"
         	kind:       "PersistentVolumeClaim"
         	metadata: name: parameter.claimName
