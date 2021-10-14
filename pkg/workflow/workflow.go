@@ -21,11 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
-
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -34,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -86,15 +84,18 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 	}
 
 	wfStatus := w.app.Status.Workflow
-	allTasksDone := w.allDone(taskRunners)
+	if wfStatus.Finished {
+		return common.WorkflowStateFinished, nil
+	}
 	if wfStatus.Terminated {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
 		return common.WorkflowStateSuspended, nil
 	}
+	allTasksDone := w.allDone(taskRunners)
 	if allTasksDone {
-		return common.WorkflowStateFinished, nil
+		return common.WorkflowStateSucceeded, nil
 	}
 
 	var (
@@ -328,6 +329,13 @@ func (e *engine) needStop() bool {
 }
 
 func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {
-	specHash, err := utils.ComputeSpecHash(app.Spec)
+	spec := app.Spec.DeepCopy()
+	version := ""
+	annos := app.Annotations
+	if annos != nil {
+		version = annos[wfTypes.AnnotationPublishVersion]
+	}
+	spec.Policies = append(spec.Policies, oamcore.AppPolicy{Name: version, Type: "publish-trigger"})
+	specHash, err := utils.ComputeSpecHash(spec)
 	return fmt.Sprintf("%s:%s", rev, specHash), err
 }
