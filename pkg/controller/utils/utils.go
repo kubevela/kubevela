@@ -30,7 +30,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/mitchellh/hashstructure/v2"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -43,13 +42,11 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -442,44 +439,4 @@ func GetUnstructuredObjectStatusCondition(obj *unstructured.Unstructured, condTy
 	}
 
 	return nil, false, nil
-}
-
-// GetInitializer get initializer from two level namespace
-func GetInitializer(ctx context.Context, cli client.Client, namespace, name string) (*v1beta1.Initializer, error) {
-	init := new(v1beta1.Initializer)
-	req := client.ObjectKey{Namespace: namespace, Name: name}
-	err := cli.Get(ctx, req, init)
-	if kerrors.IsNotFound(err) && req.Namespace == "" {
-		req.Namespace = velatypes.DefaultKubeVelaNS
-		err = cli.Get(ctx, req, init)
-		return init, err
-	}
-	return init, err
-}
-
-// GetBuildInInitializer get built-in initializer from configMap in vela-system namespace
-func GetBuildInInitializer(ctx context.Context, cli client.Client, name string) (*v1beta1.Initializer, error) {
-	listOpts := []client.ListOption{
-		client.InNamespace(velatypes.DefaultKubeVelaNS),
-		client.MatchingLabels{
-			oam.LabelAddonsName: name,
-		},
-	}
-	configMapList := new(corev1.ConfigMapList)
-	err := cli.List(ctx, configMapList, listOpts...)
-	if err != nil {
-		return nil, err
-	}
-	if len(configMapList.Items) != 1 {
-		return nil, errors.Errorf("fail to get built-in initializer %s, there are %d matched initializers", name, len(configMapList.Items))
-	}
-
-	init := new(v1beta1.Initializer)
-	initYaml := configMapList.Items[0].Data["initializer"]
-	err = yaml.Unmarshal([]byte(initYaml), init)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "fail to unmarshal built-in initializer %s from configmap", name)
-	}
-
-	return init, nil
 }

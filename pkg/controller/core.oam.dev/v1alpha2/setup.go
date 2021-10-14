@@ -28,7 +28,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/policies/policydefinition"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workflow/workflowstepdefinition"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/initializer"
 )
 
 // Setup workload controllers.
@@ -38,7 +37,7 @@ func Setup(mgr ctrl.Manager, args controller.Args) error {
 		for _, setup := range []func(ctrl.Manager, controller.Args) error{
 			application.Setup, applicationrollout.Setup, appdeployment.Setup,
 			traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-			initializer.Setup, applicationconfiguration.Setup,
+			applicationconfiguration.Setup,
 		} {
 			if err := setup(mgr, args); err != nil {
 				return err
@@ -56,7 +55,6 @@ func Setup(mgr ctrl.Manager, args controller.Args) error {
 		for _, setup := range []func(ctrl.Manager, controller.Args) error{
 			application.Setup, applicationrollout.Setup, appdeployment.Setup,
 			traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-			initializer.Setup,
 		} {
 			if err := setup(mgr, args); err != nil {
 				return err
