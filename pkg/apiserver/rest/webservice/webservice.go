@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"github.com/emicklei/go-restful/v3"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
@@ -58,8 +59,8 @@ func returns500(b *restful.RouteBuilder) {
 
 // Init init all webservice, pass in the required parameter object.
 // It can be implemented using the idea of dependency injection.
-func Init(ctx context.Context, ds datastore.DataStore) {
-	clusterUsecase := usecase.NewClusterUsecase(ds)
+func Init(ctx context.Context, ds datastore.DataStore, k8sClient client.Client) {
+	clusterUsecase := usecase.NewClusterUsecase(ds, k8sClient)
 	applicationUsecase := usecase.NewApplicationUsecase(ds)
 	RegistWebService(NewClusterWebService(clusterUsecase))
 	RegistWebService(NewApplicationWebService(applicationUsecase))

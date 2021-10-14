@@ -60,6 +60,15 @@ jobs:
           version: ${{ env.KIND_VERSION }}
           skipClusterCreation: true
 
+      - name: Setup Kind Cluster (Worker)
+        run: |
+          kind delete cluster --name worker
+          kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4 --name worker
+          kubectl version
+          kubectl cluster-info
+          kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
+          kind get kubeconfig --name worker > /tmp/worker.client.kubeconfig
+
       - name: Setup Kind Cluster (Hub)
         run: |
           kind delete cluster
@@ -67,7 +76,7 @@ jobs:
           kubectl version
           kubectl cluster-info
 
-      - name: Load Image to kind cluster (Hub)
+      - name: Load Image to kind cluster
         run: make kind-load
 
       - name: Cleanup for e2e tests

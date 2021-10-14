@@ -19,6 +19,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -36,4 +37,17 @@ func NewJSONStruct(raw runtime.RawExtension) (*JSONStruct, error) {
 		return nil, fmt.Errorf("parse raw data failure %w", err)
 	}
 	return &data, nil
+}
+
+func deepCopy(src interface{}) interface{} {
+	dst := reflect.New(reflect.TypeOf(src).Elem())
+
+	val := reflect.ValueOf(src).Elem()
+	nVal := dst.Elem()
+	for i := 0; i < val.NumField(); i++ {
+		nvField := nVal.Field(i)
+		nvField.Set(val.Field(i))
+	}
+
+	return dst.Interface()
 }

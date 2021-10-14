@@ -22,6 +22,7 @@ import (
 
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -45,10 +46,12 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 
 	tags := []string{"cluster"}
 
-	ws.Route(ws.GET("/").To(noop).
+	ws.Route(ws.GET("/").To(c.listKubeClusters).
 		Doc("list all clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
+		Param(ws.QueryParameter("page", "Page for paging").DataType("int").DefaultValue("0")).
+		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("int").DefaultValue("20")).
 		Writes(apis.ListClusterResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(c.createKubeCluster).
@@ -57,26 +60,48 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Reads(&apis.CreateClusterRequest{}).
 		Writes(apis.ClusterBase{}))
 
-	ws.Route(ws.GET("/{clusterName}").To(noop).
+	ws.Route(ws.GET("/{clusterName}").To(c.getKubeCluster).
 		Doc("detail cluster info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Writes(apis.DetailClusterResponse{}))
 
-	ws.Route(ws.POST("/{clusterName}").To(noop).
+	ws.Route(ws.POST("/{clusterName}").To(c.modifyKubeCluster).
 		Doc("modify cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Reads(&apis.CreateClusterRequest{}).
 		Writes(apis.ClusterBase{}))
 
-	ws.Route(ws.DELETE("/{clusterName}").To(noop).
+	ws.Route(ws.DELETE("/{clusterName}").To(c.deleteKubeCluster).
 		Doc("delete cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Writes(apis.ClusterBase{}))
 
 	return ws
+}
+
+func (c *ClusterWebService) listKubeClusters(req *restful.Request, res *restful.Response) {
+	query := req.QueryParameter("query")
+	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Call the usecase layer code
+	clusters, err := c.clusterUsecase.ListKubeClusters(req.Request.Context(), query, page, pageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(clusters); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }
 
 func (c *ClusterWebService) createKubeCluster(req *restful.Request, res *restful.Response) {
@@ -92,6 +117,67 @@ func (c *ClusterWebService) createKubeCluster(req *restful.Request, res *restful
 	}
 	// Call the usecase layer code
 	clusterBase, err := c.clusterUsecase.CreateKubeCluster(req.Request.Context(), createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(clusterBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) getKubeCluster(req *restful.Request, res *restful.Response) {
+	clusterName := req.PathParameter("clusterName")
+
+	// Call the usecase layer code
+	clusterDetail, err := c.clusterUsecase.GetKubeCluster(req.Request.Context(), clusterName)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(clusterDetail); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) modifyKubeCluster(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.CreateClusterRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	clusterName := req.PathParameter("clusterName")
+
+	// Call the usecase layer code
+	clusterBase, err := c.clusterUsecase.ModifyKubeCluster(req.Request.Context(), createReq, clusterName)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(clusterBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) deleteKubeCluster(req *restful.Request, res *restful.Response) {
+	clusterName := req.PathParameter("clusterName")
+
+	// Call the usecase layer code
+	clusterBase, err := c.clusterUsecase.DeleteKubeCluster(req.Request.Context(), clusterName)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
