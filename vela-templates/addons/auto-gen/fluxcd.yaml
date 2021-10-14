@@ -5891,10 +5891,13 @@ spec:
               \ metadata: {\n\t\t  name: context.name\n      namespace: context.namespace\n\t
               \ }\n\t  if parameter.repoType == \"git\" {\n\t\t  kind: \"GitRepository\"\n\t\t
               \ spec: {\n\t\t\t  url: parameter.url\n\t\t\t  if parameter.git.branch
-              != _|_ {\n\t\t\t\t  ref: branch: parameter.git.branch\n\t\t\t  }\n\t\t\t
-              \ _secret\n\t\t\t  _sourceCommonArgs\n\t\t  }\n\t  }\n\t  if parameter.repoType
-              == \"oss\" {\n\t\t  kind: \"Bucket\"\n\t\t  spec: {\n\t\t\t  endpoint:
-              \  parameter.url\n\t\t\t  bucketName: parameter.oss.bucketName\n\t\t\t
+              != _|_ {\n\t\t\t\t  ref: branch: parameter.git.branch\n\t\t\t  }\n        if
+              parameter.git.provider != _|_ {\n          if parameter.git.provider
+              == \"GitHub\" {\n            gitImplementation: \"go-git\"\n          }\n
+              \         if parameter.git.provider == \"AzureDevOps\" {\n            gitImplementation:
+              \"libgit2\"\n          }\n        }\n\t\t\t  _secret\n\t\t\t  _sourceCommonArgs\n\t\t
+              \ }\n\t  }\n\t  if parameter.repoType == \"oss\" {\n\t\t  kind: \"Bucket\"\n\t\t
+              \ spec: {\n\t\t\t  endpoint:   parameter.url\n\t\t\t  bucketName: parameter.oss.bucketName\n\t\t\t
               \ provider:   parameter.oss.provider\n\t\t\t  if parameter.oss.region
               != _|_ {\n\t\t\t\t  region: parameter.oss.region\n\t\t\t  }\n\t\t\t
               \ _secret\n\t\t\t  _sourceCommonArgs\n\t\t  }\n\t  }\n  }\n\n  if parameter.imageRepository
@@ -5962,7 +5965,9 @@ spec:
               authentication credentials\n\tsecretRef?: string\n\t// +usage=The timeout
               for operations like download index/clone repository, optional\n\ttimeout?:
               string\n\tgit?: {\n\t\t// +usage=The Git reference to checkout and monitor
-              for changes, defaults to master branch\n\t\tbranch: string\n\t}\n\toss?:
+              for changes, defaults to master branch\n\t\tbranch: string\n    // +usage=Determines
+              which git client library to use. Defaults to GitHub, it will pick go-git.
+              AzureDevOps will pick libgit2.\n    provider?: *\"GitHub\" | \"AzureDevOps\"\n\t}\n\toss?:
               {\n\t\t// +usage=The bucket's name, required if repoType is oss\n\t\tbucketName:
               string\n\t\t// +usage=\"generic\" for Minio, Amazon S3, Google Cloud
               Storage, Alibaba Cloud OSS, \"aws\" for retrieve credentials from the
