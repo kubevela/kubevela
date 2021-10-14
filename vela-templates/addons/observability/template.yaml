@@ -1,147 +1,306 @@
 apiVersion: core.oam.dev/v1beta1
-kind: Initializer
+kind: Application
 metadata:
   annotations:
     addons.oam.dev/description: "An out of the box solution for KubeVela observability"
   name: observability
-  namespace: observability
+  namespace: vela-system
 spec:
-  dependsOn:
-    - ref:
+  workflow:
+    steps:
+      - name: checking-depends-on
+        type: depends-on-app
+        properties:
+          name: fluxcd
+          namespace: vela-system
+      - name: apply-ns
+        type: apply-component
+        properties:
+          component: ns-observability
+      - name: apply-trait-1
+        type: apply-component
+        properties:
+          component: import-grafana-dashboard-traitdef
+      - name: apply-trait-2
+        type: apply-component
+        properties:
+          component: pure-ingress-traitdef
+      - name: apply-trait-3
+        type: apply-component
+        properties:
+          component: register-grafana-datasource-traitdef
+      - name: apply-resources
+        type: apply-remaining
+  components:
+    - name: ns-observability
+      type: raw
+      properties:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: observability
+    - name: import-grafana-dashboard-traitdef
+      type: raw
+      properties:
         apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: fluxcd
-        namespace: vela-system
-    - ref:
+        kind: TraitDefinition
+        metadata:
+          annotations:
+            definition.oam.dev/description: "Import dashboards to Grafana"
+          name: import-grafana-dashboard
+          namespace: vela-system
+        spec:
+          schematic:
+            cue:
+              template: |
+                outputs: registerdatasource: {
+                	apiVersion: "grafana.extension.oam.dev/v1alpha1"
+                	kind:       "ImportDashboard"
+                	spec: {
+                		grafana: {
+                			service:                   parameter.grafanaServiceName
+                			namespace:                 parameter.grafanaServiceNamespace
+                			credentialSecret:          parameter.credentialSecret
+                			credentialSecretNamespace: parameter.credentialSecretNamespace
+                		}
+                		urls: parameter.urls
+                	}
+                }
+                parameter: {
+                	grafanaServiceName:        string
+                	grafanaServiceNamespace:   *"default" | string
+                	credentialSecret:          string
+                	credentialSecretNamespace: *"default" | string
+                	urls: [...string]
+                }
+    - name: pure-ingress-traitdef
+      type: raw
+      properties:
         apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: observability-asset
-        namespace: vela-system
-  appTemplate:
-    spec:
-      components:
-        - name: grafana-registration
-          type: helm
-          properties:
-            repoType: git
-            url: https://github.com/oam-dev/grafana-registration
-            git:
-              branch: master
-            chart: ./chart
-            targetNamespace: observability
-            values:
-              replicaCount: 1
+        kind: TraitDefinition
+        metadata:
+          annotations:
+            definition.oam.dev/description: "Enable public web traffic for the component without creating a Service."
+          name: pure-ingress
+          namespace: vela-system
+        spec:
+          status:
+            customStatus: |-
+              let igs = context.outputs.ingress.status.loadBalancer.ingress
+              if igs == _|_ {
+                message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
+              }
+              if len(igs) > 0 {
+                if igs[0].ip != _|_ {
+                  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+                }
+                if igs[0].ip == _|_ {
+                  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+                }
+              }
+            healthPolicy: |
+              isHealth: len(context.outputs.ingress.status.loadBalancer.ingress) > 0
+          schematic:
+            cue:
+              template: |
 
-        # install Grafana
-        - name: grafana
-          properties:
-            chart: grafana
-            version: 6.14.1
-            repoType: helm
-            # original url: https://grafana.github.io/helm-charts
-            url: https://charts.kubevela.net/addons
-            targetNamespace: observability
-            releaseName: grafana
-          type: helm
-          traits:
-            - type: pure-ingress
-              properties:
-                domain: '[[ index .Args "grafana-domain" ]]'
-                http:
-                  "/": 80
-            - type: import-grafana-dashboard
-              properties:
-                grafanaServiceName: grafana
-                grafanaServiceNamespace: observability
-                credentialSecret: grafana
-                credentialSecretNamespace: observability
-                urls:
-                  - https://charts.kubevela.net/addons/dashboards/kubevela_core_logging.json
-                  - https://charts.kubevela.net/addons/dashboards/kubevela_core_monitoring.json
-                  - https://charts.kubevela.net/addons/dashboards/kubevela_application_logging.json
-                  - https://charts.kubevela.net/addons/dashboards/flux2/cluster.json # fluxcd
+                outputs: ingress: {
+                	apiVersion: "networking.k8s.io/v1beta1"
+                	kind:       "Ingress"
+                	metadata:
+                		name: context.name
+                	spec: {
+                		rules: [{
+                			host: parameter.domain
+                			http: {
+                				paths: [
+                					for k, v in parameter.http {
+                						path: k
+                						backend: {
+                							serviceName: context.name
+                							servicePort: v
+                						}
+                					},
+                				]
+                			}
+                		}]
+                	}
+                }
 
-        # install loki
-        - name: loki
-          type: helm
-          properties:
-            chart: loki-stack
-            version: 2.4.1
-            repoType: helm
-            # original url: https://grafana.github.io/helm-charts
-            url: https://charts.kubevela.net/addons
-            targetNamespace: observability
-            releaseName: loki
-          traits:
-            - type: register-grafana-datasource # register loki datasource to Grafana
-              properties:
-                grafanaServiceName: grafana
-                grafanaServiceNamespace: observability
-                credentialSecret: grafana
-                credentialSecretNamespace: observability
-                name: loki
-                service: loki
-                namespace: observability
-                type: loki
-                access: proxy
+                parameter: {
+                	// +usage=Specify the domain you want to expose
+                	domain: string
 
-          # install Prometheus
-        - name: prometheus-server
-          type: helm
-          properties:
-            chart: prometheus
-            version: 14.4.1
-            repoType: helm
-            # original url: https://prometheus-community.github.io/helm-charts
-            url: https://charts.kubevela.net/addons
-            targetNamespace: observability
-            releaseName: prometheus
-            values:
-              alertmanager:
-                persistentVolume:
-                  enabled: '[[ index .Args "alertmanager-pvc-enabled" | default "true" ]]'
-                  storageClass: '[[ index .Args "alertmanager-pvc-class" ]]'
-                  size: '[[ index .Args "alertmanager-pvc-size" | default "20Gi" ]]'
-              server:
-                persistentVolume:
-                  enabled: '[[ index .Args "server-pvc-enabled" | default "true" ]]'
-                  storageClass: '[[ index .Args "server-pvc-class" ]]'
-                  size: '[[ index .Args "server-pvc-size" | default "20Gi" ]]'
-          traits:
-            - type: register-grafana-datasource # register Prometheus datasource to Grafana
-              properties:
-                grafanaServiceName: grafana
-                grafanaServiceNamespace: observability
-                credentialSecret: grafana
-                credentialSecretNamespace: observability
-                name: prometheus
-                service: prometheus-server
-                namespace: observability
-                type: prometheus
-                access: proxy
+                	// +usage=Specify the mapping relationship between the http path and the workload port
+                	http: [string]: int
+                }
+    - name: register-grafana-datasource-traitdef
+      type: raw
+      properties:
+        apiVersion: core.oam.dev/v1beta1
+        kind: TraitDefinition
+        metadata:
+          annotations:
+            definition.oam.dev/description: "Add a datasource to Grafana"
+          name: register-grafana-datasource
+          namespace: vela-system
+        spec:
+          schematic:
+            cue:
+              template: |
+                outputs: registerdatasource: {
+                	apiVersion: "grafana.extension.oam.dev/v1alpha1"
+                	kind:       "DatasourceRegistration"
+                	spec: {
+                		grafana: {
+                			service:                   parameter.grafanaServiceName
+                			namespace:                 parameter.grafanaServiceNamespace
+                			credentialSecret:          parameter.credentialSecret
+                			credentialSecretNamespace: parameter.credentialSecretNamespace
+                		}
+                		datasource: {
+                			name:      parameter.name
+                			type:      parameter.type
+                			access:    parameter.access
+                			service:   parameter.service
+                			namespace: parameter.namespace
+                		}
+                	}
+                }
 
-        # install kube-state-metrics
-        - name: kube-state-metrics
-          type: helm
-          properties:
-            chart: kube-state-metrics
-            version: 3.4.1
-            repoType: helm
-            # original url: https://prometheus-community.github.io/helm-charts
-            url: https://charts.kubevela.net/addons
-            targetNamespace: observability
-            values:
-              image:
-                repository: oamdev/kube-state-metrics
-                tag: v2.1.0
+                parameter: {
+                	grafanaServiceName:        string
+                	grafanaServiceNamespace:   *"default" | string
+                	credentialSecret:          string
+                	credentialSecretNamespace: string
+                	name:                      string
+                	type:                      string
+                	access:                    *"proxy" | string
+                	service:                   string
+                	namespace:                 *"default" | string
+                }
 
+    - name: grafana-registration
+      type: helm
+      properties:
+        repoType: git
+        url: https://github.com/oam-dev/grafana-registration
+        git:
+          branch: master
+        chart: ./chart
+        targetNamespace: observability
+        values:
+          replicaCount: 1
+
+    # install Grafana
+    - name: grafana
+      properties:
+        chart: grafana
+        version: 6.14.1
+        repoType: helm
+        # original url: https://grafana.github.io/helm-charts
+        url: https://charts.kubevela.net/addons
+        targetNamespace: observability
+        releaseName: grafana
+      type: helm
+      traits:
+        - type: pure-ingress
+          properties:
+            domain: '[[ index .Args "grafana-domain" ]]'
+            http:
+              "/": 80
+        - type: import-grafana-dashboard
+          properties:
+            grafanaServiceName: grafana
+            grafanaServiceNamespace: observability
+            credentialSecret: grafana
+            credentialSecretNamespace: observability
+            urls:
+              - https://charts.kubevela.net/addons/dashboards/kubevela_core_logging.json
+              - https://charts.kubevela.net/addons/dashboards/kubevela_core_monitoring.json
+              - https://charts.kubevela.net/addons/dashboards/kubevela_application_logging.json
+              - https://charts.kubevela.net/addons/dashboards/flux2/cluster.json # fluxcd
+
+    # install loki
+    - name: loki
+      type: helm
+      properties:
+        chart: loki-stack
+        version: 2.4.1
+        repoType: helm
+        # original url: https://grafana.github.io/helm-charts
+        url: https://charts.kubevela.net/addons
+        targetNamespace: observability
+        releaseName: loki
+      traits:
+        - type: register-grafana-datasource # register loki datasource to Grafana
+          properties:
+            grafanaServiceName: grafana
+            grafanaServiceNamespace: observability
+            credentialSecret: grafana
+            credentialSecretNamespace: observability
+            name: loki
+            service: loki
+            namespace: observability
+            type: loki
+            access: proxy
+
+      # install Prometheus
+    - name: prometheus-server
+      type: helm
+      properties:
+        chart: prometheus
+        version: 14.4.1
+        repoType: helm
+        # original url: https://prometheus-community.github.io/helm-charts
+        url: https://charts.kubevela.net/addons
+        targetNamespace: observability
+        releaseName: prometheus
+        values:
+          alertmanager:
+            persistentVolume:
+              enabled: '[[ index .Args "alertmanager-pvc-enabled" | default "true" ]]'
+              storageClass: '[[ index .Args "alertmanager-pvc-class" ]]'
+              size: '[[ index .Args "alertmanager-pvc-size" | default "20Gi" ]]'
+          server:
+            persistentVolume:
+              enabled: '[[ index .Args "server-pvc-enabled" | default "true" ]]'
+              storageClass: '[[ index .Args "server-pvc-class" ]]'
+              size: '[[ index .Args "server-pvc-size" | default "20Gi" ]]'
+      traits:
+        - type: register-grafana-datasource # register Prometheus datasource to Grafana
+          properties:
+            grafanaServiceName: grafana
+            grafanaServiceNamespace: observability
+            credentialSecret: grafana
+            credentialSecretNamespace: observability
+            name: prometheus
+            service: prometheus-server
+            namespace: observability
+            type: prometheus
+            access: proxy
+
+    # install kube-state-metrics
+    - name: kube-state-metrics
+      type: helm
+      properties:
+        chart: kube-state-metrics
+        version: 3.4.1
+        repoType: helm
+        # original url: https://prometheus-community.github.io/helm-charts
+        url: https://charts.kubevela.net/addons
+        targetNamespace: observability
+        values:
+          image:
+            repository: oamdev/kube-state-metrics
+            tag: v2.1.0
 {{ range .ResourceFiles }}
-        - name: {{ .Name }}
-          type: raw
-          properties:
-{{ .Content | indent 12 }} {{ end }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
 {{ range .DefinitionFiles }}
-        - name: {{ .Name }}
-          type: raw
-          properties:
-{{ .Content | indent 12 }} {{ end }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
