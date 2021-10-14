@@ -60,9 +60,26 @@ var statusInstalled = "installed"
 var clt client.Client
 var clientArgs common.Args
 
+var legacyAddonNamespace map[string]string
+
 func init() {
 	clientArgs, _ = common.InitBaseRestConfig()
 	clt, _ = clientArgs.GetClient()
+	legacyAddonNamespace = map[string]string{
+		"fluxcd":                     types.DefaultKubeVelaNS,
+		"ns-flux-system":             types.DefaultKubeVelaNS,
+		"kruise":                     types.DefaultKubeVelaNS,
+		"prometheus":                 types.DefaultKubeVelaNS,
+		"observability":              "observability",
+		"observability-asset":        types.DefaultKubeVelaNS,
+		"istio":                      "istio-system",
+		"ns-istio-system":            types.DefaultKubeVelaNS,
+		"keda":                       types.DefaultKubeVelaNS,
+		"ocm-cluster-manager":        types.DefaultKubeVelaNS,
+		"terraform":                  types.DefaultKubeVelaNS,
+		"terraform-provider/alibaba": "default",
+		"terraform-provider/azure":   "default",
+	}
 }
 
 // NewAddonCommand create `addon` command
@@ -194,20 +211,57 @@ func enableAddon(name string, args map[string]string) error {
 }
 
 func disableAddon(name string) error {
-	repo, err := NewAddonRepo()
-	if err != nil {
-		return err
+	if isLegacyAddonExist(name) {
+		return tryDisableInitializerAddon(name)
+	} else {
+		repo, err := NewAddonRepo()
+		if err != nil {
+			return err
+		}
+		addon, err := repo.getAddon(name)
+		if err != nil {
+			return errors.Wrap(err, "get addon err")
+		}
+		if addon.getStatus() == statusUninstalled {
+			fmt.Printf("Addon %s is not installed\n", addon.name)
+			return nil
+		}
+		return addon.disable()
 	}
-	addon, err := repo.getAddon(name)
-	if err != nil {
-		return err
+}
+
+func isLegacyAddonExist(name string) bool {
+	if namespace, ok := legacyAddonNamespace[name]; ok {
+		convertedAddonName := TransAddonName(name)
+		init := unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "core.oam.dev/v1beta1",
+				"kind":       "Initializer",
+			},
+		}
+		err := clt.Get(context.TODO(), client.ObjectKey{
+			Namespace: namespace,
+			Name:      convertedAddonName,
+		}, &init)
+		return err == nil
 	}
-	if addon.getStatus() == statusUninstalled {
-		fmt.Printf("Addon %s is not installed\n", addon.name)
-		return nil
+	return false
+}
+
+func tryDisableInitializerAddon(addonName string) error {
+	fmt.Printf("Trying to disable addon in initializer implementation...\n")
+	init := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "core.oam.dev/v1beta1",
+			"kind":       "Initializer",
+			"metadata": map[string]interface{}{
+				"name":      TransAddonName(addonName),
+				"namespace": legacyAddonNamespace[addonName],
+			},
+		},
 	}
-	err = addon.disable()
-	return err
+	return clt.Delete(context.TODO(), &init)
+
 }
 func newAddon(data *v1.ConfigMap) *Addon {
 	description := data.ObjectMeta.Annotations[DescAnnotation]
@@ -245,13 +299,22 @@ type configMapAddonRepo struct {
 	maps []v1.ConfigMap
 }
 
+// AddonNotFoundErr means addon not found
+type AddonNotFoundErr struct {
+	addonName string
+}
+
+func (e AddonNotFoundErr) Error() string {
+	return fmt.Sprintf("addon %s not found", e.addonName)
+}
+
 func (c configMapAddonRepo) getAddon(name string) (Addon, error) {
 	for i := range c.maps {
 		if addonName, ok := c.maps[i].Annotations[oam.AnnotationAddonsName]; ok && name == addonName {
 			return *newAddon(&c.maps[i]), nil
 		}
 	}
-	return Addon{}, fmt.Errorf("addon: %s not found", name)
+	return Addon{}, AddonNotFoundErr{addonName: name}
 }
 
 func (c configMapAddonRepo) listAddons() []Addon {
