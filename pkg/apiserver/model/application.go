@@ -24,6 +24,7 @@ import (
 
 // Application database model
 type Application struct {
+	Model
 	Name        string            `json:"name"`
 	Namespace   string            `json:"namespace"`
 	Description string            `json:"description"`
@@ -56,6 +57,7 @@ func (a *Application) Index() map[string]string {
 
 // ApplicationComponent component database model
 type ApplicationComponent struct {
+	Model
 	AppPrimaryKey string            `json:"appPrimaryKey"`
 	Description   string            `json:"description,omitempty"`
 	Labels        map[string]string `json:"lables,omitempty"`
@@ -104,6 +106,7 @@ func (a *ApplicationComponent) Index() map[string]string {
 
 // ApplicationPolicy app policy
 type ApplicationPolicy struct {
+	Model
 	AppPrimaryKey string      `json:"appPrimaryKey"`
 	Name          string      `json:"name"`
 	Type          string      `json:"type"`

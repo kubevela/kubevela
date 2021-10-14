@@ -24,3 +24,6 @@ var ErrComponentTypeNotSupport = NewBcode(400, 10001, "An unsupported component 
 
 // ErrApplicationExist application is exist
 var ErrApplicationExist = NewBcode(400, 10002, "application name is exist")
+
+// ErrInvalidProperties properties(trait or component or others) is invalid
+var ErrInvalidProperties = NewBcode(400, 10003, "properties is invalid")

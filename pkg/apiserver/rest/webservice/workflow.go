@@ -21,9 +21,20 @@ import (
 	restful "github.com/emicklei/go-restful/v3"
 
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 )
 
+// NewWorkflowWebService new workflow webservice
+func NewWorkflowWebService(workflowUsecase usecase.WorkflowUsecase, applicationUsecase usecase.ApplicationUsecase) WebService {
+	return &workflowWebService{
+		workflowUsecase:    workflowUsecase,
+		applicationUsecase: applicationUsecase,
+	}
+}
+
 type workflowWebService struct {
+	workflowUsecase    usecase.WorkflowUsecase
+	applicationUsecase usecase.ApplicationUsecase
 }
 
 func (c *workflowWebService) GetWebService() *restful.WebService {

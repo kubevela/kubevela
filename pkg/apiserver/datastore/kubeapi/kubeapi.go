@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -101,6 +102,7 @@ func (m *kubeapi) Add(ctx context.Context, entity datastore.Entity) error {
 	if entity.TableName() == "" {
 		return datastore.ErrTableNameEmpty
 	}
+	entity.SetCreateTime(time.Now())
 	configMap := m.generateConfigMap(entity)
 	if err := m.kubeclient.Create(ctx, configMap); err != nil {
 		if apierrors.IsAlreadyExists(err) {
@@ -163,6 +165,7 @@ func (m *kubeapi) Put(ctx context.Context, entity datastore.Entity) error {
 	if entity.TableName() == "" {
 		return datastore.ErrTableNameEmpty
 	}
+	entity.SetUpdateTime(time.Now())
 	var configMap corev1.ConfigMap
 	if err := m.kubeclient.Get(ctx, types.NamespacedName{Namespace: m.namespace, Name: generateName(entity)}, &configMap); err != nil {
 		if apierrors.IsNotFound(err) {
