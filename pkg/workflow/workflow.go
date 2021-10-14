@@ -18,6 +18,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -135,7 +136,11 @@ func (w *workflow) Trace() error {
 	if annos != nil {
 		version = annos[wfTypes.AnnotationPublishVersion]
 	}
-	return recorder.With(w.cli, w.app).Save(version, w.app).Limit(10).Error()
+	data, err := json.Marshal(w.app)
+	if err != nil {
+		return err
+	}
+	return recorder.With(w.cli, w.app).Save(version, data).Limit(10).Error()
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -313,6 +318,7 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 	status.LastExecuteTime = now
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == status.Name {
+			status.FirstExecuteTime = e.status.Steps[i].FirstExecuteTime
 			e.status.Steps[i] = status
 			conditionUpdated = true
 			break

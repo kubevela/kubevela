@@ -220,6 +220,7 @@ var _ = Describe("Test Workflow", func() {
 
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
+		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 
 		// check workflow status is succeeded
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -418,6 +419,7 @@ var _ = Describe("Test Workflow", func() {
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &oamcore.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Mode).Should(BeEquivalentTo(common.WorkflowModeStep))
@@ -513,6 +515,7 @@ var _ = Describe("Test Workflow", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &oamcore.Application{}
@@ -614,6 +617,7 @@ var _ = Describe("Test Workflow", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &oamcore.Application{}

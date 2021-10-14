@@ -55,7 +55,7 @@ func With(cli client.Client, source *v1beta1.Application) Store {
 }
 
 // Save object to controllerRevision.
-func (r *recorder) Save(version string, obj client.Object) Store {
+func (r *recorder) Save(version string, data []byte) Store {
 	if r.err != nil {
 		return r
 	}
@@ -71,9 +71,11 @@ func (r *recorder) Save(version string, obj client.Object) Store {
 		LabelRecordVersion: version,
 	})
 	ownerRef := metav1.NewControllerRef(r.source, r.source.GroupVersionKind())
+	ownerRef.APIVersion = v1beta1.SchemeGroupVersion.String()
+	ownerRef.Kind = v1beta1.ApplicationKind
 	rv.SetOwnerReferences([]metav1.OwnerReference{*ownerRef})
 	rv.Data = runtime.RawExtension{
-		Object: obj,
+		Raw: data,
 	}
 	if err := r.cli.Create(context.Background(), rv); err != nil && !kerrors.IsAlreadyExists(err) {
 		r.err = errors.WithMessagef(err, "save record %s/%s", rv.Namespace, rv.Name)
@@ -119,7 +121,7 @@ func (r *recorder) Error() error {
 
 // Store is an object that record info.
 type Store interface {
-	Save(tag string, obj client.Object) Store
+	Save(tag string, data []byte) Store
 	Limit(max int) Store
 	Error() error
 }

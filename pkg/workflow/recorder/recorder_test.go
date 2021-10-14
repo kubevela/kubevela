@@ -34,9 +34,10 @@ func TestRecord(t *testing.T) {
 	app := &v1beta1.Application{}
 	app.Namespace = "default"
 	app.Name = "test-app"
-	err := With(cli, app).Save("v1", app).
-		Save("v2", app).
-		Save("v3", app).Limit(2).Error()
+	data := []byte(`{"spec": "mock-data"}`)
+	err := With(cli, app).Save("v1", data).
+		Save("v2", data).
+		Save("v3", data).Limit(2).Error()
 	assert.NilError(t, err)
 
 	crs := &apps.ControllerRevisionList{}
@@ -46,19 +47,18 @@ func TestRecord(t *testing.T) {
 
 	assert.Equal(t, crs.Items[0].Name, "wf-test-app-v2")
 	assert.Equal(t, crs.Items[1].Name, "wf-test-app-v3")
-
 	creatErrorEnable = true
-	err = With(cli, app).Save("v1", app).Error()
+	err = With(cli, app).Save("v1", data).Error()
 	assert.Equal(t, err.Error(), "save record default/wf-test-app-v1: mock create error")
 
 	creatErrorEnable = false
 	listErrorEnable = true
-	err = With(cli, app).Save("v1", app).Limit(3).Error()
+	err = With(cli, app).Save("v1", data).Limit(3).Error()
 	assert.Equal(t, err.Error(), "limit recorder: list controllerRevision (source=test-app): mock list error")
 
 	listErrorEnable = false
 	cli = makeMockClient()
-	err = With(cli, app).Save("", app).Limit(1).Error()
+	err = With(cli, app).Save("", data).Limit(1).Error()
 	assert.NilError(t, err)
 	crs = &apps.ControllerRevisionList{}
 	err = cli.List(context.Background(), crs)

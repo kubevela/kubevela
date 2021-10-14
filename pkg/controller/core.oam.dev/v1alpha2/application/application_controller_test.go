@@ -1480,6 +1480,7 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"targetRevision":"myweb1-v3"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(appRevName))
@@ -1798,6 +1799,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(expDeployment.Spec.Template.Spec.Containers[0].Command).Should(BeEquivalentTo([]string{"sleep", "100"}))
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1880,6 +1882,7 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -1968,6 +1971,7 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
