@@ -966,15 +966,30 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                          finished:
+                            type: boolean
                           mode:
                             description: WorkflowMode describes the mode of workflow
+                            type: string
+                          startTime:
+                            format: date-time
                             type: string
                           steps:
                             items:
                               description: WorkflowStepStatus record the status of
                                 a workflow step
                               properties:
+                                firstExecuteTime:
+                                  description: FirstExecuteTime is the first time
+                                    this step execution.
+                                  format: date-time
+                                  type: string
                                 id:
+                                  type: string
+                                lastExecuteTime:
+                                  description: LastExecuteTime is the last time this
+                                    step execution.
+                                  format: date-time
                                   type: string
                                 message:
                                   description: A human readable message indicating
@@ -1035,7 +1050,9 @@ spec:
                                 type:
                                   type: string
                               required:
+                              - firstExecuteTime
                               - id
+                              - lastExecuteTime
                               type: object
                             type: array
                           suspend:
@@ -1043,7 +1060,9 @@ spec:
                           terminated:
                             type: boolean
                         required:
+                        - finished
                         - mode
+                        - startTime
                         - suspend
                         - terminated
                         type: object
@@ -3094,15 +3113,30 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                          finished:
+                            type: boolean
                           mode:
                             description: WorkflowMode describes the mode of workflow
+                            type: string
+                          startTime:
+                            format: date-time
                             type: string
                           steps:
                             items:
                               description: WorkflowStepStatus record the status of
                                 a workflow step
                               properties:
+                                firstExecuteTime:
+                                  description: FirstExecuteTime is the first time
+                                    this step execution.
+                                  format: date-time
+                                  type: string
                                 id:
+                                  type: string
+                                lastExecuteTime:
+                                  description: LastExecuteTime is the last time this
+                                    step execution.
+                                  format: date-time
                                   type: string
                                 message:
                                   description: A human readable message indicating
@@ -3163,7 +3197,9 @@ spec:
                                 type:
                                   type: string
                               required:
+                              - firstExecuteTime
                               - id
+                              - lastExecuteTime
                               type: object
                             type: array
                           suspend:
@@ -3171,7 +3207,9 @@ spec:
                           terminated:
                             type: boolean
                         required:
+                        - finished
                         - mode
+                        - startTime
                         - suspend
                         - terminated
                         type: object

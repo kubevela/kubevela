@@ -1023,7 +1023,7 @@ spec:
                     type: array
                 type: object
               historyWorkloads:
-                description: HistoryWorkloads will record history but still working
+                description: HistoryWorkloads will record recorder but still working
                   revision workloads.
                 items:
                   description: HistoryWorkload contain the old component revision

@@ -19,6 +19,11 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,14 +67,19 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 	}
 
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
+		status := w.app.Status.Workflow
+		if status != nil && !status.Finished {
+			status.Terminated = true
+			return common.WorkflowStateTerminated, nil
+		}
 		w.app.Status.Workflow = &common.WorkflowStatus{
 			AppRevision: revAndSpecHash,
 			Mode:        common.WorkflowModeStep,
+			StartTime:   metav1.NewTime(time.Now()),
 		}
 		if w.dagMode {
 			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
 		}
-
 		// clean recorded resources info.
 		w.app.Status.Services = nil
 		w.app.Status.AppliedResources = nil
@@ -115,6 +125,16 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 		return common.WorkflowStateFinished, nil
 	}
 	return common.WorkflowStateExecuting, nil
+}
+
+// Trace record the workflow execute history.
+func (w *workflow) Trace() error {
+	version := ""
+	annos := w.app.Annotations
+	if annos != nil {
+		version = annos[wfTypes.AnnotationPublishVersion]
+	}
+	return recorder.With(w.cli, w.app).Save(version, w.app).Limit(10).Error()
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -285,7 +305,11 @@ func (e *engine) finishStep(operation *wfTypes.Operation) {
 }
 
 func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
-	var conditionUpdated bool
+	var (
+		conditionUpdated bool
+		now              = metav1.NewTime(time.Now())
+	)
+	status.LastExecuteTime = now
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == status.Name {
 			e.status.Steps[i] = status
@@ -294,6 +318,7 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 		}
 	}
 	if !conditionUpdated {
+		status.FirstExecuteTime = now
 		e.status.Steps = append(e.status.Steps, status)
 	}
 }

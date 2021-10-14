@@ -500,7 +500,7 @@ type ApplicationConfigurationStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
 
-	// HistoryWorkloads will record history but still working revision workloads.
+	// HistoryWorkloads will record recorder but still working revision workloads.
 	HistoryWorkloads []HistoryWorkload `json:"historyWorkloads,omitempty"`
 }
 

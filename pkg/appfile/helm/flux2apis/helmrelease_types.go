@@ -203,7 +203,7 @@ type Install struct {
 	DisableOpenAPIValidation bool `json:"disableOpenAPIValidation,omitempty"`
 
 	// Replace tells the Helm install action to re-use the 'ReleaseName', but only
-	// if that name is a deleted release which remains in the history.
+	// if that name is a deleted release which remains in the recorder.
 	// +optional
 	Replace bool `json:"replace,omitempty"`
 
@@ -387,7 +387,7 @@ type Uninstall struct {
 	DisableHooks bool `json:"disableHooks,omitempty"`
 
 	// KeepHistory tells Helm to remove all associated resources and mark the
-	// release as deleted, but retain the release history.
+	// release as deleted, but retain the release recorder.
 	// +optional
 	KeepHistory bool `json:"keepHistory,omitempty"`
 }

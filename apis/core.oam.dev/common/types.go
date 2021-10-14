@@ -199,7 +199,9 @@ const (
 	WorkflowStateTerminated WorkflowState = "terminated"
 	// WorkflowStateSuspended means workflow is suspended manually, and it can be resumed.
 	WorkflowStateSuspended WorkflowState = "suspended"
-	// WorkflowStateFinished means workflow is running successfully, all steps finished.
+	// WorkflowStateSucceeded means workflow is running successfully, all steps finished.
+	WorkflowStateSucceeded WorkflowState = "Succeeded"
+	// WorkflowStateFinished means workflow is end.
 	WorkflowStateFinished WorkflowState = "finished"
 	// WorkflowStateExecuting means workflow is still running or waiting some steps.
 	WorkflowStateExecuting WorkflowState = "executing"
@@ -310,6 +312,7 @@ type WorkflowStatus struct {
 
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
+	Finished   bool `json:"finished"`
 
 	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
