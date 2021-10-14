@@ -1,0 +1,32 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: export-secret
+  namespace: default
+spec:
+  components:
+  - name: express-server
+    type: webservice
+    properties:
+      image: crccheck/hello-world
+      port: 8000
+      volumes:
+        - name: my-secret
+          type: secret
+          mountPath: /test-secret
+          secretName: my-secret
+          items:
+            - key: test-key
+              path: test-key
+  workflow:
+    steps:
+      - name: export-secret
+        type: export-secret
+        properties:
+          name: my-secret
+          data:
+            test-key: test-value
+      - name: apply-server
+        type: apply-component
+        properties:
+          component: express-server
