@@ -206,7 +206,7 @@ spec:
                     replace:
                       description: Replace tells the Helm install action to re-use the
                         'ReleaseName', but only if that name is a deleted release which
-                        remains in the recorder.
+                        remains in the history.
                       type: boolean
                     skipCRDs:
                       description: "SkipCRDs tells the Helm install action to not install
@@ -470,7 +470,7 @@ spec:
                       type: boolean
                     keepHistory:
                       description: KeepHistory tells Helm to remove all associated resources
-                        and mark the release as deleted, but retain the release recorder.
+                        and mark the release as deleted, but retain the release history.
                       type: boolean
                     timeout:
                       description: Timeout is the time to wait for any individual Kubernetes

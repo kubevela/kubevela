@@ -115,8 +115,8 @@ spec:
               type: integer
             revisionHistoryLimit:
               description: RevisionHistoryLimit is the maximum number of revisions
-                that will be maintained in the CloneSet's revision recorder. The revision
-                recorder consists of all revisions not represented by a currently applied
+                that will be maintained in the CloneSet's revision history. The revision
+                history consists of all revisions not represented by a currently applied
                 CloneSetSpec version. The default value is 10.
               format: int32
               type: integer
