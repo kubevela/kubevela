@@ -213,21 +213,21 @@ func enableAddon(name string, args map[string]string) error {
 func disableAddon(name string) error {
 	if isLegacyAddonExist(name) {
 		return tryDisableInitializerAddon(name)
-	} else {
-		repo, err := NewAddonRepo()
-		if err != nil {
-			return err
-		}
-		addon, err := repo.getAddon(name)
-		if err != nil {
-			return errors.Wrap(err, "get addon err")
-		}
-		if addon.getStatus() == statusUninstalled {
-			fmt.Printf("Addon %s is not installed\n", addon.name)
-			return nil
-		}
-		return addon.disable()
 	}
+	repo, err := NewAddonRepo()
+	if err != nil {
+		return err
+	}
+	addon, err := repo.getAddon(name)
+	if err != nil {
+		return errors.Wrap(err, "get addon err")
+	}
+	if addon.getStatus() == statusUninstalled {
+		fmt.Printf("Addon %s is not installed\n", addon.name)
+		return nil
+	}
+	return addon.disable()
+
 }
 
 func isLegacyAddonExist(name string) bool {
