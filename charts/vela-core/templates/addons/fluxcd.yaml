@@ -5383,140 +5383,6 @@ data:
             strategy:
               type: Recreate
             template:
-                schematic:
-                  cue:
-                    template: "patch: {\n\tspec: {\n\t\tpatches: parameter.patches\n\t}\n}\nparameter:
-                      {\n\t// +usage=a list of StrategicMerge or JSON6902 patch to selected
-                      target\n\tpatches: [...#patchItem]\n}\n\n// +usage=Contains a strategicMerge
-                      or JSON6902 patch\n#patchItem: {\n\t// +usage=Inline patch string,
-                      in yaml style\n\tpatch: string\n\t// +usage=Specify the target the
-                      patch should be applied to\n\ttarget: #selector\n}\n\n// +usage=Selector
-                      specifies a set of resources\n#selector: {\n\tgroup?:              string\n\tversion?:
-                      \           string\n\tkind?:               string\n\tnamespace?:
-                      \         string\n\tname?:               string\n\tannotationSelector?:
-                      string\n\tlabelSelector?:      string\n}\n"
-            type: raw
-          - name: kustomize
-            properties:
-              apiVersion: core.oam.dev/v1beta1
-              kind: ComponentDefinition
-              metadata:
-                annotations:
-                  definition.oam.dev/description: kustomize can fetching, building, updating
-                    and applying Kustomize manifests from git repo.
-                name: kustomize
-                namespace: vela-system
-              spec:
-                schematic:
-                  cue:
-                    template: "output: {\n\tapiVersion: \"kustomize.toolkit.fluxcd.io/v1beta1\"\n\tkind:
-                      \      \"Kustomization\"\n\tmetadata: {\n\t\tname: context.name\n
-                      \   namespace: context.namespace\n\t}\n\tspec: {\n\t\tinterval:
-                      parameter.pullInterval\n\t\tsourceRef: {\n\t\t\tif parameter.repoType
-                      == \"git\" {\n\t\t\t\tkind: \"GitRepository\"\n\t\t\t}\n\t\t\tif
-                      parameter.repoType == \"oss\" {\n\t\t\t\tkind: \"Bucket\"\n\t\t\t}\n\t\t\tname:
-                      \     context.name\n\t\t\tnamespace: context.namespace\n\t\t}\n\t\tpath:
-                      \      parameter.path\n\t\tprune:      true\n\t\tvalidation: \"client\"\n\t}\n}\n\noutputs:
-                      {\n  repo: {\n\t  apiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\t
-                      \ metadata: {\n\t\t  name: context.name\n      namespace: context.namespace\n\t
-                      \ }\n\t  if parameter.repoType == \"git\" {\n\t\t  kind: \"GitRepository\"\n\t\t
-                      \ spec: {\n\t\t\t  url: parameter.url\n\t\t\t  if parameter.git.branch
-                      != _|_ {\n\t\t\t\t  ref: branch: parameter.git.branch\n\t\t\t  }\n
-                      \       if parameter.git.provider != _|_ {\n          if parameter.git.provider
-                      == \"GitHub\" {\n            gitImplementation: \"go-git\"\n          }\n
-                      \         if parameter.git.provider == \"AzureDevOps\" {\n            gitImplementation:
-                      \"libgit2\"\n          }\n        }\n\t\t\t  _secret\n\t\t\t  _sourceCommonArgs\n\t\t
-                      \ }\n\t  }\n\t  if parameter.repoType == \"oss\" {\n\t\t  kind:
-                      \"Bucket\"\n\t\t  spec: {\n\t\t\t  endpoint:   parameter.url\n\t\t\t
-                      \ bucketName: parameter.oss.bucketName\n\t\t\t  provider:   parameter.oss.provider\n\t\t\t
-                      \ if parameter.oss.region != _|_ {\n\t\t\t\t  region: parameter.oss.region\n\t\t\t
-                      \ }\n\t\t\t  _secret\n\t\t\t  _sourceCommonArgs\n\t\t  }\n\t  }\n
-                      \ }\n\n  if parameter.imageRepository != _|_ {\n    imageRepo: {\n
-                      \     apiVersion: \"image.toolkit.fluxcd.io/v1beta1\"\n      kind:
-                      \"ImageRepository\"\n\t    metadata: {\n\t\t    name: context.name\n
-                      \       namespace: context.namespace\n\t    }\n      spec: {\n        image:
-                      parameter.imageRepository.image\n        interval: parameter.pullInterval\n
-                      \       if parameter.imageRepository.secretRef != _|_ {\n          secretRef:
-                      name: parameter.imageRepository.secretRef\n        }\n      }\n
-                      \   }\n\n    imagePolicy: {\n      apiVersion: \"image.toolkit.fluxcd.io/v1beta1\"\n
-                      \     kind: \"ImagePolicy\"\n\t    metadata: {\n\t\t    name: context.name\n
-                      \       namespace: context.namespace\n\t    }\n      spec: {\n        imageRepositoryRef:
-                      name: context.name\n        policy: parameter.imageRepository.policy\n
-                      \       if parameter.imageRepository.filterTags != _|_ {\n          filterTags:
-                      parameter.imageRepository.filterTags\n        }\n      }\n    }\n\n
-                      \   imageUpdate: {\n      apiVersion: \"image.toolkit.fluxcd.io/v1beta1\"\n
-                      \     kind: \"ImageUpdateAutomation\"\n\t    metadata: {\n\t\t    name:
-                      context.name\n        namespace: context.namespace\n\t    }\n      spec:
-                      {\n        interval: parameter.pullInterval\n        sourceRef:
-                      {\n          kind: \"GitRepository\"\n          name: context.name\n
-                      \       }\n        git: {\n          checkout: ref: branch: parameter.git.branch\n
-                      \         commit: {\n            author: {\n              email:
-                      \"kubevelabot@users.noreply.github.com\"\n              name: \"kubevelabot\"\n
-                      \           }\n            if parameter.imageRepository.commitMessage
-                      != _|_ {\n              messageTemplate: \"Update image automatically.\\n\"
-                      + parameter.imageRepository.commitMessage\n            }\n            if
-                      parameter.imageRepository.commitMessage == _|_ {\n              messageTemplate:
-                      \"Update image automatically.\"\n            }\n          }\n          push:
-                      branch: parameter.git.branch\n        }\n        update: {\n          path:\tparameter.path\n
-                      \         strategy: \"Setters\"\n        }\n      }\n    }\n  }\n}\n\n_secret:
-                      {\n\tif parameter.secretRef != _|_ {\n\t\tsecretRef: {\n\t\t\tname:
-                      parameter.secretRef\n\t\t}\n\t}\n}\n\n_sourceCommonArgs: {\n\tinterval:
-                      parameter.pullInterval\n\tif parameter.timeout != _|_ {\n\t\ttimeout:
-                      parameter.timeout\n\t}\n}\n\nparameter: {\n\trepoType: *\"git\"
-                      | \"oss\"\n  // +usage=The image repository for automatically update
-                      image to git\n  imageRepository?: {\n    // +usage=The image url\n
-                      \   image: string\n    // +usage=The name of the secret containing
-                      authentication credentials\n    secretRef?: string\n    // +usage=Policy
-                      gives the particulars of the policy to be followed in selecting
-                      the most recent image.\n    policy: {\n      // +usage=Alphabetical
-                      set of rules to use for alphabetical ordering of the tags.\n      alphabetical?:
-                      {\n        // +usage=Order specifies the sorting order of the tags.\n
-                      \       // +usage=Given the letters of the alphabet as tags, ascending
-                      order would select Z, and descending order would select A.\n        order?:
-                      \"asc\" | \"desc\"\n      }\n      // +usage=Numerical set of rules
-                      to use for numerical ordering of the tags.\n      numerical?: {\n
-                      \       // +usage=Order specifies the sorting order of the tags.\n
-                      \       // +usage=Given the integer values from 0 to 9 as tags,
-                      ascending order would select 9, and descending order would select
-                      0.\n        order: \"asc\" | \"desc\"\n      }\n      // +usage=SemVer
-                      gives a semantic version range to check against the tags available.\n
-                      \     semver?: {\n        // +usage=Range gives a semver range for
-                      the image tag; the highest version within the range that's a tag
-                      yields the latest image.\n        range: string\n      }\n    }\n
-                      \   // +usage=FilterTags enables filtering for only a subset of
-                      tags based on a set of rules. If no rules are provided, all the
-                      tags from the repository will be ordered and compared.\n    filterTags?:
-                      {\n      // +usage=Extract allows a capture group to be extracted
-                      from the specified regular expression pattern, useful before tag
-                      evaluation.\n      extract?: string\n      // +usage=Pattern specifies
-                      a regular expression pattern used to filter for image tags.\n      pattern?:
-                      string\n    }\n    // +usage=The image url\n    commitMessage?:
-                      string\n  }\n\t// +usage=The interval at which to check for repository/bucket
-                      and release updates, default to 5m\n\tpullInterval: *\"5m\" | string\n\t//
-                      +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S
-                      or SSH address as git url,\n\turl: string\n\t// +usage=The name
-                      of the secret containing authentication credentials\n\tsecretRef?:
-                      string\n\t// +usage=The timeout for operations like download index/clone
-                      repository, optional\n\ttimeout?: string\n\tgit?: {\n\t\t// +usage=The
-                      Git reference to checkout and monitor for changes, defaults to master
-                      branch\n\t\tbranch: string\n    // +usage=Determines which git client
-                      library to use. Defaults to GitHub, it will pick go-git. AzureDevOps
-                      will pick libgit2.\n    provider?: *\"GitHub\" | \"AzureDevOps\"\n\t}\n\toss?:
-                      {\n\t\t// +usage=The bucket's name, required if repoType is oss\n\t\tbucketName:
-                      string\n\t\t// +usage=\"generic\" for Minio, Amazon S3, Google Cloud
-                      Storage, Alibaba Cloud OSS, \"aws\" for retrieve credentials from
-                      the EC2 service when credentials not specified, default \"generic\"\n\t\tprovider:
-                      *\"generic\" | \"aws\"\n\t\t// +usage=The bucket region, optional\n\t\tregion?:
-                      string\n\t}\n\t//+usage=Path to the directory containing the kustomization.yaml
-                      file, or the set of plain YAMLs a kustomization.yaml should be generated
-                      for.\n\tpath: string\n} \n"
-                workload:
-                  type: autodetects.core.oam.dev
-            type: raw
-          - name: kustomize-strategy-merge
-            properties:
-              apiVersion: core.oam.dev/v1beta1
-              kind: TraitDefinition
               metadata:
                 annotations:
                   prometheus.io/port: "8080"
@@ -6028,10 +5894,13 @@ data:
                   \ metadata: {\n\t\t  name: context.name\n      namespace: context.namespace\n\t
                   \ }\n\t  if parameter.repoType == \"git\" {\n\t\t  kind: \"GitRepository\"\n\t\t
                   \ spec: {\n\t\t\t  url: parameter.url\n\t\t\t  if parameter.git.branch
-                  != _|_ {\n\t\t\t\t  ref: branch: parameter.git.branch\n\t\t\t  }\n\t\t\t
-                  \ _secret\n\t\t\t  _sourceCommonArgs\n\t\t  }\n\t  }\n\t  if parameter.repoType
-                  == \"oss\" {\n\t\t  kind: \"Bucket\"\n\t\t  spec: {\n\t\t\t  endpoint:
-                  \  parameter.url\n\t\t\t  bucketName: parameter.oss.bucketName\n\t\t\t
+                  != _|_ {\n\t\t\t\t  ref: branch: parameter.git.branch\n\t\t\t  }\n        if
+                  parameter.git.provider != _|_ {\n          if parameter.git.provider
+                  == \"GitHub\" {\n            gitImplementation: \"go-git\"\n          }\n
+                  \         if parameter.git.provider == \"AzureDevOps\" {\n            gitImplementation:
+                  \"libgit2\"\n          }\n        }\n\t\t\t  _secret\n\t\t\t  _sourceCommonArgs\n\t\t
+                  \ }\n\t  }\n\t  if parameter.repoType == \"oss\" {\n\t\t  kind: \"Bucket\"\n\t\t
+                  \ spec: {\n\t\t\t  endpoint:   parameter.url\n\t\t\t  bucketName: parameter.oss.bucketName\n\t\t\t
                   \ provider:   parameter.oss.provider\n\t\t\t  if parameter.oss.region
                   != _|_ {\n\t\t\t\t  region: parameter.oss.region\n\t\t\t  }\n\t\t\t
                   \ _secret\n\t\t\t  _sourceCommonArgs\n\t\t  }\n\t  }\n  }\n\n  if parameter.imageRepository
@@ -6099,7 +5968,9 @@ data:
                   authentication credentials\n\tsecretRef?: string\n\t// +usage=The timeout
                   for operations like download index/clone repository, optional\n\ttimeout?:
                   string\n\tgit?: {\n\t\t// +usage=The Git reference to checkout and monitor
-                  for changes, defaults to master branch\n\t\tbranch: string\n\t}\n\toss?:
+                  for changes, defaults to master branch\n\t\tbranch: string\n    // +usage=Determines
+                  which git client library to use. Defaults to GitHub, it will pick go-git.
+                  AzureDevOps will pick libgit2.\n    provider?: *\"GitHub\" | \"AzureDevOps\"\n\t}\n\toss?:
                   {\n\t\t// +usage=The bucket's name, required if repoType is oss\n\t\tbucketName:
                   string\n\t\t// +usage=\"generic\" for Minio, Amazon S3, Google Cloud
                   Storage, Alibaba Cloud OSS, \"aws\" for retrieve credentials from the
