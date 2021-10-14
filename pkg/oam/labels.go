@@ -122,4 +122,7 @@ const (
 
 	// AnnotationAddonsName records the name of initializer stored in configMap
 	AnnotationAddonsName = "addons.oam.dev/name"
+
+	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
+	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
 )
