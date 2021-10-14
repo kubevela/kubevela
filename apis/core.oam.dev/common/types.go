@@ -254,9 +254,9 @@ type WorkflowStepStatus struct {
 	Reason   string          `json:"reason,omitempty"`
 	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
 	// FirstExecuteTime is the first time this step execution.
-	FirstExecuteTime metav1.Time `json:"firstExecuteTime"`
+	FirstExecuteTime metav1.Time `json:"firstExecuteTime,omitempty"`
 	// LastExecuteTime is the last time this step execution.
-	LastExecuteTime metav1.Time `json:"lastExecuteTime"`
+	LastExecuteTime metav1.Time `json:"lastExecuteTime,omitempty"`
 }
 
 // WorkflowSubStepStatus record the status of a workflow step
@@ -317,7 +317,7 @@ type WorkflowStatus struct {
 	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
 
-	StartTime metav1.Time `json:"startTime"`
+	StartTime metav1.Time `json:"startTime,omitempty"`
 }
 
 // SubStepsStatus record the status of workflow steps.

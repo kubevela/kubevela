@@ -963,9 +963,7 @@ spec:
                         type:
                           type: string
                       required:
-                      - firstExecuteTime
                       - id
-                      - lastExecuteTime
                       type: object
                     type: array
                   suspend:
@@ -975,7 +973,6 @@ spec:
                 required:
                 - finished
                 - mode
-                - startTime
                 - suspend
                 - terminated
                 type: object
@@ -2040,9 +2037,7 @@ spec:
                         type:
                           type: string
                       required:
-                      - firstExecuteTime
                       - id
-                      - lastExecuteTime
                       type: object
                     type: array
                   suspend:
@@ -2052,7 +2047,6 @@ spec:
                 required:
                 - finished
                 - mode
-                - startTime
                 - suspend
                 - terminated
                 type: object
