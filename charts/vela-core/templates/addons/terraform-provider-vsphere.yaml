@@ -1,8 +1,8 @@
 apiVersion: v1
 data:
-  initializer: |
+  application: |
     apiVersion: core.oam.dev/v1beta1
-    kind: Initializer
+    kind: Application
     metadata:
       annotations:
         addons.oam.dev/description: Kubernetes Terraform Controller for VSPHERE
@@ -10,44 +10,40 @@ data:
       name: terraform-provider-vsphere
       namespace: default
     spec:
-      appTemplate:
-        spec:
-          components:
-          - name: vsphere-account-creds
-            properties:
-              apiVersion: v1
-              kind: Secret
-              metadata:
+      components:
+      - name: vsphere-account-creds
+        properties:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: vsphere-account-creds
+            namespace: vela-system
+          stringData:
+            credentials: |
+              vSphereUser: [[ index .Args "VSPHERE_USER" ]]
+              vSpherePassword: [[ index .Args "VSPHERE_PASSWORD" ]]
+              vSphereServer: [[ index .Args "VSPHERE_SERVER" ]]
+              vSphereAllowUnverifiedSSL: [[ index .Args "VSPHERE_ALLOW_UNVERIFIED_SSL" ]]
+          type: Opaque
+        type: raw
+      - name: vsphere
+        properties:
+          apiVersion: terraform.core.oam.dev/v1beta1
+          kind: Provider
+          metadata:
+            name: vsphere
+            namespace: default
+          spec:
+            credentials:
+              secretRef:
+                key: credentials
                 name: vsphere-account-creds
                 namespace: vela-system
-              stringData:
-                credentials: |
-                  vSphereUser: [[ index .Args "VSPHERE_USER" ]]
-                  vSpherePassword: [[ index .Args "VSPHERE_PASSWORD" ]]
-                  vSphereServer: [[ index .Args "VSPHERE_SERVER" ]]
-                  vSphereAllowUnverifiedSSL: [[ index .Args "VSPHERE_ALLOW_UNVERIFIED_SSL" ]]
-              type: Opaque
-            type: raw
-          - name: vsphere
-            properties:
-              apiVersion: terraform.core.oam.dev/v1beta1
-              kind: Provider
-              metadata:
-                name: vsphere
-                namespace: default
-              spec:
-                credentials:
-                  secretRef:
-                    key: credentials
-                    name: vsphere-account-creds
-                    namespace: vela-system
-                  source: Secret
-                provider: vsphere
-                region: '[[ index .Args "VSPHERE_REGION" ]]'
-            type: raw
+              source: Secret
+            provider: vsphere
+            region: '[[ index .Args "VSPHERE_REGION" ]]'
+        type: raw
         status: {}
-    status:
-      observedGeneration: 0
 kind: ConfigMap
 metadata:
   annotations:
