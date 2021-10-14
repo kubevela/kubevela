@@ -107,11 +107,11 @@ type AddonStatusResponse struct {
 
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
-	Name             string            `json:"name" validate:"name"`
+	Name             string            `json:"name"`
 	Description      string            `json:"description,omitempty"`
 	Icon             string            `json:"icon"`
-	KubeConfig       string            `json:"kubeConfig" validate:"required_without=kubeConfigSecret"`
-	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty" validate:"required_without=kubeConfig"`
+	KubeConfig       string            `json:"kubeConfig"`
+	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty"`
 	Labels           map[string]string `json:"labels,omitempty"`
 }
 

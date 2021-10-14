@@ -24,12 +24,15 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
+	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 var _ APIServer = &restServer{}
@@ -54,6 +57,7 @@ type restServer struct {
 	webContainer *restful.Container
 	cfg          Config
 	dataStore    datastore.DataStore
+	k8sClient    client.Client
 }
 
 // New create restserver with config data
@@ -73,16 +77,21 @@ func New(cfg Config) (a APIServer, err error) {
 	default:
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
 	}
+	k8sClient, err := multicluster.GetMulticlusterKubernetesClient()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get multicluster kubernetes client")
+	}
 	s := &restServer{
 		webContainer: restful.NewContainer(),
 		cfg:          cfg,
 		dataStore:    ds,
+		k8sClient:    k8sClient,
 	}
 	return s, nil
 }
 
 func (s *restServer) Run(ctx context.Context) error {
-	webservice.Init(ctx, s.dataStore)
+	webservice.Init(ctx, s.dataStore, s.k8sClient)
 	err := s.registerServices()
 	if err != nil {
 		return err

@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
+	"reflect"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
@@ -109,4 +109,17 @@ func (m *Model) SetCreateTime(time time.Time) {
 // SetUpdateTime set update time
 func (m *Model) SetUpdateTime(time time.Time) {
 	m.UpdateTime = time
+}
+
+func deepCopy(src interface{}) interface{} {
+	dst := reflect.New(reflect.TypeOf(src).Elem())
+
+	val := reflect.ValueOf(src).Elem()
+	nVal := dst.Elem()
+	for i := 0; i < val.NumField(); i++ {
+		nvField := nVal.Field(i)
+		nvField.Set(val.Field(i))
+	}
+
+	return dst.Interface()
 }
