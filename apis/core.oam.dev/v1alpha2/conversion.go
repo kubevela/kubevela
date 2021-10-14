@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 
@@ -115,10 +116,17 @@ func (app *Application) ConvertFrom(src conversion.Hub) error {
 			}
 			// convert component
 			//  `.properties` -> `.settings`
+
+			var compProperties runtime.RawExtension
+
+			if comp.Properties != nil {
+				compProperties = *comp.Properties.DeepCopy()
+			}
+
 			app.Spec.Components = append(app.Spec.Components, ApplicationComponent{
 				Name:         comp.Name,
 				WorkloadType: comp.Type,
-				Settings:     *comp.Properties.DeepCopy(),
+				Settings:     compProperties,
 				Traits:       traits,
 				Scopes:       scopes,
 			})
