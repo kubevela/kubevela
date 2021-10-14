@@ -1,8 +1,8 @@
 apiVersion: v1
 data:
-  initializer: |
+  application: |
     apiVersion: core.oam.dev/v1beta1
-    kind: Initializer
+    kind: Application
     metadata:
       annotations:
         addons.oam.dev/description: Prometheus is an open-source systems monitoring and
@@ -10,24 +10,23 @@ data:
       name: prometheus
       namespace: vela-system
     spec:
-      appTemplate:
-        spec:
-          components:
-          - name: prometheus
-            properties:
-              chart: premetheus
-              repoType: helm
-              url: https://prometheus-community.github.io/helm-charts
-            type: helm
-        status: {}
-      dependsOn:
-      - ref:
-          apiVersion: core.oam.dev/v1beta1
-          kind: Initializer
-          name: fluxcd
-          namespace: vela-system
-    status:
-      observedGeneration: 0
+      components:
+      - name: prometheus
+        properties:
+          chart: premetheus
+          repoType: helm
+          url: https://prometheus-community.github.io/helm-charts
+        type: helm
+      workflow:
+        steps:
+        - name: checking-depends-on
+          properties:
+            name: fluxcd
+            namespace: vela-system
+          type: depends-on-app
+        - name: apply-resources
+          type: apply-application
+    status: {}
 kind: ConfigMap
 metadata:
   annotations:

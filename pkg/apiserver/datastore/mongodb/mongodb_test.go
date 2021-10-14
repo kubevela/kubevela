@@ -19,6 +19,7 @@ package mongodb
 import (
 	"context"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -59,10 +60,28 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	It("Test batch add funtion", func() {
+		var datas = []datastore.Entity{
+			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
+			&model.Application{Namespace: "test-namesapce", Name: "kubevela-app-3", Description: "this is demo 3"},
+			&model.Application{Namespace: "test-namesapce2", Name: "kubevela-app-4", Description: "this is demo 4"},
+		}
+		err := mongodbDriver.BatchAdd(context.TODO(), datas)
+		Expect(err).ToNot(HaveOccurred())
+
+		var datas2 = []datastore.Entity{
+			&model.Application{Namespace: "test-namesapce", Name: "can-delete", Description: "this is demo can-delete"},
+			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
+		}
+		err = mongodbDriver.BatchAdd(context.TODO(), datas2)
+		equal := cmp.Diff(strings.Contains(err.Error(), "save components occur error"), true)
+		Expect(equal).To(BeEmpty())
+	})
+
 	It("Test get funtion", func() {
 		app := &model.Application{Name: "kubevela-app"}
 		err := mongodbDriver.Get(context.TODO(), app)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).Should(BeNil())
 		diff := cmp.Diff(app.Description, "default")
 		Expect(diff).Should(BeEmpty())
 	})
@@ -71,31 +90,32 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		err := mongodbDriver.Put(context.TODO(), &model.Application{Name: "kubevela-app", Description: "this is demo"})
 		Expect(err).ToNot(HaveOccurred())
 	})
-
 	It("Test list funtion", func() {
-		err := mongodbDriver.Add(context.TODO(), &model.Application{Name: "kubevela-app-2", Description: "this is demo 2"})
-		Expect(err).ToNot(HaveOccurred())
-		err = mongodbDriver.Add(context.TODO(), &model.Application{Name: "kubevela-app-3", Description: "this is demo 3"})
-		Expect(err).ToNot(HaveOccurred())
 		var app model.Application
 		list, err := mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{Page: -1})
-		Expect(err).ToNot(HaveOccurred())
-		diff := cmp.Diff(len(list), 3)
+		Expect(err).ShouldNot(HaveOccurred())
+		diff := cmp.Diff(len(list), 4)
 		Expect(diff).Should(BeEmpty())
 
-		list, err = mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{Page: 2, PageSize: 1})
-		Expect(err).ToNot(HaveOccurred())
-		diff = cmp.Diff(len(list), 1)
+		list, err = mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{Page: 2, PageSize: 2})
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 2)
 		Expect(diff).Should(BeEmpty())
 
 		list, err = mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{Page: 1, PageSize: 2})
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(len(list), 2)
 		Expect(diff).Should(BeEmpty())
 
 		list, err = mongodbDriver.List(context.TODO(), &app, nil)
-		Expect(err).ToNot(HaveOccurred())
-		diff = cmp.Diff(len(list), 3)
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 4)
+		Expect(diff).Should(BeEmpty())
+
+		app.Namespace = "test-namesapce"
+		list, err = mongodbDriver.List(context.TODO(), &app, nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 1)
 		Expect(diff).Should(BeEmpty())
 	})
 
@@ -103,13 +123,13 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		var app model.Application
 		app.Name = "kubevela-app-3"
 		exist, err := mongodbDriver.IsExist(context.TODO(), &app)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 		diff := cmp.Diff(exist, true)
 		Expect(diff).Should(BeEmpty())
 
-		app.Name = "kubevela-app-4"
+		app.Name = "kubevela-app-5"
 		notexist, err := mongodbDriver.IsExist(context.TODO(), &app)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(notexist, false)
 		Expect(diff).Should(BeEmpty())
 	})
@@ -118,17 +138,21 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		var app model.Application
 		app.Name = "kubevela-app"
 		err := mongodbDriver.Delete(context.TODO(), &app)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 
 		app.Name = "kubevela-app-2"
 		err = mongodbDriver.Delete(context.TODO(), &app)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 
 		app.Name = "kubevela-app-3"
 		err = mongodbDriver.Delete(context.TODO(), &app)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 
-		app.Name = "kubevela-app-3"
+		app.Name = "kubevela-app-4"
+		err = mongodbDriver.Delete(context.TODO(), &app)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		app.Name = "kubevela-app-4"
 		err = mongodbDriver.Delete(context.TODO(), &app)
 		equal := cmp.Equal(err, datastore.ErrRecordNotExist, cmpopts.EquateErrors())
 		Expect(equal).Should(BeTrue())

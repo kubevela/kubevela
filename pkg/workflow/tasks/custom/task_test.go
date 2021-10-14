@@ -182,7 +182,7 @@ close({
 		{
 			Name: "input-err",
 			Type: "ok",
-			Properties: runtime.RawExtension{Raw: []byte(`
+			Properties: &runtime.RawExtension{Raw: []byte(`
 {"score": {"y": 101}}
 `)},
 			Inputs: common.StepInputs{{

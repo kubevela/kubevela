@@ -260,12 +260,12 @@ func PatchComponent(baseComponent *common.ApplicationComponent, patchComponent *
 }
 
 // PatchProperties merge patch parameter for dst parameter
-func PatchProperties(dst runtime.RawExtension, patch runtime.RawExtension) (map[string]interface{}, error) {
-	patchParameter, err := util.RawExtension2Map(&patch)
+func PatchProperties(dst *runtime.RawExtension, patch *runtime.RawExtension) (map[string]interface{}, error) {
+	patchParameter, err := util.RawExtension2Map(patch)
 	if err != nil {
 		return nil, err
 	}
-	baseParameter, err := util.RawExtension2Map(&dst)
+	baseParameter, err := util.RawExtension2Map(dst)
 	if err != nil {
 		return nil, err
 	}

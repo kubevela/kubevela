@@ -37,6 +37,9 @@ var (
 
 	// ErrRecordNotExist Error that entity primary key is not exist
 	ErrRecordNotExist = NewDBError(fmt.Errorf("data record is not exist"))
+
+	// ErrIndexInvalid Error that entity index is invalid
+	ErrIndexInvalid = NewDBError(fmt.Errorf("entity index is invalid"))
 )
 
 // DBError datastore error
@@ -64,6 +67,7 @@ type Config struct {
 type Entity interface {
 	PrimaryKey() string
 	TableName() string
+	Index() map[string]string
 }
 
 // NewEntity Create a new object based on the input type
@@ -89,6 +93,9 @@ type ListOptions struct {
 type DataStore interface {
 	// add entity to database, Name() and TableName() can't return zero value.
 	Add(ctx context.Context, entity Entity) error
+
+	// batch add entity to database, Name() and TableName() can't return zero value.
+	BatchAdd(ctx context.Context, entitys []Entity) error
 
 	// Update entity to database, Name() and TableName() can't return zero value.
 	Put(ctx context.Context, entity Entity) error

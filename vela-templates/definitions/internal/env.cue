@@ -10,7 +10,7 @@ template: {
 		// +patchKey=name
 		containers: [{
 			name: context.name
-			// +patchKey=name
+			// +patchStrategy=retainKeys
 			env: [
 				for k, v in parameter.env {
 					name:  k

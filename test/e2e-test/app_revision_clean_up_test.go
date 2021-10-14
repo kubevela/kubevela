@@ -78,7 +78,10 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 		appName := "app-1"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			err := k8sClient.Create(ctx, app)
+			return err
+		}, 15*time.Second, 300*time.Millisecond).Should(BeNil())
 		checkApp := new(v1beta1.Application)
 		for i := 0; i < appRevisionLimit; i++ {
 			Eventually(func() error {
@@ -93,7 +96,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				checkApp = new(v1beta1.Application)
 				Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 				property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-				checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+				checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 				if err := k8sClient.Update(ctx, checkApp); err != nil {
 					return err
 				}
@@ -133,7 +136,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return err
 			}
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 5)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			return k8sClient.Update(ctx, checkApp)
 		}, time.Second*10, time.Millisecond*500).Should(BeNil())
 
@@ -163,7 +166,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return err
 			}
 			property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, 6)
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			if err := k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -212,7 +215,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				checkApp = new(v1beta1.Application)
 				Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 				property := fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-				checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+				checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 				if err := k8sClient.Update(ctx, checkApp); err != nil {
 					return err
 				}
@@ -243,7 +246,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			return k8sClient.Update(ctx, checkApp)
 		}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 		deletedRevison := new(v1beta1.ApplicationRevision)
@@ -272,7 +275,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			if err := k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 			return k8sClient.Update(ctx, checkApp)
 		}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 		Eventually(func() error {
@@ -333,7 +336,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 					return err
 				}
 				property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-				checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(property)}
+				checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
 				if err := k8sClient.Update(ctx, checkApp); err != nil {
 					return err
 				}
@@ -438,7 +441,7 @@ func getApp(appName, namespace, comptype string) *v1beta1.Application {
 				{
 					Name:       "comp1",
 					Type:       comptype,
-					Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 				},
 			},
 		},

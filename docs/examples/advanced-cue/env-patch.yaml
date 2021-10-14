@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: env-patch
+spec:
+  components:
+    - name: express-server
+      properties:
+        cmd:
+          - node
+          - server.js
+        image: oamdev/testapp:v1
+        port: 8080
+        env:
+          - name: myenv1
+            value: myvalue1
+          - name: myenv2
+            value: myvalue2
+      traits:
+        - type: env
+          properties:
+            env:
+              myenv1: myvalue-trait-patched
+      type: webservice

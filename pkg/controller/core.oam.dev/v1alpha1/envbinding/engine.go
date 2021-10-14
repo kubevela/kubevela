@@ -123,7 +123,7 @@ func (o *OCMEngine) schedule(ctx context.Context, apps []*EnvBindApp) ([]v1alpha
 			manifest := app.assembledManifests[component.Name]
 			for j := range manifest {
 				workloads = append(workloads, ocmworkv1.Manifest{
-					RawExtension: util.Object2RawExtension(manifest[j]),
+					RawExtension: *util.Object2RawExtension(manifest[j]),
 				})
 			}
 		}

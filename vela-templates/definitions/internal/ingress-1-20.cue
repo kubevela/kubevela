@@ -75,6 +75,6 @@ template: {
 		http: [string]: int
 
 		// +usage=Specify the class of ingress to use
-		class?: *"nginx" | string
+		class: *"nginx" | string
 	}
 }

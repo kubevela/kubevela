@@ -1,34 +1,46 @@
 apiVersion: core.oam.dev/v1beta1
-kind: Initializer
+kind: Application
 metadata:
   annotations:
     addons.oam.dev/description: "Terraform Controller is a Kubernetes Controller for Terraform."
   name: terraform
   namespace: vela-system
 spec:
-  dependsOn:
-    - ref:
-        apiVersion: core.oam.dev/v1beta1
-        kind: Initializer
-        name: fluxcd
-        namespace: vela-system
-  appTemplate:
-    spec:
-      components:
-        - name: terraform-controller
-          type: helm
-          properties:
-            repoType: helm
-            url: https://charts.kubevela.net/addons
-            chart: terraform-controller
-            version: 0.1.19
+  workflow:
+    steps:
+      - name: checking-depends-on
+        type: depends-on-app
+        properties:
+          name: fluxcd
+          namespace: vela-system
+      - name: apply-ns
+        type: apply-component
+        properties:
+          component: ns-terraform-system
+      - name: apply-resources
+        type: apply-remaining
+  components:
+    - name: ns-terraform-system
+      type: raw
+      properties:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: terraform-system
+    - name: terraform-controller
+      type: helm
+      properties:
+        repoType: helm
+        url: https://charts.kubevela.net/addons
+        chart: terraform-controller
+        version: 0.1.19
 {{ range .ResourceFiles }}
-        - name: {{ .Name }}
-          type: raw
-          properties:
-{{ .Content | indent 12 }} {{ end }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
 {{ range .DefinitionFiles }}
-        - name: {{ .Name }}
-          type: raw
-          properties:
-{{ .Content | indent 12 }} {{ end }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
