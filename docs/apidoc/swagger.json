@@ -52,7 +52,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ListApplicationResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -82,7 +89,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ApplicationBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -113,7 +127,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.DetailApplicationResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -142,7 +163,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.EmptyResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -180,7 +208,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ComponentListResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -217,7 +252,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ComponentBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -248,7 +290,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.DetailComponentResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -279,7 +328,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ApplicationBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -310,7 +366,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ListApplicationPolicy"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -347,7 +410,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.PolicyBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -385,7 +455,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.DetailPolicyResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -421,7 +498,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.EmptyResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -460,7 +544,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ApplicationTemplateBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -1291,13 +1382,28 @@
   }
  },
  "definitions": {
+  "bcode.Bcode": {
+   "required": [
+    "BusinessCode",
+    "Message"
+   ],
+   "properties": {
+    "BusinessCode": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "Message": {
+     "type": "string"
+    }
+   }
+  },
   "common.AppRolloutStatus": {
    "required": [
     "currentBatch",
     "upgradedReplicas",
+    "batchRollingState",
     "upgradedReadyReplicas",
     "rollingState",
-    "batchRollingState",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -2466,12 +2572,12 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
-    "tags",
-    "phase",
     "name",
     "version",
     "description",
-    "icon"
+    "icon",
+    "tags",
+    "phase"
    ],
    "properties": {
     "deploy_data": {
@@ -2509,12 +2615,12 @@
   "v1.DetailApplicationResponse": {
    "required": [
     "name",
-    "namespace",
-    "description",
+    "updateTime",
     "icon",
     "status",
+    "namespace",
+    "description",
     "createTime",
-    "updateTime",
     "gatewayRule",
     "policies",
     "status",
@@ -2582,12 +2688,12 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "name",
     "description",
     "icon",
     "labels",
     "status",
     "reason",
+    "name",
     "resourceInfo"
    ],
    "properties": {
@@ -2626,10 +2732,10 @@
   "v1.DetailComponentResponse": {
    "required": [
     "createTime",
-    "name",
-    "appPrimaryKey",
-    "type",
     "updateTime",
+    "appPrimaryKey",
+    "name",
+    "type",
     "creator"
    ],
    "properties": {
@@ -2705,11 +2811,11 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
+    "name",
+    "type",
     "properties",
     "createTime",
-    "updateTime",
-    "name",
-    "type"
+    "updateTime"
    ],
    "properties": {
     "createTime": {
@@ -2914,10 +3020,10 @@
   },
   "v1.NamesapceDetailResponse": {
    "required": [
-    "updateTime",
     "name",
     "description",
     "createTime",
+    "updateTime",
     "clusterBind"
    ],
    "properties": {
