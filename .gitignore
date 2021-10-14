@@ -46,3 +46,6 @@ charts/vela-core/crds/_.yaml
 
 # check docs
 git-page/
+
+# e2e rollout runtime image build
+runtime/rollout/e2e/tmp
