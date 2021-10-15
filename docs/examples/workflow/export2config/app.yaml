@@ -10,23 +10,19 @@ spec:
     properties:
       image: crccheck/hello-world
       port: 8000
-      volumes:
-        - name: my-configmap
-          type: configMap
-          mountPath: /test-cm
-          cmName: my-configmap
-          items:
-            - key: test-key
-              path: test-key
   workflow:
     steps:
-      - name: export-config
-        type: export-config
-        properties:
-          name: my-configmap
-          data:
-            test-key: test-value
       - name: apply-server
         type: apply-component
+        outputs: 
+          - name: status
+            valueFrom: output.status.conditions[0].message
         properties:
           component: express-server
+      - name: export-config
+        type: export-config
+        inputs:
+          - from: status
+            parameterKey: data.serverstatus
+        properties:
+          name: my-configmap

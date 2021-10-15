@@ -10,23 +10,19 @@ spec:
     properties:
       image: crccheck/hello-world
       port: 8000
-      volumes:
-        - name: my-secret
-          type: secret
-          mountPath: /test-secret
-          secretName: my-secret
-          items:
-            - key: test-key
-              path: test-key
   workflow:
     steps:
-      - name: export-secret
-        type: export-secret
-        properties:
-          name: my-secret
-          data:
-            test-key: test-value
       - name: apply-server
         type: apply-component
+        outputs: 
+          - name: status
+            valueFrom: output.status.conditions[0].message
         properties:
           component: express-server
+      - name: export-secret
+        type: export-secret
+        inputs:
+          - from: status
+            parameterKey: data.serverstatus
+        properties:
+          name: my-secret

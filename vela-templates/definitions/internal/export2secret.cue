@@ -2,7 +2,7 @@ import (
 	"vela/op"
 )
 
-"export-secret": {
+"export2secret": {
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
