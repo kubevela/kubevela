@@ -14,10 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package bcode
+package utils
 
-// ErrWorkflowNotExist application workflow is not exist
-var ErrWorkflowNotExist = NewBcode(404, 20002, "application workflow is not exist")
+import (
+	"fmt"
+	"time"
 
-// ErrWorkflowExist application workflow is exist
-var ErrWorkflowExist = NewBcode(404, 20003, "application workflow is exist")
+	"cuelang.org/go/pkg/strings"
+)
+
+// GenerateVersion Generate version numbers by time
+func GenerateVersion(pre string) string {
+	timeStr := time.Now().Format("20060102150405.000")
+	timeStr = strings.Replace(timeStr, ".", "", 1)
+	if pre != "" {
+		return fmt.Sprintf("%s-%s", pre, timeStr)
+	}
+	return timeStr
+}

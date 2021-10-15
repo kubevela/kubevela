@@ -14,10 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package bcode
+package utils
 
-// ErrWorkflowNotExist application workflow is not exist
-var ErrWorkflowNotExist = NewBcode(404, 20002, "application workflow is not exist")
+import (
+	"testing"
 
-// ErrWorkflowExist application workflow is exist
-var ErrWorkflowExist = NewBcode(404, 20003, "application workflow is exist")
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+)
+
+func TestUtils(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Utils Suite")
+}

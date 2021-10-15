@@ -55,12 +55,16 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("namespace", "Namespace-based search").DataType("string")).
 		Param(ws.QueryParameter("cluster", "Cluster-based search").DataType("string")).
+		Returns(200, "", apis.ListApplicationResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListApplicationResponse{}))
 
 	ws.Route(ws.POST("/").To(c.createApplication).
 		Doc("create one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateApplicationRequest{}).
+		Returns(200, "", apis.ApplicationBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationBase{}))
 
 	ws.Route(ws.DELETE("/{name}").To(c.deleteApplication).
@@ -68,6 +72,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{name}").To(c.detailApplication).
@@ -75,6 +81,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Returns(200, "", apis.DetailApplicationResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailApplicationResponse{}))
 
 	ws.Route(ws.POST("/{name}/template").To(c.publishApplicationTemplate).
@@ -83,14 +91,18 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Reads(apis.CreateApplicationTemplateRequest{}).
+		Returns(200, "", apis.ApplicationTemplateBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationTemplateBase{}))
 
 	ws.Route(ws.POST("/{name}/deploy").To(c.deployApplication).
-		Doc("deploy or update the application").
+		Doc("deploy or upgrade the application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
-		Writes(apis.ApplicationBase{}))
+		Returns(200, "", apis.ApplicationDeployRequest{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationDeployResponse{}))
 
 	ws.Route(ws.GET("/{name}/components").To(c.listApplicationComponents).
 		Doc("gets the component topology of the application").
@@ -98,6 +110,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("cluster", "list components that deployed in define cluster").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ComponentListResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ComponentListResponse{}))
 
 	ws.Route(ws.POST("/{name}/components").To(c.createComponent).
@@ -106,13 +120,17 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateComponentRequest{}).
+		Returns(200, "", apis.ComponentBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ComponentBase{}))
 
-	ws.Route(ws.POST("/{name}/components/{componentName}").To(c.detailComponent).
+	ws.Route(ws.GET("/{name}/components/{componentName}").To(c.detailComponent).
 		Doc("detail component for application").
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.DetailComponentResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailComponentResponse{}))
 
 	ws.Route(ws.GET("/{name}/policies").To(c.listApplicationPolicies).
@@ -120,6 +138,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListApplicationPolicy{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListApplicationPolicy{}))
 
 	ws.Route(ws.POST("/{name}/policies").To(c.createApplicationPolicy).
@@ -128,6 +148,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreatePolicyRequest{}).
+		Returns(200, "", apis.PolicyBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.PolicyBase{}))
 
 	ws.Route(ws.GET("/{name}/policies/{policyName}").To(c.detailApplicationPolicy).
@@ -136,6 +158,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.DetailPolicyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailPolicyResponse{}))
 
 	ws.Route(ws.DELETE("/{name}/policies/{policyName}").To(c.deleteApplicationPolicy).
@@ -144,7 +168,20 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.PUT("/{name}/policies/{policyName}").To(c.updateApplicationPolicy).
+		Doc("update policy for application").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdatePolicyRequest{}).
+		Returns(200, "", apis.DetailPolicyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailPolicyResponse{}))
 	return ws
 }
 
@@ -225,12 +262,22 @@ func (c *applicationWebService) publishApplicationTemplate(req *restful.Request,
 // deployApplication TODO: return event model
 func (c *applicationWebService) deployApplication(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := c.applicationUsecase.Deploy(req.Request.Context(), app)
+	// Verify the validity of parameters
+	var createReq apis.ApplicationDeployRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	deployRes, err := c.applicationUsecase.Deploy(req.Request.Context(), app, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+	if err := res.WriteEntity(deployRes); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -355,6 +402,29 @@ func (c *applicationWebService) deleteApplicationPolicy(req *restful.Request, re
 		return
 	}
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) updateApplicationPolicy(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	// Verify the validity of parameters
+	var updateReq apis.UpdatePolicyRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	response, err := c.applicationUsecase.UpdatePolicy(req.Request.Context(), app, req.PathParameter("policyName"), updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(response); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

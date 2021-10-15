@@ -245,13 +245,14 @@ type ComponentListResponse struct {
 
 // CreateComponentRequest create component request model
 type CreateComponentRequest struct {
-	ApplicationName string            `json:"appName" validate:"name"`
-	Name            string            `json:"name" validate:"required"`
-	Description     string            `json:"description"`
-	Labels          map[string]string `json:"labels,omitempty"`
-	ComponentType   string            `json:"componentType" validate:"name"`
-	BindClusters    []string          `json:"bindClusters"`
-	Properties      string            `json:"properties,omitempty"`
+	Name          string            `json:"name" validate:"checkname"`
+	Description   string            `json:"description"`
+	Icon          string            `json:"icon"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	ComponentType string            `json:"componentType" validate:"checkname"`
+	BindClusters  []string          `json:"bindClusters"`
+	Properties    string            `json:"properties,omitempty"`
+	DependsOn     []string          `json:"dependsOn"`
 }
 
 // DetailComponentResponse detail component model
@@ -262,7 +263,7 @@ type DetailComponentResponse struct {
 
 // CreateApplicationTemplateRequest create app template request model
 type CreateApplicationTemplateRequest struct {
-	TemplateName string `json:"templateName" validate:"required"`
+	TemplateName string `json:"templateName" validate:"checkname"`
 	Version      string `json:"version" validate:"required"`
 	Description  string `json:"description"`
 }
@@ -299,7 +300,7 @@ type NamesapceBase struct {
 
 // CreateNamespaceRequest create namespace request body
 type CreateNamespaceRequest struct {
-	Name        string `json:"name" validate:"name"`
+	Name        string `json:"name" validate:"checkname"`
 	Description string `json:"description"`
 }
 
@@ -325,9 +326,11 @@ type ComponentDefinitionBase struct {
 // CreatePolicyRequest create app policy
 type CreatePolicyRequest struct {
 	// Name is the unique name of the policy.
-	Name string `json:"name" validate:"name"`
+	Name string `json:"name" validate:"checkname"`
 
-	Type string `json:"type" validate:"name"`
+	Description string `json:"description"`
+
+	Type string `json:"type" validate:"checkname"`
 
 	// Properties json data
 	Properties string `json:"properties"`
@@ -335,7 +338,8 @@ type CreatePolicyRequest struct {
 
 // UpdatePolicyRequest update policy
 type UpdatePolicyRequest struct {
-	Type string `json:"type" validate:"required"`
+	Description string `json:"description"`
+	Type        string `json:"type" validate:"checkname"`
 	// Properties json data
 	Properties string `json:"properties"`
 }
@@ -343,8 +347,10 @@ type UpdatePolicyRequest struct {
 // PolicyBase application policy base info
 type PolicyBase struct {
 	// Name is the unique name of the policy.
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Creator     string `json:"creator"`
 	// Properties json data
 	Properties *model.JSONStruct `json:"properties"`
 	CreateTime time.Time         `json:"createTime"`
@@ -375,8 +381,8 @@ type PolicyDefinition struct {
 
 // UpdateWorkflowRequest update or create application workflow
 type UpdateWorkflowRequest struct {
-	Name      string         `json:"name"  validate:"name"`
-	Namespace string         `json:"namesapce"  validate:"name"`
+	Name      string         `json:"name"  validate:"checkname"`
+	Namespace string         `json:"namesapce"  validate:"checkname"`
 	Steps     []WorkflowStep `json:"steps,omitempty"`
 	Enable    bool           `json:"enable"`
 }
@@ -384,8 +390,8 @@ type UpdateWorkflowRequest struct {
 // WorkflowStep workflow step config
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
-	Name       string             `json:"name"`
-	Type       string             `json:"type"`
+	Name       string             `json:"name" validate:"checkname"`
+	Type       string             `json:"type" validate:"checkname"`
 	DependsOn  []string           `json:"dependsOn"`
 	Properties string             `json:"properties,omitempty"`
 	Inputs     common.StepInputs  `json:"inputs,omitempty"`
@@ -407,4 +413,25 @@ type ListWorkflowRecordsResponse struct {
 
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
+}
+
+// ApplicationDeployRequest the application deploy or update event request
+type ApplicationDeployRequest struct {
+	// User note message, optional
+	Commit string `json:"commit"`
+	// SourceType the event trigger source, Web or API
+	SourceType string `json:"sourceType" validate:"oneof=web api"`
+	// Force set to True to ignore unfinished events.
+	Force bool `json:"force"`
+}
+
+// ApplicationDeployResponse deploy response
+type ApplicationDeployResponse struct {
+	Version    string `json:"version"`
+	Status     string `json:"status"`
+	Reason     string `json:"reason"`
+	DeployUser string `json:"deployUser"`
+	Commit     string `json:"commit"`
+	// SourceType the event trigger source, Web or API
+	SourceType string `json:"sourceType"`
 }

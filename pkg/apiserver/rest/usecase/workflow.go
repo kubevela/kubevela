@@ -29,6 +29,7 @@ import (
 
 // WorkflowUsecase workflow manage api
 type WorkflowUsecase interface {
+	GetWorkflow(ctx context.Context, workflowName string) (*model.Workflow, error)
 	DeleteWorkflow(ctx context.Context, workflowName string) error
 	CreateOrUpdateWorkflow(ctx context.Context, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 }
@@ -103,4 +104,15 @@ func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *mode
 		steps = append(steps, apiStep)
 	}
 	return &apisv1.DetailWorkflowResponse{Steps: steps, Enable: workflow.Enable}, nil
+}
+
+// GetWorkflow get workflow model
+func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName string) (*model.Workflow, error) {
+	var workflow = model.Workflow{
+		Name: workflowName,
+	}
+	if err := w.ds.Get(ctx, &workflow); err != nil {
+		return nil, err
+	}
+	return &workflow, nil
 }

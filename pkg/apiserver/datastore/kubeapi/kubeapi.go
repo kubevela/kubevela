@@ -103,6 +103,7 @@ func (m *kubeapi) Add(ctx context.Context, entity datastore.Entity) error {
 		return datastore.ErrTableNameEmpty
 	}
 	entity.SetCreateTime(time.Now())
+	entity.SetUpdateTime(time.Now())
 	configMap := m.generateConfigMap(entity)
 	if err := m.kubeclient.Create(ctx, configMap); err != nil {
 		if apierrors.IsAlreadyExists(err) {

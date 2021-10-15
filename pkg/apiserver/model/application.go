@@ -109,7 +109,9 @@ type ApplicationPolicy struct {
 	Model
 	AppPrimaryKey string      `json:"appPrimaryKey"`
 	Name          string      `json:"name"`
+	Description   string      `json:"description"`
 	Type          string      `json:"type"`
+	Creator       string      `json:"creator"`
 	Properties    *JSONStruct `json:"properties,omitempty"`
 }
 
@@ -142,4 +144,61 @@ func (a *ApplicationPolicy) Index() map[string]string {
 type ApplicationTrait struct {
 	Type       string      `json:"type"`
 	Properties *JSONStruct `json:"properties,omitempty"`
+}
+
+// DeployEventInit event status init
+var DeployEventInit = "init"
+
+// DeployEventRunning event status running
+var DeployEventRunning = "running"
+
+// DeployEventComplete event status complete
+var DeployEventComplete = "complete"
+
+// DeployEventFail event status failure
+var DeployEventFail = "failure"
+
+// DeployEvent record each application deployment event.
+type DeployEvent struct {
+	Model
+	AppPrimaryKey   string `json:"appPrimaryKey"`
+	Version         string `json:"version"`
+	OAMConfigBackup string `json:"oamConfigBackup,omitempty"`
+	Status          string `json:"status"`
+	Reason          string `json:"reason"`
+	DeployUser      string `json:"deployUser"`
+	Commit          string `json:"commit"`
+	// SourceType the event trigger source, Web or API
+	SourceType string `json:"sourceType"`
+}
+
+// TableName return custom table name
+func (a *DeployEvent) TableName() string {
+	return tableNamePrefix + "deploy_event"
+}
+
+// PrimaryKey return custom primary key
+func (a *DeployEvent) PrimaryKey() string {
+	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Version)
+}
+
+// Index return custom index
+func (a *DeployEvent) Index() map[string]string {
+	index := make(map[string]string)
+	if a.Version != "" {
+		index["version"] = a.Version
+	}
+	if a.AppPrimaryKey != "" {
+		index["appPrimaryKey"] = a.AppPrimaryKey
+	}
+	if a.DeployUser != "" {
+		index["deployUser"] = a.DeployUser
+	}
+	if a.Status != "" {
+		index["status"] = a.Status
+	}
+	if a.SourceType != "" {
+		index["sourceType"] = a.SourceType
+	}
+	return index
 }

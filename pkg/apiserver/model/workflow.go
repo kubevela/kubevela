@@ -17,8 +17,6 @@ limitations under the License.
 package model
 
 import (
-	"fmt"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
@@ -49,7 +47,7 @@ func (w *Workflow) TableName() string {
 
 // PrimaryKey return custom primary key
 func (w *Workflow) PrimaryKey() string {
-	return fmt.Sprintf("%s-%s", w.Namespace, w.Name)
+	return w.Name
 }
 
 // Index return custom primary key

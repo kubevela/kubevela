@@ -23,8 +23,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,12 +31,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var testScheme = runtime.NewScheme()
 
 func TestE2eApiserverTest(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -53,6 +51,7 @@ var _ = BeforeSuite(func() {
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.BoolPtr(false),
+		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
 	}
 
 	By("start kube test env")
@@ -61,12 +60,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	err = scheme.AddToScheme(testScheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
+	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")

@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -41,6 +43,9 @@ func NewJSONStruct(raw *runtime.RawExtension) (*JSONStruct, error) {
 
 // NewJSONStructByString new jsonstruct from string
 func NewJSONStructByString(source string) (*JSONStruct, error) {
+	if source == "" {
+		return nil, nil
+	}
 	var data JSONStruct
 	err := json.Unmarshal([]byte(source), &data)
 	if err != nil {
@@ -53,6 +58,13 @@ func NewJSONStructByString(source string) (*JSONStruct, error) {
 func (j *JSONStruct) JSON() string {
 	b, _ := json.Marshal(j)
 	return string(b)
+}
+
+// RawExtension Encoded as a RawExtension
+func (j *JSONStruct) RawExtension() *runtime.RawExtension {
+	yamlByte, _ := yaml.Marshal(j)
+	b, _ := yaml.YAMLToJSON(yamlByte)
+	return &runtime.RawExtension{Raw: b}
 }
 
 // Model common model

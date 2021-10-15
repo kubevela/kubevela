@@ -16,8 +16,16 @@ limitations under the License.
 
 package bcode
 
-// ErrWorkflowNotExist application workflow is not exist
-var ErrWorkflowNotExist = NewBcode(404, 20002, "application workflow is not exist")
+import (
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+)
 
-// ErrWorkflowExist application workflow is exist
-var ErrWorkflowExist = NewBcode(404, 20003, "application workflow is exist")
+var _ = Describe("Test bcode package", func() {
+	It("Test New bcode funtion", func() {
+		bcode := NewBcode(400, 4000, "test")
+		Expect(bcode).ShouldNot(BeNil())
+		Expect(bcode.Message).ShouldNot(BeNil())
+		Expect(bcode.Error()).ShouldNot(BeNil())
+	})
+})

@@ -18,6 +18,7 @@ package e2e_apiserver_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -25,7 +26,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
@@ -123,4 +127,180 @@ var _ = Describe("Test application rest api", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(len(policies.Policies), 1)).Should(BeEmpty())
 	})
+
+	It("Test get workflow", func() {
+		// defer GinkgoRecover()
+		// res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies")
+		// Expect(err).ShouldNot(HaveOccurred())
+		// Expect(res).ShouldNot(BeNil())
+		// Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		// Expect(res.Body).ShouldNot(BeNil())
+		// defer res.Body.Close()
+		// var policies apisv1.ListApplicationPolicy
+		// err = json.NewDecoder(res.Body).Decode(&policies)
+		// Expect(err).ShouldNot(HaveOccurred())
+		// Expect(cmp.Diff(len(policies.Policies), 1)).Should(BeEmpty())
+	})
+
+	It("Test detail application", func() {
+		defer GinkgoRecover()
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var detail apisv1.DetailApplicationResponse
+		err = json.NewDecoder(res.Body).Decode(&detail)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(len(detail.Policies), 1)).Should(BeEmpty())
+	})
+
+	It("Test deploy application", func() {
+		defer GinkgoRecover()
+		var req = apisv1.ApplicationDeployRequest{
+			Commit:     "test apply",
+			SourceType: "web",
+			Force:      false,
+		}
+		bodyByte, err := json.Marshal(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/deploy", "application/json", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.ApplicationDeployResponse
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(response.Status, model.DeployEventRunning)).Should(BeEmpty())
+
+		var oam v1beta1.Application
+		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: "test-app-sadasd", Namespace: "test-app-namesapce"}, &oam)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(oam.Spec.Components), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
+	})
+
+	It("Test create component", func() {
+		defer GinkgoRecover()
+		var req = apisv1.CreateComponentRequest{
+			Name:          "test2",
+			Description:   "this is a test2 component",
+			Labels:        map[string]string{},
+			ComponentType: "worker",
+			Properties:    `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
+			DependsOn:     []string{"data-worker"},
+		}
+		bodyByte, err := json.Marshal(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components", "application/json", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.ComponentBase
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(response.ComponentType, "worker")).Should(BeEmpty())
+	})
+
+	It("Test detail component", func() {
+		defer GinkgoRecover()
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components/test2")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.DetailComponentResponse
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(len(response.DependsOn), 1)).Should(BeEmpty())
+	})
+
+	It("Test create application policy", func() {
+		defer GinkgoRecover()
+		var req = apisv1.CreatePolicyRequest{
+			Name:        "test2",
+			Description: "this is a test2 component",
+			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
+		}
+		bodyByte, err := json.Marshal(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies", "application/json", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 400)).Should(BeEmpty())
+		var req2 = apisv1.CreatePolicyRequest{
+			Name:        "test2",
+			Description: "this is a test2 policy",
+			Type:        "wqsdasd",
+			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
+		}
+		bodyByte2, err := json.Marshal(req2)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies", "application/json", bytes.NewBuffer(bodyByte2))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.PolicyBase
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(response.Type, "wqsdasd")).Should(BeEmpty())
+	})
+
+	It("Test detail application policy", func() {
+		defer GinkgoRecover()
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies/test2")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.DetailPolicyResponse
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(response.Description, "this is a test2 policy")).Should(BeEmpty())
+	})
+
+	It("Test update application policy", func() {
+		var req2 = apisv1.UpdatePolicyRequest{
+			Description: "this is a test2 policy update",
+			Type:        "wqsdasd",
+			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
+		}
+		bodyByte2, err := json.Marshal(req2)
+		Expect(err).ShouldNot(HaveOccurred())
+		req, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies/test2", bytes.NewBuffer(bodyByte2))
+		Expect(err).ShouldNot(HaveOccurred())
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.PolicyBase
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(response.Description, "this is a test2 policy update")).Should(BeEmpty())
+	})
+
+	It("Test delete application policy", func() {
+		defer GinkgoRecover()
+		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies/test2", nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.DefaultClient.Do(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+	})
+
 })
