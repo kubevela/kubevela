@@ -14,7 +14,7 @@ template: {
 			apiVersion: "v1"
 			kind:       "ConfigMap"
 			metadata: {
-				name: parameter.name
+				name: parameter.configName
 				if parameter.namespace != _|_ {
 					namespace: parameter.namespace
 				}
@@ -27,7 +27,7 @@ template: {
 	}
 	parameter: {
 		// +usage=Specify the name of the config map
-		name: string
+		configName: string
 		// +usage=Specify the namespace of the config map
 		namespace?: string
 		// +usage=Specify the data of config map

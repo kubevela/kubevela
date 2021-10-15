@@ -25,4 +25,4 @@ spec:
           - from: status
             parameterKey: data.serverstatus
         properties:
-          name: my-secret
+          secretName: my-secret
