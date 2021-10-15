@@ -17,7 +17,7 @@ template: {
 				type: parameter.type
 			}
 			metadata: {
-				name: parameter.name
+				name: parameter.secretName
 				if parameter.namespace != _|_ {
 					namespace: parameter.namespace
 				}
@@ -30,7 +30,7 @@ template: {
 	}
 	parameter: {
 		// +usage=Specify the name of the secret
-		name: string
+		secretName: string
 		// +usage=Specify the namespace of the secret
 		namespace?: string
 		// +usage=Specify the type of the secret
