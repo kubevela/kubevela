@@ -6,7 +6,7 @@ on:
     types: [created]
 
 jobs:
-  main:
+  bot:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
@@ -22,3 +22,36 @@ jobs:
         with:
           token: ${{secrets.VELA_BOT_TOKEN}}
           configPath: issue-commands
+
+  backport:
+    runs-on: ubuntu-18.04
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/backport')
+    steps:
+      - name: Extract Command
+        id: command
+        uses: xt0rted/slash-command-action@v1
+        with:
+          repo-token: ${{ secrets.VELA_BOT_TOKEN }}
+          command: backport
+          reaction: "true"
+          reaction-type: "eyes"
+          allow-edits: "false"
+          permission-level: write
+      - name: Handle Command
+        uses: actions/github-script@v4
+        env:
+          VERSION: ${{ steps.command.outputs.command-arguments }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = process.env.VERSION
+            const label = "backport release-" + version
+            // Add our backport label.
+            github.issues.addLabels({
+              // Every pull request is an issue, but not every issue is a pull request.
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: [label]
+            })
+            console.log("Added '" + label + "' label.")
