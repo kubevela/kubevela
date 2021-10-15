@@ -186,6 +186,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		handler.addServiceStatus(false, app.Status.Services...)
 		handler.addAppliedResource(app.Status.AppliedResources...)
 		app.Status.AppliedResources = handler.appliedResources
+		app.Status.Services = handler.services
 		switch workflowState {
 		case common.WorkflowStateSuspended:
 			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowSuspending)

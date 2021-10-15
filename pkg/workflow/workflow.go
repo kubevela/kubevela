@@ -124,7 +124,7 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 		return common.WorkflowStateSuspended, nil
 	}
 	if w.allDone(taskRunners) {
-		return common.WorkflowStateFinished, nil
+		return common.WorkflowStateSucceeded, nil
 	}
 	return common.WorkflowStateExecuting, nil
 }
