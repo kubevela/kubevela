@@ -21,10 +21,9 @@ import (
 	"sort"
 	"time"
 
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/pkg/errors"
 	apps "k8s.io/api/apps/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,7 +64,7 @@ func (r *recorder) Save(version string, data []byte) Store {
 	if version == "" {
 		version = fmt.Sprint(rv.Revision)
 	}
-	rv.Name = fmt.Sprintf("wf-%s-%s", r.source.Name, version)
+	rv.Name = fmt.Sprintf("record-%s-%s", r.source.Name, version)
 	rv.SetLabels(map[string]string{
 		LabelRecordSource:  r.source.GetName(),
 		LabelRecordVersion: version,

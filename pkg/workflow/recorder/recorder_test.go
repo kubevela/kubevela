@@ -45,11 +45,11 @@ func TestRecord(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, len(crs.Items), 2)
 
-	assert.Equal(t, crs.Items[0].Name, "wf-test-app-v2")
-	assert.Equal(t, crs.Items[1].Name, "wf-test-app-v3")
+	assert.Equal(t, crs.Items[0].Name, "record-test-app-v2")
+	assert.Equal(t, crs.Items[1].Name, "record-test-app-v3")
 	creatErrorEnable = true
 	err = With(cli, app).Save("v1", data).Error()
-	assert.Equal(t, err.Error(), "save record default/wf-test-app-v1: mock create error")
+	assert.Equal(t, err.Error(), "save record default/record-test-app-v1: mock create error")
 
 	creatErrorEnable = false
 	listErrorEnable = true
@@ -63,7 +63,7 @@ func TestRecord(t *testing.T) {
 	crs = &apps.ControllerRevisionList{}
 	err = cli.List(context.Background(), crs)
 	assert.NilError(t, err)
-	assert.Equal(t, crs.Items[0].Name, fmt.Sprintf("wf-%s-%d", app.Name, crs.Items[0].Revision))
+	assert.Equal(t, crs.Items[0].Name, fmt.Sprintf("record-%s-%d", app.Name, crs.Items[0].Revision))
 }
 
 var (
