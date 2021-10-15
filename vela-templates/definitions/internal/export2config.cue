@@ -2,7 +2,7 @@ import (
 	"vela/op"
 )
 
-"export-config": {
+"export2config": {
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
