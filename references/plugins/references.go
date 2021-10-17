@@ -897,10 +897,10 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			case cue.StructKind:
 				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
-						// In the future we could recursive call to surpport complex map-value(struct or list)
+						// In the future we could recursive call to support complex map-value(struct or list)
 						source, converted := mapValue.Source().(*ast.Ident)
-						if converted {
-							param.PrintableType = source.Name
+						if converted && len(source.Name) != 0 {
+							param.PrintableType = fmt.Sprintf("map[string]%s", source.Name)
 						} else {
 							param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
 						}

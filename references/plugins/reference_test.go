@@ -20,10 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -190,22 +194,22 @@ func TestWalkParameterSchema(t *testing.T) {
 			data: `{
     "properties": {
         "cmd": {
-            "description": "Commands to run in the container", 
+            "description": "Commands to run in the container",
             "items": {
                 "type": "string"
-            }, 
-            "title": "cmd", 
+            },
+            "title": "cmd",
             "type": "array"
-        }, 
+        },
         "image": {
-            "description": "Which image would you like to use for your service", 
-            "title": "image", 
+            "description": "Which image would you like to use for your service",
+            "title": "image",
             "type": "string"
         }
-    }, 
+    },
     "required": [
         "image"
-    ], 
+    ],
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
@@ -232,25 +236,25 @@ func TestWalkParameterSchema(t *testing.T) {
 		},
 		{
 			data: `{
-    "properties": { 
+    "properties": {
         "obj": {
             "properties": {
                 "f0": {
-                    "default": "v0", 
+                    "default": "v0",
                     "type": "string"
-                }, 
+                },
                 "f1": {
-                    "default": "v1", 
+                    "default": "v1",
                     "type": "string"
-                }, 
+                },
                 "f2": {
-                    "default": "v2", 
+                    "default": "v2",
                     "type": "string"
                 }
-            }, 
+            },
             "type": "object"
         },
-    }, 
+    },
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
@@ -297,23 +301,23 @@ func TestWalkParameterSchema(t *testing.T) {
         "obj": {
             "properties": {
                 "f0": {
-                    "default": "v0", 
+                    "default": "v0",
                     "type": "string"
-                }, 
+                },
                 "f1": {
-                    "default": "v1", 
-                    "type": "object", 
+                    "default": "v1",
+                    "type": "object",
                     "properties": {
                         "g0": {
-                            "default": "v2", 
+                            "default": "v2",
                             "type": "string"
                         }
                     }
                 }
-            }, 
+            },
             "type": "object"
         }
-    }, 
+    },
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
@@ -672,4 +676,36 @@ func TestParseLocalFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtractParameter(t *testing.T) {
+	ref := &ConsoleReference{}
+	cueTemplate := `
+parameter: {
+	// +usage=The mapping of environment variables to secret
+	envMappings: [string]: #KeySecret
+}
+#KeySecret: {
+	key?:   string
+	secret: string
+}
+`
+	oldStdout := os.Stdout
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	cueValue, _ := common.GetCUEParameterValue(cueTemplate)
+	defaultDepth := 0
+	defaultDisplay := "console"
+	displayFormat = &defaultDisplay
+	recurseDepth = &defaultDepth
+	ref.parseParameters(cueValue, "Properties", defaultDepth)
+	assert.Equal(t, 1, len(propertyConsole))
+	propertyConsole[0].TableObject.Render()
+	w.Close()
+	out, _ := ioutil.ReadAll(r)
+	assert.True(t, strings.Contains(string(out), "map[string]#KeySecret"))
 }
