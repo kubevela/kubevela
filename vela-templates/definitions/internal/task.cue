@@ -21,6 +21,10 @@ template: {
 					name:  context.name
 					image: parameter.image
 
+					if parameter["imagePullPolicy"] != _|_ {
+						imagePullPolicy: parameter.imagePullPolicy
+					}
+
 					if parameter["cmd"] != _|_ {
 						command: parameter.cmd
 					}
@@ -83,6 +87,13 @@ template: {
 						}}]
 				}
 
+				if parameter["imagePullSecrets"] != _|_ {
+					imagePullSecrets: [ for v in parameter.imagePullSecrets {
+						name: v
+					},
+					]
+				}
+
 			}
 		}
 	}
@@ -95,6 +106,12 @@ template: {
 		// +usage=Which image would you like to use for your service
 		// +short=i
 		image: string
+
+		// +usage=Specify image pull policy for your service
+		imagePullPolicy?: string
+
+		// +usage=Specify image pull secrets for your service
+		imagePullSecrets?: [...string]
 
 		// +usage=Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never.
 		restart: *"Never" | string
