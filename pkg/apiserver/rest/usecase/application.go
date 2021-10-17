@@ -415,10 +415,10 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	}
 
 	var deployEvent = &model.DeployEvent{
-		AppPrimaryKey:   app.PrimaryKey(),
-		Version:         version,
-		OAMConfigBackup: string(configByte),
-		Status:          model.DeployEventInit,
+		AppPrimaryKey:  app.PrimaryKey(),
+		Version:        version,
+		ApplyAppConfig: string(configByte),
+		Status:         model.DeployEventInit,
 		// TODO: Get user information from ctx and assign a value.
 		DeployUser: "",
 		Commit:     req.Commit,

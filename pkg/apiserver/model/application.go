@@ -60,7 +60,7 @@ type ApplicationComponent struct {
 	Model
 	AppPrimaryKey string            `json:"appPrimaryKey"`
 	Description   string            `json:"description,omitempty"`
-	Labels        map[string]string `json:"lables,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
 	Icon          string            `json:"icon,omitempty"`
 	Creator       string            `json:"creator"`
 	Name          string            `json:"name"`
@@ -161,13 +161,20 @@ var DeployEventFail = "failure"
 // DeployEvent record each application deployment event.
 type DeployEvent struct {
 	Model
-	AppPrimaryKey   string `json:"appPrimaryKey"`
-	Version         string `json:"version"`
-	OAMConfigBackup string `json:"oamConfigBackup,omitempty"`
-	Status          string `json:"status"`
-	Reason          string `json:"reason"`
-	DeployUser      string `json:"deployUser"`
-	Commit          string `json:"commit"`
+	AppPrimaryKey string `json:"appPrimaryKey"`
+	Version       string `json:"version"`
+	// ApplyAppConfig Stores the application configuration during the current deploy.
+	ApplyAppConfig string `json:"applyAppConfig,omitempty"`
+
+	// Deploy event status
+	Status string `json:"status"`
+	Reason string `json:"reason"`
+
+	// The user that triggers the deploy.
+	DeployUser string `json:"deployUser"`
+
+	// Information that users can note.
+	Commit string `json:"commit"`
 	// SourceType the event trigger source, Web or API
 	SourceType string `json:"sourceType"`
 }

@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 )
 
 var tableNamePrefix = "vela_"
@@ -56,14 +57,25 @@ func NewJSONStructByString(source string) (*JSONStruct, error) {
 
 // JSON Encoded as a JSON string
 func (j *JSONStruct) JSON() string {
-	b, _ := json.Marshal(j)
+	b, err := json.Marshal(j)
+	if err != nil {
+		log.Logger.Errorf("json marshal failure %s", err.Error())
+	}
 	return string(b)
 }
 
 // RawExtension Encoded as a RawExtension
 func (j *JSONStruct) RawExtension() *runtime.RawExtension {
-	yamlByte, _ := yaml.Marshal(j)
-	b, _ := yaml.YAMLToJSON(yamlByte)
+	yamlByte, err := yaml.Marshal(j)
+	if err != nil {
+		log.Logger.Errorf("yaml marshal failure %s", err.Error())
+		return nil
+	}
+	b, err := yaml.YAMLToJSON(yamlByte)
+	if err != nil {
+		log.Logger.Errorf("yaml to json failure %s", err.Error())
+		return nil
+	}
 	return &runtime.RawExtension{Raw: b}
 }
 

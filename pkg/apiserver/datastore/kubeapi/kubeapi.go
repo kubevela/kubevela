@@ -75,17 +75,17 @@ func generateName(entity datastore.Entity) string {
 
 func (m *kubeapi) generateConfigMap(entity datastore.Entity) *corev1.ConfigMap {
 	data, _ := json.Marshal(entity)
-	lables := entity.Index()
-	if lables == nil {
-		lables = make(map[string]string)
+	labels := entity.Index()
+	if labels == nil {
+		labels = make(map[string]string)
 	}
-	lables["table"] = entity.TableName()
-	lables["primaryKey"] = entity.PrimaryKey()
+	labels["table"] = entity.TableName()
+	labels["primaryKey"] = entity.PrimaryKey()
 	var configMap = corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      generateName(entity),
 			Namespace: m.namespace,
-			Labels:    lables,
+			Labels:    labels,
 		},
 		BinaryData: map[string][]byte{
 			"data": data,
