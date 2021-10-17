@@ -87,9 +87,8 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-
 // PrintComponentListFromRegistry print a table which shows all components from registry
-func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
+func PrintComponentListFromRegistry(isDiscover bool, regName string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -104,8 +103,8 @@ func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdut
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from registry: %s\n", url)))
-	caps, err := getCapsFromRegistry(url)
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from registry: %s\n", regName)))
+	caps, err := getCapsFromRegistry(regName)
 	if err != nil {
 		return err
 	}

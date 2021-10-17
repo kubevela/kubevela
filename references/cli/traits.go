@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -90,7 +91,7 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 }
 
 // PrintTraitListFromRegistry print a table which shows all traits from registry
-func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
+func PrintTraitListFromRegistry(isDiscover bool, regName string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -105,8 +106,8 @@ func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.I
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from registry: %s\n", url)))
-	caps, err := getCapsFromRegistry(url)
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from registry: %s\n", regName)))
+	caps, err := getCapsFromRegistry(regName)
 	if err != nil {
 		return err
 	}
@@ -146,12 +147,12 @@ func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.I
 }
 
 // getCapsFromRegistry will retrieve caps from registry
-func getCapsFromRegistry(regURL string) ([]types.Capability, error) {
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
+func getCapsFromRegistry(regName string) ([]types.Capability, error) {
+	reg, err := plugins.GetRegistry(regName)
 	if err != nil {
-		return []types.Capability{}, err
+		return nil, errors.Wrap(err, "get registry fail")
 	}
-	caps, err := g.ListCaps()
+	caps, err := reg.ListCaps()
 	if err != nil {
 		return []types.Capability{}, err
 	}

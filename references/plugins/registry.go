@@ -61,6 +61,10 @@ type GithubRegistry struct {
 	ctx          context.Context
 }
 
+func NewRegistryFromConfig(config RegistryConfig) (Registry, error) {
+	return NewRegistry(context.TODO(), config.Token, config.Name, config.URL)
+}
+
 // NewRegistry will create a registry implementation
 func NewRegistry(ctx context.Context, token, registryName string, regURL string) (Registry, error) {
 	tp, cfg, err := Parse(regURL)
@@ -144,6 +148,20 @@ func ListRegistryConfig() ([]RegistryConfig, error) {
 	}
 	return regConfigs, nil
 }
+
+func GetRegistry(regName string) (Registry, error) {
+	regConfigs, err := ListRegistryConfig()
+	if err != nil {
+		return nil, err
+	}
+	for _, conf := range regConfigs {
+		if conf.Name == regName {
+			return NewRegistryFromConfig(conf)
+		}
+	}
+	return nil, errors.Errorf("registry %s not found", regName)
+}
+
 func ListRegistry() ([]Registry, error) {
 	regConfigs, err := ListRegistryConfig()
 
@@ -159,9 +177,9 @@ func ListRegistry() ([]Registry, error) {
 			fmt.Printf("error converting registry %s, URL is %s", conf.Name, conf.URL)
 			continue
 		}
-		regs=append(regs, reg)
+		regs = append(regs, reg)
 	}
-	return regs,nil
+	return regs, nil
 }
 
 func (g GithubRegistry) GetName() string {
@@ -181,7 +199,7 @@ func (g GithubRegistry) ListCaps() ([]types.Capability, error) {
 		return []types.Capability{}, err
 	}
 	for _, item := range itemContents {
-		capa, err := item.toAddon()
+		capa, err := item.toCapability()
 		if err != nil {
 			fmt.Printf("parse definition of %s err %v\n", item.name, err)
 			continue
@@ -208,7 +226,7 @@ func (g GithubRegistry) GetCap(addonName string) (types.Capability, []byte, erro
 		data: data,
 		name: *fileContent.Name,
 	}
-	addon, err := repoFile.toAddon()
+	addon, err := repoFile.toCapability()
 	if err != nil {
 		return types.Capability{}, []byte{}, err
 	}
@@ -283,7 +301,7 @@ func (o OssRegistry) GetCap(addonName string) (types.Capability, []byte, error) 
 		data: data,
 		name: filename,
 	}
-	capa, err := rf.toAddon()
+	capa, err := rf.toCapability()
 	if err != nil {
 		return types.Capability{}, nil, err
 	}
@@ -300,7 +318,7 @@ func (o OssRegistry) ListCaps() ([]types.Capability, error) {
 	capas := make([]types.Capability, 0)
 
 	for _, rf := range rfs {
-		capa, err := rf.toAddon()
+		capa, err := rf.toCapability()
 		if err != nil {
 			fmt.Printf("[WARN] Parse file %s fail: %s\n", rf.name, err.Error())
 		}
@@ -382,7 +400,7 @@ func (l LocalRegistry) GetCap(addonName string) (types.Capability, []byte, error
 		data: data,
 		name: fileName,
 	}
-	capa, err := file.toAddon()
+	capa, err := file.toCapability()
 	if err != nil {
 		return types.Capability{}, []byte{}, err
 	}
@@ -403,7 +421,7 @@ func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
 		capa, err := RegistryFile{
 			data: data,
 			name: path.Base(file),
-		}.toAddon()
+		}.toCapability()
 		if err != nil {
 			fmt.Printf("parsing file: %s err: %s\n", file, err)
 			continue
@@ -413,7 +431,7 @@ func (l LocalRegistry) ListCaps() ([]types.Capability, error) {
 	return capas, nil
 }
 
-func (item RegistryFile) toAddon() (types.Capability, error) {
+func (item RegistryFile) toCapability() (types.Capability, error) {
 	dm, err := (&common.Args{}).GetDiscoveryMapper()
 	if err != nil {
 		return types.Capability{}, err
