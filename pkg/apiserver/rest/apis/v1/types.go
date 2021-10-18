@@ -25,8 +25,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 )
 
-// CtxKeyApplication request context key of application
-var CtxKeyApplication = "application"
+var (
+	// CtxKeyApplication request context key of application
+	CtxKeyApplication = "application"
+
+	// CtxKeyAddon request context key of addon
+	CtxKeyAddon = "addon"
+)
 
 // AddonPhase defines the phase of an addon
 type AddonPhase string
@@ -45,32 +50,46 @@ const (
 // EmptyResponse empty response, it will used for delete api
 type EmptyResponse struct{}
 
-// CreateAddonRequest defines the format for addon create request
-type CreateAddonRequest struct {
-	Name string `json:"name" validate:"name"`
+// CreateAddonRegistryRequest defines the format for addon registry create request
+type CreateAddonRegistryRequest struct {
+	Name string `json:"name" validate:"required"`
 
-	Version string `json:"version" validate:"required"`
+	ConfigMap *ConfigMapAddonSource `json:"config_map,omitempty"`
 
-	// Short description about the addon.
-	Description string `json:"description,omitempty"`
+	Git *GitAddonSource `json:"git,omitempty"`
+}
 
-	Icon string `json:"icon"`
+// ConfigMapAddonSource defines the information about the ConfigMap as addon source
+type ConfigMapAddonSource struct {
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+}
 
-	Tags []string `json:"tags"`
+// GitAddonSource defines the information about the Git as addon source
+type GitAddonSource struct {
+	URL string `json:"url,omitempty"`
+	Dir string `json:"dir,omitempty"`
+}
 
-	// The detail of the addon. Could be the entire README data.
-	Detail string `json:"detail,omitempty"`
+// AddonRegistryMeta defines the format for a single addon registry
+type AddonRegistryMeta struct {
+	Name string `json:"name" validate:"required"`
 
-	// DeployData is the object to deploy to the cluster to enable addon
-	DeployData string `json:"deploy_data,omitempty" validate:"required_without=deploy_url"`
+	ConfigMap *ConfigMapAddonSource `json:"config_map,omitempty"`
 
-	// DeployURL is the URL to the data file location in a Git repository
-	DeployURL string `json:"deploy_url,omitempty"  validate:"required_without=deploy_data"`
+	Git *GitAddonSource `json:"git,omitempty"`
+}
+
+// EnableAddonRequest defines the format for enable addon request
+type EnableAddonRequest struct {
+
+	// Envs is the key-value environment variables, e.g. AK/SK credentials.
+	Envs map[string]string `json:"envs,omitempty"`
 }
 
 // ListAddonResponse defines the format for addon list response
 type ListAddonResponse struct {
-	Addons []AddonMeta `json:"addons"`
+	Addons []*AddonMeta `json:"addons"`
 }
 
 // AddonMeta defines the format for a single addon
@@ -84,26 +103,30 @@ type AddonMeta struct {
 	Icon string `json:"icon"`
 
 	Tags []string `json:"tags"`
-
-	Phase AddonPhase `json:"phase"`
 }
 
 // DetailAddonResponse defines the format for showing the addon details
 type DetailAddonResponse struct {
 	AddonMeta
 
+	// More details about the addon, e.g. README
 	Detail string `json:"detail,omitempty"`
 
-	// DeployData is the object to deploy to the cluster to enable addon
+	// DeployData is the object to apply to enable addon, e.g. Application
 	DeployData string `json:"deploy_data,omitempty"`
-
-	// DeployURL is the URL to the data file location in a Git repository
-	DeployURL string `json:"deploy_url,omitempty"`
 }
 
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
 	Phase AddonPhase `json:"phase"`
+
+	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
+}
+
+// EnablingProgress defines the progress of enabling an addon
+type EnablingProgress struct {
+	EnabledComponents int `json:"enabled_components"`
+	TotalComponents   int `json:"total_components"`
 }
 
 // AccessKeyRequest request parameters to access cloud provider
