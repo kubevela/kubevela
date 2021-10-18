@@ -48,7 +48,7 @@ var _ = Describe("Test application usecase function", func() {
 			kubeClient:      k8sClient,
 		}
 	})
-	It("Test CreateApplication funtion", func() {
+	It("Test CreateApplication function", func() {
 		By("test sample create")
 		req := v1.CreateApplicationRequest{
 			Name:        "test-app",
@@ -106,13 +106,13 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(equal).Should(BeTrue())
 	})
 
-	It("Test ListApplications funtion", func() {
+	It("Test ListApplications function", func() {
 		apps, err := appUsecase.ListApplications(context.TODO())
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(apps), 2)).Should(BeEmpty())
 	})
 
-	It("Test DetailApplication funtion", func() {
+	It("Test DetailApplication function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -123,7 +123,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(len(detail.Policies), 1)).Should(BeEmpty())
 	})
 
-	It("Test GetWorkflow funtion", func() {
+	It("Test GetWorkflow function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -134,7 +134,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(detail.Enable, true)).Should(BeEmpty())
 	})
 
-	It("Test ListPolicies funtion", func() {
+	It("Test ListPolicies function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -146,7 +146,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect((*policies[0].Properties)["envs"]).ShouldNot(BeEmpty())
 	})
 
-	It("Test ListComponents funtion", func() {
+	It("Test ListComponents function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -158,7 +158,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(components[1].UpdateTime).ShouldNot(BeNil())
 	})
 
-	It("Test DetailComponent funtion", func() {
+	It("Test DetailComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -170,7 +170,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(strings.Contains((*detail.Properties)["image"].(string), "crccheck/hello-world"), true)).Should(BeEmpty())
 	})
 
-	It("Test DetailPolicy funtion", func() {
+	It("Test DetailPolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -180,7 +180,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(detail.Type, "env-binding")).Should(BeEmpty())
 		Expect((*detail.Properties)["envs"]).ShouldNot(BeEmpty())
 	})
-	It("Test AddComponent funtion", func() {
+	It("Test AddComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -195,7 +195,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.ComponentType, "worker")).Should(BeEmpty())
 	})
-	It("Test DetailComponent funtion", func() {
+	It("Test DetailComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -206,7 +206,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff((*detailResponse.Properties)["image"], "busybox")).Should(BeEmpty())
 	})
 
-	It("Test AddPolicy funtion", func() {
+	It("Test AddPolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -225,7 +225,7 @@ var _ = Describe("Test application usecase function", func() {
 		})
 		Expect(err).Should(BeNil())
 	})
-	It("Test DetailPolicy funtion", func() {
+	It("Test DetailPolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -234,7 +234,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(detail.Properties).ShouldNot(BeNil())
 		Expect((*detail.Properties)["envs"]).ShouldNot(BeEmpty())
 	})
-	It("Test UpdatePolicy funtion", func() {
+	It("Test UpdatePolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -246,21 +246,21 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(base.Properties).ShouldNot(BeNil())
 		Expect((*base.Properties)["envs"]).Should(BeEmpty())
 	})
-	It("Test DeletePolicy funtion", func() {
+	It("Test DeletePolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
 		err = appUsecase.DeletePolicy(context.TODO(), appModel, "env-binding-2")
 		Expect(err).Should(BeNil())
 	})
-	It("Test DeleteComponent funtion", func() {
+	It("Test DeleteComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
 		err = appUsecase.DeleteComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
 	})
-	It("Test Deploy Application funtion", func() {
+	It("Test Deploy Application function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -277,7 +277,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(len(oam.Spec.Components), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
 	})
-	It("Test DeleteApplication funtion", func() {
+	It("Test DeleteApplication function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		err = appUsecase.DeleteApplication(context.TODO(), appModel)
