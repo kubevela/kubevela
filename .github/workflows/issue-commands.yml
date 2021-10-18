@@ -36,7 +36,7 @@ jobs:
           reaction: "true"
           reaction-type: "eyes"
           allow-edits: "false"
-          permission-level: write
+          permission-level: read
       - name: Handle Command
         uses: actions/github-script@v4
         env:
