@@ -334,9 +334,12 @@ func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error
 	if annos := app.Annotations; annos != nil {
 		version = annos[wfTypes.AnnotationPublishVersion]
 	}
-	if version != "" {
-		version = "/" + version
+	if version == "" {
+		specHash, err := utils.ComputeSpecHash(app.Spec)
+		if err != nil {
+			return "", err
+		}
+		version = fmt.Sprintf("%s:%s", rev, specHash)
 	}
-	specHash, err := utils.ComputeSpecHash(app.Spec)
-	return fmt.Sprintf("%s:%s%s", rev, specHash, version), err
+	return version, nil
 }

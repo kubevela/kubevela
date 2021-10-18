@@ -37,7 +37,7 @@ const (
 	// LabelRecordSource is label that describe recorder source.
 	LabelRecordSource = "vela.io/source"
 	// LabelRecordVersion is label that describe recorder version.
-	LabelRecordVersion = "vela.io/version"
+	LabelRecordVersion = "vela.io/wf-revision"
 )
 
 type recorder struct {
@@ -62,12 +62,12 @@ func (r *recorder) Save(version string, data []byte) Store {
 	rv := &apps.ControllerRevision{}
 	rv.Namespace = r.source.GetNamespace()
 	rv.Revision = time.Now().UnixNano()
+
 	if version == "" {
 		wfStatus := r.source.Status.Workflow
 		if wfStatus != nil {
-			items := strings.Split(wfStatus.AppRevision, "/")
-			if len(items) > 1 {
-				version = items[len(items)-1]
+			if !strings.Contains(wfStatus.AppRevision, ":") {
+				version = wfStatus.AppRevision
 			}
 		}
 	}
@@ -77,6 +77,7 @@ func (r *recorder) Save(version string, data []byte) Store {
 	}
 
 	rv.Name = fmt.Sprintf("record-%s-%s", r.source.Name, version)
+
 	rv.SetLabels(map[string]string{
 		LabelRecordSource:  r.source.GetName(),
 		LabelRecordVersion: version,
