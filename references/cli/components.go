@@ -19,6 +19,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -36,6 +38,9 @@ import (
 
 // NewComponentsCommand creates `components` command
 func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var isDiscover bool
+	var registry string
+	var url string
 	cmd := &cobra.Command{
 		Use:                   "components",
 		Aliases:               []string{"comp", "component"},
@@ -47,10 +52,11 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			isDiscover, _ := cmd.Flags().GetBool("discover")
-			url, _ := cmd.PersistentFlags().GetString("url")
-			err := PrintComponentListFromRegistry(isDiscover, url, ioStreams)
-			return err
+			if isDiscover {
+				return PrintComponentListFromRegistry(registry, ioStreams)
+			} else {
+				return PrintInstalledCompDef(ioStreams)
+			}
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
@@ -60,8 +66,9 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 	cmd.AddCommand(
 		NewCompGetCommand(c, ioStreams),
 	)
-	cmd.Flags().Bool("discover", false, "discover traits in registries")
-	cmd.PersistentFlags().String("url", DefaultRegistry, "specify the registry URL")
+	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
+	cmd.Flags().StringVar(&url, "url", "", "specify the registry URL")
+	cmd.Flags().StringVar(&registry, "registry", plugins.DefaultRegistry, "specify the registry name")
 	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -88,7 +95,7 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 // PrintComponentListFromRegistry print a table which shows all components from registry
-func PrintComponentListFromRegistry(isDiscover bool, regName string, ioStreams cmdutil.IOStreams) error {
+func PrintComponentListFromRegistry(regName string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -103,7 +110,7 @@ func PrintComponentListFromRegistry(isDiscover bool, regName string, ioStreams c
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from registry: %s\n", regName)))
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from registry: %s\n", regName)))
 	caps, err := getCapsFromRegistry(regName)
 	if err != nil {
 		return err
@@ -115,11 +122,7 @@ func PrintComponentListFromRegistry(isDiscover bool, regName string, ioStreams c
 		return err
 	}
 	table := newUITable()
-	if isDiscover {
-		table.AddRow("NAME", "REGISTRY", "DEFINITION")
-	} else {
-		table.AddRow("NAME", "DEFINITION")
-	}
+	table.AddRow("NAME", "REGISTRY", "DEFINITION", "STATUS")
 	for _, c := range caps {
 		c.Status = uninstalled
 		if c.Type != types.TypeComponentDefinition {
@@ -131,12 +134,7 @@ func PrintComponentListFromRegistry(isDiscover bool, regName string, ioStreams c
 			}
 		}
 
-		if c.Status == uninstalled && isDiscover {
-			table.AddRow(c.Name, "default", c.CrdName)
-		}
-		if c.Status == installed && !isDiscover {
-			table.AddRow(c.Name, c.CrdName)
-		}
+		table.AddRow(c.Name, "default", c.CrdName, c.Status)
 	}
 	ioStreams.Info(table.String())
 
@@ -167,5 +165,31 @@ func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, 
 
 	ioStream.Info("Successfully install component:", compName)
 
+	return nil
+}
+
+func PrintInstalledCompDef(io cmdutil.IOStreams) error {
+	var list v1beta1.ComponentDefinitionList
+	err := clt.List(context.Background(), &list)
+	if err != nil {
+		return errors.Wrap(err, "get component definition list error")
+	}
+	dm, err := (&common2.Args{}).GetDiscoveryMapper()
+	if err != nil {
+		return errors.Wrap(err, "get discovery mapper error")
+	}
+
+	table := newUITable()
+	table.AddRow("NAME", "DEFINITION")
+
+	for _, cd := range list.Items {
+		ref, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+		if err != nil {
+			table.AddRow(cd.Name, "")
+			continue
+		}
+		table.AddRow(cd.Name, ref.Name)
+	}
+	io.Infof(table.String())
 	return nil
 }

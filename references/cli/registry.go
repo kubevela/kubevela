@@ -47,7 +47,7 @@ func NewRegistryListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:    "List all configured registry",
 		Example: `vela registry ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listCapCenters(ioStreams)
+			return listCapRegistrys(ioStreams)
 		},
 	}
 	return cmd
@@ -102,16 +102,16 @@ func NewRegistryRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func listCapCenters(ioStreams cmdutil.IOStreams) error {
+func listCapRegistrys(ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
 	table.MaxColWidth = 80
 	table.AddRow("NAME", "URL")
 
-	centers, err := plugins.ListRegistryConfig()
+	registrys, err := plugins.ListRegistryConfig()
 	if err != nil {
 		return errors.Wrap(err, "list registry error")
 	}
-	for _, c := range centers {
+	for _, c := range registrys {
 		tokenShow := ""
 		if len(c.Token) > 0 {
 			tokenShow = "***"

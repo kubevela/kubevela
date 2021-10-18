@@ -44,6 +44,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+const DefaultRegistry = "default"
+
 // Registry define a registry stores trait & component defs
 type Registry interface {
 	GetName() string
@@ -112,11 +114,7 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 
 func ListRegistryConfig() ([]RegistryConfig, error) {
 
-	defaultRegistry, err := NewRegistry(context.TODO(), "", "default-registry", "oss://registry.kubevela.net/")
-	if err != nil {
-		return nil, err
-	}
-	defaultRegistryConfig := RegistryConfig{Name: defaultRegistry.GetName(), URL: defaultRegistry.GetURL()}
+	defaultRegistryConfig := RegistryConfig{Name: DefaultRegistry, URL: "oss://registry.kubevela.net/"}
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return nil, err

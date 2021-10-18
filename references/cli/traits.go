@@ -37,6 +37,9 @@ import (
 
 // NewTraitsCommand creates `traits` command
 func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var isDiscover bool
+	var registry string
+	var url string
 	cmd := &cobra.Command{
 		Use:                   "traits",
 		Aliases:               []string{"trait"},
@@ -48,10 +51,11 @@ func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			isDiscover, _ := cmd.Flags().GetBool("discover")
-			url, _ := cmd.PersistentFlags().GetString("url")
-			err := PrintTraitListFromRegistry(isDiscover, url, ioStreams)
-			return err
+			if isDiscover {
+				return PrintTraitListFromRegistry(registry, ioStreams)
+			} else {
+				return PrintInstalledTraitDef(ioStreams)
+			}
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
@@ -61,9 +65,9 @@ func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 	cmd.AddCommand(
 		NewTraitGetCommand(c, ioStreams),
 	)
-	cmd.Flags().Bool("discover", false, "discover traits in registries")
-	cmd.PersistentFlags().String("url", DefaultRegistry, "specify the registry URL")
-
+	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
+	cmd.Flags().StringVar(&url, "url", "", "specify the registry URL")
+	cmd.Flags().StringVar(&registry, "registry", plugins.DefaultRegistry, "specify the registry name")
 	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -91,7 +95,7 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 }
 
 // PrintTraitListFromRegistry print a table which shows all traits from registry
-func PrintTraitListFromRegistry(isDiscover bool, regName string, ioStreams cmdutil.IOStreams) error {
+func PrintTraitListFromRegistry(regName string, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -119,11 +123,8 @@ func PrintTraitListFromRegistry(isDiscover bool, regName string, ioStreams cmdut
 	if err != nil {
 		return err
 	}
-	if isDiscover {
-		table.AddRow("NAME", "REGISTRY", "DEFINITION", "APPLIES-TO")
-	} else {
-		table.AddRow("NAME", "DEFINITION", "APPLIES-TO")
-	}
+
+	table.AddRow("NAME", "REGISTRY", "DEFINITION", "APPLIES-TO", "STATUS")
 	for _, c := range caps {
 		if c.Type != types.TypeTrait {
 			continue
@@ -134,12 +135,7 @@ func PrintTraitListFromRegistry(isDiscover bool, regName string, ioStreams cmdut
 				c.Status = installed
 			}
 		}
-		if c.Status == uninstalled && isDiscover {
-			table.AddRow(c.Name, "default", c.CrdName, c.AppliesTo)
-		}
-		if c.Status == installed && !isDiscover {
-			table.AddRow(c.Name, c.CrdName, c.AppliesTo)
-		}
+		table.AddRow(c.Name, "default", c.CrdName, c.AppliesTo, c.Status)
 	}
 	ioStreams.Info(table.String())
 
@@ -188,8 +184,22 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 	return nil
 }
 
-// DefaultRegistry is default capability center of kubectl-vela
-var DefaultRegistry = "oss://registry.kubevela.net"
+func PrintInstalledTraitDef(io cmdutil.IOStreams) error {
+	var list v1beta1.TraitDefinitionList
+	err := clt.List(context.Background(), &list)
+	if err != nil {
+		return errors.Wrap(err, "get trait definition list error")
+	}
+
+	table := newUITable()
+	table.AddRow("NAME", "APPLIES-TO")
+
+	for _, td := range list.Items {
+		table.AddRow(td.Name, td.Spec.AppliesToWorkloads)
+	}
+	io.Infof(table.String())
+	return nil
+}
 
 const installed = "installed"
 const uninstalled = "uninstalled"
