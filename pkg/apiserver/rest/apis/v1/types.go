@@ -118,21 +118,11 @@ type CreateClusterRequest struct {
 // DetailClusterResponse cluster detail information model
 type DetailClusterResponse struct {
 	ClusterBase
-	ResourceInfo ClusterResourceInfo `json:"resourceInfo"`
+	ResourceInfo model.ClusterResourceInfo `json:"resourceInfo"`
 	// remote manage url, eg. ACK cluster manage url.
 	RemoteManageURL string `json:"remoteManageURL,omitempty"`
 	// Dashboard URL
 	DashboardURL string `json:"dashboardURL,omitempty"`
-}
-
-// ClusterResourceInfo resource info of cluster
-type ClusterResourceInfo struct {
-	WorkerNumber     int      `json:"workerNumber"`
-	MasterNumber     int      `json:"masterNumber"`
-	MemoryCapacity   int64    `json:"memoryCapacity"`
-	CPUCapacity      int64    `json:"cpuCapacity"`
-	GPUCapacity      int64    `json:"gpuCapacity,omitempty"`
-	StorageClassList []string `json:"storageClassList,omitempty"`
 }
 
 // ListClusterResponse list cluster

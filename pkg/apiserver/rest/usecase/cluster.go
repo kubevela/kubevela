@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
@@ -73,7 +74,7 @@ func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string,
 	for _, raw := range clusters {
 		cluster, ok := raw.(*model.Cluster)
 		if ok {
-			resp.Clusters = append(resp.Clusters, *cluster.ToClusterBase())
+			resp.Clusters = append(resp.Clusters, *newClusterBaseFromCluster(cluster))
 		}
 	}
 	return resp, nil
@@ -104,12 +105,15 @@ func createClusterModelFromRequest(req apis.CreateClusterRequest) *model.Cluster
 
 func (c *clusterUsecaseImpl) CreateKubeCluster(ctx context.Context, req apis.CreateClusterRequest) (*apis.ClusterBase, error) {
 	cluster := createClusterModelFromRequest(req)
+	t := time.Now()
+	cluster.SetCreateTime(t)
+	cluster.SetUpdateTime(t)
 	if req.KubeConfig != "" {
 		if err := joinClusterByKubeConfigString(ctx, c.k8sClient, req.Name, req.KubeConfig); err != nil {
 			return nil, err
 		}
 		c.setClusterStatusAndResourceInfo(ctx, cluster)
-		return cluster.ToClusterBase(), c.ds.Add(ctx, cluster)
+		return newClusterBaseFromCluster(cluster), c.ds.Add(ctx, cluster)
 	}
 	if req.KubeConfigSecret != "" {
 		return nil, errors.Errorf("kubeconfig secret is not supported now")
@@ -127,7 +131,7 @@ func (c *clusterUsecaseImpl) GetKubeCluster(ctx context.Context, clusterName str
 		return nil, errors.Wrapf(err, "failed to update cluster %s status info", clusterName)
 	}
 	return &apis.DetailClusterResponse{
-		ClusterBase:     *cluster.ToClusterBase(),
+		ClusterBase:     *newClusterBaseFromCluster(cluster),
 		ResourceInfo:    cluster.ResourceInfo,
 		RemoteManageURL: "NA",
 		DashboardURL:    "NA",
@@ -141,6 +145,7 @@ func (c *clusterUsecaseImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 	}
 
 	newCluster := createClusterModelFromRequest(req)
+	newCluster.SetUpdateTime(time.Now())
 	if oldCluster.Name != newCluster.Name || oldCluster.KubeConfig != newCluster.KubeConfig || oldCluster.KubeConfigSecret != newCluster.KubeConfigSecret {
 		if newCluster.KubeConfig == "" && newCluster.KubeConfigSecret != "" {
 			return nil, errors.Errorf("kubeconfig secret is not supported now")
@@ -166,7 +171,7 @@ func (c *clusterUsecaseImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 			return nil, errors.Wrapf(err, "failed to update cluster %s", newCluster.Name)
 		}
 	}
-	return newCluster.ToClusterBase(), nil
+	return newClusterBaseFromCluster(newCluster), nil
 }
 
 func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName string) (*apis.ClusterBase, error) {
@@ -180,7 +185,7 @@ func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 	if err = multicluster.DetachCluster(ctx, c.k8sClient, clusterName); err != nil {
 		return nil, errors.Wrapf(err, "failed to delete cluster %s in kubernetes", clusterName)
 	}
-	return cluster.ToClusterBase(), nil
+	return newClusterBaseFromCluster(cluster), nil
 }
 
 func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context, cluster *model.Cluster) {
@@ -196,22 +201,43 @@ func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context
 	}
 }
 
-func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, clusterName string) (apis.ClusterResourceInfo, error) {
+func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, clusterName string) (model.ClusterResourceInfo, error) {
 	clusterInfo, err := multicluster.GetClusterInfo(ctx, c.k8sClient, clusterName)
 	if err != nil {
-		return apis.ClusterResourceInfo{}, err
+		return model.ClusterResourceInfo{}, err
 	}
 	var storageClassList []string
 	for _, cls := range clusterInfo.StorageClasses.Items {
 		storageClassList = append(storageClassList, cls.Name)
 	}
+	getUsed := func(cap resource.Quantity, alloc resource.Quantity) *resource.Quantity {
+		used := cap.DeepCopy()
+		used.Sub(alloc)
+		return &used
+	}
 	// TODO add support for gpu capacity
-	return apis.ClusterResourceInfo{
+	return model.ClusterResourceInfo{
 		WorkerNumber:     clusterInfo.WorkerNumber,
 		MasterNumber:     clusterInfo.MasterNumber,
 		MemoryCapacity:   clusterInfo.MemoryCapacity.Value(),
 		CPUCapacity:      clusterInfo.CPUCapacity.Value(),
 		GPUCapacity:      0,
+		PodCapacity:      clusterInfo.PodCapacity.Value(),
+		MemoryUsed:       getUsed(clusterInfo.MemoryCapacity, clusterInfo.MemoryAllocatable).Value(),
+		CPUUsed:          getUsed(clusterInfo.CPUCapacity, clusterInfo.CPUAllocatable).Value(),
+		GPUUsed:          0,
+		PodUsed:          getUsed(clusterInfo.PodCapacity, clusterInfo.PodAllocatable).Value(),
 		StorageClassList: storageClassList,
 	}, nil
+}
+
+func newClusterBaseFromCluster(cluster *model.Cluster) *apis.ClusterBase {
+	return &apis.ClusterBase{
+		Name:        cluster.Name,
+		Description: cluster.Description,
+		Icon:        cluster.Icon,
+		Labels:      cluster.Labels,
+		Status:      cluster.Status,
+		Reason:      cluster.Reason,
+	}
 }

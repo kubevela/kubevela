@@ -16,10 +16,24 @@ limitations under the License.
 
 package model
 
-import v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+// ClusterResourceInfo resource info of cluster
+type ClusterResourceInfo struct {
+	WorkerNumber     int      `json:"workerNumber"`
+	MasterNumber     int      `json:"masterNumber"`
+	MemoryCapacity   int64    `json:"memoryCapacity"`
+	CPUCapacity      int64    `json:"cpuCapacity"`
+	GPUCapacity      int64    `json:"gpuCapacity,omitempty"`
+	PodCapacity      int64    `json:"podCapacity"`
+	MemoryUsed       int64    `json:"memoryUsed"`
+	CPUUsed          int64    `json:"cpuUsed"`
+	GPUUsed          int64    `json:"gpuUsed,omitempty"`
+	PodUsed          int64    `json:"podUsed"`
+	StorageClassList []string `json:"storageClassList,omitempty"`
+}
 
 // Cluster describes the model of cluster in apiserver
 type Cluster struct {
+	Model
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
@@ -30,7 +44,7 @@ type Cluster struct {
 	KubeConfig       string `json:"kubeConfig"`
 	KubeConfigSecret string `json:"kubeConfigSecret"`
 
-	ResourceInfo v1.ClusterResourceInfo `json:"resourceInfo"`
+	ResourceInfo ClusterResourceInfo `json:"resourceInfo"`
 }
 
 // TableName table name for datastore
@@ -46,18 +60,6 @@ func (c *Cluster) PrimaryKey() string {
 // Index set to nil for list
 func (c *Cluster) Index() map[string]string {
 	return nil
-}
-
-// ToClusterBase converts to ClusterBase
-func (c *Cluster) ToClusterBase() *v1.ClusterBase {
-	return &v1.ClusterBase{
-		Name:        c.Name,
-		Description: c.Description,
-		Icon:        c.Icon,
-		Labels:      c.Labels,
-		Status:      c.Status,
-		Reason:      c.Reason,
-	}
 }
 
 // DeepCopy create a copy of cluster

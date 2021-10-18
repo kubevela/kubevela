@@ -213,12 +213,16 @@ func RenameCluster(ctx context.Context, k8sClient client.Client, oldClusterName 
 
 // ClusterInfo describes the basic information of a cluster
 type ClusterInfo struct {
-	Nodes          *v1.NodeList
-	WorkerNumber   int
-	MasterNumber   int
-	MemoryCapacity resource.Quantity
-	CPUCapacity    resource.Quantity
-	StorageClasses *v14.StorageClassList
+	Nodes             *v1.NodeList
+	WorkerNumber      int
+	MasterNumber      int
+	MemoryCapacity    resource.Quantity
+	CPUCapacity       resource.Quantity
+	PodCapacity       resource.Quantity
+	MemoryAllocatable resource.Quantity
+	CPUAllocatable    resource.Quantity
+	PodAllocatable    resource.Quantity
+	StorageClasses    *v14.StorageClassList
 }
 
 // GetClusterInfo retrieves current cluster info from cluster
@@ -229,7 +233,7 @@ func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName s
 		return nil, errors.Wrapf(err, "failed to list cluster nodes")
 	}
 	var workerNumber, masterNumber int
-	var memoryCapacity, cpuCapacity resource.Quantity
+	var memoryCapacity, cpuCapacity, podCapacity, memoryAllocatable, cpuAllocatable, podAllcatable resource.Quantity
 	for _, node := range nodes.Items {
 		if _, ok := node.Labels["node-role.kubernetes.io/master"]; ok {
 			masterNumber++
@@ -239,17 +243,26 @@ func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName s
 		capacity := node.Status.Capacity
 		memoryCapacity.Add(*capacity.Memory())
 		cpuCapacity.Add(*capacity.Cpu())
+		podCapacity.Add(*capacity.Pods())
+		allocatable := node.Status.Allocatable
+		memoryAllocatable.Add(*allocatable.Memory())
+		cpuAllocatable.Add(*allocatable.Cpu())
+		podAllcatable.Add(*allocatable.Pods())
 	}
 	storageClasses := &v14.StorageClassList{}
 	if err := k8sClient.List(ctx, storageClasses); err != nil {
 		return nil, errors.Wrapf(err, "failed to list storage classes")
 	}
 	return &ClusterInfo{
-		Nodes:          nodes,
-		WorkerNumber:   workerNumber,
-		MasterNumber:   masterNumber,
-		MemoryCapacity: memoryCapacity,
-		CPUCapacity:    cpuCapacity,
-		StorageClasses: storageClasses,
+		Nodes:             nodes,
+		WorkerNumber:      workerNumber,
+		MasterNumber:      masterNumber,
+		MemoryCapacity:    memoryCapacity,
+		CPUCapacity:       cpuCapacity,
+		PodCapacity:       podCapacity,
+		MemoryAllocatable: memoryAllocatable,
+		CPUAllocatable:    cpuAllocatable,
+		PodAllocatable:    podAllcatable,
+		StorageClasses:    storageClasses,
 	}, nil
 }

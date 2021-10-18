@@ -19,8 +19,9 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 	"reflect"
+	"time"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
