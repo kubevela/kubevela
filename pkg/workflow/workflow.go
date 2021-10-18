@@ -131,16 +131,11 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 
 // Trace record the workflow execute history.
 func (w *workflow) Trace() error {
-	version := ""
-	annos := w.app.Annotations
-	if annos != nil {
-		version = annos[wfTypes.AnnotationPublishVersion]
-	}
 	data, err := json.Marshal(w.app)
 	if err != nil {
 		return err
 	}
-	return recorder.With(w.cli, w.app).Save(version, data).Limit(10).Error()
+	return recorder.With(w.cli, w.app).Save("", data).Limit(10).Error()
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -335,13 +330,13 @@ func (e *engine) needStop() bool {
 }
 
 func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {
-	spec := app.Spec.DeepCopy()
 	version := ""
-	annos := app.Annotations
-	if annos != nil {
+	if annos := app.Annotations; annos != nil {
 		version = annos[wfTypes.AnnotationPublishVersion]
 	}
-	spec.Policies = append(spec.Policies, oamcore.AppPolicy{Name: version, Type: "publish-trigger"})
-	specHash, err := utils.ComputeSpecHash(spec)
-	return fmt.Sprintf("%s:%s", rev, specHash), err
+	if version != "" {
+		version = "/" + version
+	}
+	specHash, err := utils.ComputeSpecHash(app.Spec)
+	return fmt.Sprintf("%s:%s%s", rev, specHash, version), err
 }

@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -62,8 +63,19 @@ func (r *recorder) Save(version string, data []byte) Store {
 	rv.Namespace = r.source.GetNamespace()
 	rv.Revision = time.Now().UnixNano()
 	if version == "" {
+		wfStatus := r.source.Status.Workflow
+		if wfStatus != nil {
+			items := strings.Split(wfStatus.AppRevision, "/")
+			if len(items) > 1 {
+				version = items[len(items)-1]
+			}
+		}
+	}
+
+	if version == "" {
 		version = fmt.Sprint(rv.Revision)
 	}
+
 	rv.Name = fmt.Sprintf("record-%s-%s", r.source.Name, version)
 	rv.SetLabels(map[string]string{
 		LabelRecordSource:  r.source.GetName(),
@@ -120,7 +132,7 @@ func (r *recorder) Error() error {
 
 // Store is an object that record info.
 type Store interface {
-	Save(tag string, data []byte) Store
+	Save(version string, data []byte) Store
 	Limit(max int) Store
 	Error() error
 }

@@ -223,7 +223,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			klog.Info("Application manifests has applied by workflow successfully", "application", klog.KObj(app))
 			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowFinished)
 		case common.WorkflowStateFinished:
-			if app.Status.Workflow.Terminated {
+			if status := app.Status.Workflow; status != nil && status.Terminated {
 				return ctrl.Result{}, nil
 			}
 		}
