@@ -79,6 +79,20 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Writes(apis.ClusterBase{}))
 
+	ws.Route(ws.POST("/cloud-clusters/{provider}").To(c.listCloudClusters).
+		Doc("list cloud clusters").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("page", "Page for paging").DataType("int").DefaultValue("0")).
+		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("int").DefaultValue("20")).
+		Reads(&apis.AccessKeyRequest{}).
+		Writes(apis.ListCloudClusterResponse{}))
+
+	ws.Route(ws.POST("/cloud-clusters/{provider}/connect").To(c.connectCloudCluster).
+		Doc("create cluster from cloud cluster").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(&apis.ConnectCloudClusterRequest{}).
+		Writes(apis.ClusterBase{}))
+
 	return ws
 }
 
@@ -185,6 +199,67 @@ func (c *ClusterWebService) deleteKubeCluster(req *restful.Request, res *restful
 
 	// Write back response data
 	if err := res.WriteEntity(clusterBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) listCloudClusters(req *restful.Request, res *restful.Response) {
+	provider := req.PathParameter("provider")
+	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Verify the validity of parameters
+	var accessKeyRequest apis.AccessKeyRequest
+	if err := req.ReadEntity(&accessKeyRequest); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&accessKeyRequest); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Call the usecase layer code
+	clustersResp, err := c.clusterUsecase.ListCloudClusters(req.Request.Context(), provider, accessKeyRequest, page, pageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(clustersResp); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) connectCloudCluster(req *restful.Request, res *restful.Response) {
+	provider := req.PathParameter("provider")
+
+	// Verify the validity of parameters
+	var connectReq apis.ConnectCloudClusterRequest
+	if err := req.ReadEntity(&connectReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&connectReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Call the usecase layer code
+	cluster, err := c.clusterUsecase.ConnectCloudCluster(req.Request.Context(), provider, connectReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(cluster); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

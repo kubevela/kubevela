@@ -22,6 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 )
 
 // CtxKeyApplication request context key of application
@@ -105,6 +106,12 @@ type AddonStatusResponse struct {
 	Phase AddonPhase `json:"phase"`
 }
 
+// AccessKeyRequest request parameters to access cloud provider
+type AccessKeyRequest struct {
+	AccessKeyID     string `json:"accessKeyID"`
+	AccessKeySecret string `json:"accessKeySecret"`
+}
+
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
 	Name             string            `json:"name"`
@@ -113,6 +120,17 @@ type CreateClusterRequest struct {
 	KubeConfig       string            `json:"kubeConfig"`
 	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty"`
 	Labels           map[string]string `json:"labels,omitempty"`
+}
+
+// ConnectCloudClusterRequest request parameters to create a cluster from cloud cluster
+type ConnectCloudClusterRequest struct {
+	AccessKeyID     string            `json:"accessKeyID"`
+	AccessKeySecret string            `json:"accessKeySecret"`
+	ClusterID       string            `json:"clusterID"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description,omitempty"`
+	Icon            string            `json:"icon"`
+	Labels          map[string]string `json:"labels,omitempty"`
 }
 
 // DetailClusterResponse cluster detail information model
@@ -128,6 +146,12 @@ type DetailClusterResponse struct {
 // ListClusterResponse list cluster
 type ListClusterResponse struct {
 	Clusters []ClusterBase `json:"clusters"`
+}
+
+// ListCloudClusterResponse list cloud clusters
+type ListCloudClusterResponse struct {
+	Clusters []cloudprovider.CloudCluster `json:"clusters"`
+	Total    int                          `json:"total"`
 }
 
 // ClusterBase cluster base model

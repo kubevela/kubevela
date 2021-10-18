@@ -29,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -40,6 +41,9 @@ type ClusterUsecase interface {
 	GetKubeCluster(context.Context, string) (*apis.DetailClusterResponse, error)
 	ModifyKubeCluster(context.Context, apis.CreateClusterRequest, string) (*apis.ClusterBase, error)
 	DeleteKubeCluster(context.Context, string) (*apis.ClusterBase, error)
+
+	ListCloudClusters(context.Context, string, apis.AccessKeyRequest, int, int) (*apis.ListCloudClusterResponse, error)
+	ConnectCloudCluster(context.Context, string, apis.ConnectCloudClusterRequest) (*apis.ClusterBase, error)
 }
 
 type clusterUsecaseImpl struct {
@@ -229,6 +233,44 @@ func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, 
 		PodUsed:          getUsed(clusterInfo.PodCapacity, clusterInfo.PodAllocatable).Value(),
 		StorageClassList: storageClassList,
 	}, nil
+}
+
+func (c *clusterUsecaseImpl) ListCloudClusters(ctx context.Context, provider string, req apis.AccessKeyRequest, pageNumber int, pageSize int) (*apis.ListCloudClusterResponse, error) {
+	p, err := cloudprovider.GetClusterProvider(provider, req.AccessKeyID, req.AccessKeySecret)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get cluster provider")
+	}
+	clusters, total, err := p.ListCloudClusters(pageNumber, pageSize)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to list cloud clusters")
+	}
+	resp := &apis.ListCloudClusterResponse{
+		Clusters: []cloudprovider.CloudCluster{},
+		Total:    total,
+	}
+	for _, cluster := range clusters {
+		resp.Clusters = append(resp.Clusters, *cluster)
+	}
+	return resp, nil
+}
+
+func (c *clusterUsecaseImpl) ConnectCloudCluster(ctx context.Context, provider string, req apis.ConnectCloudClusterRequest) (*apis.ClusterBase, error) {
+	p, err := cloudprovider.GetClusterProvider(provider, req.AccessKeyID, req.AccessKeySecret)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get cluster provider")
+	}
+	kubeConfig, err := p.GetClusterKubeConfig(req.ClusterID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get cluster kubeConfig")
+	}
+	createReq := apis.CreateClusterRequest{
+		Name:        req.Name,
+		Description: req.Description,
+		Icon:        req.Icon,
+		Labels:      req.Labels,
+		KubeConfig:  kubeConfig,
+	}
+	return c.CreateKubeCluster(ctx, createReq)
 }
 
 func newClusterBaseFromCluster(cluster *model.Cluster) *apis.ClusterBase {

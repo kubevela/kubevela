@@ -152,10 +152,10 @@ func save(images []string, dest string) error {
 	return exec.Command("docker", commandArgs...).Run()
 }
 
-// imageID return the Id of the container image
+// imageID return the ID of the container image
 func imageID(containerNameOrID string) (string, error) {
 	cmd := exec.Command("docker", "image", "inspect",
-		"-f", "{{ .Id }}",
+		"-f", "{{ .ID }}",
 		containerNameOrID, // ... against the container
 	)
 	lines, err := exec.OutputLines(cmd)
