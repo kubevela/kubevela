@@ -287,11 +287,11 @@ type ApplicationTemplateVersion struct {
 
 // ListNamespaceResponse namesace list model
 type ListNamespaceResponse struct {
-	Namespaces []NamesapceBase `json:"namesapces"`
+	Namespaces []NamespaceBase `json:"namespaces"`
 }
 
-// NamesapceBase namespace base model
-type NamesapceBase struct {
+// NamespaceBase namespace base model
+type NamespaceBase struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	CreateTime  time.Time `json:"createTime"`
@@ -304,10 +304,9 @@ type CreateNamespaceRequest struct {
 	Description string `json:"description"`
 }
 
-// NamesapceDetailResponse namespace detail response
-type NamesapceDetailResponse struct {
-	NamesapceBase
-	ClusterBind map[string]string `json:"clusterBind"`
+// NamespaceDetailResponse namespace detail response
+type NamespaceDetailResponse struct {
+	NamespaceBase
 }
 
 // ListComponentDefinitionResponse list component dedinition response model
@@ -382,7 +381,7 @@ type PolicyDefinition struct {
 // UpdateWorkflowRequest update or create application workflow
 type UpdateWorkflowRequest struct {
 	Name      string         `json:"name"  validate:"checkname"`
-	Namespace string         `json:"namesapce"  validate:"checkname"`
+	Namespace string         `json:"namespace"  validate:"checkname"`
 	Steps     []WorkflowStep `json:"steps,omitempty"`
 	Enable    bool           `json:"enable"`
 }

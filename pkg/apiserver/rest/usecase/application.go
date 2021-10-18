@@ -68,7 +68,10 @@ type applicationUsecaseImpl struct {
 
 // NewApplicationUsecase new application usecase
 func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase) ApplicationUsecase {
-	kubecli, _ := clients.GetKubeClient()
+	kubecli, err := clients.GetKubeClient()
+	if err != nil {
+		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
+	}
 	return &applicationUsecaseImpl{
 		ds:              ds,
 		workflowUsecase: workflowUsecase,
@@ -433,7 +436,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: oamApp.Namespace}, &namespace); apierrors.IsNotFound(err) {
 		namespace.Name = oamApp.Namespace
 		if err := c.kubeClient.Create(ctx, &namespace); err != nil {
-			log.Logger.Errorf("auto create namesapce failure %s", err.Error())
+			log.Logger.Errorf("auto create namespace failure %s", err.Error())
 			return nil, bcode.ErrCreateNamespace
 		}
 	}

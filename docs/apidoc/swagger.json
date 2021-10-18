@@ -265,7 +265,7 @@
    }
   },
   "/api/v1/applications/{name}/components/{componentName}": {
-   "post": {
+   "get": {
     "consumes": [
      "application/xml",
      "application/json"
@@ -315,7 +315,7 @@
     "tags": [
      "application"
     ],
-    "summary": "deploy or update the application",
+    "summary": "deploy or upgrade the application",
     "operationId": "deployApplication",
     "parameters": [
      {
@@ -329,7 +329,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ApplicationBase"
+       "$ref": "#/definitions/v1.ApplicationDeployRequest"
       }
      },
      "400": {
@@ -451,6 +451,57 @@
       "name": "policyName",
       "in": "path",
       "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.DetailPolicyResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   },
+   "put": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "application"
+    ],
+    "summary": "update policy for application",
+    "operationId": "updateApplicationPolicy",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the application",
+      "name": "name",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "description": "identifier of the application policy",
+      "name": "policyName",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/v1.UpdatePolicyRequest"
+      }
      }
     ],
     "responses": {
@@ -703,7 +754,7 @@
      "namespace"
     ],
     "summary": "list all namespaces",
-    "operationId": "noop",
+    "operationId": "listNamespaces",
     "responses": {
      "200": {
       "description": "OK"
@@ -723,7 +774,7 @@
      "namespace"
     ],
     "summary": "create namespace",
-    "operationId": "noop",
+    "operationId": "createNamespace",
     "parameters": [
      {
       "name": "body",
@@ -732,155 +783,6 @@
       "schema": {
        "$ref": "#/definitions/v1.CreateNamespaceRequest"
       }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/namespaces/{namespace}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "get one namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/namespaces/{namespace}/applications/:appname": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "get the specified oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     },
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.ApplicationRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
      }
     ],
     "responses": {
@@ -1399,11 +1301,11 @@
   },
   "common.AppRolloutStatus": {
    "required": [
+    "rollingState",
+    "upgradedReadyReplicas",
+    "batchRollingState",
     "currentBatch",
     "upgradedReplicas",
-    "batchRollingState",
-    "upgradedReadyReplicas",
-    "rollingState",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -1896,7 +1798,7 @@
       "$ref": "#/definitions/common.inputItem"
      }
     },
-    "lables": {
+    "labels": {
      "type": "object",
      "additionalProperties": {
       "type": "string"
@@ -2098,6 +2000,54 @@
     "updateTime": {
      "type": "string",
      "format": "date-time"
+    }
+   }
+  },
+  "v1.ApplicationDeployRequest": {
+   "required": [
+    "commit",
+    "sourceType",
+    "force"
+   ],
+   "properties": {
+    "commit": {
+     "type": "string"
+    },
+    "force": {
+     "type": "boolean"
+    },
+    "sourceType": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.ApplicationDeployResponse": {
+   "required": [
+    "version",
+    "status",
+    "reason",
+    "deployUser",
+    "commit",
+    "sourceType"
+   ],
+   "properties": {
+    "commit": {
+     "type": "string"
+    },
+    "deployUser": {
+     "type": "string"
+    },
+    "reason": {
+     "type": "string"
+    },
+    "sourceType": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
     }
    }
   },
@@ -2502,16 +2452,14 @@
   },
   "v1.CreateComponentRequest": {
    "required": [
-    "appName",
     "name",
     "description",
+    "icon",
     "componentType",
-    "bindClusters"
+    "bindClusters",
+    "dependsOn"
    ],
    "properties": {
-    "appName": {
-     "type": "string"
-    },
     "bindClusters": {
      "type": "array",
      "items": {
@@ -2521,7 +2469,16 @@
     "componentType": {
      "type": "string"
     },
+    "dependsOn": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "description": {
+     "type": "string"
+    },
+    "icon": {
      "type": "string"
     },
     "labels": {
@@ -2555,10 +2512,14 @@
   "v1.CreatePolicyRequest": {
    "required": [
     "name",
+    "description",
     "type",
     "properties"
    ],
    "properties": {
+    "description": {
+     "type": "string"
+    },
     "name": {
      "type": "string"
     },
@@ -2572,12 +2533,12 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
-    "name",
     "version",
     "description",
     "icon",
     "tags",
-    "phase"
+    "phase",
+    "name"
    ],
    "properties": {
     "deploy_data": {
@@ -2615,13 +2576,13 @@
   "v1.DetailApplicationResponse": {
    "required": [
     "name",
-    "updateTime",
+    "description",
     "icon",
     "status",
-    "namespace",
-    "description",
-    "createTime",
     "gatewayRule",
+    "namespace",
+    "createTime",
+    "updateTime",
     "policies",
     "status",
     "resourceInfo",
@@ -2688,12 +2649,12 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
+    "name",
     "description",
     "icon",
     "labels",
     "status",
     "reason",
-    "name",
     "resourceInfo"
    ],
    "properties": {
@@ -2732,11 +2693,11 @@
   "v1.DetailComponentResponse": {
    "required": [
     "createTime",
-    "updateTime",
     "appPrimaryKey",
-    "name",
     "type",
-    "creator"
+    "name",
+    "creator",
+    "updateTime"
    ],
    "properties": {
     "appPrimaryKey": {
@@ -2770,7 +2731,7 @@
       "$ref": "#/definitions/common.inputItem"
      }
     },
-    "lables": {
+    "labels": {
      "type": "object",
      "additionalProperties": {
       "type": "string"
@@ -2811,16 +2772,24 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
-    "name",
-    "type",
+    "description",
+    "creator",
     "properties",
     "createTime",
-    "updateTime"
+    "updateTime",
+    "name",
+    "type"
    ],
    "properties": {
     "createTime": {
      "type": "string",
      "format": "date-time"
+    },
+    "creator": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
     },
     "name": {
      "type": "string"
@@ -2952,13 +2921,13 @@
   },
   "v1.ListNamespaceResponse": {
    "required": [
-    "namesapces"
+    "namespaces"
    ],
    "properties": {
-    "namesapces": {
+    "namespaces": {
      "type": "array",
      "items": {
-      "$ref": "#/definitions/v1.NamesapceBase"
+      "$ref": "#/definitions/v1.NamespaceBase"
      }
     }
    }
@@ -2994,7 +2963,7 @@
     }
    }
   },
-  "v1.NamesapceBase": {
+  "v1.NamespaceBase": {
    "required": [
     "name",
     "description",
@@ -3018,21 +2987,14 @@
     }
    }
   },
-  "v1.NamesapceDetailResponse": {
+  "v1.NamespaceDetailResponse": {
    "required": [
     "name",
     "description",
     "createTime",
-    "updateTime",
-    "clusterBind"
+    "updateTime"
    ],
    "properties": {
-    "clusterBind": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
     "createTime": {
      "type": "string",
      "format": "date-time"
@@ -3086,6 +3048,8 @@
    "required": [
     "name",
     "type",
+    "description",
+    "creator",
     "properties",
     "createTime",
     "updateTime"
@@ -3094,6 +3058,12 @@
     "createTime": {
      "type": "string",
      "format": "date-time"
+    },
+    "creator": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
     },
     "name": {
      "type": "string"
@@ -3131,10 +3101,28 @@
     }
    }
   },
+  "v1.UpdatePolicyRequest": {
+   "required": [
+    "description",
+    "type",
+    "properties"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "properties": {
+     "type": "string"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
   "v1.UpdateWorkflowRequest": {
    "required": [
     "name",
-    "namesapce",
+    "namespace",
     "enable"
    ],
    "properties": {
@@ -3144,7 +3132,7 @@
     "name": {
      "type": "string"
     },
-    "namesapce": {
+    "namespace": {
      "type": "string"
     },
     "steps": {

@@ -38,7 +38,7 @@ var _ = Describe("Test application rest api", func() {
 		defer GinkgoRecover()
 		var req = apisv1.CreateApplicationRequest{
 			Name:        "test-app-sadasd",
-			Namespace:   "test-app-namesapce",
+			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -77,7 +77,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(err).Should(Succeed())
 		var req = apisv1.CreateApplicationRequest{
 			Name:        "test-app-sadasd",
-			Namespace:   "test-app-namesapce",
+			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -177,7 +177,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(response.Status, model.DeployEventRunning)).Should(BeEmpty())
 
 		var oam v1beta1.Application
-		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: "test-app-sadasd", Namespace: "test-app-namesapce"}, &oam)
+		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: "test-app-sadasd", Namespace: "test-app-namespace"}, &oam)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(oam.Spec.Components), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
