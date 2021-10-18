@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/convert"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
@@ -72,6 +73,7 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 	// install builtin provider
 	workspace.Install(providerHandlers)
 	http.Install(providerHandlers)
+	convert.Install(providerHandlers)
 	templateLoader := template.NewTemplateLoader(cli, dm)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
