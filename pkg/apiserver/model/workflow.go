@@ -17,15 +17,15 @@ limitations under the License.
 package model
 
 import (
-	"fmt"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // Workflow workflow database model
 type Workflow struct {
+	Model
 	Name      string         `json:"name"`
 	Namespace string         `json:"namespace"`
+	Enable    bool           `json:"enable"`
 	Steps     []WorkflowStep `json:"steps,omitempty"`
 }
 
@@ -34,7 +34,7 @@ type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
 	Name       string             `json:"name"`
 	Type       string             `json:"type"`
-	Properties JSONStruct         `json:"properties,omitempty"`
+	Properties *JSONStruct        `json:"properties,omitempty"`
 	DependsOn  []string           `json:"dependsOn,omitempty"`
 	Inputs     common.StepInputs  `json:"inputs,omitempty"`
 	Outputs    common.StepOutputs `json:"outputs,omitempty"`
@@ -47,7 +47,7 @@ func (w *Workflow) TableName() string {
 
 // PrimaryKey return custom primary key
 func (w *Workflow) PrimaryKey() string {
-	return fmt.Sprintf("%s-%s", w.Namespace, w.Name)
+	return w.Name
 }
 
 // Index return custom primary key

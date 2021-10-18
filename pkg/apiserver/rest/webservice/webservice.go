@@ -60,7 +60,8 @@ func returns500(b *restful.RouteBuilder) {
 // It can be implemented using the idea of dependency injection.
 func Init(ctx context.Context, ds datastore.DataStore) {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
-	applicationUsecase := usecase.NewApplicationUsecase(ds)
+	workflowUsecase := usecase.NewWorkflowUsecase(ds)
+	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase)
 	RegistWebService(NewClusterWebService(clusterUsecase))
 	RegistWebService(NewApplicationWebService(applicationUsecase))
 	RegistWebService(&namespaceWebService{})
@@ -68,5 +69,5 @@ func Init(ctx context.Context, ds datastore.DataStore) {
 	RegistWebService(&addonWebService{})
 	RegistWebService(&oamApplicationWebService{})
 	RegistWebService(&policyDefinitionWebservice{})
-	RegistWebService(&workflowWebService{})
+	RegistWebService(NewWorkflowWebService(workflowUsecase, applicationUsecase))
 }

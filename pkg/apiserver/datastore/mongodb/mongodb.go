@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"cuelang.org/go/pkg/strings"
 	"go.mongodb.org/mongo-driver/bson"
@@ -61,6 +62,7 @@ func (m *mongodb) Add(ctx context.Context, entity datastore.Entity) error {
 	if entity.TableName() == "" {
 		return datastore.ErrTableNameEmpty
 	}
+	entity.SetCreateTime(time.Now())
 	if err := m.Get(ctx, entity); err == nil {
 		return datastore.ErrRecordExist
 	}
@@ -121,6 +123,7 @@ func (m *mongodb) Put(ctx context.Context, entity datastore.Entity) error {
 	if entity.TableName() == "" {
 		return datastore.ErrTableNameEmpty
 	}
+	entity.SetUpdateTime(time.Now())
 	collection := m.client.Database(m.database).Collection(entity.TableName())
 	_, err := collection.UpdateOne(ctx, makeNameFilter(entity.PrimaryKey()), makeEntityUpdate(entity))
 	if err != nil {
