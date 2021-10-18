@@ -29,7 +29,7 @@
      "application"
     ],
     "summary": "list all applications",
-    "operationId": "noop",
+    "operationId": "listApplications",
     "parameters": [
      {
       "type": "string",
@@ -52,7 +52,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ListApplicationResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -69,7 +76,7 @@
      "application"
     ],
     "summary": "create one application",
-    "operationId": "noop",
+    "operationId": "createApplication",
     "parameters": [
      {
       "name": "body",
@@ -82,7 +89,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ApplicationBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -101,7 +115,7 @@
      "application"
     ],
     "summary": "detail one application",
-    "operationId": "noop",
+    "operationId": "detailApplication",
     "parameters": [
      {
       "type": "string",
@@ -113,7 +127,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.DetailApplicationResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -130,7 +151,7 @@
      "application"
     ],
     "summary": "delete one application",
-    "operationId": "noop",
+    "operationId": "deleteApplication",
     "parameters": [
      {
       "type": "string",
@@ -142,7 +163,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.EmptyResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -161,7 +189,7 @@
      "application"
     ],
     "summary": "gets the component topology of the application",
-    "operationId": "noop",
+    "operationId": "listApplicationComponents",
     "parameters": [
      {
       "type": "string",
@@ -180,7 +208,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ComponentListResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -197,7 +232,7 @@
      "application"
     ],
     "summary": "create component for application",
-    "operationId": "noop",
+    "operationId": "createComponent",
     "parameters": [
      {
       "type": "string",
@@ -217,7 +252,52 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ComponentBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/applications/{name}/components/{componentName}": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "application"
+    ],
+    "summary": "detail component for application",
+    "operationId": "detailComponent",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the application",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.DetailComponentResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -236,7 +316,7 @@
      "application"
     ],
     "summary": "deploy or update the application",
-    "operationId": "noop",
+    "operationId": "deployApplication",
     "parameters": [
      {
       "type": "string",
@@ -248,12 +328,55 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ApplicationBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
   },
   "/api/v1/applications/{name}/policies": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "application"
+    ],
+    "summary": "list policy for application",
+    "operationId": "listApplicationPolicies",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the application",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ListApplicationPolicy"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   },
    "post": {
     "consumes": [
      "application/xml",
@@ -267,7 +390,7 @@
      "application"
     ],
     "summary": "create policy for application",
-    "operationId": "noop",
+    "operationId": "createApplicationPolicy",
     "parameters": [
      {
       "type": "string",
@@ -287,7 +410,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.PolicyBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -306,7 +436,7 @@
      "application"
     ],
     "summary": "detail policy for application",
-    "operationId": "noop",
+    "operationId": "detailApplicationPolicy",
     "parameters": [
      {
       "type": "string",
@@ -325,7 +455,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.DetailPolicyResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    },
@@ -342,7 +479,7 @@
      "application"
     ],
     "summary": "detail policy for application",
-    "operationId": "noop",
+    "operationId": "deleteApplicationPolicy",
     "parameters": [
      {
       "type": "string",
@@ -361,7 +498,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.EmptyResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -380,7 +524,7 @@
      "application"
     ],
     "summary": "create one application template",
-    "operationId": "noop",
+    "operationId": "publishApplicationTemplate",
     "parameters": [
      {
       "type": "string",
@@ -400,7 +544,14 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ApplicationTemplateBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -892,7 +1043,7 @@
     }
    }
   },
-  "/v1/catalogs": {
+  "/v1/addons": {
    "get": {
     "consumes": [
      "application/xml",
@@ -903,15 +1054,15 @@
      "application/xml"
     ],
     "tags": [
-     "cluster"
+     "addon"
     ],
-    "summary": "list all clusters",
+    "summary": "list all addons",
     "operationId": "noop",
     "parameters": [
      {
       "type": "string",
-      "description": "Fuzzy search based on name or description",
-      "name": "query",
+      "description": "Cluster-based search",
+      "name": "cluster",
       "in": "query"
      }
     ],
@@ -924,6 +1075,187 @@
      },
      "500": {
       "description": "Bummer, something went wrong"
+     }
+    }
+   },
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "create an addon",
+    "operationId": "noop",
+    "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/v1.CreateAddonRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/v1/addons/{name}": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "show details of an addon",
+    "operationId": "noop",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the addon",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   },
+   "delete": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "delete an addon",
+    "operationId": "noop",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the addon",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/v1/addons/{name}/disable": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "disable an addon on a cluster",
+    "operationId": "noop",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "cluster name",
+      "name": "cluster",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/v1/addons/{name}/enable": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "enable an addon on a cluster",
+    "operationId": "noop",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "cluster name",
+      "name": "cluster",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/v1/addons/{name}/status": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "show status of an addon",
+    "operationId": "noop",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the addon",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
      }
     }
    }
@@ -1050,13 +1382,28 @@
   }
  },
  "definitions": {
+  "bcode.Bcode": {
+   "required": [
+    "BusinessCode",
+    "Message"
+   ],
+   "properties": {
+    "BusinessCode": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "Message": {
+     "type": "string"
+    }
+   }
+  },
   "common.AppRolloutStatus": {
    "required": [
-    "rollingState",
-    "batchRollingState",
     "currentBatch",
     "upgradedReplicas",
+    "batchRollingState",
     "upgradedReadyReplicas",
+    "rollingState",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -1159,6 +1506,12 @@
     "type"
    ],
    "properties": {
+    "dependsOn": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "externalRevision": {
      "type": "string"
     },
@@ -1502,6 +1855,118 @@
     "type": "string"
    }
   },
+  "model.ApplicationComponent": {
+   "required": [
+    "createTime",
+    "updateTime",
+    "appPrimaryKey",
+    "creator",
+    "name",
+    "type"
+   ],
+   "properties": {
+    "appPrimaryKey": {
+     "type": "string"
+    },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "creator": {
+     "type": "string"
+    },
+    "dependsOn": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "description": {
+     "type": "string"
+    },
+    "externalRevision": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "inputs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/common.inputItem"
+     }
+    },
+    "lables": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "outputs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/common.outputItem"
+     }
+    },
+    "properties": {
+     "$ref": "#/definitions/model.JSONStruct"
+    },
+    "scopes": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "traits": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/model.ApplicationTrait"
+     }
+    },
+    "type": {
+     "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  },
+  "model.ApplicationTrait": {
+   "required": [
+    "type"
+   ],
+   "properties": {
+    "properties": {
+     "$ref": "#/definitions/model.JSONStruct"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "model.JSONStruct": {
+   "type": "object"
+  },
+  "model.Model": {
+   "required": [
+    "createTime",
+    "updateTime"
+   ],
+   "properties": {
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  },
   "types.Parameter": {
    "required": [
     "name"
@@ -1538,6 +2003,49 @@
    }
   },
   "types.Parameter.default": {},
+  "v1.AddonMeta": {
+   "required": [
+    "name",
+    "version",
+    "description",
+    "icon",
+    "tags",
+    "phase"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "phase": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "version": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.AddonStatusResponse": {
+   "required": [
+    "phase"
+   ],
+   "properties": {
+    "phase": {
+     "type": "string"
+    }
+   }
+  },
   "v1.ApplicationBase": {
    "required": [
     "name",
@@ -1650,11 +2158,21 @@
   },
   "v1.ApplicationTemplateBase": {
    "required": [
-    "templateName"
+    "templateName",
+    "createTime",
+    "updateTime"
    ],
    "properties": {
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
     "templateName": {
      "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
     },
     "versions": {
      "type": "array",
@@ -1768,7 +2286,9 @@
     "componentType",
     "bindClusters",
     "dependsOn",
-    "deployVersion"
+    "deployVersion",
+    "createTime",
+    "updateTime"
    ],
    "properties": {
     "bindClusters": {
@@ -1779,6 +2299,10 @@
     },
     "componentType": {
      "type": "string"
+    },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
     },
     "creator": {
      "type": "string"
@@ -1806,6 +2330,10 @@
     },
     "name": {
      "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
     }
    }
   },
@@ -1844,6 +2372,43 @@
      "items": {
       "$ref": "#/definitions/v1.ComponentBase"
      }
+    }
+   }
+  },
+  "v1.CreateAddonRequest": {
+   "required": [
+    "name",
+    "version",
+    "icon",
+    "tags"
+   ],
+   "properties": {
+    "deploy_data": {
+     "type": "string"
+    },
+    "deploy_url": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "detail": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "version": {
+     "type": "string"
     }
    }
   },
@@ -2005,16 +2570,58 @@
     }
    }
   },
+  "v1.DetailAddonResponse": {
+   "required": [
+    "name",
+    "version",
+    "description",
+    "icon",
+    "tags",
+    "phase"
+   ],
+   "properties": {
+    "deploy_data": {
+     "type": "string"
+    },
+    "deploy_url": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "detail": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "phase": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "version": {
+     "type": "string"
+    }
+   }
+  },
   "v1.DetailApplicationResponse": {
    "required": [
+    "name",
     "updateTime",
     "icon",
     "status",
-    "gatewayRule",
-    "name",
     "namespace",
     "description",
     "createTime",
+    "gatewayRule",
     "policies",
     "status",
     "resourceInfo",
@@ -2081,12 +2688,12 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "name",
     "description",
     "icon",
     "labels",
     "status",
     "reason",
+    "name",
     "resourceInfo"
    ],
    "properties": {
@@ -2122,21 +2729,111 @@
     }
    }
   },
+  "v1.DetailComponentResponse": {
+   "required": [
+    "createTime",
+    "updateTime",
+    "appPrimaryKey",
+    "name",
+    "type",
+    "creator"
+   ],
+   "properties": {
+    "appPrimaryKey": {
+     "type": "string"
+    },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "creator": {
+     "type": "string"
+    },
+    "dependsOn": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "description": {
+     "type": "string"
+    },
+    "externalRevision": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "inputs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/common.inputItem"
+     }
+    },
+    "lables": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "outputs": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/common.outputItem"
+     }
+    },
+    "properties": {
+     "$ref": "#/definitions/model.JSONStruct"
+    },
+    "scopes": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "traits": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/model.ApplicationTrait"
+     }
+    },
+    "type": {
+     "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  },
   "v1.DetailPolicyResponse": {
    "required": [
     "name",
     "type",
-    "properties"
+    "properties",
+    "createTime",
+    "updateTime"
    ],
    "properties": {
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
     "name": {
      "type": "string"
     },
     "properties": {
-     "type": "string"
+     "$ref": "#/definitions/model.JSONStruct"
     },
     "type": {
      "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
     }
    }
   },
@@ -2160,6 +2857,7 @@
     }
    }
   },
+  "v1.EmptyResponse": {},
   "v1.GatewayRule": {
    "required": [
     "ruleType",
@@ -2184,6 +2882,32 @@
     },
     "ruleType": {
      "type": "string"
+    }
+   }
+  },
+  "v1.ListAddonResponse": {
+   "required": [
+    "addons"
+   ],
+   "properties": {
+    "addons": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.AddonMeta"
+     }
+    }
+   }
+  },
+  "v1.ListApplicationPolicy": {
+   "required": [
+    "policies"
+   ],
+   "properties": {
+    "policies": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.PolicyBase"
+     }
     }
    }
   },
@@ -2273,14 +2997,24 @@
   "v1.NamesapceBase": {
    "required": [
     "name",
-    "description"
+    "description",
+    "createTime",
+    "updateTime"
    ],
    "properties": {
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
     "description": {
      "type": "string"
     },
     "name": {
      "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
     }
    }
   },
@@ -2288,6 +3022,8 @@
    "required": [
     "name",
     "description",
+    "createTime",
+    "updateTime",
     "clusterBind"
    ],
    "properties": {
@@ -2297,11 +3033,19 @@
       "type": "string"
      }
     },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
     "description": {
      "type": "string"
     },
     "name": {
      "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
     }
    }
   },
@@ -2338,6 +3082,34 @@
     }
    }
   },
+  "v1.PolicyBase": {
+   "required": [
+    "name",
+    "type",
+    "properties",
+    "createTime",
+    "updateTime"
+   ],
+   "properties": {
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "name": {
+     "type": "string"
+    },
+    "properties": {
+     "$ref": "#/definitions/model.JSONStruct"
+    },
+    "type": {
+     "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  },
   "v1.PolicyDefinition": {
    "required": [
     "name",
@@ -2361,11 +3133,19 @@
   },
   "v1.UpdateWorkflowRequest": {
    "required": [
+    "name",
+    "namesapce",
     "enable"
    ],
    "properties": {
     "enable": {
      "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "namesapce": {
+     "type": "string"
     },
     "steps": {
      "type": "array",
@@ -2379,9 +3159,16 @@
   "v1.WorkflowStep": {
    "required": [
     "name",
-    "type"
+    "type",
+    "dependsOn"
    ],
    "properties": {
+    "dependsOn": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "inputs": {
      "type": "array",
      "items": {
@@ -2668,6 +3455,12 @@
     "type"
    ],
    "properties": {
+    "dependsOn": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
     "inputs": {
      "type": "array",
      "items": {

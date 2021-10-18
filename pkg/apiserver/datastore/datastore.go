@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 )
 
 var (
@@ -65,6 +66,8 @@ type Config struct {
 
 // Entity database data model
 type Entity interface {
+	SetCreateTime(time time.Time)
+	SetUpdateTime(time time.Time)
 	PrimaryKey() string
 	TableName() string
 	Index() map[string]string

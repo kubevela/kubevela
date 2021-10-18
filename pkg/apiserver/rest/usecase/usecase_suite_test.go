@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package e2e_apiserver_test
+package usecase
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -30,28 +32,25 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
-	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var ds datastore.DataStore
 
-func TestE2eApiserverTest(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2eApiserverTest Suite")
-}
-
-var _ = BeforeSuite(func() {
-
+var _ = BeforeSuite(func(done Done) {
+	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment")
 
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.BoolPtr(false),
-		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
+		CRDDirectoryPaths:        []string{"../../../../charts/vela-core/crds"},
 	}
 
 	By("start kube test env")
@@ -67,28 +66,37 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
 	clients.SetKubeClient(k8sClient)
-
-	ctx := context.Background()
-
-	server, err := arest.New(arest.Config{
-		BindAddr: "127.0.0.1:8000",
-		Datastore: datastore.Config{
-			Type:     "kubeapi",
-			Database: "kubevela",
-		},
-	})
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(server).ShouldNot(BeNil())
-	go func() {
-		err = server.Run(ctx)
-		Expect(err).ShouldNot(HaveOccurred())
-	}()
-	By("api server started")
-	time.Sleep(time.Second * 2)
-})
+	ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "kubevela"})
+	Expect(err).Should(BeNil())
+	Expect(ds).ToNot(BeNil())
+	close(done)
+}, 240)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
+
+func NewDatastore(cfg datastore.Config) (ds datastore.DataStore, err error) {
+	switch cfg.Type {
+	case "mongodb":
+		ds, err = mongodb.New(context.Background(), cfg)
+		if err != nil {
+			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
+		}
+	case "kubeapi":
+		ds, err = kubeapi.New(context.Background(), cfg)
+		if err != nil {
+			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("not support datastore type %s", cfg.Type)
+	}
+	return ds, nil
+}
+
+func TestUsecase(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Usecase Suite")
+}
