@@ -17,7 +17,12 @@ limitations under the License.
 package assemble
 
 import (
+	"encoding/json"
 	"os"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -201,5 +206,68 @@ var _ = Describe("Test Assemble Options", func() {
 
 		By("Verify workload metadata (name)")
 		Expect(wl.GetName()).Should(Equal(workloadName))
+	})
+})
+
+var _ = Describe("Test handleCheckManageWorkloadTrait func", func() {
+	It("Test every situation", func() {
+		traitDefs := map[string]v1beta1.TraitDefinition{
+			"rollout": v1beta1.TraitDefinition{
+				Spec: v1beta1.TraitDefinitionSpec{
+					ManageWorkload: true,
+				},
+			},
+			"normal": v1beta1.TraitDefinition{
+				Spec: v1beta1.TraitDefinitionSpec{},
+			},
+		}
+		gvk := common.WorkloadGVK{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		}
+		gvkStr, err := json.Marshal(gvk)
+		Expect(err).Should(BeNil())
+		compDefs := map[string]v1beta1.ComponentDefinition{
+			"webservice": v1beta1.ComponentDefinition{
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: gvk,
+					},
+				},
+			},
+		}
+		appRev := v1beta1.ApplicationRevision{
+			Spec: v1beta1.ApplicationRevisionSpec{
+				TraitDefinitions:     traitDefs,
+				ComponentDefinitions: compDefs,
+			},
+		}
+		rolloutTrait := &unstructured.Unstructured{}
+		rolloutTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "rollout"})
+
+		normalTrait := &unstructured.Unstructured{}
+		normalTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "normal"})
+
+		workload := unstructured.Unstructured{}
+		workload.SetLabels(map[string]string{
+			oam.WorkloadTypeLabel: "webservice",
+		})
+
+		comps := []*velatypes.ComponentManifest{
+			{
+				Traits: []*unstructured.Unstructured{
+					rolloutTrait,
+					normalTrait,
+				},
+				StandardWorkload: &workload,
+			},
+		}
+
+		HandleCheckManageWorkloadTrait(appRev, comps)
+		Expect(len(rolloutTrait.GetLabels())).Should(BeEquivalentTo(2))
+		Expect(rolloutTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo("true"))
+		Expect(rolloutTrait.GetAnnotations()[oam.AnnotationWorkloadGVK]).Should(BeEquivalentTo(gvkStr))
+		Expect(len(normalTrait.GetLabels())).Should(BeEquivalentTo(1))
+		Expect(normalTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo(""))
 	})
 })

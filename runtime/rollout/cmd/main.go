@@ -66,7 +66,7 @@ func main() {
 		"Determines the namespace in which the leader election configmap will be created.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
+	flag.StringVar(&healthAddr, "health-addr", ":19440", "The address the health endpoint binds to.")
 	flag.Parse()
 
 	// setup logging

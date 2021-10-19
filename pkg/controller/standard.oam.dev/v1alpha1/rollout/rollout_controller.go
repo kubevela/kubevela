@@ -19,6 +19,8 @@ package rollout
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	"github.com/pkg/errors"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -108,6 +110,14 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if err := h.assembleWorkload(ctx); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// set target workload name to annotation, let health scope controller can get workload form annotation
+	if rollout.GetAnnotations() != nil && len(rollout.GetAnnotations()[oam.AnnotationWorkloadName]) == 0 {
+		patch := client.MergeFrom(rollout.DeepCopy())
+		rollout.SetAnnotations(oamutil.MergeMapOverrideWithDst(rollout.GetAnnotations(), map[string]string{oam.AnnotationWorkloadName: h.targetWorkload.GetName()}))
+		// exit current reconcile before create target workload
+		return ctrl.Result{}, r.Patch(ctx, rollout, patch)
 	}
 
 	switch rollout.Status.RollingState {

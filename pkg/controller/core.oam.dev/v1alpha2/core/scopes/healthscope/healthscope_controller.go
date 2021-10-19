@@ -18,6 +18,7 @@ package healthscope
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -613,12 +614,34 @@ func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.App
 				}, o); err != nil {
 					continue
 				}
-				if labels := o.GetLabels(); labels != nil && labels[oam.WorkloadTypeLabel] != "" {
-					wlRefs = append(wlRefs, WorkloadReference{
-						ObjectReference: rs.ObjectReference,
-						clusterName:     rs.Cluster,
-						envName:         decisionsMap[rs.Cluster],
-					})
+
+				if labels := o.GetLabels(); labels != nil {
+					if labels[oam.WorkloadTypeLabel] != "" {
+						wlRefs = append(wlRefs, WorkloadReference{
+							ObjectReference: rs.ObjectReference,
+							clusterName:     rs.Cluster,
+							envName:         decisionsMap[rs.Cluster],
+						})
+					} else if labels[oam.TraitTypeLabel] != "" && labels[oam.LabelManageWorkloadTrait] == "true" {
+						// this means this trait is a manage-Workload trait, get workload GVK and name for trait's annotation
+						objectRef := corev1.ObjectReference{}
+						err := json.Unmarshal([]byte(o.GetAnnotations()[oam.AnnotationWorkloadGVK]), &objectRef)
+						if err != nil {
+							// don't break whole check process due to this error
+							continue
+						}
+						if o.GetAnnotations() != nil && len(o.GetAnnotations()[oam.AnnotationWorkloadName]) != 0 {
+							objectRef.Name = o.GetAnnotations()[oam.AnnotationWorkloadName]
+						} else {
+							// use component name as default
+							objectRef.Name = labels[oam.LabelAppComponent]
+						}
+						wlRefs = append(wlRefs, WorkloadReference{
+							ObjectReference: objectRef,
+							clusterName:     rs.Cluster,
+							envName:         decisionsMap[rs.Cluster],
+						})
+					}
 				}
 			}
 		}

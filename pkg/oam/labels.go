@@ -125,4 +125,10 @@ const (
 
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
+
+	// AnnotationWorkloadGVK indicates the managed workload's GVK by trait
+	AnnotationWorkloadGVK = "trait.oam.dev/workload-gvk"
+
+	// AnnotationWorkloadName indicates the managed workload's name by trait
+	AnnotationWorkloadName = "trait.oam.dev/workload-name"
 )
