@@ -138,6 +138,9 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 }
 
 func generateRenderHash(desired client.Object) (string, error) {
+	if desired == nil {
+		return "", nil
+	}
 	desiredHash, err := utils.ComputeSpecHash(desired)
 	if err != nil {
 		return "", errors.Wrap(err, "compute desired hash")
