@@ -26,8 +26,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam/testutil"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -52,8 +50,10 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
@@ -1465,6 +1465,7 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","2000"],"image":"nginx"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1479,6 +1480,7 @@ var _ = Describe("Test Application Controller", func() {
 		appRevName := checkApp.Status.LatestRevision.Name
 		checkApp.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"targetRevision":"myweb1-v3"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -1533,6 +1535,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		// second reconcile apply all resources
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1578,6 +1581,7 @@ var _ = Describe("Test Application Controller", func() {
 		// first reconcile handle finalizer
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		// second reconcile apply all resources
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -1627,6 +1631,7 @@ var _ = Describe("Test Application Controller", func() {
 		// first reconcile handle finalizer
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		// second reconcile apply all resources
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -1798,6 +1803,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(expDeployment.Spec.Template.Spec.Containers[0].Command).Should(BeEquivalentTo([]string{"sleep", "100"}))
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1880,6 +1886,7 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -1968,6 +1975,7 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -2067,6 +2075,48 @@ var _ = Describe("Test Application Controller", func() {
 				},
 			},
 		}))
+	})
+
+	It("app record execution state with controllerRevision", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-app-trace",
+			},
+		}
+
+		app := appwithNoTrait.DeepCopy()
+		app.Name = "vela-test-app-trace"
+		app.SetNamespace(ns.Name)
+		app.Annotations = map[string]string{wfTypes.AnnotationPublishVersion: "v134"}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		recorder := &v1.ControllerRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      fmt.Sprintf("record-%s-v134", app.Name),
+			Namespace: app.Namespace,
+		}, recorder)).Should(BeNil())
+
+		checkApp.Annotations[wfTypes.AnnotationPublishVersion] = "v135"
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      fmt.Sprintf("record-%s-v135", app.Name),
+			Namespace: app.Namespace,
+		}, recorder)).Should(BeNil())
+
 	})
 
 })

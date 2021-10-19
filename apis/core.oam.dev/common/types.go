@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
@@ -198,7 +199,9 @@ const (
 	WorkflowStateTerminated WorkflowState = "terminated"
 	// WorkflowStateSuspended means workflow is suspended manually, and it can be resumed.
 	WorkflowStateSuspended WorkflowState = "suspended"
-	// WorkflowStateFinished means workflow is running successfully, all steps finished.
+	// WorkflowStateSucceeded means workflow is running successfully, all steps finished.
+	WorkflowStateSucceeded WorkflowState = "Succeeded"
+	// WorkflowStateFinished means workflow is end.
 	WorkflowStateFinished WorkflowState = "finished"
 	// WorkflowStateExecuting means workflow is still running or waiting some steps.
 	WorkflowStateExecuting WorkflowState = "executing"
@@ -250,6 +253,10 @@ type WorkflowStepStatus struct {
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
 	Reason   string          `json:"reason,omitempty"`
 	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
+	// FirstExecuteTime is the first time this step execution.
+	FirstExecuteTime metav1.Time `json:"firstExecuteTime,omitempty"`
+	// LastExecuteTime is the last time this step execution.
+	LastExecuteTime metav1.Time `json:"lastExecuteTime,omitempty"`
 }
 
 // WorkflowSubStepStatus record the status of a workflow step
@@ -305,9 +312,12 @@ type WorkflowStatus struct {
 
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
+	Finished   bool `json:"finished"`
 
 	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
+
+	StartTime metav1.Time `json:"startTime,omitempty"`
 }
 
 // SubStepsStatus record the status of workflow steps.

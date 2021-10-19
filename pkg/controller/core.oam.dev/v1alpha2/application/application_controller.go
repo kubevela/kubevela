@@ -175,7 +175,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("Workflow", err), common.ApplicationRunningWorkflow)
 		}
 
-		workflowState, err := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode).ExecuteSteps(ctx, handler.currentAppRev, steps)
+		wf := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode)
+		workflowState, err := wf.ExecuteSteps(ctx, handler.currentAppRev, steps)
 		if err != nil {
 			klog.Error(err, "[handle workflow]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
@@ -185,14 +186,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		handler.addServiceStatus(false, app.Status.Services...)
 		handler.addAppliedResource(app.Status.AppliedResources...)
 		app.Status.AppliedResources = handler.appliedResources
+		app.Status.Services = handler.services
 		switch workflowState {
 		case common.WorkflowStateSuspended:
 			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowSuspending)
 		case common.WorkflowStateTerminated:
+			if err := r.doWorkflowFinish(app, wf); err != nil {
+				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("DoWorkflowFinish", err), common.ApplicationRunningWorkflow)
+			}
 			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowTerminated)
 		case common.WorkflowStateExecuting:
 			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatus(ctx, app, common.ApplicationRunningWorkflow)
-		case common.WorkflowStateFinished:
+		case common.WorkflowStateSucceeded:
 			wfStatus := app.Status.Workflow
 			if wfStatus != nil {
 				ref, err := handler.DispatchAndGC(ctx)
@@ -210,10 +215,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				}
 				app.Status.ResourceTracker = ref
 			}
+			if err := r.doWorkflowFinish(app, wf); err != nil {
+				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("DoWorkflowFinish", err), common.ApplicationRunningWorkflow)
+			}
+			app.Status.SetConditions(condition.ReadyCondition("WorkflowFinished"))
+			r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
+			klog.Info("Application manifests has applied by workflow successfully", "application", klog.KObj(app))
+			return ctrl.Result{}, r.patchStatus(ctx, app, common.ApplicationWorkflowFinished)
+		case common.WorkflowStateFinished:
+			if status := app.Status.Workflow; status != nil && status.Terminated {
+				return ctrl.Result{}, nil
+			}
 		}
-		app.Status.SetConditions(condition.ReadyCondition("WorkflowFinished"))
-		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
-		klog.Info("Application manifests has applied by workflow successfully", "application", klog.KObj(app))
 	} else {
 		var comps []*velatypes.ComponentManifest
 		comps, err = appFile.GenerateComponentManifests()
@@ -340,6 +353,14 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
 	return r.Client.Status().Patch(ctx, app, client.Merge)
+}
+
+func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
+	if err := wf.Trace(); err != nil {
+		return errors.WithMessage(err, "record workflow state")
+	}
+	app.Status.Workflow.Finished = true
+	return nil
 }
 
 // appWillRollout judge whether the application will be released by rollout.
