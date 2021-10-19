@@ -98,7 +98,7 @@ func TestAPIApplicator(t *testing.T) {
 			args: args{
 				existing: existing,
 				ao: []ApplyOption{
-					func(ctx context.Context, existing, desired runtime.Object) error {
+					func(_ *applyAction, existing, desired client.Object) error {
 						return errFake
 					},
 				},
@@ -137,7 +137,7 @@ func TestAPIApplicator(t *testing.T) {
 	for caseName, tc := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			a := &APIApplicator{
-				creator: creatorFn(func(_ context.Context, _ client.Client, _ client.Object, _ ...ApplyOption) (client.Object, error) {
+				creator: creatorFn(func(_ context.Context, _ *applyAction, _ client.Client, _ client.Object, _ ...ApplyOption) (client.Object, error) {
 					return tc.args.existing, tc.args.creatorErr
 				}),
 				patcher: patcherFn(func(c, m client.Object) (client.Patch, error) {
@@ -220,7 +220,7 @@ func TestCreator(t *testing.T) {
 					},
 				},
 				ao: []ApplyOption{
-					func(ctx context.Context, existing, desired runtime.Object) error {
+					func(_ *applyAction, existing, desired client.Object) error {
 						return errFake
 					},
 				},
@@ -236,7 +236,7 @@ func TestCreator(t *testing.T) {
 			args: args{
 				desired: desired,
 				ao: []ApplyOption{
-					func(ctx context.Context, existing, desired runtime.Object) error {
+					func(_ *applyAction, existing, desired client.Object) error {
 						return errFake
 					},
 				},
@@ -294,7 +294,8 @@ func TestCreator(t *testing.T) {
 
 	for caseName, tc := range cases {
 		t.Run(caseName, func(t *testing.T) {
-			result, err := createOrGetExisting(ctx, tc.c, tc.args.desired, tc.args.ao...)
+			act := new(applyAction)
+			result, err := createOrGetExisting(ctx, act, tc.c, tc.args.desired, tc.args.ao...)
 			if diff := cmp.Diff(tc.want.existing, result); diff != "" {
 				t.Errorf("\n%s\ncreateOrGetExisting(...): -want , +got \n%s\n", tc.reason, diff)
 			}
@@ -309,11 +310,10 @@ func TestCreator(t *testing.T) {
 func TestMustBeControllableBy(t *testing.T) {
 	uid := types.UID("very-unique-string")
 	controller := true
-	ctx := context.TODO()
 
 	cases := map[string]struct {
 		reason  string
-		current runtime.Object
+		current client.Object
 		u       types.UID
 		want    error
 	}{
@@ -356,7 +356,8 @@ func TestMustBeControllableBy(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			ao := MustBeControllableBy(tc.u)
-			err := ao(ctx, tc.current, nil)
+			act := new(applyAction)
+			err := ao(act, tc.current, nil)
 			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nMustBeControllableBy(...)(...): -want error, +got error\n%s\n", tc.reason, diff)
 			}
@@ -368,7 +369,7 @@ func TestMustBeControllableByAny(t *testing.T) {
 	ctrlByAny := []types.UID{"owner1", "owner2"}
 	cases := map[string]struct {
 		reason  string
-		current runtime.Object
+		current client.Object
 		want    error
 	}{
 		"NoExistingObject": {
@@ -418,7 +419,8 @@ func TestMustBeControllableByAny(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			ao := MustBeControllableByAny(ctrlByAny)
-			err := ao(context.TODO(), tc.current, nil)
+			act := new(applyAction)
+			err := ao(act, tc.current, nil)
 			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nMustBeControllableByAny(...)(...): -want error, +got error\n%s\n", tc.reason, diff)
 			}
