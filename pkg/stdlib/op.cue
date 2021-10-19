@@ -134,6 +134,8 @@ import (
 
 #HTTPDelete: http.#Do & {method: "DELETE"}
 
+#ConvertString: convert.#String
+
 #Load: oam.#LoadComponets
 
 #Read: kube.#Read
