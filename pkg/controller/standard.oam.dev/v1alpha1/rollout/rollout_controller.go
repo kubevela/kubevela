@@ -18,8 +18,7 @@ package rollout
 
 import (
 	"context"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"encoding/json"
 
 	"github.com/pkg/errors"
 
@@ -36,6 +35,8 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -112,12 +113,18 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// set target workload name to annotation, let health scope controller can get workload form annotation
-	if rollout.GetAnnotations() != nil && len(rollout.GetAnnotations()[oam.AnnotationWorkloadName]) == 0 {
-		patch := client.MergeFrom(rollout.DeepCopy())
-		rollout.SetAnnotations(oamutil.MergeMapOverrideWithDst(rollout.GetAnnotations(), map[string]string{oam.AnnotationWorkloadName: h.targetWorkload.GetName()}))
-		// exit current reconcile before create target workload
-		return ctrl.Result{}, r.Patch(ctx, rollout, patch)
+	if rollout.Status.RollingState == v1alpha1.LocatingTargetAppState {
+		if rollout.GetAnnotations() == nil || rollout.GetAnnotations()[oam.AnnotationWorkloadName] != h.targetWorkload.GetName() {
+			gvk := map[string]string{"apiVersion": h.targetWorkload.GetAPIVersion(), "kind": h.targetWorkload.GetKind()}
+			gvkValue, _ := json.Marshal(gvk)
+			rollout.SetAnnotations(oamutil.MergeMapOverrideWithDst(rollout.GetAnnotations(),
+				map[string]string{oam.AnnotationWorkloadName: h.targetWorkload.GetName(), oam.AnnotationWorkloadGVK: string(gvkValue)}))
+			klog.InfoS("rollout controller set targetWorkload ", h.targetWorkload.GetName(),
+				"in annotation in rollout namespace: ", rollout.Namespace, " name", rollout.Name, "gvk", gvkValue)
+			// exit current reconcile before create target workload, this reconcile don't update status just modify annotation
+			// next round reconcile will create workload and pass `LocatingTargetAppState` phase
+			return ctrl.Result{}, h.Update(ctx, rollout)
+		}
 	}
 
 	switch rollout.Status.RollingState {

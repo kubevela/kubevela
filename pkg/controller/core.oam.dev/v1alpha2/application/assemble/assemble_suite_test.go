@@ -17,12 +17,7 @@ limitations under the License.
 package assemble
 
 import (
-	"encoding/json"
 	"os"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -31,6 +26,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -221,25 +217,9 @@ var _ = Describe("Test handleCheckManageWorkloadTrait func", func() {
 				Spec: v1beta1.TraitDefinitionSpec{},
 			},
 		}
-		gvk := common.WorkloadGVK{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-		}
-		gvkStr, err := json.Marshal(gvk)
-		Expect(err).Should(BeNil())
-		compDefs := map[string]v1beta1.ComponentDefinition{
-			"webservice": v1beta1.ComponentDefinition{
-				Spec: v1beta1.ComponentDefinitionSpec{
-					Workload: common.WorkloadTypeDescriptor{
-						Definition: gvk,
-					},
-				},
-			},
-		}
 		appRev := v1beta1.ApplicationRevision{
 			Spec: v1beta1.ApplicationRevisionSpec{
-				TraitDefinitions:     traitDefs,
-				ComponentDefinitions: compDefs,
+				TraitDefinitions: traitDefs,
 			},
 		}
 		rolloutTrait := &unstructured.Unstructured{}
@@ -266,7 +246,6 @@ var _ = Describe("Test handleCheckManageWorkloadTrait func", func() {
 		HandleCheckManageWorkloadTrait(appRev, comps)
 		Expect(len(rolloutTrait.GetLabels())).Should(BeEquivalentTo(2))
 		Expect(rolloutTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo("true"))
-		Expect(rolloutTrait.GetAnnotations()[oam.AnnotationWorkloadGVK]).Should(BeEquivalentTo(gvkStr))
 		Expect(len(normalTrait.GetLabels())).Should(BeEquivalentTo(1))
 		Expect(normalTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo(""))
 	})

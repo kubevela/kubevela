@@ -1,0 +1,48 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-app-rollout
+  namespace: default
+spec:
+  components:
+    - name: hello-world-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+        type: webservice
+      traits:
+        - type: rollout
+          properties:
+            targetSize: 2
+            rolloutBatches:
+              - replicas: 1
+              - replicas: 1
+
+  policies:
+    - name: example-multi-env-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: staging
+            placement: # 选择要部署的集群，并执行默认的发布策略
+              clusterSelector:
+                name: cluster-worker
+
+
+    - name: health-policy-demo
+      type: health
+      properties:
+        probeInterval: 5
+        probeTimeout: 10
+
+
+
+  workflow:
+    steps:
+      # 部署到预发环境中
+      - name: deploy-staging
+        type: deploy2env
+        properties:
+          policy: example-multi-env-policy
+          env: staging

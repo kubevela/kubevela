@@ -18,8 +18,11 @@ package controllers_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"sigs.k8s.io/yaml"
 
@@ -113,9 +116,21 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 				return fmt.Errorf("error rollout status state %s", rollout.Status.RollingState)
 			}
 			compRevName = rollout.Spec.TargetRevisionName
+			if rollout.GetAnnotations() == nil || rollout.GetAnnotations()[oam.AnnotationWorkloadName] != componentRevision {
+				return fmt.Errorf("target workload name annotation missmatch  want %s acctually %s",
+					rollout.GetAnnotations()[oam.AnnotationWorkloadName], componentRevision)
+			}
 			deployKey := types.NamespacedName{Namespace: namespaceName, Name: compRevName}
 			if err := k8sClient.Get(ctx, deployKey, &targerDeploy); err != nil {
 				return err
+			}
+			gvkStr := rollout.GetAnnotations()[oam.AnnotationWorkloadGVK]
+			gvk := map[string]string{}
+			if err := json.Unmarshal([]byte(gvkStr), &gvk); err != nil {
+				return err
+			}
+			if gvk["apiVersion"] != "apps/v1" || gvk["kind"] != "Deployment" {
+				return fmt.Errorf("error targetWorkload gvk")
 			}
 			if *targerDeploy.Spec.Replicas != *rollout.Spec.RolloutPlan.TargetSize {
 				return fmt.Errorf("targetDeploy replicas missMatch %d, %d", targerDeploy.Spec.Replicas, rollout.Spec.RolloutPlan.TargetSize)

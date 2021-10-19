@@ -17,8 +17,6 @@ limitations under the License.
 package assemble
 
 import (
-	"encoding/json"
-
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -338,7 +336,6 @@ func setTraitLabels(trait *unstructured.Unstructured, additionalLabels map[strin
 // HandleCheckManageWorkloadTrait will checkout every trait whether a manage-workload trait, if yes set label and annotation in trait
 func HandleCheckManageWorkloadTrait(appRev v1beta1.ApplicationRevision, comps []*types.ComponentManifest) {
 	traitDefs := appRev.Spec.TraitDefinitions
-	compDefs := appRev.Spec.ComponentDefinitions
 	manageWorkloadTrait := map[string]bool{}
 	for traitName, definition := range traitDefs {
 		if definition.Spec.ManageWorkload {
@@ -353,13 +350,6 @@ func HandleCheckManageWorkloadTrait(appRev v1beta1.ApplicationRevision, comps []
 			traitType := trait.GetLabels()[oam.TraitTypeLabel]
 			if manageWorkloadTrait[traitType] {
 				trait.SetLabels(util.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.LabelManageWorkloadTrait: "true"}))
-				if comp.StandardWorkload != nil {
-					workloadType := comp.StandardWorkload.GetLabels()[oam.WorkloadTypeLabel]
-					compDefinition := compDefs[workloadType]
-					// the error cannot be not nil, ignore it
-					wlGvk, _ := json.Marshal(compDefinition.Spec.Workload.Definition)
-					trait.SetAnnotations(util.MergeMapOverrideWithDst(trait.GetAnnotations(), map[string]string{oam.AnnotationWorkloadGVK: string(wlGvk)}))
-				}
 			}
 		}
 	}
