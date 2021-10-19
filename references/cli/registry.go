@@ -754,11 +754,17 @@ func ParseCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types
 		if err != nil {
 			return types.Capability{}, err
 		}
-		ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
-		if err != nil {
-			return types.Capability{}, err
+		var workloadDefinitionRef string
+		if cd.Spec.Workload.Type != "" {
+			workloadDefinitionRef = cd.Spec.Workload.Type
+		} else {
+			ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
+			if err != nil {
+				return types.Capability{}, err
+			}
+			workloadDefinitionRef = ref.Name
 		}
-		return plugins.HandleDefinition(cd.Name, ref.Name, cd.Annotations, cd.Labels, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
+		return plugins.HandleDefinition(cd.Name, workloadDefinitionRef, cd.Annotations, cd.Labels, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
 	case "TraitDefinition":
 		var td v1beta1.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
