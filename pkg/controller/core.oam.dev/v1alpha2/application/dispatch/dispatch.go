@@ -241,7 +241,7 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		ctrlUIDs = append(ctrlUIDs, rt.UID)
 	}
 
-	applyOpts := []apply.ApplyOption{apply.MustBeControllableByAny(ctrlUIDs)}
+	applyOpts := []apply.ApplyOption{apply.MustBeControllableByAny(ctrlUIDs), apply.NotUpdateRenderHashEqual()}
 	ownerRef := metav1.OwnerReference{
 		APIVersion:         v1beta1.SchemeGroupVersion.String(),
 		Kind:               reflect.TypeOf(v1beta1.ResourceTracker{}).Name(),

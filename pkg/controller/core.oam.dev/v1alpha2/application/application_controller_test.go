@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"time"
 
+	"k8s.io/utils/pointer"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -2106,6 +2108,14 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 		}, recorder)).Should(BeNil())
 
+		web := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      "myweb2",
+			Namespace: app.Namespace,
+		}, web)).Should(BeNil())
+		web.Spec.Replicas = pointer.Int32(0)
+		Expect(k8sClient.Update(ctx, web)).Should(BeNil())
+
 		checkApp.Annotations[wfTypes.AnnotationPublishVersion] = "v135"
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
@@ -2117,8 +2127,14 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 		}, recorder)).Should(BeNil())
 
-	})
+		checkWeb := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      "myweb2",
+			Namespace: app.Namespace,
+		}, checkWeb)).Should(BeNil())
+		Expect(*(checkWeb.Spec.Replicas)).Should(BeEquivalentTo(int32(0)))
 
+	})
 })
 
 const (

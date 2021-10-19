@@ -311,8 +311,11 @@ func openBaiscLit(root ast.Node) {
 		field, ok := node.(*ast.Field)
 		if ok {
 			v := field.Value
-			if lit, ok := v.(*ast.BasicLit); ok {
+			switch lit := v.(type) {
+			case *ast.BasicLit:
 				field.Value = ast.NewBinExpr(token.OR, &ast.UnaryExpr{X: lit, Op: token.MUL}, ast.NewIdent("_"))
+			case *ast.ListLit:
+				field.Value = ast.NewBinExpr(token.OR, &ast.UnaryExpr{X: lit, Op: token.MUL}, ast.NewList(&ast.Ellipsis{}))
 			}
 		}
 		return true

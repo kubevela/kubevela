@@ -693,7 +693,7 @@ func (e *GenerationUnchanged) Error() string {
 // applyOnceOnly is an ApplyOption that controls the applying mechanism for workload and trait.
 // More detail refers to the ApplyOnceOnlyMode type annotation
 func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnlyMode) apply.ApplyOption {
-	return func(_ context.Context, existing, desired runtime.Object) error {
+	return apply.MakeCustomApplyOption(func(existing, desired client.Object) error {
 		if mode == core.ApplyOnceOnlyOff {
 			return nil
 		}
@@ -791,5 +791,5 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 		}
 		// its spec is not changed, return an error to abort applying it
 		return &GenerationUnchanged{}
-	}
+	})
 }

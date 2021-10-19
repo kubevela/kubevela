@@ -248,6 +248,7 @@ b: "foo"
 b1: string
 c: true
 c1: bool
+arr: [1,2]
 top: _
 bottom: _|_
 `)
@@ -258,6 +259,7 @@ b:      *"foo" | _
 b1:     string
 c:      *true | _
 c1:     bool
+arr:    *[1, 2] | [...]
 top:    _
 bottom: _|_
 `)
