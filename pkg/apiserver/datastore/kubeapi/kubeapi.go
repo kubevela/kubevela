@@ -59,7 +59,7 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 				Name:        cfg.Database,
 				Annotations: map[string]string{"description": "For kubevela apiserver metadata storage."},
 			}}); err != nil {
-			return nil, fmt.Errorf("create namesapce failure %w", err)
+			return nil, fmt.Errorf("create namespace failure %w", err)
 		}
 	}
 	return &kubeapi{
