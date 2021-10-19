@@ -33,7 +33,7 @@ import (
 func TestNewTraitsCommandPersistentPreRunE(t *testing.T) {
 	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	fakeC := common2.Args{}
-	cmd := NewTraitsCommand(fakeC, io)
+	cmd := NewTraitCommand(fakeC, io)
 	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
 }
 

@@ -61,7 +61,7 @@ func NewCommand() *cobra.Command {
 		NewLiveDiffCommand(commandArgs, ioStream),
 		NewCapabilityShowCommand(commandArgs, ioStream),
 		cli.NewComponentsCommand(commandArgs, ioStream),
-		cli.NewTraitsCommand(commandArgs, ioStream),
+		cli.NewTraitCommand(commandArgs, ioStream),
 		cli.NewRegistryCommand(ioStream),
 		NewVersionCommand(),
 		NewHelpCommand(),

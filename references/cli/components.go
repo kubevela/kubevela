@@ -50,8 +50,23 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var registry Registry
+			var err error
 			if isDiscover {
-				return PrintComponentListFromRegistry(regName, ioStreams)
+				if regURL != "" {
+					ioStreams.Infof("Listing component definition from url: %s\n", regURL)
+					registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
+					if err != nil {
+						return errors.Wrap(err, "creating registry err, please check registry url")
+					}
+				} else {
+					ioStreams.Infof("Listing component definition from registry: %s\n", regName)
+					registry, err = GetRegistry(regName)
+					if err != nil {
+						return errors.Wrap(err, "get registry err")
+					}
+				}
+				return PrintComponentListFromRegistry(registry, ioStreams)
 			}
 			return PrintInstalledCompDef(ioStreams)
 		},
@@ -66,6 +81,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
 	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
 	cmd.PersistentFlags().StringVar(&regName, "registry", DefaultRegistry, "specify the registry name")
+	cmd.PersistentFlags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
 	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -73,7 +89,6 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 
 // NewCompGetCommand creates `comp get` command
 func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var token string
 	cmd := &cobra.Command{
 		Use:     "get <component>",
 		Short:   "get component from registry",
@@ -85,34 +100,31 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				return nil
 			}
 			name := args[0]
+			var registry Registry
+			var err error
+
 			if regURL != "" {
 				ioStreams.Infof("Getting component definition from url: %s\n", regURL)
-				reg, err := NewRegistry(context.Background(), token, "temporary-registry", regURL)
+				registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
 				if err != nil {
 					return errors.Wrap(err, "creating registry err, please check registry url")
 				}
-				err = InstallCompByNameFromRegistry(c, ioStreams, name, reg)
+			} else {
+				ioStreams.Infof("Getting component definition from registry: %s\n", regName)
+				registry, err = GetRegistry(regName)
 				if err != nil {
-					return errors.Wrap(err, "install component definition err")
+					return errors.Wrap(err, "get registry err")
 				}
-				return nil
 			}
-
-			ioStreams.Infof("Getting component definition from registry: %s\n", regName)
-			registry, err := GetRegistry(regName)
-			if err != nil {
-				return errors.Wrap(err, "get registry err")
-			}
-			return InstallCompByNameFromRegistry(c, ioStreams, name, registry)
+			return errors.Wrap(InstallCompByNameFromRegistry(c, ioStreams, name, registry), "install component definition err")
 
 		},
 	}
-	cmd.Flags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
 	return cmd
 }
 
 // PrintComponentListFromRegistry print a table which shows all components from registry
-func PrintComponentListFromRegistry(regName string, ioStreams cmdutil.IOStreams) error {
+func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -128,7 +140,7 @@ func PrintComponentListFromRegistry(regName string, ioStreams cmdutil.IOStreams)
 	}
 
 	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from registry: %s\n", regName)))
-	caps, err := getCapsFromRegistry(regName)
+	caps, err := registry.ListCaps()
 	if err != nil {
 		return err
 	}

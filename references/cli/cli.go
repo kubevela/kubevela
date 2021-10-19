@@ -93,7 +93,7 @@ func NewCommand() *cobra.Command {
 
 		NewRegistryCommand(ioStream),
 		NewTemplateCommand(ioStream),
-		NewTraitsCommand(commandArgs, ioStream),
+		NewTraitCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),
 		NewWorkloadsCommand(commandArgs, ioStream),
 		DefinitionCommandGroup(commandArgs),

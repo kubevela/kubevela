@@ -18,8 +18,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,24 +36,41 @@ import (
 var (
 	regName string
 	regURL  string
+	token   string
 )
 
-// NewTraitsCommand creates `traits` command
-func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+// NewTraitCommand creates `traits` command
+func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
-		Use:                   "traits",
-		Aliases:               []string{"trait"},
+		Use:                   "trait",
+		Aliases:               []string{"traits"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List traits",
 		Long:                  "List traits",
-		Example:               `vela traits`,
+		Example:               `vela trait`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var registry Registry
+			var err error
 			if isDiscover {
-				return PrintTraitListFromRegistry(regName, ioStreams)
+				if regURL != "" {
+					ioStreams.Infof("Showing trait definition from url: %s\n", regURL)
+					registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
+					if err != nil {
+						return errors.Wrap(err, "creating registry err, please check registry url")
+					}
+				} else {
+					ioStreams.Infof("Showing trait definition from registry: %s\n", regName)
+					registry, err = GetRegistry(regName)
+					if err != nil {
+						return errors.Wrap(err, "get registry err")
+					}
+				}
+				return PrintTraitListFromRegistry(registry, ioStreams)
+
 			}
 			return PrintInstalledTraitDef(ioStreams)
 		},
@@ -69,6 +84,7 @@ func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 	)
 	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
 	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
+	cmd.PersistentFlags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
 	cmd.PersistentFlags().StringVar(&regName, "registry", DefaultRegistry, "specify the registry name")
 	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
@@ -77,7 +93,6 @@ func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 
 // NewTraitGetCommand creates `trait get` command
 func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var token string
 	cmd := &cobra.Command{
 		Use:     "get <trait>",
 		Short:   "get trait from registry",
@@ -89,33 +104,30 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 				return nil
 			}
 			name := args[0]
+			var registry Registry
+			var err error
+
 			if regURL != "" {
 				ioStreams.Infof("Getting trait definition from url: %s\n", regURL)
-				registry, err := NewRegistry(context.Background(), token, "temporary-registry", regURL)
+				registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
 				if err != nil {
 					return errors.Wrap(err, "creating registry err, please check registry url")
 				}
-				err = InstallTraitByNameFromRegistry(c, ioStreams, name, registry)
+			} else {
+				ioStreams.Infof("Getting trait definition from registry: %s\n", regName)
+				registry, err = GetRegistry(regName)
 				if err != nil {
-					return errors.Wrap(err, "install trait definition err")
+					return errors.Wrap(err, "get registry err")
 				}
-				return nil
 			}
-
-			ioStreams.Infof("Getting trait definition from registry: %s\n", regName)
-			registry, err := GetRegistry(regName)
-			if err != nil {
-				return errors.Wrap(err, "get registry err")
-			}
-			return InstallTraitByNameFromRegistry(c, ioStreams, name, registry)
+			return errors.Wrap(InstallTraitByNameFromRegistry(c, ioStreams, name, registry), "install trait definition err")
 		},
 	}
-	cmd.Flags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
 	return cmd
 }
 
 // PrintTraitListFromRegistry print a table which shows all traits from registry
-func PrintTraitListFromRegistry(regName string, ioStreams cmdutil.IOStreams) error {
+func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -130,8 +142,7 @@ func PrintTraitListFromRegistry(regName string, ioStreams cmdutil.IOStreams) err
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from registry: %s\n", regName)))
-	caps, err := getCapsFromRegistry(regName)
+	caps, err := registry.ListCaps()
 	if err != nil {
 		return err
 	}
@@ -160,19 +171,6 @@ func PrintTraitListFromRegistry(regName string, ioStreams cmdutil.IOStreams) err
 	ioStreams.Info(table.String())
 
 	return nil
-}
-
-// getCapsFromRegistry will retrieve caps from registry
-func getCapsFromRegistry(regName string) ([]types.Capability, error) {
-	reg, err := GetRegistry(regName)
-	if err != nil {
-		return nil, errors.Wrap(err, "get registry fail")
-	}
-	caps, err := reg.ListCaps()
-	if err != nil {
-		return []types.Capability{}, err
-	}
-	return caps, nil
 }
 
 // InstallTraitByNameFromRegistry will install given traitName trait to cluster
