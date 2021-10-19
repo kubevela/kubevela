@@ -43,7 +43,7 @@ func InstallComponentDefinition(client client.Client, workloadData []byte, ioStr
 		return err
 	}
 	cd.Namespace = types.DefaultKubeVelaNS
-	ioStreams.Info("Installing component registry " + cd.Name)
+	ioStreams.Info("Installing component" + cd.Name)
 	if tp.Install != nil {
 		tp.Source.ChartName = tp.Install.Helm.Name
 		if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
@@ -74,7 +74,7 @@ func InstallTraitDefinition(client client.Client, mapper discoverymapper.Discove
 		return err
 	}
 	td.Namespace = types.DefaultKubeVelaNS
-	ioStreams.Info("Installing trait registry " + td.Name)
+	ioStreams.Info("Installing trait " + td.Name)
 	if cap.Install != nil {
 		cap.Source.ChartName = cap.Install.Helm.Name
 		if err = helm.InstallHelmChart(ioStreams, cap.Install.Helm); err != nil {

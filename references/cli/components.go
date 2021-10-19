@@ -19,7 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,17 +30,15 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // NewComponentsCommand creates `components` command
 func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
-	var registry string
-	var url string
 	cmd := &cobra.Command{
 		Use:                   "components",
 		Aliases:               []string{"comp", "component"},
@@ -53,10 +51,9 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if isDiscover {
-				return PrintComponentListFromRegistry(registry, ioStreams)
-			} else {
-				return PrintInstalledCompDef(ioStreams)
+				return PrintComponentListFromRegistry(regName, ioStreams)
 			}
+			return PrintInstalledCompDef(ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
@@ -67,8 +64,8 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		NewCompGetCommand(c, ioStreams),
 	)
 	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
-	cmd.Flags().StringVar(&url, "url", "", "specify the registry URL")
-	cmd.Flags().StringVar(&registry, "registry", plugins.DefaultRegistry, "specify the registry name")
+	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
+	cmd.PersistentFlags().StringVar(&regName, "registry", DefaultRegistry, "specify the registry name")
 	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -76,6 +73,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 
 // NewCompGetCommand creates `comp get` command
 func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var token string
 	cmd := &cobra.Command{
 		Use:     "get <component>",
 		Short:   "get component from registry",
@@ -87,10 +85,29 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				return nil
 			}
 			name := args[0]
-			url, _ := cmd.Flags().GetString("url")
-			return InstallCompByName(c, ioStreams, name, url)
+			if regURL != "" {
+				ioStreams.Infof("Getting component definition from url: %s\n", regURL)
+				reg, err := NewRegistry(context.Background(), token, "temporary-registry", regURL)
+				if err != nil {
+					return errors.Wrap(err, "creating registry err, please check registry url")
+				}
+				err = InstallCompByNameFromRegistry(c, ioStreams, name, reg)
+				if err != nil {
+					return errors.Wrap(err, "install component definition err")
+				}
+				return nil
+			}
+
+			ioStreams.Infof("Getting component definition from registry: %s\n", regName)
+			registry, err := GetRegistry(regName)
+			if err != nil {
+				return errors.Wrap(err, "get registry err")
+			}
+			return InstallCompByNameFromRegistry(c, ioStreams, name, registry)
+
 		},
 	}
+	cmd.Flags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
 	return cmd
 }
 
@@ -141,14 +158,9 @@ func PrintComponentListFromRegistry(regName string, ioStreams cmdutil.IOStreams)
 	return nil
 }
 
-// InstallCompByName will install given componentName comp to cluster from registry
-func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, regURL string) error {
-
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
-	if err != nil {
-		return err
-	}
-	capObj, data, err := g.GetCap(compName)
+// InstallCompByNameFromRegistry will install given componentName comp to cluster from registry
+func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, compName string, registry Registry) error {
+	capObj, data, err := registry.GetCap(compName)
 	if err != nil {
 		return err
 	}
@@ -168,6 +180,7 @@ func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, 
 	return nil
 }
 
+// PrintInstalledCompDef will print all ComponentDefinition in cluster
 func PrintInstalledCompDef(io cmdutil.IOStreams) error {
 	var list v1beta1.ComponentDefinitionList
 	err := clt.List(context.Background(), &list)

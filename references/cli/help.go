@@ -62,4 +62,3 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	cmd.Println(table.String())
 	cmd.Println()
 }
-

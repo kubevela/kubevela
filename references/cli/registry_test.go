@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plugins
+package cli
 
 import (
 	"context"
@@ -74,6 +74,7 @@ func TestParseURL(t *testing.T) {
 			url:     "https://api.github.com/repos/zzxwill/catalog/contents/repository?ref=plugin",
 			expType: TypeGithub,
 			exp: &GithubContent{
+				URL:   "https://api.github.com/repos/zzxwill/catalog/contents/repository?ref=plugin",
 				Owner: "zzxwill",
 				Repo:  "catalog",
 				Path:  "repository",
@@ -84,6 +85,7 @@ func TestParseURL(t *testing.T) {
 			url:     "https://github.com/zzxwill/catalog/tree/plugin/repository",
 			expType: TypeGithub,
 			exp: &GithubContent{
+				URL:   "https://github.com/zzxwill/catalog/tree/plugin/repository",
 				Owner: "zzxwill",
 				Repo:  "catalog",
 				Path:  "repository",
@@ -94,6 +96,7 @@ func TestParseURL(t *testing.T) {
 			url:     "https://github.com/zzxwill/catalog/repository",
 			expType: TypeGithub,
 			exp: &GithubContent{
+				URL:   "https://github.com/zzxwill/catalog/repository",
 				Owner: "zzxwill",
 				Repo:  "catalog",
 				Path:  "repository",

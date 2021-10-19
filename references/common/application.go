@@ -23,13 +23,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -40,26 +36,13 @@ import (
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/apis"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
-
-// nolint:golint
-const (
-	DefaultChosenAllSvc = "ALL SERVICES"
-	FlagNotSet          = "FlagNotSet"
-	FlagIsInvalid       = "FlagIsInvalid"
-	FlagIsValid         = "FlagIsValid"
-)
-
-type componentMetaList []apis.ComponentMeta
-type applicationMetaList []apis.ApplicationMeta
 
 // AppfileOptions is some configuration that modify options for an Appfile
 type AppfileOptions struct {
@@ -73,26 +56,6 @@ type BuildResult struct {
 	appFile     *api.AppFile
 	application *corev1beta1.Application
 	scopes      []oam.Object
-}
-
-func (comps componentMetaList) Len() int {
-	return len(comps)
-}
-func (comps componentMetaList) Swap(i, j int) {
-	comps[i], comps[j] = comps[j], comps[i]
-}
-func (comps componentMetaList) Less(i, j int) bool {
-	return comps[i].CreatedTime > comps[j].CreatedTime
-}
-
-func (a applicationMetaList) Len() int {
-	return len(a)
-}
-func (a applicationMetaList) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-func (a applicationMetaList) Less(i, j int) bool {
-	return a[i].CreatedTime > a[j].CreatedTime
 }
 
 // Option is option work with dashboard api server
@@ -110,101 +73,6 @@ type DeleteOptions struct {
 	Client   client.Client
 	Env      *types.EnvMeta
 	C        common.Args
-}
-
-// ListApplications lists all applications
-func ListApplications(ctx context.Context, c client.Reader, opt Option) ([]apis.ApplicationMeta, error) {
-	var applicationMetaList applicationMetaList
-	var appList corev1beta1.ApplicationList
-	if opt.AppName != "" {
-		var app corev1beta1.Application
-		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &app); err != nil {
-			return applicationMetaList, err
-		}
-		appList.Items = append(appList.Items, app)
-	} else {
-		err := c.List(ctx, &appList, &client.ListOptions{Namespace: opt.Namespace})
-		if err != nil {
-			return applicationMetaList, err
-		}
-	}
-	for _, a := range appList.Items {
-		// ignore the deleted resource
-		if a.GetDeletionGracePeriodSeconds() != nil {
-			continue
-		}
-		applicationMeta, err := RetrieveApplicationStatusByName(ctx, c, a.Name, a.Namespace)
-		if err != nil {
-			return applicationMetaList, err
-		}
-		applicationMeta.Components = nil
-		applicationMetaList = append(applicationMetaList, applicationMeta)
-	}
-	sort.Stable(applicationMetaList)
-	return applicationMetaList, nil
-}
-
-// ListApplicationConfigurations lists all OAM ApplicationConfiguration
-func ListApplicationConfigurations(ctx context.Context, c client.Reader, opt Option) (corev1alpha2.ApplicationConfigurationList, error) {
-	var appConfigList corev1alpha2.ApplicationConfigurationList
-
-	if opt.AppName != "" {
-		var appConfig corev1alpha2.ApplicationConfiguration
-		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &appConfig); err != nil {
-			return appConfigList, err
-		}
-		appConfigList.Items = append(appConfigList.Items, appConfig)
-	} else {
-		err := c.List(ctx, &appConfigList, &client.ListOptions{Namespace: opt.Namespace})
-		if err != nil {
-			return appConfigList, err
-		}
-	}
-	return appConfigList, nil
-}
-
-// ListComponents will list all components for dashboard
-func ListComponents(ctx context.Context, c client.Reader, opt Option) ([]apis.ComponentMeta, error) {
-	var componentMetaList componentMetaList
-	var appConfigList corev1alpha2.ApplicationConfigurationList
-	var err error
-	if appConfigList, err = ListApplicationConfigurations(ctx, c, opt); err != nil {
-		return nil, err
-	}
-
-	for _, a := range appConfigList.Items {
-		for _, com := range a.Spec.Components {
-			component, _, err := oamutil.GetComponent(ctx, c, com, opt.Namespace)
-			if err != nil {
-				return componentMetaList, err
-			}
-			componentMetaList = append(componentMetaList, apis.ComponentMeta{
-				Name:        com.ComponentName,
-				Status:      types.StatusDeployed,
-				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-				Component:   *component,
-				AppConfig:   a,
-				App:         a.Name,
-			})
-		}
-	}
-	sort.Stable(componentMetaList)
-	return componentMetaList, nil
-}
-
-// RetrieveApplicationStatusByName will get app status
-func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, applicationName string,
-	namespace string) (apis.ApplicationMeta, error) {
-	var applicationMeta apis.ApplicationMeta
-	var app corev1beta1.Application
-	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &app); err != nil {
-		return applicationMeta, err
-	}
-	applicationMeta.Name = app.Name
-	applicationMeta.Status = string(app.Status.Phase)
-	applicationMeta.CreatedTime = app.CreationTimestamp.Format(time.RFC3339)
-
-	return applicationMeta, nil
 }
 
 // DeleteApp will delete app including server side
@@ -272,64 +140,6 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 	// It's the server responsibility to GC component
 
 	return fmt.Sprintf("component \"%s\" deleted from \"%s\"", o.CompName, o.AppName), nil
-}
-
-func chooseSvc(services []string) (string, error) {
-	var svcName string
-	services = append(services, DefaultChosenAllSvc)
-	prompt := &survey.Select{
-		Message: "Please choose one service: ",
-		Options: services,
-		Default: DefaultChosenAllSvc,
-	}
-	err := survey.AskOne(prompt, &svcName)
-	if err != nil {
-		return "", fmt.Errorf("failed to retrieve services of the application, err %w", err)
-	}
-	return svcName, nil
-}
-
-// GetServicesWhenDescribingApplication gets the target services list either from cli `--svc` flag or from survey
-func GetServicesWhenDescribingApplication(cmd *cobra.Command, app *api.Application) ([]string, error) {
-	var svcFlag string
-	var svcFlagStatus string
-	// to store the value of flag `--svc` set in Cli, or selected value in survey
-	var targetServices []string
-	if svcFlag = cmd.Flag("svc").Value.String(); svcFlag == "" {
-		svcFlagStatus = FlagNotSet
-	} else {
-		svcFlagStatus = FlagIsInvalid
-	}
-	// all services name of the application `appName`
-	var services []string
-	for svcName := range app.Services {
-		services = append(services, svcName)
-		if svcFlag == svcName {
-			svcFlagStatus = FlagIsValid
-			targetServices = append(targetServices, svcName)
-		}
-	}
-	totalServices := len(services)
-	if svcFlagStatus == FlagNotSet && totalServices == 1 {
-		targetServices = services
-	}
-	if svcFlagStatus == FlagIsInvalid || (svcFlagStatus == FlagNotSet && totalServices > 1) {
-		if svcFlagStatus == FlagIsInvalid {
-			cmd.Printf("The service name '%s' is not valid\n", svcFlag)
-		}
-		chosenSvc, err := chooseSvc(services)
-		if err != nil {
-			return []string{}, err
-		}
-
-		if chosenSvc == DefaultChosenAllSvc {
-			targetServices = services
-		} else {
-			targetServices = targetServices[:0]
-			targetServices = append(targetServices, chosenSvc)
-		}
-	}
-	return targetServices, nil
 }
 
 func saveAndLoadRemoteAppfile(url string) (*api.AppFile, error) {

@@ -60,8 +60,9 @@ func NewCommand() *cobra.Command {
 		NewDryRunCommand(commandArgs, ioStream),
 		NewLiveDiffCommand(commandArgs, ioStream),
 		NewCapabilityShowCommand(commandArgs, ioStream),
-		cli.NewComponentsCommand(commandArgs,ioStream),
-		cli.NewTraitsCommand(commandArgs,ioStream),
+		cli.NewComponentsCommand(commandArgs, ioStream),
+		cli.NewTraitsCommand(commandArgs, ioStream),
+		cli.NewRegistryCommand(ioStream),
 		NewVersionCommand(),
 		NewHelpCommand(),
 	)
