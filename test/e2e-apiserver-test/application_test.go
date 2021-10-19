@@ -42,7 +42,9 @@ var _ = Describe("Test application rest api", func() {
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
-			ClusterList: []string{},
+			EnvBind: []*apisv1.EnvBind{{Name: "dev-env", ClusterSelector: &apisv1.ClusterSelector{
+				Name: "dev-cluster",
+			}}},
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -59,6 +61,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Namespace, req.Namespace)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
+		Expect(cmp.Diff(appBase.EnvBind[0].Name, "dev-env")).Should(BeEmpty())
 	})
 
 	It("Test delete app", func() {

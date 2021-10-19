@@ -164,8 +164,8 @@ type ApplicationBase struct {
 	UpdateTime      time.Time         `json:"updateTime"`
 	Icon            string            `json:"icon"`
 	Labels          map[string]string `json:"labels,omitempty"`
-	ClusterBindList []ClusterBase     `json:"clusterList,omitempty"`
 	Status          string            `json:"status"`
+	EnvBind         []*EnvBind        `json:"envBind,omitempty"`
 	GatewayRuleList []GatewayRule     `json:"gatewayRule"`
 }
 
@@ -195,10 +195,24 @@ type CreateApplicationRequest struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	ClusterList []string          `json:"clusterList,omitempty"`
+	EnvBind     []*EnvBind        `json:"envBind,omitempty"`
 	YamlConfig  string            `json:"yamlConfig,omitempty"`
 	// Deploy Setting this to true means that the application is deployed directly after creation.
 	Deploy bool `json:"deploy,omitempty"`
+}
+
+// EnvBind application env bind
+type EnvBind struct {
+	Name            string           `json:"name" validate:"checkname"`
+	Description     string           `json:"description,omitempty"`
+	ClusterSelector *ClusterSelector `json:"clusterSelector"`
+}
+
+// ClusterSelector cluster selector
+type ClusterSelector struct {
+	Name string `json:"name" validate:"checkname"`
+	// Adapt to a scenario where only one Namespace is available or a user-defined Namespace is available.
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // DetailApplicationResponse application detail
@@ -229,7 +243,7 @@ type ComponentBase struct {
 	Description   string            `json:"description"`
 	Labels        map[string]string `json:"labels,omitempty"`
 	ComponentType string            `json:"componentType"`
-	BindClusters  []string          `json:"bindClusters"`
+	EnvNames      []string          `json:"envNames"`
 	Icon          string            `json:"icon,omitempty"`
 	DependsOn     []string          `json:"dependsOn"`
 	Creator       string            `json:"creator,omitempty"`
@@ -250,7 +264,7 @@ type CreateComponentRequest struct {
 	Icon          string            `json:"icon"`
 	Labels        map[string]string `json:"labels,omitempty"`
 	ComponentType string            `json:"componentType" validate:"checkname"`
-	BindClusters  []string          `json:"bindClusters"`
+	EnvNames      []string          `json:"envNames,omitempty"`
 	Properties    string            `json:"properties,omitempty"`
 	DependsOn     []string          `json:"dependsOn"`
 }

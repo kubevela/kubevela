@@ -1162,7 +1162,7 @@
     }
    }
   },
-  "/v1/{namespace}/applications/:appname": {
+  "/v1/namespaces/{namespace}/applications/{appname}": {
    "get": {
     "consumes": [
      "application/xml",
@@ -1176,7 +1176,7 @@
      "oam"
     ],
     "summary": "get the specified oam application in the specified namespace",
-    "operationId": "noop",
+    "operationId": "getApplication",
     "parameters": [
      {
       "type": "string",
@@ -1199,44 +1199,6 @@
      }
     }
    },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "oam"
-    ],
-    "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/{namespace}/applications/{appname}": {
    "post": {
     "consumes": [
      "application/xml",
@@ -1250,7 +1212,7 @@
      "oam"
     ],
     "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
+    "operationId": "createOrUpdateApplication",
     "parameters": [
      {
       "type": "string",
@@ -1280,6 +1242,42 @@
       "description": "OK"
      }
     }
+   },
+   "delete": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "oam"
+    ],
+    "summary": "create or update oam application in the specified namespace",
+    "operationId": "deleteApplication",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the namespace",
+      "name": "namespace",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "description": "identifier of the oam application",
+      "name": "appname",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
    }
   }
  },
@@ -1301,11 +1299,11 @@
   },
   "common.AppRolloutStatus": {
    "required": [
-    "rollingState",
-    "upgradedReadyReplicas",
+    "upgradedReplicas",
     "batchRollingState",
     "currentBatch",
-    "upgradedReplicas",
+    "rollingState",
+    "upgradedReadyReplicas",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -1960,18 +1958,18 @@
     "gatewayRule"
    ],
    "properties": {
-    "clusterList": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ClusterBase"
-     }
-    },
     "createTime": {
      "type": "string",
      "format": "date-time"
     },
     "description": {
      "type": "string"
+    },
+    "envBind": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.EnvBind"
+     }
     },
     "gatewayRule": {
      "type": "array",
@@ -2229,24 +2227,31 @@
     }
    }
   },
+  "v1.ClusterSelector": {
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "namespace": {
+     "type": "string"
+    }
+   }
+  },
   "v1.ComponentBase": {
    "required": [
     "name",
     "description",
     "componentType",
-    "bindClusters",
+    "envNames",
     "dependsOn",
     "deployVersion",
     "createTime",
     "updateTime"
    ],
    "properties": {
-    "bindClusters": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
     "componentType": {
      "type": "string"
     },
@@ -2268,6 +2273,12 @@
     },
     "description": {
      "type": "string"
+    },
+    "envNames": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     },
     "icon": {
      "type": "string"
@@ -2370,17 +2381,17 @@
     "icon"
    ],
    "properties": {
-    "clusterList": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
     "deploy": {
      "type": "boolean"
     },
     "description": {
      "type": "string"
+    },
+    "envBind": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.EnvBind"
+     }
     },
     "icon": {
      "type": "string"
@@ -2456,16 +2467,9 @@
     "description",
     "icon",
     "componentType",
-    "bindClusters",
     "dependsOn"
    ],
    "properties": {
-    "bindClusters": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
     "componentType": {
      "type": "string"
     },
@@ -2477,6 +2481,12 @@
     },
     "description": {
      "type": "string"
+    },
+    "envNames": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     },
     "icon": {
      "type": "string"
@@ -2533,12 +2543,12 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
+    "name",
     "version",
     "description",
     "icon",
     "tags",
-    "phase",
-    "name"
+    "phase"
    ],
    "properties": {
     "deploy_data": {
@@ -2575,13 +2585,13 @@
   },
   "v1.DetailApplicationResponse": {
    "required": [
+    "createTime",
+    "gatewayRule",
     "name",
-    "description",
+    "namespace",
     "icon",
     "status",
-    "gatewayRule",
-    "namespace",
-    "createTime",
+    "description",
     "updateTime",
     "policies",
     "status",
@@ -2589,18 +2599,18 @@
     "workflowStatus"
    ],
    "properties": {
-    "clusterList": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ClusterBase"
-     }
-    },
     "createTime": {
      "type": "string",
      "format": "date-time"
     },
     "description": {
      "type": "string"
+    },
+    "envBind": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.EnvBind"
+     }
     },
     "gatewayRule": {
      "type": "array",
@@ -2649,12 +2659,12 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "name",
-    "description",
-    "icon",
     "labels",
     "status",
     "reason",
+    "name",
+    "description",
+    "icon",
     "resourceInfo"
    ],
    "properties": {
@@ -2692,12 +2702,12 @@
   },
   "v1.DetailComponentResponse": {
    "required": [
-    "createTime",
+    "creator",
     "appPrimaryKey",
     "type",
-    "name",
-    "creator",
-    "updateTime"
+    "createTime",
+    "updateTime",
+    "name"
    ],
    "properties": {
     "appPrimaryKey": {
@@ -2827,6 +2837,23 @@
    }
   },
   "v1.EmptyResponse": {},
+  "v1.EnvBind": {
+   "required": [
+    "name",
+    "clusterSelector"
+   ],
+   "properties": {
+    "clusterSelector": {
+     "$ref": "#/definitions/v1.ClusterSelector"
+    },
+    "description": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
   "v1.GatewayRule": {
    "required": [
     "ruleType",

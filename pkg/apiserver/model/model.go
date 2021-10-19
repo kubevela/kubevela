@@ -55,6 +55,22 @@ func NewJSONStructByString(source string) (*JSONStruct, error) {
 	return &data, nil
 }
 
+// NewJSONStructByStruct new jsonstruct from strcut object
+func NewJSONStructByStruct(object interface{}) (*JSONStruct, error) {
+	if object == nil {
+		return nil, nil
+	}
+	var data JSONStruct
+	out, err := yaml.Marshal(object)
+	if err != nil {
+		return nil, fmt.Errorf("marshal object data failure %w", err)
+	}
+	if err := yaml.Unmarshal(out, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal object data failure %w", err)
+	}
+	return &data, nil
+}
+
 // JSON Encoded as a JSON string
 func (j *JSONStruct) JSON() string {
 	b, err := json.Marshal(j)
