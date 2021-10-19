@@ -1,5 +1,6 @@
 import (
 	"vela/op"
+	"encoding/base64"
 )
 
 "webhook-notification": {
@@ -12,7 +13,13 @@ template: {
 
 	parameter: {
 		dingding?: {
-			url: string
+			url: {
+				address?: string
+				fromSecret?: {
+					name: string
+					key:  string
+				}
+			}
 			message: {
 				text?: *null | {
 					content: string
@@ -57,7 +64,13 @@ template: {
 		}
 
 		slack?: {
-			url: string
+			url: {
+				address?: string
+				fromSecret?: {
+					name: string
+					key:  string
+				}
+			}
 			message: {
 				text:         string
 				blocks?:      *null | [...block]
@@ -122,20 +135,62 @@ template: {
 	}
 
 	// send webhook notification
-	ding: {
+	ding: op.#Steps & {
 		if parameter.dingding != _|_ {
-			op.#DingTalk & {
-				message: parameter.dingding.message
-				dingUrl: parameter.dingding.url
+			if parameter.dingding.url.address != _|_ {
+				ding1: op.#DingTalk & {
+					message: parameter.dingding.message
+					dingUrl: parameter.dingding.url.address
+				}
+			}
+			if parameter.dingding.url.fromSecret != _|_ && parameter.dingding.url.address == _|_ {
+				read: op.#Read & {
+					value: {
+						apiVersion: "v1"
+						kind:       "Secret"
+						metadata: {
+							name:      parameter.dingding.url.fromSecret.name
+							namespace: context.namespace
+						}
+					}
+				}
+
+				decoded:     base64.Decode(null, read.value.data[parameter.dingding.url.fromSecret.key])
+				stringValue: op.#ConvertString & {bt: decoded}
+				ding2:       op.#DingTalk & {
+					message: parameter.dingding.message
+					dingUrl: stringValue.str
+				}
 			}
 		}
 	}
 
-	slack: {
+	slack: op.#Steps & {
 		if parameter.slack != _|_ {
-			op.#Slack & {
-				message:  parameter.slack.message
-				slackUrl: parameter.slack.url
+			if parameter.slack.url.address != _|_ {
+				slack1: op.#Slack & {
+					message:  parameter.slack.message
+					slackUrl: parameter.slack.url.address
+				}
+			}
+			if parameter.slack.url.fromSecret != _|_ && parameter.slack.url.address == _|_ {
+				read: op.#Read & {
+					value: {
+						kind:       "Secret"
+						apiVersion: "v1"
+						metadata: {
+							name:      parameter.slack.url.fromSecret.name
+							namespace: context.namespace
+						}
+					}
+				}
+
+				decoded:     base64.Decode(null, read.value.data[parameter.slack.url.fromSecret.key])
+				stringValue: op.#ConvertString & {bt: decoded}
+				slack2:      op.#Slack & {
+					message:  parameter.slack.message
+					slackUrl: stringValue.str
+				}
 			}
 		}
 	}
