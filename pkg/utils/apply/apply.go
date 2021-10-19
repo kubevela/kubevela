@@ -19,16 +19,23 @@ package apply
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	// LabelRenderHash is the label that record the hash value of the rendering resource.
+	LabelRenderHash = "oam.dev/render-hash"
 )
 
 // Applicator applies new state to an object or create it if not exist.
@@ -40,11 +47,15 @@ type Applicator interface {
 	Apply(context.Context, client.Object, ...ApplyOption) error
 }
 
+type applyAction struct {
+	skipUpdate bool
+}
+
 // ApplyOption is called before applying state to the object.
 // ApplyOption is still called even if the object does NOT exist.
 // If the object does not exist, `existing` will be assigned as `nil`.
 // nolint: golint
-type ApplyOption func(ctx context.Context, existing, desired runtime.Object) error
+type ApplyOption func(act *applyAction, existing, desired client.Object) error
 
 // NewAPIApplicator creates an Applicator that applies state to an
 // object or creates the object if not exist.
@@ -57,13 +68,13 @@ func NewAPIApplicator(c client.Client) *APIApplicator {
 }
 
 type creator interface {
-	createOrGetExisting(context.Context, client.Client, client.Object, ...ApplyOption) (client.Object, error)
+	createOrGetExisting(context.Context, *applyAction, client.Client, client.Object, ...ApplyOption) (client.Object, error)
 }
 
-type creatorFn func(context.Context, client.Client, client.Object, ...ApplyOption) (client.Object, error)
+type creatorFn func(context.Context, *applyAction, client.Client, client.Object, ...ApplyOption) (client.Object, error)
 
-func (fn creatorFn) createOrGetExisting(ctx context.Context, c client.Client, o client.Object, ao ...ApplyOption) (client.Object, error) {
-	return fn(ctx, c, o, ao...)
+func (fn creatorFn) createOrGetExisting(ctx context.Context, act *applyAction, c client.Client, o client.Object, ao ...ApplyOption) (client.Object, error) {
+	return fn(ctx, act, c, o, ao...)
 }
 
 type patcher interface {
@@ -95,7 +106,12 @@ func loggingApply(msg string, desired client.Object) {
 
 // Apply applies new state to an object or create it if not exist
 func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...ApplyOption) error {
-	existing, err := a.createOrGetExisting(ctx, a.c, desired, ao...)
+	_, err := generateRenderHash(desired)
+	if err != nil {
+		return err
+	}
+	applyAct := new(applyAction)
+	existing, err := a.createOrGetExisting(ctx, applyAct, a.c, desired, ao...)
 	if err != nil {
 		return err
 	}
@@ -104,9 +120,15 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 
 	// the object already exists, apply new state
-	if err := executeApplyOptions(ctx, existing, desired, ao); err != nil {
+	if err := executeApplyOptions(applyAct, existing, desired, ao); err != nil {
 		return err
 	}
+
+	if applyAct.skipUpdate {
+		loggingApply("skip update", desired)
+		return nil
+	}
+
 	loggingApply("patching object", desired)
 	patch, err := a.patcher.patch(existing, desired)
 	if err != nil {
@@ -115,12 +137,31 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 }
 
+func generateRenderHash(desired client.Object) (string, error) {
+	desiredHash, err := utils.ComputeSpecHash(desired)
+	if err != nil {
+		return "", errors.Wrap(err, "compute desired hash")
+	}
+	util.AddLabels(desired, map[string]string{
+		LabelRenderHash: desiredHash,
+	})
+	return desiredHash, nil
+}
+
+func getRenderHash(existing client.Object) string {
+	labels := existing.GetLabels()
+	if labels == nil {
+		return ""
+	}
+	return labels[LabelRenderHash]
+}
+
 // createOrGetExisting will create the object if it does not exist
 // or get and return the existing object
-func createOrGetExisting(ctx context.Context, c client.Client, desired client.Object, ao ...ApplyOption) (client.Object, error) {
+func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client, desired client.Object, ao ...ApplyOption) (client.Object, error) {
 	var create = func() (client.Object, error) {
 		// execute ApplyOptions even the object doesn't exist
-		if err := executeApplyOptions(ctx, nil, desired, ao); err != nil {
+		if err := executeApplyOptions(act, nil, desired, ao); err != nil {
 			return nil, err
 		}
 		if err := addLastAppliedConfigAnnotation(desired); err != nil {
@@ -147,22 +188,44 @@ func createOrGetExisting(ctx context.Context, c client.Client, desired client.Ob
 	return existing, nil
 }
 
-func executeApplyOptions(ctx context.Context, existing, desired runtime.Object, aos []ApplyOption) error {
+func executeApplyOptions(act *applyAction, existing, desired client.Object, aos []ApplyOption) error {
 	// if existing is nil, it means the object is going to be created.
 	// ApplyOption function should handle this situation carefully by itself.
 	for _, fn := range aos {
-		if err := fn(ctx, existing, desired); err != nil {
+		if err := fn(act, existing, desired); err != nil {
 			return errors.Wrap(err, "cannot apply ApplyOption")
 		}
 	}
 	return nil
 }
 
+// NotUpdateRenderHashEqual if the render hash of new object equal to the old hash, should not apply.
+func NotUpdateRenderHashEqual() ApplyOption {
+	return func(act *applyAction, existing, desired client.Object) error {
+		if existing == nil || desired == nil {
+			return nil
+		}
+		newSt, ok := desired.(*unstructured.Unstructured)
+		if !ok {
+			return nil
+		}
+		oldSt := existing.(*unstructured.Unstructured)
+		if !ok {
+			return nil
+		}
+		if getRenderHash(existing) == getRenderHash(desired) {
+			*newSt = *oldSt
+			act.skipUpdate = true
+		}
+		return nil
+	}
+}
+
 // MustBeControllableBy requires that the new object is controllable by an
 // object with the supplied UID. An object is controllable if its controller
 // reference includes the supplied UID.
 func MustBeControllableBy(u types.UID) ApplyOption {
-	return func(_ context.Context, existing, _ runtime.Object) error {
+	return func(_ *applyAction, existing, _ client.Object) error {
 		if existing == nil {
 			return nil
 		}
@@ -180,7 +243,7 @@ func MustBeControllableBy(u types.UID) ApplyOption {
 // MustBeControllableByAny requires that the new object is controllable by any of the object with
 // the supplied UID.
 func MustBeControllableByAny(ctrlUIDs []types.UID) ApplyOption {
-	return func(_ context.Context, existing, _ runtime.Object) error {
+	return func(_ *applyAction, existing, _ client.Object) error {
 		if existing == nil || len(ctrlUIDs) == 0 {
 			return nil
 		}
@@ -204,5 +267,12 @@ func MustBeControllableByAny(ctrlUIDs []types.UID) ApplyOption {
 			}
 		}
 		return errors.Errorf("existing object is not controlled by any of UID %q", ctrlUIDs)
+	}
+}
+
+// MakeCustomApplyOption let user can generate applyOption that restrict change apply action.
+func MakeCustomApplyOption(f func(existing, desired client.Object) error) ApplyOption {
+	return func(act *applyAction, existing, desired client.Object) error {
+		return f(existing, desired)
 	}
 }

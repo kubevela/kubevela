@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
+	"k8s.io/utils/pointer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -2069,6 +2070,51 @@ var _ = Describe("Test Application Controller", func() {
 		}))
 	})
 
+	It("app record execution state with controllerRevision", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-app-trace",
+			},
+		}
+
+		app := appwithNoTrait.DeepCopy()
+		app.Name = "vela-test-app-trace"
+		app.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+		web := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      "myweb2",
+			Namespace: app.Namespace,
+		}, web)).Should(BeNil())
+		web.Spec.Replicas = pointer.Int32(0)
+		Expect(k8sClient.Update(ctx, web)).Should(BeNil())
+
+		checkApp.Status.Workflow = nil
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
+
+		checkWeb := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Name:      "myweb2",
+			Namespace: app.Namespace,
+		}, checkWeb)).Should(BeNil())
+		Expect(*(checkWeb.Spec.Replicas)).Should(BeEquivalentTo(int32(0)))
+
+	})
 })
 
 const (
