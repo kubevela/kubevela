@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -89,6 +90,9 @@ func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client,
 	if err := ioutil.WriteFile(tmpFileName, []byte(kubeConfig), 0600); err != nil {
 		return errors.Wrapf(err, "failed to write kubeconfig to temp file %s", tmpFileName)
 	}
+	defer func() {
+		_ = os.Remove(tmpFileName)
+	}()
 	_, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to join cluster")
