@@ -67,8 +67,8 @@ type AddonRegistryMeta struct {
 // EnableAddonRequest defines the format for enable addon request
 type EnableAddonRequest struct {
 
-	// Envs is the key-value environment variables, e.g. AK/SK credentials.
-	Envs map[string]string `json:"envs,omitempty"`
+	// Args is the key-value environment variables, e.g. AK/SK credentials.
+	Args map[string]string `json:"args,omitempty"`
 }
 
 // ListAddonResponse defines the format for addon list response

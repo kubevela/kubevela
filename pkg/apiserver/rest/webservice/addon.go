@@ -17,8 +17,13 @@ limitations under the License.
 package webservice
 
 import (
+	"bytes"
 	"context"
+	"github.com/Masterminds/sprig"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"path"
+	"text/template"
 
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
@@ -183,7 +188,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 		return
 	}
 
-	err = s.applyAddonData(addon.DeployData, createReq.Envs)
+	err = s.applyAddonData(addon.DeployData, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -218,8 +223,30 @@ func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Respons
 	}
 }
 
-func (s *addonWebService) applyAddonData(data string, envs map[string]string) error {
-	panic("")
+func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRequest) error {
+	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(data)
+	if err != nil {
+		return bcode.ErrAddonRenderFail
+	}
+	buf := bytes.Buffer{}
+	err = t.Execute(&buf, request)
+	if err != nil {
+		return bcode.ErrAddonRenderFail
+	}
+	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	obj := &unstructured.Unstructured{}
+	_, _, err = dec.Decode(buf.Bytes(), nil, obj)
+	if err != nil {
+		return bcode.ErrAddonRenderFail
+	}
+	clientArgs, _ := common.InitBaseRestConfig()
+	clt, _ := clientArgs.GetClient()
+	applicator := apply.NewAPIApplicator(clt)
+	err = applicator.Apply(context.TODO(), obj)
+	if err != nil {
+		return bcode.ErrAddonApplyFail
+	}
+	return nil
 }
 
 func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusResponse, error) {
@@ -286,7 +313,8 @@ func getAddonsFromConfigMap() ([]*apis.AddonMeta, error) {
 	metas := []*apis.AddonMeta{}
 	for _, addon := range addons {
 		metas = append(metas, &apis.AddonMeta{
-			Name:        addon.Name,
+			Name: addon.NamenableAddone,
+			// TODO add actual Version, Icon, tags
 			Version:     "v1alpha1",
 			Description: addon.Description,
 			Icon:        "",
