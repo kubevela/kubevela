@@ -19,8 +19,13 @@ package webservice
 import (
 	"bytes"
 	"context"
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"net/url"
 	"path"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"text/template"
 
@@ -225,26 +230,39 @@ func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Respons
 	}
 }
 
-func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRequest) error {
+// renderAddonApp can render string to unstructured, args can be nil
+func renderAddonApp(data string, args *apis.EnableAddonRequest) (*unstructured.Unstructured, error) {
+	if args == nil {
+		args = &apis.EnableAddonRequest{Args: map[string]string{}}
+	}
+
 	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(data)
 	if err != nil {
-		return bcode.ErrAddonRenderFail
+		return nil, bcode.ErrAddonRenderFail
 	}
 	buf := bytes.Buffer{}
-	err = t.Execute(&buf, request)
+	err = t.Execute(&buf, args)
 	if err != nil {
-		return bcode.ErrAddonRenderFail
+		return nil, bcode.ErrAddonRenderFail
 	}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	obj := &unstructured.Unstructured{}
 	_, _, err = dec.Decode(buf.Bytes(), nil, obj)
 	if err != nil {
-		return bcode.ErrAddonRenderFail
+		return nil, bcode.ErrAddonRenderFail
+	}
+	return obj, nil
+}
+
+func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRequest) error {
+	app, err := renderAddonApp(data, &request)
+	if err != nil {
+		return err
 	}
 	clientArgs, _ := common.InitBaseRestConfig()
 	clt, _ := clientArgs.GetClient()
 	applicator := apply.NewAPIApplicator(clt)
-	err = applicator.Apply(context.TODO(), obj)
+	err = applicator.Apply(context.TODO(), app)
 	if err != nil {
 		return bcode.ErrAddonApplyFail
 	}
@@ -252,11 +270,83 @@ func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRe
 }
 
 func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusResponse, error) {
-	panic("")
+	// TODO fix this， addons can be got from not only configMap
+	addons, err := getAddonsFromConfigMap()
+	if err != nil {
+		return nil, bcode.ErrGetConfigMapAddonFail
+	}
+	var exist bool
+	for _, addon := range addons {
+		if addon.Name == name {
+			exist = true
+		}
+	}
+	if !exist {
+		return nil, bcode.ErrAddonNotExist
+	}
+	args, err := common.InitBaseRestConfig()
+	if err != nil {
+		return nil, bcode.ErrGetClientFail
+	}
+	clt, err := args.GetClient()
+	if err != nil {
+		return nil, bcode.ErrGetClientFail
+	}
+	var app v1beta1.Application
+	err = clt.Get(context.Background(), client.ObjectKey{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      name,
+	}, &app)
+	if err != nil {
+		if errors2.IsNotFound(err) {
+			return &apis.AddonStatusResponse{
+				Phase:            apis.AddonPhaseDisabled,
+				EnablingProgress: nil,
+			}, nil
+		}
+		return nil, bcode.ErrGetApplicationFail
+	}
+	// TODO we don't know when addon is disabling
+	switch app.Status.Phase {
+	case common2.ApplicationRunning:
+		return &apis.AddonStatusResponse{
+			Phase:            apis.AddonPhaseEnabled,
+			EnablingProgress: nil,
+		}, nil
+	default:
+		return &apis.AddonStatusResponse{
+			Phase:            apis.AddonPhaseEnabling,
+			EnablingProgress: nil,
+		}, nil
+	}
 }
 
 func (s *addonWebService) deleteAddonData(data string) error {
-	panic("")
+	app, err := renderAddonApp(data, nil)
+	if err != nil {
+		return err
+	}
+	args, err := common.InitBaseRestConfig()
+	if err != nil {
+		return bcode.ErrGetClientFail
+	}
+	clt, err := args.GetClient()
+	if err != nil {
+		return bcode.ErrGetClientFail
+	}
+	err = clt.Get(context.Background(), client.ObjectKey{
+		Namespace: app.GetNamespace(),
+		Name:      app.GetName(),
+	}, app)
+	if err != nil {
+		return bcode.ErrAddonNotEnabled
+	}
+	err = clt.Delete(context.Background(), app)
+	if err != nil {
+		return bcode.ErrAddonDisableFail
+	}
+	return nil
+
 }
 
 func getAddonsFromGit(baseUrl, dir string) ([]*apis.AddonMeta, error) {
