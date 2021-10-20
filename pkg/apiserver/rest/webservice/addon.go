@@ -43,7 +43,9 @@ import (
 )
 
 const (
-	AddonFileName       string = "addon.yaml"
+	// AddonFileName is the addon file name
+	AddonFileName string = "addon.yaml"
+	// AddonReadmeFileName is the addon readme file name
 	AddonReadmeFileName string = "readme.md"
 )
 
