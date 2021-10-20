@@ -19,6 +19,7 @@ package webservice
 import (
 	"bytes"
 	"context"
+	"net/url"
 	"path"
 	"text/template"
 
@@ -255,12 +256,17 @@ func (s *addonWebService) deleteAddonData(data string) error {
 	panic("")
 }
 
-func getAddonsFromGit(url, dir string) ([]*apis.AddonMeta, error) {
+func getAddonsFromGit(baseUrl, dir string) ([]*apis.AddonMeta, error) {
 	metas := []*apis.AddonMeta{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	client := github.NewClient(nil)
 	// TODO add error handling
-	_, content, err := plugins.Parse(path.Join(url, dir))
+	u, err := url.Parse(baseUrl)
+	if err != nil {
+		return nil, err
+	}
+	u.Path = path.Join(u.Path, dir)
+	_, content, err := plugins.Parse(u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -282,12 +288,13 @@ func getAddonsFromGit(url, dir string) ([]*apis.AddonMeta, error) {
 			if *file.Name != AddonFileName {
 				continue
 			}
-			addonContent, err := file.GetContent()
+			addonContent, _, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
 			if err != nil {
 				break
 			}
+			addonStr, _ :=addonContent.GetContent()
 			obj := &unstructured.Unstructured{}
-			_, _, err = dec.Decode([]byte(addonContent), nil, obj)
+			_, _, err = dec.Decode([]byte(addonStr), nil, obj)
 			if err != nil {
 				break
 			}
