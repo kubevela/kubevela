@@ -74,7 +74,6 @@ func New(cfg Config) (a APIServer, err error) {
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
 	}
 
-	fmt.Println("haha rest")
 	s := &restServer{
 		webContainer: restful.NewContainer(),
 		cfg:          cfg,

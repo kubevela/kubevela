@@ -19,27 +19,25 @@ package webservice
 import (
 	"bytes"
 	"context"
-	"github.com/Masterminds/sprig"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"path"
 	"text/template"
 
+	"github.com/Masterminds/sprig"
+	restfulspec "github.com/emicklei/go-restful-openapi/v2"
+	"github.com/emicklei/go-restful/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 
-	"github.com/oam-dev/kubevela/references/cli"
-	"github.com/oam-dev/kubevela/references/plugins"
-
-	restfulspec "github.com/emicklei/go-restful-openapi/v2"
-	"github.com/emicklei/go-restful/v3"
-
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/cli"
+	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 const (
@@ -313,7 +311,7 @@ func getAddonsFromConfigMap() ([]*apis.AddonMeta, error) {
 	metas := []*apis.AddonMeta{}
 	for _, addon := range addons {
 		metas = append(metas, &apis.AddonMeta{
-			Name: addon.NamenableAddone,
+			Name: addon.Name,
 			// TODO add actual Version, Icon, tags
 			Version:     "v1alpha1",
 			Description: addon.Description,

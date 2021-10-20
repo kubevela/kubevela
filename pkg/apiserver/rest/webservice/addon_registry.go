@@ -42,7 +42,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 	ws.Path("/v1/addon_registries").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
-		Doc("api for addon management")
+		Doc("api for addon registry management")
 
 	tags := []string{"addon_registry"}
 
