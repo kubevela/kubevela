@@ -23,50 +23,28 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var cfg *rest.Config
 var k8sClient client.Client
-var testEnv *envtest.Environment
 
 func TestE2eApiserverTest(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "E2eApiserverTest Suite")
 }
 
+// Suite test in e2e-apiserver-test relies on the pre-setup kubernetes environment
 var _ = BeforeSuite(func() {
-
-	By("bootstrapping test environment")
-
-	testEnv = &envtest.Environment{
-		ControlPlaneStartTimeout: time.Minute * 3,
-		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.BoolPtr(false),
-		CRDDirectoryPaths:        []string{"../../charts/vela-core/crds"},
-	}
-
-	By("start kube test env")
-	var err error
-	cfg, err = testEnv.Start()
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
-
 	By("new kube client")
-	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	var err error
+	k8sClient, err = clients.GetKubeClient()
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
-	clients.SetKubeClient(k8sClient)
 
 	ctx := context.Background()
 
@@ -85,10 +63,4 @@ var _ = BeforeSuite(func() {
 	}()
 	By("api server started")
 	time.Sleep(time.Second * 2)
-})
-
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
 })
