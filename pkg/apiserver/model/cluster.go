@@ -16,21 +16,6 @@ limitations under the License.
 
 package model
 
-// ClusterResourceInfo resource info of cluster
-type ClusterResourceInfo struct {
-	WorkerNumber     int      `json:"workerNumber"`
-	MasterNumber     int      `json:"masterNumber"`
-	MemoryCapacity   int64    `json:"memoryCapacity"`
-	CPUCapacity      int64    `json:"cpuCapacity"`
-	GPUCapacity      int64    `json:"gpuCapacity,omitempty"`
-	PodCapacity      int64    `json:"podCapacity"`
-	MemoryUsed       int64    `json:"memoryUsed"`
-	CPUUsed          int64    `json:"cpuUsed"`
-	GPUUsed          int64    `json:"gpuUsed,omitempty"`
-	PodUsed          int64    `json:"podUsed"`
-	StorageClassList []string `json:"storageClassList,omitempty"`
-}
-
 // Cluster describes the model of cluster in apiserver
 type Cluster struct {
 	Model

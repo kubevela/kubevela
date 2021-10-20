@@ -226,7 +226,7 @@ func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 	return newClusterBaseFromCluster(cluster), nil
 }
 
-func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context, cluster *model.Cluster) model.ClusterResourceInfo {
+func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context, cluster *model.Cluster) apis.ClusterResourceInfo {
 	// TODO add cache
 	resourceInfo, err := c.getClusterResourceInfoFromK8s(ctx, cluster.Name)
 	if err != nil {
@@ -239,10 +239,10 @@ func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context
 	return resourceInfo
 }
 
-func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, clusterName string) (model.ClusterResourceInfo, error) {
+func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, clusterName string) (apis.ClusterResourceInfo, error) {
 	clusterInfo, err := multicluster.GetClusterInfo(ctx, c.k8sClient, clusterName)
 	if err != nil {
-		return model.ClusterResourceInfo{}, err
+		return apis.ClusterResourceInfo{}, err
 	}
 	var storageClassList []string
 	for _, cls := range clusterInfo.StorageClasses.Items {
@@ -254,7 +254,7 @@ func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, 
 		return &used
 	}
 	// TODO add support for gpu capacity
-	return model.ClusterResourceInfo{
+	return apis.ClusterResourceInfo{
 		WorkerNumber:     clusterInfo.WorkerNumber,
 		MasterNumber:     clusterInfo.MasterNumber,
 		MemoryCapacity:   clusterInfo.MemoryCapacity.Value(),

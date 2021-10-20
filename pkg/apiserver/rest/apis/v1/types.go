@@ -133,10 +133,25 @@ type ConnectCloudClusterRequest struct {
 	Labels          map[string]string `json:"labels,omitempty"`
 }
 
+// ClusterResourceInfo resource info of cluster
+type ClusterResourceInfo struct {
+	WorkerNumber     int      `json:"workerNumber"`
+	MasterNumber     int      `json:"masterNumber"`
+	MemoryCapacity   int64    `json:"memoryCapacity"`
+	CPUCapacity      int64    `json:"cpuCapacity"`
+	GPUCapacity      int64    `json:"gpuCapacity,omitempty"`
+	PodCapacity      int64    `json:"podCapacity"`
+	MemoryUsed       int64    `json:"memoryUsed"`
+	CPUUsed          int64    `json:"cpuUsed"`
+	GPUUsed          int64    `json:"gpuUsed,omitempty"`
+	PodUsed          int64    `json:"podUsed"`
+	StorageClassList []string `json:"storageClassList,omitempty"`
+}
+
 // DetailClusterResponse cluster detail information model
 type DetailClusterResponse struct {
 	ClusterBase
-	ResourceInfo model.ClusterResourceInfo `json:"resourceInfo"`
+	ResourceInfo ClusterResourceInfo `json:"resourceInfo"`
 	// remote manage url, eg. ACK cluster manage url.
 	RemoteManageURL string `json:"remoteManageURL,omitempty"`
 	// Dashboard URL

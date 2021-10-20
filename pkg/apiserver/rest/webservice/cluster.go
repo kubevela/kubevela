@@ -52,18 +52,24 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("int").DefaultValue("0")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("int").DefaultValue("20")).
+		Returns(200, "", apis.ListClusterResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListClusterResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(c.createKubeCluster).
 		Doc("create cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(&apis.CreateClusterRequest{}).
+		Returns(200, "", apis.ClusterBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
 
 	ws.Route(ws.GET("/{clusterName}").To(c.getKubeCluster).
 		Doc("detail cluster info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
+		Returns(200, "", apis.DetailClusterResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailClusterResponse{}))
 
 	ws.Route(ws.POST("/{clusterName}").To(c.modifyKubeCluster).
@@ -71,12 +77,16 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Reads(&apis.CreateClusterRequest{}).
+		Returns(200, "", apis.ClusterBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
 
 	ws.Route(ws.DELETE("/{clusterName}").To(c.deleteKubeCluster).
 		Doc("delete cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
+		Returns(200, "", apis.ClusterBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
 
 	ws.Route(ws.POST("/cloud-clusters/{provider}").To(c.listCloudClusters).
@@ -85,12 +95,16 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("page", "Page for paging").DataType("int").DefaultValue("0")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("int").DefaultValue("20")).
 		Reads(&apis.AccessKeyRequest{}).
+		Returns(200, "", apis.ListCloudClusterResponse{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListCloudClusterResponse{}))
 
 	ws.Route(ws.POST("/cloud-clusters/{provider}/connect").To(c.connectCloudCluster).
 		Doc("create cluster from cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(&apis.ConnectCloudClusterRequest{}).
+		Returns(200, "", apis.ClusterBase{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
 
 	return ws
