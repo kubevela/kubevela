@@ -43,8 +43,6 @@ type Cluster struct {
 
 	KubeConfig       string `json:"kubeConfig"`
 	KubeConfigSecret string `json:"kubeConfigSecret"`
-
-	ResourceInfo ClusterResourceInfo `json:"resourceInfo"`
 }
 
 // TableName table name for datastore
@@ -59,7 +57,11 @@ func (c *Cluster) PrimaryKey() string {
 
 // Index set to nil for list
 func (c *Cluster) Index() map[string]string {
-	return nil
+	index := make(map[string]string)
+	if c.Name != "" {
+		index["name"] = c.Name
+	}
+	return index
 }
 
 // DeepCopy create a copy of cluster

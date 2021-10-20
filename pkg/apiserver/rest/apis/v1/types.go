@@ -114,11 +114,11 @@ type AccessKeyRequest struct {
 
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
-	Name             string            `json:"name"`
+	Name             string            `json:"name" validate:"checkname"`
 	Description      string            `json:"description,omitempty"`
 	Icon             string            `json:"icon"`
-	KubeConfig       string            `json:"kubeConfig"`
-	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty"`
+	KubeConfig       string            `json:"kubeConfig,omitempty" validate:"required_without=KubeConfigSecret"`
+	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty" validate:"required_without=KubeConfig"`
 	Labels           map[string]string `json:"labels,omitempty"`
 }
 

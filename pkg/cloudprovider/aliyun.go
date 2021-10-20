@@ -66,18 +66,21 @@ func (provider *AliyunCloudProvider) ListCloudClusters(pageNumber int, pageSize 
 			labels[*tag.Key] = *tag.Value
 		}
 		url := &struct {
-			APIServerEndpoint string `json:"api_server_endpoint"`
+			APIServerEndpoint         string `json:"api_server_endpoint"`
+			DashboardEndpoint         string `json:"dashboardEndpoint"`
+			IntranetAPIServerEndpoint string `json:"intranet_api_server_endpoint"`
 		}{}
 		if err = json.Unmarshal([]byte(*cluster.MasterUrl), url); err != nil {
 			klog.Info("failed to unmarshal masterUrl %s", *cluster.MasterUrl)
 		}
 		clusters = append(clusters, &CloudCluster{
-			ID:       *cluster.ClusterId,
-			Name:     *cluster.Name,
-			Type:     *cluster.ClusterType,
-			Labels:   labels,
-			Status:   *cluster.State,
-			Endpoint: url.APIServerEndpoint,
+			ID:           *cluster.ClusterId,
+			Name:         *cluster.Name,
+			Type:         *cluster.ClusterType,
+			Labels:       labels,
+			Status:       *cluster.State,
+			APIServerURL: url.APIServerEndpoint,
+			DashBoardURL: url.DashboardEndpoint,
 		})
 	}
 	return clusters, int(*resp.Body.PageInfo.TotalCount), nil

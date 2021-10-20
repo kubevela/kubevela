@@ -18,9 +18,8 @@ package clients
 
 import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 var kubeClient client.Client
@@ -35,13 +34,10 @@ func GetKubeClient() (client.Client, error) {
 	if kubeClient != nil {
 		return kubeClient, nil
 	}
-	conf, err := config.GetConfig()
+	var err error
+	kubeClient, err = multicluster.GetMulticlusterKubernetesClient()
 	if err != nil {
 		return nil, err
 	}
-	k8sClient, err := client.New(conf, client.Options{Scheme: common.Scheme})
-	if err != nil {
-		return nil, err
-	}
-	return k8sClient, nil
+	return kubeClient, nil
 }
