@@ -12,6 +12,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -20,6 +21,7 @@ import (
 type AddonUsecase interface {
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	GetAddonModel(ctx context.Context, name string) (*model.Addon, error)
+	GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error)
 	DetailAddon(ctx context.Context, addon *model.Addon) (apis.DetailAddonResponse, error)
 	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 }
@@ -64,13 +66,6 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 
 }
 
-func addonRegistryModelFromCreateAddonRegistryRequest(req apisv1.CreateAddonRegistryRequest) *model.AddonRegistry {
-	return &model.AddonRegistry{
-		Name: req.Name,
-		Git:  req.Git,
-	}
-}
-
 func (u *addonUsecaseImpl) GetAddonModel(ctx context.Context, name string) (*model.Addon, error) {
 	var addon = model.Addon{
 		Name: name,
@@ -80,6 +75,17 @@ func (u *addonUsecaseImpl) GetAddonModel(ctx context.Context, name string) (*mod
 		return nil, err
 	}
 	return &addon, nil
+}
+
+func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error) {
+	var r = model.AddonRegistry{
+		Name: name,
+	}
+	err := u.ds.Get(ctx, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 func (u *addonUsecaseImpl) DetailAddon(ctx context.Context, addon *model.Addon) (apis.DetailAddonResponse, error) {
@@ -94,14 +100,14 @@ func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 	}
 	var list []*apisv1.AddonRegistryMeta
 	for _, entity := range entities {
-		list = append(list, convertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
+		list = append(list, utils.ConvertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
 	}
 	return list, nil
 }
 
-func convertAddonRegistryModel2AddonRegistryMeta(r *model.AddonRegistry) *apisv1.AddonRegistryMeta {
-	return &apisv1.AddonRegistryMeta{
-		Name: r.Name,
-		Git:  r.Git,
+func addonRegistryModelFromCreateAddonRegistryRequest(req apisv1.CreateAddonRegistryRequest) *model.AddonRegistry {
+	return &model.AddonRegistry{
+		Name: req.Name,
+		Git:  req.Git,
 	}
 }

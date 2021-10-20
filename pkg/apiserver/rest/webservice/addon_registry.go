@@ -23,6 +23,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -56,10 +57,12 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Writes(apis.AddonRegistryMeta{}))
 
 	// Delete
-	ws.Route(ws.DELETE("/{name}").To(noop).
+	ws.Route(ws.DELETE("/{name}").To(s.deleteAddonRegistry).
 		Doc("delete an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
+		Returns(200, "", apis.AddonRegistryMeta{}).
+		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AddonRegistryMeta{}))
 
 	return ws
@@ -86,6 +89,19 @@ func (s *addonRegistryWebService) createAddonRegistry(req *restful.Request, res 
 
 	// Write back response data
 	if err := res.WriteEntity(meta); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (s *addonRegistryWebService) deleteAddonRegistry(req *restful.Request, res *restful.Response) {
+	r, err := s.addonUsecase.GetAddonRegistryModel(req.Request.Context(), req.PathParameter("name"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	if err := res.WriteEntity(*utils.ConvertAddonRegistryModel2AddonRegistryMeta(r)); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

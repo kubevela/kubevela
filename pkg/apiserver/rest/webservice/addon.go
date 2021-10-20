@@ -145,8 +145,13 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 			bcode.ReturnError(req, res, err)
 			return
 		}
+		for _, g := range getAddons {
+			if hasAddon(addons, g.Name) {
+				continue
+			}
+			addons = append(addons, g)
+		}
 
-		addons = append(addons, getAddons...)
 	}
 
 	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons})
@@ -154,6 +159,15 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		bcode.ReturnError(req, res, err)
 		return
 	}
+}
+
+func hasAddon(addons []*apis.AddonMeta, name string) bool {
+	for _, addon := range addons {
+		if addon.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
