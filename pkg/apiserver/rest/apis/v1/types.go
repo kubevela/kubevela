@@ -54,30 +54,14 @@ type EmptyResponse struct{}
 type CreateAddonRegistryRequest struct {
 	Name string `json:"name" validate:"required"`
 
-	ConfigMap *ConfigMapAddonSource `json:"config_map,omitempty"`
-
-	Git *GitAddonSource `json:"git,omitempty"`
-}
-
-// ConfigMapAddonSource defines the information about the ConfigMap as addon source
-type ConfigMapAddonSource struct {
-	Name      string `json:"name,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-}
-
-// GitAddonSource defines the information about the Git as addon source
-type GitAddonSource struct {
-	URL string `json:"url,omitempty"`
-	Dir string `json:"dir,omitempty"`
+	Git *model.GitAddonSource `json:"git,omitempty"`
 }
 
 // AddonRegistryMeta defines the format for a single addon registry
 type AddonRegistryMeta struct {
 	Name string `json:"name" validate:"required"`
 
-	ConfigMap *ConfigMapAddonSource `json:"config_map,omitempty"`
-
-	Git *GitAddonSource `json:"git,omitempty"`
+	Git *model.GitAddonSource `json:"git,omitempty"`
 }
 
 // EnableAddonRequest defines the format for enable addon request

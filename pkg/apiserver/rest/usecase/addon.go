@@ -2,12 +2,14 @@ package usecase
 
 import (
 	"context"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -38,18 +40,34 @@ type addonUsecaseImpl struct {
 	apply      apply.Applicator
 }
 
-func (a *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
+func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
 	panic("implement me")
 }
 
-func (a *addonUsecaseImpl) GetAddonModel(ctx context.Context, name string) (*model.Addon, error) {
+func (u *addonUsecaseImpl) GetAddonModel(ctx context.Context, name string) (*model.Addon, error) {
 	panic("implement me")
 }
 
-func (a *addonUsecaseImpl) DetailAddon(ctx context.Context, addon *model.Addon) (apis.DetailAddonResponse, error) {
+func (u *addonUsecaseImpl) DetailAddon(ctx context.Context, addon *model.Addon) (apis.DetailAddonResponse, error) {
 	panic("implement me")
 }
 
-func (a *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
-	panic("implement me")
+func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
+	var r = model.AddonRegistry{}
+	entities, err := u.ds.List(ctx, &r, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	var list []*apisv1.AddonRegistryMeta
+	for _, entity := range entities {
+		list = append(list, convertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
+	}
+	return list, nil
+}
+
+func convertAddonRegistryModel2AddonRegistryMeta(r *model.AddonRegistry) *apisv1.AddonRegistryMeta {
+	return &apisv1.AddonRegistryMeta{
+		Name: r.Name,
+		Git:  r.Git,
+	}
 }

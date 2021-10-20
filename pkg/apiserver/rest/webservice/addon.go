@@ -18,14 +18,15 @@ package webservice
 
 import (
 	"context"
+	"path"
+
 	"github.com/google/go-github/v32/github"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/cli"
-	"github.com/oam-dev/kubevela/references/plugins"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-	"path"
+
+	"github.com/oam-dev/kubevela/references/cli"
+	"github.com/oam-dev/kubevela/references/plugins"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
@@ -118,14 +119,19 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		return
 	}
 
-	var addons []*apis.AddonMeta
+	// backward compatibility with configMap addons.
+	// We will deprecate ConfigMap and use Git based registry.
+	addons, err := getAddonsFromConfigMap()
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
 	for _, r := range rs {
-		var getAddons []*apis.AddonMeta
-		switch {
-		case r.ConfigMap != nil:
-			getAddons = getAddonsFromConfigMap()
-		case r.Git != nil:
-			getAddons = getAddonsFromGit(r.Git.URL, r.Git.Dir)
+		getAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Dir)
+		if err != nil {
+			bcode.ReturnError(req, res, err)
+			return
 		}
 
 		addons = append(addons, getAddons...)
@@ -224,18 +230,18 @@ func (s *addonWebService) deleteAddonData(data string) error {
 	panic("")
 }
 
-func getAddonsFromGit(url, dir string) []*apis.AddonMeta {
+func getAddonsFromGit(url, dir string) ([]*apis.AddonMeta, error) {
 	metas := []*apis.AddonMeta{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	client := github.NewClient(nil)
 	// TODO add error handling
 	_, content, err := plugins.Parse(path.Join(url, dir))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	_, dirs, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, content.Path, nil)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	for _, subItems := range dirs {
 		if *subItems.Type == "file" {
@@ -268,17 +274,17 @@ func getAddonsFromGit(url, dir string) []*apis.AddonMeta {
 		}
 		metas = append(metas, &meta)
 	}
-	return metas
+	return metas, nil
 }
 
 func getAddonsFromConfigMap() ([]*apis.AddonMeta, error) {
 	repo, err := cli.NewAddonRepo()
 	if err != nil {
-		return nil, errors.Wrap(err,"get configMap addon repo err")
+		return nil, errors.Wrap(err, "get configMap addon repo err")
 	}
 	addons := repo.ListAddons()
-	metas:=[]*apis.AddonMeta{}
-	for _,addon:=range addons{
+	metas := []*apis.AddonMeta{}
+	for _, addon := range addons {
 		metas = append(metas, &apis.AddonMeta{
 			Name:        addon.Name,
 			Version:     "v1alpha1",
@@ -287,6 +293,6 @@ func getAddonsFromConfigMap() ([]*apis.AddonMeta, error) {
 			Tags:        nil,
 		})
 	}
-	return metas,nil
+	return metas, nil
 
 }

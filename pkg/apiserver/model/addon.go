@@ -22,3 +22,55 @@ type Addon struct {
 	Name       string `json:"name"`
 	DeployData string `json:"deploy_data,omitempty"`
 }
+
+// TableName return custom table name
+func (a *Addon) TableName() string {
+	return tableNamePrefix + "addon"
+}
+
+// PrimaryKey return custom primary key
+func (a *Addon) PrimaryKey() string {
+	return a.Name
+}
+
+// Index return custom index
+func (a *Addon) Index() map[string]string {
+	index := make(map[string]string)
+	if a.Name != "" {
+		index["name"] = a.Name
+	}
+	return index
+}
+
+// AddonRegistry defines the data model of a AddonRegistry
+type AddonRegistry struct {
+	Model
+	Name string `json:"name"`
+
+	Git *GitAddonSource `json:"git,omitempty"`
+}
+
+// GitAddonSource defines the information about the Git as addon source
+type GitAddonSource struct {
+	URL string `json:"url,omitempty"`
+	Dir string `json:"dir,omitempty"`
+}
+
+// TableName return custom table name
+func (a *AddonRegistry) TableName() string {
+	return tableNamePrefix + "addon_registry"
+}
+
+// PrimaryKey return custom primary key
+func (a *AddonRegistry) PrimaryKey() string {
+	return a.Name
+}
+
+// Index return custom index
+func (a *AddonRegistry) Index() map[string]string {
+	index := make(map[string]string)
+	if a.Name != "" {
+		index["name"] = a.Name
+	}
+	return index
+}
