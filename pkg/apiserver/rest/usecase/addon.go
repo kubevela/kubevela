@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -41,7 +44,31 @@ type addonUsecaseImpl struct {
 }
 
 func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
-	panic("implement me")
+	r := addonRegistryModelFromCreateAddonRegistryRequest(req)
+	t := time.Now()
+	r.SetCreateTime(t)
+	r.SetCreateTime(t)
+
+	err := u.ds.Add(ctx, r)
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordExist) {
+			return nil, bcode.ErrApplicationExist
+		}
+		return nil, err
+	}
+
+	return &apis.AddonRegistryMeta{
+		Name: r.Name,
+		Git:  r.Git,
+	}, nil
+
+}
+
+func addonRegistryModelFromCreateAddonRegistryRequest(req apisv1.CreateAddonRegistryRequest) *model.AddonRegistry {
+	return &model.AddonRegistry{
+		Name: req.Name,
+		Git:  req.Git,
+	}
 }
 
 func (u *addonUsecaseImpl) GetAddonModel(ctx context.Context, name string) (*model.Addon, error) {
