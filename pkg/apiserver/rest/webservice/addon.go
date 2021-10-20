@@ -21,6 +21,7 @@ import (
 	"context"
 	"net/url"
 	"path"
+	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig"
@@ -261,6 +262,7 @@ func getAddonsFromGit(baseUrl, dir string) ([]*apis.AddonMeta, error) {
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	client := github.NewClient(nil)
 	// TODO add error handling
+	baseUrl = strings.TrimSuffix(baseUrl, ".git")
 	u, err := url.Parse(baseUrl)
 	if err != nil {
 		return nil, err
@@ -292,7 +294,7 @@ func getAddonsFromGit(baseUrl, dir string) ([]*apis.AddonMeta, error) {
 			if err != nil {
 				break
 			}
-			addonStr, _ :=addonContent.GetContent()
+			addonStr, _ := addonContent.GetContent()
 			obj := &unstructured.Unstructured{}
 			_, _, err = dec.Decode([]byte(addonStr), nil, obj)
 			if err != nil {
