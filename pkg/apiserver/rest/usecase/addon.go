@@ -52,7 +52,7 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 	err := u.ds.Add(ctx, r)
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordExist) {
-			return nil, bcode.ErrApplicationExist
+			return nil, bcode.ErrAddonExist
 		}
 		return nil, err
 	}
