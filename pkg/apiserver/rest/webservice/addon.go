@@ -18,6 +18,14 @@ package webservice
 
 import (
 	"context"
+	"github.com/google/go-github/v32/github"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/cli"
+	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"path"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
@@ -26,6 +34,11 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+)
+
+const (
+	AddonFileName       string = "addon.yaml"
+	AddonReadmeFileName string = "readme.md"
 )
 
 // NewAddonWebService returns addon web service
@@ -110,7 +123,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		var getAddons []*apis.AddonMeta
 		switch {
 		case r.ConfigMap != nil:
-			getAddons = getAddonsFromConfigMap(r.ConfigMap.Name, r.ConfigMap.Namespace)
+			getAddons = getAddonsFromConfigMap()
 		case r.Git != nil:
 			getAddons = getAddonsFromGit(r.Git.URL, r.Git.Dir)
 		}
@@ -212,9 +225,68 @@ func (s *addonWebService) deleteAddonData(data string) error {
 }
 
 func getAddonsFromGit(url, dir string) []*apis.AddonMeta {
-	panic("")
+	metas := []*apis.AddonMeta{}
+	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	client := github.NewClient(nil)
+	// TODO add error handling
+	_, content, err := plugins.Parse(path.Join(url, dir))
+	if err != nil {
+		return nil
+	}
+	_, dirs, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, content.Path, nil)
+	if err != nil {
+		return nil
+	}
+	for _, subItems := range dirs {
+		if *subItems.Type == "file" {
+			continue
+		}
+		meta := apis.AddonMeta{
+			Name: *subItems.Name,
+		}
+		var err error
+		_, files, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *subItems.Path, nil)
+		// get addon.yaml
+		for _, file := range files {
+			if *file.Name != AddonFileName {
+				continue
+			}
+			addonContent, err := file.GetContent()
+			if err != nil {
+				break
+			}
+			obj := &unstructured.Unstructured{}
+			_, _, err = dec.Decode([]byte(addonContent), nil, obj)
+			if err != nil {
+				break
+			}
+			meta.Description = obj.GetAnnotations()[cli.DescAnnotation]
+			break
+		}
+		if err != nil {
+			continue
+		}
+		metas = append(metas, &meta)
+	}
+	return metas
 }
 
-func getAddonsFromConfigMap(name, namespace string) []*apis.AddonMeta {
-	panic("")
+func getAddonsFromConfigMap() ([]*apis.AddonMeta, error) {
+	repo, err := cli.NewAddonRepo()
+	if err != nil {
+		return nil, errors.Wrap(err,"get configMap addon repo err")
+	}
+	addons := repo.ListAddons()
+	metas:=[]*apis.AddonMeta{}
+	for _,addon:=range addons{
+		metas = append(metas, &apis.AddonMeta{
+			Name:        addon.Name,
+			Version:     "v1alpha1",
+			Description: addon.Description,
+			Icon:        "",
+			Tags:        nil,
+		})
+	}
+	return metas,nil
+
 }

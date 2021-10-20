@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"

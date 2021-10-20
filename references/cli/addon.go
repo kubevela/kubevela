@@ -51,7 +51,7 @@ import (
 )
 
 const (
-	// DescAnnotation records the description of addon
+	// DescAnnotation records the Description of addon
 	DescAnnotation = "addons.oam.dev/description"
 )
 
@@ -108,7 +108,7 @@ func NewAddonListCommand() *cobra.Command {
 		Short:   "List addons",
 		Long:    "List addons in KubeVela",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := listAddons()
+			err := ListAddons()
 			if err != nil {
 				return err
 			}
@@ -181,16 +181,16 @@ func NewAddonDisableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	}
 }
 
-func listAddons() error {
+func ListAddons() error {
 	repo, err := NewAddonRepo()
 	if err != nil {
 		return err
 	}
-	addons := repo.listAddons()
+	addons := repo.ListAddons()
 	table := uitable.New()
 	table.AddRow("NAME", "DESCRIPTION", "STATUS")
 	for _, addon := range addons {
-		table.AddRow(addon.name, addon.description, addon.getStatus())
+		table.AddRow(addon.Name, addon.Description, addon.getStatus())
 	}
 	fmt.Println(table.String())
 	return nil
@@ -201,7 +201,7 @@ func enableAddon(name string, args map[string]string) error {
 	if err != nil {
 		return err
 	}
-	addon, err := repo.getAddon(name)
+	addon, err := repo.GetAddon(name)
 	if err != nil {
 		return err
 	}
@@ -218,12 +218,12 @@ func disableAddon(name string) error {
 	if err != nil {
 		return err
 	}
-	addon, err := repo.getAddon(name)
+	addon, err := repo.GetAddon(name)
 	if err != nil {
 		return errors.Wrap(err, "get addon err")
 	}
 	if addon.getStatus() == statusUninstalled {
-		fmt.Printf("Addon %s is not installed\n", addon.name)
+		fmt.Printf("Addon %s is not installed\n", addon.Name)
 		return nil
 	}
 	return addon.disable()
@@ -265,14 +265,14 @@ func tryDisableInitializerAddon(addonName string) error {
 }
 func newAddon(data *v1.ConfigMap) *Addon {
 	description := data.ObjectMeta.Annotations[DescAnnotation]
-	a := Addon{name: data.Annotations[oam.AnnotationAddonsName], description: description, data: data.Data["application"]}
+	a := Addon{Name: data.Annotations[oam.AnnotationAddonsName], Description: description, data: data.Data["application"]}
 	return &a
 }
 
 // AddonRepo is a place to store addon info
 type AddonRepo interface {
-	getAddon(name string) (Addon, error)
-	listAddons() []Addon
+	GetAddon(name string) (Addon, error)
+	ListAddons() []Addon
 }
 
 // NewAddonRepo create new addon repo,now only support ConfigMap
@@ -308,7 +308,7 @@ func (e AddonNotFoundErr) Error() string {
 	return fmt.Sprintf("addon %s not found", e.addonName)
 }
 
-func (c configMapAddonRepo) getAddon(name string) (Addon, error) {
+func (c configMapAddonRepo) GetAddon(name string) (Addon, error) {
 	for i := range c.maps {
 		if addonName, ok := c.maps[i].Annotations[oam.AnnotationAddonsName]; ok && name == addonName {
 			return *newAddon(&c.maps[i]), nil
@@ -317,7 +317,7 @@ func (c configMapAddonRepo) getAddon(name string) (Addon, error) {
 	return Addon{}, AddonNotFoundErr{addonName: name}
 }
 
-func (c configMapAddonRepo) listAddons() []Addon {
+func (c configMapAddonRepo) ListAddons() []Addon {
 	var addons []Addon
 	for i := range c.maps {
 		addon := newAddon(&c.maps[i])
@@ -328,8 +328,8 @@ func (c configMapAddonRepo) listAddons() []Addon {
 
 // Addon consist of a Initializer resource to enable an addon
 type Addon struct {
-	name        string
-	description string
+	Name        string
+	Description string
 	data        string
 	// Args is map for renderInitializer
 	Args        map[string]string
@@ -384,7 +384,7 @@ func (a *Addon) enable() error {
 	}
 	err = applicator.Apply(ctx, obj)
 	if err != nil {
-		return errors.Wrapf(err, "Error occurs when apply addon application: %s\n", a.name)
+		return errors.Wrapf(err, "Error occurs when apply addon application: %s\n", a.Name)
 	}
 	err = waitApplicationRunning(a.application)
 	if err != nil {
@@ -456,7 +456,7 @@ func (a *Addon) getStatus() string {
 	var application v1beta1.Application
 	err := clt.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      TransAddonName(a.name),
+		Name:      TransAddonName(a.Name),
 	}, &application)
 	if err != nil {
 		return statusUninstalled
