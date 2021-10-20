@@ -18,6 +18,8 @@ package cli
 
 import (
 	"context"
+	"strings"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,6 +39,8 @@ var (
 	regName string
 	regURL  string
 	token   string
+	label   string
+	filter  filterFunc
 )
 
 // NewTraitCommand creates `traits` command
@@ -53,6 +57,15 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// parse label filter
+			if label != "" {
+				if words := strings.Split(label, "="); len(words) != 2 {
+					return errors.New("label is invalid")
+				} else {
+					filter = createLabelFilter(words[0], words[1])
+				}
+			}
+
 			var registry Registry
 			var err error
 			if isDiscover {
@@ -69,7 +82,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 						return errors.Wrap(err, "get registry err")
 					}
 				}
-				return PrintTraitListFromRegistry(registry, ioStreams)
+				return PrintTraitListFromRegistry(registry, ioStreams,filter)
 
 			}
 			return PrintInstalledTraitDef(ioStreams)
@@ -86,7 +99,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
 	cmd.PersistentFlags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
 	cmd.PersistentFlags().StringVar(&regName, "registry", DefaultRegistry, "specify the registry name")
-	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
+	cmd.Flags().StringVar(&label, types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
@@ -127,7 +140,7 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 }
 
 // PrintTraitListFromRegistry print a table which shows all traits from registry
-func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams) error {
+func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, filter filterFunc) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -157,6 +170,9 @@ func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams) 
 
 	table.AddRow("NAME", "REGISTRY", "DEFINITION", "APPLIES-TO", "STATUS")
 	for _, c := range caps {
+		if filter != nil && !filter(c) {
+			continue
+		}
 		if c.Type != types.TypeTrait {
 			continue
 		}

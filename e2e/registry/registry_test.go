@@ -56,22 +56,22 @@ var (
 
 // TODO: change this into a mock UT to avoid remote call.
 
-var _ = ginkgo.Describe("Capability", func() {
-	ginkgo.Context("capability center", func() {
-		ginkgo.It("add a capability center", func() {
-			cli := fmt.Sprintf("vela cap center config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.URL)
+var _ = ginkgo.Describe("Registry", func() {
+	ginkgo.Context("registry center", func() {
+		ginkgo.It("add a registry center", func() {
+			cli := fmt.Sprintf("vela registry config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.URL)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput1 := fmt.Sprintf("Successfully configured capability center %s and sync from remote", capabilityCenterBasic.Name)
+			expectedOutput1 := fmt.Sprintf("Successfully configured registry %s", capabilityCenterBasic.Name)
 			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput1))
 		})
 
-		ginkgo.It("list capability centers", func() {
-			cli := "vela cap center ls"
+		ginkgo.It("list registry centers", func() {
+			cli := "vela registry ls"
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
-			gomega.Expect(output).To(gomega.ContainSubstring("ADDRESS"))
+			gomega.Expect(output).To(gomega.ContainSubstring("URL"))
 			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.Name))
 			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.URL))
 		})

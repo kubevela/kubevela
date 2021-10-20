@@ -18,7 +18,7 @@ package cli
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -50,6 +50,15 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// parse label filter
+			if label != "" {
+				if words := strings.Split(label, "="); len(words) != 2 {
+					return errors.New("label is invalid")
+				} else {
+					filter = createLabelFilter(words[0], words[1])
+				}
+			}
+
 			var registry Registry
 			var err error
 			if isDiscover {
@@ -66,7 +75,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 						return errors.Wrap(err, "get registry err")
 					}
 				}
-				return PrintComponentListFromRegistry(registry, ioStreams)
+				return PrintComponentListFromRegistry(registry, ioStreams,filter)
 			}
 			return PrintInstalledCompDef(ioStreams)
 		},
@@ -82,7 +91,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
 	cmd.PersistentFlags().StringVar(&regName, "registry", DefaultRegistry, "specify the registry name")
 	cmd.PersistentFlags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
-	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
+	cmd.Flags().StringVar(&label,types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
@@ -123,8 +132,17 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
+// filterFunc to filter whether to print the capability
+type filterFunc func(capability types.Capability) bool
+
+func createLabelFilter(key, value string) filterFunc {
+	return func(capability types.Capability) bool {
+		return capability.Labels[key] == value
+	}
+}
+
 // PrintComponentListFromRegistry print a table which shows all components from registry
-func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams) error {
+func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, filter filterFunc) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -139,7 +157,6 @@ func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStrea
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from registry: %s\n", regName)))
 	caps, err := registry.ListCaps()
 	if err != nil {
 		return err
@@ -153,6 +170,9 @@ func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStrea
 	table := newUITable()
 	table.AddRow("NAME", "REGISTRY", "DEFINITION", "STATUS")
 	for _, c := range caps {
+		if filter != nil && !filter(c) {
+			continue
+		}
 		c.Status = uninstalled
 		if c.Type != types.TypeComponentDefinition {
 			continue
