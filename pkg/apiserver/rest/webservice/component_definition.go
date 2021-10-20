@@ -21,9 +21,12 @@ import (
 	restful "github.com/emicklei/go-restful/v3"
 
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 type componentDefinitionWebservice struct {
+	definitionUsecase usecase.DefinitionUsecase
 }
 
 func (c *componentDefinitionWebservice) GetWebService() *restful.WebService {
@@ -35,11 +38,30 @@ func (c *componentDefinitionWebservice) GetWebService() *restful.WebService {
 
 	tags := []string{"componentdefinition"}
 
-	ws.Route(ws.GET("/").To(noop).
+	ws.Route(ws.GET("/").To(c.listComponentDefinition).
 		Doc("list all componentdefinition").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("appName", "if specified, query the componentdefinition supported by the cluster where the application resides.").DataType("string")).
-		Param(ws.QueryParameter("clusterName", "if specified, query the componentdefinition supported by the cluster.").DataType("string")).
+		Param(ws.QueryParameter("envName", "if specified, query the componentdefinition supported by the env.").DataType("string")).
+		Returns(200, "", apis.ListComponentDefinitionResponse{}).
 		Writes(apis.ListComponentDefinitionResponse{}))
 	return ws
+}
+
+// NewComponentDefinitionWebservice new componentdefinition webservice
+func NewComponentDefinitionWebservice(du usecase.DefinitionUsecase) WebService {
+	return &componentDefinitionWebservice{
+		definitionUsecase: du,
+	}
+}
+
+func (c *componentDefinitionWebservice) listComponentDefinition(req *restful.Request, res *restful.Response) {
+	componentDefinitions, err := c.definitionUsecase.ListComponentDefinitions(req.Request.Context(), req.QueryParameter("envName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.ListComponentDefinitionResponse{ComponentDefinitions: componentDefinitions}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }

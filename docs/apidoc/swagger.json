@@ -718,24 +718,20 @@
      "componentdefinition"
     ],
     "summary": "list all componentdefinition",
-    "operationId": "noop",
+    "operationId": "listComponentDefinition",
     "parameters": [
      {
       "type": "string",
-      "description": "if specified, query the componentdefinition supported by the cluster where the application resides.",
-      "name": "appName",
-      "in": "query"
-     },
-     {
-      "type": "string",
-      "description": "if specified, query the componentdefinition supported by the cluster.",
-      "name": "clusterName",
+      "description": "if specified, query the componentdefinition supported by the env.",
+      "name": "envName",
       "in": "query"
      }
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ListComponentDefinitionResponse"
+      }
      }
     }
    }
@@ -1299,10 +1295,10 @@
   },
   "common.AppRolloutStatus": {
    "required": [
-    "upgradedReplicas",
-    "batchRollingState",
-    "currentBatch",
     "rollingState",
+    "batchRollingState",
+    "upgradedReplicas",
+    "currentBatch",
     "upgradedReadyReplicas",
     "lastTargetAppRevision"
    ],
@@ -1593,7 +1589,8 @@
    "required": [
     "mode",
     "suspend",
-    "terminated"
+    "terminated",
+    "finished"
    ],
    "properties": {
     "appRevision": {
@@ -1602,7 +1599,13 @@
     "contextBackend": {
      "$ref": "#/definitions/v1.ObjectReference"
     },
+    "finished": {
+     "type": "boolean"
+    },
     "mode": {
+     "type": "string"
+    },
+    "startTime": {
      "type": "string"
     },
     "steps": {
@@ -1624,7 +1627,13 @@
     "id"
    ],
    "properties": {
+    "firstExecuteTime": {
+     "type": "string"
+    },
     "id": {
+     "type": "string"
+    },
+    "lastExecuteTime": {
      "type": "string"
     },
     "message": {
@@ -2302,8 +2311,7 @@
    "required": [
     "name",
     "description",
-    "icon",
-    "requiredParams"
+    "icon"
    ],
    "properties": {
     "description": {
@@ -2314,12 +2322,6 @@
     },
     "name": {
      "type": "string"
-    },
-    "requiredParams": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/types.Parameter"
-     }
     }
    }
   },
@@ -2543,12 +2545,12 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
-    "name",
     "version",
     "description",
     "icon",
     "tags",
-    "phase"
+    "phase",
+    "name"
    ],
    "properties": {
     "deploy_data": {
@@ -2585,14 +2587,14 @@
   },
   "v1.DetailApplicationResponse": {
    "required": [
-    "createTime",
     "gatewayRule",
     "name",
     "namespace",
+    "updateTime",
     "icon",
     "status",
     "description",
-    "updateTime",
+    "createTime",
     "policies",
     "status",
     "resourceInfo",
@@ -2659,12 +2661,12 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "labels",
-    "status",
     "reason",
     "name",
     "description",
     "icon",
+    "labels",
+    "status",
     "resourceInfo"
    ],
    "properties": {
@@ -2702,11 +2704,11 @@
   },
   "v1.DetailComponentResponse": {
    "required": [
-    "creator",
-    "appPrimaryKey",
+    "updateTime",
     "type",
     "createTime",
-    "updateTime",
+    "creator",
+    "appPrimaryKey",
     "name"
    ],
    "properties": {
@@ -2782,13 +2784,13 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
+    "name",
+    "type",
     "description",
     "creator",
     "properties",
     "createTime",
-    "updateTime",
-    "name",
-    "type"
+    "updateTime"
    ],
    "properties": {
     "createTime": {
@@ -3016,10 +3018,10 @@
   },
   "v1.NamespaceDetailResponse": {
    "required": [
-    "name",
     "description",
     "createTime",
-    "updateTime"
+    "updateTime",
+    "name"
    ],
    "properties": {
     "createTime": {

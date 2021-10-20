@@ -325,15 +325,14 @@ type NamespaceDetailResponse struct {
 
 // ListComponentDefinitionResponse list component dedinition response model
 type ListComponentDefinitionResponse struct {
-	ComponentDefinitions []ComponentDefinitionBase `json:"componentDefinitions"`
+	ComponentDefinitions []*ComponentDefinitionBase `json:"componentDefinitions"`
 }
 
 // ComponentDefinitionBase component definition base model
 type ComponentDefinitionBase struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Icon        string            `json:"icon"`
-	Parameter   []types.Parameter `json:"requiredParams"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
 }
 
 // CreatePolicyRequest create app policy
