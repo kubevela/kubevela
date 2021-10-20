@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
@@ -37,6 +39,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+)
+
+// PolicyType build-in policy type
+type PolicyType string
+
+const (
+	// EnvBindPolicy Multiple environment distribution policy
+	EnvBindPolicy PolicyType = "env-binding"
 )
 
 // ApplicationUsecase application usecase
@@ -89,7 +99,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context) ([]*apisv
 	}
 	var list []*apisv1.ApplicationBase
 	for _, entity := range entitys {
-		list = append(list, c.converAppModelToBase(entity.(*model.Application)))
+		list = append(list, c.converAppModelToBase(ctx, entity.(*model.Application)))
 	}
 	return list, nil
 }
@@ -107,7 +117,7 @@ func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName str
 
 // DetailApplication detail application info
 func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error) {
-	base := c.converAppModelToBase(app)
+	base := c.converAppModelToBase(ctx, app)
 	policys, err := c.queryApplicationPolicys(ctx, app)
 	if err != nil {
 		return nil, err
@@ -145,7 +155,6 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		Namespace:   req.Namespace,
 		Icon:        req.Icon,
 		Labels:      req.Labels,
-		ClusterList: req.ClusterList,
 	}
 	// check app name.
 	exit, err := c.ds.IsExist(ctx, &application)
@@ -211,6 +220,44 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		canDeploy = len(oamApp.Spec.Components) > 0
 	}
 
+	// build-in create env binding policy
+	if len(req.EnvBind) > 0 {
+		policy := model.ApplicationPolicy{
+			AppPrimaryKey: application.PrimaryKey(),
+			Name:          "env-binds",
+			Description:   "build-in create",
+			Type:          string(EnvBindPolicy),
+			Creator:       "",
+		}
+		var envBindingSpec v1alpha1.EnvBindingSpec
+		for _, envBind := range req.EnvBind {
+			placement := v1alpha1.EnvPlacement{
+				ClusterSelector: &common.ClusterSelector{
+					Name: envBind.ClusterSelector.Name,
+				},
+			}
+			if envBind.ClusterSelector.Namespace != "" {
+				placement.NamespaceSelector = &v1alpha1.NamespaceSelector{
+					Name: envBind.ClusterSelector.Namespace,
+				}
+			}
+			envBindingSpec.Envs = append(envBindingSpec.Envs, v1alpha1.EnvConfig{
+				Name:      envBind.Name,
+				Placement: placement,
+			})
+		}
+		properties, err := model.NewJSONStructByStruct(envBindingSpec)
+		if err != nil {
+			log.Logger.Errorf("new env binding properties failure,%s", err.Error())
+			return nil, bcode.ErrInvalidProperties
+		}
+		policy.Properties = properties
+		if err := c.ds.Add(ctx, &policy); err != nil {
+			log.Logger.Errorf("save env binding policy failure,%s", err.Error())
+			return nil, err
+		}
+	}
+
 	// add application to db.
 	if err := c.ds.Add(ctx, &application); err != nil {
 		if errors.Is(err, datastore.ErrRecordExist) {
@@ -219,7 +266,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		return nil, err
 	}
 	// render app base info.
-	base := c.converAppModelToBase(&application)
+	base := c.converAppModelToBase(ctx, &application)
 	// deploy to cluster if need.
 	if req.Deploy && canDeploy {
 		if _, err := c.Deploy(ctx, &application, apisv1.ApplicationDeployRequest{
@@ -561,7 +608,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	return app, nil
 }
 
-func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *apisv1.ApplicationBase {
+func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.Application) *apisv1.ApplicationBase {
 	appBeas := &apisv1.ApplicationBase{
 		Name:        app.Name,
 		Namespace:   app.Namespace,
@@ -570,6 +617,39 @@ func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *a
 		Description: app.Description,
 		Icon:        app.Icon,
 		Labels:      app.Labels,
+	}
+	var policy = model.ApplicationPolicy{
+		AppPrimaryKey: app.PrimaryKey(),
+		Type:          string(EnvBindPolicy),
+	}
+	policys, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
+	if err != nil {
+		log.Logger.Errorf("query application env binding policy failure %s", err.Error())
+	}
+	for _, policyEntity := range policys {
+		policy := policyEntity.(*model.ApplicationPolicy)
+		if policy.Properties != nil {
+			var envBindingSpec v1alpha1.EnvBindingSpec
+			if err := json.Unmarshal([]byte(policy.Properties.JSON()), &envBindingSpec); err != nil {
+				log.Logger.Errorf("unmarshal env binding policy failure %s", err.Error())
+				continue
+			}
+			for _, env := range envBindingSpec.Envs {
+				envBind := &apisv1.EnvBind{
+					Name:        env.Name,
+					Description: "",
+				}
+				if env.Placement.ClusterSelector != nil {
+					envBind.ClusterSelector = &apisv1.ClusterSelector{
+						Name: env.Placement.ClusterSelector.Name,
+					}
+				}
+				if env.Placement.NamespaceSelector != nil && envBind.ClusterSelector != nil {
+					envBind.ClusterSelector.Namespace = env.Placement.NamespaceSelector.Name
+				}
+				appBeas.EnvBind = append(appBeas.EnvBind, envBind)
+			}
+		}
 	}
 	// TODO: get and render app status
 	return appBeas

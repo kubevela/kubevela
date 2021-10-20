@@ -30,7 +30,7 @@ type Application struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	ClusterList []string          `json:"clusterList,omitempty"`
+	EnvBinds    []*EnvBind        `json:"envBinds,omitempty"`
 }
 
 // TableName return custom table name
@@ -53,6 +53,20 @@ func (a *Application) Index() map[string]string {
 		index["namespace"] = a.Namespace
 	}
 	return index
+}
+
+// EnvBind application env bind
+type EnvBind struct {
+	Name            string           `json:"name" validate:"checkname"`
+	Description     string           `json:"description,omitempty"`
+	ClusterSelector *ClusterSelector `json:"clusterSelector"`
+}
+
+// ClusterSelector cluster selector
+type ClusterSelector struct {
+	Name string `json:"name" validate:"checkname"`
+	// Adapt to a scenario where only one Namespace is available or a user-defined Namespace is available.
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // ApplicationComponent component database model
