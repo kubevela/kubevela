@@ -104,12 +104,45 @@ var _ = Describe("Test application usecase function", func() {
 		_, err = appUsecase.CreateApplication(context.TODO(), req)
 		equal = cmp.Equal(err, bcode.ErrInvalidProperties, cmpopts.EquateErrors())
 		Expect(equal).Should(BeTrue())
+
+		By("Test create app with env binding")
+		req = v1.CreateApplicationRequest{
+			Name:        "test-app-sadasd4",
+			Namespace:   "test-app-namespace",
+			Description: "this is a test app",
+			Icon:        "",
+			Labels:      map[string]string{"test": "true"},
+			EnvBind: []*v1.EnvBind{
+				{
+					Name:        "dev",
+					Description: "This is a dev env",
+					ClusterSelector: &v1.ClusterSelector{
+						Name: "dev-cluster",
+					},
+				},
+				{
+					Name:        "prob",
+					Description: "This is a prob env",
+					ClusterSelector: &v1.ClusterSelector{
+						Name:      "prob-cluster",
+						Namespace: "prob",
+					},
+				},
+			},
+		}
+		appBase, err := appUsecase.CreateApplication(context.TODO(), req)
+		Expect(err).Should(BeNil())
+
+		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd4")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(len(appBase.EnvBind), 2)).Should(BeEmpty())
 	})
 
 	It("Test ListApplications function", func() {
 		apps, err := appUsecase.ListApplications(context.TODO())
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(apps), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(apps), 3)).Should(BeEmpty())
 	})
 
 	It("Test DetailApplication function", func() {
