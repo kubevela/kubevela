@@ -45,7 +45,14 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 }
 
 func (u *addonUsecaseImpl) GetAddonModel(ctx context.Context, name string) (*model.Addon, error) {
-	panic("implement me")
+	var addon = model.Addon{
+		Name: name,
+	}
+	err := u.ds.Get(ctx, &addon)
+	if err != nil {
+		return nil, err
+	}
+	return &addon, nil
 }
 
 func (u *addonUsecaseImpl) DetailAddon(ctx context.Context, addon *model.Addon) (apis.DetailAddonResponse, error) {

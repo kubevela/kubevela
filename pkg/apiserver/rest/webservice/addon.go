@@ -119,7 +119,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		return
 	}
 
-	// backward compatibility with configMap addons.
+	// Backward compatibility with ConfigMap addons.
 	// We will deprecate ConfigMap and use Git based registry.
 	addons, err := getAddonsFromConfigMap()
 	if err != nil {
