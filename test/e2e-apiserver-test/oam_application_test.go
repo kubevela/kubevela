@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -74,17 +75,18 @@ var _ = Describe("Test oam application rest api", func() {
 		}
 		bodyByte, err = json.Marshal(updateReq)
 		Expect(err).Should(BeNil())
-		res, err = http.Post(
-			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appName),
-			"application/json",
-			bytes.NewBuffer(bodyByte),
-		)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
-
+		Eventually(func(g Gomega) {
+			res, err = http.Post(
+				fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appName),
+				"application/json",
+				bytes.NewBuffer(bodyByte),
+			)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(res).ShouldNot(BeNil())
+			g.Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+			g.Expect(res.Body).ShouldNot(BeNil())
+			defer res.Body.Close()
+		}, time.Minute).Should(Succeed())
 		newApp := new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: namespace}, newApp)).Should(BeNil())
 		Expect(newApp.Spec.Components).Should(Equal(updateReq.Components))

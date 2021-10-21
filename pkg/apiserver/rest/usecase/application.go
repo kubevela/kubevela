@@ -575,8 +575,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	for _, entity := range policies {
 		policy := entity.(*model.ApplicationPolicy)
 		apolicy := v1beta1.AppPolicy{
-			Name: component.Name,
-			Type: component.Type,
+			Name: policy.Name,
+			Type: policy.Type,
 		}
 		if policy.Properties != nil {
 			apolicy.Properties = policy.Properties.RawExtension()

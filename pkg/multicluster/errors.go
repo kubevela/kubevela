@@ -14,30 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clients
+package multicluster
 
-import (
-	"sigs.k8s.io/controller-runtime/pkg/client"
+import "fmt"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
+var (
+	// ErrClusterExists cluster already exists
+	ErrClusterExists = ClusterManagementError(fmt.Errorf("cluster already exists"))
+	// ErrReservedLocalClusterName reserved cluster name is used
+	ErrReservedLocalClusterName = ClusterManagementError(fmt.Errorf("cluster name `local` is reserved for kubevela hub cluster"))
 )
 
-var kubeClient client.Client
-
-// SetKubeClient for test
-func SetKubeClient(c client.Client) {
-	kubeClient = c
-}
-
-// GetKubeClient create and return kube runtime client
-func GetKubeClient() (client.Client, error) {
-	if kubeClient != nil {
-		return kubeClient, nil
-	}
-	var err error
-	kubeClient, err = multicluster.GetMulticlusterKubernetesClient()
-	if err != nil {
-		return nil, err
-	}
-	return kubeClient, nil
-}
+// ClusterManagementError multicluster management error
+type ClusterManagementError error

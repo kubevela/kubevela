@@ -22,6 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 )
 
 // CtxKeyApplication request context key of application
@@ -105,14 +106,47 @@ type AddonStatusResponse struct {
 	Phase AddonPhase `json:"phase"`
 }
 
+// AccessKeyRequest request parameters to access cloud provider
+type AccessKeyRequest struct {
+	AccessKeyID     string `json:"accessKeyID"`
+	AccessKeySecret string `json:"accessKeySecret"`
+}
+
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
-	Name             string            `json:"name" validate:"name"`
+	Name             string            `json:"name" validate:"checkname"`
 	Description      string            `json:"description,omitempty"`
 	Icon             string            `json:"icon"`
-	KubeConfig       string            `json:"kubeConfig" validate:"required_without=kubeConfigSecret"`
-	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty" validate:"required_without=kubeConfig"`
+	KubeConfig       string            `json:"kubeConfig,omitempty" validate:"required_without=KubeConfigSecret"`
+	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty" validate:"required_without=KubeConfig"`
 	Labels           map[string]string `json:"labels,omitempty"`
+	DashboardURL     string            `json:"dashboardURL,omitempty"`
+}
+
+// ConnectCloudClusterRequest request parameters to create a cluster from cloud cluster
+type ConnectCloudClusterRequest struct {
+	AccessKeyID     string            `json:"accessKeyID"`
+	AccessKeySecret string            `json:"accessKeySecret"`
+	ClusterID       string            `json:"clusterID"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description,omitempty"`
+	Icon            string            `json:"icon"`
+	Labels          map[string]string `json:"labels,omitempty"`
+}
+
+// ClusterResourceInfo resource info of cluster
+type ClusterResourceInfo struct {
+	WorkerNumber     int      `json:"workerNumber"`
+	MasterNumber     int      `json:"masterNumber"`
+	MemoryCapacity   int64    `json:"memoryCapacity"`
+	CPUCapacity      int64    `json:"cpuCapacity"`
+	GPUCapacity      int64    `json:"gpuCapacity,omitempty"`
+	PodCapacity      int64    `json:"podCapacity"`
+	MemoryUsed       int64    `json:"memoryUsed"`
+	CPUUsed          int64    `json:"cpuUsed"`
+	GPUUsed          int64    `json:"gpuUsed,omitempty"`
+	PodUsed          int64    `json:"podUsed"`
+	StorageClassList []string `json:"storageClassList,omitempty"`
 }
 
 // DetailClusterResponse cluster detail information model
@@ -125,19 +159,15 @@ type DetailClusterResponse struct {
 	DashboardURL string `json:"dashboardURL,omitempty"`
 }
 
-// ClusterResourceInfo resource info of cluster
-type ClusterResourceInfo struct {
-	WorkerNumber     int      `json:"workerNumber"`
-	MasterNumber     int      `json:"masterNumber"`
-	MemoryCapacity   int64    `json:"memoryCapacity"`
-	CPUCapacity      int64    `json:"cpuCapacity"`
-	GPUCapacity      int64    `json:"gpuCapacity,omitempty"`
-	StorageClassList []string `json:"storageClassList,omitempty"`
-}
-
 // ListClusterResponse list cluster
 type ListClusterResponse struct {
 	Clusters []ClusterBase `json:"clusters"`
+}
+
+// ListCloudClusterResponse list cloud clusters
+type ListCloudClusterResponse struct {
+	Clusters []cloudprovider.CloudCluster `json:"clusters"`
+	Total    int                          `json:"total"`
 }
 
 // ClusterBase cluster base model
@@ -146,8 +176,13 @@ type ClusterBase struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels"`
-	Status      string            `json:"status"`
-	Reason      string            `json:"reason"`
+
+	Provider     model.ProviderInfo `json:"providerInfo"`
+	APIServerURL string             `json:"apiServerURL"`
+	DashboardURL string             `json:"dashboardURL"`
+
+	Status string `json:"status"`
+	Reason string `json:"reason"`
 }
 
 // ListApplicationResponse list applications by query params
