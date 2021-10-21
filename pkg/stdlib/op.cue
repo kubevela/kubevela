@@ -17,6 +17,12 @@ import (
 
 #Apply: kube.#Apply
 
+#Read: kube.#Read
+
+#List: kube.#List
+
+#Delete: kube.#Delete
+
 #ApplyApplication: #Steps & {
 	load:       oam.#LoadComponets @step(1)
 	components: #Steps & {
@@ -137,8 +143,6 @@ import (
 #ConvertString: convert.#String
 
 #Load: oam.#LoadComponets
-
-#Read: kube.#Read
 
 #Steps: {
 	#do: "steps"
