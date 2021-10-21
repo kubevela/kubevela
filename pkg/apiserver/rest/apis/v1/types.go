@@ -509,3 +509,6 @@ type ApplicationDeployResponse struct {
 	// SourceType the event trigger source, Web or API
 	SourceType string `json:"sourceType"`
 }
+
+// VelaQLViewResponse query response
+type VelaQLViewResponse map[string]interface{}

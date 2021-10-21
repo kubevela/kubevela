@@ -21,7 +21,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 var kubeClient client.Client
@@ -53,4 +55,32 @@ func GetKubeConfig() (*rest.Config, error) {
 		return kubeConfig, err
 	}
 	return kubeConfig, nil
+}
+
+// GetDiscoverMapper get discover mapper
+func GetDiscoverMapper() (discoverymapper.DiscoveryMapper, error) {
+	conf, err := GetKubeConfig()
+	if err != nil {
+		return nil, err
+	}
+	dm, err := discoverymapper.New(conf)
+	if err != nil {
+		return nil, err
+	}
+	return dm, nil
+}
+
+// GetPackageDiscover get package discover
+func GetPackageDiscover() (*packages.PackageDiscover, error) {
+	conf, err := GetKubeConfig()
+	if err != nil {
+		return nil, err
+	}
+	pd, err := packages.NewPackageDiscover(conf)
+	if err != nil {
+		if !packages.IsCUEParseErr(err) {
+			return nil, err
+		}
+	}
+	return pd, nil
 }
