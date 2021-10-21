@@ -31,5 +31,22 @@ spec:
             url: slack url
             message:
               text: Hello KubeVela
+          email:
+            sender:
+              address: <sender-email-address>
+              alias: <sender-alias>
+              password:
+                # formSecret:
+                #   name: <secret-name>
+                #   key: <secret-key>
+                fromString: <sender-password>
+              host: <email host like smtp.gmail.com>
+              port: <email port, optional, default to 587>
+            receiver:
+              - kubevela1@gmail.com
+              - kubevela2@gmail.com
+            content:
+              subject: test-subject
+              body: test-body
       - name: first-server
         type: apply-application

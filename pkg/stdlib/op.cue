@@ -136,6 +136,8 @@ import (
 
 #ConvertString: convert.#String
 
+#SendEmail: email.#Send
+
 #Load: oam.#LoadComponets
 
 #Read: kube.#Read
