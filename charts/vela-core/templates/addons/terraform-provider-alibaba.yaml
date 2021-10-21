@@ -43,6 +43,10 @@ data:
             region: '[[ index .Args "ALICLOUD_REGION" ]]'
         type: raw
     status: {}
+  detail: |-
+    # terraform/provider-alibaba
+
+    This addon contains terraform provider for Alibaba Cloud.
 kind: ConfigMap
 metadata:
   annotations:

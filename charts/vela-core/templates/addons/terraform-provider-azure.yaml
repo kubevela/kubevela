@@ -43,6 +43,10 @@ data:
             provider: azure
         type: raw
     status: {}
+  detail: |-
+    # terraform/provider-azure
+
+    This addon contains terraform provider for Azure.
 kind: ConfigMap
 metadata:
   annotations:

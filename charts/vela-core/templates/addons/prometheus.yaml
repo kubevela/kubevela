@@ -27,6 +27,10 @@ data:
         - name: apply-resources
           type: apply-application
     status: {}
+  detail: |
+    # prometheus
+
+    prometheus
 kind: ConfigMap
 metadata:
   annotations:
