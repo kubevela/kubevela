@@ -53,7 +53,7 @@ type ClusterUsecase interface {
 
 type clusterUsecaseImpl struct {
 	ds        datastore.DataStore
-	caches map[string]*utils2.MemoryCache
+	caches    map[string]*utils2.MemoryCache
 	k8sClient client.Client
 }
 
@@ -161,9 +161,9 @@ func (c *clusterUsecaseImpl) createKubeCluster(ctx context.Context, req apis.Cre
 	cluster.SetUpdateTime(t)
 	if providerCluster != nil {
 		cluster.Provider = model.ProviderInfo{
-			Name: providerCluster.Name,
-			ID: providerCluster.ID,
-			Zone: providerCluster.Zone,
+			Name:   providerCluster.Name,
+			ID:     providerCluster.ID,
+			Zone:   providerCluster.Zone,
 			Labels: providerCluster.Labels,
 		}
 		cluster.DashboardURL = providerCluster.DashBoardURL
@@ -403,9 +403,9 @@ func newClusterBaseFromCluster(cluster *model.Cluster) *apis.ClusterBase {
 
 		APIServerURL: cluster.APIServerURL,
 		DashboardURL: cluster.DashboardURL,
-		Provider: cluster.Provider,
+		Provider:     cluster.Provider,
 
-		Status:      cluster.Status,
-		Reason:      cluster.Reason,
+		Status: cluster.Status,
+		Reason: cluster.Reason,
 	}
 }
