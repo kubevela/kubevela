@@ -621,12 +621,26 @@
      "cluster"
     ],
     "summary": "list all clusters",
-    "operationId": "noop",
+    "operationId": "listKubeClusters",
     "parameters": [
      {
       "type": "string",
       "description": "Fuzzy search based on name or description",
       "name": "query",
+      "in": "query"
+     },
+     {
+      "type": "int",
+      "default": 0,
+      "description": "Page for paging",
+      "name": "page",
+      "in": "query"
+     },
+     {
+      "type": "int",
+      "default": 20,
+      "description": "PageSize for paging",
+      "name": "pageSize",
       "in": "query"
      }
     ],
@@ -635,6 +649,11 @@
       "description": "OK",
       "schema": {
        "$ref": "#/definitions/map[string]string"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
       }
      },
      "500": {
@@ -668,7 +687,106 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.ClusterBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/clusters/cloud-clusters/{provider}": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "cluster"
+    ],
+    "summary": "list cloud clusters",
+    "operationId": "listCloudClusters",
+    "parameters": [
+     {
+      "type": "int",
+      "default": 0,
+      "description": "Page for paging",
+      "name": "page",
+      "in": "query"
+     },
+     {
+      "type": "int",
+      "default": 20,
+      "description": "PageSize for paging",
+      "name": "pageSize",
+      "in": "query"
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/*v1.AccessKeyRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ListCloudClusterResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/clusters/cloud-clusters/{provider}/connect": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "cluster"
+    ],
+    "summary": "create cluster from cloud cluster",
+    "operationId": "connectCloudCluster",
+    "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/*v1.ConnectCloudClusterRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ClusterBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -687,7 +805,7 @@
      "cluster"
     ],
     "summary": "detail cluster info",
-    "operationId": "noop",
+    "operationId": "getKubeCluster",
     "parameters": [
      {
       "type": "string",
@@ -699,7 +817,94 @@
     ],
     "responses": {
      "200": {
-      "description": "OK"
+      "schema": {
+       "$ref": "#/definitions/v1.DetailClusterResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   },
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "cluster"
+    ],
+    "summary": "modify cluster",
+    "operationId": "modifyKubeCluster",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the cluster",
+      "name": "clusterName",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/*v1.CreateClusterRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ClusterBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   },
+   "delete": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "cluster"
+    ],
+    "summary": "delete cluster",
+    "operationId": "deleteKubeCluster",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the cluster",
+      "name": "clusterName",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ClusterBase"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
      }
     }
    }
@@ -1293,13 +1498,54 @@
     }
    }
   },
+  "cloudprovider.CloudCluster": {
+   "required": [
+    "id",
+    "name",
+    "type",
+    "zone",
+    "labels",
+    "status",
+    "apiServerURL",
+    "dashboardURL"
+   ],
+   "properties": {
+    "apiServerURL": {
+     "type": "string"
+    },
+    "dashboardURL": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "type": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
   "common.AppRolloutStatus": {
    "required": [
     "rollingState",
-    "batchRollingState",
-    "upgradedReplicas",
-    "currentBatch",
     "upgradedReadyReplicas",
+    "batchRollingState",
+    "currentBatch",
+    "upgradedReplicas",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -1876,6 +2122,31 @@
     }
    }
   },
+  "model.ProviderInfo": {
+   "required": [
+    "name",
+    "id",
+    "zone",
+    "labels"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
   "types.Parameter": {
    "required": [
     "name"
@@ -1912,6 +2183,20 @@
    }
   },
   "types.Parameter.default": {},
+  "v1.AccessKeyRequest": {
+   "required": [
+    "accessKeyID",
+    "accessKeySecret"
+   ],
+   "properties": {
+    "accessKeyID": {
+     "type": "string"
+    },
+    "accessKeySecret": {
+     "type": "string"
+    }
+   }
+  },
   "v1.AddonMeta": {
    "required": [
     "name",
@@ -2173,10 +2458,19 @@
     "description",
     "icon",
     "labels",
+    "providerInfo",
+    "apiServerURL",
+    "dashboardURL",
     "status",
     "reason"
    ],
    "properties": {
+    "apiServerURL": {
+     "type": "string"
+    },
+    "dashboardURL": {
+     "type": "string"
+    },
     "description": {
      "type": "string"
     },
@@ -2192,6 +2486,9 @@
     "name": {
      "type": "string"
     },
+    "providerInfo": {
+     "$ref": "#/definitions/model.ProviderInfo"
+    },
     "reason": {
      "type": "string"
     },
@@ -2205,14 +2502,26 @@
     "workerNumber",
     "masterNumber",
     "memoryCapacity",
-    "cpuCapacity"
+    "cpuCapacity",
+    "podCapacity",
+    "memoryUsed",
+    "cpuUsed",
+    "podUsed"
    ],
    "properties": {
     "cpuCapacity": {
      "type": "integer",
      "format": "int64"
     },
+    "cpuUsed": {
+     "type": "integer",
+     "format": "int64"
+    },
     "gpuCapacity": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "gpuUsed": {
      "type": "integer",
      "format": "int64"
     },
@@ -2221,6 +2530,18 @@
      "format": "int32"
     },
     "memoryCapacity": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "memoryUsed": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "podCapacity": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "podUsed": {
      "type": "integer",
      "format": "int64"
     },
@@ -2338,6 +2659,41 @@
     }
    }
   },
+  "v1.ConnectCloudClusterRequest": {
+   "required": [
+    "accessKeyID",
+    "accessKeySecret",
+    "clusterID",
+    "name",
+    "icon"
+   ],
+   "properties": {
+    "accessKeyID": {
+     "type": "string"
+    },
+    "accessKeySecret": {
+     "type": "string"
+    },
+    "clusterID": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
   "v1.CreateAddonRequest": {
    "required": [
     "name",
@@ -2436,10 +2792,12 @@
   "v1.CreateClusterRequest": {
    "required": [
     "name",
-    "icon",
-    "kubeConfig"
+    "icon"
    ],
    "properties": {
+    "dashboardURL": {
+     "type": "string"
+    },
     "description": {
      "type": "string"
     },
@@ -2545,12 +2903,12 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
-    "version",
     "description",
     "icon",
     "tags",
     "phase",
-    "name"
+    "name",
+    "version"
    ],
    "properties": {
     "deploy_data": {
@@ -2587,14 +2945,14 @@
   },
   "v1.DetailApplicationResponse": {
    "required": [
+    "updateTime",
     "gatewayRule",
     "name",
     "namespace",
-    "updateTime",
-    "icon",
-    "status",
     "description",
     "createTime",
+    "icon",
+    "status",
     "policies",
     "status",
     "resourceInfo",
@@ -2661,15 +3019,21 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "reason",
-    "name",
-    "description",
-    "icon",
     "labels",
+    "providerInfo",
+    "apiServerURL",
     "status",
+    "name",
+    "icon",
+    "dashboardURL",
+    "reason",
+    "description",
     "resourceInfo"
    ],
    "properties": {
+    "apiServerURL": {
+     "type": "string"
+    },
     "dashboardURL": {
      "type": "string"
     },
@@ -2688,6 +3052,9 @@
     "name": {
      "type": "string"
     },
+    "providerInfo": {
+     "$ref": "#/definitions/model.ProviderInfo"
+    },
     "reason": {
      "type": "string"
     },
@@ -2704,12 +3071,12 @@
   },
   "v1.DetailComponentResponse": {
    "required": [
-    "updateTime",
-    "type",
-    "createTime",
     "creator",
+    "updateTime",
     "appPrimaryKey",
-    "name"
+    "name",
+    "type",
+    "createTime"
    ],
    "properties": {
     "appPrimaryKey": {
@@ -2784,13 +3151,13 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
+    "properties",
+    "createTime",
+    "updateTime",
     "name",
     "type",
     "description",
-    "creator",
-    "properties",
-    "createTime",
-    "updateTime"
+    "creator"
    ],
    "properties": {
     "createTime": {
@@ -2922,6 +3289,24 @@
     }
    }
   },
+  "v1.ListCloudClusterResponse": {
+   "required": [
+    "clusters",
+    "total"
+   ],
+   "properties": {
+    "clusters": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/cloudprovider.CloudCluster"
+     }
+    },
+    "total": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
   "v1.ListClusterResponse": {
    "required": [
     "clusters"
@@ -3018,10 +3403,10 @@
   },
   "v1.NamespaceDetailResponse": {
    "required": [
+    "name",
     "description",
     "createTime",
-    "updateTime",
-    "name"
+    "updateTime"
    ],
    "properties": {
     "createTime": {
