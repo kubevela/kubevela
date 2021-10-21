@@ -16,6 +16,14 @@ limitations under the License.
 
 package model
 
+// ProviderInfo describes the information from provider API
+type ProviderInfo struct {
+	Name string `json:"name"`
+	ID string `json:"id"`
+	Zone string `json:"zone"`
+	Labels map[string]string `json:"labels"`
+}
+
 // Cluster describes the model of cluster in apiserver
 type Cluster struct {
 	Model
@@ -25,6 +33,10 @@ type Cluster struct {
 	Labels      map[string]string `json:"labels"`
 	Status      string            `json:"status"`
 	Reason      string            `json:"reason"`
+
+	Provider ProviderInfo `json:"provider"`
+	APIServerURL string `json:"apiServerURL"`
+	DashboardURL string `json:"dashboardURL"`
 
 	KubeConfig       string `json:"kubeConfig"`
 	KubeConfigSecret string `json:"kubeConfigSecret"`

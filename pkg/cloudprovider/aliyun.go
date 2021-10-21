@@ -49,6 +49,25 @@ func NewAliyunCloudProvider(accessKeyID string, accessKeySecret string) (*Aliyun
 	return &AliyunCloudProvider{Client: c}, nil
 }
 
+func (provider *AliyunCloudProvider) decodeClusterLabels(tags []*cs20151215.Tag) map[string]string {
+	labels := map[string]string{}
+	for _, tag := range tags {
+		labels[*tag.Key] = *tag.Value
+	}
+	return labels
+}
+
+func (provider *AliyunCloudProvider) decodeClusterURL(masterURL string) (url struct {
+	APIServerEndpoint         string `json:"api_server_endpoint"`
+	DashboardEndpoint         string `json:"dashboardEndpoint"`
+	IntranetAPIServerEndpoint string `json:"intranet_api_server_endpoint"`
+}) {
+	if err := json.Unmarshal([]byte(masterURL), &url); err != nil {
+		klog.Info("failed to unmarshal masterUrl %s", masterURL)
+	}
+	return
+}
+
 // ListCloudClusters list clusters with page info, return clusters, total count and error
 func (provider *AliyunCloudProvider) ListCloudClusters(pageNumber int, pageSize int) ([]*CloudCluster, int, error) {
 	describeClustersV1Request := &cs20151215.DescribeClustersV1Request{
@@ -61,22 +80,13 @@ func (provider *AliyunCloudProvider) ListCloudClusters(pageNumber int, pageSize 
 	}
 	var clusters []*CloudCluster
 	for _, cluster := range resp.Body.Clusters {
-		labels := map[string]string{}
-		for _, tag := range cluster.Tags {
-			labels[*tag.Key] = *tag.Value
-		}
-		url := &struct {
-			APIServerEndpoint         string `json:"api_server_endpoint"`
-			DashboardEndpoint         string `json:"dashboardEndpoint"`
-			IntranetAPIServerEndpoint string `json:"intranet_api_server_endpoint"`
-		}{}
-		if err = json.Unmarshal([]byte(*cluster.MasterUrl), url); err != nil {
-			klog.Info("failed to unmarshal masterUrl %s", *cluster.MasterUrl)
-		}
+		labels := provider.decodeClusterLabels(cluster.Tags)
+		url := provider.decodeClusterURL(*cluster.MasterUrl)
 		clusters = append(clusters, &CloudCluster{
 			ID:           *cluster.ClusterId,
 			Name:         *cluster.Name,
 			Type:         *cluster.ClusterType,
+			Zone:         *cluster.ZoneId,
 			Labels:       labels,
 			Status:       *cluster.State,
 			APIServerURL: url.APIServerEndpoint,
@@ -94,4 +104,25 @@ func (provider *AliyunCloudProvider) GetClusterKubeConfig(clusterID string) (str
 		return "", err
 	}
 	return *resp.Body.Config, nil
+}
+
+// GetClusterInfo retrieves cluster info by clusterID
+func (provider *AliyunCloudProvider) GetClusterInfo(clusterID string) (*CloudCluster, error) {
+	resp, err := provider.DescribeClusterDetail(pointer.String(clusterID))
+	if err != nil {
+		return nil, err
+	}
+	cluster := resp.Body
+	labels := provider.decodeClusterLabels(cluster.Tags)
+	url := provider.decodeClusterURL(*cluster.MasterUrl)
+	return &CloudCluster{
+		ID:           *cluster.ClusterId,
+		Name:         *cluster.Name,
+		Type:         *cluster.ClusterType,
+		Zone:         *cluster.ZoneId,
+		Labels:       labels,
+		Status:       *cluster.State,
+		APIServerURL: url.APIServerEndpoint,
+		DashBoardURL: url.DashboardEndpoint,
+	}, nil
 }

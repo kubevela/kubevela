@@ -120,6 +120,7 @@ type CreateClusterRequest struct {
 	KubeConfig       string            `json:"kubeConfig,omitempty" validate:"required_without=KubeConfigSecret"`
 	KubeConfigSecret string            `json:"kubeConfigSecret,omitempty" validate:"required_without=KubeConfig"`
 	Labels           map[string]string `json:"labels,omitempty"`
+	DashboardURL     string `json:"dashboardURL,omitempty"`
 }
 
 // ConnectCloudClusterRequest request parameters to create a cluster from cloud cluster
@@ -175,6 +176,11 @@ type ClusterBase struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels"`
+
+	Provider model.ProviderInfo `json:"providerInfo"`
+	APIServerURL string `json:"apiServerURL"`
+	DashboardURL string `json:"dashboardURL"`
+
 	Status      string            `json:"status"`
 	Reason      string            `json:"reason"`
 }

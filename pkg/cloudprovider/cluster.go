@@ -24,6 +24,7 @@ import (
 type CloudClusterProvider interface {
 	ListCloudClusters(pageNumber int, pageSize int) ([]*CloudCluster, int, error)
 	GetClusterKubeConfig(clusterID string) (string, error)
+	GetClusterInfo(clusterID string) (*CloudCluster, error)
 }
 
 // GetClusterProvider creates interface for getting cloud cluster provider

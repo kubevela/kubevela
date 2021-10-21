@@ -26,6 +26,7 @@ type CloudCluster struct {
 	ID           string            `json:"id"`
 	Name         string            `json:"name"`
 	Type         string            `json:"type"`
+	Zone         string            `json:"zone"`
 	Labels       map[string]string `json:"labels"`
 	Status       string            `json:"status"`
 	APIServerURL string            `json:"apiServerURL"`

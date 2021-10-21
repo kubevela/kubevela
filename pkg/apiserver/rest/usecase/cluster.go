@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	utils2 "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -52,6 +53,7 @@ type ClusterUsecase interface {
 
 type clusterUsecaseImpl struct {
 	ds        datastore.DataStore
+	caches map[string]*utils2.MemoryCache
 	k8sClient client.Client
 }
 
@@ -61,7 +63,7 @@ func NewClusterUsecase(ds datastore.DataStore) ClusterUsecase {
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
-	return &clusterUsecaseImpl{ds: ds, k8sClient: k8sClient}
+	return &clusterUsecaseImpl{ds: ds, k8sClient: k8sClient, caches: make(map[string]*utils2.MemoryCache)}
 }
 
 func (c *clusterUsecaseImpl) getClusterFromDataStore(ctx context.Context, clusterName string) (*model.Cluster, error) {
@@ -72,6 +74,34 @@ func (c *clusterUsecaseImpl) getClusterFromDataStore(ctx context.Context, cluste
 		return nil, err
 	}
 	return cluster, nil
+}
+
+func (c *clusterUsecaseImpl) rollbackAddedClusterInDataStore(ctx context.Context, cluster *model.Cluster, err error) error {
+	if e := c.ds.Delete(ctx, cluster); e != nil {
+		return errors.Wrapf(err, "failed to rollback added cluster %s in data store: %s", cluster.Name, e.Error())
+	}
+	return err
+}
+
+func (c *clusterUsecaseImpl) rollbackDeletedClusterInDataStore(ctx context.Context, cluster *model.Cluster, err error) error {
+	if e := c.ds.Add(ctx, cluster); e != nil {
+		return errors.Wrapf(err, "failed to rollback deleted cluster %s in data store: %s", cluster.Name, e.Error())
+	}
+	return err
+}
+
+func (c *clusterUsecaseImpl) rollbackJoinedKubeCluster(ctx context.Context, cluster *model.Cluster, err error) error {
+	if e := multicluster.DetachCluster(ctx, c.k8sClient, cluster.Name); e != nil {
+		return errors.Wrapf(err, "failed to rollback joined cluster %s in kubevela: %s", cluster.Name, e.Error())
+	}
+	return err
+}
+
+func (c *clusterUsecaseImpl) rollbackDetachedKubeCluster(ctx context.Context, cluster *model.Cluster, err error) error {
+	if _, e := joinClusterByKubeConfigString(ctx, c.k8sClient, cluster.Name, cluster.KubeConfig); e != nil {
+		return errors.Wrapf(err, "failed to rollback detached cluster %s in kubevela: %s", cluster.Name, e.Error())
+	}
+	return err
 }
 
 func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string, page int, pageSize int) (*apis.ListClusterResponse, error) {
@@ -92,43 +122,60 @@ func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string,
 	return resp, nil
 }
 
-func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client, clusterName string, kubeConfig string) error {
+func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client, clusterName string, kubeConfig string) (string, error) {
 	tmpFileName := fmt.Sprintf("/tmp/cluster-secret-%s-%s-%d.kubeconfig", clusterName, utils.RandomString(8), time.Now().UnixNano())
 	if err := ioutil.WriteFile(tmpFileName, []byte(kubeConfig), 0600); err != nil {
-		return errors.Wrapf(err, "failed to write kubeconfig to temp file %s", tmpFileName)
+		return "", errors.Wrapf(err, "failed to write kubeconfig to temp file %s", tmpFileName)
 	}
 	defer func() {
 		_ = os.Remove(tmpFileName)
 	}()
-	_, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName)
+	cluster, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName)
 	if err != nil {
-		return errors.Wrapf(err, "failed to join cluster")
+		return "", errors.Wrapf(err, "failed to join cluster")
 	}
-	return nil
+	return cluster.Server, nil
 }
 
-func createClusterModelFromRequest(req apis.CreateClusterRequest) *model.Cluster {
-	return &model.Cluster{
-		Name:             req.Name,
-		Description:      req.Description,
-		Icon:             req.Icon,
-		Labels:           req.Labels,
-		KubeConfig:       req.KubeConfig,
-		KubeConfigSecret: req.KubeConfigSecret,
+func createClusterModelFromRequest(req apis.CreateClusterRequest, oldCluster *model.Cluster) (newCluster *model.Cluster) {
+	if oldCluster != nil {
+		newCluster = oldCluster.DeepCopy()
+	} else {
+		newCluster = &model.Cluster{}
 	}
+	newCluster.Name = req.Name
+	newCluster.Description = req.Description
+	newCluster.Icon = req.Icon
+	newCluster.Labels = req.Labels
+	newCluster.KubeConfig = req.KubeConfig
+	newCluster.KubeConfigSecret = req.KubeConfigSecret
+	newCluster.DashboardURL = req.DashboardURL
+	return newCluster
 }
 
-func (c *clusterUsecaseImpl) CreateKubeCluster(ctx context.Context, req apis.CreateClusterRequest) (*apis.ClusterBase, error) {
-	cluster := createClusterModelFromRequest(req)
+func (c *clusterUsecaseImpl) createKubeCluster(ctx context.Context, req apis.CreateClusterRequest, providerCluster *cloudprovider.CloudCluster) (*apis.ClusterBase, error) {
+	var err error
+	cluster := createClusterModelFromRequest(req, nil)
 	t := time.Now()
 	cluster.SetCreateTime(t)
 	cluster.SetUpdateTime(t)
+	if providerCluster != nil {
+		cluster.Provider = model.ProviderInfo{
+			Name: providerCluster.Name,
+			ID: providerCluster.ID,
+			Zone: providerCluster.Zone,
+			Labels: providerCluster.Labels,
+		}
+		cluster.DashboardURL = providerCluster.DashBoardURL
+	}
 	if req.KubeConfig != "" {
-		if err := joinClusterByKubeConfigString(ctx, c.k8sClient, req.Name, req.KubeConfig); err != nil {
+		cluster.APIServerURL, err = joinClusterByKubeConfigString(ctx, c.k8sClient, req.Name, req.KubeConfig)
+		if err != nil {
 			return nil, err
 		}
 		c.setClusterStatusAndResourceInfo(ctx, cluster)
-		if err := c.ds.Add(ctx, cluster); err != nil {
+		if err = c.ds.Add(ctx, cluster); err != nil {
+			err = c.rollbackJoinedKubeCluster(ctx, cluster, err)
 			if errors.Is(err, datastore.ErrRecordExist) {
 				return nil, bcode.ErrClusterAlreadyExistInDataStore
 			}
@@ -140,6 +187,10 @@ func (c *clusterUsecaseImpl) CreateKubeCluster(ctx context.Context, req apis.Cre
 		return nil, bcode.ErrKubeConfigSecretNotSupport
 	}
 	return nil, bcode.ErrKubeConfigAndSecretIsNotSet
+}
+
+func (c *clusterUsecaseImpl) CreateKubeCluster(ctx context.Context, req apis.CreateClusterRequest) (*apis.ClusterBase, error) {
+	return c.createKubeCluster(ctx, req, nil)
 }
 
 func (c *clusterUsecaseImpl) GetKubeCluster(ctx context.Context, clusterName string) (*apis.DetailClusterResponse, error) {
@@ -171,30 +222,50 @@ func (c *clusterUsecaseImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 		return nil, errors.Wrapf(err, "failed to found cluster %s in data store", clusterName)
 	}
 
-	newCluster := createClusterModelFromRequest(req)
+	newCluster := createClusterModelFromRequest(req, oldCluster)
 	newCluster.SetUpdateTime(time.Now())
 	if oldCluster.Name != newCluster.Name || oldCluster.KubeConfig != newCluster.KubeConfig || oldCluster.KubeConfigSecret != newCluster.KubeConfigSecret {
 		if newCluster.KubeConfig == "" && newCluster.KubeConfigSecret != "" {
 			return nil, bcode.ErrKubeConfigSecretNotSupport
 		}
+		newClusterTempName := newCluster.Name + "_tmp_" + utils.RandomString(8)
+		newCluster.APIServerURL, err = joinClusterByKubeConfigString(ctx, c.k8sClient, newCluster.Name, newCluster.KubeConfig)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to join new cluster %s", newCluster.Name)
+		}
+		c.setClusterStatusAndResourceInfo(ctx, newCluster)
+		rollbackTempCluster := func(err error) error {
+			rollBackCluster := newCluster.DeepCopy()
+			rollBackCluster.Name = newClusterTempName
+			return c.rollbackJoinedKubeCluster(ctx, rollBackCluster, err)
+		}
 		if err = multicluster.DetachCluster(ctx, c.k8sClient, oldCluster.Name); err != nil {
+			err = rollbackTempCluster(err)
 			return nil, errors.Wrapf(err, "failed to detach old cluster %s", oldCluster.Name)
 		}
 		if err = c.ds.Delete(ctx, oldCluster); err != nil {
+			err = rollbackTempCluster(err)
+			err = c.rollbackDetachedKubeCluster(ctx, oldCluster, err)
 			if errors.Is(err, datastore.ErrRecordNotExist) {
 				return nil, bcode.ErrClusterNotFoundInDataStore
 			}
 			return nil, errors.Wrapf(err, "failed to delete old cluster %s from datastore", oldCluster.Name)
 		}
-		if err = joinClusterByKubeConfigString(ctx, c.k8sClient, newCluster.Name, newCluster.KubeConfig); err != nil {
-			return nil, errors.Wrapf(err, "failed to join new cluster %s", newCluster.Name)
-		}
-		c.setClusterStatusAndResourceInfo(ctx, newCluster)
 		if err = c.ds.Add(ctx, newCluster); err != nil {
+			err = rollbackTempCluster(err)
+			err = c.rollbackDetachedKubeCluster(ctx, oldCluster, err)
+			err = c.rollbackDeletedClusterInDataStore(ctx, oldCluster, err)
 			if errors.Is(err, datastore.ErrRecordExist) {
 				return nil, bcode.ErrClusterAlreadyExistInDataStore
 			}
 			return nil, errors.Wrapf(err, "failed to add new cluster %s to datastore", newCluster.Name)
+		}
+		if err = multicluster.RenameCluster(ctx, c.k8sClient, newClusterTempName, newCluster.Name); err != nil {
+			err = rollbackTempCluster(err)
+			err = c.rollbackDetachedKubeCluster(ctx, oldCluster, err)
+			err = c.rollbackDeletedClusterInDataStore(ctx, oldCluster, err)
+			err = c.rollbackAddedClusterInDataStore(ctx, newCluster, err)
+			return nil, errors.Wrapf(err, "failed to rename temporary cluster %s to %s", newClusterTempName, newCluster.Name)
 		}
 	} else {
 		newCluster.Status = oldCluster.Status
@@ -221,13 +292,13 @@ func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 		return nil, errors.Wrapf(err, "failed to delete cluster %s in data store", clusterName)
 	}
 	if err = multicluster.DetachCluster(ctx, c.k8sClient, clusterName); err != nil {
+		err = c.rollbackDeletedClusterInDataStore(ctx, cluster, err)
 		return nil, errors.Wrapf(err, "failed to delete cluster %s in kubernetes", clusterName)
 	}
 	return newClusterBaseFromCluster(cluster), nil
 }
 
 func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context, cluster *model.Cluster) apis.ClusterResourceInfo {
-	// TODO add cache
 	resourceInfo, err := c.getClusterResourceInfoFromK8s(ctx, cluster.Name)
 	if err != nil {
 		cluster.Status = "Unhealthy"
@@ -239,7 +310,15 @@ func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context
 	return resourceInfo
 }
 
+func (c *clusterUsecaseImpl) getClusterResourceInfoCacheKey(clusterName string) string {
+	return "cluster-resource-info::" + clusterName
+}
+
 func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, clusterName string) (apis.ClusterResourceInfo, error) {
+	cacheKey := c.getClusterResourceInfoCacheKey(clusterName)
+	if cache, exists := c.caches[cacheKey]; exists && !cache.IsExpired() {
+		return cache.GetData().(apis.ClusterResourceInfo), nil
+	}
 	clusterInfo, err := multicluster.GetClusterInfo(ctx, c.k8sClient, clusterName)
 	if err != nil {
 		return apis.ClusterResourceInfo{}, err
@@ -254,7 +333,7 @@ func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, 
 		return &used
 	}
 	// TODO add support for gpu capacity
-	return apis.ClusterResourceInfo{
+	clusterResourceInfo := apis.ClusterResourceInfo{
 		WorkerNumber:     clusterInfo.WorkerNumber,
 		MasterNumber:     clusterInfo.MasterNumber,
 		MemoryCapacity:   clusterInfo.MemoryCapacity.Value(),
@@ -266,7 +345,9 @@ func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, 
 		GPUUsed:          0,
 		PodUsed:          getUsed(clusterInfo.PodCapacity, clusterInfo.PodAllocatable).Value(),
 		StorageClassList: storageClassList,
-	}, nil
+	}
+	c.caches[cacheKey] = utils2.NewMemoryCache(clusterResourceInfo, time.Minute)
+	return clusterResourceInfo, nil
 }
 
 func (c *clusterUsecaseImpl) ListCloudClusters(ctx context.Context, provider string, req apis.AccessKeyRequest, pageNumber int, pageSize int) (*apis.ListCloudClusterResponse, error) {
@@ -299,6 +380,10 @@ func (c *clusterUsecaseImpl) ConnectCloudCluster(ctx context.Context, provider s
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get cluster kubeConfig")
 	}
+	cluster, err := p.GetClusterInfo(req.ClusterID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get cluster info")
+	}
 	createReq := apis.CreateClusterRequest{
 		Name:        req.Name,
 		Description: req.Description,
@@ -306,7 +391,7 @@ func (c *clusterUsecaseImpl) ConnectCloudCluster(ctx context.Context, provider s
 		Labels:      req.Labels,
 		KubeConfig:  kubeConfig,
 	}
-	return c.CreateKubeCluster(ctx, createReq)
+	return c.createKubeCluster(ctx, createReq, cluster)
 }
 
 func newClusterBaseFromCluster(cluster *model.Cluster) *apis.ClusterBase {
@@ -315,6 +400,11 @@ func newClusterBaseFromCluster(cluster *model.Cluster) *apis.ClusterBase {
 		Description: cluster.Description,
 		Icon:        cluster.Icon,
 		Labels:      cluster.Labels,
+
+		APIServerURL: cluster.APIServerURL,
+		DashboardURL: cluster.DashboardURL,
+		Provider: cluster.Provider,
+
 		Status:      cluster.Status,
 		Reason:      cluster.Reason,
 	}
