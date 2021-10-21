@@ -245,6 +245,10 @@ data:
         - name: apply-resources
           type: apply-remaining
     status: {}
+  detail: |-
+    # istio
+
+    This addon provides istio support for vela rollout.
 kind: ConfigMap
 metadata:
   annotations:

@@ -6020,6 +6020,11 @@ data:
         - name: apply-resources
           type: apply-remaining
     status: {}
+  detail: "# fluxcd\n\nThis addon is built based [FluxCD](https://fluxcd.io/) \n\n##
+    X-Definitions\n\nEnable fluxcd addon to use these X-definitions\n\n- [helm](https://kubevela.io/docs/end-user/components/helm)
+    helps to deploy a helm chart from everywhere:\ngit repo / helm repo / S3 compatible
+    bucket.\n\n- [kustomize](https://kubevela.io/docs/end-user/components/kustomize)
+    helps to deploy a kustomize style artifact.\n"
 kind: ConfigMap
 metadata:
   annotations:

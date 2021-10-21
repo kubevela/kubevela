@@ -26,6 +26,10 @@ data:
         - name: apply-resources
           type: apply-application
     status: {}
+  detail: |-
+    # keda
+
+    keda
 kind: ConfigMap
 metadata:
   annotations:
