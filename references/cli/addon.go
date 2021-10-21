@@ -265,7 +265,12 @@ func tryDisableInitializerAddon(addonName string) error {
 }
 func newAddon(data *v1.ConfigMap) *Addon {
 	description := data.ObjectMeta.Annotations[DescAnnotation]
-	a := Addon{Name: data.Annotations[oam.AnnotationAddonsName], Description: description, data: data.Data["application"]}
+	a := Addon{
+		Name: data.Annotations[oam.AnnotationAddonsName],
+		Description: description,
+		Detail: data.Data["detail"],
+		data: data.Data["application"],
+	}
 	return &a
 }
 
@@ -335,6 +340,9 @@ type Addon struct {
 	Args        map[string]string
 	application *unstructured.Unstructured
 	gvk         *schema.GroupVersionKind
+
+	// Detail is doc for addon
+	Detail string
 }
 
 func (a *Addon) getGVK() (*schema.GroupVersionKind, error) {

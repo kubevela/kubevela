@@ -87,35 +87,38 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{name}").To(s.detailAddon).
 		Doc("show details of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the addon").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.DetailAddonResponse{}).
 		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to query detail").DataType("string").Required(true)).
 		Writes(apis.DetailAddonResponse{}))
 
 	// GET status
-	ws.Route(ws.GET("/{name}/status").To(s.statusAddon).
+	ws.Route(ws.GET("/status").To(s.statusAddon).
 		Doc("show status of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the addon").DataType("string")).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to query status").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
 	// enable addon
-	ws.Route(ws.POST("/{name}/enable").To(s.enableAddon).
+	ws.Route(ws.POST("/enable").To(s.enableAddon).
 		Doc("enable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.EnableAddonRequest{}).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
 	// disable addon
-	ws.Route(ws.POST("/{name}/disable").To(s.disableAddon).
+	ws.Route(ws.POST("/disable").To(s.disableAddon).
 		Doc("disable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
 		Writes(apis.EmptyResponse{}))
 
 	return ws
@@ -164,7 +167,7 @@ func (s *addonWebService) getAllAddons(ctx context.Context, detailed bool) ([]*a
 }
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
-	name := req.PathParameter("name")
+	name := req.QueryParameter("name")
 	addon, err := s.getAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -191,7 +194,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 		return
 	}
 
-	name := req.PathParameter("name")
+	name := req.QueryParameter("name")
 	addon, err := s.getAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -208,7 +211,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 }
 
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
-	name := req.PathParameter("name")
+	name := req.QueryParameter("name")
 	addon, err := s.getAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -223,7 +226,7 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 }
 
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
-	name := req.PathParameter("name")
+	name := req.QueryParameter("name")
 	status, err := s.checkAddonStatus(name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -415,31 +418,43 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 		meta := apis.AddonMeta{
 			Name: *subItems.Name,
 		}
+		var detail string
 		var err error
 		_, files, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *subItems.Path, nil)
-		// get addon.yaml
+		// get addon.yaml and readme.md
 		for _, file := range files {
-			if *file.Name != AddonFileName {
+			switch *file.Name {
+			case AddonFileName:
+				addonContent, _, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
+				if err != nil {
+					break
+				}
+				addonStr, _ := addonContent.GetContent()
+				obj := &unstructured.Unstructured{}
+				_, _, err = dec.Decode([]byte(addonStr), nil, obj)
+				if err != nil {
+					break
+				}
+				meta.Description = obj.GetAnnotations()[cli.DescAnnotation]
+			case AddonReadmeFileName:
+				if detailed {
+					detailContent, _, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
+					if err != nil {
+						break
+					}
+					detail, err = detailContent.GetContent()
+				}
+			default:
 				continue
 			}
-			addonContent, _, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
-			if err != nil {
-				break
-			}
-			addonStr, _ := addonContent.GetContent()
-			obj := &unstructured.Unstructured{}
-			_, _, err = dec.Decode([]byte(addonStr), nil, obj)
-			if err != nil {
-				break
-			}
-			meta.Description = obj.GetAnnotations()[cli.DescAnnotation]
-			break
+
 		}
 		if err != nil {
 			continue
 		}
 		addons = append(addons, &apis.DetailAddonResponse{
 			AddonMeta: meta,
+			Detail:    detail,
 		})
 	}
 	return addons, nil
@@ -462,6 +477,9 @@ func getAddonsFromConfigMap(detailed bool) ([]*apis.DetailAddonResponse, error) 
 				Icon:        "",
 				Tags:        nil,
 			},
+		}
+		if detailed {
+			d.Detail = addon.Detail
 		}
 		addons = append(addons, d)
 	}
