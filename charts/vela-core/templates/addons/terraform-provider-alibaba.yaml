@@ -16,7 +16,7 @@ data:
           apiVersion: v1
           kind: Secret
           metadata:
-            name: alibaba-provider-secret
+            name: alibaba-account-creds
             namespace: vela-system
           stringData:
             credentials: |
