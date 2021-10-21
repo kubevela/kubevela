@@ -13,13 +13,7 @@ template: {
 
 	parameter: {
 		dingding?: {
-			url: {
-				address?: string
-				fromSecret?: {
-					name: string
-					key:  string
-				}
-			}
+			url: address | fromSecret
 			message: {
 				text?: *null | {
 					content: string
@@ -64,13 +58,7 @@ template: {
 		}
 
 		slack?: {
-			url: {
-				address?: string
-				fromSecret?: {
-					name: string
-					key:  string
-				}
-			}
+			url: address | fromSecret
 			message: {
 				text:         string
 				blocks?:      *null | [...block]
@@ -80,6 +68,21 @@ template: {
 				}
 				thread_ts?: string
 				mrkdwn?:    *true | bool
+			}
+		}
+
+		email?: {
+			sender: {
+				address:  string
+				alias?:   string
+				password: fromSecret | fromString
+				host:     string
+				port:     *587 | int
+			}
+			receiver: [...string]
+			content: {
+				subject: string
+				body:    string
 			}
 		}
 	}
@@ -133,6 +136,14 @@ template: {
 		description?: text
 		url?:         string
 	}
+
+	fromSecret: {
+		name: string
+		key:  string
+	}
+
+	address:    string
+	fromString: string
 
 	// send webhook notification
 	ding: op.#Steps & {
@@ -190,6 +201,51 @@ template: {
 				slack2:      op.#Slack & {
 					message:  parameter.slack.message
 					slackUrl: stringValue.str
+				}
+			}
+		}
+	}
+
+	email: op.#Steps & {
+		if parameter.email != _|_ {
+			if parameter.email.sender.password.fromString != _|_ {
+				email1: op.#SendEmail & {
+					sender: {
+						address:  parameter.email.sender.address
+						alias:    parameter.email.sender.alias
+						password: parameter.email.sender.password.fromString
+						host:     parameter.email.sender.host
+						port:     parameter.email.sender.port
+					}
+					receiver: parameter.email.receiver
+					content:  parameter.email.content
+				}
+			}
+
+			if parameter.email.sender.password.fromSecret != _|_ && parameter.email.sender.password.fromString == _|_ {
+				read: op.#Read & {
+					value: {
+						kind:       "Secret"
+						apiVersion: "v1"
+						metadata: {
+							name:      parameter.email.sender.password.fromSecret.name
+							namespace: context.namespace
+						}
+					}
+				}
+
+				decoded:     base64.Decode(null, read.value.data[parameter.email.sender.password.fromSecret.key])
+				stringValue: op.#ConvertString & {bt: decoded}
+				email2:      op.#SendEmail & {
+					sender: {
+						address:  parameter.email.sender.address
+						alias:    parameter.email.sender.alias
+						password: stringValue.str
+						host:     parameter.email.sender.host
+						port:     parameter.email.sender.port
+					}
+					receiver: parameter.email.receiver
+					content:  parameter.email.content
 				}
 			}
 		}
