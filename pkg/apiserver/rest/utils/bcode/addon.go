@@ -1,6 +1,10 @@
 package bcode
 
 var (
+
+	// ErrAddonNotExist addon not exist
+	ErrAddonNotExist = NewBcode(400, 40001, "addon not exist")
+
 	// ErrAddonExist application is exist
 	ErrAddonExist = NewBcode(400, 40002, "addon name already exists")
 
@@ -18,9 +22,6 @@ var (
 
 	// ErrGetConfigMapAddonFail fail to get addon info in configmap
 	ErrGetConfigMapAddonFail = NewBcode(500, 40014, "fail to get addon information in ConfigMap")
-
-	// ErrAddonNotExist addon not exist
-	ErrAddonNotExist = NewBcode(400, 40015, "addon not exist")
 
 	// ErrAddonDisableFail fail to disable addon
 	ErrAddonDisableFail = NewBcode(500, 40016, "fail to disable addon")

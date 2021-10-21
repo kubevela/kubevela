@@ -28,9 +28,6 @@ import (
 var (
 	// CtxKeyApplication request context key of application
 	CtxKeyApplication = "application"
-
-	// CtxKeyAddon request context key of addon
-	CtxKeyAddon = "addon"
 )
 
 // AddonPhase defines the phase of an addon

@@ -16,32 +16,6 @@ limitations under the License.
 
 package model
 
-// Addon defines the data model of a Addon
-type Addon struct {
-	Model
-	Name       string `json:"name"`
-	DeployData string `json:"deploy_data,omitempty"`
-}
-
-// TableName return custom table name
-func (a *Addon) TableName() string {
-	return tableNamePrefix + "addon"
-}
-
-// PrimaryKey return custom primary key
-func (a *Addon) PrimaryKey() string {
-	return a.Name
-}
-
-// Index return custom index
-func (a *Addon) Index() map[string]string {
-	index := make(map[string]string)
-	if a.Name != "" {
-		index["name"] = a.Name
-	}
-	return index
-}
-
 // AddonRegistry defines the data model of a AddonRegistry
 type AddonRegistry struct {
 	Model

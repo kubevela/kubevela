@@ -19,15 +19,17 @@ package webservice
 import (
 	"bytes"
 	"context"
+	"net/url"
+	"path"
+	"strings"
+	"text/template"
+
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
-	"net/url"
-	"path"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
-	"text/template"
 
 	"github.com/Masterminds/sprig"
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
@@ -37,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -85,7 +86,6 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	// GET
 	ws.Route(ws.GET("/{name}").To(s.detailAddon).
 		Doc("show details of an addon").
-		Filter(s.addonCheckFilter).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("name", "identifier of the addon").DataType("string")).
 		Returns(200, "", apis.DetailAddonResponse{}).
@@ -95,7 +95,6 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	// GET status
 	ws.Route(ws.GET("/{name}/status").To(s.statusAddon).
 		Doc("show status of an addon").
-		Filter(s.addonCheckFilter).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("name", "identifier of the addon").DataType("string")).
 		Returns(200, "", apis.AddonStatusResponse{}).
@@ -105,7 +104,6 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	// enable addon
 	ws.Route(ws.POST("/{name}/enable").To(s.enableAddon).
 		Doc("enable an addon").
-		Filter(s.addonCheckFilter).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.EnableAddonRequest{}).
 		Returns(200, "", apis.AddonStatusResponse{}).
@@ -115,7 +113,6 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	// disable addon
 	ws.Route(ws.POST("/{name}/disable").To(s.disableAddon).
 		Doc("disable an addon").
-		Filter(s.addonCheckFilter).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -125,33 +122,16 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 }
 
 func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response) {
-	rs, err := s.addonUsecase.ListAddonRegistries(req.Request.Context())
+	detailAddons, err := s.getAllAddons(req.Request.Context(), false)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 
-	// Backward compatibility with ConfigMap addons.
-	// We will deprecate ConfigMap and use Git based registry.
-	addons, err := getAddonsFromConfigMap()
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
+	var addons []*apis.AddonMeta
 
-	for _, r := range rs {
-		getAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Dir)
-		if err != nil {
-			bcode.ReturnError(req, res, err)
-			return
-		}
-		for _, g := range getAddons {
-			if hasAddon(addons, g.Name) {
-				continue
-			}
-			addons = append(addons, g)
-		}
-
+	for _, d := range detailAddons {
+		addons = append(addons, &d.AddonMeta)
 	}
 
 	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons})
@@ -161,43 +141,45 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 	}
 }
 
-func hasAddon(addons []*apis.AddonMeta, name string) bool {
-	for _, addon := range addons {
-		if addon.Name == name {
-			return true
-		}
+func (s *addonWebService) getAllAddons(ctx context.Context, detailed bool) ([]*apis.DetailAddonResponse, error) {
+	// Backward compatibility with ConfigMap addons.
+	// We will deprecate ConfigMap and use Git based registry.
+	addons, err := getAddonsFromConfigMap(detailed)
+	if err != nil {
+		return nil, err
 	}
-	return false
+
+	rs, err := s.addonUsecase.ListAddonRegistries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rs {
+		getAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Dir, detailed)
+		if err != nil {
+			return nil, err
+		}
+		addons = mergeAddons(addons, getAddons)
+	}
+	return addons, nil
 }
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
-	addon := req.Request.Context().Value(&apis.CtxKeyAddon).(*model.Addon)
-	detail, err := s.addonUsecase.DetailAddon(req.Request.Context(), addon)
+	name := req.PathParameter("name")
+	addon, err := s.getAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 
-	err = res.WriteEntity(detail)
+	err = res.WriteEntity(addon)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-}
 
-func (s *addonWebService) addonCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	addon, err := s.addonUsecase.GetAddonModel(req.Request.Context(), req.PathParameter("name"))
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyAddon, addon))
-	chain.ProcessFilter(req, res)
 }
 
 func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Response) {
-	addon := req.Request.Context().Value(&apis.CtxKeyAddon).(*model.Addon)
-
 	var createReq apis.EnableAddonRequest
 	err := req.ReadEntity(&createReq)
 	if err != nil {
@@ -205,6 +187,13 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 		return
 	}
 	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	name := req.PathParameter("name")
+	addon, err := s.getAddon(req.Request.Context(), name)
+	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -219,8 +208,13 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 }
 
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
-	addon := req.Request.Context().Value(&apis.CtxKeyAddon).(*model.Addon)
-	err := s.deleteAddonData(addon.DeployData)
+	name := req.PathParameter("name")
+	addon, err := s.getAddon(req.Request.Context(), name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = s.deleteAddonData(addon.DeployData)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -229,9 +223,8 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 }
 
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
-	addon := req.Request.Context().Value(&apis.CtxKeyAddon).(*model.Addon)
-
-	status, err := s.checkAddonStatus(addon.Name)
+	name := req.PathParameter("name")
+	status, err := s.checkAddonStatus(name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -285,7 +278,7 @@ func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRe
 
 func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusResponse, error) {
 	// TODO fix this， addons can be got from not only configMap
-	addons, err := getAddonsFromConfigMap()
+	addons, err := getAddonsFromConfigMap(false)
 	if err != nil {
 		return nil, bcode.ErrGetConfigMapAddonFail
 	}
@@ -363,8 +356,41 @@ func (s *addonWebService) deleteAddonData(data string) error {
 
 }
 
-func getAddonsFromGit(baseUrl, dir string) ([]*apis.AddonMeta, error) {
-	metas := []*apis.AddonMeta{}
+func (s *addonWebService) getAddon(ctx context.Context, name string) (*apis.DetailAddonResponse, error) {
+	addons, err := s.getAllAddons(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, addon := range addons {
+		if addon.Name == name {
+			return addon, nil
+		}
+	}
+	return nil, bcode.ErrAddonNotExist
+}
+
+func mergeAddons(a1, a2 []*apis.DetailAddonResponse) []*apis.DetailAddonResponse {
+	for _, item := range a2 {
+		if hasAddon(a1, item.Name) {
+			continue
+		}
+		a1 = append(a1, item)
+	}
+	return a1
+}
+
+func hasAddon(addons []*apis.DetailAddonResponse, name string) bool {
+	for _, addon := range addons {
+		if addon.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonResponse, error) {
+	addons := []*apis.DetailAddonResponse{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	client := github.NewClient(nil)
 	// TODO add error handling
@@ -412,28 +438,33 @@ func getAddonsFromGit(baseUrl, dir string) ([]*apis.AddonMeta, error) {
 		if err != nil {
 			continue
 		}
-		metas = append(metas, &meta)
+		addons = append(addons, &apis.DetailAddonResponse{
+			AddonMeta: meta,
+		})
 	}
-	return metas, nil
+	return addons, nil
 }
 
-func getAddonsFromConfigMap() ([]*apis.AddonMeta, error) {
+func getAddonsFromConfigMap(detailed bool) ([]*apis.DetailAddonResponse, error) {
 	repo, err := cli.NewAddonRepo()
 	if err != nil {
 		return nil, errors.Wrap(err, "get configMap addon repo err")
 	}
-	addons := repo.ListAddons()
-	metas := []*apis.AddonMeta{}
-	for _, addon := range addons {
-		metas = append(metas, &apis.AddonMeta{
-			Name: addon.Name,
-			// TODO add actual Version, Icon, tags
-			Version:     "v1alpha1",
-			Description: addon.Description,
-			Icon:        "",
-			Tags:        nil,
-		})
+	cliAddons := repo.ListAddons()
+	addons := []*apis.DetailAddonResponse{}
+	for _, addon := range cliAddons {
+		d := &apis.DetailAddonResponse{
+			AddonMeta: apis.AddonMeta{
+				Name: addon.Name,
+				// TODO add actual Version, Icon, tags
+				Version:     "v1alpha1",
+				Description: addon.Description,
+				Icon:        "",
+				Tags:        nil,
+			},
+		}
+		addons = append(addons, d)
 	}
-	return metas, nil
+	return addons, nil
 
 }

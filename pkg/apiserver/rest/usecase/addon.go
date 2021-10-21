@@ -20,9 +20,7 @@ import (
 // AddonUsecase addon usecase
 type AddonUsecase interface {
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
-	GetAddonModel(ctx context.Context, name string) (*model.Addon, error)
 	GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error)
-	DetailAddon(ctx context.Context, addon *model.Addon) (apis.DetailAddonResponse, error)
 	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 }
 
@@ -66,17 +64,6 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 
 }
 
-func (u *addonUsecaseImpl) GetAddonModel(ctx context.Context, name string) (*model.Addon, error) {
-	var addon = model.Addon{
-		Name: name,
-	}
-	err := u.ds.Get(ctx, &addon)
-	if err != nil {
-		return nil, err
-	}
-	return &addon, nil
-}
-
 func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error) {
 	var r = model.AddonRegistry{
 		Name: name,
@@ -86,10 +73,6 @@ func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name strin
 		return nil, err
 	}
 	return &r, nil
-}
-
-func (u *addonUsecaseImpl) DetailAddon(ctx context.Context, addon *model.Addon) (apis.DetailAddonResponse, error) {
-	panic("implement me")
 }
 
 func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
