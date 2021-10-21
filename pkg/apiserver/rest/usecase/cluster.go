@@ -76,32 +76,28 @@ func (c *clusterUsecaseImpl) getClusterFromDataStore(ctx context.Context, cluste
 	return cluster, nil
 }
 
-func (c *clusterUsecaseImpl) rollbackAddedClusterInDataStore(ctx context.Context, cluster *model.Cluster, err error) error {
+func (c *clusterUsecaseImpl) rollbackAddedClusterInDataStore(ctx context.Context, cluster *model.Cluster) {
 	if e := c.ds.Delete(ctx, cluster); e != nil {
-		return errors.Wrapf(err, "failed to rollback added cluster %s in data store: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback added cluster %s in data store: %s", cluster.Name, e.Error())
 	}
-	return err
 }
 
-func (c *clusterUsecaseImpl) rollbackDeletedClusterInDataStore(ctx context.Context, cluster *model.Cluster, err error) error {
+func (c *clusterUsecaseImpl) rollbackDeletedClusterInDataStore(ctx context.Context, cluster *model.Cluster) {
 	if e := c.ds.Add(ctx, cluster); e != nil {
-		return errors.Wrapf(err, "failed to rollback deleted cluster %s in data store: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback deleted cluster %s in data store: %s", cluster.Name, e.Error())
 	}
-	return err
 }
 
-func (c *clusterUsecaseImpl) rollbackJoinedKubeCluster(ctx context.Context, cluster *model.Cluster, err error) error {
+func (c *clusterUsecaseImpl) rollbackJoinedKubeCluster(ctx context.Context, cluster *model.Cluster) {
 	if e := multicluster.DetachCluster(ctx, c.k8sClient, cluster.Name); e != nil {
-		return errors.Wrapf(err, "failed to rollback joined cluster %s in kubevela: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback joined cluster %s in kubevela: %s", cluster.Name, e.Error())
 	}
-	return err
 }
 
-func (c *clusterUsecaseImpl) rollbackDetachedKubeCluster(ctx context.Context, cluster *model.Cluster, err error) error {
+func (c *clusterUsecaseImpl) rollbackDetachedKubeCluster(ctx context.Context, cluster *model.Cluster) {
 	if _, e := joinClusterByKubeConfigString(ctx, c.k8sClient, cluster.Name, cluster.KubeConfig); e != nil {
-		return errors.Wrapf(err, "failed to rollback detached cluster %s in kubevela: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback detached cluster %s in kubevela: %s", cluster.Name, e.Error())
 	}
-	return err
 }
 
 func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string, page int, pageSize int) (*apis.ListClusterResponse, error) {
@@ -132,6 +128,9 @@ func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client,
 	}()
 	cluster, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName)
 	if err != nil {
+		if errors.Is(err, multicluster.ErrClusterExists) {
+			return "", bcode.ErrClusterExistsInKubernetes
+		}
 		return "", errors.Wrapf(err, "failed to join cluster")
 	}
 	return cluster.Server, nil
@@ -175,7 +174,7 @@ func (c *clusterUsecaseImpl) createKubeCluster(ctx context.Context, req apis.Cre
 		}
 		c.setClusterStatusAndResourceInfo(ctx, cluster)
 		if err = c.ds.Add(ctx, cluster); err != nil {
-			err = c.rollbackJoinedKubeCluster(ctx, cluster, err)
+			c.rollbackJoinedKubeCluster(ctx, cluster)
 			if errors.Is(err, datastore.ErrRecordExist) {
 				return nil, bcode.ErrClusterAlreadyExistInDataStore
 			}
@@ -234,37 +233,37 @@ func (c *clusterUsecaseImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 			return nil, errors.Wrapf(err, "failed to join new cluster %s", newCluster.Name)
 		}
 		c.setClusterStatusAndResourceInfo(ctx, newCluster)
-		rollbackTempCluster := func(err error) error {
+		rollbackTempCluster := func() {
 			rollBackCluster := newCluster.DeepCopy()
 			rollBackCluster.Name = newClusterTempName
-			return c.rollbackJoinedKubeCluster(ctx, rollBackCluster, err)
+			c.rollbackJoinedKubeCluster(ctx, rollBackCluster)
 		}
 		if err = multicluster.DetachCluster(ctx, c.k8sClient, oldCluster.Name); err != nil {
-			err = rollbackTempCluster(err)
+			rollbackTempCluster()
 			return nil, errors.Wrapf(err, "failed to detach old cluster %s", oldCluster.Name)
 		}
 		if err = c.ds.Delete(ctx, oldCluster); err != nil {
-			err = rollbackTempCluster(err)
-			err = c.rollbackDetachedKubeCluster(ctx, oldCluster, err)
+			rollbackTempCluster()
+			c.rollbackDetachedKubeCluster(ctx, oldCluster)
 			if errors.Is(err, datastore.ErrRecordNotExist) {
 				return nil, bcode.ErrClusterNotFoundInDataStore
 			}
 			return nil, errors.Wrapf(err, "failed to delete old cluster %s from datastore", oldCluster.Name)
 		}
 		if err = c.ds.Add(ctx, newCluster); err != nil {
-			err = rollbackTempCluster(err)
-			err = c.rollbackDetachedKubeCluster(ctx, oldCluster, err)
-			err = c.rollbackDeletedClusterInDataStore(ctx, oldCluster, err)
+			rollbackTempCluster()
+			c.rollbackDetachedKubeCluster(ctx, oldCluster)
+			c.rollbackDeletedClusterInDataStore(ctx, oldCluster)
 			if errors.Is(err, datastore.ErrRecordExist) {
 				return nil, bcode.ErrClusterAlreadyExistInDataStore
 			}
 			return nil, errors.Wrapf(err, "failed to add new cluster %s to datastore", newCluster.Name)
 		}
 		if err = multicluster.RenameCluster(ctx, c.k8sClient, newClusterTempName, newCluster.Name); err != nil {
-			err = rollbackTempCluster(err)
-			err = c.rollbackDetachedKubeCluster(ctx, oldCluster, err)
-			err = c.rollbackDeletedClusterInDataStore(ctx, oldCluster, err)
-			err = c.rollbackAddedClusterInDataStore(ctx, newCluster, err)
+			rollbackTempCluster()
+			c.rollbackDetachedKubeCluster(ctx, oldCluster)
+			c.rollbackDeletedClusterInDataStore(ctx, oldCluster)
+			c.rollbackAddedClusterInDataStore(ctx, newCluster)
 			return nil, errors.Wrapf(err, "failed to rename temporary cluster %s to %s", newClusterTempName, newCluster.Name)
 		}
 	} else {
@@ -292,7 +291,7 @@ func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 		return nil, errors.Wrapf(err, "failed to delete cluster %s in data store", clusterName)
 	}
 	if err = multicluster.DetachCluster(ctx, c.k8sClient, clusterName); err != nil {
-		err = c.rollbackDeletedClusterInDataStore(ctx, cluster, err)
+		c.rollbackDeletedClusterInDataStore(ctx, cluster)
 		return nil, errors.Wrapf(err, "failed to delete cluster %s in kubernetes", clusterName)
 	}
 	return newClusterBaseFromCluster(cluster), nil
@@ -358,7 +357,8 @@ func (c *clusterUsecaseImpl) ListCloudClusters(ctx context.Context, provider str
 	}
 	clusters, total, err := p.ListCloudClusters(pageNumber, pageSize)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to list cloud clusters")
+		log.Logger.Errorf("failed to list cloud clusters: %s", err.Error())
+		return nil, bcode.ErrGetCloudClusterFailure
 	}
 	resp := &apis.ListCloudClusterResponse{
 		Clusters: []cloudprovider.CloudCluster{},
@@ -378,11 +378,13 @@ func (c *clusterUsecaseImpl) ConnectCloudCluster(ctx context.Context, provider s
 	}
 	kubeConfig, err := p.GetClusterKubeConfig(req.ClusterID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get cluster kubeConfig")
+		log.Logger.Errorf("failed to get cluster kubeConfig: %s", err.Error())
+		return nil, bcode.ErrGetCloudClusterFailure
 	}
 	cluster, err := p.GetClusterInfo(req.ClusterID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get cluster info")
+		log.Logger.Errorf("failed to get cluster info: %s", err.Error())
+		return nil, bcode.ErrGetCloudClusterFailure
 	}
 	createReq := apis.CreateClusterRequest{
 		Name:        req.Name,

@@ -68,7 +68,7 @@ func ensureClusterNotExists(ctx context.Context, c client.Client, clusterName st
 	secret := &v1.Secret{}
 	err := c.Get(ctx, types2.NamespacedName{Name: clusterName, Namespace: ClusterGatewaySecretNamespace}, secret)
 	if err == nil {
-		return fmt.Errorf("cluster %s already exists", clusterName)
+		return ErrClusterExists
 	}
 	if !errors2.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to check duplicate cluster secret")
@@ -175,7 +175,7 @@ func JoinClusterByKubeConfig(_ctx context.Context, k8sClient client.Client, kube
 // DetachCluster detach cluster by name, if cluster is using by application, it will return error
 func DetachCluster(ctx context.Context, k8sClient client.Client, clusterName string) error {
 	if clusterName == ClusterLocalName {
-		return fmt.Errorf("cannot delete `%s` cluster, it is reserved as the local cluster", ClusterLocalName)
+		return ErrReservedLocalClusterName
 	}
 	clusterSecret, err := getMutableClusterSecret(ctx, k8sClient, clusterName)
 	if err != nil {
@@ -187,7 +187,7 @@ func DetachCluster(ctx context.Context, k8sClient client.Client, clusterName str
 // RenameCluster rename cluster
 func RenameCluster(ctx context.Context, k8sClient client.Client, oldClusterName string, newClusterName string) error {
 	if newClusterName == ClusterLocalName {
-		return fmt.Errorf("cannot use `%s` as cluster name, it is reserved as the local cluster", ClusterLocalName)
+		return ErrReservedLocalClusterName
 	}
 	clusterSecret, err := getMutableClusterSecret(ctx, k8sClient, oldClusterName)
 	if err != nil {

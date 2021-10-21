@@ -30,3 +30,9 @@ var ErrClusterNotFoundInDataStore = NewBcode(404, 40003, "cluster not found in d
 
 // ErrClusterAlreadyExistInDataStore cluster exists in datastore
 var ErrClusterAlreadyExistInDataStore = NewBcode(400, 40004, "cluster already exists in data store")
+
+// ErrGetCloudClusterFailure get cloud cluster failed
+var ErrGetCloudClusterFailure = NewBcode(500, 40005, "get cloud cluster information failed")
+
+// ErrClusterExistsInKubernetes cluster exists in kubernetes
+var ErrClusterExistsInKubernetes = NewBcode(400, 40006, "cluster already exists in kubernetes")
