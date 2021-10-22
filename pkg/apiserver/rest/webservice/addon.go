@@ -41,10 +41,10 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/cli"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 const (
@@ -402,7 +402,7 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 		return nil, err
 	}
 	u.Path = path.Join(u.Path, dir)
-	_, content, err := plugins.Parse(u.String())
+	_, content, err := utils.Parse(u.String())
 	if err != nil {
 		return nil, err
 	}
