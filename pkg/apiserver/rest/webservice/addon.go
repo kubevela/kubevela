@@ -24,6 +24,8 @@ import (
 	"strings"
 	"text/template"
 
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
+
 	"github.com/Masterminds/sprig"
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
@@ -44,7 +46,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/cli"
 )
 
 const (
@@ -267,8 +268,8 @@ func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRe
 		return err
 	}
 	clientArgs, _ := common.InitBaseRestConfig()
-	clt, _ := clientArgs.GetClient()
-	applicator := apply.NewAPIApplicator(clt)
+	ghClt, _ := clientArgs.GetClient()
+	applicator := apply.NewAPIApplicator(ghClt)
 	err = applicator.Apply(context.TODO(), app)
 	if err != nil {
 		log.Logger.Errorf("apply application fail: %s", err.Error())
@@ -304,7 +305,7 @@ func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusRespon
 	var app v1beta1.Application
 	err = clt.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      cli.TransAddonName(name),
+		Name:      addonutil.TransAddonName(name),
 	}, &app)
 	if err != nil {
 		if errors2.IsNotFound(err) {
@@ -391,13 +392,13 @@ func hasAddon(addons []*apis.DetailAddonResponse, name string) bool {
 	return false
 }
 
-func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonResponse, error) {
+func getAddonsFromGit(baseURL, dir string, detailed bool) ([]*apis.DetailAddonResponse, error) {
 	addons := []*apis.DetailAddonResponse{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	client := github.NewClient(nil)
+	clt := github.NewClient(nil)
 	// TODO add error handling
-	baseUrl = strings.TrimSuffix(baseUrl, ".git")
-	u, err := url.Parse(baseUrl)
+	baseURL = strings.TrimSuffix(baseURL, ".git")
+	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +407,7 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 	if err != nil {
 		return nil, err
 	}
-	_, dirs, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, content.Path, nil)
+	_, dirs, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, content.Path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -420,12 +421,12 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 			},
 		}
 		var err error
-		_, files, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *subItems.Path, nil)
+		_, files, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *subItems.Path, nil)
 		// get addon.yaml and readme.md
 		for _, file := range files {
 			switch *file.Name {
 			case AddonFileName:
-				addonContent, _, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
+				addonContent, _, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
 				if err != nil {
 					break
 				}
@@ -435,15 +436,18 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 				if err != nil {
 					break
 				}
-				addonRes.AddonMeta.Description = obj.GetAnnotations()[cli.DescAnnotation]
+				addonRes.AddonMeta.Description = obj.GetAnnotations()[addonutil.DescAnnotation]
 				addonRes.DeployData = addonStr
 			case AddonReadmeFileName:
 				if detailed {
-					detailContent, _, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
+					detailContent, _, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
 					if err != nil {
 						break
 					}
 					addonRes.Detail, err = detailContent.GetContent()
+					if err != nil {
+						break
+					}
 				}
 			default:
 				continue
@@ -459,7 +463,7 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 }
 
 func getAddonsFromConfigMap(detailed bool) ([]*apis.DetailAddonResponse, error) {
-	repo, err := cli.NewAddonRepo()
+	repo, err := addonutil.NewAddonRepo()
 	if err != nil {
 		return nil, errors.Wrap(err, "get configMap addon repo err")
 	}

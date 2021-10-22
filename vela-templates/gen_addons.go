@@ -29,6 +29,8 @@ import (
 	"strings"
 	"text/template"
 
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
+
 	"github.com/Masterminds/sprig"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -39,7 +41,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/references/cli"
 )
 
 const (
@@ -359,5 +360,5 @@ func setAddonName(addInfo *AddonGenerateInfo, app *v1beta1.Application) {
 		name = app.Name
 	}
 	addInfo.Name = name
-	addInfo.StoreName = cli.TransAddonName(name)
+	addInfo.StoreName = addonutil.TransAddonName(name)
 }

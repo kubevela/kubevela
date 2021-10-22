@@ -11,7 +11,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -81,14 +80,14 @@ func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 	if err != nil {
 		return nil, err
 	}
-	var list []*apisv1.AddonRegistryMeta
+	var list []*apis.AddonRegistryMeta
 	for _, entity := range entities {
 		list = append(list, utils.ConvertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
 	}
 	return list, nil
 }
 
-func addonRegistryModelFromCreateAddonRegistryRequest(req apisv1.CreateAddonRegistryRequest) *model.AddonRegistry {
+func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {
 	return &model.AddonRegistry{
 		Name: req.Name,
 		Git:  req.Git,

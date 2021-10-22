@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"github.com/pkg/errors"
 	"net/url"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // TypeLocal represents github
@@ -34,6 +35,7 @@ type LocalContent struct {
 type OssContent struct {
 	BucketURL string `json:"bucket_url"`
 }
+
 // GithubContent for cap center
 type GithubContent struct {
 	Owner string `json:"owner"`

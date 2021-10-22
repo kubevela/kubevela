@@ -19,19 +19,21 @@ package plugins
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/utils"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestParseURL(t *testing.T) {
 	cases := map[string]struct {
 		url     string
-		exp     *GithubContent
+		exp     *utils.GithubContent
 		expType string
 	}{
 		"api-github": {
 			url:     "https://api.github.com/repos/zzxwill/catalog/contents/repository?ref=plugin",
-			expType: TypeGithub,
-			exp: &GithubContent{
+			expType: utils.TypeGithub,
+			exp: &utils.GithubContent{
 				Owner: "zzxwill",
 				Repo:  "catalog",
 				Path:  "repository",
@@ -40,8 +42,8 @@ func TestParseURL(t *testing.T) {
 		},
 		"github-copy-path": {
 			url:     "https://github.com/zzxwill/catalog/tree/plugin/repository",
-			expType: TypeGithub,
-			exp: &GithubContent{
+			expType: utils.TypeGithub,
+			exp: &utils.GithubContent{
 				Owner: "zzxwill",
 				Repo:  "catalog",
 				Path:  "repository",
@@ -50,8 +52,8 @@ func TestParseURL(t *testing.T) {
 		},
 		"github-manuel-write-path": {
 			url:     "https://github.com/zzxwill/catalog/repository",
-			expType: TypeGithub,
-			exp: &GithubContent{
+			expType: utils.TypeGithub,
+			exp: &utils.GithubContent{
 				Owner: "zzxwill",
 				Repo:  "catalog",
 				Path:  "repository",
@@ -59,7 +61,7 @@ func TestParseURL(t *testing.T) {
 		},
 	}
 	for caseName, c := range cases {
-		tp, content, err := Parse(c.url)
+		tp, content, err := utils.Parse(c.url)
 		assert.NoError(t, err, caseName)
 		assert.Equal(t, c.exp, &content.GithubContent, caseName)
 		assert.Equal(t, c.expType, tp, caseName)

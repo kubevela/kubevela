@@ -21,14 +21,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/go-github/v32/github"
-	"github.com/oam-dev/kubevela/pkg/utils"
-	"golang.org/x/oauth2"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/google/go-github/v32/github"
+	"golang.org/x/oauth2"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
