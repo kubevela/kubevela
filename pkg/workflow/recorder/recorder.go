@@ -89,8 +89,12 @@ func (r *recorder) Save(version string, data []byte) Store {
 	rv.Data = runtime.RawExtension{
 		Raw: data,
 	}
-	if err := r.cli.Create(context.Background(), rv); err != nil && !kerrors.IsAlreadyExists(err) {
-		r.err = errors.WithMessagef(err, "save record %s/%s", rv.Namespace, rv.Name)
+	if err := r.cli.Create(context.Background(), rv); err != nil {
+		if kerrors.IsAlreadyExists(err) {
+			r.err = r.cli.Update(context.Background(), rv)
+		} else {
+			r.err = errors.WithMessagef(err, "save record %s/%s", rv.Namespace, rv.Name)
+		}
 	}
 	return r
 }
