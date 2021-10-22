@@ -18,8 +18,12 @@ spec:
             type: emptyDir
             mountPath: /tmp
 
-
       traits:
+        - type: canary-traffic
+          properties:
+            port:
+              - 9080
+
         - type: rollout
           properties:
             targetSize: 2
@@ -28,52 +32,11 @@ spec:
               - replicas: 1
               - replicas: 1
 
-        - type: canary-traffic
-          properties:
-            port:
-              - 9080
-
     - name: productpage
       type: webservice
       properties:
-          image: docker.io/istio/examples-bookinfo-productpage-v1:1.16.2
-          port: 9080
-
-      traits:
-          - type: expose
-            properties:
-              port:
-                - 9080
-
-          - type: istio-gateway
-            properties:
-              hosts:
-                - "*"
-              gateway: ingressgateway
-              match:
-                - exact: /productpage
-                - prefix: /static
-                - exact: /login
-                - prefix: /api/v1/products
-              port: 9080
-
-    - name: ratings
-      type: webservice
-      properties:
-          image: docker.io/istio/examples-bookinfo-ratings-v1:1.16.2
-          port: 9080
-
-      traits:
-          - type: expose
-            properties:
-              port:
-                - 9080
-
-    - name: details
-      type: webservice
-      properties:
-          image: docker.io/istio/examples-bookinfo-details-v1:1.16.2
-          port: 9080
+        image: docker.io/istio/examples-bookinfo-productpage-v1:1.16.2
+        port: 9080
 
       traits:
         - type: expose
@@ -81,7 +44,41 @@ spec:
             port:
               - 9080
 
+        - type: istio-gateway
+          properties:
+            hosts:
+              - "*"
+            gateway: ingressgateway
+            match:
+              - exact: /productpage
+              - prefix: /static
+              - exact: /login
+              - prefix: /api/v1/products
+            port: 9080
 
+    - name: ratings
+      type: webservice
+      properties:
+        image: docker.io/istio/examples-bookinfo-ratings-v1:1.16.2
+        port: 9080
+
+      traits:
+        - type: expose
+          properties:
+            port:
+              - 9080
+
+    - name: details
+      type: webservice
+      properties:
+        image: docker.io/istio/examples-bookinfo-details-v1:1.16.2
+        port: 9080
+
+      traits:
+        - type: expose
+          properties:
+            port:
+              - 9080
 
   workflow:
     steps:

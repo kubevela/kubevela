@@ -11,19 +11,18 @@ spec:
         image: docker.io/istio/examples-bookinfo-reviews-v2:1.16.2
         port: 9080
         volumes:
-            - name: wlp-output
-              type: emptyDir
-              mountPath: /opt/ibm/wlp/output
-            - name: tmp
-              type: emptyDir
-              mountPath: /tmp
-
+          - name: wlp-output
+            type: emptyDir
+            mountPath: /opt/ibm/wlp/output
+          - name: tmp
+            type: emptyDir
+            mountPath: /tmp
 
       traits:
         - type: canary-traffic
           properties:
             port:
-            - 9080
+              - 9080
 
         - type: rollout
           properties:
@@ -42,18 +41,18 @@ spec:
         - type: expose
           properties:
             port:
-            - 9080
+              - 9080
 
         - type: istio-gateway
           properties:
             hosts:
-            - "*"
+              - "*"
             gateway: ingressgateway
             match:
-               - exact: /productpage
-               - prefix: /static
-               - exact: /login
-               - prefix: /api/v1/products
+              - exact: /productpage
+              - prefix: /static
+              - exact: /login
+              - prefix: /api/v1/products
             port: 9080
 
     - name: ratings
@@ -66,7 +65,7 @@ spec:
         - type: expose
           properties:
             port:
-            - 9080
+              - 9080
 
     - name: details
       type: webservice
@@ -78,6 +77,6 @@ spec:
         - type: expose
           properties:
             port:
-            - 9080
+              - 9080
 
 
