@@ -19,26 +19,25 @@ package webservice
 import (
 	"bytes"
 	"context"
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"net/url"
 	"path"
 	"strings"
 	"text/template"
-
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Masterminds/sprig"
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -164,7 +163,6 @@ func (s *addonWebService) getAllAddons(ctx context.Context, detailed bool) ([]*a
 	}
 	return addons, nil
 }
-
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
 	name := req.QueryParameter("name")
 	addon, err := s.getAddon(req.Request.Context(), name)
