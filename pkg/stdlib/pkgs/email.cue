@@ -2,14 +2,14 @@
 	#do:       "send"
 	#provider: "email"
 
-	sender: {
+	from: {
 		address:  string
 		alias?:   string
 		password: string
 		host:     string
 		port:     int
 	}
-	receiver: [...string]
+	to: [...string]
 	content: {
 		subject: string
 		body:    string

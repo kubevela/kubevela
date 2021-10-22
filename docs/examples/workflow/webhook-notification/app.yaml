@@ -32,7 +32,7 @@ spec:
             message:
               text: Hello KubeVela
           email:
-            sender:
+            from:
               address: <sender-email-address>
               alias: <sender-alias>
               password:
@@ -42,7 +42,7 @@ spec:
                 fromString: <sender-password>
               host: <email host like smtp.gmail.com>
               port: <email port, optional, default to 587>
-            receiver:
+            to:
               - kubevela1@gmail.com
               - kubevela2@gmail.com
             content:
