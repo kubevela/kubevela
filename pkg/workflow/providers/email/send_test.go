@@ -41,14 +41,14 @@ func TestSendEmail(t *testing.T) {
 	}{
 		"success": {
 			from: `
-sender: {
+from: {
 address: "kubevela@gmail.com"
 alias: "kubevela-bot"
 password: "pwd"
 host: "smtp.test.com"
 port: 465
 }
-receiver: ["user1@gmail.com", "user2@gmail.com"]
+to: ["user1@gmail.com", "user2@gmail.com"]
 content: {
 subject: "Subject"
 body: "Test body."
@@ -62,11 +62,11 @@ stepID: "success"
 		},
 		"no-sender": {
 			from:        `stepID:"no-sender"`,
-			expectedErr: errors.New("var(path=sender) not exist"),
+			expectedErr: errors.New("var(path=from) not exist"),
 		},
 		"no-receiver": {
 			from: `
-sender: {
+from: {
 address: "kubevela@gmail.com"
 alias: "kubevela-bot"
 password: "pwd"
@@ -75,32 +75,32 @@ port: 465
 }
 stepID: "no-receiver"
 `,
-			expectedErr: errors.New("var(path=receiver) not exist"),
+			expectedErr: errors.New("var(path=to) not exist"),
 		},
 		"no-content": {
 			from: `
-sender: {
+from: {
 address: "kubevela@gmail.com"
 alias: "kubevela-bot"
 password: "pwd"
 host: "smtp.test.com"
 port: 465
 }
-receiver: ["user1@gmail.com", "user2@gmail.com"]
+to: ["user1@gmail.com", "user2@gmail.com"]
 stepID: "no-content"
 `,
 			expectedErr: errors.New("var(path=content) not exist"),
 		},
 		"send-fail": {
 			from: `
-sender: {
+from: {
 address: "kubevela@gmail.com"
 alias: "kubevela-bot"
 password: "pwd"
 host: "smtp.test.com"
 port: 465
 }
-receiver: ["user1@gmail.com", "user2@gmail.com"]
+to: ["user1@gmail.com", "user2@gmail.com"]
 content: {
 subject: "Subject"
 body: "Test body."

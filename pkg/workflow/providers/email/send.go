@@ -77,7 +77,7 @@ func (h *provider) Send(ctx wfContext.Context, v *value.Value, act types.Action)
 		emailRoutine.Store(id, "sending")
 	}
 
-	s, err := v.LookupValue("sender")
+	s, err := v.LookupValue("from")
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (h *provider) Send(ctx wfContext.Context, v *value.Value, act types.Action)
 		return err
 	}
 
-	r, err := v.LookupValue("receiver")
+	r, err := v.LookupValue("to")
 	if err != nil {
 		return err
 	}

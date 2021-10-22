@@ -77,14 +77,14 @@ spec:
         	}
 
         	email?: {
-        		sender: {
+        		from: {
         			address:  string
         			alias?:   string
         			password: fromSecret | fromString
         			host:     string
         			port:     *587 | int
         		}
-        		receiver: [...string]
+        		to: [...string]
         		content: {
         			subject: string
         			body:    string
@@ -203,44 +203,44 @@ spec:
         }
         email: op.#Steps & {
         	if parameter.email != _|_ {
-        		if parameter.email.sender.password.fromString != _|_ {
+        		if parameter.email.from.password.fromString != _|_ {
         			email1: op.#SendEmail & {
-        				sender: {
-        					address:  parameter.email.sender.address
-        					alias:    parameter.email.sender.alias
-        					password: parameter.email.sender.password.fromString
-        					host:     parameter.email.sender.host
-        					port:     parameter.email.sender.port
+        				from: {
+        					address:  parameter.email.from.address
+        					alias:    parameter.email.from.alias
+        					password: parameter.email.from.password.fromString
+        					host:     parameter.email.from.host
+        					port:     parameter.email.from.port
         				}
-        				receiver: parameter.email.receiver
-        				content:  parameter.email.content
+        				to:      parameter.email.to
+        				content: parameter.email.content
         			}
         		}
 
-        		if parameter.email.sender.password.fromSecret != _|_ && parameter.email.sender.password.fromString == _|_ {
+        		if parameter.email.from.password.fromSecret != _|_ && parameter.email.from.password.fromString == _|_ {
         			read: op.#Read & {
         				value: {
         					kind:       "Secret"
         					apiVersion: "v1"
         					metadata: {
-        						name:      parameter.email.sender.password.fromSecret.name
+        						name:      parameter.email.from.password.fromSecret.name
         						namespace: context.namespace
         					}
         				}
         			}
 
-        			decoded:     base64.Decode(null, read.value.data[parameter.email.sender.password.fromSecret.key])
+        			decoded:     base64.Decode(null, read.value.data[parameter.email.from.password.fromSecret.key])
         			stringValue: op.#ConvertString & {bt: decoded}
         			email2:      op.#SendEmail & {
-        				sender: {
-        					address:  parameter.email.sender.address
-        					alias:    parameter.email.sender.alias
+        				from: {
+        					address:  parameter.email.from.address
+        					alias:    parameter.email.from.alias
         					password: stringValue.str
-        					host:     parameter.email.sender.host
-        					port:     parameter.email.sender.port
+        					host:     parameter.email.from.host
+        					port:     parameter.email.from.port
         				}
-        				receiver: parameter.email.receiver
-        				content:  parameter.email.content
+        				to:      parameter.email.to
+        				content: parameter.email.content
         			}
         		}
         	}
