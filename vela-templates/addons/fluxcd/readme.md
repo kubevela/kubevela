@@ -2,6 +2,12 @@
 
 This addon is built based [FluxCD](https://fluxcd.io/) 
 
+## install
+
+```shell
+vela addon enable fluxcd
+```
+
 ## X-Definitions
 
 Enable fluxcd addon to use these X-definitions

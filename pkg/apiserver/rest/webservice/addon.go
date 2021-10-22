@@ -19,6 +19,7 @@ package webservice
 import (
 	"bytes"
 	"context"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"net/url"
 	"path"
 	"strings"
@@ -26,10 +27,6 @@ import (
 
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/Masterminds/sprig"
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
@@ -39,6 +36,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -106,7 +106,6 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/enable").To(s.enableAddon).
 		Doc("enable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(apis.EnableAddonRequest{}).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
@@ -157,11 +156,11 @@ func (s *addonWebService) getAllAddons(ctx context.Context, detailed bool) ([]*a
 		return nil, err
 	}
 	for _, r := range rs {
-		getAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Dir, detailed)
+		gitAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Dir, detailed)
 		if err != nil {
 			return nil, err
 		}
-		addons = mergeAddons(addons, getAddons)
+		addons = mergeAddons(addons, gitAddons)
 	}
 	return addons, nil
 }
@@ -189,7 +188,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := validate.Struct(&createReq); err != nil {
+	if err = validate.Struct(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -274,6 +273,7 @@ func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRe
 	applicator := apply.NewAPIApplicator(clt)
 	err = applicator.Apply(context.TODO(), app)
 	if err != nil {
+		log.Logger.Errorf("apply application fail: %s", err.Error())
 		return bcode.ErrAddonApplyFail
 	}
 	return nil
@@ -289,6 +289,7 @@ func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusRespon
 	for _, addon := range addons {
 		if addon.Name == name {
 			exist = true
+			break
 		}
 	}
 	if !exist {
@@ -305,7 +306,7 @@ func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusRespon
 	var app v1beta1.Application
 	err = clt.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      name,
+		Name:      cli.TransAddonName(name),
 	}, &app)
 	if err != nil {
 		if errors2.IsNotFound(err) {
@@ -318,7 +319,7 @@ func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusRespon
 	}
 	// TODO we don't know when addon is disabling
 	switch app.Status.Phase {
-	case common2.ApplicationRunning:
+	case common2.ApplicationRunning, common2.ApplicationWorkflowFinished:
 		return &apis.AddonStatusResponse{
 			Phase:            apis.AddonPhaseEnabled,
 			EnablingProgress: nil,
@@ -415,10 +416,11 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 		if *subItems.Type == "file" {
 			continue
 		}
-		meta := apis.AddonMeta{
-			Name: *subItems.Name,
+		addonRes := apis.DetailAddonResponse{
+			AddonMeta: apis.AddonMeta{
+				Name: *subItems.Name,
+			},
 		}
-		var detail string
 		var err error
 		_, files, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *subItems.Path, nil)
 		// get addon.yaml and readme.md
@@ -435,14 +437,15 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 				if err != nil {
 					break
 				}
-				meta.Description = obj.GetAnnotations()[cli.DescAnnotation]
+				addonRes.AddonMeta.Description = obj.GetAnnotations()[cli.DescAnnotation]
+				addonRes.DeployData = addonStr
 			case AddonReadmeFileName:
 				if detailed {
 					detailContent, _, _, err := client.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
 					if err != nil {
 						break
 					}
-					detail, err = detailContent.GetContent()
+					addonRes.Detail, err = detailContent.GetContent()
 				}
 			default:
 				continue
@@ -452,10 +455,7 @@ func getAddonsFromGit(baseUrl, dir string, detailed bool) ([]*apis.DetailAddonRe
 		if err != nil {
 			continue
 		}
-		addons = append(addons, &apis.DetailAddonResponse{
-			AddonMeta: meta,
-			Detail:    detail,
-		})
+		addons = append(addons, &addonRes)
 	}
 	return addons, nil
 }
@@ -477,6 +477,7 @@ func getAddonsFromConfigMap(detailed bool) ([]*apis.DetailAddonResponse, error) 
 				Icon:        "",
 				Tags:        nil,
 			},
+			DeployData: addon.Data,
 		}
 		if detailed {
 			d.Detail = addon.Detail

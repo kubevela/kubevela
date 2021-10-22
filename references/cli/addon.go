@@ -269,7 +269,7 @@ func newAddon(data *v1.ConfigMap) *Addon {
 		Name: data.Annotations[oam.AnnotationAddonsName],
 		Description: description,
 		Detail: data.Data["detail"],
-		data: data.Data["application"],
+		Data: data.Data["application"],
 	}
 	return &a
 }
@@ -335,7 +335,7 @@ func (c configMapAddonRepo) ListAddons() []Addon {
 type Addon struct {
 	Name        string
 	Description string
-	data        string
+	Data        string
 	// Args is map for renderInitializer
 	Args        map[string]string
 	application *unstructured.Unstructured
@@ -363,7 +363,7 @@ func (a *Addon) renderApplication() (*unstructured.Unstructured, error) {
 	if a.Args == nil {
 		a.Args = map[string]string{}
 	}
-	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(a.data)
+	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(a.Data)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing addon initializer template error")
 	}
