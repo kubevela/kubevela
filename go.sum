@@ -1207,8 +1207,8 @@ github.com/oam-dev/stern v1.13.0-alpha h1:EVjM8Qvh6LssB6t4RZrjf9DtCq1cz+/cy6OF7f
 github.com/oam-dev/stern v1.13.0-alpha/go.mod h1:AOkvfFUv0Arz7GBi0jz7S0Jsu4K/kdvSjNsnRt1+BIg=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28 h1:tD8HiFKnt0jnwdTWjeqUnfnUYLD/+Nsmj8ZGIxqDWiU=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28/go.mod h1:Mu8i0/DdplvnjwRbAYPsc8+LRR27n/mp8VWdkN10GzE=
-github.com/oam-dev/terraform-controller v0.2.4 h1:yGgIzm2EWNghuRutnChrRfhMjdlU/jE/cLfBizCgE24=
-github.com/oam-dev/terraform-controller v0.2.4/go.mod h1:wd4rnqnJzz274Sg1/qoeIhBx1rvTZ/ECzXoMff0ucR0=
+github.com/oam-dev/terraform-controller v0.2.5 h1:ntSyLUZkjvyHPJEuSYGvsa5+Sb3fDXkqoS+iD3avHQo=
+github.com/oam-dev/terraform-controller v0.2.5/go.mod h1:wd4rnqnJzz274Sg1/qoeIhBx1rvTZ/ECzXoMff0ucR0=
 github.com/oklog/oklog v0.3.2/go.mod h1:FCV+B7mhrz4o+ueLpx+KqkyXRGMWOYEvfiXtdGtbWGs=
 github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQA=
 github.com/oklog/run v1.1.0/go.mod h1:sVPdnTZT1zYwAJeCMu2Th4T21pA3FPOQRfWjQlk7DVU=
