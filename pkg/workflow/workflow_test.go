@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -344,6 +346,31 @@ var _ = Describe("Test Workflow", func() {
 			}},
 		})).Should(BeEquivalentTo(""))
 	})
+
+	It("step commit data without success", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "wait-with-set-var",
+			},
+			{
+				Name: "s2",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		state, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateExecuting))
+		Expect(app.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
+		wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+		Expect(err).ToNot(HaveOccurred())
+		v, err := wfCtx.GetVar("saved")
+		Expect(err).ToNot(HaveOccurred())
+		saved, err := v.CueValue().Bool()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(saved).Should(BeEquivalentTo(true))
+	})
 })
 
 func makeTestCase(steps []oamcore.WorkflowStep) (*oamcore.Application, []wfTypes.TaskRunner) {
@@ -412,6 +439,16 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 				Type:  "error",
 				Phase: common.WorkflowStepPhaseRunning,
 			}, &wfTypes.Operation{}, errors.New("error for test")
+		}
+	case "wait-with-set-var":
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			v, _ := value.NewValue(`saved: true`, nil, "")
+			err := ctx.SetVar(v)
+			return common.WorkflowStepStatus{
+				Name:  name,
+				Type:  "wait-with-set-var",
+				Phase: common.WorkflowStepPhaseRunning,
+			}, &wfTypes.Operation{}, err
 		}
 
 	default:
