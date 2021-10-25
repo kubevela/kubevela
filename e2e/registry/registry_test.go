@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"fmt"
+	"os/exec"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/e2e"
@@ -122,12 +123,20 @@ var _ = Describe("test registry and trait/comp command", func() {
 			Expect(output).To(ContainSubstring(expectedSubStr2))
 		})
 
+		It("Clean the test trait", func() {
+			cmd := exec.Command("kubectl", "delete", "traitDefinition", testTrait, "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("traitdefinition.core.oam.dev \"" + testTrait + "\" deleted"))
+		})
+
 		It("test list trait in raw url", func() {
 			cli := "vela trait --discover --url=oss://registry.kubevela.net"
 			output, err := e2e.Exec(cli)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Showing trait definition from url"), ContainSubstring("oss://registry.kubevela.net"))
 		})
+
 	})
 
 	Context("test list component definition", func() {
