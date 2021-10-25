@@ -3,7 +3,9 @@ package e2e_apiserver
 import (
 	"bytes"
 	"encoding/json"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -19,6 +21,12 @@ func post(path string, body interface{}) *http.Response {
 	Expect(err).Should(BeNil())
 
 	res, err := http.Post(baseURL+path, "application/json", bytes.NewBuffer(b))
+	Expect(err).Should(BeNil())
+	return res
+}
+
+func get(path string) *http.Response {
+	res, err := http.Get(baseURL + path)
 	Expect(err).Should(BeNil())
 	return res
 }
@@ -55,7 +63,8 @@ var _ = Describe("Test addon rest api", func() {
 		req := apis.EnableAddonRequest{
 			Args: map[string]string{},
 		}
-		res := post("/api/v1/addons/enable?name=fluxcd", req)
+		testAddon := "fluxcd"
+		res := post("/api/v1/addons/enable?name="+testAddon, req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 		Expect(res.Body).ShouldNot(BeNil())
@@ -70,6 +79,27 @@ var _ = Describe("Test addon rest api", func() {
 
 		// Wait for addon enabled
 
+		period := 20 * time.Second
+		timeout := 5 * time.Minute
+		err = wait.PollImmediate(period, timeout, func() (done bool, err error) {
+			res = get("/api/v1/addons/status?name=" + testAddon)
+			err = json.NewDecoder(res.Body).Decode(&statusRes)
+			Expect(err).Should(BeNil())
+			if statusRes.Phase == apis.AddonPhaseEnabled {
+				return true, nil
+			}
+			return false,nil
+		})
+		Expect(err).Should(BeNil())
+
+
+		res = post("/api/v1/addons/disable?name="+testAddon, req)
+		Expect(res).ShouldNot(BeNil())
+		Expect(res.StatusCode).Should(Equal(200))
+		Expect(res.Body).ShouldNot(BeNil())
+
+		err = json.NewDecoder(res.Body).Decode(&statusRes)
+		Expect(err).Should(BeNil())
 
 	})
 })
