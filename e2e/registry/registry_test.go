@@ -23,14 +23,22 @@ import (
 	"github.com/oam-dev/kubevela/e2e"
 	"github.com/oam-dev/kubevela/references/apis"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var (
-	capabilityCenterBasic = apis.CapabilityCenterMeta{
-		Name: "capability-center-e2e-basic",
-		URL:  "https://github.com/oam-dev/kubevela/tree/master/pkg/plugins/testdata",
+	registryConfigs = []apis.RegistryConfig{
+		{
+			Name:  "e2e-oss-registry",
+			URL:   "oss://registry.e2e.net",
+			Token: "",
+		},
+		{
+			Name:  "e2e-github-registry",
+			URL:   "https://github.com/zzxwill/catalog/tree/plugin/repository",
+			Token: "",
+		},
 	}
 
 	websvcCapability = types.Capability{
@@ -54,100 +62,82 @@ var (
 	}
 )
 
+var testTrait = "crd-manual-scaler"
+
 // TODO: change this into a mock UT to avoid remote call.
 
-var _ = ginkgo.Describe("Registry", func() {
-	ginkgo.Context("registry center", func() {
-		ginkgo.It("add a registry center", func() {
-			cli := fmt.Sprintf("vela registry config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.URL)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput1 := fmt.Sprintf("Successfully configured registry %s", capabilityCenterBasic.Name)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput1))
+var _ = Describe("test registry and trait/comp command", func() {
+	Context("registry", func() {
+		It("add and remove registry config", func() {
+			for _, config := range registryConfigs {
+				cli := fmt.Sprintf("vela registry config %s %s", config.Name, config.URL)
+				output, err := e2e.Exec(cli)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(output).To(ContainSubstring(fmt.Sprintf("Successfully configured registry %s", config.Name)))
+
+				cli = fmt.Sprintf("vela registry remove %s", config.Name)
+				output, err = e2e.Exec(cli)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(output).To(ContainSubstring(fmt.Sprintf("Successfully remove registry %s", config.Name)))
+			}
 		})
 
-		ginkgo.It("list registry centers", func() {
+		It("list registry config", func() {
 			cli := "vela registry ls"
 			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
-			gomega.Expect(output).To(gomega.ContainSubstring("URL"))
-			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.Name))
-			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.URL))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("NAME"))
+			Expect(output).To(ContainSubstring("URL"))
+			for _, config := range registryConfigs {
+				Expect(output).To(ContainSubstring(config.Name))
+				Expect(output).To(ContainSubstring(config.URL))
+			}
 		})
 	})
 
-	ginkgo.Context("capability", func() {
-		ginkgo.It("install a workload capability to cluster", func() {
-			cli := fmt.Sprintf("vela cap install %s/%s", capabilityCenterBasic.Name, websvcCapability.Name)
+	Context("list and install trait from registry", func() {
+		It("list trait from cluster", func() {
+			cli := "vela trait"
 			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedSubStr1 := fmt.Sprintf("Installing %s capability", websvcCapability.Type)
-			expectedSubStr2 := fmt.Sprintf("Successfully installed capability %s from %s", websvcCapability.Name, capabilityCenterBasic.Name)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr1))
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr2))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainElements(ContainSubstring("NAME"), ContainSubstring("APPLIES-TO")))
+			Expect(output).To(ContainElements(ContainSubstring("pvc"), ContainSubstring("[deployments.apps]")))
+		})
+		It("list trait from default registry", func() {
+			cli := "vela trait --discover"
+			output, err := e2e.Exec(cli)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Showing trait definition from registry: default"))
+			Expect(output).To(ContainElements(ContainSubstring("NAME"), ContainSubstring("APPLIES-TO"), ContainSubstring("STATUS")))
+			Expect(output).To(ContainElements(ContainSubstring("autoscale"), ContainSubstring("[deployments.apps]")))
 		})
 
-		ginkgo.It("install a trait capability to cluster", func() {
-			cli := fmt.Sprintf("vela cap install %s/%s", capabilityCenterBasic.Name, scaleCapability.Name)
+		It("install traits to cluster", func() {
+			cli := fmt.Sprintf("vela trait get %s", testTrait)
 			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedSubStr1 := fmt.Sprintf("Installing %s capability", scaleCapability.Type)
-			expectedSubStr2 := fmt.Sprintf("Successfully installed capability %s from %s", scaleCapability.Name, capabilityCenterBasic.Name)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr1))
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr2))
+			Expect(err).NotTo(HaveOccurred())
+			expectedSubStr1 := fmt.Sprintf("Installing trait %s", testTrait)
+			expectedSubStr2 := fmt.Sprintf("Successfully installed trait %s", testTrait)
+			Expect(output).To(ContainSubstring(expectedSubStr1))
+			Expect(output).To(ContainSubstring(expectedSubStr2))
 		})
 
-		ginkgo.It("install a trait capability without definition reference to cluster", func() {
-			cli := fmt.Sprintf("vela cap install %s/%s", capabilityCenterBasic.Name, ingressCapability.Name)
+		It("test list trait in raw url", func() {
+			cli := "vela trait --discover --url=oss://registry.kubevela.net"
 			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedSubStr1 := fmt.Sprintf("Installing %s capability", ingressCapability.Type)
-			expectedSubStr2 := fmt.Sprintf("Successfully installed capability %s from %s", ingressCapability.Name, capabilityCenterBasic.Name)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr1))
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr2))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Showing trait definition from url"), ContainSubstring("oss://registry.kubevela.net"))
+		})
+	})
+
+	Context("test list component definition", func() {
+		It("test list installed component definition", func() {
+			cli := "vela comp"
+			output, err := e2e.Exec(cli)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainElements(ContainSubstring("NAME"), ContainSubstring("DEFINITION")))
+			Expect(output).To(ContainElements(ContainSubstring("raw"), ContainSubstring("deployments.apps")))
 		})
 
-		ginkgo.It("list all capabilities", func() {
-			cli := fmt.Sprintf("vela cap ls %s", capabilityCenterBasic.Name)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
-			gomega.Expect(output).To(gomega.ContainSubstring("CENTER"))
-			gomega.Expect(output).To(gomega.ContainSubstring(websvcCapability.Name))
-			gomega.Expect(output).To(gomega.ContainSubstring(ingressCapability.Name))
-			gomega.Expect(output).To(gomega.ContainSubstring(scaleCapability.Name))
-			gomega.Expect(output).To(gomega.ContainSubstring(routeCapability.Name))
-			gomega.Expect(output).To(gomega.ContainSubstring("installed"))
-		})
-
-		ginkgo.It("uninstall a workload capability from cluster", func() {
-			cli := fmt.Sprintf("vela cap uninstall %s", websvcCapability.Name)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedSubStr := fmt.Sprintf("Successfully uninstalled capability %s", websvcCapability.Name)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr))
-		})
-
-		ginkgo.It("uninstall a trait capability from cluster", func() {
-			cli := fmt.Sprintf("vela cap uninstall %s", ingressCapability.Name)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedSubStr := fmt.Sprintf("Successfully uninstalled capability %s", ingressCapability.Name)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr))
-
-			// unstall other installed test capability
-			cli = fmt.Sprintf("vela cap uninstall %s", scaleCapability.Name)
-			_, err = e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		})
-
-		ginkgo.It("delete a capability center", func() {
-			cli := fmt.Sprintf("vela cap center remove %s", capabilityCenterBasic.Name)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("%s capability center removed successfully", capabilityCenterBasic.Name)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
 	})
 })

@@ -6,8 +6,8 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
+
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
+	apis "github.com/oam-dev/kubevela/references/apis"
 	"github.com/oam-dev/kubevela/references/plugins"
 
 	"github.com/pkg/errors"
@@ -148,7 +149,7 @@ func listCapRegistrys(ioStreams cmdutil.IOStreams) error {
 
 // addRegistry will add a registry
 func addRegistry(regName, regURL, regToken string) error {
-	regConfig := RegistryConfig{
+	regConfig := apis.RegistryConfig{
 		Name: regName, URL: regURL, Token: regToken,
 	}
 	repos, err := ListRegistryConfig()
@@ -195,19 +196,12 @@ func removeRegistry(regName string) (string, error) {
 	if err = StoreRepos(regConfigs); err != nil {
 		return message, err
 	}
-	message = fmt.Sprintf("%s registry center removed successfully", regName)
+	message = fmt.Sprintf("Successfully remove %s registry", regName)
 	return message, err
 }
 
 // DefaultRegistry is default registry
 const DefaultRegistry = "default"
-
-// RegistryConfig is used to store registry config in file
-type RegistryConfig struct {
-	Name  string `json:"name"`
-	URL   string `json:"url"`
-	Token string `json:"token"`
-}
 
 // Registry define a registry used to get and list types.Capability
 type Registry interface {
@@ -227,7 +221,7 @@ type GithubRegistry struct {
 }
 
 // NewRegistryFromConfig return Registry interface to get capabilities
-func NewRegistryFromConfig(config RegistryConfig) (Registry, error) {
+func NewRegistryFromConfig(config apis.RegistryConfig) (Registry, error) {
 	return NewRegistry(context.TODO(), config.Token, config.Name, config.URL)
 }
 
@@ -278,9 +272,9 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 
 // ListRegistryConfig will get all registry config stored in local
 // this will return at least one config, which is DefaultRegistry
-func ListRegistryConfig() ([]RegistryConfig, error) {
+func ListRegistryConfig() ([]apis.RegistryConfig, error) {
 
-	defaultRegistryConfig := RegistryConfig{Name: DefaultRegistry, URL: "oss://registry.kubevela.net/"}
+	defaultRegistryConfig := apis.RegistryConfig{Name: DefaultRegistry, URL: "oss://registry.kubevela.net/"}
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return nil, err
@@ -288,7 +282,7 @@ func ListRegistryConfig() ([]RegistryConfig, error) {
 	data, err := os.ReadFile(filepath.Clean(config))
 	if err != nil {
 		if os.IsNotExist(err) {
-			err := StoreRepos([]RegistryConfig{defaultRegistryConfig})
+			err := StoreRepos([]apis.RegistryConfig{defaultRegistryConfig})
 			if err != nil {
 				return nil, errors.Wrap(err, "error initialize default registry")
 			}
@@ -296,7 +290,7 @@ func ListRegistryConfig() ([]RegistryConfig, error) {
 		}
 		return nil, err
 	}
-	var regConfigs []RegistryConfig
+	var regConfigs []apis.RegistryConfig
 	if err = yaml.Unmarshal(data, &regConfigs); err != nil {
 		return nil, err
 	}
@@ -727,7 +721,7 @@ func Parse(addr string) (string, *Content, error) {
 }
 
 // StoreRepos will store registry repo locally
-func StoreRepos(registries []RegistryConfig) error {
+func StoreRepos(registries []apis.RegistryConfig) error {
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return err

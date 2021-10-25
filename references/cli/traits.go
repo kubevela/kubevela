@@ -59,11 +59,11 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// parse label filter
 			if label != "" {
-				if words := strings.Split(label, "="); len(words) != 2 {
+				words := strings.Split(label, "=")
+				if len(words) != 2 {
 					return errors.New("label is invalid")
-				} else {
-					filter = createLabelFilter(words[0], words[1])
 				}
+				filter = createLabelFilter(words[0], words[1])
 			}
 
 			var registry Registry
@@ -82,7 +82,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 						return errors.Wrap(err, "get registry err")
 					}
 				}
-				return PrintTraitListFromRegistry(registry, ioStreams,filter)
+				return PrintTraitListFromRegistry(registry, ioStreams, filter)
 
 			}
 			return PrintInstalledTraitDef(ioStreams)
