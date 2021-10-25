@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -30,7 +31,6 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
@@ -42,9 +42,9 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 	cmd := &cobra.Command{
 		Use:     "components",
 		Aliases: []string{"comp", "component"},
-		Short:   "List components",
-		Long:    "List components",
-		Example: `vela components`,
+		Short:   "List/get components",
+		Long:    "List components & get components in registry",
+		Example: `vela comp`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
@@ -76,7 +76,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 				}
 				return PrintComponentListFromRegistry(registry, ioStreams, filter)
 			}
-			return PrintInstalledCompDef(ioStreams)
+			return PrintInstalledCompDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
@@ -169,6 +169,7 @@ func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStrea
 	table := newUITable()
 	table.AddRow("NAME", "REGISTRY", "DEFINITION", "STATUS")
 	for _, c := range caps {
+
 		if filter != nil && !filter(c) {
 			continue
 		}
@@ -198,8 +199,8 @@ func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams
 
 	k8sClient, err := args.GetClient()
 	if err != nil {
-		return err
 	}
+		return err
 
 	err = common.InstallComponentDefinition(k8sClient, data, ioStream, &capObj)
 	if err != nil {
@@ -212,7 +213,7 @@ func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams
 }
 
 // PrintInstalledCompDef will print all ComponentDefinition in cluster
-func PrintInstalledCompDef(io cmdutil.IOStreams) error {
+func PrintInstalledCompDef(io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.ComponentDefinitionList
 	err := clt.List(context.Background(), &list)
 	if err != nil {
@@ -227,12 +228,20 @@ func PrintInstalledCompDef(io cmdutil.IOStreams) error {
 	table.AddRow("NAME", "DEFINITION")
 
 	for _, cd := range list.Items {
-		ref, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+		data, err := json.Marshal(cd)
 		if err != nil {
-			table.AddRow(cd.Name, "")
+			io.Infof("error encoding definition: %s\n", cd.Name)
 			continue
 		}
-		table.AddRow(cd.Name, ref.Name)
+		capa, err := ParseCapability(dm, data)
+		if err != nil {
+			io.Errorf("error parsing capability: %s\n", cd.Name)
+			continue
+		}
+		if filter != nil && !filter(capa) {
+			continue
+		}
+		table.AddRow(capa.Name, capa.CrdName)
 	}
 	io.Infof(table.String())
 	return nil

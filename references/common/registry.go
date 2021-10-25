@@ -43,7 +43,7 @@ func InstallComponentDefinition(client client.Client, workloadData []byte, ioStr
 		return err
 	}
 	cd.Namespace = types.DefaultKubeVelaNS
-	ioStreams.Info("Installing component" + cd.Name)
+	ioStreams.Info("Installing component: " + cd.Name)
 	if tp.Install != nil {
 		tp.Source.ChartName = tp.Install.Helm.Name
 		if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {

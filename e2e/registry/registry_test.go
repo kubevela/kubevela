@@ -138,6 +138,12 @@ var _ = Describe("test registry and trait/comp command", func() {
 			Expect(output).To(ContainSubstring("raw"))
 			Expect(output).To(ContainSubstring("deployments.apps"))
 		})
-
+		It("test list with label", func() {
+			cli := "vela comp --label type=terraform"
+			output, err := e2e.Exec(cli)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).NotTo(ContainSubstring("raw"))
+			Expect(output).To(ContainSubstring("alibaba-ack"))
+		})
 	})
 })

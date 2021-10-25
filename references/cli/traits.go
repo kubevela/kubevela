@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -49,8 +50,8 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	cmd := &cobra.Command{
 		Use:     "trait",
 		Aliases: []string{"traits"},
-		Short:   "List traits",
-		Long:    "List traits",
+		Short:   "List/get traits",
+		Long:    "List traits & get trait in registry",
 		Example: `vela trait`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
@@ -84,7 +85,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				return PrintTraitListFromRegistry(registry, ioStreams, filter)
 
 			}
-			return PrintInstalledTraitDef(ioStreams)
+			return PrintInstalledTraitDef(ioStreams,filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
@@ -213,18 +214,35 @@ func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStream
 }
 
 // PrintInstalledTraitDef will print all TraitDefinition in cluster
-func PrintInstalledTraitDef(io cmdutil.IOStreams) error {
+func PrintInstalledTraitDef(io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.TraitDefinitionList
 	err := clt.List(context.Background(), &list)
 	if err != nil {
 		return errors.Wrap(err, "get trait definition list error")
+	}
+	dm, err := (&common2.Args{}).GetDiscoveryMapper()
+	if err != nil {
+		return errors.Wrap(err, "get discovery mapper error")
 	}
 
 	table := newUITable()
 	table.AddRow("NAME", "APPLIES-TO")
 
 	for _, td := range list.Items {
-		table.AddRow(td.Name, td.Spec.AppliesToWorkloads)
+		data, err := json.Marshal(td)
+		if err != nil {
+			io.Infof("error encoding definition: %s\n", td.Name)
+			continue
+		}
+		capa, err := ParseCapability(dm, data)
+		if err != nil {
+			io.Errorf("error parsing capability: %s\n", td.Name)
+			continue
+		}
+		if filter != nil && !filter(capa) {
+			continue
+		}
+		table.AddRow(capa.Name, capa.AppliesTo)
 	}
 	io.Infof(table.String())
 	return nil
