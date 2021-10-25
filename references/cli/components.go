@@ -199,8 +199,8 @@ func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams
 
 	k8sClient, err := args.GetClient()
 	if err != nil {
-	}
 		return err
+	}
 
 	err = common.InstallComponentDefinition(k8sClient, data, ioStream, &capObj)
 	if err != nil {
