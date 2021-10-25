@@ -40,12 +40,11 @@ import (
 func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
-		Use:                   "components",
-		Aliases:               []string{"comp", "component"},
-		DisableFlagsInUseLine: true,
-		Short:                 "List components",
-		Long:                  "List components",
-		Example:               `vela components`,
+		Use:     "components",
+		Aliases: []string{"comp", "component"},
+		Short:   "List components",
+		Long:    "List components",
+		Example: `vela components`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},

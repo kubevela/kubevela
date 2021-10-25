@@ -47,12 +47,11 @@ var (
 func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
-		Use:                   "trait",
-		Aliases:               []string{"traits"},
-		DisableFlagsInUseLine: true,
-		Short:                 "List traits",
-		Long:                  "List traits",
-		Example:               `vela trait`,
+		Use:     "trait",
+		Aliases: []string{"traits"},
+		Short:   "List traits",
+		Long:    "List traits",
+		Example: `vela trait`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},

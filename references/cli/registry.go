@@ -196,7 +196,7 @@ func removeRegistry(regName string) (string, error) {
 	if err = StoreRepos(regConfigs); err != nil {
 		return message, err
 	}
-	message = fmt.Sprintf("Successfully remove %s registry", regName)
+	message = fmt.Sprintf("Successfully remove registry %s", regName)
 	return message, err
 }
 

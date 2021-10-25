@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/e2e"
 	"github.com/oam-dev/kubevela/references/apis"
 
@@ -41,26 +40,6 @@ var (
 			Token: "",
 		},
 	}
-
-	websvcCapability = types.Capability{
-		Name: "webservice.testapps",
-		Type: types.TypeWorkload,
-	}
-
-	scaleCapability = types.Capability{
-		Name: "scaler",
-		Type: types.TypeTrait,
-	}
-
-	routeCapability = types.Capability{
-		Name: "routes.test",
-		Type: types.TypeTrait,
-	}
-
-	ingressCapability = types.Capability{
-		Name: "ingress.test",
-		Type: types.TypeTrait,
-	}
 )
 
 var testTrait = "crd-manual-scaler"
@@ -75,11 +54,6 @@ var _ = Describe("test registry and trait/comp command", func() {
 				output, err := e2e.Exec(cli)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(output).To(ContainSubstring(fmt.Sprintf("Successfully configured registry %s", config.Name)))
-
-				cli = fmt.Sprintf("vela registry remove %s", config.Name)
-				output, err = e2e.Exec(cli)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(output).To(ContainSubstring(fmt.Sprintf("Successfully remove registry %s", config.Name)))
 			}
 		})
 
@@ -93,6 +67,16 @@ var _ = Describe("test registry and trait/comp command", func() {
 				Expect(output).To(ContainSubstring(config.Name))
 				Expect(output).To(ContainSubstring(config.URL))
 			}
+		})
+
+		It("remove registry config", func() {
+			for _, config := range registryConfigs {
+				cli := fmt.Sprintf("vela registry remove %s", config.Name)
+				output, err := e2e.Exec(cli)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(output).To(ContainSubstring(fmt.Sprintf("Successfully remove registry %s", config.Name)))
+			}
+
 		})
 	})
 
@@ -123,7 +107,7 @@ var _ = Describe("test registry and trait/comp command", func() {
 			output, err := e2e.Exec(cli)
 			Expect(err).NotTo(HaveOccurred())
 			expectedSubStr1 := fmt.Sprintf("Installing trait %s", testTrait)
-			expectedSubStr2 := fmt.Sprintf("Successfully installed trait %s", testTrait)
+			expectedSubStr2 := fmt.Sprintf("Successfully install trait: %s", testTrait)
 			Expect(output).To(ContainSubstring(expectedSubStr1))
 			Expect(output).To(ContainSubstring(expectedSubStr2))
 		})
