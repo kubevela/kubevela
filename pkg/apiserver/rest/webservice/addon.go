@@ -68,7 +68,7 @@ type addonWebService struct {
 
 func (s *addonWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path("/v1/addons").
+	ws.Path(versionPrefix+"/addons").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for addon management")
