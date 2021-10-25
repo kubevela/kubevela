@@ -26,8 +26,8 @@ type AddonRegistry struct {
 
 // GitAddonSource defines the information about the Git as addon source
 type GitAddonSource struct {
-	URL string `json:"url,omitempty"`
-	Dir string `json:"dir,omitempty"`
+	URL  string `json:"url,omitempty"`
+	Path string `json:"path,omitempty"`
 }
 
 // TableName return custom table name

@@ -36,8 +36,6 @@ type AddonPhase string
 const (
 	// AddonPhaseDisabled indicates the addon is disabled
 	AddonPhaseDisabled AddonPhase = "disabled"
-	// AddonPhaseDisabling indicates the addon is disabling
-	AddonPhaseDisabling AddonPhase = "disabling"
 	// AddonPhaseEnabled indicates the addon is enabled
 	AddonPhaseEnabled AddonPhase = "enabled"
 	// AddonPhaseEnabling indicates the addon is enabling

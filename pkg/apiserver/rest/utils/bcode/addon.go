@@ -5,8 +5,8 @@ var (
 	// ErrAddonNotExist addon not exist
 	ErrAddonNotExist = NewBcode(400, 50001, "addon not exist")
 
-	// ErrAddonExist application is exist
-	ErrAddonExist = NewBcode(400, 50002, "addon name already exists")
+	// ErrAddonRegistryExist application is exist
+	ErrAddonRegistryExist = NewBcode(400, 50002, "addon name already exists")
 
 	// ErrAddonRenderFail fail to render addon application
 	ErrAddonRenderFail = NewBcode(500, 50010, "addon render fail")

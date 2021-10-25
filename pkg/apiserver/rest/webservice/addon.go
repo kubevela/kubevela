@@ -19,41 +19,21 @@ package webservice
 import (
 	"bytes"
 	"context"
-	"net/url"
-	"path"
-	"sort"
-	"strings"
 	"text/template"
-
-	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 
 	"github.com/Masterminds/sprig"
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-	"github.com/google/go-github/v32/github"
-	"github.com/pkg/errors"
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-)
-
-const (
-	// AddonFileName is the addon file name
-	AddonFileName string = "addon.yaml"
-	// AddonReadmeFileName is the addon readme file name
-	AddonReadmeFileName string = "readme.md"
 )
 
 // NewAddonWebService returns addon web service
@@ -125,7 +105,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 }
 
 func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response) {
-	detailAddons, err := s.getAllAddons(req.Request.Context(), false)
+	detailAddons, err := s.addonUsecase.ListAddons(req.Request.Context(), false)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -144,33 +124,9 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 	}
 }
 
-func (s *addonWebService) getAllAddons(ctx context.Context, detailed bool) ([]*apis.DetailAddonResponse, error) {
-	// Backward compatibility with ConfigMap addons.
-	// We will deprecate ConfigMap and use Git based registry.
-	addons, err := getAddonsFromConfigMap(detailed)
-	if err != nil {
-		return nil, err
-	}
-
-	rs, err := s.addonUsecase.ListAddonRegistries(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range rs {
-		gitAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Dir, detailed)
-		if err != nil {
-			return nil, err
-		}
-		addons = mergeAddons(addons, gitAddons)
-	}
-	sort.Slice(addons, func(i, j int) bool {
-		return addons[i].Name < addons[j].Name
-	})
-	return addons, nil
-}
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
 	name := req.QueryParameter("name")
-	addon, err := s.getAddon(req.Request.Context(), name)
+	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -197,7 +153,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 	}
 
 	name := req.QueryParameter("name")
-	addon, err := s.getAddon(req.Request.Context(), name)
+	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -214,7 +170,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
 	name := req.QueryParameter("name")
-	addon, err := s.getAddon(req.Request.Context(), name)
+	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -229,7 +185,7 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
 	name := req.QueryParameter("name")
-	status, err := s.checkAddonStatus(name)
+	status, err := s.addonUsecase.StatusAddon(name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -282,59 +238,6 @@ func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRe
 	return nil
 }
 
-func (s *addonWebService) checkAddonStatus(name string) (*apis.AddonStatusResponse, error) {
-	// TODO fix this， addons can be got from not only configMap
-	addons, err := getAddonsFromConfigMap(false)
-	if err != nil {
-		return nil, bcode.ErrGetConfigMapAddonFail
-	}
-	var exist bool
-	for _, addon := range addons {
-		if addon.Name == name {
-			exist = true
-			break
-		}
-	}
-	if !exist {
-		return nil, bcode.ErrAddonNotExist
-	}
-	args, err := common.InitBaseRestConfig()
-	if err != nil {
-		return nil, bcode.ErrGetClientFail
-	}
-	clt, err := args.GetClient()
-	if err != nil {
-		return nil, bcode.ErrGetClientFail
-	}
-	var app v1beta1.Application
-	err = clt.Get(context.Background(), client.ObjectKey{
-		Namespace: types.DefaultKubeVelaNS,
-		Name:      addonutil.TransAddonName(name),
-	}, &app)
-	if err != nil {
-		if errors2.IsNotFound(err) {
-			return &apis.AddonStatusResponse{
-				Phase:            apis.AddonPhaseDisabled,
-				EnablingProgress: nil,
-			}, nil
-		}
-		return nil, bcode.ErrGetApplicationFail
-	}
-	// TODO we don't know when addon is disabling
-	switch app.Status.Phase {
-	case common2.ApplicationRunning, common2.ApplicationWorkflowFinished:
-		return &apis.AddonStatusResponse{
-			Phase:            apis.AddonPhaseEnabled,
-			EnablingProgress: nil,
-		}, nil
-	default:
-		return &apis.AddonStatusResponse{
-			Phase:            apis.AddonPhaseEnabling,
-			EnablingProgress: nil,
-		}, nil
-	}
-}
-
 func (s *addonWebService) deleteAddonData(data string) error {
 	app, err := renderAddonApp(data, nil)
 	if err != nil {
@@ -360,136 +263,5 @@ func (s *addonWebService) deleteAddonData(data string) error {
 		return bcode.ErrAddonDisableFail
 	}
 	return nil
-
-}
-
-func (s *addonWebService) getAddon(ctx context.Context, name string) (*apis.DetailAddonResponse, error) {
-	addons, err := s.getAllAddons(ctx, true)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, addon := range addons {
-		if addon.Name == name {
-			return addon, nil
-		}
-	}
-	return nil, bcode.ErrAddonNotExist
-}
-
-func mergeAddons(a1, a2 []*apis.DetailAddonResponse) []*apis.DetailAddonResponse {
-	for _, item := range a2 {
-		if hasAddon(a1, item.Name) {
-			continue
-		}
-		a1 = append(a1, item)
-	}
-	return a1
-}
-
-func hasAddon(addons []*apis.DetailAddonResponse, name string) bool {
-	for _, addon := range addons {
-		if addon.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func getAddonsFromGit(baseURL, dir string, detailed bool) ([]*apis.DetailAddonResponse, error) {
-	addons := []*apis.DetailAddonResponse{}
-	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	clt := github.NewClient(nil)
-	// TODO add error handling
-	baseURL = strings.TrimSuffix(baseURL, ".git")
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	u.Path = path.Join(u.Path, dir)
-	_, content, err := utils.Parse(u.String())
-	if err != nil {
-		return nil, err
-	}
-	_, dirs, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, content.Path, nil)
-	if err != nil {
-		return nil, err
-	}
-	for _, subItems := range dirs {
-		if *subItems.Type == "file" {
-			continue
-		}
-		addonRes := apis.DetailAddonResponse{
-			AddonMeta: apis.AddonMeta{
-				Name: *subItems.Name,
-			},
-		}
-		var err error
-		_, files, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *subItems.Path, nil)
-		// get addon.yaml and readme.md
-		for _, file := range files {
-			switch *file.Name {
-			case AddonFileName:
-				addonContent, _, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
-				if err != nil {
-					break
-				}
-				addonStr, _ := addonContent.GetContent()
-				obj := &unstructured.Unstructured{}
-				_, _, err = dec.Decode([]byte(addonStr), nil, obj)
-				if err != nil {
-					break
-				}
-				addonRes.AddonMeta.Description = obj.GetAnnotations()[addonutil.DescAnnotation]
-				addonRes.DeployData = addonStr
-			case AddonReadmeFileName:
-				if detailed {
-					detailContent, _, _, err := clt.Repositories.GetContents(context.Background(), content.Owner, content.Repo, *file.Path, nil)
-					if err != nil {
-						break
-					}
-					addonRes.Detail, err = detailContent.GetContent()
-					if err != nil {
-						break
-					}
-				}
-			default:
-				continue
-			}
-
-		}
-		if err != nil {
-			continue
-		}
-		addons = append(addons, &addonRes)
-	}
-	return addons, nil
-}
-
-func getAddonsFromConfigMap(detailed bool) ([]*apis.DetailAddonResponse, error) {
-	repo, err := addonutil.NewAddonRepo()
-	if err != nil {
-		return nil, errors.Wrap(err, "get configMap addon repo err")
-	}
-	cliAddons := repo.ListAddons()
-	addons := []*apis.DetailAddonResponse{}
-	for _, addon := range cliAddons {
-		d := &apis.DetailAddonResponse{
-			AddonMeta: apis.AddonMeta{
-				Name: addon.Name,
-				// TODO add actual Version, Icon, tags
-				Version:     "v1alpha1",
-				Description: addon.Description,
-				Icon:        "",
-				Tags:        nil,
-			},
-			DeployData: addon.Data,
-		}
-		if detailed {
-			d.Detail = addon.Detail
-		}
-		addons = append(addons, d)
-	}
-	return addons, nil
 
 }
