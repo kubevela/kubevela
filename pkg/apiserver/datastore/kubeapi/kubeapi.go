@@ -239,6 +239,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 	}
 	options := &client.ListOptions{
 		LabelSelector: selector,
+		Namespace:     m.namespace,
 	}
 	var skip, limit int64
 	if op != nil && op.PageSize > 0 && op.Page > 0 {
@@ -268,6 +269,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 		}
 	}
 	var list []datastore.Entity
+	log.Logger.Debugf("query %s result count %d", selector, len(items))
 	for _, item := range items {
 		ent, err := datastore.NewEntity(entity)
 		if err != nil {

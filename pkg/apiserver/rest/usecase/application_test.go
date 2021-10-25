@@ -163,7 +163,6 @@ var _ = Describe("Test application usecase function", func() {
 
 		detail, err := workflowUsecase.GetWorkflow(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(detail.Namespace, "test-app-namespace")).Should(BeEmpty())
 		Expect(cmp.Diff(detail.Enable, true)).Should(BeEmpty())
 	})
 
@@ -213,6 +212,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(detail.Type, "env-binding")).Should(BeEmpty())
 		Expect((*detail.Properties)["envs"]).ShouldNot(BeEmpty())
 	})
+
 	It("Test AddComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
@@ -228,6 +228,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.ComponentType, "worker")).Should(BeEmpty())
 	})
+
 	It("Test DetailComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())

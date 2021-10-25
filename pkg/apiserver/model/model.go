@@ -30,6 +30,23 @@ import (
 
 var tableNamePrefix = "vela_"
 
+var registedModels = map[string]Interface{}
+
+// Interface model interface
+type Interface interface {
+	TableName() string
+}
+
+// RegistModel regist model
+func RegistModel(models ...Interface) {
+	for _, model := range models {
+		if _, exist := registedModels[model.TableName()]; exist {
+			panic(fmt.Errorf("model table name %s conflict", model.TableName()))
+		}
+		registedModels[model.TableName()] = model
+	}
+}
+
 // JSONStruct json struct, same with runtime.RawExtension
 type JSONStruct map[string]interface{}
 

@@ -125,4 +125,10 @@ const (
 
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
+
+	// AnnotationDeployVersion know the version number of the deployment.
+	AnnotationDeployVersion = "app.oam.dev/deployVersion"
+
+	// AnnotationWorkflowName specifies the workflow name for execution.
+	AnnotationWorkflowName = "app.oam.dev/workflowName"
 )

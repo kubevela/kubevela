@@ -38,6 +38,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -206,11 +207,13 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 					Outputs:    step.Outputs,
 				})
 			}
-			_, err := c.workflowUsecase.CreateOrUpdateWorkflow(ctx, apisv1.UpdateWorkflowRequest{
-				Name:      application.Name,
-				Namespace: application.Namespace,
-				Steps:     steps,
-				Enable:    true,
+			_, err := c.workflowUsecase.CreateWorkflow(ctx, &application, apisv1.CreateWorkflowRequest{
+				AppName:     application.PrimaryKey(),
+				Name:        application.Name,
+				Description: "Created automatically.",
+				Steps:       steps,
+				Enable:      true,
+				Default:     true,
 			})
 			if err != nil {
 				return nil, err
@@ -314,6 +317,7 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 		}
 		componentModels = append(componentModels, &componentModel)
 	}
+	log.Logger.Infof("batch add %d components for app %s", len(componentModels), app.PrimaryKey())
 	return c.ds.BatchAdd(ctx, componentModels)
 }
 
@@ -327,6 +331,7 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 	}
 	var list []*apisv1.ComponentBase
 	for _, component := range components {
+		log.Logger.Infof("component name %s", component.PrimaryKey())
 		pm := component.(*model.ApplicationComponent)
 		list = append(list, c.converComponentModelToBase(pm))
 	}
@@ -444,7 +449,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
 	// step1: Render oam application
 	version := utils.GenerateVersion("")
-	oamApp, err := c.renderOAMApplication(ctx, app, version)
+	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, version)
 	if err != nil {
 		return nil, err
 	}
@@ -470,9 +475,10 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		ApplyAppConfig: string(configByte),
 		Status:         model.DeployEventInit,
 		// TODO: Get user information from ctx and assign a value.
-		DeployUser: "",
-		Commit:     req.Commit,
-		SourceType: req.SourceType,
+		DeployUser:   "",
+		Commit:       req.Commit,
+		SourceType:   req.SourceType,
+		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 	}
 
 	if err := c.ds.Add(ctx, deployEvent); err != nil {
@@ -514,7 +520,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMoel *model.Application, version string) (*v1beta1.Application, error) {
+func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMoel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -525,7 +531,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			Namespace: appMoel.Namespace,
 			Labels:    appMoel.Labels,
 			Annotations: map[string]string{
-				"deploy_version": version,
+				oam.AnnotationDeployVersion: version,
 			},
 		},
 	}
@@ -583,19 +589,31 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		}
 		app.Spec.Policies = append(app.Spec.Policies, apolicy)
 	}
-	workflow, err := c.workflowUsecase.GetWorkflow(ctx, appMoel.Name)
-	if err != nil {
-		return nil, err
+
+	// Priority 1 uses the requested workflow as release plan.
+	// Priority 2 uses the default workflow as release plan.
+	var workflow *model.Workflow
+	if reqWorkflowName != "" {
+		workflow, err = c.workflowUsecase.GetWorkflow(ctx, reqWorkflowName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appMoel)
+		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
+			return nil, err
+		}
 	}
+
 	if workflow != nil {
+		app.Annotations[oam.AnnotationWorkflowName] = workflow.AppPrimaryKey
 		var steps []v1beta1.WorkflowStep
 		for _, step := range workflow.Steps {
 			var wstep = v1beta1.WorkflowStep{
-				Name:      step.Name,
-				Type:      step.Type,
-				DependsOn: step.DependsOn,
-				Inputs:    step.Inputs,
-				Outputs:   step.Outputs,
+				Name:    step.Name,
+				Type:    step.Type,
+				Inputs:  step.Inputs,
+				Outputs: step.Outputs,
 			}
 			if step.Properties != nil {
 				wstep.Properties = step.Properties.RawExtension()
@@ -676,7 +694,7 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 
 	for _, component := range components {
 		err := c.ds.Delete(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey(), Name: component.Name})
-		if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
+		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("delete component %s in app %s failure %s", component.Name, app.Name, err.Error())
 		}
 	}

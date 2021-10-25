@@ -17,32 +17,43 @@ limitations under the License.
 package model
 
 import (
+	"strconv"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
-// Workflow workflow database model
+func init() {
+	RegistModel(&Workflow{})
+}
+
+// Workflow application delivery plan database model
 type Workflow struct {
 	Model
-	Name      string         `json:"name"`
-	Namespace string         `json:"namespace"`
-	Enable    bool           `json:"enable"`
-	Steps     []WorkflowStep `json:"steps,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Enable      bool   `json:"enable"`
+	// Workflow used by the default
+	Default       bool           `json:"default"`
+	AppPrimaryKey string         `json:"appPrimaryKey"`
+	Steps         []WorkflowStep `json:"steps,omitempty"`
 }
 
 // WorkflowStep defines how to execute a workflow step.
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
-	Name       string             `json:"name"`
-	Type       string             `json:"type"`
-	Properties *JSONStruct        `json:"properties,omitempty"`
-	DependsOn  []string           `json:"dependsOn,omitempty"`
-	Inputs     common.StepInputs  `json:"inputs,omitempty"`
-	Outputs    common.StepOutputs `json:"outputs,omitempty"`
+	Name        string             `json:"name"`
+	Type        string             `json:"type"`
+	Group       string             `json:"group"`
+	Description string             `json:"description"`
+	OrderIndex  int                `json:"orderIndex"`
+	Inputs      common.StepInputs  `json:"inputs,omitempty"`
+	Outputs     common.StepOutputs `json:"outputs,omitempty"`
+	Properties  *JSONStruct        `json:"properties,omitempty"`
 }
 
 // TableName return custom table name
 func (w *Workflow) TableName() string {
-	return tableNamePrefix + "application_component"
+	return tableNamePrefix + "workflow"
 }
 
 // PrimaryKey return custom primary key
@@ -56,8 +67,10 @@ func (w *Workflow) Index() map[string]string {
 	if w.Name != "" {
 		index["name"] = w.Name
 	}
-	if w.Namespace != "" {
-		index["namespace"] = w.Namespace
+	if w.AppPrimaryKey != "" {
+		index["appPrimaryKey"] = w.AppPrimaryKey
 	}
+	index["default"] = strconv.FormatBool(w.Default)
+	index["enable"] = strconv.FormatBool(w.Enable)
 	return index
 }
