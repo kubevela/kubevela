@@ -101,16 +101,21 @@ var _ = Describe("test registry and trait/comp command", func() {
 			cli := "vela trait"
 			output, err := e2e.Exec(cli)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainElements(ContainSubstring("NAME"), ContainSubstring("APPLIES-TO")))
-			Expect(output).To(ContainElements(ContainSubstring("pvc"), ContainSubstring("[deployments.apps]")))
+			Expect(output).To(ContainSubstring("NAME"))
+			Expect(output).To(ContainSubstring("APPLIES-TO"))
+			Expect(output).To(ContainSubstring("pvc"))
+			Expect(output).To(ContainSubstring("[deployments.apps]"))
 		})
 		It("list trait from default registry", func() {
 			cli := "vela trait --discover"
 			output, err := e2e.Exec(cli)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Showing trait definition from registry: default"))
-			Expect(output).To(ContainElements(ContainSubstring("NAME"), ContainSubstring("APPLIES-TO"), ContainSubstring("STATUS")))
-			Expect(output).To(ContainElements(ContainSubstring("autoscale"), ContainSubstring("[deployments.apps]")))
+			Expect(output).To(ContainSubstring("NAME"))
+			Expect(output).To(ContainSubstring("APPLIES-TO"))
+			Expect(output).To(ContainSubstring("STATUS"))
+			Expect(output).To(ContainSubstring("autoscale"))
+			Expect(output).To(ContainSubstring("[deployments.apps]"))
 		})
 
 		It("install traits to cluster", func() {
@@ -144,8 +149,10 @@ var _ = Describe("test registry and trait/comp command", func() {
 			cli := "vela comp"
 			output, err := e2e.Exec(cli)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainElements(ContainSubstring("NAME"), ContainSubstring("DEFINITION")))
-			Expect(output).To(ContainElements(ContainSubstring("raw"), ContainSubstring("deployments.apps")))
+			Expect(output).To(ContainSubstring("NAME"))
+			Expect(output).To(ContainSubstring("DEFINITION"))
+			Expect(output).To(ContainSubstring("raw"))
+			Expect(output).To(ContainSubstring("deployments.apps"))
 		})
 
 	})
