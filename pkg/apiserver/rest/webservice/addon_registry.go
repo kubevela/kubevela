@@ -40,7 +40,7 @@ type addonRegistryWebService struct {
 
 func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path("/v1/addon_registries").
+	ws.Path(versionPrefix+"/addon_registries").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for addon registry management")
@@ -79,6 +79,7 @@ func (s *addonRegistryWebService) createAddonRegistry(req *restful.Request, res 
 		bcode.ReturnError(req, res, err)
 		return
 	}
+
 	// Call the usecase layer code
 	meta, err := s.addonUsecase.CreateAddonRegistry(req.Request.Context(), createReq)
 	if err != nil {

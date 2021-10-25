@@ -18,6 +18,8 @@ package e2e_apiserver_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -61,6 +63,17 @@ var _ = BeforeSuite(func() {
 		err = server.Run(ctx)
 		Expect(err).ShouldNot(HaveOccurred())
 	}()
+	By("wait for api server to start")
+	Eventually(
+		func() error {
+			res, err := http.Get("http://127.0.0.1:8000/api/v1/namespaces")
+			if err != nil {
+				return err
+			}
+			if res.StatusCode == http.StatusOK {
+				return nil
+			}
+			return errors.New("rest service not ready")
+		}, time.Second*5, time.Millisecond*200).Should(BeNil())
 	By("api server started")
-	time.Sleep(time.Second * 2)
 })

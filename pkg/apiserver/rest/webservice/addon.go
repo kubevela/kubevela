@@ -21,6 +21,7 @@ import (
 	"context"
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -118,7 +119,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
-		Writes(apis.EmptyResponse{}))
+		Writes(apis.AddonStatusResponse{}))
 
 	return ws
 }
@@ -162,6 +163,9 @@ func (s *addonWebService) getAllAddons(ctx context.Context, detailed bool) ([]*a
 		}
 		addons = mergeAddons(addons, gitAddons)
 	}
+	sort.Slice(addons, func(i, j int) bool {
+		return addons[i].Name < addons[j].Name
+	})
 	return addons, nil
 }
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
