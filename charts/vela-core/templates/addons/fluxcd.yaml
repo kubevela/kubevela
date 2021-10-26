@@ -6023,6 +6023,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.fluxcd.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: Flux is a set of continuous and progressive delivery
       solutions for Kubernetes
     addons.oam.dev/name: fluxcd

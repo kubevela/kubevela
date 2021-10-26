@@ -228,6 +228,19 @@ func removeUselessInplace(s *string) {
 	*s = re.ReplaceAllString(*s, "")
 }
 
+func addHelmTemplating(s *string, addonInfo *AddonInfo) {
+	annotationPattern := regexp.MustCompile(`\n\s{2}annotations:\n`)
+	index := annotationPattern.FindStringIndex(*s)
+	camelCaseSub := regexp.MustCompile(`-([a-zA-Z0-9])`)
+	camelCaseStoreName := camelCaseSub.ReplaceAllStringFunc(addonInfo.StoreName, func(s string) string { return strings.ToUpper(strings.TrimLeft(s, "-")) })
+	helmTemplateSnippet := "{{- with .Values.addons." + camelCaseStoreName + ".configMapAnnotations }}\n{{- toYaml . | nindent 4 }}\n{{- end }}\n"
+
+	newstring := *s
+	newstring = newstring[:index[1]] + helmTemplateSnippet + newstring[index[1]:]
+
+	*s = newstring
+}
+
 // storeConfigMap store configMap in helm chart
 func storeConfigMap(addonInfo *AddonInfo, application *v1beta1.Application, storePath string) error {
 	configMap := &corev1.ConfigMap{
@@ -256,6 +269,8 @@ func storeConfigMap(addonInfo *AddonInfo, application *v1beta1.Application, stor
 	raw := string(content)
 	removeUselessInplace(&raw)
 	raw = strings.ReplaceAll(raw, fmt.Sprintf("'%s'", ChartTemplateNamespace), ChartTemplateNamespace)
+	addHelmTemplating(&raw, addonInfo)
+
 	filename := storePath + "/" + addonInfo.StoreName + ".yaml"
 	return WriteToFile(filename, raw)
 }

@@ -46,6 +46,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.terraformProviderAlibaba.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
     addons.oam.dev/name: terraform/provider-alibaba
   labels:

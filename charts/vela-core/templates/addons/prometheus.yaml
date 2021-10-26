@@ -30,6 +30,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.prometheus.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: Prometheus is an open-source systems monitoring and
       alerting toolkit
     addons.oam.dev/name: prometheus

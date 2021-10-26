@@ -173,6 +173,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.kruise.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: Kruise is a Kubernetes extended suite for application
       automations
     addons.oam.dev/name: kruise

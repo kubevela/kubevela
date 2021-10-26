@@ -234,6 +234,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.observability.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: An out of the box solution for KubeVela observability
     addons.oam.dev/name: observability
   labels:

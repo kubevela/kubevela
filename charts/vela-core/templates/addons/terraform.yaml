@@ -346,6 +346,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.terraform.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: Terraform Controller is a Kubernetes Controller for
       Terraform.
     addons.oam.dev/name: terraform

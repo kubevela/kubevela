@@ -131,3 +131,27 @@ multicluster:
     secureTLS:
       enabled: true
       certPath: /etc/k8s-cluster-gateway-certs
+
+addons:
+  fluxcd:
+    configMapAnnotations: {}
+  istio:
+    configMapAnnotations: {}
+  keda:
+    configMapAnnotations: {}
+  kruise:
+    configMapAnnotations: {}
+  observability:
+    configMapAnnotations: {}
+  ocmClusterManager:
+    configMapAnnotations: {}
+  prometheus:
+    configMapAnnotations: {}
+  terraformProviderAlibaba:
+    configMapAnnotations: {}
+  terraformProviderAws:
+    configMapAnnotations: {}
+  terraformProviderAzure:
+    configMapAnnotations: {}
+  terraform:
+    configMapAnnotations: {}

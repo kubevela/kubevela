@@ -29,6 +29,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.keda.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: KEDA is a Kubernetes-based Event Driven Autoscaler.
     addons.oam.dev/name: keda
   labels:

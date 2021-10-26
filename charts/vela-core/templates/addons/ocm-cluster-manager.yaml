@@ -506,6 +506,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.ocmClusterManager.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: ocm-cluster-manager can deploy an OCM hub cluster
       environment.
     addons.oam.dev/name: ocm-cluster-manager

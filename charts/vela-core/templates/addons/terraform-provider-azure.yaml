@@ -46,6 +46,9 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+{{- with .Values.addons.terraformProviderAzure.configMapAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
     addons.oam.dev/description: Kubernetes Terraform Controller for Azure
     addons.oam.dev/name: terraform/provider-azure
   labels:
