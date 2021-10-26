@@ -67,14 +67,15 @@ func (h *provider) Send(ctx wfContext.Context, v *value.Value, act types.Action)
 		case "success":
 			emailRoutine.Delete(id)
 			return nil
-		case "sending":
+		case "initializing", "sending":
 			act.Wait("wait for the email")
+			return nil
 		default:
 			emailRoutine.Delete(id)
 			return fmt.Errorf("failed to send email: %v", routine)
 		}
 	} else {
-		emailRoutine.Store(id, "sending")
+		emailRoutine.Store(id, "initializing")
 	}
 
 	s, err := v.LookupValue("from")
@@ -113,7 +114,8 @@ func (h *provider) Send(ctx wfContext.Context, v *value.Value, act types.Action)
 
 	dial := gomail.NewDialer(senderValue.Host, senderValue.Port, senderValue.Address, senderValue.Password)
 	go func() {
-		if routine, ok := emailRoutine.Load(id); ok && routine == "sending" {
+		if routine, ok := emailRoutine.Load(id); ok && routine == "initializing" {
+			emailRoutine.Store(id, "sending")
 			if err := dial.DialAndSend(m); err != nil {
 				emailRoutine.Store(id, err.Error())
 				return
