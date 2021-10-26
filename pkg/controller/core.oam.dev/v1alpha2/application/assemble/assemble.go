@@ -232,6 +232,9 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	}
 
 	assembledTraits := make([]*unstructured.Unstructured, len(comp.Traits))
+
+	HandleCheckManageWorkloadTrait(*appRev, []*types.ComponentManifest{comp})
+
 	for i, trait := range comp.Traits {
 		setTraitLabels(trait, additionalLabel)
 		assembledTraits[i] = trait
@@ -328,4 +331,26 @@ func setWorkloadLabels(wl *unstructured.Unstructured, additionalLabels map[strin
 func setTraitLabels(trait *unstructured.Unstructured, additionalLabels map[string]string) {
 	// add more trait-specific labels here
 	util.AddLabels(trait, additionalLabels)
+}
+
+// HandleCheckManageWorkloadTrait will checkout every trait whether a manage-workload trait, if yes set label and annotation in trait
+func HandleCheckManageWorkloadTrait(appRev v1beta1.ApplicationRevision, comps []*types.ComponentManifest) {
+	traitDefs := appRev.Spec.TraitDefinitions
+	manageWorkloadTrait := map[string]bool{}
+	for traitName, definition := range traitDefs {
+		if definition.Spec.ManageWorkload {
+			manageWorkloadTrait[traitName] = true
+		}
+	}
+	if len(manageWorkloadTrait) == 0 {
+		return
+	}
+	for _, comp := range comps {
+		for _, trait := range comp.Traits {
+			traitType := trait.GetLabels()[oam.TraitTypeLabel]
+			if manageWorkloadTrait[traitType] {
+				trait.SetLabels(util.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.LabelManageWorkloadTrait: "true"}))
+			}
+		}
+	}
 }

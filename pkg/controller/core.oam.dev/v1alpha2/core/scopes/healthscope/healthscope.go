@@ -29,6 +29,7 @@ import (
 	"github.com/pkg/errors"
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -370,7 +371,7 @@ func getAppConfigNameFromLabel(o metav1.Object) string {
 func getVersioningPeerWorkloadRefs(ctx context.Context, c client.Reader, wlRef core.ObjectReference, ns string) ([]core.ObjectReference, error) {
 	o := &unstructured.Unstructured{}
 	o.SetGroupVersionKind(wlRef.GroupVersionKind())
-	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: wlRef.Name}, o); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: wlRef.Name}, o); err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
 	}
 

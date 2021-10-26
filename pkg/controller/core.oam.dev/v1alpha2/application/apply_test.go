@@ -30,7 +30,6 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,7 +40,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const workloadDefinition = `
@@ -215,39 +213,5 @@ var _ = Describe("Test statusAggregate", func() {
 		Expect(len(statuses)).Should(Equal(1))
 		Expect(healthy).Should(Equal(true))
 		Expect(err).Should(BeNil())
-	})
-})
-
-var _ = Describe("Test handleCheckManageWorkloadTrait func", func() {
-	It("Test every situation", func() {
-		traitDefs := map[string]v1beta1.TraitDefinition{
-			"rollout": v1beta1.TraitDefinition{
-				Spec: v1beta1.TraitDefinitionSpec{
-					ManageWorkload: true,
-				},
-			},
-			"normal": v1beta1.TraitDefinition{
-				Spec: v1beta1.TraitDefinitionSpec{},
-			},
-		}
-		rolloutTrait := &unstructured.Unstructured{}
-		rolloutTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "rollout"})
-
-		normalTrait := &unstructured.Unstructured{}
-		normalTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "normal"})
-		comps := []*velatypes.ComponentManifest{
-			{
-				Traits: []*unstructured.Unstructured{
-					rolloutTrait,
-					normalTrait,
-				},
-			},
-		}
-		h := AppHandler{}
-		h.handleCheckManageWorkloadTrait(traitDefs, comps)
-		Expect(len(rolloutTrait.GetLabels())).Should(BeEquivalentTo(2))
-		Expect(rolloutTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo("true"))
-		Expect(len(normalTrait.GetLabels())).Should(BeEquivalentTo(1))
-		Expect(normalTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo(""))
 	})
 })
