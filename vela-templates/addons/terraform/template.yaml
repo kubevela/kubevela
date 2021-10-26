@@ -33,7 +33,7 @@ spec:
         repoType: helm
         url: https://charts.kubevela.net/addons
         chart: terraform-controller
-        version: 0.1.19
+        version: 0.2.6
 {{ range .ResourceFiles }}
     - name: {{ .Name }}
       type: raw
