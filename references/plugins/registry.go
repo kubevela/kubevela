@@ -27,6 +27,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/oam-dev/kubevela/pkg/utils"
+
 	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/google/go-github/v32/github"
@@ -45,19 +47,19 @@ type Registry interface {
 // GithubRegistry is Registry's implementation treat github url as resource
 type GithubRegistry struct {
 	client     *github.Client
-	cfg        *GithubContent
+	cfg        *utils.GithubContent
 	ctx        context.Context
 	centerName string // to be used to cache registry
 }
 
 // NewRegistry will create a registry implementation
 func NewRegistry(ctx context.Context, token, registryName string, regURL string) (Registry, error) {
-	tp, cfg, err := Parse(regURL)
+	tp, cfg, err := utils.Parse(regURL)
 	if err != nil {
 		return nil, err
 	}
 	switch tp {
-	case TypeGithub:
+	case utils.TypeGithub:
 		var tc *http.Client
 		if token != "" {
 			ts := oauth2.StaticTokenSource(
@@ -66,19 +68,19 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 			tc = oauth2.NewClient(ctx, ts)
 		}
 		return GithubRegistry{client: github.NewClient(tc), cfg: &cfg.GithubContent, ctx: ctx, centerName: registryName}, nil
-	case TypeOss:
+	case utils.TypeOss:
 		var tc http.Client
 		return OssRegistry{
 			Client:    &tc,
 			bucketURL: fmt.Sprintf("https://%s/", cfg.BucketURL),
 		}, nil
-	case TypeLocal:
+	case utils.TypeLocal:
 		_, err := os.Stat(cfg.AbsDir)
 		if os.IsNotExist(err) {
 			return LocalRegistry{}, err
 		}
 		return LocalRegistry{absPath: cfg.AbsDir}, nil
-	case TypeUnknown:
+	case utils.TypeUnknown:
 		return nil, fmt.Errorf("not supported url")
 	}
 

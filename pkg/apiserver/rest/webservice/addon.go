@@ -19,16 +19,25 @@ package webservice
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
-type addonWebService struct {
+// NewAddonWebService returns addon web service
+func NewAddonWebService(u usecase.AddonUsecase) WebService {
+	return &addonWebService{
+		addonUsecase: u,
+	}
 }
 
-func (c *addonWebService) GetWebService() *restful.WebService {
+type addonWebService struct {
+	addonUsecase usecase.AddonUsecase
+}
+
+func (s *addonWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path("/v1/addons").
+	ws.Path(versionPrefix+"/addons").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for addon management")
@@ -36,53 +45,132 @@ func (c *addonWebService) GetWebService() *restful.WebService {
 	tags := []string{"addon"}
 
 	// List
-	ws.Route(ws.GET("/").To(noop).
+	ws.Route(ws.GET("/").To(s.listAddons).
 		Doc("list all addons").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("cluster", "Cluster-based search").DataType("string")).
-		Writes(apis.ListAddonResponse{}).Do(returns200, returns500))
-
-	// Create
-	ws.Route(ws.POST("/").To(noop).
-		Doc("create an addon").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(apis.CreateAddonRequest{}).
-		Writes(apis.AddonMeta{}))
-
-	// Delete
-	ws.Route(ws.DELETE("/{name}").To(noop).
-		Doc("delete an addon").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the addon").DataType("string")).
-		Writes(apis.AddonMeta{}))
+		Returns(200, "", apis.ListAddonResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ListAddonResponse{}))
 
 	// GET
-	ws.Route(ws.GET("/{name}").To(noop).
+	ws.Route(ws.GET("/{name}").To(s.detailAddon).
 		Doc("show details of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the addon").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.DetailAddonResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to query detail").DataType("string").Required(true)).
 		Writes(apis.DetailAddonResponse{}))
 
 	// GET status
-	ws.Route(ws.GET("/{name}/status").To(noop).
+	ws.Route(ws.GET("/status").To(s.statusAddon).
 		Doc("show status of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the addon").DataType("string")).
+		Returns(200, "", apis.AddonStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to query status").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
-	// vela enable addon
-	ws.Route(ws.POST("/{name}/enable").To(noop).
-		Doc("enable an addon on a cluster").
+	// enable addon
+	ws.Route(ws.POST("/enable").To(s.enableAddon).
+		Doc("enable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("cluster", "cluster name").DataType("string")).
-		Writes(apis.AddonMeta{}))
+		Returns(200, "", apis.AddonStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
+		Writes(apis.AddonStatusResponse{}))
 
-	// vela disable addon
-	ws.Route(ws.POST("/{name}/disable").To(noop).
-		Doc("disable an addon on a cluster").
+	// disable addon
+	ws.Route(ws.POST("/disable").To(s.disableAddon).
+		Doc("disable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("cluster", "cluster name").DataType("string")).
-		Writes(apis.AddonMeta{}))
+		Returns(200, "", apis.AddonStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
+		Writes(apis.AddonStatusResponse{}))
 
 	return ws
+}
+
+func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response) {
+	detailAddons, err := s.addonUsecase.ListAddons(req.Request.Context(), false)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	var addons []*apis.AddonMeta
+
+	for _, d := range detailAddons {
+		addons = append(addons, &d.AddonMeta)
+	}
+
+	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
+	name := req.QueryParameter("name")
+	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	err = res.WriteEntity(addon)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+}
+
+func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Response) {
+	var createReq apis.EnableAddonRequest
+	err := req.ReadEntity(&createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err = validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	name := req.QueryParameter("name")
+	err = s.addonUsecase.EnableAddon(req.Request.Context(), name, createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	s.statusAddon(req, res)
+}
+
+func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
+	name := req.QueryParameter("name")
+	err := s.addonUsecase.DisableAddon(req.Request.Context(), name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	s.statusAddon(req, res)
+}
+
+func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
+	name := req.QueryParameter("name")
+	status, err := s.addonUsecase.StatusAddon(name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	err = res.WriteEntity(*status)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }

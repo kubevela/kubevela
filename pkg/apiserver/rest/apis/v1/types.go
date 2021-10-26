@@ -25,8 +25,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 )
 
-// CtxKeyApplication request context key of application
-var CtxKeyApplication = "application"
+var (
+	// CtxKeyApplication request context key of application
+	CtxKeyApplication = "application"
+)
 
 // CtxKeyWorkflow request context key of workflow
 var CtxKeyWorkflow = "workflow"
@@ -37,8 +39,6 @@ type AddonPhase string
 const (
 	// AddonPhaseDisabled indicates the addon is disabled
 	AddonPhaseDisabled AddonPhase = "disabled"
-	// AddonPhaseDisabling indicates the addon is disabling
-	AddonPhaseDisabling AddonPhase = "disabling"
 	// AddonPhaseEnabled indicates the addon is enabled
 	AddonPhaseEnabled AddonPhase = "enabled"
 	// AddonPhaseEnabling indicates the addon is enabling
@@ -48,32 +48,30 @@ const (
 // EmptyResponse empty response, it will used for delete api
 type EmptyResponse struct{}
 
-// CreateAddonRequest defines the format for addon create request
-type CreateAddonRequest struct {
-	Name string `json:"name" validate:"name"`
+// CreateAddonRegistryRequest defines the format for addon registry create request
+type CreateAddonRegistryRequest struct {
+	Name string `json:"name" validate:"required"`
 
-	Version string `json:"version" validate:"required"`
+	Git *model.GitAddonSource `json:"git,omitempty"`
+}
 
-	// Short description about the addon.
-	Description string `json:"description,omitempty"`
+// AddonRegistryMeta defines the format for a single addon registry
+type AddonRegistryMeta struct {
+	Name string `json:"name" validate:"required"`
 
-	Icon string `json:"icon"`
+	Git *model.GitAddonSource `json:"git,omitempty"`
+}
 
-	Tags []string `json:"tags"`
+// EnableAddonRequest defines the format for enable addon request
+type EnableAddonRequest struct {
 
-	// The detail of the addon. Could be the entire README data.
-	Detail string `json:"detail,omitempty"`
-
-	// DeployData is the object to deploy to the cluster to enable addon
-	DeployData string `json:"deploy_data,omitempty" validate:"required_without=deploy_url"`
-
-	// DeployURL is the URL to the data file location in a Git repository
-	DeployURL string `json:"deploy_url,omitempty"  validate:"required_without=deploy_data"`
+	// Args is the key-value environment variables, e.g. AK/SK credentials.
+	Args map[string]string `json:"args,omitempty"`
 }
 
 // ListAddonResponse defines the format for addon list response
 type ListAddonResponse struct {
-	Addons []AddonMeta `json:"addons"`
+	Addons []*AddonMeta `json:"addons"`
 }
 
 // AddonMeta defines the format for a single addon
@@ -87,26 +85,30 @@ type AddonMeta struct {
 	Icon string `json:"icon"`
 
 	Tags []string `json:"tags"`
-
-	Phase AddonPhase `json:"phase"`
 }
 
 // DetailAddonResponse defines the format for showing the addon details
 type DetailAddonResponse struct {
 	AddonMeta
 
+	// More details about the addon, e.g. README
 	Detail string `json:"detail,omitempty"`
 
-	// DeployData is the object to deploy to the cluster to enable addon
+	// DeployData is the object to apply to enable addon, e.g. Application
 	DeployData string `json:"deploy_data,omitempty"`
-
-	// DeployURL is the URL to the data file location in a Git repository
-	DeployURL string `json:"deploy_url,omitempty"`
 }
 
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
 	Phase AddonPhase `json:"phase"`
+
+	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
+}
+
+// EnablingProgress defines the progress of enabling an addon
+type EnablingProgress struct {
+	EnabledComponents int `json:"enabled_components"`
+	TotalComponents   int `json:"total_components"`
 }
 
 // AccessKeyRequest request parameters to access cloud provider

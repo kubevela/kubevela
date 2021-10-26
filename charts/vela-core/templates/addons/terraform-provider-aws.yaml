@@ -43,6 +43,10 @@ data:
             region: '[[ index .Args "AWS_DEFAULT_REGION" ]]'
         type: raw
     status: {}
+  detail: |-
+    # terraform/provider-aws
+
+    This addon contains terraform provider for AWS
 kind: ConfigMap
 metadata:
   annotations:

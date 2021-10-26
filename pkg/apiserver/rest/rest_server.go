@@ -22,7 +22,7 @@ import (
 	"net/http"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
@@ -68,11 +68,12 @@ func New(cfg Config) (a APIServer, err error) {
 	case "kubeapi":
 		ds, err = kubeapi.New(context.Background(), cfg.Datastore)
 		if err != nil {
-			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
+			return nil, fmt.Errorf("create kubeapi datastore instance failure %w", err)
 		}
 	default:
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
 	}
+
 	s := &restServer{
 		webContainer: restful.NewContainer(),
 		cfg:          cfg,

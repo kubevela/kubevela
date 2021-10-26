@@ -170,6 +170,10 @@ data:
         - name: apply-resources
           type: apply-application
     status: {}
+  detail: |-
+    # kruise
+
+    This addon provides [open-kruise](https://github.com/openkruise/kruise) workload.
 kind: ConfigMap
 metadata:
   annotations:
