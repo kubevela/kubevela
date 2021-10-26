@@ -22,13 +22,19 @@ spec:
         type: webhook-notification
         properties:
           dingding:
-            url: ding url
+            # directly specify the webhook url
+            url:
+              value: <dingding-url>
             message:
               msgtype: text
               text:
                 content: Hello KubeVela
           slack:
-            url: slack url
+            url:
+              # use url in secret
+              secretRef:
+                name: <secret-name>
+                key: <secret-key>
             message:
               text: Hello KubeVela
           email:
@@ -36,10 +42,10 @@ spec:
               address: <sender-email-address>
               alias: <sender-alias>
               password:
-                # formSecret:
+                # secretRef:
                 #   name: <secret-name>
                 #   key: <secret-key>
-                fromString: <sender-password>
+                value: <sender-password>
               host: <email host like smtp.gmail.com>
               port: <email port, optional, default to 587>
             to:
