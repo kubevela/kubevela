@@ -10,7 +10,13 @@ import (
 }
 template: {
 	apply: op.#Apply & {
-		value: parameter
+		value:   parameter.value
+		cluster: parameter.cluster
 	}
-	parameter: {}
+	parameter: {
+		// +usage=Specify the value of the object
+		value: {...}
+		// +usage=Specify the cluster of the object
+		cluster: *"" | string
+	}
 }
