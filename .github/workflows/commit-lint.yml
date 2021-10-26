@@ -15,5 +15,5 @@ jobs:
       - uses: thehanimo/pr-title-checker@v1.3.1
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          pass_on_octokit_error: false
+          pass_on_octokit_error: true
           configuration_path: ".github/pr-title-checker-config.json"
