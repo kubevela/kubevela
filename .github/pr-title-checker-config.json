@@ -5,6 +5,6 @@
   },
   "CHECKS": {
     "prefixes": ["Fix: ", "Feat: ", "Docs: ", "Test: ", "Chore: ", "CI: ", "Perf: ", "Refactor: ", "Revert: ", "Style: ", "Test: ",
-      "Fix(", "Feat(", "Docs(", "Test(", "Chore(", "CI(", "Perf(", "Refactor(", "Revert(", "Style(", "Test("]
+      "Fix(", "Feat(", "Docs(", "Test(", "Chore(", "CI(", "Perf(", "Refactor(", "Revert(", "Style(", "Test(", "[Backport"]
   }
 }
