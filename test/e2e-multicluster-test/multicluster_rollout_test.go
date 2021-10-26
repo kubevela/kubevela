@@ -188,6 +188,7 @@ var _ = Describe("Test MultiClustet Rollout", func() {
 			}, 500*time.Millisecond, 30*time.Second).Should(BeNil())
 			verifySucceed(componentName + "-v2")
 			Eventually(func() error {
+				// Note: KubeVela will only check the workload of the target revision
 				checkApp := v1beta1.Application{}
 				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, &checkApp); err != nil {
 					return err
