@@ -29,7 +29,7 @@ import (
 var CtxKeyApplication = "application"
 
 // CtxKeyWorkflow request context key of workflow
-var CtxKeyWorkflow = "application"
+var CtxKeyWorkflow = "workflow"
 
 // AddonPhase defines the phase of an addon
 type AddonPhase string
