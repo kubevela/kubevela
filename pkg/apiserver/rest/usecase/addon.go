@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -77,16 +78,18 @@ func NewAddonUsecase(ds datastore.DataStore) AddonUsecase {
 		panic(err)
 	}
 	return &addonUsecaseImpl{
-		ds:         ds,
-		kubeClient: kubecli,
-		apply:      apply.NewAPIApplicator(kubecli),
+		addonRegistryCache: make(map[string]*restutils.MemoryCache),
+		addonRegistryDS:    ds,
+		kubeClient:         kubecli,
+		apply:              apply.NewAPIApplicator(kubecli),
 	}
 }
 
 type addonUsecaseImpl struct {
-	ds         datastore.DataStore
-	kubeClient client.Client
-	apply      apply.Applicator
+	addonRegistryCache map[string]*restutils.MemoryCache
+	addonRegistryDS    datastore.DataStore
+	kubeClient         client.Client
+	apply              apply.Applicator
 }
 
 // GetAddon will get addon information, if detailed is not set, addon's componennt and internal definition won't be returned
@@ -117,7 +120,7 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 				EnablingProgress: nil,
 			}, nil
 		}
-		return nil, bcode.ErrGetApplicationFail
+		return nil, bcode.ErrGetAddonApplication
 	}
 
 	switch app.Status.Phase {
@@ -140,15 +143,24 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 	if err != nil {
 		return nil, err
 	}
+
 	for _, r := range rs {
 		if registry != "" && r.Name != registry {
 			continue
 		}
-		gitAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
-		if err != nil {
-			log.Logger.Errorf("fail to get addons from registry %s", r.Name)
-			continue
+
+		var gitAddons []*apis.DetailAddonResponse
+		if u.isRegistryCacheUpToDate(registry) {
+			gitAddons = u.getRegistryCache(registry)
+		} else {
+			gitAddons, err = getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
+			if err != nil {
+				log.Logger.Errorf("fail to get addons from registry %s", r.Name)
+				continue
+			}
+			u.putRegistryCache(registry, gitAddons)
 		}
+
 		addons = mergeAddons(addons, gitAddons)
 	}
 
@@ -165,17 +177,18 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 	sort.Slice(addons, func(i, j int) bool {
 		return addons[i].Name < addons[j].Name
 	})
+
 	return addons, nil
 }
 
 func (u *addonUsecaseImpl) DeleteAddonRegistry(ctx context.Context, name string) error {
-	return u.ds.Delete(ctx, &model.AddonRegistry{Name: name})
+	return u.addonRegistryDS.Delete(ctx, &model.AddonRegistry{Name: name})
 }
 
 func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
 	r := addonRegistryModelFromCreateAddonRegistryRequest(req)
 
-	err := u.ds.Add(ctx, r)
+	err := u.addonRegistryDS.Add(ctx, r)
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrAddonRegistryExist
@@ -193,7 +206,7 @@ func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name strin
 	var r = model.AddonRegistry{
 		Name: name,
 	}
-	err := u.ds.Get(ctx, &r)
+	err := u.addonRegistryDS.Get(ctx, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -202,14 +215,18 @@ func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name strin
 
 func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
 	var r = model.AddonRegistry{}
-	entities, err := u.ds.List(ctx, &r, &datastore.ListOptions{})
+
+	var list []*apis.AddonRegistryMeta
+	entities, err := u.addonRegistryDS.List(ctx, &r, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	var list []*apis.AddonRegistryMeta
 	for _, entity := range entities {
 		list = append(list, ConvertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
 	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Name < list[j].Name
+	})
 	return list, nil
 }
 
@@ -247,7 +264,7 @@ func renderApplication(addon *apis.DetailAddonResponse, args *apis.EnableAddonRe
 		comp, err := renderCUETemplate(tmpl, addon.Parameters, args.Args)
 		if err != nil {
 			log.Logger.Errorf("failed to render CUE template: %v", err)
-			return nil, bcode.ErrAddonRenderFail
+			return nil, bcode.ErrAddonRender
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
@@ -274,10 +291,25 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 	err = u.kubeClient.Create(ctx, app)
 	if err != nil {
 		log.Logger.Errorf("apply application fail: %s", err.Error())
-		return bcode.ErrAddonApplyFail
+		return bcode.ErrAddonApply
 	}
 	return nil
+}
 
+func (u *addonUsecaseImpl) getRegistryCache(name string) []*apis.DetailAddonResponse {
+	return u.addonRegistryCache[name].GetData().([]*apis.DetailAddonResponse)
+}
+
+func (u *addonUsecaseImpl) putRegistryCache(name string, addons []*apis.DetailAddonResponse) {
+	u.addonRegistryCache[name] = restutils.NewMemoryCache(addons, time.Minute*3)
+}
+
+func (u *addonUsecaseImpl) isRegistryCacheUpToDate(name string) bool {
+	d, ok := u.addonRegistryCache[name]
+	if !ok {
+		return false
+	}
+	return !d.IsExpired()
 }
 
 func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error {
@@ -397,6 +429,9 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 		addonRes := &apis.DetailAddonResponse{}
 		_, files, _, err := gith.Client.Repositories.GetContents(context.Background(), gith.Meta.Owner, gith.Meta.Repo, subItems.GetPath(), nil)
 		if err != nil {
+			if bcode.IsGithubRateLimit(err) {
+				return nil, bcode.ErrAddonRegistryRateLimit
+			}
 			log.Logger.Errorf("failed to read dir %s: %v", subItems.GetPath(), err)
 			continue
 		}
@@ -430,6 +465,9 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 			}
 
 			if err != nil {
+				if bcode.IsGithubRateLimit(err) {
+					return nil, bcode.ErrAddonRegistryRateLimit
+				}
 				log.Logger.Errorf("failed to read file %s: %v", file.GetPath(), err)
 				continue
 			}
@@ -576,12 +614,14 @@ func createGitHelper(baseURL, dir, token string) (*gitHelper, error) {
 	baseURL = strings.TrimSuffix(baseURL, ".git")
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return nil, err
+		log.Logger.Errorf("parsing %s failed: %v", baseURL, err)
+		return nil, bcode.ErrAddonRegistryInvalid
 	}
 	u.Path = path.Join(u.Path, dir)
 	_, gitmeta, err := utils.Parse(u.String())
 	if err != nil {
-		return nil, err
+		log.Logger.Errorf("parsing %s failed: %v", u.String(), err)
+		return nil, bcode.ErrAddonRegistryInvalid
 	}
 
 	return &gitHelper{
@@ -593,7 +633,8 @@ func createGitHelper(baseURL, dir, token string) (*gitHelper, error) {
 func readRepo(h *gitHelper) ([]*github.RepositoryContent, error) {
 	_, dirs, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, h.Meta.Path, nil)
 	if err != nil {
-		return nil, err
+		log.Logger.Errorf("readRepo fail: %v", err)
+		return nil, bcode.WrapGithubRateLimitErr(err)
 	}
 	return dirs, nil
 }
