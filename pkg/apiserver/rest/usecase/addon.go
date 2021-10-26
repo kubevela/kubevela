@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/Masterminds/sprig"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"golang.org/x/oauth2"
+	"net/http"
 	"net/url"
 	"path"
 	"sort"
@@ -132,7 +134,7 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool) ([]*ap
 		return nil, err
 	}
 	for _, r := range rs {
-		gitAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Path, detailed)
+		gitAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
 		if err != nil {
 			return nil, err
 		}
@@ -295,10 +297,17 @@ func hasAddon(addons []*apis.DetailAddonResponse, name string) bool {
 	return false
 }
 
-func getAddonsFromGit(baseURL, dir string, detailed bool) ([]*apis.DetailAddonResponse, error) {
+func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.DetailAddonResponse, error) {
 	addons := []*apis.DetailAddonResponse{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	clt := github.NewClient(nil)
+	var tc *http.Client
+	if token != "" {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: token},
+		)
+		tc = oauth2.NewClient(context.Background(), ts)
+	}
+	clt := github.NewClient(tc)
 	// TODO add error handling
 	baseURL = strings.TrimSuffix(baseURL, ".git")
 	u, err := url.Parse(baseURL)

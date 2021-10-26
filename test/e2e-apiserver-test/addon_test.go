@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -40,8 +41,9 @@ var _ = Describe("Test addon rest api", func() {
 		createReq := apis.CreateAddonRegistryRequest{
 			Name: "test-addon-registry-1",
 			Git: &model.GitAddonSource{
-				URL:  "https://github.com/oam-dev/catalog",
-				Path: "addon/",
+				URL:   "https://github.com/oam-dev/catalog",
+				Path:  "addon/",
+				Token: os.Getenv("GITHUB_TOKEN"),
 			},
 		}
 		createRes := post("/api/v1/addon_registries", createReq)
