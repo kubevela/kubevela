@@ -28,10 +28,9 @@ import (
 var (
 	// CtxKeyApplication request context key of application
 	CtxKeyApplication = "application"
+	// CtxKeyWorkflow request context key of workflow
+	CtxKeyWorkflow = "workflow"
 )
-
-// CtxKeyWorkflow request context key of workflow
-var CtxKeyWorkflow = "workflow"
 
 // AddonPhase defines the phase of an addon
 type AddonPhase string

@@ -15,6 +15,264 @@
   "version": "v1beta1"
  },
  "paths": {
+  "/api/v1/addon_registries": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon_registry"
+    ],
+    "summary": "create an addon registry",
+    "operationId": "createAddonRegistry",
+    "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/v1.CreateAddonRegistryRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonRegistryMeta"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addon_registries/{name}": {
+   "delete": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon_registry"
+    ],
+    "summary": "delete an addon registry",
+    "operationId": "deleteAddonRegistry",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the addon registry",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonRegistryMeta"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "list all addons",
+    "operationId": "listAddons",
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ListAddonResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/disable": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "disable an addon",
+    "operationId": "disableAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to enable",
+      "name": "name",
+      "in": "query",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonStatusResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/enable": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "enable an addon",
+    "operationId": "enableAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to enable",
+      "name": "name",
+      "in": "query",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonStatusResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/status": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "show status of an addon",
+    "operationId": "statusAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to query status",
+      "name": "name",
+      "in": "query",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonStatusResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/{name}": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "show details of an addon",
+    "operationId": "detailAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to query detail",
+      "name": "name",
+      "in": "query",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.DetailAddonResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
   "/api/v1/applications": {
    "get": {
     "consumes": [
@@ -1265,223 +1523,6 @@
     }
    }
   },
-  "/v1/addons": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "list all addons",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "Cluster-based search",
-      "name": "cluster",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK",
-      "schema": {
-       "$ref": "#/definitions/map[string]string"
-      }
-     },
-     "500": {
-      "description": "Bummer, something went wrong"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "create an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.CreateAddonRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "show details of an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the addon",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "delete an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the addon",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}/disable": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "disable an addon on a cluster",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "cluster name",
-      "name": "cluster",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}/enable": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "enable an addon on a cluster",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "cluster name",
-      "name": "cluster",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}/status": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "show status of an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the addon",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
   "/v1/namespaces/{namespace}/applications/{appname}": {
    "get": {
     "consumes": [
@@ -1660,11 +1701,11 @@
   },
   "common.AppRolloutStatus": {
    "required": [
-    "batchRollingState",
-    "currentBatch",
-    "upgradedReplicas",
     "upgradedReadyReplicas",
     "rollingState",
+    "currentBatch",
+    "batchRollingState",
+    "upgradedReplicas",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -2222,6 +2263,19 @@
     }
    }
   },
+  "model.GitAddonSource": {
+   "properties": {
+    "path": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    },
+    "url": {
+     "type": "string"
+    }
+   }
+  },
   "model.JSONStruct": {
    "type": "object"
   },
@@ -2322,8 +2376,7 @@
     "version",
     "description",
     "icon",
-    "tags",
-    "phase"
+    "tags"
    ],
    "properties": {
     "description": {
@@ -2333,9 +2386,6 @@
      "type": "string"
     },
     "name": {
-     "type": "string"
-    },
-    "phase": {
      "type": "string"
     },
     "tags": {
@@ -2349,11 +2399,27 @@
     }
    }
   },
+  "v1.AddonRegistryMeta": {
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "git": {
+     "$ref": "#/definitions/model.GitAddonSource"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
   "v1.AddonStatusResponse": {
    "required": [
     "phase"
    ],
    "properties": {
+    "enabling_progress": {
+     "$ref": "#/definitions/v1.EnablingProgress"
+    },
     "phase": {
      "type": "string"
     }
@@ -2817,39 +2883,15 @@
     }
    }
   },
-  "v1.CreateAddonRequest": {
+  "v1.CreateAddonRegistryRequest": {
    "required": [
-    "name",
-    "version",
-    "icon",
-    "tags"
+    "name"
    ],
    "properties": {
-    "deploy_data": {
-     "type": "string"
-    },
-    "deploy_url": {
-     "type": "string"
-    },
-    "description": {
-     "type": "string"
-    },
-    "detail": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
+    "git": {
+     "$ref": "#/definitions/model.GitAddonSource"
     },
     "name": {
-     "type": "string"
-    },
-    "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "version": {
      "type": "string"
     }
    }
@@ -3058,18 +3100,14 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
+    "name",
+    "version",
     "description",
     "icon",
-    "tags",
-    "phase",
-    "name",
-    "version"
+    "tags"
    ],
    "properties": {
     "deploy_data": {
-     "type": "string"
-    },
-    "deploy_url": {
      "type": "string"
     },
     "description": {
@@ -3082,9 +3120,6 @@
      "type": "string"
     },
     "name": {
-     "type": "string"
-    },
-    "phase": {
      "type": "string"
     },
     "tags": {
@@ -3100,14 +3135,14 @@
   },
   "v1.DetailApplicationResponse": {
    "required": [
-    "description",
+    "name",
     "createTime",
     "status",
-    "gatewayRule",
-    "name",
     "namespace",
+    "description",
     "updateTime",
     "icon",
+    "gatewayRule",
     "policies",
     "status",
     "resourceInfo",
@@ -3174,15 +3209,15 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "status",
-    "icon",
     "description",
     "labels",
     "providerInfo",
     "apiServerURL",
     "dashboardURL",
+    "status",
     "reason",
     "name",
+    "icon",
     "resourceInfo"
    ],
    "properties": {
@@ -3227,11 +3262,11 @@
   "v1.DetailComponentResponse": {
    "required": [
     "appPrimaryKey",
-    "type",
-    "updateTime",
-    "creator",
     "name",
-    "createTime"
+    "type",
+    "createTime",
+    "updateTime",
+    "creator"
    ],
    "properties": {
     "appPrimaryKey": {
@@ -3342,12 +3377,12 @@
   },
   "v1.DetailWorkflowResponse": {
    "required": [
-    "default",
-    "createTime",
     "updateTime",
     "name",
     "description",
     "enable",
+    "default",
+    "createTime",
     "workflowRecord"
    ],
    "properties": {
@@ -3383,6 +3418,22 @@
    }
   },
   "v1.EmptyResponse": {},
+  "v1.EnablingProgress": {
+   "required": [
+    "enabled_components",
+    "total_components"
+   ],
+   "properties": {
+    "enabled_components": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "total_components": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
   "v1.EnvBind": {
    "required": [
     "name",
@@ -3551,6 +3602,19 @@
     "total": {
      "type": "integer",
      "format": "int64"
+    }
+   }
+  },
+  "v1.ListWorkflowResponse": {
+   "required": [
+    "workflows"
+   ],
+   "properties": {
+    "workflows": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.WorkflowBase"
+     }
     }
    }
   },
