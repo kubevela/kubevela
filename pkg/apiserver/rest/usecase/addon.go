@@ -1,13 +1,17 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Masterminds/sprig"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"net/url"
 	"path"
 	"sort"
 	"strings"
+	"text/template"
 
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,6 +47,8 @@ type AddonUsecase interface {
 	ListAddons(ctx context.Context, detailed bool) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
 	GetAddon(ctx context.Context, name string) (*apis.DetailAddonResponse, error)
+	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
+	DisableAddon(ctx context.Context, name string) error
 }
 
 // NewAddonUsecase returns a addon usecase
@@ -178,6 +184,89 @@ func (u *addonUsecaseImpl) listAddonRegistries(ctx context.Context) ([]*apis.Add
 		list = append(list, restutils.ConvertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
 	}
 	return list, nil
+}
+
+func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
+	addon, err := u.GetAddon(ctx, name)
+	if err != nil {
+		return err
+	}
+	err = u.applyAddonData(addon.DeployData, args)
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error {
+	addon, err := u.GetAddon(ctx, name)
+	if err != nil {
+		return err
+	}
+	err = u.deleteAddonData(addon.DeployData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *addonUsecaseImpl) applyAddonData(data string, request apis.EnableAddonRequest) error {
+	app, err := renderAddonApp(data, &request)
+	if err != nil {
+		return err
+	}
+	applicator := apply.NewAPIApplicator(u.kubeClient)
+	err = applicator.Apply(context.TODO(), app)
+	if err != nil {
+		log.Logger.Errorf("apply application fail: %s", err.Error())
+		return bcode.ErrAddonApplyFail
+	}
+	return nil
+}
+
+func (u *addonUsecaseImpl) deleteAddonData(data string) error {
+	app, err := renderAddonApp(data, nil)
+	if err != nil {
+		return err
+	}
+	err = u.kubeClient.Get(context.Background(), client.ObjectKey{
+		Namespace: app.GetNamespace(),
+		Name:      app.GetName(),
+	}, app)
+	if err != nil {
+		return bcode.ErrAddonNotEnabled
+	}
+	err = u.kubeClient.Delete(context.Background(), app)
+	if err != nil {
+		return bcode.ErrAddonDisableFail
+	}
+	return nil
+
+}
+
+// renderAddonApp can render string to unstructured, args can be nil
+func renderAddonApp(data string, args *apis.EnableAddonRequest) (*unstructured.Unstructured, error) {
+	if args == nil {
+		args = &apis.EnableAddonRequest{Args: map[string]string{}}
+	}
+
+	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(data)
+	if err != nil {
+		return nil, bcode.ErrAddonRenderFail
+	}
+	buf := bytes.Buffer{}
+	err = t.Execute(&buf, args)
+	if err != nil {
+		return nil, bcode.ErrAddonRenderFail
+	}
+	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	obj := &unstructured.Unstructured{}
+	_, _, err = dec.Decode(buf.Bytes(), nil, obj)
+	if err != nil {
+		return nil, bcode.ErrAddonRenderFail
+	}
+	return obj, nil
 }
 
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {

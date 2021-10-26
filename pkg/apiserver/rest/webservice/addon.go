@@ -17,23 +17,11 @@ limitations under the License.
 package webservice
 
 import (
-	"bytes"
-	"context"
-	"text/template"
-
-	"github.com/Masterminds/sprig"
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // NewAddonWebService returns addon web service
@@ -153,13 +141,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 	}
 
 	name := req.QueryParameter("name")
-	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-
-	err = s.applyAddonData(addon.DeployData, createReq)
+	err = s.addonUsecase.EnableAddon(req.Request.Context(), name, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -170,12 +152,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
 	name := req.QueryParameter("name")
-	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	err = s.deleteAddonData(addon.DeployData)
+	err := s.addonUsecase.DisableAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -196,72 +173,4 @@ func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Respons
 		bcode.ReturnError(req, res, err)
 		return
 	}
-}
-
-// renderAddonApp can render string to unstructured, args can be nil
-func renderAddonApp(data string, args *apis.EnableAddonRequest) (*unstructured.Unstructured, error) {
-	if args == nil {
-		args = &apis.EnableAddonRequest{Args: map[string]string{}}
-	}
-
-	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(data)
-	if err != nil {
-		return nil, bcode.ErrAddonRenderFail
-	}
-	buf := bytes.Buffer{}
-	err = t.Execute(&buf, args)
-	if err != nil {
-		return nil, bcode.ErrAddonRenderFail
-	}
-	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	obj := &unstructured.Unstructured{}
-	_, _, err = dec.Decode(buf.Bytes(), nil, obj)
-	if err != nil {
-		return nil, bcode.ErrAddonRenderFail
-	}
-	return obj, nil
-}
-
-func (s *addonWebService) applyAddonData(data string, request apis.EnableAddonRequest) error {
-	app, err := renderAddonApp(data, &request)
-	if err != nil {
-		return err
-	}
-	clientArgs, _ := common.InitBaseRestConfig()
-	ghClt, _ := clientArgs.GetClient()
-	applicator := apply.NewAPIApplicator(ghClt)
-	err = applicator.Apply(context.TODO(), app)
-	if err != nil {
-		log.Logger.Errorf("apply application fail: %s", err.Error())
-		return bcode.ErrAddonApplyFail
-	}
-	return nil
-}
-
-func (s *addonWebService) deleteAddonData(data string) error {
-	app, err := renderAddonApp(data, nil)
-	if err != nil {
-		return err
-	}
-	args, err := common.InitBaseRestConfig()
-	if err != nil {
-		return bcode.ErrGetClientFail
-	}
-	clt, err := args.GetClient()
-	if err != nil {
-		return bcode.ErrGetClientFail
-	}
-	err = clt.Get(context.Background(), client.ObjectKey{
-		Namespace: app.GetNamespace(),
-		Name:      app.GetName(),
-	}, app)
-	if err != nil {
-		return bcode.ErrAddonNotEnabled
-	}
-	err = clt.Delete(context.Background(), app)
-	if err != nil {
-		return bcode.ErrAddonDisableFail
-	}
-	return nil
-
 }
