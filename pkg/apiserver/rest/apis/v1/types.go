@@ -28,6 +28,9 @@ import (
 // CtxKeyApplication request context key of application
 var CtxKeyApplication = "application"
 
+// CtxKeyWorkflow request context key of workflow
+var CtxKeyWorkflow = "workflow"
+
 // AddonPhase defines the phase of an addon
 type AddonPhase string
 
@@ -426,12 +429,22 @@ type PolicyDefinition struct {
 	Parameters  []types.Parameter `json:"parameters"`
 }
 
+// CreateWorkflowRequest create workflow request
+type CreateWorkflowRequest struct {
+	AppName     string         `json:"appName" validate:"checkname"`
+	Name        string         `json:"name"  validate:"checkname"`
+	Description string         `json:"description"`
+	Steps       []WorkflowStep `json:"steps,omitempty"`
+	Enable      bool           `json:"enable"`
+	Default     bool           `json:"default"`
+}
+
 // UpdateWorkflowRequest update or create application workflow
 type UpdateWorkflowRequest struct {
-	Name      string         `json:"name"  validate:"checkname"`
-	Namespace string         `json:"namespace"  validate:"checkname"`
-	Steps     []WorkflowStep `json:"steps,omitempty"`
-	Enable    bool           `json:"enable"`
+	Description string         `json:"description"`
+	Steps       []WorkflowStep `json:"steps,omitempty"`
+	Enable      bool           `json:"enable"`
+	Default     bool           `json:"default"`
 }
 
 // WorkflowStep workflow step config
@@ -447,9 +460,24 @@ type WorkflowStep struct {
 
 // DetailWorkflowResponse detail workflow response
 type DetailWorkflowResponse struct {
+	WorkflowBase
 	Steps      []WorkflowStep  `json:"steps,omitempty"`
-	Enable     bool            `json:"enable"`
 	LastRecord *WorkflowRecord `json:"workflowRecord"`
+}
+
+// ListWorkflowResponse list application workflows
+type ListWorkflowResponse struct {
+	Workflows []*WorkflowBase `json:"workflows"`
+}
+
+// WorkflowBase workflow base model
+type WorkflowBase struct {
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Enable      bool      `json:"enable"`
+	Default     bool      `json:"default"`
+	CreateTime  time.Time `json:"createTime"`
+	UpdateTime  time.Time `json:"updateTime"`
 }
 
 // ListWorkflowRecordsResponse list workflow execution record
@@ -464,6 +492,7 @@ type WorkflowRecord struct {
 
 // ApplicationDeployRequest the application deploy or update event request
 type ApplicationDeployRequest struct {
+	WorkflowName string `json:"workflowName"`
 	// User note message, optional
 	Commit string `json:"commit"`
 	// SourceType the event trigger source, Web or API

@@ -22,6 +22,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
+func init() {
+	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &DeployEvent{})
+}
+
 // Application database model
 type Application struct {
 	Model
@@ -191,6 +195,9 @@ type DeployEvent struct {
 	Commit string `json:"commit"`
 	// SourceType the event trigger source, Web or API
 	SourceType string `json:"sourceType"`
+
+	// WorkflowName deploy controller by workflow
+	WorkflowName string `json:"workflowName"`
 }
 
 // TableName return custom table name

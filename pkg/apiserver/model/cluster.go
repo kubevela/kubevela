@@ -16,6 +16,10 @@ limitations under the License.
 
 package model
 
+func init() {
+	RegistModel(&Cluster{})
+}
+
 // ProviderInfo describes the information from provider API
 type ProviderInfo struct {
 	Name   string            `json:"name"`

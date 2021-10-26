@@ -29,9 +29,13 @@ import (
 
 // WorkflowUsecase workflow manage api
 type WorkflowUsecase interface {
+	ListApplicationWorkflow(ctx context.Context, app *model.Application, enable *bool) ([]*apisv1.WorkflowBase, error)
 	GetWorkflow(ctx context.Context, workflowName string) (*model.Workflow, error)
+	DetailWorkflow(ctx context.Context, workflow *model.Workflow) (*apisv1.DetailWorkflowResponse, error)
+	GetApplicationDefaultWorkflow(ctx context.Context, app *model.Application) (*model.Workflow, error)
 	DeleteWorkflow(ctx context.Context, workflowName string) error
-	CreateOrUpdateWorkflow(ctx context.Context, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
+	CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
+	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 }
 
 // NewWorkflowUsecase new workflow usecase
@@ -57,7 +61,7 @@ func (w *workflowUsecaseImpl) DeleteWorkflow(ctx context.Context, workflowName s
 	return nil
 }
 
-func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
 	var steps []model.WorkflowStep
 	for _, step := range req.Steps {
 		properties, err := model.NewJSONStructByString(step.Properties)
@@ -68,22 +72,51 @@ func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, req ap
 		steps = append(steps, model.WorkflowStep{
 			Name:       step.Name,
 			Type:       step.Type,
-			DependsOn:  step.DependsOn,
 			Inputs:     step.Inputs,
 			Outputs:    step.Outputs,
 			Properties: properties,
 		})
 	}
+	// It is allowed to set multiple workflows as default, and only one takes effect.
 	var workflow = model.Workflow{
-		Steps:     steps,
-		Name:      req.Name,
-		Namespace: req.Namespace,
-		Enable:    req.Enable,
+		Steps:         steps,
+		Name:          req.Name,
+		Enable:        req.Enable,
+		Description:   req.Description,
+		Default:       req.Default,
+		AppPrimaryKey: app.PrimaryKey(),
 	}
 	if err := w.ds.Add(ctx, &workflow); err != nil {
 		return nil, err
 	}
 	return w.DetailWorkflow(ctx, &workflow)
+}
+
+func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+	var steps []model.WorkflowStep
+	for _, step := range req.Steps {
+		properties, err := model.NewJSONStructByString(step.Properties)
+		if err != nil {
+			log.Logger.Errorf("parse trait properties failire %w", err)
+			return nil, bcode.ErrInvalidProperties
+		}
+		steps = append(steps, model.WorkflowStep{
+			Name:       step.Name,
+			Type:       step.Type,
+			Inputs:     step.Inputs,
+			Outputs:    step.Outputs,
+			Properties: properties,
+		})
+	}
+	workflow.Steps = steps
+	workflow.Description = req.Description
+	// It is allowed to set multiple workflows as default, and only one takes effect.
+	workflow.Default = req.Default
+	workflow.Enable = req.Enable
+	if err := w.ds.Put(ctx, workflow); err != nil {
+		return nil, err
+	}
+	return w.DetailWorkflow(ctx, workflow)
 }
 
 // DetailWorkflow detail workflow
@@ -93,7 +126,6 @@ func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *mode
 		apiStep := apisv1.WorkflowStep{
 			Name:       step.Name,
 			Type:       step.Type,
-			DependsOn:  step.DependsOn,
 			Inputs:     step.Inputs,
 			Outputs:    step.Outputs,
 			Properties: step.Properties.JSON(),
@@ -103,7 +135,17 @@ func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *mode
 		}
 		steps = append(steps, apiStep)
 	}
-	return &apisv1.DetailWorkflowResponse{Steps: steps, Enable: workflow.Enable}, nil
+	return &apisv1.DetailWorkflowResponse{
+		WorkflowBase: apisv1.WorkflowBase{
+			Name:        workflow.Name,
+			Description: workflow.Description,
+			Enable:      workflow.Enable,
+			Default:     workflow.Default,
+			CreateTime:  workflow.CreateTime,
+			UpdateTime:  workflow.UpdateTime,
+		},
+		Steps: steps,
+	}, nil
 }
 
 // GetWorkflow get workflow model
@@ -115,4 +157,47 @@ func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName stri
 		return nil, err
 	}
 	return &workflow, nil
+}
+
+// ListApplicationWorkflow list application workflows
+func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *model.Application, enable *bool) ([]*apisv1.WorkflowBase, error) {
+	var workflow = model.Workflow{
+		AppPrimaryKey: app.PrimaryKey(),
+	}
+	if enable != nil {
+		workflow.Enable = *enable
+	}
+	workflows, err := w.ds.List(ctx, &workflow, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	var list []*apisv1.WorkflowBase
+	for _, workflow := range workflows {
+		wm := workflow.(*model.Workflow)
+		list = append(list, &apisv1.WorkflowBase{
+			Name:        wm.Name,
+			Description: wm.Description,
+			Enable:      wm.Enable,
+			Default:     wm.Default,
+			CreateTime:  wm.CreateTime,
+			UpdateTime:  wm.UpdateTime,
+		})
+	}
+	return list, nil
+}
+
+// GetApplicationDefaultWorkflow get application default workflow
+func (w *workflowUsecaseImpl) GetApplicationDefaultWorkflow(ctx context.Context, app *model.Application) (*model.Workflow, error) {
+	var workflow = model.Workflow{
+		AppPrimaryKey: app.PrimaryKey(),
+		Default:       true,
+	}
+	workflows, err := w.ds.List(ctx, &workflow, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(workflows) > 0 {
+		return workflows[0].(*model.Workflow), nil
+	}
+	return nil, bcode.ErrWorkflowNoDefault
 }
