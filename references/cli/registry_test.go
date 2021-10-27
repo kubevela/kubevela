@@ -71,35 +71,35 @@ func TestParseURL(t *testing.T) {
 		expType string
 	}{
 		"api-github": {
-			url:     "https://api.github.com/repos/zzxwill/catalog/contents/repository?ref=plugin",
+			url:     "https://api.github.com/repos/oam-dev/catalog/contents/traits?ref=master",
 			expType: TypeGithub,
 			exp: &GithubContent{
-				URL:   "https://api.github.com/repos/zzxwill/catalog/contents/repository?ref=plugin",
-				Owner: "zzxwill",
+				URL:   "https://api.github.com/repos/oam-dev/catalog/contents/traits?ref=master",
+				Owner: "oam-dev",
 				Repo:  "catalog",
-				Path:  "repository",
-				Ref:   "plugin",
+				Path:  "traits",
+				Ref:   "master",
 			},
 		},
 		"github-copy-path": {
-			url:     "https://github.com/zzxwill/catalog/tree/plugin/repository",
+			url:     "https://github.com/oam-dev/catalog/tree/master/repository",
 			expType: TypeGithub,
 			exp: &GithubContent{
-				URL:   "https://github.com/zzxwill/catalog/tree/plugin/repository",
-				Owner: "zzxwill",
+				URL:   "https://github.com/oam-dev/catalog/tree/master/repository",
+				Owner: "oam-dev",
 				Repo:  "catalog",
 				Path:  "repository",
-				Ref:   "plugin",
+				Ref:   "master",
 			},
 		},
-		"github-manuel-write-path": {
-			url:     "https://github.com/zzxwill/catalog/repository",
+		"github-manual-write-path": {
+			url:     "https://github.com/oam-dev/catalog/traits",
 			expType: TypeGithub,
 			exp: &GithubContent{
-				URL:   "https://github.com/zzxwill/catalog/repository",
-				Owner: "zzxwill",
+				URL:   "https://github.com/oam-dev/catalog/traits",
+				Owner: "oam-dev",
 				Repo:  "catalog",
-				Path:  "repository",
+				Path:  "traits",
 			},
 		},
 	}
