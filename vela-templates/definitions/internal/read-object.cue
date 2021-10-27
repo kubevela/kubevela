@@ -22,6 +22,7 @@ template: {
 						}
 					}
 				}
+				cluster: parameter.cluster
 			}
 		}
 		if parameter.apiVersion != _|_ || parameter.kind != _|_ {
@@ -36,6 +37,7 @@ template: {
 						}
 					}
 				}
+				cluster: parameter.cluster
 			}
 		}
 	}
@@ -48,5 +50,7 @@ template: {
 		name: string
 		// +usage=Specify the namespace of the object
 		namespace?: string
+		// +usage=Specify the cluster of the object
+		cluster: *"" | string
 	}
 }
