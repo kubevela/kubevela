@@ -18,14 +18,14 @@ package model
 
 import (
 	"strconv"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 func init() {
 	RegistModel(&Workflow{})
+	RegistModel(&WorkflowRecord{})
 }
 
 // Workflow application delivery plan database model
@@ -81,14 +81,11 @@ func (w *Workflow) Index() map[string]string {
 type WorkflowRecord struct {
 	Model
 	WorkflowPrimaryKey string `json:"workflowPrimaryKey"`
+	AppPrimaryKey      string `json:"appPrimaryKey"`
 	// name is `appName-version`, which is the same as the primary key of deploy event
-	Name      string               `json:"name"`
-	Namespace string               `json:"namespace"`
-	Status    WorkflowRecordStatus `json:"status"`
-}
-
-type WorkflowRecordStatus struct {
-	StartTime  metav1.Time                 `json:"startTime,omitempty"`
+	Name       string                      `json:"name"`
+	Namespace  string                      `json:"namespace"`
+	StartTime  time.Time                   `json:"startTime,omitempty"`
 	Suspend    bool                        `json:"suspend"`
 	Terminated bool                        `json:"terminated"`
 	Steps      []common.WorkflowStepStatus `json:"steps,omitempty"`
@@ -110,8 +107,8 @@ func (w *WorkflowRecord) Index() map[string]string {
 	if w.Name != "" {
 		index["name"] = w.Name
 	}
-	if w.Namespace != "" {
-		index["namespace"] = w.Namespace
+	if w.WorkflowPrimaryKey != "" {
+		index["workflowPrimaryKey"] = w.WorkflowPrimaryKey
 	}
 	return index
 }

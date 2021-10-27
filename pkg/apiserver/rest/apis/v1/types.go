@@ -487,13 +487,21 @@ type ListWorkflowRecordsResponse struct {
 // DetailWorkflowRecordResponse get workflow record detail
 type DetailWorkflowRecordResponse struct {
 	WorkflowRecord
+	DeployTime time.Time `json:"deployTime"`
+	DeployUser string    `json:"deployUser"`
+	Commit     string    `json:"commit"`
+	// SourceType the event trigger source, Web or API
+	SourceType string `json:"sourceType"`
 }
 
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
-	Name      string                     `json:"name"`
-	Namespace string                     `json:"namespace"`
-	Status    model.WorkflowRecordStatus `json:"status"`
+	Name       string                      `json:"name"`
+	Namespace  string                      `json:"namespace"`
+	StartTime  time.Time                   `json:"startTime,omitempty"`
+	Suspend    bool                        `json:"suspend"`
+	Terminated bool                        `json:"terminated"`
+	Steps      []common.WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // ApplicationDeployRequest the application deploy or update event request

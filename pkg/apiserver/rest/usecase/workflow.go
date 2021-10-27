@@ -245,8 +245,22 @@ func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflow
 		return nil, err
 	}
 
+	version := strings.TrimPrefix(recordName, fmt.Sprintf("%s-", record.AppPrimaryKey))
+	var deployEvent = model.DeployEvent{
+		AppPrimaryKey: record.AppPrimaryKey,
+		Version:       version,
+	}
+	err = w.ds.Get(ctx, &deployEvent)
+	if err != nil {
+		return nil, err
+	}
+
 	return &apisv1.DetailWorkflowRecordResponse{
 		WorkflowRecord: *convertFromRecordModel(&record),
+		DeployTime:     deployEvent.CreateTime,
+		DeployUser:     deployEvent.DeployUser,
+		Commit:         deployEvent.Commit,
+		SourceType:     deployEvent.SourceType,
 	}, nil
 }
 
@@ -262,21 +276,23 @@ func (w *workflowUsecaseImpl) createWorkflowRecord(ctx context.Context, revision
 
 	return w.ds.Add(ctx, &model.WorkflowRecord{
 		WorkflowPrimaryKey: app.Annotations[oam.AnnotationWorkflowName],
+		AppPrimaryKey:      app.Name,
 		Name:               strings.TrimPrefix(revision.Name, "record-"),
 		Namespace:          revision.Namespace,
-		Status: model.WorkflowRecordStatus{
-			StartTime:  status.StartTime,
-			Suspend:    status.Suspend,
-			Terminated: status.Terminated,
-			Steps:      status.Steps,
-		},
+		StartTime:          status.StartTime.Time,
+		Suspend:            status.Suspend,
+		Terminated:         status.Terminated,
+		Steps:              status.Steps,
 	})
 }
 
 func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord {
 	return &apisv1.WorkflowRecord{
-		Name:      record.Name,
-		Namespace: record.Namespace,
-		Status:    record.Status,
+		Name:       record.Name,
+		Namespace:  record.Namespace,
+		StartTime:  record.StartTime,
+		Suspend:    record.Suspend,
+		Terminated: record.Terminated,
+		Steps:      record.Steps,
 	}
 }

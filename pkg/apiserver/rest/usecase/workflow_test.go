@@ -108,8 +108,23 @@ var _ = Describe("Test workflow usecase functions", func() {
 		})
 		Expect(err).Should(BeNil())
 
-		_, err = workflowUsecase.DetailWorkflowRecord(context.TODO(), "test-workflow-name", "test-123")
+		var deployEvent = &model.DeployEvent{
+			AppPrimaryKey: "test",
+			Version:       "123",
+			Status:        model.DeployEventInit,
+			DeployUser:    "test-user",
+			Commit:        "test-commit",
+			SourceType:    "API",
+			WorkflowName:  "test-workflow-name",
+		}
+
+		err = workflowUsecase.createTestDeployEvent(context.TODO(), deployEvent)
 		Expect(err).Should(BeNil())
+
+		detail, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), "test-workflow-name", "test-123")
+		Expect(err).Should(BeNil())
+		Expect(detail.WorkflowRecord.Name).Should(Equal("test-123"))
+		Expect(detail.DeployUser).Should(Equal("test-user"))
 	})
 })
 
@@ -150,3 +165,10 @@ status:
       type: apply-component
     suspend: false
     terminated: false`
+
+func (w *workflowUsecaseImpl) createTestDeployEvent(ctx context.Context, deployEvent *model.DeployEvent) error {
+	if err := w.ds.Add(ctx, deployEvent); err != nil {
+		return err
+	}
+	return nil
+}
