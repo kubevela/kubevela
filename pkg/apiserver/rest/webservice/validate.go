@@ -26,6 +26,11 @@ var validate = validator.New()
 
 var nameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
+const (
+	minPageSize = 5
+	maxPageSize = 100
+)
+
 func init() {
 	if err := validate.RegisterValidation("checkname", ValidateName); err != nil {
 		panic(err)

@@ -606,7 +606,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 
 	if workflow != nil {
-		app.Annotations[oam.AnnotationWorkflowName] = workflow.AppPrimaryKey
+		app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
 		var steps []v1beta1.WorkflowStep
 		for _, step := range workflow.Steps {
 			var wstep = v1beta1.WorkflowStep{

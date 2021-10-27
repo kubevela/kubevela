@@ -484,8 +484,16 @@ type ListWorkflowRecordsResponse struct {
 	Total   int64            `json:"total"`
 }
 
+// DetailWorkflowRecordResponse get workflow record detail
+type DetailWorkflowRecordResponse struct {
+	WorkflowRecord
+}
+
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
+	Name      string                     `json:"name"`
+	Namespace string                     `json:"namespace"`
+	Status    model.WorkflowRecordStatus `json:"status"`
 }
 
 // ApplicationDeployRequest the application deploy or update event request

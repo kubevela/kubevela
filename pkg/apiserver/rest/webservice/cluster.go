@@ -114,7 +114,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 
 func (c *ClusterWebService) listKubeClusters(req *restful.Request, res *restful.Response) {
 	query := req.QueryParameter("query")
-	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100, 20)
+	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -222,7 +222,7 @@ func (c *ClusterWebService) deleteKubeCluster(req *restful.Request, res *restful
 
 func (c *ClusterWebService) listCloudClusters(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
-	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100, 20)
+	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

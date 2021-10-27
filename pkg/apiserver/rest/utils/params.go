@@ -23,15 +23,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+const defaultPageSize = "10"
+
 // ExtractPagingParams extract `page` and `pageSize` params from request
-func ExtractPagingParams(req *restful.Request, minPageSize int, maxPageSize int, defaultPageSize int) (int, int, error) {
+func ExtractPagingParams(req *restful.Request, minPageSize, maxPageSize int) (int, int, error) {
 	pageStr := req.QueryParameter("page")
 	pageSizeStr := req.QueryParameter("pageSize")
 	if pageStr == "" {
 		pageStr = "0"
 	}
 	if pageSizeStr == "" {
-		pageSizeStr = strconv.Itoa(defaultPageSize)
+		pageSizeStr = defaultPageSize
 	}
 	page64, err := strconv.ParseInt(pageStr, 10, 32)
 	if err != nil {

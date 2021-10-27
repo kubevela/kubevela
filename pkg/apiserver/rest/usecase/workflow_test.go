@@ -18,10 +18,15 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
@@ -34,7 +39,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 	BeforeEach(func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds}
 	})
-	It("Test CreateNamespace function", func() {
+	It("Test CreateWorkflow function", func() {
 		req := apisv1.CreateWorkflowRequest{
 			Name:        "test-workflow-1",
 			Description: "this is a workflow",
@@ -65,4 +70,83 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(workflow).ShouldNot(BeNil())
 		Expect(cmp.Diff(workflow.Name, "test-workflow-2")).Should(BeEmpty())
 	})
+
+	It("Test ListWorkflowRecords function", func() {
+		By("create some controller revisions to test list workflow records")
+		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
+		Expect(err).Should(BeNil())
+		for i := 0; i < 3; i++ {
+			err := workflowUsecase.createWorkflowRecord(context.TODO(), &appsv1.ControllerRevision{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("record-test-%v", i),
+					Namespace: "default",
+				},
+				Data: runtime.RawExtension{
+					Raw: raw,
+				},
+			})
+			Expect(err).Should(BeNil())
+		}
+
+		resp, err := workflowUsecase.ListWorkflowRecords(context.TODO(), "test-workflow-name", 0, 10)
+		Expect(err).Should(BeNil())
+		Expect(resp.Total).Should(Equal(int64(3)))
+	})
+
+	It("Test DetailWorkflowRecord function", func() {
+		By("create one controller revision to test detail workflow record")
+		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
+		Expect(err).Should(BeNil())
+		err = workflowUsecase.createWorkflowRecord(context.TODO(), &appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "record-test-123",
+				Namespace: "default",
+			},
+			Data: runtime.RawExtension{
+				Raw: raw,
+			},
+		})
+		Expect(err).Should(BeNil())
+
+		_, err = workflowUsecase.DetailWorkflowRecord(context.TODO(), "test-workflow-name", "test-123")
+		Expect(err).Should(BeNil())
+	})
 })
+
+var yamlStr = `apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  annotations:
+    app.oam.dev/workflowName: test-workflow-name
+  name: test
+  namespace: default
+spec:
+  components:
+  - name: express-server
+    properties:
+      image: crccheck/hello-world
+      port: 8000
+    type: webservice
+  workflow:
+    steps:
+    - name: apply-server
+      properties:
+        component: express-server
+      type: apply-component
+status:
+  workflow:
+    steps:
+    - firstExecuteTime: "2021-10-26T11:19:33Z"
+      id: t8bpvi88d1
+      lastExecuteTime: "2021-10-26T11:19:33Z"
+      name: apply-pvc
+      phase: succeeded
+      type: apply-object
+    - firstExecuteTime: "2021-10-26T11:19:33Z"
+      id: 9fou7rbq9r
+      lastExecuteTime: "2021-10-26T11:19:33Z"
+      name: apply-server
+      phase: succeeded
+      type: apply-component
+    suspend: false
+    terminated: false`
