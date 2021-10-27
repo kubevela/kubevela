@@ -162,10 +162,11 @@ func UpgradeExistingClusterSecret(ctx context.Context, c client.Client) error {
 }
 
 // GetMulticlusterKubernetesClient get client with multicluster function enabled
-func GetMulticlusterKubernetesClient() (client.Client, error) {
+func GetMulticlusterKubernetesClient() (client.Client, *rest.Config, error) {
 	k8sConfig, err := config.GetConfig()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return Initialize(k8sConfig, false)
+	k8sClient, err := Initialize(k8sConfig, false)
+	return k8sClient, k8sConfig, err
 }

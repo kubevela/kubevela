@@ -28,6 +28,13 @@ type ProviderInfo struct {
 	Labels map[string]string `json:"labels"`
 }
 
+const (
+	// ClusterStatusHealthy healthy cluster
+	ClusterStatusHealthy = "Healthy"
+	// ClusterStatusUnhealthy unhealthy cluster
+	ClusterStatusUnhealthy = "Unhealthy"
+)
+
 // Cluster describes the model of cluster in apiserver
 type Cluster struct {
 	Model

@@ -17,12 +17,15 @@ limitations under the License.
 package clients
 
 import (
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 var kubeClient client.Client
+var kubeConfig *rest.Config
 
 // SetKubeClient for test
 func SetKubeClient(c client.Client) {
@@ -35,9 +38,19 @@ func GetKubeClient() (client.Client, error) {
 		return kubeClient, nil
 	}
 	var err error
-	kubeClient, err = multicluster.GetMulticlusterKubernetesClient()
+	kubeClient, kubeConfig, err = multicluster.GetMulticlusterKubernetesClient()
 	if err != nil {
 		return nil, err
 	}
 	return kubeClient, nil
+}
+
+// GetKubeConfig create/get kube runtime config
+func GetKubeConfig() (*rest.Config, error) {
+	var err error
+	if kubeConfig == nil {
+		kubeConfig, err = config.GetConfig()
+		return kubeConfig, err
+	}
+	return kubeConfig, nil
 }

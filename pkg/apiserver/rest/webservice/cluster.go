@@ -92,6 +92,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/cloud-clusters/{provider}").To(c.listCloudClusters).
 		Doc("list cloud clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("int").DefaultValue("0")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("int").DefaultValue("20")).
 		Reads(&apis.AccessKeyRequest{}).
@@ -102,6 +103,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/cloud-clusters/{provider}/connect").To(c.connectCloudCluster).
 		Doc("create cluster from cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Reads(&apis.ConnectCloudClusterRequest{}).
 		Returns(200, "", apis.ClusterBase{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -112,7 +114,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 
 func (c *ClusterWebService) listKubeClusters(req *restful.Request, res *restful.Response) {
 	query := req.QueryParameter("query")
-	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100)
+	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100, 20)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -220,7 +222,7 @@ func (c *ClusterWebService) deleteKubeCluster(req *restful.Request, res *restful
 
 func (c *ClusterWebService) listCloudClusters(req *restful.Request, res *restful.Response) {
 	provider := req.PathParameter("provider")
-	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100)
+	page, pageSize, err := utils.ExtractPagingParams(req, 5, 100, 20)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

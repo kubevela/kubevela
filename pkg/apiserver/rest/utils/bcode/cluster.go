@@ -36,3 +36,9 @@ var ErrGetCloudClusterFailure = NewBcode(500, 40005, "get cloud cluster informat
 
 // ErrClusterExistsInKubernetes cluster exists in kubernetes
 var ErrClusterExistsInKubernetes = NewBcode(400, 40006, "cluster already exists in kubernetes")
+
+// ErrLocalClusterReserved cluster name reserved for local
+var ErrLocalClusterReserved = NewBcode(400, 40007, "local cluster is reserved")
+
+// ErrLocalClusterImmutable local cluster kubeConfig is immutable
+var ErrLocalClusterImmutable = NewBcode(400, 40008, "local cluster is immutable")

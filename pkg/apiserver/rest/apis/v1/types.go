@@ -133,7 +133,7 @@ type ConnectCloudClusterRequest struct {
 	AccessKeyID     string            `json:"accessKeyID"`
 	AccessKeySecret string            `json:"accessKeySecret"`
 	ClusterID       string            `json:"clusterID"`
-	Name            string            `json:"name"`
+	Name            string            `json:"name" validate:"checkname"`
 	Description     string            `json:"description,omitempty"`
 	Icon            string            `json:"icon"`
 	Labels          map[string]string `json:"labels,omitempty"`
@@ -158,10 +158,6 @@ type ClusterResourceInfo struct {
 type DetailClusterResponse struct {
 	ClusterBase
 	ResourceInfo ClusterResourceInfo `json:"resourceInfo"`
-	// remote manage url, eg. ACK cluster manage url.
-	RemoteManageURL string `json:"remoteManageURL,omitempty"`
-	// Dashboard URL
-	DashboardURL string `json:"dashboardURL,omitempty"`
 }
 
 // ListClusterResponse list cluster
