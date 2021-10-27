@@ -24,9 +24,15 @@ import (
 )
 
 // ExtractPagingParams extract `page` and `pageSize` params from request
-func ExtractPagingParams(req *restful.Request, minPageSize int, maxPageSize int) (int, int, error) {
+func ExtractPagingParams(req *restful.Request, minPageSize int, maxPageSize int, defaultPageSize int) (int, int, error) {
 	pageStr := req.QueryParameter("page")
 	pageSizeStr := req.QueryParameter("pageSize")
+	if pageStr == "" {
+		pageStr = "0"
+	}
+	if pageSizeStr == "" {
+		pageSizeStr = strconv.Itoa(defaultPageSize)
+	}
 	page64, err := strconv.ParseInt(pageStr, 10, 32)
 	if err != nil {
 		return 0, 0, errors.Errorf("invalid page %s: %v", pageStr, err)

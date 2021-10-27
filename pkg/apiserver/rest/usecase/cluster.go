@@ -63,7 +63,11 @@ func NewClusterUsecase(ds datastore.DataStore) ClusterUsecase {
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
-	return &clusterUsecaseImpl{ds: ds, k8sClient: k8sClient, caches: make(map[string]*utils2.MemoryCache)}
+	c := &clusterUsecaseImpl{ds: ds, k8sClient: k8sClient, caches: make(map[string]*utils2.MemoryCache)}
+	if err = c.preAddLocalCluster(context.Background()); err != nil {
+		log.Logger.Fatalf("preAdd local cluster failure: %s", err.Error())
+	}
+	return c
 }
 
 func (c *clusterUsecaseImpl) getClusterFromDataStore(ctx context.Context, clusterName string) (*model.Cluster, error) {
@@ -98,6 +102,33 @@ func (c *clusterUsecaseImpl) rollbackDetachedKubeCluster(ctx context.Context, cl
 	if _, e := joinClusterByKubeConfigString(ctx, c.k8sClient, cluster.Name, cluster.KubeConfig); e != nil {
 		log.Logger.Errorf("failed to rollback detached cluster %s in kubevela: %s", cluster.Name, e.Error())
 	}
+}
+
+func (c *clusterUsecaseImpl) preAddLocalCluster(ctx context.Context) error {
+	cfg, err := clients.GetKubeConfig()
+	if err != nil {
+		return err
+	}
+	localCluster := &model.Cluster{
+		Name:         multicluster.ClusterLocalName,
+		Description:  "The hub manage cluster where KubeVela runs on.",
+		Status:       model.ClusterStatusHealthy,
+		APIServerURL: cfg.Host + cfg.APIPath,
+	}
+	if err = c.ds.Get(ctx, localCluster); err != nil {
+		// no local cluster in datastore
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			if err = c.ds.Add(ctx, localCluster); err != nil {
+				// local cluster already added in datastore
+				if errors.Is(err, datastore.ErrRecordExist) {
+					return nil
+				}
+				return err
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string, page int, pageSize int) (*apis.ListClusterResponse, error) {
@@ -155,6 +186,9 @@ func createClusterModelFromRequest(req apis.CreateClusterRequest, oldCluster *mo
 func (c *clusterUsecaseImpl) createKubeCluster(ctx context.Context, req apis.CreateClusterRequest, providerCluster *cloudprovider.CloudCluster) (*apis.ClusterBase, error) {
 	var err error
 	cluster := createClusterModelFromRequest(req, nil)
+	if cluster.Name == multicluster.ClusterLocalName {
+		return nil, bcode.ErrLocalClusterReserved
+	}
 	t := time.Now()
 	cluster.SetCreateTime(t)
 	cluster.SetUpdateTime(t)
@@ -166,6 +200,11 @@ func (c *clusterUsecaseImpl) createKubeCluster(ctx context.Context, req apis.Cre
 			Labels: providerCluster.Labels,
 		}
 		cluster.DashboardURL = providerCluster.DashBoardURL
+	}
+	if err = c.ds.Get(ctx, cluster); err == nil {
+		return nil, bcode.ErrClusterAlreadyExistInDataStore
+	} else if !errors.Is(err, datastore.ErrRecordNotExist) {
+		return nil, err
 	}
 	if req.KubeConfig != "" {
 		cluster.APIServerURL, err = joinClusterByKubeConfigString(ctx, c.k8sClient, req.Name, req.KubeConfig)
@@ -205,10 +244,8 @@ func (c *clusterUsecaseImpl) GetKubeCluster(ctx context.Context, clusterName str
 		return nil, errors.Wrapf(err, "failed to update cluster %s status info", clusterName)
 	}
 	return &apis.DetailClusterResponse{
-		ClusterBase:     *newClusterBaseFromCluster(cluster),
-		ResourceInfo:    resourceInfo,
-		RemoteManageURL: "NA",
-		DashboardURL:    "NA",
+		ClusterBase:  *newClusterBaseFromCluster(cluster),
+		ResourceInfo: resourceInfo,
 	}, nil
 }
 
@@ -224,6 +261,9 @@ func (c *clusterUsecaseImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 	newCluster := createClusterModelFromRequest(req, oldCluster)
 	newCluster.SetUpdateTime(time.Now())
 	if oldCluster.Name != newCluster.Name || oldCluster.KubeConfig != newCluster.KubeConfig || oldCluster.KubeConfigSecret != newCluster.KubeConfigSecret {
+		if clusterName == multicluster.ClusterLocalName || newCluster.Name == multicluster.ClusterLocalName {
+			return nil, bcode.ErrLocalClusterImmutable
+		}
 		if newCluster.KubeConfig == "" && newCluster.KubeConfigSecret != "" {
 			return nil, bcode.ErrKubeConfigSecretNotSupport
 		}
@@ -277,6 +317,9 @@ func (c *clusterUsecaseImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 }
 
 func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName string) (*apis.ClusterBase, error) {
+	if clusterName == multicluster.ClusterLocalName {
+		return nil, bcode.ErrLocalClusterImmutable
+	}
 	cluster, err := c.getClusterFromDataStore(ctx, clusterName)
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -300,10 +343,10 @@ func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context, cluster *model.Cluster) apis.ClusterResourceInfo {
 	resourceInfo, err := c.getClusterResourceInfoFromK8s(ctx, cluster.Name)
 	if err != nil {
-		cluster.Status = "Unhealthy"
+		cluster.Status = model.ClusterStatusUnhealthy
 		cluster.Reason = fmt.Sprintf("Failed to get cluster resource info: %s", err.Error())
 	} else {
-		cluster.Status = "Healthy"
+		cluster.Status = model.ClusterStatusHealthy
 		cluster.Reason = ""
 	}
 	return resourceInfo
