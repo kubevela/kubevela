@@ -55,3 +55,12 @@ jobs:
               labels: [label]
             })
             console.log("Added '" + label + "' label.")
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Open Backport PR
+        uses: zeebe-io/backport-action@v0.0.6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_workspace: ${{ github.workspace }}
