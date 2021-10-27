@@ -74,7 +74,7 @@ func TestParseURL(t *testing.T) {
 			url:     "https://api.github.com/repos/oam-dev/catalog/contents/traits?ref=master",
 			expType: TypeGithub,
 			exp: &GithubContent{
-				URL:   "https://api.github.com/repos/oam-dev/catalog/contents/traits	?ref=master",
+				URL:   "https://api.github.com/repos/oam-dev/catalog/contents/traits?ref=master",
 				Owner: "oam-dev",
 				Repo:  "catalog",
 				Path:  "traits",
