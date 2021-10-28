@@ -8,7 +8,7 @@ data:
         addons.oam.dev/description: Kubernetes Terraform Controller for Azure
         addons.oam.dev/name: terraform/provider-azure
       name: terraform-provider-azure
-      namespace: default
+      namespace: vela-system
     spec:
       components:
       - name: azure-account-creds
