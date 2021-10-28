@@ -4,133 +4,136 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch: {}
+  workflow_dispatch: { }
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  publish-cli:
+  build:
     runs-on: ubuntu-latest
+    name: build
+    strategy:
+      matrix:
+        TARGETS: [ linux/amd64, darwin/amd64, windows/amd64, linux/arm64, darwin/arm64 ]
     env:
-      VELA_VERSION: ${{ github.ref }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VELA_VERSION_KEY: github.com/oam-dev/kubevela/version.VelaVersion
+      VELA_GITVERSION_KEY: github.com/oam-dev/kubevela/version.GitRevision
+      GO_BUILD_ENV: GO111MODULE=on CGO_ENABLED=0
+      DIST_DIRS: find * -type d -exec
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Set up Go
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v2
         with:
           go-version: 1.16
-        id: go
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
-      - name: Get the version
-        id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-      - name: Tag helm chart image
-        run:  |
-          sed -i 's/latest/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/values.yaml
-          sed -i 's/0.1.0/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/Chart.yaml
-      - name: Run cross-build
-        run: make cross-build
-      - name: Run compress binary
-        run: make compress
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.2.2
-      - name: Upload Vela Linux amd64 tar.gz
+      - name: Get version
+        run: echo "VELA_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      - name: Get matrix
+        id: get_matrix
+        run: |
+          TARGETS=${{matrix.TARGETS}}
+          echo ::set-output name=OS::${TARGETS%/*}
+          echo ::set-output name=ARCH::${TARGETS#*/}
+      - name: Get ldflags
+        id: get_ldflags
+        run: |
+          LDFLAGS="-s -w -X ${{ env.VELA_VERSION_KEY }}=${{ env.VELA_VERSION }} -X ${{ env.VELA_GITVERSION_KEY }}=git-$(git rev-parse --short HEAD)"
+          echo "LDFLAGS=${LDFLAGS}" >> $GITHUB_ENV
+      - name: Build
+        run: |
+          ${{ env.GO_BUILD_ENV }} GOOS=${{ steps.get_matrix.outputs.OS }} GOARCH=${{ steps.get_matrix.outputs.ARCH }} \
+            go build -ldflags "${{ env.LDFLAGS }}" \
+            -o _bin/vela/${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}/vela -v \
+            ./references/cmd/cli/main.go
+          ${{ env.GO_BUILD_ENV }} GOOS=${{ steps.get_matrix.outputs.OS }} GOARCH=${{ steps.get_matrix.outputs.ARCH }} \
+            go build -ldflags "${{ env.LDFLAGS }}" \
+            -o _bin/kubectl-vela/${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}/kubectl-vela -v \
+            ./cmd/plugin/main.go
+      - name: Compress
+        run: |
+          echo "\n## Release Info\nVERSION: ${{ env.VELA_VERSION }}" >> README.md && \
+          echo "GIT_COMMIT: ${GITHUB_SHA}\n" >> README.md && \
+          cd _bin/vela && \
+          ${{ env.DIST_DIRS }} cp ../../LICENSE {} \; && \
+          ${{ env.DIST_DIRS }} cp ../../README.md {} \; && \
+          ${{ env.DIST_DIRS }} tar -zcf vela-{}.tar.gz {} \; && \
+          ${{ env.DIST_DIRS }} zip -r vela-{}.zip {} \; && \
+          cd ../kubectl-vela && \
+          ${{ env.DIST_DIRS }} cp ../../LICENSE {} \; && \
+          ${{ env.DIST_DIRS }} cp ../../README.md {} \; && \
+          ${{ env.DIST_DIRS }} tar -zcf kubectl-vela-{}.tar.gz {} \; && \
+          ${{ env.DIST_DIRS }} zip -r kubectl-vela-{}.zip {} \; && \
+          cd .. && \
+          sha256sum vela/vela-* kubectl-vela/kubectl-vela-* >> sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt \
+      - name: Upload Vela tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela/vela-linux-amd64.tar.gz
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
+          asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
+          asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_content_type: binary/octet-stream
-      - name: Upload Vela Linux amd64 zip
+      - name: Upload Vela zip
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela/vela-linux-amd64.zip
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
+          asset_path: ./_bin/vela/vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
+          asset_name: vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_content_type: binary/octet-stream
-      - name: Upload Vela MacOS tar.gz
+      - name: Upload Kubectl-Vela tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela/vela-darwin-amd64.tar.gz
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
+          asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.tar.gz
           asset_content_type: binary/octet-stream
-      - name: Upload Vela MacOS zip
+      - name: Upload Kubectl-Vela zip
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela/vela-darwin-amd64.zip
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.zip
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
+          asset_name: kubectl-vela-${{ env.VELA_VERSION }}-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.zip
           asset_content_type: binary/octet-stream
-      - name: Upload Vela Windows tar.gz
-        uses: actions/upload-release-asset@v1.0.2
+      - name: Post sha256
+        uses: actions/upload-artifact@v2
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela/vela-windows-amd64.tar.gz
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.tar.gz
-          asset_content_type: binary/octet-stream
-      - name: Upload Vela Windows zip
-        uses: actions/upload-release-asset@v1.0.2
+          name: sha256sums
+          path: ./_bin/sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt
+          retention-days: 1
+
+  upload-sha256sums-plugin-homebrew:
+    needs: build
+    runs-on: ubuntu-latest
+    name: upload-sha256sums
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.2.2
+      - name: Download sha256sums
+        uses: actions/download-artifact@v2
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela/vela-windows-amd64.zip
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip
-          asset_content_type: binary/octet-stream
-      - name: Upload Kubectl-Vela Linux amd64 tar.gz
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/kubectl-vela/kubectl-vela-linux-amd64.tar.gz
-          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
-          asset_content_type: binary/octet-stream
-      - name: Upload Kubectl-Vela Linux amd64 zip
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/kubectl-vela/kubectl-vela-linux-amd64.zip
-          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
-          asset_content_type: binary/octet-stream
-      - name: Upload Kubectl-Vela MacOS tar.gz
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/kubectl-vela/kubectl-vela-darwin-amd64.tar.gz
-          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
-          asset_content_type: binary/octet-stream
-      - name: Upload Kubectl-Vela MacOS zip
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/kubectl-vela/kubectl-vela-darwin-amd64.zip
-          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.zip
-          asset_content_type: binary/octet-stream
-      - name: Upload Kubectl-Vela Windows tar.gz
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/kubectl-vela/kubectl-vela-windows-amd64.tar.gz
-          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.tar.gz
-          asset_content_type: binary/octet-stream
-      - name: Upload Kubectl-Vela Windows zip
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/kubectl-vela/kubectl-vela-windows-amd64.zip
-          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip
-          asset_content_type: binary/octet-stream
+          name: sha256sums
+      - shell: bash
+        run: |
+          for file in *
+          do
+            cat ${file} >> sha256sums.txt
+          done
       - name: Upload Checksums
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/sha256sums.txt
+          asset_path: sha256sums.txt
           asset_name: sha256sums.txt
           asset_content_type: text/plain
       - name: Update kubectl plugin version in krew-index
         uses: rajatjindal/krew-release-bot@v0.0.38
-
-  homebrew:
-    runs-on: macos-latest
-    steps:
       - name: Update Homebrew formula
         uses: dawidd6/action-homebrew-bump-formula@v3
         with:
