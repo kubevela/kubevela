@@ -20,8 +20,10 @@ template: {
 			componentName:      context.name
 			rolloutPlan: {
 				rolloutStrategy: "IncreaseFirst"
-				rolloutBatches:  parameter.rolloutBatches
-				targetSize:      parameter.targetSize
+				if parameter.rolloutBatches != _|_ {
+					rolloutBatches: parameter.rolloutBatches
+				}
+				targetSize: parameter.targetSize
 				if parameter["batchPartition"] != _|_ {
 					batchPartition: parameter.batchPartition
 				}
@@ -32,7 +34,7 @@ template: {
 	parameter: {
 		targetRevision: *context.revision | string
 		targetSize:     int
-		rolloutBatches: [...rolloutBatch]
+		rolloutBatches?: [...rolloutBatch]
 		batchPartition?: int
 	}
 

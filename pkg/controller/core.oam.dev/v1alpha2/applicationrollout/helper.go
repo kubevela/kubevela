@@ -89,13 +89,10 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 		pv := fieldpath.Pave(u.UnstructuredContent())
 
 		// we hard code here, but we can easily support more types of workload by add more cases logic in switch
-		var replicasFieldPath string
-		switch u.GetKind() {
-		case reflect.TypeOf(v1alpha1.CloneSet{}).Name(), reflect.TypeOf(appsv1.Deployment{}).Name(), reflect.TypeOf(appsv1.StatefulSet{}).Name():
-			replicasFieldPath = "spec.replicas"
-		default:
+		replicasFieldPath, err := GetWorkloadReplicasPath(*u)
+		if err != nil {
 			klog.Errorf("rollout meet a workload we cannot support yet", "Kind", u.GetKind(), "name", u.GetName())
-			return fmt.Errorf("rollout meet a workload we cannot support yet Kind  %s name %s", u.GetKind(), u.GetName())
+			return err
 		}
 
 		workload := u.DeepCopy()
@@ -125,6 +122,16 @@ func HandleReplicas(ctx context.Context, rolloutComp string, c client.Client) as
 		klog.InfoS("assemble set existing workload replicas", "Kind", u.GetKind(), "name", u.GetName(), "replicas", replicas)
 		return nil
 	})
+}
+
+// GetWorkloadReplicasPath get replicas path of workload
+func GetWorkloadReplicasPath(u unstructured.Unstructured) (string, error) {
+	switch u.GetKind() {
+	case reflect.TypeOf(v1alpha1.CloneSet{}).Name(), reflect.TypeOf(appsv1.Deployment{}).Name(), reflect.TypeOf(appsv1.StatefulSet{}).Name():
+		return "spec.replicas", nil
+	default:
+		return "", fmt.Errorf("rollout meet a workload we cannot support yet Kind  %s name %s", u.GetKind(), u.GetName())
+	}
 }
 
 // appRollout should take over updating workload, so disable previous controller owner(resourceTracker)
