@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"k8s.io/client-go/util/flowcontrol"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -43,6 +44,7 @@ func (a *Args) SetConfig() error {
 	if err != nil {
 		return err
 	}
+	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(1000, 1000)
 	a.Config = restConf
 	return nil
 }

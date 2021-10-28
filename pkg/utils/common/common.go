@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"k8s.io/client-go/util/flowcontrol"
 	"net/http"
 	"os"
 	"os/exec"
@@ -83,8 +84,10 @@ func InitBaseRestConfig() (Args, error) {
 	if err != nil && os.Getenv("IGNORE_KUBE_CONFIG") != "true" {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
+	} else if err != nil {
+		return Args{}, err
 	}
-
+	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(1000, 1000)
 	return Args{
 		Config: restConf,
 		Schema: Scheme,
