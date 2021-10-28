@@ -22,6 +22,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
+	appsv1 "k8s.io/api/apps/v1"
+
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -397,5 +401,27 @@ func TestHandleSucceedError(t *testing.T) {
 				t.Errorf("handleSucceed () got %v, want %v", got, oneCase.err)
 			}
 		})
+	}
+}
+
+func TestGetWorkloadReplicasNum(t *testing.T) {
+	deploy := appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Deployment",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: pointer.Int32Ptr(3),
+		},
+	}
+	u, err := util.Object2Unstructured(deploy)
+	if err != nil {
+		t.Errorf("TestGetWorkloadReplicasNum meet error %v", err)
+	}
+	replicas, err := getWorkloadReplicasNum(*u)
+	if err != nil {
+		t.Errorf("TestGetWorkloadReplicasNum meet error %v", err)
+	}
+	if replicas != 3 {
+		t.Errorf("TestGetWorkloadReplicasNum number missmatch %d", replicas)
 	}
 }
