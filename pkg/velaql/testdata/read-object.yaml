@@ -1,0 +1,61 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Read objects for your workflow steps
+  name: read-object
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+        	"vela/op"
+        )
+
+        output: {
+        	if parameter.apiVersion == _|_ && parameter.kind == _|_ {
+        		op.#Read & {
+        			value: {
+        				apiVersion: "core.oam.dev/v1beta1"
+        				kind:       "Application"
+        				metadata: {
+        					name: parameter.name
+        					if parameter.namespace != _|_ {
+        						namespace: parameter.namespace
+        					}
+        				}
+        			}
+        		}
+        	}
+        	if parameter.apiVersion != _|_ || parameter.kind != _|_ {
+        		op.#Read & {
+        			value: {
+        				apiVersion: parameter.apiVersion
+        				kind:       parameter.kind
+        				metadata: {
+        					name: parameter.name
+        					if parameter.namespace != _|_ {
+        						namespace: parameter.namespace
+        					}
+        				}
+        			}
+        		}
+        	}
+        }
+
+        objStatus: {
+        	output.value.status
+        }
+
+        parameter: {
+        	// +usage=Specify the apiVersion of the object, defaults to core.oam.dev/v1beta1
+        	apiVersion?: string
+        	// +usage=Specify the kind of the object, defaults to Application
+        	kind?: string
+        	// +usage=Specify the name of the object
+        	name: string
+        	// +usage=Specify the namespace of the object
+        	namespace?: string
+        }
+

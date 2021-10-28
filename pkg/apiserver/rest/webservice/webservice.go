@@ -64,6 +64,7 @@ func Init(ctx context.Context, ds datastore.DataStore) {
 	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase)
 	namespaceUsecase := usecase.NewNamespaceUsecase()
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
+	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
 	addonUsecase := usecase.NewAddonUsecase(ds)
 	RegistWebService(NewClusterWebService(clusterUsecase))
@@ -75,4 +76,5 @@ func Init(ctx context.Context, ds datastore.DataStore) {
 	RegistWebService(NewOAMApplication(oamApplicationUsecase))
 	RegistWebService(&policyDefinitionWebservice{})
 	RegistWebService(NewWorkflowWebService(workflowUsecase, applicationUsecase))
+	RegistWebService(NewVelaQLWebService(velaQLUsecase))
 }

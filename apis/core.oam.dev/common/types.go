@@ -19,14 +19,12 @@ package common
 import (
 	"encoding/json"
 
+	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 

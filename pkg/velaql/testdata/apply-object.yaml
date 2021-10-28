@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Apply raw kubernetes objects for your workflow steps
+  name: apply-object
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+        	"vela/op"
+        )
+
+        apply: op.#Apply & {
+        	value: {
+              apiVersion: parameter.apiVersion
+              kind: parameter.kind
+              metadata: {
+                name: parameter.name
+              }
+            }
+        }
+
+        objStatus: {
+          apply.value
+        }
+        parameter: {
+          apiVersion: string
+          kind: string
+          name: string
+        }
