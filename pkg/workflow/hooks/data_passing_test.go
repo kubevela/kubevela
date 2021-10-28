@@ -106,7 +106,7 @@ func mockContext(t *testing.T) wfContext.Context {
 			return nil
 		},
 	}
-	wfCtx, err := wfContext.NewEmptyContext(cli, "default", "v1")
+	wfCtx, err := wfContext.NewContext(cli, "default", "v1", "testuid")
 	require.NoError(t, err)
 	return wfCtx
 }
