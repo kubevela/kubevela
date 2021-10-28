@@ -264,9 +264,6 @@ func TestContext(t *testing.T) {
 	err = wfCtx.Commit()
 	assert.NilError(t, err)
 
-	_, err = NewContext(cli, "default", "app-not-found", "testuid")
-	assert.Equal(t, err != nil, true)
-
 	wfCtx, err = LoadContext(cli, "default", "app-v1")
 	assert.NilError(t, err)
 	err = wfCtx.Commit()
