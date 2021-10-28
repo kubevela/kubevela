@@ -24,6 +24,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,20 +34,31 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
+// GCOptions contains options for gc
+type GCOptions struct {
+	KeepLegacyResource bool `json:"keepLegacyResource,omitempty"`
+}
+
 // GarbageCollector do GC according two resource trackers
 type GarbageCollector interface {
 	GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error
+	SetGCOptions(gcOptions GCOptions)
 }
 
 // NewGCHandler create a GCHandler
 func NewGCHandler(c client.Client, ns string, appRev v1beta1.ApplicationRevision) *GCHandler {
-	return &GCHandler{c, ns, nil, nil, appRev}
+	return &GCHandler{
+		c:         c,
+		namespace: ns,
+		appRev:    appRev,
+	}
 }
 
 // GCHandler implement GarbageCollector interface
 type GCHandler struct {
 	c         client.Client
 	namespace string
+	gcOptions GCOptions
 
 	oldRT *v1beta1.ResourceTracker
 	newRT *v1beta1.ResourceTracker
@@ -62,6 +74,22 @@ func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.Re
 		return err
 	}
 	klog.InfoS("Garbage collect for application", "old", h.oldRT.Name, "new", h.newRT.Name)
+
+	// if enabled KeepLegacyResource gc options, GCHandler will:
+	// 1. keep legacy resources created by old application
+	// 2. keep legacy resourceTrackers, if legacy resourceTracker not track any resources, delete it.
+	if h.gcOptions.KeepLegacyResource {
+		// if previous resourceTracker not track any resources, delete it
+		if !isTrackedResources(oldRT, newRT) {
+			if err := h.c.Delete(ctx, oldRT); err != nil && !kerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
+				return errors.Wrapf(err, "cannot delete resource tracker %q", oldRT.Name)
+			}
+			klog.InfoS("Successfully GC a resource tracker which not track any resources", "name", oldRT.Name)
+		}
+		// if legacy resourceTracker not track any resources, delete it.
+		return h.cleanUpResourceTracker(ctx, legacyRTs)
+	}
 	for _, oldRsc := range h.oldRT.Status.TrackedResources {
 		reused := false
 		for _, newRsc := range h.newRT.Status.TrackedResources {
@@ -131,7 +159,7 @@ func (h *GCHandler) handleResourceSkipGC(ctx context.Context, u *unstructured.Un
 	res := u.DeepCopy()
 	if err := h.c.Get(ctx, types.NamespacedName{Namespace: res.GetNamespace(), Name: res.GetName()}, res); err != nil {
 		if !kerrors.IsNotFound(err) {
-			klog.ErrorS(err, "handleResourceSkipGC faied cannot get res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
+			klog.ErrorS(err, "handleResourceSkipGC failed cannot get res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
 			return false, err
 		}
 		// resource have gone, skip delete it
@@ -160,6 +188,42 @@ func (h *GCHandler) handleResourceSkipGC(ctx context.Context, u *unstructured.Un
 	return true, nil
 }
 
+// SetGCOptions set gc options for GCHandler
+func (h *GCHandler) SetGCOptions(gcOptions GCOptions) {
+	h.gcOptions = gcOptions
+}
+
+func isTrackedResources(oldRT *v1beta1.ResourceTracker, newRT *v1beta1.ResourceTracker) bool {
+	if len(oldRT.Status.TrackedResources) == 0 {
+		return false
+	}
+	if len(newRT.Status.TrackedResources) == 0 {
+		return true
+	}
+	type TrackedResourcesKey struct {
+		schema.GroupVersionKind
+		types.NamespacedName
+	}
+	resourceRecord := make(map[TrackedResourcesKey]bool)
+	for _, obj := range newRT.Status.TrackedResources {
+		objKey := TrackedResourcesKey{
+			obj.GroupVersionKind(),
+			types.NamespacedName{Namespace: obj.Namespace, Name: obj.Name},
+		}
+		resourceRecord[objKey] = true
+	}
+	for _, obj := range oldRT.Status.TrackedResources {
+		objKey := TrackedResourcesKey{
+			obj.GroupVersionKind(),
+			types.NamespacedName{Namespace: obj.Namespace, Name: obj.Name},
+		}
+		if !resourceRecord[objKey] {
+			return true
+		}
+	}
+	return false
+}
+
 func checkResourceRelatedCompDeleted(res unstructured.Unstructured, comps []common.ApplicationComponent) bool {
 	compName := res.GetLabels()[oam.LabelAppComponent]
 	deleted := true
@@ -169,4 +233,42 @@ func checkResourceRelatedCompDeleted(res unstructured.Unstructured, comps []comm
 		}
 	}
 	return deleted
+}
+
+func (h *GCHandler) cleanUpResourceTracker(ctx context.Context, legacyRTs []*v1beta1.ResourceTracker) error {
+	for _, rt := range legacyRTs {
+		needDeleted := true
+		for _, resource := range rt.Status.TrackedResources {
+			rsc := new(unstructured.Unstructured)
+			rsc.SetGroupVersionKind(resource.GroupVersionKind())
+			objKey := client.ObjectKey{Name: resource.Name, Namespace: resource.Namespace}
+			if err := h.c.Get(ctx, objKey, rsc); err != nil {
+				if kerrors.IsNotFound(err) {
+					continue
+				}
+				return err
+			}
+			if IsOwningObject(rsc, rt) {
+				needDeleted = false
+				break
+			}
+		}
+		if needDeleted {
+			if err := h.c.Delete(ctx, rt); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// IsOwningObject check if owner owning the object
+func IsOwningObject(obj metav1.Object, owner metav1.Object) bool {
+	ownerReferences := obj.GetOwnerReferences()
+	for _, ownerRef := range ownerReferences {
+		if ownerRef.UID == owner.GetUID() {
+			return true
+		}
+	}
+	return false
 }
