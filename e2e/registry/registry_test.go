@@ -36,7 +36,7 @@ var (
 		},
 		{
 			Name:  "e2e-github-registry",
-			URL:   "https://github.com/zzxwill/catalog/tree/plugin/repository",
+			URL:   "https://github.com/oam-dev/catalog/tree/master/traits",
 			Token: "",
 		},
 	}
