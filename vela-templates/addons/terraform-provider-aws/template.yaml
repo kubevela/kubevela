@@ -2,42 +2,42 @@ apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   annotations:
-    addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
-    addons.oam.dev/name: terraform/provider-alibaba
-  name: terraform-provider-alibaba
+    addons.oam.dev/description: Kubernetes Terraform Controller for AWS
+    addons.oam.dev/name: terraform/provider-aws
+  name: terraform-provider-aws
   namespace: default
 spec:
   components:
-    - name: alibaba-account-creds
+    - name: aws-account-creds
       properties:
         apiVersion: v1
         kind: Secret
         metadata:
-          name: alibaba-account-creds
+          name: aws-account-creds
           namespace: vela-system
         type: Opaque
         stringData:
           credentials: |
-            accessKeyID: [[ index .Args "ALICLOUD_ACCESS_KEY" ]]
-            accessKeySecret: [[ index .Args "ALICLOUD_SECRET_KEY" ]]
-            securityToken: [[ index .Args "ALICLOUD_SECURITY_TOKEN" ]]
+            awsAccessKeyID: [[ index .Args "AWS_ACCESS_KEY_ID" ]]
+            awsSecretAccessKey: [[ index .Args "AWS_SECRET_ACCESS_KEY" ]]
+            awsSessionToken: [[ index .Args "AWS_SESSION_TOKEN" ]]
       type: raw
-    - name: default
+    - name: aws
       type: raw
       properties:
         apiVersion: terraform.core.oam.dev/v1beta1
         kind: Provider
         metadata:
-          name: default
+          name: aws
           namespace: default
         spec:
-          provider: alibaba
-          region: '[[ index .Args "ALICLOUD_REGION" ]]'
+          provider: aws
+          region: '[[ index .Args "AWS_DEFAULT_REGION" ]]'
           credentials:
             source: Secret
             secretRef:
               namespace: vela-system
-              name: alibaba-account-creds
+              name: aws-account-creds
               key: credentials
 {{ range .ResourceFiles }}
     - name: {{ .Name }}

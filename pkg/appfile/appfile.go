@@ -669,6 +669,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
 	case "remote":
 		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
+		configuration.Spec.Path = wl.FullTemplate.Terraform.Path
 	}
 
 	if wl.FullTemplate.Terraform.ProviderReference != nil {
