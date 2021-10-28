@@ -52,7 +52,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			// parse label filter
 			if label != "" {
 				words := strings.Split(label, "=")
-				if len(words) != 2 {
+				if len(words) < 2 {
 					return errors.New("label is invalid")
 				}
 				filter = createLabelFilter(words[0], words[1])

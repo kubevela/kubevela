@@ -60,7 +60,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			// parse label filter
 			if label != "" {
 				words := strings.Split(label, "=")
-				if len(words) != 2 {
+				if len(words) < 2 {
 					return errors.New("label is invalid")
 				}
 				filter = createLabelFilter(words[0], words[1])

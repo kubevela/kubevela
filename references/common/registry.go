@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"github.com/pkg/errors"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,11 +36,14 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
-// InstallComponentDefinition will add a component into K8s cluster and install it's controller
-func InstallComponentDefinition(client client.Client, workloadData []byte, ioStreams cmdutil.IOStreams, tp *types.Capability) error {
+// InstallComponentDefinition will add a component into K8s cluster and install its controller
+func InstallComponentDefinition(client client.Client, componentData []byte, ioStreams cmdutil.IOStreams, tp *types.Capability) error {
 	var cd v1beta1.ComponentDefinition
 	var err error
-	if err = yaml.Unmarshal(workloadData, &cd); err != nil {
+	if componentData == nil {
+		return errors.New("componentData is nil")
+	}
+	if err = yaml.Unmarshal(componentData, &cd); err != nil {
 		return err
 	}
 	cd.Namespace = types.DefaultKubeVelaNS
@@ -142,6 +146,9 @@ func addSourceIntoExtension(in *runtime.RawExtension, source *types.Source) erro
 // CheckLabelExistence checks whether a label `key=value` exists in definition labels
 func CheckLabelExistence(labels map[string]string, label string) bool {
 	splitLabel := strings.Split(label, "=")
+	if len(splitLabel) < 2 {
+		return false
+	}
 	k, v := splitLabel[0], splitLabel[1]
 	if labelValue, ok := labels[k]; ok {
 		if labelValue == v {
