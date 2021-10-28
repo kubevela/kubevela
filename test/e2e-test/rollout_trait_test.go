@@ -22,17 +22,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
-	"sigs.k8s.io/yaml"
-
 	v1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 
@@ -154,12 +153,13 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 				return fmt.Errorf("source deploy still exist")
 			}
 			return nil
-		}, time.Second*360, 300*time.Millisecond).Should(BeNil())
+		}, time.Second*60, 300*time.Millisecond).Should(BeNil())
 	}
 
 	BeforeEach(func() {
 		By("Start to run a test, init whole env")
 		namespaceName = randomNamespaceName("rollout-trait-e2e-test")
+		app = v1beta1.Application{}
 		createNamespace()
 		createAllDef()
 		componentName = "express-server"
@@ -217,7 +217,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"express-server-v2"}`)
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"express-server-v2","firstBatchReplicas":1,"secondBatchReplicas":1}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -320,6 +320,95 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			return nil
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 	})
+
+	It("rollout scale up adnd down without rollout batches", func() {
+		By("first scale operation")
+		Expect(common.ReadYamlToObject("testdata/rollout/deployment/application.yaml", &app)).Should(BeNil())
+		app.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+
+		verifySuccess("express-server-v1")
+		By("scale again to targetSize 4")
+		appKey := types.NamespacedName{Namespace: namespaceName, Name: app.Name}
+		checkApp := &v1beta1.Application{}
+		Eventually(func() error {
+			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			// scale up without rollout batches, test rollout controller will fill default batches
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
+				[]byte(`{"targetSize":4}`)
+			if err = k8sClient.Update(ctx, checkApp); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		Eventually(func() error {
+			checkRollout := v1alpha1.Rollout{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: componentName}, &checkRollout); err != nil {
+				return err
+			}
+			if *checkRollout.Spec.RolloutPlan.TargetSize != 4 {
+				return fmt.Errorf("rollout targetSize haven't update")
+			}
+			if len(checkRollout.Spec.RolloutPlan.RolloutBatches) != 1 {
+				return fmt.Errorf("fail to fill rollout batches")
+			}
+			if checkRollout.Spec.RolloutPlan.RolloutBatches[0].Replicas != intstr.FromInt(2) {
+				return fmt.Errorf("fill rollout batches missmatch")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		verifySuccess("express-server-v1")
+		checkApp = &v1beta1.Application{}
+		By("update application upgrade to v2")
+		Eventually(func() error {
+			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image":"stefanprodan/podinfo:4.0.3","cpu":"0.1"}`)
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
+				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4}`)
+			if err = k8sClient.Update(ctx, checkApp); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		verifySuccess("express-server-v2")
+
+		By("scale down to targetSize 2")
+		appKey = types.NamespacedName{Namespace: namespaceName, Name: app.Name}
+		checkApp = &v1beta1.Application{}
+		Eventually(func() error {
+			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
+				return err
+			}
+			// scale down without rollout batches, test rollout controller will fill default batches
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
+				[]byte(`{"targetSize":2}`)
+			if err = k8sClient.Update(ctx, checkApp); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		Eventually(func() error {
+			checkRollout := v1alpha1.Rollout{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: componentName}, &checkRollout); err != nil {
+				return err
+			}
+			if *checkRollout.Spec.RolloutPlan.TargetSize != 2 {
+				return fmt.Errorf("rollout targetSize haven't update")
+			}
+			if len(checkRollout.Spec.RolloutPlan.RolloutBatches) != 1 {
+				return fmt.Errorf("fail to fill rollout batches")
+			}
+			if checkRollout.Spec.RolloutPlan.RolloutBatches[0].Replicas != intstr.FromInt(2) {
+				return fmt.Errorf("fill rollout batches missmatch")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		verifySuccess("express-server-v2")
+	})
 })
 
 const (
@@ -396,9 +485,11 @@ spec:
                            componentName: context.name
                            rolloutPlan: {
                            	rolloutStrategy: "DecreaseFirst"
-                            rolloutBatches:[
+                            if parameter.firstBatchReplicas != _|_ && parameter.secondBatchReplicas != _|_ {
+                                rolloutBatches:[
                             	{ replicas: parameter.firstBatchReplicas},
                             	{ replicas: parameter.secondBatchReplicas}]
+                            }
                             targetSize: parameter.targetSize
                              if parameter["batchPartition"] != _|_ {
                                  batchPartition:  parameter.batchPartition
@@ -410,8 +501,8 @@ spec:
                  parameter: {
                      targetRevision: *context.revision|string
                      targetSize: *2|int
-                     firstBatchReplicas: *1|int
-                     secondBatchReplicas: *1|int
+                     firstBatchReplicas?: int
+                     secondBatchReplicas?: int
                      batchPartition?: int
                  }`
 )

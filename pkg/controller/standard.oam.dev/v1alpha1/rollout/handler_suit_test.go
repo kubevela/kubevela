@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 )
 
 var _ = Describe("Test rollout related handler func", func() {
@@ -512,6 +513,50 @@ var _ = Describe("Test rollout related handler func", func() {
 			Expect(len(checkRt.Status.TrackedResources)).Should(BeEquivalentTo(1))
 			Expect(checkRt.Status.TrackedResources[0].Name).Should(BeEquivalentTo(u.GetName()))
 			Expect(checkRt.Status.TrackedResources[0].UID).Should(BeEquivalentTo(u.GetUID()))
+		})
+
+		It("TestGetWorkloadReplicasNum", func() {
+			deployName := "test-workload-get"
+			deploy := appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "Deployment",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace,
+					Name:      deployName,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Replicas: pointer.Int32Ptr(3),
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app": "test",
+						},
+					},
+					Template: v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{
+								"app": "test",
+							},
+						},
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:  "test-container",
+									Image: "test-image",
+								},
+							},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
+			u := unstructured.Unstructured{}
+			u.SetAPIVersion("apps/v1")
+			u.SetKind("Deployment")
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: deployName, Namespace: namespace}, &u)).Should(BeNil())
+			rep, err := getWorkloadReplicasNum(u)
+			Expect(err).Should(BeNil())
+			Expect(rep).Should(BeEquivalentTo(3))
 		})
 	})
 })
