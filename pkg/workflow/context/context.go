@@ -26,8 +26,12 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -256,35 +260,9 @@ func (comp *ComponentManifest) unmarshal(v string) error {
 	return nil
 }
 
-// NewContext new workflow context.
-func NewContext(cli client.Client, ns, rev string) (Context, error) {
-
-	var (
-		ctx        = context.Background()
-		manifestCm corev1.ConfigMap
-	)
-
-	if err := cli.Get(ctx, client.ObjectKey{
-		Namespace: ns,
-		Name:      rev,
-	}, &manifestCm); err != nil {
-		return nil, errors.WithMessagef(err, "Get manifest ConfigMap %s/%s ", ns, rev)
-	}
-
-	wfCtx, err := newContext(cli, ns, rev)
-	if err != nil {
-		return nil, err
-	}
-	if err := wfCtx.LoadFromConfigMap(manifestCm); err != nil {
-		return nil, errors.WithMessagef(err, "load from ConfigMap  %s/%s", ns, rev)
-	}
-
-	return wfCtx, wfCtx.Commit()
-}
-
-// NewEmptyContext new workflow context without initialize data.
-func NewEmptyContext(cli client.Client, ns, app string) (Context, error) {
-	wfCtx, err := newContext(cli, ns, app)
+// NewContext new workflow context without initialize data.
+func NewContext(cli client.Client, ns, app string, appUID types.UID) (Context, error) {
+	wfCtx, err := newContext(cli, ns, app, appUID)
 	if err != nil {
 		return nil, err
 	}
@@ -292,13 +270,22 @@ func NewEmptyContext(cli client.Client, ns, app string) (Context, error) {
 	return wfCtx, wfCtx.Commit()
 }
 
-func newContext(cli client.Client, ns, app string) (*WorkflowContext, error) {
+func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowContext, error) {
 	var (
 		ctx   = context.Background()
 		store corev1.ConfigMap
 	)
 	store.Name = generateStoreName(app)
 	store.Namespace = ns
+	store.SetOwnerReferences([]metav1.OwnerReference{
+		{
+			APIVersion: v1beta1.SchemeGroupVersion.String(),
+			Kind:       v1beta1.ApplicationKind,
+			Name:       app,
+			UID:        appUID,
+			Controller: pointer.BoolPtr(true),
+		},
+	})
 	if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
 		if kerrors.IsNotFound(err) {
 			if err := cli.Create(ctx, &store); err != nil {
