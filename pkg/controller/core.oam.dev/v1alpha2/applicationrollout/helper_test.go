@@ -20,12 +20,13 @@ import (
 	"testing"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"gotest.tools/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
@@ -190,5 +191,39 @@ func TestHandleTerminated(t *testing.T) {
 		if got != c.want {
 			t.Errorf("%s result missmatch want:%v got: %v", casename, c.want, got)
 		}
+	}
+}
+
+func TestGetWorkloadReplicasPath(t *testing.T) {
+	deploy := appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "appsv1",
+			Kind:       "Deployment",
+		},
+	}
+	u, err := util.Object2Unstructured(deploy)
+	if err != nil {
+		t.Errorf("deployment shounld't meet an error %w", err)
+	}
+	pathStr, err := GetWorkloadReplicasPath(*u)
+	if err != nil {
+		t.Errorf("deployment should handle deployment")
+	}
+	if pathStr != "spec.replicas" {
+		t.Errorf("deployPath error got %s", pathStr)
+	}
+	ds := appsv1.DaemonSet{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "appsv1",
+			Kind:       "DaemonSet",
+		},
+	}
+	u, err = util.Object2Unstructured(ds)
+	if err != nil {
+		t.Errorf("ds shounld't meet an error %w", err)
+	}
+	_, err = GetWorkloadReplicasPath(*u)
+	if err == nil {
+		t.Errorf("daemonset shouldn't support")
 	}
 }
