@@ -10,12 +10,9 @@ spec:
         image: nocalhost-docker.pkg.coding.net/nocalhost/bookinfo/productpage:latest
         port: 9080
       traits:
-        - type: expose
-          properties:
-            port:
-              - 9080
         - type: nocalhost
           properties:
+            port: 9080
             gitUrl: https://github.com/nocalhost/bookinfo-productpage.git
             image: nocalhost-docker.pkg.coding.net/nocalhost/dev-images/python:3.7.7-slim-productpage-with-pydevd
             shell: "bash"
@@ -56,21 +53,11 @@ spec:
         image: nocalhost-docker.pkg.coding.net/nocalhost/bookinfo/authors:latest
         port: 9080
       traits:
-        - type: expose
-          properties:
-            port:
-              - 9080
         - type: nocalhost
           properties:
+            port: 9080
             gitUrl: https://github.com/nocalhost/bookinfo-authors.git
-            image: nocalhost-docker.pkg.coding.net/nocalhost/dev-images/golang:latest
-            command:
-              run:
-                - sh
-                - run.sh
-              debug:
-                - sh
-                - debug.sh
+            image: go
             debug:
               remoteDebugPort: 9009
 
@@ -80,27 +67,11 @@ spec:
         image: nocalhost-docker.pkg.coding.net/nocalhost/bookinfo/details:latest
         port: 9080
       traits:
-        - type: expose
-          properties:
-            port:
-              - 9080
         - type: nocalhost
           properties:
+            port: 9080
             gitUrl: https://github.com/nocalhost/bookinfo-details.git
             image: nocalhost-docker.pkg.coding.net/nocalhost/dev-images/ruby:2.7.1-slim
-            command:
-              run:
-                - sh
-                - run.sh
-              debug:
-                - sh
-                - debug.sh
-            sync:
-              filePattern:
-                - ./
-              ignoreFilePattern:
-                - .git
-                - .idea
 
     - name: ratings
       type: webservice
@@ -108,21 +79,11 @@ spec:
         image: nocalhost-docker.pkg.coding.net/nocalhost/bookinfo/ratings:latest
         port: 9080
       traits:
-        - type: expose
-          properties:
-            port:
-              - 9080
         - type: nocalhost
           properties:
+            port: 9080
             gitUrl: https://github.com/nocalhost/bookinfo-ratings.git
             image: nocalhost-docker.pkg.coding.net/nocalhost/dev-images/node:12.18.1-slim
-            command:
-              run:
-                - sh
-                - run.sh
-              debug:
-                - sh
-                - debug.sh
 
     - name: reviews
       type: webservice
@@ -130,28 +91,10 @@ spec:
         image: nocalhost-docker.pkg.coding.net/nocalhost/bookinfo/reviews:latest
         port: 9080
       traits:
-        - type: expose
-          properties:
-            port:
-              - 9080
         - type: nocalhost
           properties:
+            port: 9080
             gitUrl: https://github.com/nocalhost/bookinfo-reviews.git
             image: nocalhost-docker.pkg.coding.net/nocalhost/dev-images/java:latest
-            command:
-              run:
-                - sh
-                - run.sh
-              debug:
-                - sh
-                - debug.sh
             debug:
               remoteDebugPort: 5005
-            sync:
-              filePattern:
-                - ./
-              ignoreFilePattern:
-                - .git
-                - .idea
-                - .gradle
-                - build
