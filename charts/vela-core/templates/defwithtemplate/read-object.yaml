@@ -28,6 +28,7 @@ spec:
         					}
         				}
         			}
+        			cluster: parameter.cluster
         		}
         	}
         	if parameter.apiVersion != _|_ || parameter.kind != _|_ {
@@ -42,6 +43,7 @@ spec:
         					}
         				}
         			}
+        			cluster: parameter.cluster
         		}
         	}
         }
@@ -54,5 +56,7 @@ spec:
         	name: string
         	// +usage=Specify the namespace of the object
         	namespace?: string
+        	// +usage=Specify the cluster of the object
+        	cluster: *"" | string
         }
 

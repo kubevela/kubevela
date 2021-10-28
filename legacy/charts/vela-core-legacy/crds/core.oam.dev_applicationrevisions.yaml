@@ -1248,6 +1248,10 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
                                     to Provider
@@ -1651,6 +1655,10 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
                                     to Provider
@@ -1951,6 +1959,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
@@ -3392,6 +3404,10 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
                                     to Provider
@@ -3687,6 +3703,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
@@ -4073,6 +4093,10 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
                                     to Provider
@@ -4336,6 +4360,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
@@ -4616,6 +4644,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference

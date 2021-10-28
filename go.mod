@@ -10,6 +10,7 @@ require (
 	github.com/alibabacloud-go/cs-20151215/v2 v2.4.5
 	github.com/alibabacloud-go/darabonba-openapi v0.1.4
 	github.com/alibabacloud-go/tea v1.1.15
+	github.com/agiledragon/gomonkey/v2 v2.3.0
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
@@ -38,7 +39,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v1.1.2
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.2.4
+	github.com/oam-dev/terraform-controller v0.2.5
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
@@ -49,7 +50,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.6.8
+	github.com/tidwall/gjson v1.9.3
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.mongodb.org/mongo-driver v1.5.1
@@ -57,6 +58,8 @@ require (
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
 	golang.org/x/tools v0.1.6 // indirect
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
+	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.6.1

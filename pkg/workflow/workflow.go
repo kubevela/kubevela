@@ -270,15 +270,15 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 
 		e.updateStepStatus(status)
 
+		if err := wfCtx.Commit(); err != nil {
+			return errors.WithMessage(err, "commit workflow context")
+		}
+
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
 			if e.isDag() {
 				continue
 			}
 			return nil
-		}
-
-		if err := wfCtx.Commit(); err != nil {
-			return errors.WithMessage(err, "commit workflow context")
 		}
 
 		e.finishStep(operation)

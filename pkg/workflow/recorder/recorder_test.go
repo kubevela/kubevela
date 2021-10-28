@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
 	apps "k8s.io/api/apps/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -47,6 +48,11 @@ func TestRecord(t *testing.T) {
 
 	assert.Equal(t, crs.Items[0].Name, "record-test-app-v2")
 	assert.Equal(t, crs.Items[1].Name, "record-test-app-v3")
+
+	// check update old recorder.
+	err = With(cli, app).Save("v3", data).Error()
+	assert.NilError(t, err)
+
 	creatErrorEnable = true
 	err = With(cli, app).Save("v1", data).Error()
 	assert.Equal(t, err.Error(), "save record default/record-test-app-v1: mock create error")
@@ -86,12 +92,29 @@ func makeMockClient() client.Client {
 			}
 			return nil
 		},
+		MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			o, ok := obj.(*apps.ControllerRevision)
+			if ok {
+				for index, item := range items {
+					if item.Name == o.Name && item.Namespace == o.Namespace {
+						items[index] = *o
+						return nil
+					}
+				}
+			}
+			return kerrors.NewNotFound(apps.Resource("ControllerRevision"), o.Name)
+		},
 		MockCreate: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 			if creatErrorEnable {
 				return errors.New("mock create error")
 			}
 			o, ok := obj.(*apps.ControllerRevision)
 			if ok {
+				for _, item := range items {
+					if item.Name == o.Name && item.Namespace == o.Namespace {
+						return kerrors.NewAlreadyExists(apps.Resource("ControllerRevision"), o.Name)
+					}
+				}
 				items = append(items, *o)
 			}
 			return nil

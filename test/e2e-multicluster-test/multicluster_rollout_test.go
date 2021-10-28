@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -142,6 +143,71 @@ var _ = Describe("Test MultiClustet Rollout", func() {
 				return nil
 			}, 500*time.Millisecond, 30*time.Second).Should(BeNil())
 			verifySucceed(componentName + "-v1")
+		})
+
+		It("Test Rollout with health check policy, guarantee health scope controller work ", func() {
+			app := &v1beta1.Application{}
+			appYaml, err := ioutil.ReadFile("./testdata/app/multi-cluster-health-policy.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			err = k8sClient.Create(hubCtx, app)
+			Expect(err).Should(Succeed())
+			verifySucceed(componentName + "-v1")
+			Eventually(func() error {
+				checkApp := v1beta1.Application{}
+				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, &checkApp); err != nil {
+					return err
+				}
+				if len(checkApp.Status.Services) == 0 {
+					return fmt.Errorf("app status service haven't write back")
+				}
+				compStatus := checkApp.Status.Services[0]
+				if compStatus.Env != "staging" {
+					return fmt.Errorf("comp status env miss-match")
+				}
+				if !compStatus.Healthy {
+					return fmt.Errorf("comp status not healthy")
+				}
+				if !strings.Contains(compStatus.Message, "Ready:2/2") {
+					return fmt.Errorf("comp status workload check don't work")
+				}
+				return nil
+			}, 300*time.Millisecond, 30*time.Second).Should(BeNil())
+			By("update application to v2")
+			checkApp := &v1beta1.Application{}
+			Eventually(func() error {
+				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp); err != nil {
+					return err
+				}
+				checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image": "stefanprodan/podinfo:5.0.2"}`)
+				if err := k8sClient.Update(hubCtx, checkApp); err != nil {
+					return err
+				}
+				return nil
+			}, 500*time.Millisecond, 30*time.Second).Should(BeNil())
+			verifySucceed(componentName + "-v2")
+			Eventually(func() error {
+				// Note: KubeVela will only check the workload of the target revision
+				checkApp := v1beta1.Application{}
+				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, &checkApp); err != nil {
+					return err
+				}
+				if len(checkApp.Status.Services) == 0 {
+					return fmt.Errorf("app status service haven't write back")
+				}
+				compStatus := checkApp.Status.Services[0]
+				if compStatus.Env != "staging" {
+					return fmt.Errorf("comp status env miss-match")
+				}
+				if !compStatus.Healthy {
+					return fmt.Errorf("comp status not healthy")
+				}
+				if !strings.Contains(compStatus.Message, "Ready:2/2") {
+					return fmt.Errorf("comp status workload check don't work")
+				}
+				return nil
+			}, 300*time.Millisecond, 30*time.Second).Should(BeNil())
 		})
 	})
 })

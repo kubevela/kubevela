@@ -16,7 +16,7 @@ spec:
     terraform:
       configuration: |
         module "rds" {
-          source = "terraform-alicloud-modules/rds/alicloud"
+          source = "github.com/kubevela-contrib/terraform-alicloud-rds"
           engine = "MySQL"
           engine_version = "8.0"
           instance_type = "rds.mysql.c1.large"
@@ -24,6 +24,8 @@ spec:
           instance_name = var.instance_name
           account_name = var.account_name
           password = var.password
+          allocate_public_connection = var.allocate_public_connection
+          security_ips = ["0.0.0.0/0",]
         }
 
         output "DB_NAME" {
@@ -40,6 +42,9 @@ spec:
         }
         output "DB_PASSWORD" {
           value = var.password
+        }
+        output "DB_PUBLIC_HOST" {
+          value = module.rds.db_public_connection_string
         }
 
         variable "instance_name" {
@@ -58,4 +63,10 @@ spec:
           description = "RDS instance account password"
           type = string
           default = "Xyfff83jfewGGfaked"
+        }
+
+        variable "allocate_public_connection" {
+          description = "Whether to allocate public connection for a RDS instance."
+          type        = bool
+          default     = true
         }
