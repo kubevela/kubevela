@@ -18,10 +18,10 @@ package common
 
 import (
 	"fmt"
-	"k8s.io/client-go/util/flowcontrol"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/flowcontrol"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
