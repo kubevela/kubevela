@@ -375,6 +375,7 @@ var _ = Describe("Test Workflow", func() {
 
 func makeTestCase(steps []oamcore.WorkflowStep) (*oamcore.Application, []wfTypes.TaskRunner) {
 	app := &oamcore.Application{
+		ObjectMeta: metav1.ObjectMeta{UID: "test-uid"},
 		Spec: oamcore.ApplicationSpec{
 			Workflow: &oamcore.Workflow{
 				Steps: steps,
