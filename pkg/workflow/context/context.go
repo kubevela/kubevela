@@ -48,6 +48,7 @@ type WorkflowContext struct {
 	store      corev1.ConfigMap
 	components map[string]*ComponentManifest
 	vars       *value.Value
+	modified   bool
 }
 
 // GetComponent Get ComponentManifest from workflow context.
@@ -70,7 +71,11 @@ func (wf *WorkflowContext) PatchComponent(name string, patchValue *value.Value) 
 	if err != nil {
 		return err
 	}
-	return component.Patch(patchValue)
+	if err := component.Patch(patchValue); err != nil {
+		return err
+	}
+	wf.modified = true
+	return nil
 }
 
 // GetVar get variable from workflow context.
@@ -87,7 +92,11 @@ func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	if err := wf.vars.FillRaw(str, paths...); err != nil {
 		return err
 	}
-	return wf.vars.Error()
+	if err := wf.vars.Error(); err != nil {
+		return err
+	}
+	wf.modified = true
+	return nil
 }
 
 // MakeParameter make 'value' with interface{}
@@ -106,6 +115,9 @@ func (wf *WorkflowContext) MakeParameter(parameter interface{}) (*value.Value, e
 
 // Commit the workflow context and persist it's content.
 func (wf *WorkflowContext) Commit() error {
+	if !wf.modified {
+		return nil
+	}
 	if err := wf.writeToStore(); err != nil {
 		return err
 	}
@@ -303,6 +315,7 @@ func newContext(cli client.Client, ns, app string) (*WorkflowContext, error) {
 		cli:        cli,
 		store:      store,
 		components: map[string]*ComponentManifest{},
+		modified:   true,
 	}
 	var err error
 	wfCtx.vars, err = value.NewValue("", nil, "")
