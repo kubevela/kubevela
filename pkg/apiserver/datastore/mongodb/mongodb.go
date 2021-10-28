@@ -229,6 +229,28 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 	return list, nil
 }
 
+// Count counts entities
+func (m *mongodb) Count(ctx context.Context, entity datastore.Entity) (int64, error) {
+	if entity.TableName() == "" {
+		return 0, datastore.ErrTableNameEmpty
+	}
+	collection := m.client.Database(m.database).Collection(entity.TableName())
+	filter := bson.D{}
+	if entity.Index() != nil {
+		for k, v := range entity.Index() {
+			filter = append(filter, bson.E{
+				Key:   k,
+				Value: v,
+			})
+		}
+	}
+	count, err := collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, datastore.NewDBError(err)
+	}
+	return count, nil
+}
+
 func makeNameFilter(name string) bson.D {
 	return bson.D{{Key: "name", Value: name}}
 }

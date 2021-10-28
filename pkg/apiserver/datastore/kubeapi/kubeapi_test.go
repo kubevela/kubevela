@@ -136,7 +136,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		}
 		Expect(cmp.Diff(selector.String(), "namespace=test,table=vela_application")).Should(BeEmpty())
 	})
-	It("Test list funtion", func() {
+	It("Test list function", func() {
 		var app model.Application
 		list, err := kubeStore.List(context.TODO(), &app, &datastore.ListOptions{Page: -1})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -165,7 +165,19 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
-	It("Test isExist funtion", func() {
+	It("Test count function", func() {
+		var app model.Application
+		count, err := kubeStore.Count(context.TODO(), &app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(4)))
+
+		app.Namespace = "test-namespace"
+		count, err = kubeStore.Count(context.TODO(), &app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(1)))
+	})
+
+	It("Test isExist function", func() {
 		var app model.Application
 		app.Name = "kubevela-app-3"
 		exist, err := kubeStore.IsExist(context.TODO(), &app)

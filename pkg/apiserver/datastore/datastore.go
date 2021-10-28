@@ -109,8 +109,11 @@ type DataStore interface {
 	// Get entity from database, Name() and TableName() can't return zero value.
 	Get(ctx context.Context, entity Entity) error
 
-	// TableName() can't return zero value.
+	// List entities from database, TableName() can't return zero value.
 	List(ctx context.Context, query Entity, options *ListOptions) ([]Entity, error)
+
+	// Count entities from database, TableName() can't return zero value.
+	Count(ctx context.Context, entity Entity) (int64, error)
 
 	// IsExist Name() and TableName() can't return zero value.
 	IsExist(ctx context.Context, entity Entity) (bool, error)

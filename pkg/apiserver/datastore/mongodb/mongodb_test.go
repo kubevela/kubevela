@@ -119,6 +119,18 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
+	It("Test count function", func() {
+		var app model.Application
+		count, err := mongodbDriver.Count(context.TODO(), &app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(4)))
+
+		app.Namespace = "test-namespace"
+		count, err = mongodbDriver.Count(context.TODO(), &app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(1)))
+	})
+
 	It("Test isExist funtion", func() {
 		var app model.Application
 		app.Name = "kubevela-app-3"
