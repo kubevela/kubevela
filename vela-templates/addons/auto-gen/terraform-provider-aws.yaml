@@ -5,7 +5,7 @@ metadata:
     addons.oam.dev/description: Kubernetes Terraform Controller for AWS
     addons.oam.dev/name: terraform/provider-aws
   name: terraform-provider-aws
-  namespace: default
+  namespace: vela-system
 spec:
   components:
   - name: aws-account-creds
