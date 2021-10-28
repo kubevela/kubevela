@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plugins
+package cli
 
 import (
 	"context"
@@ -61,5 +61,52 @@ func TestRegistry(t *testing.T) {
 		assert.NoError(t, err, c.url)
 		assert.NotNil(t, capability, testAddon)
 		assert.NotNil(t, data, testAddon)
+	}
+}
+
+func TestParseURL(t *testing.T) {
+	cases := map[string]struct {
+		url     string
+		exp     *GithubContent
+		expType string
+	}{
+		"api-github": {
+			url:     "https://api.github.com/repos/oam-dev/catalog/contents/traits?ref=master",
+			expType: TypeGithub,
+			exp: &GithubContent{
+				URL:   "https://api.github.com/repos/oam-dev/catalog/contents/traits?ref=master",
+				Owner: "oam-dev",
+				Repo:  "catalog",
+				Path:  "traits",
+				Ref:   "master",
+			},
+		},
+		"github-copy-path": {
+			url:     "https://github.com/oam-dev/catalog/tree/master/repository",
+			expType: TypeGithub,
+			exp: &GithubContent{
+				URL:   "https://github.com/oam-dev/catalog/tree/master/repository",
+				Owner: "oam-dev",
+				Repo:  "catalog",
+				Path:  "repository",
+				Ref:   "master",
+			},
+		},
+		"github-manual-write-path": {
+			url:     "https://github.com/oam-dev/catalog/traits",
+			expType: TypeGithub,
+			exp: &GithubContent{
+				URL:   "https://github.com/oam-dev/catalog/traits",
+				Owner: "oam-dev",
+				Repo:  "catalog",
+				Path:  "traits",
+			},
+		},
+	}
+	for caseName, c := range cases {
+		tp, content, err := Parse(c.url)
+		assert.NoError(t, err, caseName)
+		assert.Equal(t, c.exp, &content.GithubContent, caseName)
+		assert.Equal(t, c.expType, tp, caseName)
 	}
 }

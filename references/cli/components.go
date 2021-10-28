@@ -18,9 +18,10 @@ package cli
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -30,97 +31,117 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // NewComponentsCommand creates `components` command
 func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var isDiscover bool
 	cmd := &cobra.Command{
-		Use:                   "components",
-		Aliases:               []string{"comp", "component"},
-		DisableFlagsInUseLine: true,
-		Short:                 "List components",
-		Long:                  "List components",
-		Example:               `vela components`,
+		Use:     "components",
+		Aliases: []string{"comp", "component"},
+		Short:   "List/get components",
+		Long:    "List components & get components in registry",
+		Example: `vela comp`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			isDiscover, _ := cmd.Flags().GetBool("discover")
-			env, err := GetFlagEnvOrCurrent(cmd, c)
-			if err != nil {
-				return err
+			// parse label filter
+			if label != "" {
+				words := strings.Split(label, "=")
+				if len(words) < 2 {
+					return errors.New("label is invalid")
+				}
+				filter = createLabelFilter(words[0], words[1])
 			}
 
-			label, err := cmd.Flags().GetString(types.LabelArg)
-			if err != nil {
-				return err
+			var registry Registry
+			var err error
+			if isDiscover {
+				if regURL != "" {
+					ioStreams.Infof("Listing component definition from url: %s\n", regURL)
+					registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
+					if err != nil {
+						return errors.Wrap(err, "creating registry err, please check registry url")
+					}
+				} else {
+					ioStreams.Infof("Listing component definition from registry: %s\n", regName)
+					registry, err = GetRegistry(regName)
+					if err != nil {
+						return errors.Wrap(err, "get registry err")
+					}
+				}
+				return PrintComponentListFromRegistry(registry, ioStreams, filter)
 			}
-			if label != "" && len(strings.Split(label, "=")) != 2 {
-				return fmt.Errorf("label %s is not in the right format", label)
-			}
-
-			if !isDiscover {
-				return printComponentList(env.Namespace, c, ioStreams, label)
-			}
-			option := types.TypeComponentDefinition
-			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option, label)
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return PrintInstalledCompDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
-	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
-	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
+	cmd.SetOut(ioStreams.Out)
+	cmd.AddCommand(
+		NewCompGetCommand(c, ioStreams),
+	)
+	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
+	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
+	cmd.PersistentFlags().StringVar(&regName, "registry", DefaultRegistry, "specify the registry name")
+	cmd.PersistentFlags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
+	cmd.Flags().StringVar(&label, types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams, label string) error {
-	def, err := common.ListRawComponentDefinitions(userNamespace, c)
-	if err != nil {
-		return err
-	}
-
-	dm, err := c.GetDiscoveryMapper()
-	if err != nil {
-		return fmt.Errorf("get discoveryMapper error %w", err)
-	}
-
-	table := newUITable()
-	table.AddRow("NAME", "NAMESPACE", "WORKLOAD", "DESCRIPTION")
-
-	for _, r := range def {
-		if label != "" && !common.CheckLabelExistence(r.Labels, label) {
-			continue
-		}
-		var workload string
-		if r.Spec.Workload.Type != "" {
-			workload = r.Spec.Workload.Type
-		} else {
-			definition, err := oamutil.ConvertWorkloadGVK2Definition(dm, r.Spec.Workload.Definition)
-			if err != nil {
-				return fmt.Errorf("get workload definitionReference error %w", err)
+// NewCompGetCommand creates `comp get` command
+func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "get <component>",
+		Short:   "get component from registry",
+		Long:    "get component from registry",
+		Example: "vela comp get <component>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				ioStreams.Error("you must specify a component name")
+				return nil
 			}
-			workload = definition.Name
-		}
-		table.AddRow(r.Name, r.Namespace, workload, plugins.GetDescription(r.Annotations))
+			name := args[0]
+			var registry Registry
+			var err error
+
+			if regURL != "" {
+				ioStreams.Infof("Getting component definition from url: %s\n", regURL)
+				registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
+				if err != nil {
+					return errors.Wrap(err, "creating registry err, please check registry url")
+				}
+			} else {
+				ioStreams.Infof("Getting component definition from registry: %s\n", regName)
+				registry, err = GetRegistry(regName)
+				if err != nil {
+					return errors.Wrap(err, "get registry err")
+				}
+			}
+			return errors.Wrap(InstallCompByNameFromRegistry(c, ioStreams, name, registry), "install component definition err")
+
+		},
 	}
-	ioStreams.Info(table.String())
-	return nil
+	return cmd
+}
+
+// filterFunc to filter whether to print the capability
+type filterFunc func(capability types.Capability) bool
+
+func createLabelFilter(key, value string) filterFunc {
+	return func(capability types.Capability) bool {
+		return capability.Labels[key] == value
+	}
 }
 
 // PrintComponentListFromRegistry print a table which shows all components from registry
-func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
+func PrintComponentListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, filter filterFunc) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -135,8 +156,7 @@ func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdut
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from registry: %s\n", url)))
-	caps, err := getCapsFromRegistry(url)
+	caps, err := registry.ListCaps()
 	if err != nil {
 		return err
 	}
@@ -147,12 +167,12 @@ func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdut
 		return err
 	}
 	table := newUITable()
-	if isDiscover {
-		table.AddRow("NAME", "REGISTRY", "DEFINITION")
-	} else {
-		table.AddRow("NAME", "DEFINITION")
-	}
+	table.AddRow("NAME", "REGISTRY", "DEFINITION", "STATUS")
 	for _, c := range caps {
+
+		if filter != nil && !filter(c) {
+			continue
+		}
 		c.Status = uninstalled
 		if c.Type != types.TypeComponentDefinition {
 			continue
@@ -163,26 +183,16 @@ func PrintComponentListFromRegistry(isDiscover bool, url string, ioStreams cmdut
 			}
 		}
 
-		if c.Status == uninstalled && isDiscover {
-			table.AddRow(c.Name, "default", c.CrdName)
-		}
-		if c.Status == installed && !isDiscover {
-			table.AddRow(c.Name, c.CrdName)
-		}
+		table.AddRow(c.Name, "default", c.CrdName, c.Status)
 	}
 	ioStreams.Info(table.String())
 
 	return nil
 }
 
-// InstallCompByName will install given componentName comp to cluster from registry
-func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, regURL string) error {
-
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
-	if err != nil {
-		return err
-	}
-	capObj, data, err := g.GetCap(compName)
+// InstallCompByNameFromRegistry will install given componentName comp to cluster from registry
+func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, compName string, registry Registry) error {
+	capObj, data, err := registry.GetCap(compName)
 	if err != nil {
 		return err
 	}
@@ -199,5 +209,40 @@ func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName, 
 
 	ioStream.Info("Successfully install component:", compName)
 
+	return nil
+}
+
+// PrintInstalledCompDef will print all ComponentDefinition in cluster
+func PrintInstalledCompDef(io cmdutil.IOStreams, filter filterFunc) error {
+	var list v1beta1.ComponentDefinitionList
+	err := clt.List(context.Background(), &list)
+	if err != nil {
+		return errors.Wrap(err, "get component definition list error")
+	}
+	dm, err := (&common2.Args{}).GetDiscoveryMapper()
+	if err != nil {
+		return errors.Wrap(err, "get discovery mapper error")
+	}
+
+	table := newUITable()
+	table.AddRow("NAME", "DEFINITION")
+
+	for _, cd := range list.Items {
+		data, err := json.Marshal(cd)
+		if err != nil {
+			io.Infof("error encoding definition: %s\n", cd.Name)
+			continue
+		}
+		capa, err := ParseCapability(dm, data)
+		if err != nil {
+			io.Errorf("error parsing capability: %s\n", cd.Name)
+			continue
+		}
+		if filter != nil && !filter(capa) {
+			continue
+		}
+		table.AddRow(capa.Name, capa.CrdName)
+	}
+	io.Infof(table.String())
 	return nil
 }

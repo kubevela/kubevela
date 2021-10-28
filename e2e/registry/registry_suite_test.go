@@ -25,5 +25,5 @@ import (
 
 func TestEnv(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Capability Suite")
+	ginkgo.RunSpecs(t, "Registry Suite")
 }
