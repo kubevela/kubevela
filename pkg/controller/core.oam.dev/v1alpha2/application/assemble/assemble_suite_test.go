@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -201,5 +202,51 @@ var _ = Describe("Test Assemble Options", func() {
 
 		By("Verify workload metadata (name)")
 		Expect(wl.GetName()).Should(Equal(workloadName))
+	})
+})
+
+var _ = Describe("Test handleCheckManageWorkloadTrait func", func() {
+	It("Test every situation", func() {
+		traitDefs := map[string]v1beta1.TraitDefinition{
+			"rollout": v1beta1.TraitDefinition{
+				Spec: v1beta1.TraitDefinitionSpec{
+					ManageWorkload: true,
+				},
+			},
+			"normal": v1beta1.TraitDefinition{
+				Spec: v1beta1.TraitDefinitionSpec{},
+			},
+		}
+		appRev := v1beta1.ApplicationRevision{
+			Spec: v1beta1.ApplicationRevisionSpec{
+				TraitDefinitions: traitDefs,
+			},
+		}
+		rolloutTrait := &unstructured.Unstructured{}
+		rolloutTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "rollout"})
+
+		normalTrait := &unstructured.Unstructured{}
+		normalTrait.SetLabels(map[string]string{oam.TraitTypeLabel: "normal"})
+
+		workload := unstructured.Unstructured{}
+		workload.SetLabels(map[string]string{
+			oam.WorkloadTypeLabel: "webservice",
+		})
+
+		comps := []*velatypes.ComponentManifest{
+			{
+				Traits: []*unstructured.Unstructured{
+					rolloutTrait,
+					normalTrait,
+				},
+				StandardWorkload: &workload,
+			},
+		}
+
+		HandleCheckManageWorkloadTrait(appRev, comps)
+		Expect(len(rolloutTrait.GetLabels())).Should(BeEquivalentTo(2))
+		Expect(rolloutTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo("true"))
+		Expect(len(normalTrait.GetLabels())).Should(BeEquivalentTo(1))
+		Expect(normalTrait.GetLabels()[oam.LabelManageWorkloadTrait]).Should(BeEquivalentTo(""))
 	})
 })

@@ -37,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -302,26 +301,6 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 		appStatus = append(appStatus, status)
 	}
 	return appStatus, healthy, nil
-}
-
-func (h *AppHandler) handleCheckManageWorkloadTrait(traitDefs map[string]v1beta1.TraitDefinition, comps []*types.ComponentManifest) {
-	manageWorkloadTrait := map[string]bool{}
-	for traitName, definition := range traitDefs {
-		if definition.Spec.ManageWorkload {
-			manageWorkloadTrait[traitName] = true
-		}
-	}
-	if len(manageWorkloadTrait) == 0 {
-		return
-	}
-	for _, comp := range comps {
-		for _, trait := range comp.Traits {
-			traitType := trait.GetLabels()[oam.TraitTypeLabel]
-			if manageWorkloadTrait[traitType] {
-				trait.SetLabels(oamutil.MergeMapOverrideWithDst(trait.GetLabels(), map[string]string{oam.LabelManageWorkloadTrait: "true"}))
-			}
-		}
-	}
 }
 
 func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {

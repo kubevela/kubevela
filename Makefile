@@ -39,6 +39,9 @@ endif
 VELA_CORE_IMAGE      ?= vela-core:latest
 VELA_CORE_TEST_IMAGE ?= vela-core-test:$(GIT_COMMIT)
 VELA_RUNTIME_ROLLOUT_IMAGE       ?= vela-runtime-rollout:latest
+VELA_RUNTIME_ROLLOUT_TEST_IMAGE  ?= vela-runtime-rollout-test:$(GIT_COMMIT)
+RUNTIME_CLUSTER_CONFIG ?= /tmp/worker.kubeconfig
+RUNTIME_CLUSTER_NAME ?= worker
 
 all: build
 
@@ -143,6 +146,9 @@ e2e-setup-core:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --set multicluster.enabled=true --wait kubevela ./charts/vela-core
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 
+setup-runtime-e2e-cluster:
+	helm upgrade --install --create-namespace --namespace vela-system --kubeconfig=$(RUNTIME_CLUSTER_CONFIG) --set image.pullPolicy=IfNotPresent --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) --wait vela-rollout ./runtime/rollout/charts
+
 e2e-setup:
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.9.0/kruise-chart.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
 	sh ./hack/e2e/modify_charts.sh
@@ -208,6 +214,12 @@ end-e2e:
 kind-load:
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
+
+kind-load-runtime-cluster:
+	/bin/sh hack/e2e/build_runtime_rollout.sh
+	docker build -t $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) -f runtime/rollout/e2e/Dockerfile.e2e runtime/rollout/e2e/
+	rm -rf runtime/rollout/e2e/tmp
+	kind load docker-image $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) --name=$(RUNTIME_CLUSTER_NAME)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
 
 # Run tests
 core-test: fmt vet manifests
