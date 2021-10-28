@@ -21,18 +21,21 @@ spec:
       - name: apply-pvc
         type: apply-object
         properties:
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata:
-            name: myclaim
-            namespace: default
-          spec:
-            accessModes:
-            - ReadWriteOnce
-            resources:
-              requests:
-                storage: 8Gi
-            storageClassName: standard
+          value:
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: myclaim
+              namespace: default
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 8Gi
+              storageClassName: standard
+          # for multi-cluster
+          # cluster: my-cluster
       - name: apply-server
         type: apply-component
         properties:

@@ -20,8 +20,6 @@ import (
 	"errors"
 	"testing"
 
-	"gotest.tools/assert"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -69,6 +67,7 @@ func TestInstall(t *testing.T) {
 	p := providers.NewProviders()
 	Install(p)
 	h, ok := p.GetHandler("convert", "string")
-	assert.Equal(t, ok, true)
-	assert.Equal(t, h != nil, true)
+	r := require.New(t)
+	r.Equal(ok, true)
+	r.Equal(h != nil, true)
 }

@@ -28,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
 )
 
 func TestParser(t *testing.T) {
@@ -35,7 +36,7 @@ func TestParser(t *testing.T) {
 	p := &provider{
 		apply: simpleComponentApplyForTest,
 	}
-	act := &mockAction{}
+	act := &mock.Action{}
 	v, err := value.NewValue("", nil, "")
 	assert.NilError(t, err)
 	err = p.ApplyComponent(nil, v, act)
@@ -73,12 +74,12 @@ metadata: {
 }
 `)
 
-	assert.Equal(t, act.phase, "Wait")
+	assert.Equal(t, act.Phase, "Wait")
 	testHealthy = true
-	act = &mockAction{}
+	act = &mock.Action{}
 	_, err = value.NewValue("", nil, "")
 	assert.NilError(t, err)
-	assert.Equal(t, act.phase, "")
+	assert.Equal(t, act.Phase, "")
 }
 
 func TestLoadComponent(t *testing.T) {
@@ -141,23 +142,4 @@ func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Valu
 }`))
 	traits := []*unstructured.Unstructured{trait}
 	return workload, traits, testHealthy, nil
-}
-
-type mockAction struct {
-	phase   string
-	message string
-}
-
-func (act *mockAction) Suspend(message string) {
-	act.phase = "Suspend"
-	act.message = message
-}
-
-func (act *mockAction) Terminate(message string) {
-	act.phase = "Terminate"
-	act.message = message
-}
-func (act *mockAction) Wait(message string) {
-	act.phase = "Wait"
-	act.message = message
 }

@@ -131,4 +131,10 @@ const (
 
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
+
+	// AnnotationWorkloadGVK indicates the managed workload's GVK by trait
+	AnnotationWorkloadGVK = "trait.oam.dev/workload-gvk"
+
+	// AnnotationWorkloadName indicates the managed workload's name by trait
+	AnnotationWorkloadName = "trait.oam.dev/workload-name"
 )
