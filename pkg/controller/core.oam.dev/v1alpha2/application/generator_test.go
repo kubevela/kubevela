@@ -37,8 +37,6 @@ var _ = Describe("Test Application workflow generator", func() {
 	var namespaceName string
 	var ns corev1.Namespace
 	var ctx context.Context
-	cd := &oamcore.ComponentDefinition{}
-	td := &oamcore.TraitDefinition{}
 
 	BeforeEach(func() {
 		namespaceName = "generate-test-" + strconv.Itoa(time.Now().Second()) + "-" + strconv.Itoa(time.Now().Nanosecond())
@@ -59,18 +57,6 @@ var _ = Describe("Test Application workflow generator", func() {
 
 		By("Create the Component Definition for test")
 		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(Succeed())
-
-		defJson, err := yaml.YAMLToJSON([]byte(componentDefYaml))
-		Expect(err).Should(BeNil())
-		Expect(json.Unmarshal(defJson, cd)).Should(BeNil())
-		cd.SetNamespace("vela-system")
-		Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
-		Expect(err).Should(BeNil())
-		Expect(json.Unmarshal(rolloutTdDef, td)).Should(BeNil())
-		td.SetNamespace("vela-system")
-		Expect(k8sClient.Create(ctx, td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
@@ -183,6 +169,21 @@ var _ = Describe("Test Application workflow generator", func() {
 	})
 
 	It("Test render component", func() {
+		cd := &oamcore.ComponentDefinition{}
+		td := &oamcore.TraitDefinition{}
+
+		defJson, err := yaml.YAMLToJSON([]byte(componentDefYaml))
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(defJson, cd)).Should(BeNil())
+		cd.SetNamespace("vela-system")
+		Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(rolloutTdDef, td)).Should(BeNil())
+		td.SetNamespace("vela-system")
+		Expect(k8sClient.Create(ctx, td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		app := &oamcore.Application{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Application",
