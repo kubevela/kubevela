@@ -19,12 +19,18 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+
+	appsv1 "k8s.io/api/apps/v1"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // WorkflowUsecase workflow manage api
@@ -36,6 +42,8 @@ type WorkflowUsecase interface {
 	DeleteWorkflow(ctx context.Context, workflowName string) error
 	CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
+	ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
+	DetailWorkflowRecord(ctx context.Context, workflowName, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
 }
 
 // NewWorkflowUsecase new workflow usecase
@@ -200,4 +208,95 @@ func (w *workflowUsecaseImpl) GetApplicationDefaultWorkflow(ctx context.Context,
 		return workflows[0].(*model.Workflow), nil
 	}
 	return nil, bcode.ErrWorkflowNoDefault
+}
+
+// ListWorkflowRecords list workflow record
+func (w *workflowUsecaseImpl) ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error) {
+	var record = model.WorkflowRecord{
+		WorkflowPrimaryKey: workflowName,
+	}
+	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{Page: page, PageSize: pageSize})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &apisv1.ListWorkflowRecordsResponse{
+		Records: []apisv1.WorkflowRecord{},
+	}
+	for _, raw := range records {
+		record, ok := raw.(*model.WorkflowRecord)
+		if ok {
+			resp.Records = append(resp.Records, *convertFromRecordModel(record))
+		}
+	}
+	count, err := w.ds.Count(ctx, &record)
+	if err != nil {
+		return nil, err
+	}
+	resp.Total = count
+
+	return resp, nil
+}
+
+// DetailWorkflowRecord get workflow record detail with name
+func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflowName, recordName string) (*apisv1.DetailWorkflowRecordResponse, error) {
+	var record = model.WorkflowRecord{
+		WorkflowPrimaryKey: workflowName,
+		Name:               recordName,
+	}
+	err := w.ds.Get(ctx, &record)
+	if err != nil {
+		return nil, err
+	}
+
+	version := strings.TrimPrefix(recordName, fmt.Sprintf("%s-", record.AppPrimaryKey))
+	var deployEvent = model.DeployEvent{
+		AppPrimaryKey: record.AppPrimaryKey,
+		Version:       version,
+	}
+	err = w.ds.Get(ctx, &deployEvent)
+	if err != nil {
+		return nil, err
+	}
+
+	return &apisv1.DetailWorkflowRecordResponse{
+		WorkflowRecord: *convertFromRecordModel(&record),
+		DeployTime:     deployEvent.CreateTime,
+		DeployUser:     deployEvent.DeployUser,
+		Commit:         deployEvent.Commit,
+		SourceType:     deployEvent.SourceType,
+	}, nil
+}
+
+func (w *workflowUsecaseImpl) createWorkflowRecord(ctx context.Context, revision *appsv1.ControllerRevision) error {
+	app, err := util.RawExtension2Application(revision.Data)
+	if err != nil {
+		return err
+	}
+	if app.Annotations == nil || app.Annotations[oam.AnnotationWorkflowName] == "" {
+		return fmt.Errorf("missing workflow name")
+	}
+	status := app.Status.Workflow
+
+	return w.ds.Add(ctx, &model.WorkflowRecord{
+		WorkflowPrimaryKey: app.Annotations[oam.AnnotationWorkflowName],
+		AppPrimaryKey:      app.Name,
+		Name:               strings.TrimPrefix(revision.Name, "record-"),
+		Namespace:          revision.Namespace,
+		StartTime:          status.StartTime.Time,
+		Suspend:            status.Suspend,
+		Terminated:         status.Terminated,
+		Steps:              status.Steps,
+	})
+}
+
+func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord {
+	return &apisv1.WorkflowRecord{
+		Name:       record.Name,
+		Namespace:  record.Namespace,
+		StartTime:  record.StartTime,
+		Suspend:    record.Suspend,
+		Terminated: record.Terminated,
+		Steps:      record.Steps,
+	}
 }

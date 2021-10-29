@@ -27,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -90,7 +91,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
 		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}/records").To(noop).
+	ws.Route(ws.GET("/{name}/records").To(w.listWorkflowRecords).
 		Doc("query application workflow execution record").
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -98,6 +99,13 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("page", "Query the page number.").DataType("integer")).
 		Param(ws.PathParameter("pageSize", "Query the page size number.").DataType("integer")).
 		Writes(apis.ListWorkflowRecordsResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/records/{record}").To(w.detailWorkflowRecord).
+		Doc("query application workflow execution record detail").
+		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Writes(apis.DetailWorkflowRecordResponse{}).Do(returns200, returns500))
 
 	return ws
 }
@@ -211,6 +219,38 @@ func (w *workflowWebService) deleteWorkflow(req *restful.Request, res *restful.R
 		return
 	}
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (w *workflowWebService) listWorkflowRecords(req *restful.Request, res *restful.Response) {
+	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	records, err := w.workflowUsecase.ListWorkflowRecords(req.Request.Context(), req.PathParameter("name"), page, pageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	if err := res.WriteEntity(records); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (w *workflowWebService) detailWorkflowRecord(req *restful.Request, res *restful.Response) {
+	record, err := w.workflowUsecase.DetailWorkflowRecord(req.Request.Context(), req.PathParameter("name"), req.PathParameter("record"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	if err := res.WriteEntity(record); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

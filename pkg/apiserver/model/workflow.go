@@ -18,12 +18,14 @@ package model
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 func init() {
 	RegistModel(&Workflow{})
+	RegistModel(&WorkflowRecord{})
 }
 
 // Workflow application delivery plan database model
@@ -72,5 +74,41 @@ func (w *Workflow) Index() map[string]string {
 	}
 	index["default"] = strconv.FormatBool(w.Default)
 	index["enable"] = strconv.FormatBool(w.Enable)
+	return index
+}
+
+// WorkflowRecord is the workflow record database model
+type WorkflowRecord struct {
+	Model
+	WorkflowPrimaryKey string `json:"workflowPrimaryKey"`
+	AppPrimaryKey      string `json:"appPrimaryKey"`
+	// name is `appName-version`, which is the same as the primary key of deploy event
+	Name       string                      `json:"name"`
+	Namespace  string                      `json:"namespace"`
+	StartTime  time.Time                   `json:"startTime,omitempty"`
+	Suspend    bool                        `json:"suspend"`
+	Terminated bool                        `json:"terminated"`
+	Steps      []common.WorkflowStepStatus `json:"steps,omitempty"`
+}
+
+// TableName return custom table name
+func (w *WorkflowRecord) TableName() string {
+	return tableNamePrefix + "workflow_record"
+}
+
+// PrimaryKey return custom primary key
+func (w *WorkflowRecord) PrimaryKey() string {
+	return w.Name
+}
+
+// Index return custom primary key
+func (w *WorkflowRecord) Index() map[string]string {
+	index := make(map[string]string)
+	if w.Name != "" {
+		index["name"] = w.Name
+	}
+	if w.WorkflowPrimaryKey != "" {
+		index["workflowPrimaryKey"] = w.WorkflowPrimaryKey
+	}
 	return index
 }

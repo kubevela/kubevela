@@ -282,3 +282,36 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 	}
 	return list, nil
 }
+
+// Count counts entities
+func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity) (int64, error) {
+	if entity.TableName() == "" {
+		return 0, datastore.ErrTableNameEmpty
+	}
+
+	selector, err := labels.Parse(fmt.Sprintf("table=%s", entity.TableName()))
+	if err != nil {
+		return 0, datastore.NewDBError(err)
+	}
+	for k, v := range entity.Index() {
+		rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
+		if err != nil {
+			return 0, datastore.ErrIndexInvalid
+		}
+		selector = selector.Add(*rq)
+	}
+	options := &client.ListOptions{
+		LabelSelector: selector,
+		Namespace:     m.namespace,
+	}
+
+	var configMaps corev1.ConfigMapList
+	if err := m.kubeclient.List(ctx, &configMaps, options); err != nil {
+		if apierrors.IsNotFound(err) {
+			return 0, nil
+		}
+		return 0, datastore.NewDBError(err)
+	}
+
+	return int64(len(configMaps.Items)), nil
+}
