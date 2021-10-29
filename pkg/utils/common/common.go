@@ -44,6 +44,7 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/flowcontrol"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
@@ -83,8 +84,10 @@ func InitBaseRestConfig() (Args, error) {
 	if err != nil && os.Getenv("IGNORE_KUBE_CONFIG") != "true" {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
+	} else if err != nil {
+		return Args{}, err
 	}
-
+	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
 	return Args{
 		Config: restConf,
 		Schema: Scheme,
