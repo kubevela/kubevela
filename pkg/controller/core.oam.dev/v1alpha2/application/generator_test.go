@@ -30,8 +30,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -39,6 +37,8 @@ var _ = Describe("Test Application workflow generator", func() {
 	var namespaceName string
 	var ns corev1.Namespace
 	var ctx context.Context
+	cd := &oamcore.ComponentDefinition{}
+	td := &oamcore.TraitDefinition{}
 
 	BeforeEach(func() {
 		namespaceName = "generate-test-" + strconv.Itoa(time.Now().Second()) + "-" + strconv.Itoa(time.Now().Nanosecond())
@@ -59,6 +59,18 @@ var _ = Describe("Test Application workflow generator", func() {
 
 		By("Create the Component Definition for test")
 		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(Succeed())
+
+		defJson, err := yaml.YAMLToJSON([]byte(componentDefYaml))
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(defJson, cd)).Should(BeNil())
+		cd.SetNamespace("vela-system")
+		Expect(k8sClient.Create(ctx, cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(rolloutTdDef, td)).Should(BeNil())
+		td.SetNamespace("vela-system")
+		Expect(k8sClient.Create(ctx, td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	AfterEach(func() {
@@ -112,10 +124,6 @@ var _ = Describe("Test Application workflow generator", func() {
 		_, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		appRev := &oamcore.ApplicationRevision{}
-		dm, err := discoverymapper.New(cfg)
-		Expect(err).To(BeNil())
-		pd, err := packages.NewPackageDiscover(cfg)
-		Expect(err).To(BeNil())
 
 		handler := &AppHandler{
 			r:      reconciler,
@@ -123,7 +131,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			parser: appParser,
 		}
 
-		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev, k8sClient, dm, pd)
+		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -160,10 +168,6 @@ var _ = Describe("Test Application workflow generator", func() {
 		_, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		appRev := &oamcore.ApplicationRevision{}
-		dm, err := discoverymapper.New(cfg)
-		Expect(err).To(BeNil())
-		pd, err := packages.NewPackageDiscover(cfg)
-		Expect(err).To(BeNil())
 
 		handler := &AppHandler{
 			r:      reconciler,
@@ -171,10 +175,77 @@ var _ = Describe("Test Application workflow generator", func() {
 			parser: appParser,
 		}
 
-		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev, k8sClient, dm, pd)
+		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
 		Expect(taskRunner[1].Name()).Should(BeEquivalentTo("myweb2"))
+	})
+
+	It("Test render component", func() {
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-test",
+				Namespace: namespaceName,
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Traits: []common.ApplicationTrait{
+							{
+								Type: "rollout",
+							},
+						},
+					},
+				},
+			},
+		}
+		af, err := appParser.GenerateAppFile(ctx, app)
+		Expect(err).Should(BeNil())
+		_, err = af.PrepareWorkflowAndPolicy()
+		Expect(err).Should(BeNil())
+		apprev := &oamcore.ApplicationRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-test-v1",
+				Namespace: namespaceName,
+			},
+			Spec: oamcore.ApplicationRevisionSpec{
+				Application:          *app.DeepCopy(),
+				ComponentDefinitions: make(map[string]oamcore.ComponentDefinition),
+				WorkloadDefinitions:  make(map[string]oamcore.WorkloadDefinition),
+				TraitDefinitions:     make(map[string]oamcore.TraitDefinition),
+				ScopeDefinitions:     make(map[string]oamcore.ScopeDefinition),
+			},
+		}
+		apprev.Spec.ComponentDefinitions["worker"] = *cd
+		apprev.Spec.TraitDefinitions["rollout"] = *td
+		Expect(k8sClient.Create(ctx, apprev)).Should(BeNil())
+
+		handler := &AppHandler{
+			r:      reconciler,
+			app:    app,
+			parser: appParser,
+		}
+
+		renderFunc := handler.renderComponentFunc(appParser, apprev, af)
+		comp := common.ApplicationComponent{
+			Name:       "myweb1",
+			Type:       "worker",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+			Traits: []common.ApplicationTrait{
+				{
+					Type: "rollout",
+				},
+			},
+		}
+		_, _, err = renderFunc(comp, nil, "", "")
+		Expect(err).Should(BeNil())
 	})
 })

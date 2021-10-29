@@ -30,9 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -48,15 +46,12 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
 	af *appfile.Appfile,
-	appRev *v1beta1.ApplicationRevision,
-	cli client.Client,
-	dm discoverymapper.DiscoveryMapper,
-	pd *packages.PackageDiscover) ([]wfTypes.TaskRunner, error) {
+	appRev *v1beta1.ApplicationRevision) ([]wfTypes.TaskRunner, error) {
 	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, cli, h.Dispatch)
+	kube.Install(handlerProviders, h.r.Client, h.Dispatch)
 	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
-		appParser, appRev, af, cli))
-	taskDiscover := tasks.NewTaskDiscover(handlerProviders, pd, cli, dm)
+		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
+	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm)
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
 		options := &wfTypes.GeneratorOptions{
@@ -123,38 +118,34 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 	return errors.Errorf("component %s not found", o.Component)
 }
 
-func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile, cli client.Client) oamProvider.ComponentApply {
+func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
+
+		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
+		if err != nil {
+			return nil, nil, err
+		}
+		return renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
+	}
+}
+
+func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 
-		wl, err := appParser.ParseWorkloadFromRevision(comp, appRev)
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
-			return nil, nil, false, errors.WithMessage(err, "ParseWorkload")
+			return nil, nil, false, err
 		}
-		wl.Patch = patcher
-		manifest, err := af.GenerateComponentManifest(wl)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
 		if err != nil {
-			return nil, nil, false, errors.WithMessage(err, "GenerateComponentManifest")
+			return nil, nil, false, err
 		}
-		if err := af.SetOAMContract(manifest); err != nil {
-			return nil, nil, false, errors.WithMessage(err, "SetOAMContract")
-		}
-		if err := h.HandleComponentsRevision(ctx, []*types.ComponentManifest{manifest}); err != nil {
-			return nil, nil, false, errors.WithMessage(err, "HandleComponentsRevision")
-		}
+
 		if len(manifest.PackagedWorkloadResources) != 0 {
 			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
-			}
-		}
-		readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), h.r.Client)})
-		if err != nil {
-			return nil, nil, false, errors.WithMessage(err, "assemble resources before apply fail")
-		}
-		if overrideNamespace != "" {
-			readyWorkload.SetNamespace(overrideNamespace)
-			for _, readyTrait := range readyTraits {
-				readyTrait.SetNamespace(overrideNamespace)
 			}
 		}
 		skipStandardWorkload := skipApplyWorkload(wl)
@@ -176,9 +167,48 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if !isHealth {
 			return nil, nil, false, nil
 		}
-		workload, traits, err := getComponentResources(ctx, manifest, skipStandardWorkload, cli)
+		workload, traits, err := getComponentResources(ctx, manifest, skipStandardWorkload, h.r.Client)
 		return workload, traits, true, err
 	}
+}
+
+func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
+	appParser *appfile.Parser,
+	comp common.ApplicationComponent,
+	appRev *v1beta1.ApplicationRevision,
+	patcher *value.Value,
+	af *appfile.Appfile) (*appfile.Workload, *types.ComponentManifest, error) {
+	wl, err := appParser.ParseWorkloadFromRevision(comp, appRev)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "ParseWorkload")
+	}
+	wl.Patch = patcher
+	manifest, err := af.GenerateComponentManifest(wl)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
+	}
+	if err := af.SetOAMContract(manifest); err != nil {
+		return nil, nil, errors.WithMessage(err, "SetOAMContract")
+	}
+	if err := h.HandleComponentsRevision(ctx, []*types.ComponentManifest{manifest}); err != nil {
+		return nil, nil, errors.WithMessage(err, "HandleComponentsRevision")
+	}
+
+	return wl, manifest, nil
+}
+
+func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), client)})
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
+	}
+	if overrideNamespace != "" {
+		readyWorkload.SetNamespace(overrideNamespace)
+		for _, readyTrait := range readyTraits {
+			readyTrait.SetNamespace(overrideNamespace)
+		}
+	}
+	return readyWorkload, readyTraits, nil
 }
 
 func skipApplyWorkload(wl *appfile.Workload) bool {

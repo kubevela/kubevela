@@ -36,6 +36,32 @@ import (
 
 #ApplyComponent: oam.#ApplyComponent
 
+#RenderComponent: oam.#RenderComponent
+
+#ApplyComponentRemaining: #Steps & {
+	// exceptions specify the resources not to apply.
+	exceptions: [...string]
+	_exceptions: {for c in exceptions {"\(c)": true}}
+	component: string
+
+	load:   oam.#LoadComponets @step(1)
+	render: #Steps & {
+		rendered: oam.#RenderComponent & {
+			value: load.value[component]
+		}
+		comp: kube.#Apply & {
+			value: rendered.output
+		}
+		for name, c in rendered.outputs {
+			if _exceptions[name] == _|_ {
+				"\(name)": kube.#Apply & {
+					value: c
+				}
+			}
+		}
+	} @step(2)
+}
+
 #ApplyRemaining: #Steps & {
 	// exceptions specify the resources not to apply.
 	exceptions: [...string]
