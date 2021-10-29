@@ -87,7 +87,7 @@ func InitBaseRestConfig() (Args, error) {
 	} else if err != nil {
 		return Args{}, err
 	}
-	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(1000, 1000)
+	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
 	return Args{
 		Config: restConf,
 		Schema: Scheme,
