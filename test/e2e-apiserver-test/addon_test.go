@@ -85,7 +85,7 @@ var _ = Describe("Test addon rest api", func() {
 			Args: map[string]string{},
 		}
 		testAddon := "fluxcd"
-		res := post("/api/v1/addons/enable?name="+testAddon, req)
+		res := post("/api/v1/addons/"+testAddon+"/enable", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 		Expect(res.Body).ShouldNot(BeNil())
@@ -103,7 +103,7 @@ var _ = Describe("Test addon rest api", func() {
 		period := 20 * time.Second
 		timeout := 5 * time.Minute
 		err = wait.PollImmediate(period, timeout, func() (done bool, err error) {
-			res = get("/api/v1/addons/status?name=" + testAddon)
+			res = get("/api/v1/addons/" + testAddon + "/status")
 			err = json.NewDecoder(res.Body).Decode(&statusRes)
 			Expect(err).Should(BeNil())
 			if statusRes.Phase == apis.AddonPhaseEnabled {
@@ -113,7 +113,7 @@ var _ = Describe("Test addon rest api", func() {
 		})
 		Expect(err).Should(BeNil())
 
-		res = post("/api/v1/addons/disable?name="+testAddon, req)
+		res = post("/api/v1/addons/"+testAddon+"/disable", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 		Expect(res.Body).ShouldNot(BeNil())
