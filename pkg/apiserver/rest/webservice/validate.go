@@ -52,7 +52,7 @@ func ValidateName(fl validator.FieldLevel) bool {
 // ValidateAlias custom check alias field
 func ValidateAlias(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
-	if len(value) > 64 || len(value) < 2 {
+	if value != "" && (len(value) > 64 || len(value) < 2) {
 		return false
 	}
 	return true
