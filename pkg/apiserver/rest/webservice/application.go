@@ -222,7 +222,11 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 }
 
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
-	apps, err := c.applicationUsecase.ListApplications(req.Request.Context())
+	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{
+		Namespace: req.QueryParameter("namespace"),
+		Cluster:   req.QueryParameter("cluster"),
+		Query:     req.QueryParameter("query"),
+	})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

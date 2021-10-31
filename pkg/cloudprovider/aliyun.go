@@ -116,6 +116,7 @@ func (provider *AliyunCloudProvider) GetClusterInfo(clusterID string) (*CloudClu
 	labels := provider.decodeClusterLabels(cluster.Tags)
 	url := provider.decodeClusterURL(*cluster.MasterUrl)
 	return &CloudCluster{
+		Provider:     ProviderAliyun,
 		ID:           *cluster.ClusterId,
 		Name:         *cluster.Name,
 		Type:         *cluster.ClusterType,

@@ -56,6 +56,13 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AddonRegistryMeta{}))
 
+	ws.Route(ws.GET("/").To(s.listAddonRegistry).
+		Doc("list all addon registry").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListAddonRegistryResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ListAddonRegistryResponse{}))
+
 	// Delete
 	ws.Route(ws.DELETE("/{name}").To(s.deleteAddonRegistry).
 		Doc("delete an addon registry").
@@ -103,6 +110,18 @@ func (s *addonRegistryWebService) deleteAddonRegistry(req *restful.Request, res 
 	}
 
 	if err := res.WriteEntity(*utils.ConvertAddonRegistryModel2AddonRegistryMeta(r)); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (s *addonRegistryWebService) listAddonRegistry(req *restful.Request, res *restful.Response) {
+	registrys, err := s.addonUsecase.ListAddonRegistries(req.Request.Context())
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.ListAddonRegistryResponse{Registrys: registrys}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

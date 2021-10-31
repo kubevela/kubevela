@@ -50,21 +50,23 @@ type EmptyResponse struct{}
 
 // CreateAddonRegistryRequest defines the format for addon registry create request
 type CreateAddonRegistryRequest struct {
-	Name string `json:"name" validate:"required"`
-
-	Git *model.GitAddonSource `json:"git,omitempty"`
+	Name string                `json:"name" validate:"checkname"`
+	Git  *model.GitAddonSource `json:"git,omitempty"`
 }
 
 // AddonRegistryMeta defines the format for a single addon registry
 type AddonRegistryMeta struct {
-	Name string `json:"name" validate:"required"`
+	Name string                `json:"name" validate:"required"`
+	Git  *model.GitAddonSource `json:"git,omitempty"`
+}
 
-	Git *model.GitAddonSource `json:"git,omitempty"`
+// ListAddonRegistryResponse list addon registry
+type ListAddonRegistryResponse struct {
+	Registrys []*AddonRegistryMeta `json:"registrys"`
 }
 
 // EnableAddonRequest defines the format for enable addon request
 type EnableAddonRequest struct {
-
 	// Args is the key-value environment variables, e.g. AK/SK credentials.
 	Args map[string]string `json:"args,omitempty"`
 }
@@ -76,15 +78,11 @@ type ListAddonResponse struct {
 
 // AddonMeta defines the format for a single addon
 type AddonMeta struct {
-	Name string `json:"name"`
-
-	Version string `json:"version"`
-
-	Description string `json:"description"`
-
-	Icon string `json:"icon"`
-
-	Tags []string `json:"tags"`
+	Name        string   `json:"name"`
+	Version     string   `json:"version"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	Tags        []string `json:"tags"`
 }
 
 // DetailAddonResponse defines the format for showing the addon details
@@ -120,6 +118,7 @@ type AccessKeyRequest struct {
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
 	Name             string            `json:"name" validate:"checkname"`
+	Alias            string            `json:"alias" validate:"checkalias"`
 	Description      string            `json:"description,omitempty"`
 	Icon             string            `json:"icon"`
 	KubeConfig       string            `json:"kubeConfig,omitempty" validate:"required_without=KubeConfigSecret"`
@@ -134,6 +133,7 @@ type ConnectCloudClusterRequest struct {
 	AccessKeySecret string            `json:"accessKeySecret"`
 	ClusterID       string            `json:"clusterID"`
 	Name            string            `json:"name" validate:"checkname"`
+	Alias           string            `json:"alias" validate:"checkalias"`
 	Description     string            `json:"description,omitempty"`
 	Icon            string            `json:"icon"`
 	Labels          map[string]string `json:"labels,omitempty"`
@@ -174,6 +174,7 @@ type ListCloudClusterResponse struct {
 // ClusterBase cluster base model
 type ClusterBase struct {
 	Name        string            `json:"name"`
+	Alias       string            `json:"alias" validate:"checkalias"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels"`
@@ -186,14 +187,35 @@ type ClusterBase struct {
 	Reason string `json:"reason"`
 }
 
+// ListApplicatioOptions list application query options
+type ListApplicatioOptions struct {
+	Namespace string `json:"namespace"`
+	Cluster   string `json:"cluster"`
+	Query     string `json:"query"`
+}
+
 // ListApplicationResponse list applications by query params
 type ListApplicationResponse struct {
 	Applications []*ApplicationBase `json:"applications"`
 }
 
+// EnvBindList env bind list
+type EnvBindList []*EnvBind
+
+// ContainCluster contain cluster name
+func (e EnvBindList) ContainCluster(name string) bool {
+	for _, eb := range e {
+		if eb.ClusterSelector != nil && eb.ClusterSelector.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // ApplicationBase application base model
 type ApplicationBase struct {
 	Name            string            `json:"name"`
+	Alias           string            `json:"alias"`
 	Namespace       string            `json:"namespace"`
 	Description     string            `json:"description"`
 	CreateTime      time.Time         `json:"createTime"`
@@ -201,7 +223,7 @@ type ApplicationBase struct {
 	Icon            string            `json:"icon"`
 	Labels          map[string]string `json:"labels,omitempty"`
 	Status          string            `json:"status"`
-	EnvBind         []*EnvBind        `json:"envBind,omitempty"`
+	EnvBind         EnvBindList       `json:"envBind,omitempty"`
 	GatewayRuleList []GatewayRule     `json:"gatewayRule"`
 }
 
@@ -227,6 +249,7 @@ type GatewayRule struct {
 // CreateApplicationRequest create application request body
 type CreateApplicationRequest struct {
 	Name        string            `json:"name" validate:"checkname"`
+	Alias       string            `json:"alias" validate:"checkalias"`
 	Namespace   string            `json:"namespace" validate:"checkname"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
@@ -276,6 +299,7 @@ type ApplicationResourceInfo struct {
 // ComponentBase component base model
 type ComponentBase struct {
 	Name          string            `json:"name"`
+	Alias         string            `json:"alias"`
 	Description   string            `json:"description"`
 	Labels        map[string]string `json:"labels,omitempty"`
 	ComponentType string            `json:"componentType"`
@@ -296,6 +320,7 @@ type ComponentListResponse struct {
 // CreateComponentRequest create component request model
 type CreateComponentRequest struct {
 	Name          string            `json:"name" validate:"checkname"`
+	Alias         string            `json:"alias" validate:"checkalias"`
 	Description   string            `json:"description"`
 	Icon          string            `json:"icon"`
 	Labels        map[string]string `json:"labels,omitempty"`
@@ -431,6 +456,7 @@ type PolicyDefinition struct {
 type CreateWorkflowRequest struct {
 	AppName     string         `json:"appName" validate:"checkname"`
 	Name        string         `json:"name"  validate:"checkname"`
+	Alias       string         `json:"alias"  validate:"checkalias"`
 	Description string         `json:"description"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 	Enable      bool           `json:"enable"`
@@ -439,6 +465,7 @@ type CreateWorkflowRequest struct {
 
 // UpdateWorkflowRequest update or create application workflow
 type UpdateWorkflowRequest struct {
+	Alias       string         `json:"alias"  validate:"checkalias"`
 	Description string         `json:"description"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 	Enable      bool           `json:"enable"`
@@ -471,6 +498,7 @@ type ListWorkflowResponse struct {
 // WorkflowBase workflow base model
 type WorkflowBase struct {
 	Name        string    `json:"name"`
+	Alias       string    `json:"alias"`
 	Description string    `json:"description"`
 	Enable      bool      `json:"enable"`
 	Default     bool      `json:"default"`

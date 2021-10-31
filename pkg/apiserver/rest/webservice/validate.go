@@ -35,6 +35,9 @@ func init() {
 	if err := validate.RegisterValidation("checkname", ValidateName); err != nil {
 		panic(err)
 	}
+	if err := validate.RegisterValidation("checkalias", ValidateAlias); err != nil {
+		panic(err)
+	}
 }
 
 // ValidateName custom check name field
@@ -44,4 +47,13 @@ func ValidateName(fl validator.FieldLevel) bool {
 		return false
 	}
 	return nameRegexp.MatchString(value)
+}
+
+// ValidateAlias custom check alias field
+func ValidateAlias(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value != "" && (len(value) > 64 || len(value) < 2) {
+		return false
+	}
+	return true
 }

@@ -30,6 +30,7 @@ func init() {
 type Application struct {
 	Model
 	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
 	Namespace   string            `json:"namespace"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
@@ -82,6 +83,7 @@ type ApplicationComponent struct {
 	Icon          string            `json:"icon,omitempty"`
 	Creator       string            `json:"creator"`
 	Name          string            `json:"name"`
+	Alias         string            `json:"alias"`
 	Type          string            `json:"type"`
 
 	// ExternalRevision specified the component revisionName
