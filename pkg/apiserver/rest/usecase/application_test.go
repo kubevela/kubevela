@@ -140,7 +140,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListApplications function", func() {
-		apps, err := appUsecase.ListApplications(context.TODO())
+		apps, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(apps), 3)).Should(BeEmpty())
 	})

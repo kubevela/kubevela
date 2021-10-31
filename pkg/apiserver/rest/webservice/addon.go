@@ -19,6 +19,7 @@ package webservice
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -48,6 +49,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(s.listAddons).
 		Doc("list all addons").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
 		Returns(200, "", apis.ListAddonResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListAddonResponse{}))
@@ -59,41 +61,41 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.DetailAddonResponse{}).
 		Returns(400, "", bcode.Bcode{}).
-		Param(ws.QueryParameter("name", "addon name to query detail").DataType("string").Required(true)).
+		Param(ws.PathParameter("name", "addon name to query detail").DataType("string").Required(true)).
 		Writes(apis.DetailAddonResponse{}))
 
 	// GET status
-	ws.Route(ws.GET("/status").To(s.statusAddon).
+	ws.Route(ws.GET("/{name}/status").To(s.statusAddon).
 		Doc("show status of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
-		Param(ws.QueryParameter("name", "addon name to query status").DataType("string").Required(true)).
+		Param(ws.PathParameter("name", "addon name to query status").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
 	// enable addon
-	ws.Route(ws.POST("/enable").To(s.enableAddon).
+	ws.Route(ws.POST("/{name}/enable").To(s.enableAddon).
 		Doc("enable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
-		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
+		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
 	// disable addon
-	ws.Route(ws.POST("/disable").To(s.disableAddon).
+	ws.Route(ws.POST("/{name}/disable").To(s.disableAddon).
 		Doc("disable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
-		Param(ws.QueryParameter("name", "addon name to enable").DataType("string").Required(true)).
+		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
 	return ws
 }
 
 func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response) {
-	detailAddons, err := s.addonUsecase.ListAddons(req.Request.Context(), false)
+	detailAddons, err := s.addonUsecase.ListAddons(req.Request.Context(), false, req.QueryParameter("query"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -113,7 +115,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 }
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
-	name := req.QueryParameter("name")
+	name := req.PathParameter("name")
 	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -140,7 +142,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 		return
 	}
 
-	name := req.QueryParameter("name")
+	name := req.PathParameter("name")
 	err = s.addonUsecase.EnableAddon(req.Request.Context(), name, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -151,7 +153,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 }
 
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
-	name := req.QueryParameter("name")
+	name := req.PathParameter("name")
 	err := s.addonUsecase.DisableAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -161,7 +163,7 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 }
 
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
-	name := req.QueryParameter("name")
+	name := req.PathParameter("name")
 	status, err := s.addonUsecase.StatusAddon(name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)

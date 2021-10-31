@@ -32,6 +32,7 @@ func init() {
 type Workflow struct {
 	Model
 	Name        string `json:"name"`
+	Alias       string `json:"alias"`
 	Description string `json:"description"`
 	Enable      bool   `json:"enable"`
 	// Workflow used by the default

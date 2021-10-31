@@ -22,10 +22,11 @@ func init() {
 
 // ProviderInfo describes the information from provider API
 type ProviderInfo struct {
-	Name   string            `json:"name"`
-	ID     string            `json:"id"`
-	Zone   string            `json:"zone"`
-	Labels map[string]string `json:"labels"`
+	Provider    string            `json:"provider"`
+	ClusterName string            `json:"name"`
+	ID          string            `json:"id"`
+	Zone        string            `json:"zone"`
+	Labels      map[string]string `json:"labels"`
 }
 
 const (
@@ -39,6 +40,7 @@ const (
 type Cluster struct {
 	Model
 	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels"`

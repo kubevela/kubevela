@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,7 +53,7 @@ const (
 
 // ApplicationUsecase application usecase
 type ApplicationUsecase interface {
-	ListApplications(ctx context.Context) ([]*apisv1.ApplicationBase, error)
+	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error)
 	GetApplication(ctx context.Context, appName string) (*model.Application, error)
 	DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error)
 	PublishApplicationTemplate(ctx context.Context, app *model.Application) (*apisv1.ApplicationTemplateBase, error)
@@ -92,15 +93,28 @@ func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUseca
 }
 
 // ListApplications list applications
-func (c *applicationUsecaseImpl) ListApplications(ctx context.Context) ([]*apisv1.ApplicationBase, error) {
+func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error) {
 	var app = model.Application{}
+	if listOptions.Namespace != "" {
+		app.Namespace = listOptions.Namespace
+	}
 	entitys, err := c.ds.List(ctx, &app, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	var list []*apisv1.ApplicationBase
 	for _, entity := range entitys {
-		list = append(list, c.converAppModelToBase(ctx, entity.(*model.Application)))
+		appBase := c.converAppModelToBase(ctx, entity.(*model.Application))
+		if listOptions.Query != "" &&
+			!(strings.Contains(appBase.Alias, listOptions.Query) ||
+				strings.Contains(appBase.Name, listOptions.Query) ||
+				strings.Contains(appBase.Description, listOptions.Query)) {
+			continue
+		}
+		if listOptions.Cluster != "" && !appBase.EnvBind.ContainCluster(listOptions.Cluster) {
+			continue
+		}
+		list = append(list, appBase)
 	}
 	return list, nil
 }
@@ -152,6 +166,7 @@ func (c *applicationUsecaseImpl) PublishApplicationTemplate(ctx context.Context,
 func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apisv1.CreateApplicationRequest) (*apisv1.ApplicationBase, error) {
 	application := model.Application{
 		Name:        req.Name,
+		Alias:       req.Alias,
 		Description: req.Description,
 		Namespace:   req.Namespace,
 		Icon:        req.Icon,
@@ -357,6 +372,7 @@ func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model
 func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.ApplicationComponent) *apisv1.ComponentBase {
 	return &apisv1.ComponentBase{
 		Name:          m.Name,
+		Alias:         m.Alias,
 		Description:   m.Description,
 		Labels:        m.Labels,
 		ComponentType: m.Type,
@@ -629,6 +645,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.Application) *apisv1.ApplicationBase {
 	appBeas := &apisv1.ApplicationBase{
 		Name:        app.Name,
+		Alias:       app.Alias,
 		Namespace:   app.Namespace,
 		CreateTime:  app.CreateTime,
 		UpdateTime:  app.UpdateTime,
@@ -720,6 +737,7 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		Name:      com.Name,
 		Type:      com.ComponentType,
 		DependsOn: com.DependsOn,
+		Alias:     com.Alias,
 	}
 	properties, err := model.NewJSONStructByString(com.Properties)
 	if err != nil {

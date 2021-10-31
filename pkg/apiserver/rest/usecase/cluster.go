@@ -174,6 +174,7 @@ func createClusterModelFromRequest(req apis.CreateClusterRequest, oldCluster *mo
 		newCluster = &model.Cluster{}
 	}
 	newCluster.Name = req.Name
+	newCluster.Alias = req.Alias
 	newCluster.Description = req.Description
 	newCluster.Icon = req.Icon
 	newCluster.Labels = req.Labels
@@ -194,10 +195,11 @@ func (c *clusterUsecaseImpl) createKubeCluster(ctx context.Context, req apis.Cre
 	cluster.SetUpdateTime(t)
 	if providerCluster != nil {
 		cluster.Provider = model.ProviderInfo{
-			Name:   providerCluster.Name,
-			ID:     providerCluster.ID,
-			Zone:   providerCluster.Zone,
-			Labels: providerCluster.Labels,
+			Provider:    providerCluster.Provider,
+			ClusterName: providerCluster.Name,
+			ID:          providerCluster.ID,
+			Zone:        providerCluster.Zone,
+			Labels:      providerCluster.Labels,
 		}
 		cluster.DashboardURL = providerCluster.DashBoardURL
 	}
@@ -431,6 +433,7 @@ func (c *clusterUsecaseImpl) ConnectCloudCluster(ctx context.Context, provider s
 	}
 	createReq := apis.CreateClusterRequest{
 		Name:        req.Name,
+		Alias:       req.Alias,
 		Description: req.Description,
 		Icon:        req.Icon,
 		Labels:      req.Labels,
@@ -442,6 +445,7 @@ func (c *clusterUsecaseImpl) ConnectCloudCluster(ctx context.Context, provider s
 func newClusterBaseFromCluster(cluster *model.Cluster) *apis.ClusterBase {
 	return &apis.ClusterBase{
 		Name:        cluster.Name,
+		Alias:       cluster.Alias,
 		Description: cluster.Description,
 		Icon:        cluster.Icon,
 		Labels:      cluster.Labels,

@@ -23,6 +23,7 @@ const (
 
 // CloudCluster describes the interface that cloud provider should return
 type CloudCluster struct {
+	Provider     string            `json:"provider"`
 	ID           string            `json:"id"`
 	Name         string            `json:"name"`
 	Type         string            `json:"type"`

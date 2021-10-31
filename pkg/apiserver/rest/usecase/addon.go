@@ -5,27 +5,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Masterminds/sprig"
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
-	"golang.org/x/oauth2"
 	"net/http"
 	"net/url"
 	"path"
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
+	"github.com/Masterminds/sprig"
+	"github.com/google/go-github/v32/github"
+	"golang.org/x/oauth2"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/google/go-github/v32/github"
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
@@ -46,7 +47,8 @@ const (
 type AddonUsecase interface {
 	GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error)
 	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
-	ListAddons(ctx context.Context, detailed bool) ([]*apis.DetailAddonResponse, error)
+	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
+	ListAddons(ctx context.Context, detailed bool, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
 	GetAddon(ctx context.Context, name string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
@@ -73,7 +75,7 @@ type addonUsecaseImpl struct {
 }
 
 func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string) (*apis.DetailAddonResponse, error) {
-	addons, err := u.ListAddons(ctx, true)
+	addons, err := u.ListAddons(ctx, true, "")
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +123,7 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	}
 }
 
-func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool) ([]*apis.DetailAddonResponse, error) {
+func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, query string) ([]*apis.DetailAddonResponse, error) {
 	// Backward compatibility with ConfigMap addons.
 	// We will deprecate ConfigMap and use Git based registry.
 	addons, err := getAddonsFromConfigMap(detailed)
@@ -129,16 +131,26 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool) ([]*ap
 		return nil, err
 	}
 
-	rs, err := u.listAddonRegistries(ctx)
+	rs, err := u.ListAddonRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
 	for _, r := range rs {
 		gitAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
 		if err != nil {
-			return nil, err
+			log.Logger.Errorf("list addons from registry %s failure %s", r.Name, err.Error())
+			continue
 		}
 		addons = mergeAddons(addons, gitAddons)
+	}
+	if query != "" {
+		var new []*apis.DetailAddonResponse
+		for i, addon := range addons {
+			if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
+				new = append(new, addons[i])
+			}
+		}
+		addons = new
 	}
 	sort.Slice(addons, func(i, j int) bool {
 		return addons[i].Name < addons[j].Name
@@ -175,7 +187,7 @@ func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name strin
 	return &r, nil
 }
 
-func (u *addonUsecaseImpl) listAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
+func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
 	var r = model.AddonRegistry{}
 	entities, err := u.ds.List(ctx, &r, &datastore.ListOptions{})
 	if err != nil {
@@ -307,6 +319,7 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 		)
 		tc = oauth2.NewClient(context.Background(), ts)
 	}
+	tc.Timeout = time.Second * 10
 	clt := github.NewClient(tc)
 	// TODO add error handling
 	baseURL = strings.TrimSuffix(baseURL, ".git")
@@ -329,7 +342,7 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 		}
 		addonRes := apis.DetailAddonResponse{
 			AddonMeta: apis.AddonMeta{
-				Name: *subItems.Name,
+				Name: converAddonName(*subItems.Name),
 			},
 		}
 		var err error
@@ -384,7 +397,7 @@ func getAddonsFromConfigMap(detailed bool) ([]*apis.DetailAddonResponse, error) 
 	for _, addon := range cliAddons {
 		d := &apis.DetailAddonResponse{
 			AddonMeta: apis.AddonMeta{
-				Name: addon.Name,
+				Name: converAddonName(addon.Name),
 				// TODO add actual Version, Icon, tags
 				Version:     "v1alpha1",
 				Description: addon.Description,
@@ -399,5 +412,8 @@ func getAddonsFromConfigMap(detailed bool) ([]*apis.DetailAddonResponse, error) 
 		addons = append(addons, d)
 	}
 	return addons, nil
+}
 
+func converAddonName(name string) string {
+	return strings.ReplaceAll(name, "/", "-")
 }

@@ -38,6 +38,7 @@ endif
 # Image URL to use all building/pushing image targets
 VELA_CORE_IMAGE      ?= vela-core:latest
 VELA_CORE_TEST_IMAGE ?= vela-core-test:$(GIT_COMMIT)
+VELA_APISERVER_IMAGE      ?= apiserver:latest
 VELA_RUNTIME_ROLLOUT_IMAGE       ?= vela-runtime-rollout:latest
 VELA_RUNTIME_ROLLOUT_TEST_IMAGE  ?= vela-runtime-rollout-test:$(GIT_COMMIT)
 RUNTIME_CLUSTER_CONFIG ?= /tmp/worker.kubeconfig
@@ -133,8 +134,12 @@ check-diff: reviewable
 	@$(OK) branch is clean
 
 # Build the docker image
-docker-build:
+docker-build: docker-build-core docker-build-apiserver
+	@$(OK)
+docker-build-core:
 	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_CORE_IMAGE) .
+docker-build-apiserver:
+	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_APISERVER_IMAGE) -f Dockerfile.apiserver .
 
 # Build the runtime docker image
 docker-build-runtime-rollout:
