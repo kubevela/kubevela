@@ -96,17 +96,17 @@ template: {
 			url?:       string
 			value?:     string
 			style?:     string
-			text?:      text
+			text?:      textType
 			confirm?: {
-				title:   text
-				text:    text
-				confirm: text
-				deny:    text
+				title:   textType
+				text:    textType
+				confirm: textType
+				deny:    textType
 				style?:  string
 			}
 			options?: [...option]
 			initial_options?: [...option]
-			placeholder?:  text
+			placeholder?:  textType
 			initial_date?: string
 			image_url?:    string
 			alt_text?:     string
@@ -123,7 +123,7 @@ template: {
 		}]
 	}
 
-	text: {
+	textType: {
 		type:      string
 		text:      string
 		emoji?:    bool
@@ -131,9 +131,9 @@ template: {
 	}
 
 	option: {
-		text:         text
+		text:         textType
 		value:        string
-		description?: text
+		description?: textType
 		url?:         string
 	}
 
