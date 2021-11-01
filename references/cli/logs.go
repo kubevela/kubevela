@@ -100,7 +100,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
+	ctx = multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
 	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
 	labelSelector := labels.Everything()
 	pod, err := regexp.Compile(selectedRes.Name + "-.*")
@@ -108,7 +108,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 		return fmt.Errorf("fail to compile '%s' for logs query", selectedRes.Name+".*")
 	}
 	container := regexp.MustCompile(".*")
-	namespace := l.Env.Namespace
+	namespace := selectedRes.Namespace
 	added, removed, err := stern.Watch(ctx, clientSet.CoreV1().Pods(namespace), pod, container, nil, stern.RUNNING, labelSelector)
 	if err != nil {
 		return err
