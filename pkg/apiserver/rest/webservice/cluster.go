@@ -72,7 +72,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailClusterResponse{}))
 
-	ws.Route(ws.POST("/{clusterName}").To(c.modifyKubeCluster).
+	ws.Route(ws.PUT("/{clusterName}").To(c.modifyKubeCluster).
 		Doc("modify cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).

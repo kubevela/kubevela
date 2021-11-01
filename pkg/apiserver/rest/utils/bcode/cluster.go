@@ -42,3 +42,6 @@ var ErrLocalClusterReserved = NewBcode(400, 40007, "local cluster is reserved")
 
 // ErrLocalClusterImmutable local cluster kubeConfig is immutable
 var ErrLocalClusterImmutable = NewBcode(400, 40008, "local cluster is immutable")
+
+// ErrInvalidAccessKeyOrSecretKey access key or secret key is invalid
+var ErrInvalidAccessKeyOrSecretKey = NewBcode(400, 40013, "access key or secret key is invalid")

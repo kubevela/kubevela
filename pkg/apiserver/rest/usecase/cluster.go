@@ -246,7 +246,7 @@ func (c *clusterUsecaseImpl) GetKubeCluster(ctx context.Context, clusterName str
 		return nil, errors.Wrapf(err, "failed to update cluster %s status info", clusterName)
 	}
 	return &apis.DetailClusterResponse{
-		ClusterBase:  *newClusterBaseFromCluster(cluster),
+		Cluster:      *cluster,
 		ResourceInfo: resourceInfo,
 	}, nil
 }
@@ -402,6 +402,9 @@ func (c *clusterUsecaseImpl) ListCloudClusters(ctx context.Context, provider str
 	}
 	clusters, total, err := p.ListCloudClusters(pageNumber, pageSize)
 	if err != nil {
+		if p.IsInvalidKey(err) {
+			return nil, bcode.ErrInvalidAccessKeyOrSecretKey
+		}
 		log.Logger.Errorf("failed to list cloud clusters: %s", err.Error())
 		return nil, bcode.ErrGetCloudClusterFailure
 	}
@@ -428,6 +431,9 @@ func (c *clusterUsecaseImpl) ConnectCloudCluster(ctx context.Context, provider s
 	}
 	cluster, err := p.GetClusterInfo(req.ClusterID)
 	if err != nil {
+		if p.IsInvalidKey(err) {
+			return nil, bcode.ErrInvalidAccessKeyOrSecretKey
+		}
 		log.Logger.Errorf("failed to get cluster info: %s", err.Error())
 		return nil, bcode.ErrGetCloudClusterFailure
 	}

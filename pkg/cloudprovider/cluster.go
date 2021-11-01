@@ -22,6 +22,7 @@ import (
 
 // CloudClusterProvider abstracts the cloud provider to provide cluster access
 type CloudClusterProvider interface {
+	IsInvalidKey(err error) bool
 	ListCloudClusters(pageNumber int, pageSize int) ([]*CloudCluster, int, error)
 	GetClusterKubeConfig(clusterID string) (string, error)
 	GetClusterInfo(clusterID string) (*CloudCluster, error)
