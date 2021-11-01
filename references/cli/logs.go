@@ -42,7 +42,7 @@ import (
 
 // NewLogsCommand creates `logs` command to tail logs of application
 func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
-	largs := &Args{C: c}
+	largs := &Args{Args: c}
 	cmd := &cobra.Command{
 		Use:   "logs <appName>",
 		Short: "Tail logs for application in multicluster",
@@ -52,8 +52,8 @@ func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 			if err := c.SetConfig(); err != nil {
 				return err
 			}
-			largs.C = c
-			largs.C.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			largs.Args = c
+			largs.Args.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -81,7 +81,7 @@ func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 // Args creates arguments for `logs` command
 type Args struct {
 	Output    string
-	C         common.Args
+	Args      common.Args
 	Namespace string
 	App       *v1beta1.Application
 }
@@ -89,11 +89,11 @@ type Args struct {
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
 func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 
-	clientSet, err := kubernetes.NewForConfig(l.C.Config)
+	clientSet, err := kubernetes.NewForConfig(l.Args.Config)
 	if err != nil {
 		return err
 	}
-	appliedResources := appfile.GetAppliedResources(l.App)
+	appliedResources := l.App.Status.AppliedResources
 
 	selectedRes, err := common.AskToChooseOneAppliedResource(appliedResources)
 	if err != nil {

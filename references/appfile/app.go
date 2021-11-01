@@ -24,8 +24,6 @@ import (
 	"reflect"
 	"sort"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -84,11 +82,6 @@ func LoadApplication(namespace, appName string, c common.Args) (*v1beta1.Applica
 		return nil, err
 	}
 	return app, nil
-}
-
-// GetAppliedResources get applied resources form v1beta1.Application.
-func GetAppliedResources(app *v1beta1.Application) []common2.ClusterObjectReference {
-	return app.Status.AppliedResources
 }
 
 // GetComponents will get oam components from v1beta1.Application.
