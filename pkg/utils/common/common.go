@@ -46,6 +46,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/util/flowcontrol"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -74,6 +75,7 @@ func init() {
 	_ = kruise.AddToScheme(Scheme)
 	_ = terraformv1beta1.AddToScheme(Scheme)
 	_ = ocmclusterv1alpha1.Install(Scheme)
+	_ = ocmclusterv1.Install(Scheme)
 	_ = ocmworkv1.Install(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
