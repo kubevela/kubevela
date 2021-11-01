@@ -81,7 +81,6 @@ func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 // Args creates arguments for `logs` command
 type Args struct {
 	Output    string
-	Env       *types.EnvMeta
 	C         common.Args
 	Namespace string
 	App       *v1beta1.Application
