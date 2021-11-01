@@ -138,15 +138,14 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if err != nil {
 			return nil, nil, false, err
 		}
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
-		if err != nil {
-			return nil, nil, false, err
-		}
-
 		if len(manifest.PackagedWorkloadResources) != 0 {
 			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
+		}
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
+		if err != nil {
+			return nil, nil, false, err
 		}
 		skipStandardWorkload := skipApplyWorkload(wl)
 		if !skipStandardWorkload {
