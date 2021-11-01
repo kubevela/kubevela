@@ -47,6 +47,7 @@ const (
 type AddonUsecase interface {
 	GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error)
 	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
+	DeleteAddonRegistry(ctx context.Context, name string) error
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
@@ -156,6 +157,10 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, query 
 		return addons[i].Name < addons[j].Name
 	})
 	return addons, nil
+}
+
+func (u *addonUsecaseImpl) DeleteAddonRegistry(ctx context.Context, name string) error {
+	return u.ds.Delete(ctx, &model.AddonRegistry{Name: name})
 }
 
 func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
