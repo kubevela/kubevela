@@ -241,7 +241,7 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 }
 
 // ClusterObject2Map convert ClusterObjectReference to a readable map
-func ClusterObject2Map(refs ...common.ClusterObjectReference) map[string]string {
+func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
 	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | GVK: %s/%s | Name: %s"
 	objs := make(map[string]string, len(refs))
 	for _, r := range refs {
@@ -263,7 +263,7 @@ func AskToChooseOneAppliedResource(resources []common.ClusterObjectReference) (*
 	if len(resources) == 1 {
 		return &resources[0], nil
 	}
-	opMap := ClusterObject2Map(resources...)
+	opMap := ClusterObject2Map(resources)
 	var ops []string
 	for _, r := range opMap {
 		ops = append(ops, r)
