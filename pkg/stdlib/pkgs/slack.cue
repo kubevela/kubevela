@@ -53,8 +53,8 @@
 }
 
 #option: {
-	text:         textType
+	text:         #textType
 	value:        string
-	description?: textType
+	description?: #textType
 	url?:         string
 }
