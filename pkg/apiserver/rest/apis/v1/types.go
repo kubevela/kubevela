@@ -391,7 +391,20 @@ type ListDefinitionResponse struct {
 
 // DetailDefinitionResponse get definition detail
 type DetailDefinitionResponse struct {
-	Schema string `json:"schema"`
+	Schema *DefinitionSchema `json:"schema"`
+}
+
+type DefinitionSchema struct {
+	Properties map[string]DefinitionProperties `json:"properties"`
+	Required   []string                        `json:"required"`
+	Type       string                          `json:"type"`
+}
+
+type DefinitionProperties struct {
+	Default     string `json:"default"`
+	Description string `json:"description"`
+	Title       string `json:"title"`
+	Type        string `json:"type"`
 }
 
 // DefinitionBase is the definition base model

@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -126,9 +127,13 @@ func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name strin
 		return nil, err
 	}
 
-	schema, ok := cm.Data["openapi-v3-json-schema"]
+	data, ok := cm.Data["openapi-v3-json-schema"]
 	if !ok {
 		return nil, fmt.Errorf("failed to get definition schema")
+	}
+	schema := &apisv1.DefinitionSchema{}
+	if err := json.Unmarshal([]byte(data), schema); err != nil {
+		return nil, err
 	}
 	return &apisv1.DetailDefinitionResponse{
 		Schema: schema,

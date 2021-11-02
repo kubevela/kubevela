@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -97,15 +98,30 @@ var _ = Describe("Test namespace usecase functions", func() {
 				Namespace: "vela-system",
 			},
 			Data: map[string]string{
-				"openapi-v3-json-schema": `{"properties":{"cluster":{"default":"","description":"Specify
-				the cluster of the object","title":"cluster","type":"string"},"value":{"description":"Specify
-				the value of the object","title":"value","type":"object"}},"required":["value","cluster"],"type":"object"}`,
+				"openapi-v3-json-schema": `{"properties":{"cluster":{"default":"","description":"Specify the cluster of the object","title":"cluster","type":"string"},"value":{"description":"Specify the value of the object","title":"value","type":"object"}},"required":["value","cluster"],"type":"object"}`,
 			},
 		}
 		err := k8sClient.Create(context.Background(), cm)
 		Expect(err).Should(Succeed())
 		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object")
 		Expect(err).Should(BeNil())
-		Expect(schema.Schema).Should(Equal(cm.Data["openapi-v3-json-schema"]))
+		Expect(schema.Schema).Should(Equal(&v1.DefinitionSchema{
+			Properties: map[string]v1.DefinitionProperties{
+				"value": {
+					Default:     "",
+					Description: "Specify the value of the object",
+					Title:       "value",
+					Type:        "object",
+				},
+				"cluster": {
+					Default:     "",
+					Description: "Specify the cluster of the object",
+					Title:       "cluster",
+					Type:        "string",
+				},
+			},
+			Required: []string{"value", "cluster"},
+			Type:     "object",
+		}))
 	})
 })
