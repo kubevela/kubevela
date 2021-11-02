@@ -18,6 +18,7 @@ package cloudprovider
 
 import (
 	"encoding/json"
+	"strings"
 
 	cs20151215 "github.com/alibabacloud-go/cs-20151215/v2/client"
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
@@ -47,6 +48,11 @@ func NewAliyunCloudProvider(accessKeyID string, accessKeySecret string) (*Aliyun
 		return nil, err
 	}
 	return &AliyunCloudProvider{Client: c}, nil
+}
+
+// IsInvalidKey check if error is InvalidAccessKey or InvalidSecretKey
+func (provider *AliyunCloudProvider) IsInvalidKey(err error) bool {
+	return strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "Code: SignatureDoesNotMatch")
 }
 
 func (provider *AliyunCloudProvider) decodeClusterLabels(tags []*cs20151215.Tag) map[string]string {

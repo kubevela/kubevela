@@ -78,7 +78,7 @@ var _ = Describe("Test cluster rest api", func() {
 		It("Test modify cluster", func() {
 			kubeconfigBytes, err := ioutil.ReadFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
-			resp, err := CreateRequest(http.MethodPost, "/clusters/"+clusterName, v1.CreateClusterRequest{
+			resp, err := CreateRequest(http.MethodPut, "/clusters/"+clusterName, v1.CreateClusterRequest{
 				Name:        clusterName,
 				KubeConfig:  string(kubeconfigBytes),
 				Description: "Example description",

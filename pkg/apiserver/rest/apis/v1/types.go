@@ -156,7 +156,7 @@ type ClusterResourceInfo struct {
 
 // DetailClusterResponse cluster detail information model
 type DetailClusterResponse struct {
-	ClusterBase
+	model.Cluster
 	ResourceInfo ClusterResourceInfo `json:"resourceInfo"`
 }
 
