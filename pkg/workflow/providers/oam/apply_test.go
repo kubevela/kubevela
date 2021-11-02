@@ -21,9 +21,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
-	"gotest.tools/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -32,23 +33,23 @@ import (
 )
 
 func TestParser(t *testing.T) {
-
+	r := require.New(t)
 	p := &provider{
 		apply: simpleComponentApplyForTest,
 	}
 	act := &mock.Action{}
 	v, err := value.NewValue("", nil, "")
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = p.ApplyComponent(nil, v, act)
-	assert.Error(t, err, "var(path=value) not exist")
+	r.Equal(err.Error(), "var(path=value) not exist")
 	v.FillObject(map[string]interface{}{}, "value")
 	err = p.ApplyComponent(nil, v, act)
-	assert.NilError(t, err)
+	r.NoError(err)
 	output, err := v.LookupValue("output")
-	assert.NilError(t, err)
+	r.NoError(err)
 	outStr, err := output.String()
-	assert.NilError(t, err)
-	assert.Equal(t, outStr, `apiVersion: "v1"
+	r.NoError(err)
+	r.Equal(outStr, `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
 	name: "rss-site"
@@ -59,10 +60,10 @@ metadata: {
 `)
 
 	outputs, err := v.LookupValue("outputs")
-	assert.NilError(t, err)
+	r.NoError(err)
 	outsStr, err := outputs.String()
-	assert.NilError(t, err)
-	assert.Equal(t, outsStr, `service: {
+	r.NoError(err)
+	r.Equal(outsStr, `service: {
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
@@ -74,15 +75,69 @@ metadata: {
 }
 `)
 
-	assert.Equal(t, act.Phase, "Wait")
+	r.Equal(act.Phase, "Wait")
 	testHealthy = true
 	act = &mock.Action{}
 	_, err = value.NewValue("", nil, "")
-	assert.NilError(t, err)
-	assert.Equal(t, act.Phase, "")
+	r.NoError(err)
+	r.Equal(act.Phase, "")
+}
+
+func TestRenderComponent(t *testing.T) {
+	r := require.New(t)
+	p := &provider{
+		render: func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+			return &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "apps/v1",
+						"kind":       "Deployment",
+					},
+				}, []*unstructured.Unstructured{
+					{
+						Object: map[string]interface{}{
+							"apiVersion": "core.oam.dev/v1alpha2",
+							"kind":       "ManualScalerTrait",
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{
+									"trait.oam.dev/resource": "scaler",
+								},
+							},
+							"spec": map[string]interface{}{"replicaCount": int64(10)},
+						},
+					},
+				}, nil
+		},
+	}
+	v, err := value.NewValue(`value: {}`, nil, "")
+	r.NoError(err)
+	err = p.RenderComponent(nil, v, nil)
+	r.NoError(err)
+	s, err := v.String()
+	r.NoError(err)
+	r.Equal(s, `value: {}
+output: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+}
+outputs: {
+	scaler: {
+		apiVersion: "core.oam.dev/v1alpha2"
+		kind:       "ManualScalerTrait"
+		metadata: {
+			labels: {
+				"trait.oam.dev/resource": "scaler"
+			}
+		}
+		spec: {
+			replicaCount: 10
+		}
+	}
+}
+`)
 }
 
 func TestLoadComponent(t *testing.T) {
+	r := require.New(t)
 	p := &provider{
 		app: &v1beta1.Application{
 			Spec: v1beta1.ApplicationSpec{
@@ -97,12 +152,12 @@ func TestLoadComponent(t *testing.T) {
 		},
 	}
 	v, err := value.NewValue(``, nil, "")
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = p.LoadComponent(nil, v, nil)
-	assert.NilError(t, err)
+	r.NoError(err)
 	s, err := v.String()
-	assert.NilError(t, err)
-	assert.Equal(t, s, `value: {
+	r.NoError(err)
+	r.Equal(s, `value: {
 	c1: {
 		name: *"c1" | _
 		type: *"web" | _
