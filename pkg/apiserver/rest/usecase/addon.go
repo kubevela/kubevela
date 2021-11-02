@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"path"
 	"sort"
@@ -317,13 +316,11 @@ func hasAddon(addons []*apis.DetailAddonResponse, name string) bool {
 func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.DetailAddonResponse, error) {
 	addons := []*apis.DetailAddonResponse{}
 	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	var tc *http.Client
+	var ts oauth2.TokenSource
 	if token != "" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: token},
-		)
-		tc = oauth2.NewClient(context.Background(), ts)
+		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	}
+	tc := oauth2.NewClient(context.Background(), ts)
 	tc.Timeout = time.Second * 10
 	clt := github.NewClient(tc)
 	// TODO add error handling
