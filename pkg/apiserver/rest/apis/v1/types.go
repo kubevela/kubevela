@@ -384,13 +384,18 @@ type NamespaceDetailResponse struct {
 	NamespaceBase
 }
 
-// ListComponentDefinitionResponse list component dedinition response model
-type ListComponentDefinitionResponse struct {
-	ComponentDefinitions []*ComponentDefinitionBase `json:"componentDefinitions"`
+// ListDefinitionResponse list definition response model
+type ListDefinitionResponse struct {
+	Definitions []*DefinitionBase `json:"definitions"`
 }
 
-// ComponentDefinitionBase component definition base model
-type ComponentDefinitionBase struct {
+// DetailDefinitionResponse get definition detail
+type DetailDefinitionResponse struct {
+	Schema string `json:"schema"`
+}
+
+// DefinitionBase is the definition base model
+type DefinitionBase struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`

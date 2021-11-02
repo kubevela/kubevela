@@ -18,8 +18,11 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -32,8 +35,10 @@ import (
 
 // DefinitionUsecase definition usecase, Implement the management of ComponentDefinition、TraitDefinition and WorkflowStepDefinition.
 type DefinitionUsecase interface {
-	// ListComponentDefinitions list component definition base info
-	ListComponentDefinitions(ctx context.Context, envName string) ([]*apisv1.ComponentDefinitionBase, error)
+	// ListDefinitions list definition base info
+	ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error)
+	// DetailDefinition get definition detail
+	DetailDefinition(ctx context.Context, name string) (*apisv1.DetailDefinitionResponse, error)
 }
 
 type definitionUsecaseImpl struct {
@@ -50,23 +55,82 @@ func NewDefinitionUsecase() DefinitionUsecase {
 	return &definitionUsecaseImpl{kubeClient: kubecli, caches: make(map[string]*utils.MemoryCache)}
 }
 
-func (d *definitionUsecaseImpl) ListComponentDefinitions(ctx context.Context, envName string) ([]*apisv1.ComponentDefinitionBase, error) {
-	// check cache
-	if mc := d.caches["componentDefinitions"]; mc != nil && !mc.IsExpired() {
-		return mc.GetData().([]*apisv1.ComponentDefinitionBase), nil
+func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error) {
+	var defs []*apisv1.DefinitionBase
+	switch defType {
+	case "component":
+		if mc := d.caches["componentDefinitions"]; mc != nil && !mc.IsExpired() {
+			return mc.GetData().([]*apisv1.DefinitionBase), nil
+		}
+		var componentDefinitions v1beta1.ComponentDefinitionList
+		if err := d.kubeClient.List(ctx, &componentDefinitions, &client.ListOptions{
+			Namespace: types.DefaultKubeVelaNS,
+		}); err != nil {
+			return nil, err
+		}
+		for _, cd := range componentDefinitions.Items {
+			defs = append(defs, &apisv1.DefinitionBase{
+				Name:        cd.Name,
+				Description: cd.Annotations[types.AnnDescription],
+			})
+		}
+		d.caches["componentDefinitions"] = utils.NewMemoryCache(defs, time.Minute*3)
+
+	case "trait":
+		if mc := d.caches["traitDefinitions"]; mc != nil && !mc.IsExpired() {
+			return mc.GetData().([]*apisv1.DefinitionBase), nil
+		}
+		var traitDefinitions v1beta1.TraitDefinitionList
+		if err := d.kubeClient.List(ctx, &traitDefinitions, &client.ListOptions{
+			Namespace: types.DefaultKubeVelaNS,
+		}); err != nil {
+			return nil, err
+		}
+		for _, td := range traitDefinitions.Items {
+			defs = append(defs, &apisv1.DefinitionBase{
+				Name:        td.Name,
+				Description: td.Annotations[types.AnnDescription],
+			})
+		}
+		d.caches["traitDefinitions"] = utils.NewMemoryCache(defs, time.Minute*3)
+
+	case "workflowstep":
+		if mc := d.caches["workflowStepDefinitions"]; mc != nil && !mc.IsExpired() {
+			return mc.GetData().([]*apisv1.DefinitionBase), nil
+		}
+		var stepDefinitions v1beta1.WorkflowStepDefinitionList
+		if err := d.kubeClient.List(ctx, &stepDefinitions, &client.ListOptions{
+			Namespace: types.DefaultKubeVelaNS,
+		}); err != nil {
+			return nil, err
+		}
+		for _, sd := range stepDefinitions.Items {
+			defs = append(defs, &apisv1.DefinitionBase{
+				Name:        sd.Name,
+				Description: sd.Annotations[types.AnnDescription],
+			})
+		}
+		d.caches["workflowStepDefinitions"] = utils.NewMemoryCache(defs, time.Minute*3)
 	}
-	var componentDefinitions v1beta1.ComponentDefinitionList
-	if err := d.kubeClient.List(ctx, &componentDefinitions, &client.ListOptions{}); err != nil {
+
+	return defs, nil
+}
+
+// DetailDefinition get definition detail
+func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name string) (*apisv1.DetailDefinitionResponse, error) {
+	var cm v1.ConfigMap
+	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      fmt.Sprintf("schema-%s", name),
+	}, &cm); err != nil {
 		return nil, err
 	}
-	var cdb []*apisv1.ComponentDefinitionBase
-	for _, cd := range componentDefinitions.Items {
-		cdb = append(cdb, &apisv1.ComponentDefinitionBase{
-			Name:        cd.Name,
-			Description: cd.Annotations[types.AnnDescription],
-		})
+
+	schema, ok := cm.Data["openapi-v3-json-schema"]
+	if !ok {
+		return nil, fmt.Errorf("failed to get definition schema")
 	}
-	// set cache
-	d.caches["componentDefinitions"] = utils.NewMemoryCache(cdb, time.Minute*3)
-	return cdb, nil
+	return &apisv1.DetailDefinitionResponse{
+		Schema: schema,
+	}, nil
 }
