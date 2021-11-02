@@ -26,7 +26,7 @@ type AddonRegistry struct {
 
 // GitAddonSource defines the information about the Git as addon source
 type GitAddonSource struct {
-	URL   string `json:"url,omitempty"`
+	URL   string `json:"url,omitempty" validate:"required"`
 	Path  string `json:"path,omitempty"`
 	Token string `json:"token,omitempty"`
 }

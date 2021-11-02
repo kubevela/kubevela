@@ -51,7 +51,7 @@ type EmptyResponse struct{}
 // CreateAddonRegistryRequest defines the format for addon registry create request
 type CreateAddonRegistryRequest struct {
 	Name string                `json:"name" validate:"checkname"`
-	Git  *model.GitAddonSource `json:"git,omitempty"`
+	Git  *model.GitAddonSource `json:"git,omitempty" validate:"required"`
 }
 
 // AddonRegistryMeta defines the format for a single addon registry

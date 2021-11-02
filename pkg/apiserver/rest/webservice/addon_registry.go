@@ -108,6 +108,11 @@ func (s *addonRegistryWebService) deleteAddonRegistry(req *restful.Request, res 
 		bcode.ReturnError(req, res, err)
 		return
 	}
+	err = s.addonUsecase.DeleteAddonRegistry(req.Request.Context(), r.Name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 
 	if err := res.WriteEntity(*utils.ConvertAddonRegistryModel2AddonRegistryMeta(r)); err != nil {
 		bcode.ReturnError(req, res, err)
