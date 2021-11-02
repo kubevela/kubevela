@@ -7,10 +7,10 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
+	github.com/agiledragon/gomonkey/v2 v2.3.0
 	github.com/alibabacloud-go/cs-20151215/v2 v2.4.5
 	github.com/alibabacloud-go/darabonba-openapi v0.1.4
 	github.com/alibabacloud-go/tea v1.1.15
-	github.com/agiledragon/gomonkey/v2 v2.3.0
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
