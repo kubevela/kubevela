@@ -53,6 +53,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
@@ -237,6 +238,51 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 		return err
 	}
 	return nil
+}
+
+// ClusterObject2Map convert ClusterObjectReference to a readable map
+func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
+	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | GVK: %s/%s | Name: %s"
+	objs := make(map[string]string, len(refs))
+	for _, r := range refs {
+		if r.Cluster == "" {
+			r.Cluster = "local"
+		}
+		objs[r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.APIVersion, r.ResourceVersion, r.Name)
+	}
+	return objs
+}
+
+// AskToChooseOneAppliedResource will ask users to select one applied resource of the application if more than one
+// resources is a map for component to applied resources
+// return the selected ClusterObjectReference
+func AskToChooseOneAppliedResource(resources []common.ClusterObjectReference) (*common.ClusterObjectReference, error) {
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("no applied resources exist in the application")
+	}
+	if len(resources) == 1 {
+		return &resources[0], nil
+	}
+	opMap := ClusterObject2Map(resources)
+	var ops []string
+	for _, r := range opMap {
+		ops = append(ops, r)
+	}
+	prompt := &survey.Select{
+		Message: "You have multiple applied resources in your app. Please choose one:",
+		Options: ops,
+	}
+	var selectedRsc string
+	err := survey.AskOne(prompt, &selectedRsc)
+	if err != nil {
+		return nil, fmt.Errorf("choosing resource err %w", err)
+	}
+	for k, resource := range ops {
+		if selectedRsc == resource {
+			return &resources[k], nil
+		}
+	}
+	return nil, fmt.Errorf("choosing resource err %w", err)
 }
 
 // AskToChooseOneService will ask users to select one service of the application if more than one exidi
