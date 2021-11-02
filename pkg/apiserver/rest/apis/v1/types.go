@@ -78,13 +78,40 @@ type ListAddonResponse struct {
 	Addons []*AddonMeta `json:"addons"`
 }
 
+// AddonDeployTo defines where the addon to deploy to
+type AddonDeployTo struct {
+	ControlPlane   bool `json:"control_plane"`
+	RuntimeCluster bool `json:"runtime_cluster"`
+}
+
+// AddonDependency defines the other addons it depends on
+type AddonDependency struct {
+	Name string `json:"name,omitempty"`
+}
+
 // AddonMeta defines the format for a single addon
 type AddonMeta struct {
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Description string   `json:"description"`
-	Icon        string   `json:"icon"`
-	Tags        []string `json:"tags"`
+	Name         string             `json:"name" validate:"required"`
+	Version      string             `json:"version"`
+	Description  string             `json:"description"`
+	Icon         string             `json:"icon"`
+	URL          string             `json:"url,omitempty"`
+	Tags         []string           `json:"tags,omitempty"`
+	DeployTo     *AddonDeployTo     `json:"deploy_to,omitempty"`
+	Dependencies []*AddonDependency `json:"dependencies,omitempty"`
+}
+
+// Definition defines the metadata for a single X-Definition
+type Definition struct {
+	Kind        string `json:"kind"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// AddonElementFile can be addon's definition or addon's component
+type AddonElementFile struct {
+	Data string
+	Name string
 }
 
 // DetailAddonResponse defines the format for showing the addon details
@@ -94,8 +121,12 @@ type DetailAddonResponse struct {
 	// More details about the addon, e.g. README
 	Detail string `json:"detail,omitempty"`
 
-	// DeployData is the object to apply to enable addon, e.g. Application
-	DeployData string `json:"deploy_data,omitempty"`
+	Definitions []*Definition `json:"definitions"`
+
+	Parameters string `json:"parameters"`
+
+	CUETemplates  []AddonElementFile `json:"cue_templates"`
+	YAMLTemplates []AddonElementFile `json:"yaml_templates,omitempty"`
 }
 
 // AddonStatusResponse defines the format of addon status response

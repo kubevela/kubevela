@@ -49,6 +49,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(s.listAddons).
 		Doc("list all addons").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
 		Returns(200, "", apis.ListAddonResponse{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -77,6 +78,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/{name}/enable").To(s.enableAddon).
 		Doc("enable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.EnableAddonRequest{}).
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
@@ -95,7 +97,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 }
 
 func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response) {
-	detailAddons, err := s.addonUsecase.ListAddons(req.Request.Context(), false, req.QueryParameter("query"))
+	detailAddons, err := s.addonUsecase.ListAddons(req.Request.Context(), false, req.QueryParameter("registry"), req.QueryParameter("query"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -116,7 +118,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
-	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name)
+	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name, "")
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -162,6 +164,7 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 	s.statusAddon(req, res)
 }
 
+// TODO refactor to return addon status without render whole app
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
 	status, err := s.addonUsecase.StatusAddon(name)

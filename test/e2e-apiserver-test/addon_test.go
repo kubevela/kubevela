@@ -42,7 +42,7 @@ var _ = Describe("Test addon rest api", func() {
 			Name: "test-addon-registry-1",
 			Git: &model.GitAddonSource{
 				URL:   "https://github.com/oam-dev/catalog",
-				Path:  "addon/",
+				Path:  "addons/",
 				Token: os.Getenv("GITHUB_TOKEN"),
 			},
 		}
@@ -68,7 +68,7 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(err).Should(BeNil())
 		Expect(lres.Addons).ShouldNot(BeZero())
 		firstAddon := lres.Addons[0]
-		Expect(firstAddon.Name).Should(Equal("fluxcd"))
+		Expect(firstAddon.Name).Should(Equal("example"))
 
 		By("delete registry")
 		deleteReq, err := http.NewRequest(http.MethodDelete, baseURL+"/api/v1/addon_registries/"+createReq.Name, nil)
@@ -120,6 +120,5 @@ var _ = Describe("Test addon rest api", func() {
 
 		err = json.NewDecoder(res.Body).Decode(&statusRes)
 		Expect(err).Should(BeNil())
-
 	})
 })

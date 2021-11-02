@@ -137,6 +137,12 @@
     "parameters": [
      {
       "type": "string",
+      "description": "filter addons from given registry",
+      "name": "registry",
+      "in": "query"
+     },
+     {
+      "type": "string",
       "description": "Fuzzy search based on name and description.",
       "name": "query",
       "in": "query"
@@ -248,6 +254,14 @@
     "summary": "enable an addon",
     "operationId": "enableAddon",
     "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/v1.EnableAddonRequest"
+      }
+     },
      {
       "type": "string",
       "description": "addon name to enable",
@@ -2247,8 +2261,8 @@
    "required": [
     "rollingState",
     "batchRollingState",
-    "upgradedReplicas",
     "currentBatch",
+    "upgradedReplicas",
     "upgradedReadyReplicas",
     "lastTargetAppRevision"
    ],
@@ -2939,6 +2953,196 @@
     }
    }
   },
+  "regexp.Regexp": {
+   "required": [
+    "expr",
+    "prog",
+    "onepass",
+    "numSubexp",
+    "maxBitStateLen",
+    "subexpNames",
+    "prefix",
+    "prefixBytes",
+    "prefixRune",
+    "prefixEnd",
+    "mpool",
+    "matchcap",
+    "prefixComplete",
+    "cond",
+    "minInputLen",
+    "longest"
+   ],
+   "properties": {
+    "cond": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "expr": {
+     "type": "string"
+    },
+    "longest": {
+     "type": "boolean"
+    },
+    "matchcap": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "maxBitStateLen": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "minInputLen": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "mpool": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "numSubexp": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "onepass": {
+     "$ref": "#/definitions/regexp.onePassProg"
+    },
+    "prefix": {
+     "type": "string"
+    },
+    "prefixBytes": {
+     "type": "string"
+    },
+    "prefixComplete": {
+     "type": "boolean"
+    },
+    "prefixEnd": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "prefixRune": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "prog": {
+     "$ref": "#/definitions/syntax.Prog"
+    },
+    "subexpNames": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "regexp.onePassInst": {
+   "required": [
+    "Op",
+    "Out",
+    "Arg",
+    "Rune",
+    "Next"
+   ],
+   "properties": {
+    "Arg": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "Next": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    },
+    "Op": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "Out": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "Rune": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "regexp.onePassProg": {
+   "required": [
+    "Inst",
+    "Start",
+    "NumCap"
+   ],
+   "properties": {
+    "Inst": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/regexp.onePassInst"
+     }
+    },
+    "NumCap": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "Start": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "syntax.Inst": {
+   "required": [
+    "Op",
+    "Out",
+    "Arg",
+    "Rune"
+   ],
+   "properties": {
+    "Arg": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "Op": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "Out": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "Rune": {
+     "type": "array",
+     "items": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "syntax.Prog": {
+   "required": [
+    "Inst",
+    "Start",
+    "NumCap"
+   ],
+   "properties": {
+    "Inst": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/syntax.Inst"
+     }
+    },
+    "NumCap": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "Start": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
   "types.Parameter": {
    "required": [
     "name"
@@ -2989,15 +3193,58 @@
     }
    }
   },
+  "v1.AddonDependency": {
+   "properties": {
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.AddonDeployTo": {
+   "required": [
+    "control_plane",
+    "runtime_cluster"
+   ],
+   "properties": {
+    "control_plane": {
+     "type": "boolean"
+    },
+    "runtime_cluster": {
+     "type": "boolean"
+    }
+   }
+  },
+  "v1.AddonElementFile": {
+   "required": [
+    "Data",
+    "Name"
+   ],
+   "properties": {
+    "Data": {
+     "type": "string"
+    },
+    "Name": {
+     "type": "string"
+    }
+   }
+  },
   "v1.AddonMeta": {
    "required": [
     "name",
     "version",
     "description",
-    "icon",
-    "tags"
+    "icon"
    ],
    "properties": {
+    "dependencies": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.AddonDependency"
+     }
+    },
+    "deploy_to": {
+     "$ref": "#/definitions/v1.AddonDeployTo"
+    },
     "description": {
      "type": "string"
     },
@@ -3012,6 +3259,9 @@
      "items": {
       "type": "string"
      }
+    },
+    "url": {
+     "type": "string"
     },
     "version": {
      "type": "string"
@@ -3528,10 +3778,10 @@
   },
   "v1.CreateApplicationEnvPlanRequest": {
    "required": [
+    "clusterSelector",
     "componentSelector",
     "name",
-    "alias",
-    "clusterSelector"
+    "alias"
    ],
    "properties": {
     "alias": {
@@ -3820,6 +4070,24 @@
     }
    }
   },
+  "v1.Definition": {
+   "required": [
+    "kind",
+    "name",
+    "description"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "kind": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
   "v1.DefinitionBase": {
    "required": [
     "name",
@@ -3840,16 +4108,53 @@
   },
   "v1.DefinitionProperties": {
    "required": [
-    "default",
-    "description",
     "title",
-    "type"
+    "type",
+    "compiledPattern"
    ],
    "properties": {
+    "compiledPattern": {
+     "$ref": "#/definitions/regexp.Regexp"
+    },
     "default": {
-     "type": "string"
+     "$ref": "#/definitions/v1.DefinitionProperties.default"
     },
     "description": {
+     "type": "string"
+    },
+    "enum": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.DefinitionProperties.enum"
+     }
+    },
+    "example": {
+     "$ref": "#/definitions/v1.DefinitionProperties.example"
+    },
+    "items": {
+     "$ref": "#/definitions/v1.DefinitionSchema"
+    },
+    "maxLength": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "maximum": {
+     "type": "number",
+     "format": "double"
+    },
+    "minLength": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "minimum": {
+     "type": "number",
+     "format": "double"
+    },
+    "multipleOf": {
+     "type": "number",
+     "format": "double"
+    },
+    "pattern": {
      "type": "string"
     },
     "title": {
@@ -3860,6 +4165,9 @@
     }
    }
   },
+  "v1.DefinitionProperties.default": {},
+  "v1.DefinitionProperties.enum": {},
+  "v1.DefinitionProperties.example": {},
   "v1.DefinitionSchema": {
    "required": [
     "properties",
@@ -3890,11 +4198,31 @@
     "version",
     "description",
     "icon",
-    "tags"
+    "definitions",
+    "parameters",
+    "cue_templates"
    ],
    "properties": {
-    "deploy_data": {
-     "type": "string"
+    "cue_templates": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.AddonElementFile"
+     }
+    },
+    "definitions": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.Definition"
+     }
+    },
+    "dependencies": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.AddonDependency"
+     }
+    },
+    "deploy_to": {
+     "$ref": "#/definitions/v1.AddonDeployTo"
     },
     "description": {
      "type": "string"
@@ -3908,28 +4236,40 @@
     "name": {
      "type": "string"
     },
+    "parameters": {
+     "type": "string"
+    },
     "tags": {
      "type": "array",
      "items": {
       "type": "string"
      }
     },
+    "url": {
+     "type": "string"
+    },
     "version": {
      "type": "string"
+    },
+    "yaml_templates": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.AddonElementFile"
+     }
     }
    }
   },
   "v1.DetailApplicationPlanResponse": {
    "required": [
-    "name",
+    "createTime",
+    "status",
     "namespace",
-    "icon",
-    "gatewayRule",
     "alias",
     "description",
-    "createTime",
     "updateTime",
-    "status",
+    "icon",
+    "gatewayRule",
+    "name",
     "policies",
     "status",
     "resourceInfo",
@@ -3999,20 +4339,20 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "reason",
-    "provider",
-    "updateTime",
-    "description",
-    "dashboardURL",
-    "kubeConfigSecret",
-    "createTime",
     "name",
     "icon",
-    "apiServerURL",
+    "provider",
+    "kubeConfigSecret",
     "alias",
-    "labels",
     "status",
+    "labels",
+    "description",
+    "reason",
+    "apiServerURL",
+    "dashboardURL",
     "kubeConfig",
+    "createTime",
+    "updateTime",
     "resourceInfo"
    ],
    "properties": {
@@ -4070,12 +4410,12 @@
   },
   "v1.DetailComponentPlanResponse": {
    "required": [
+    "creator",
     "createTime",
     "updateTime",
+    "name",
     "alias",
     "appPrimaryKey",
-    "creator",
-    "name",
     "type"
    ],
    "properties": {
@@ -4164,13 +4504,13 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
+    "creator",
     "properties",
     "createTime",
     "updateTime",
     "name",
     "type",
-    "description",
-    "creator"
+    "description"
    ],
    "properties": {
     "createTime": {
@@ -4200,13 +4540,13 @@
   },
   "v1.DetailWorkflowPlanResponse": {
    "required": [
+    "alias",
     "description",
     "enable",
     "default",
     "createTime",
     "updateTime",
     "name",
-    "alias",
     "workflowRecord"
    ],
    "properties": {
@@ -4294,6 +4634,16 @@
    }
   },
   "v1.EmptyResponse": {},
+  "v1.EnableAddonRequest": {
+   "properties": {
+    "args": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    }
+   }
+  },
   "v1.EnablingProgress": {
    "required": [
     "enabled_components",
