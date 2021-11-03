@@ -53,16 +53,16 @@ const (
 
 // ApplicationUsecase application usecase
 type ApplicationUsecase interface {
-	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error)
+	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error)
 	GetApplication(ctx context.Context, appName string) (*model.ApplicationPlan, error)
-	DetailApplication(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationResponse, error)
+	DetailApplication(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error)
 	PublishApplicationTemplate(ctx context.Context, app *model.ApplicationPlan) (*apisv1.ApplicationTemplateBase, error)
-	CreateApplication(context.Context, apisv1.CreateApplicationRequest) (*apisv1.ApplicationBase, error)
+	CreateApplication(context.Context, apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error)
 	DeleteApplication(ctx context.Context, app *model.ApplicationPlan) error
 	Deploy(ctx context.Context, app *model.ApplicationPlan, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error)
-	ListComponents(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.ComponentBase, error)
-	AddComponent(ctx context.Context, app *model.ApplicationPlan, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error)
-	DetailComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) (*apisv1.DetailComponentResponse, error)
+	ListComponents(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.ComponentPlanBase, error)
+	AddComponent(ctx context.Context, app *model.ApplicationPlan, com apisv1.CreateComponentPlanRequest) (*apisv1.ComponentPlanBase, error)
+	DetailComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) (*apisv1.DetailComponentPlanResponse, error)
 	DeleteComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) error
 	ListPolicies(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.PolicyBase, error)
 	AddPolicy(ctx context.Context, app *model.ApplicationPlan, policy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error)
@@ -93,7 +93,7 @@ func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUseca
 }
 
 // ListApplications list applications
-func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error) {
+func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error) {
 	var app = model.ApplicationPlan{}
 	if listOptions.Namespace != "" {
 		app.Namespace = listOptions.Namespace
@@ -102,7 +102,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 	if err != nil {
 		return nil, err
 	}
-	var list []*apisv1.ApplicationBase
+	var list []*apisv1.ApplicationPlanBase
 	for _, entity := range entitys {
 		appBase := c.converAppModelToBase(ctx, entity.(*model.ApplicationPlan))
 		if listOptions.Query != "" &&
@@ -131,7 +131,7 @@ func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName str
 }
 
 // DetailApplication detail application info
-func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationResponse, error) {
+func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error) {
 	base := c.converAppModelToBase(ctx, app)
 	policys, err := c.queryApplicationPolicys(ctx, app)
 	if err != nil {
@@ -145,9 +145,9 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 	for _, p := range policys {
 		policyNames = append(policyNames, p.Name)
 	}
-	var detail = &apisv1.DetailApplicationResponse{
-		ApplicationBase: *base,
-		Policies:        policyNames,
+	var detail = &apisv1.DetailApplicationPlanResponse{
+		ApplicationPlanBase: *base,
+		Policies:            policyNames,
 		ResourceInfo: apisv1.ApplicationResourceInfo{
 			ComponentNum: len(components),
 		},
@@ -163,7 +163,7 @@ func (c *applicationUsecaseImpl) PublishApplicationTemplate(ctx context.Context,
 }
 
 // CreateApplication create application
-func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apisv1.CreateApplicationRequest) (*apisv1.ApplicationBase, error) {
+func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error) {
 	application := model.ApplicationPlan{
 		Name:        req.Name,
 		Alias:       req.Alias,
@@ -222,7 +222,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 					Outputs:    step.Outputs,
 				})
 			}
-			_, err := c.workflowUsecase.CreateWorkflow(ctx, &application, apisv1.CreateWorkflowRequest{
+			_, err := c.workflowUsecase.CreateWorkflow(ctx, &application, apisv1.CreateWorkflowPlanRequest{
 				AppName:     application.PrimaryKey(),
 				Name:        application.Name,
 				Description: "Created automatically.",
@@ -336,7 +336,7 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 	return c.ds.BatchAdd(ctx, componentModels)
 }
 
-func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.ComponentBase, error) {
+func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.ComponentPlanBase, error) {
 	var component = model.ApplicationComponentPlan{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
@@ -344,7 +344,7 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 	if err != nil {
 		return nil, err
 	}
-	var list []*apisv1.ComponentBase
+	var list []*apisv1.ComponentPlanBase
 	for _, component := range components {
 		log.Logger.Infof("component name %s", component.PrimaryKey())
 		pm := component.(*model.ApplicationComponentPlan)
@@ -355,7 +355,7 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 
 // DetailComponent detail app component
 // TODO: Add status data about the component.
-func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model.ApplicationPlan, policyName string) (*apisv1.DetailComponentResponse, error) {
+func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model.ApplicationPlan, policyName string) (*apisv1.DetailComponentPlanResponse, error) {
 	var component = model.ApplicationComponentPlan{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
@@ -364,13 +364,13 @@ func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model
 	if err != nil {
 		return nil, err
 	}
-	return &apisv1.DetailComponentResponse{
+	return &apisv1.DetailComponentPlanResponse{
 		ApplicationComponentPlan: component,
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.ApplicationComponentPlan) *apisv1.ComponentBase {
-	return &apisv1.ComponentBase{
+func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.ApplicationComponentPlan) *apisv1.ComponentPlanBase {
+	return &apisv1.ComponentPlanBase{
 		Name:          m.Name,
 		Alias:         m.Alias,
 		Description:   m.Description,
@@ -642,8 +642,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	return app, nil
 }
 
-func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.ApplicationPlan) *apisv1.ApplicationBase {
-	appBeas := &apisv1.ApplicationBase{
+func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.ApplicationPlan) *apisv1.ApplicationPlanBase {
+	appBeas := &apisv1.ApplicationPlanBase{
 		Name:        app.Name,
 		Alias:       app.Alias,
 		Namespace:   app.Namespace,
@@ -726,7 +726,7 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 	return c.ds.Delete(ctx, app)
 }
 
-func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.ApplicationPlan, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error) {
+func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.ApplicationPlan, com apisv1.CreateComponentPlanRequest) (*apisv1.ComponentPlanBase, error) {
 	componentModel := model.ApplicationComponentPlan{
 		AppPrimaryKey: app.PrimaryKey(),
 		Description:   com.Description,
@@ -751,7 +751,7 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("add component for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
-	return &apisv1.ComponentBase{
+	return &apisv1.ComponentPlanBase{
 		Name:          componentModel.Name,
 		Description:   componentModel.Description,
 		Labels:        componentModel.Labels,

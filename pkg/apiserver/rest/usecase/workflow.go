@@ -35,13 +35,13 @@ import (
 
 // WorkflowUsecase workflow manage api
 type WorkflowUsecase interface {
-	ListApplicationWorkflow(ctx context.Context, app *model.ApplicationPlan, enable *bool) ([]*apisv1.WorkflowBase, error)
+	ListApplicationWorkflow(ctx context.Context, app *model.ApplicationPlan, enable *bool) ([]*apisv1.WorkflowPlanBase, error)
 	GetWorkflow(ctx context.Context, workflowName string) (*model.WorkflowPlan, error)
-	DetailWorkflow(ctx context.Context, workflow *model.WorkflowPlan) (*apisv1.DetailWorkflowResponse, error)
+	DetailWorkflow(ctx context.Context, workflow *model.WorkflowPlan) (*apisv1.DetailWorkflowPlanResponse, error)
 	GetApplicationDefaultWorkflow(ctx context.Context, app *model.ApplicationPlan) (*model.WorkflowPlan, error)
 	DeleteWorkflow(ctx context.Context, workflowName string) error
-	CreateWorkflow(ctx context.Context, app *model.ApplicationPlan, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
-	UpdateWorkflow(ctx context.Context, workflow *model.WorkflowPlan, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
+	CreateWorkflow(ctx context.Context, app *model.ApplicationPlan, req apisv1.CreateWorkflowPlanRequest) (*apisv1.DetailWorkflowPlanResponse, error)
+	UpdateWorkflow(ctx context.Context, workflow *model.WorkflowPlan, req apisv1.UpdateWorkflowPlanRequest) (*apisv1.DetailWorkflowPlanResponse, error)
 	ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
 	DetailWorkflowRecord(ctx context.Context, workflowName, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
 }
@@ -69,7 +69,7 @@ func (w *workflowUsecaseImpl) DeleteWorkflow(ctx context.Context, workflowName s
 	return nil
 }
 
-func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.ApplicationPlan, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.ApplicationPlan, req apisv1.CreateWorkflowPlanRequest) (*apisv1.DetailWorkflowPlanResponse, error) {
 	var steps []model.WorkflowStep
 	for _, step := range req.Steps {
 		properties, err := model.NewJSONStructByString(step.Properties)
@@ -100,7 +100,7 @@ func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.App
 	return w.DetailWorkflow(ctx, &workflow)
 }
 
-func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.WorkflowPlan, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.WorkflowPlan, req apisv1.UpdateWorkflowPlanRequest) (*apisv1.DetailWorkflowPlanResponse, error) {
 	var steps []model.WorkflowStep
 	for _, step := range req.Steps {
 		properties, err := model.NewJSONStructByString(step.Properties)
@@ -128,7 +128,7 @@ func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 }
 
 // DetailWorkflow detail workflow
-func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *model.WorkflowPlan) (*apisv1.DetailWorkflowResponse, error) {
+func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *model.WorkflowPlan) (*apisv1.DetailWorkflowPlanResponse, error) {
 	var steps []apisv1.WorkflowStep
 	for _, step := range workflow.Steps {
 		apiStep := apisv1.WorkflowStep{
@@ -143,8 +143,8 @@ func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *mode
 		}
 		steps = append(steps, apiStep)
 	}
-	return &apisv1.DetailWorkflowResponse{
-		WorkflowBase: apisv1.WorkflowBase{
+	return &apisv1.DetailWorkflowPlanResponse{
+		WorkflowPlanBase: apisv1.WorkflowPlanBase{
 			Name:        workflow.Name,
 			Description: workflow.Description,
 			Enable:      workflow.Enable,
@@ -168,7 +168,7 @@ func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName stri
 }
 
 // ListApplicationWorkflow list application workflows
-func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *model.ApplicationPlan, enable *bool) ([]*apisv1.WorkflowBase, error) {
+func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *model.ApplicationPlan, enable *bool) ([]*apisv1.WorkflowPlanBase, error) {
 	var workflow = model.WorkflowPlan{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
@@ -179,10 +179,10 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 	if err != nil {
 		return nil, err
 	}
-	var list []*apisv1.WorkflowBase
+	var list []*apisv1.WorkflowPlanBase
 	for _, workflow := range workflows {
 		wm := workflow.(*model.WorkflowPlan)
-		list = append(list, &apisv1.WorkflowBase{
+		list = append(list, &apisv1.WorkflowPlanBase{
 			Name:        wm.Name,
 			Description: wm.Description,
 			Enable:      wm.Enable,

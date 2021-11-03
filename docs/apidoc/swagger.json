@@ -346,7 +346,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ListApplicationResponse"
+       "$ref": "#/definitions/v1.ListApplicationPlanResponse"
       }
      },
      "400": {
@@ -376,14 +376,14 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.CreateApplicationRequest"
+       "$ref": "#/definitions/v1.CreateApplicationPlanRequest"
       }
      }
     ],
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ApplicationBase"
+       "$ref": "#/definitions/v1.ApplicationPlanBase"
       }
      },
      "400": {
@@ -421,7 +421,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.DetailApplicationResponse"
+       "$ref": "#/definitions/v1.DetailApplicationPlanResponse"
       }
      },
      "400": {
@@ -501,7 +501,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ComponentListResponse"
+       "$ref": "#/definitions/v1.ComponentPlanListResponse"
       }
      },
      "400": {
@@ -538,14 +538,14 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.CreateComponentRequest"
+       "$ref": "#/definitions/v1.CreateComponentPlanRequest"
       }
      }
     ],
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ComponentBase"
+       "$ref": "#/definitions/v1.ComponentPlanBase"
       }
      },
      "400": {
@@ -583,7 +583,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.DetailComponentResponse"
+       "$ref": "#/definitions/v1.DetailComponentPlanResponse"
       }
      },
      "400": {
@@ -1419,7 +1419,7 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.CreateWorkflowRequest"
+       "$ref": "#/definitions/v1.CreateWorkflowPlanRequest"
       }
      }
     ],
@@ -1505,7 +1505,7 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.UpdateWorkflowRequest"
+       "$ref": "#/definitions/v1.UpdateWorkflowPlanRequest"
       }
      }
     ],
@@ -1835,10 +1835,10 @@
   "common.AppRolloutStatus": {
    "required": [
     "batchRollingState",
+    "upgradedReplicas",
+    "rollingState",
     "currentBatch",
     "upgradedReadyReplicas",
-    "rollingState",
-    "upgradedReplicas",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -2633,7 +2633,59 @@
     }
    }
   },
-  "v1.ApplicationBase": {
+  "v1.ApplicationDeployRequest": {
+   "required": [
+    "workflowName",
+    "commit",
+    "sourceType",
+    "force"
+   ],
+   "properties": {
+    "commit": {
+     "type": "string"
+    },
+    "force": {
+     "type": "boolean"
+    },
+    "sourceType": {
+     "type": "string"
+    },
+    "workflowName": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.ApplicationDeployResponse": {
+   "required": [
+    "version",
+    "status",
+    "reason",
+    "deployUser",
+    "commit",
+    "sourceType"
+   ],
+   "properties": {
+    "commit": {
+     "type": "string"
+    },
+    "deployUser": {
+     "type": "string"
+    },
+    "reason": {
+     "type": "string"
+    },
+    "sourceType": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.ApplicationPlanBase": {
    "required": [
     "name",
     "alias",
@@ -2689,58 +2741,6 @@
     "updateTime": {
      "type": "string",
      "format": "date-time"
-    }
-   }
-  },
-  "v1.ApplicationDeployRequest": {
-   "required": [
-    "workflowName",
-    "commit",
-    "sourceType",
-    "force"
-   ],
-   "properties": {
-    "commit": {
-     "type": "string"
-    },
-    "force": {
-     "type": "boolean"
-    },
-    "sourceType": {
-     "type": "string"
-    },
-    "workflowName": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ApplicationDeployResponse": {
-   "required": [
-    "version",
-    "status",
-    "reason",
-    "deployUser",
-    "commit",
-    "sourceType"
-   ],
-   "properties": {
-    "commit": {
-     "type": "string"
-    },
-    "deployUser": {
-     "type": "string"
-    },
-    "reason": {
-     "type": "string"
-    },
-    "sourceType": {
-     "type": "string"
-    },
-    "status": {
-     "type": "string"
-    },
-    "version": {
-     "type": "string"
     }
    }
   },
@@ -2975,7 +2975,25 @@
     }
    }
   },
-  "v1.ComponentBase": {
+  "v1.ComponentDefinitionBase": {
+   "required": [
+    "name",
+    "description",
+    "icon"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.ComponentPlanBase": {
    "required": [
     "name",
     "alias",
@@ -3037,33 +3055,15 @@
     }
    }
   },
-  "v1.ComponentDefinitionBase": {
+  "v1.ComponentPlanListResponse": {
    "required": [
-    "name",
-    "description",
-    "icon"
+    "componentplans"
    ],
    "properties": {
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ComponentListResponse": {
-   "required": [
-    "components"
-   ],
-   "properties": {
-    "components": {
+    "componentplans": {
      "type": "array",
      "items": {
-      "$ref": "#/definitions/v1.ComponentBase"
+      "$ref": "#/definitions/v1.ComponentPlanBase"
      }
     }
    }
@@ -3120,7 +3120,7 @@
     }
    }
   },
-  "v1.CreateApplicationRequest": {
+  "v1.CreateApplicationPlanRequest": {
    "required": [
     "name",
     "alias",
@@ -3218,7 +3218,7 @@
     }
    }
   },
-  "v1.CreateComponentRequest": {
+  "v1.CreateComponentPlanRequest": {
    "required": [
     "name",
     "alias",
@@ -3302,7 +3302,7 @@
     }
    }
   },
-  "v1.CreateWorkflowRequest": {
+  "v1.CreateWorkflowPlanRequest": {
    "required": [
     "appName",
     "name",
@@ -3373,17 +3373,17 @@
     }
    }
   },
-  "v1.DetailApplicationResponse": {
+  "v1.DetailApplicationPlanResponse": {
    "required": [
-    "name",
-    "alias",
-    "namespace",
-    "updateTime",
+    "icon",
     "status",
+    "gatewayRule",
+    "namespace",
     "description",
     "createTime",
-    "icon",
-    "gatewayRule",
+    "updateTime",
+    "name",
+    "alias",
     "policies",
     "status",
     "resourceInfo",
@@ -3453,19 +3453,19 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "updateTime",
-    "dashboardURL",
-    "kubeConfig",
-    "kubeConfigSecret",
-    "name",
-    "icon",
-    "labels",
-    "provider",
-    "alias",
+    "createTime",
     "description",
     "status",
     "reason",
-    "createTime",
+    "kubeConfig",
+    "kubeConfigSecret",
+    "name",
+    "alias",
+    "provider",
+    "labels",
+    "dashboardURL",
+    "updateTime",
+    "icon",
     "apiServerURL",
     "resourceInfo"
    ],
@@ -3522,15 +3522,15 @@
     }
    }
   },
-  "v1.DetailComponentResponse": {
+  "v1.DetailComponentPlanResponse": {
    "required": [
+    "appPrimaryKey",
+    "alias",
+    "type",
     "updateTime",
     "creator",
     "name",
-    "alias",
-    "createTime",
-    "appPrimaryKey",
-    "type"
+    "createTime"
    ],
    "properties": {
     "alias": {
@@ -3608,13 +3608,13 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
-    "name",
-    "type",
     "description",
     "creator",
     "properties",
     "createTime",
-    "updateTime"
+    "updateTime",
+    "name",
+    "type"
    ],
    "properties": {
     "createTime": {
@@ -3639,6 +3639,52 @@
     "updateTime": {
      "type": "string",
      "format": "date-time"
+    }
+   }
+  },
+  "v1.DetailWorkflowPlanResponse": {
+   "required": [
+    "description",
+    "enable",
+    "default",
+    "createTime",
+    "updateTime",
+    "name",
+    "alias",
+    "workflowRecord"
+   ],
+   "properties": {
+    "alias": {
+     "type": "string"
+    },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "default": {
+     "type": "boolean"
+    },
+    "description": {
+     "type": "string"
+    },
+    "enable": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "steps": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.WorkflowStep"
+     }
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "workflowRecord": {
+     "$ref": "#/definitions/v1.WorkflowRecord"
     }
    }
   },
@@ -3688,52 +3734,6 @@
     },
     "terminated": {
      "type": "boolean"
-    }
-   }
-  },
-  "v1.DetailWorkflowResponse": {
-   "required": [
-    "createTime",
-    "updateTime",
-    "name",
-    "alias",
-    "description",
-    "enable",
-    "default",
-    "workflowRecord"
-   ],
-   "properties": {
-    "alias": {
-     "type": "string"
-    },
-    "createTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "default": {
-     "type": "boolean"
-    },
-    "description": {
-     "type": "string"
-    },
-    "enable": {
-     "type": "boolean"
-    },
-    "name": {
-     "type": "string"
-    },
-    "steps": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.WorkflowStep"
-     }
-    },
-    "updateTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "workflowRecord": {
-     "$ref": "#/definitions/v1.WorkflowRecord"
     }
    }
   },
@@ -3824,6 +3824,19 @@
     }
    }
   },
+  "v1.ListApplicationPlanResponse": {
+   "required": [
+    "applicationplans"
+   ],
+   "properties": {
+    "applicationplans": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.ApplicationPlanBase"
+     }
+    }
+   }
+  },
   "v1.ListApplicationPolicy": {
    "required": [
     "policies"
@@ -3833,19 +3846,6 @@
      "type": "array",
      "items": {
       "$ref": "#/definitions/v1.PolicyBase"
-     }
-    }
-   }
-  },
-  "v1.ListApplicationResponse": {
-   "required": [
-    "applications"
-   ],
-   "properties": {
-    "applications": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ApplicationBase"
      }
     }
    }
@@ -3920,6 +3920,19 @@
     }
    }
   },
+  "v1.ListWorkflowPlanResponse": {
+   "required": [
+    "workflowplans"
+   ],
+   "properties": {
+    "workflowplans": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.WorkflowPlanBase"
+     }
+    }
+   }
+  },
   "v1.ListWorkflowRecordsResponse": {
    "required": [
     "records",
@@ -3935,19 +3948,6 @@
     "total": {
      "type": "integer",
      "format": "int64"
-    }
-   }
-  },
-  "v1.ListWorkflowResponse": {
-   "required": [
-    "workflows"
-   ],
-   "properties": {
-    "workflows": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.WorkflowBase"
-     }
     }
    }
   },
@@ -3977,10 +3977,10 @@
   },
   "v1.NamespaceDetailResponse": {
    "required": [
-    "createTime",
-    "updateTime",
     "name",
-    "description"
+    "description",
+    "createTime",
+    "updateTime"
    ],
    "properties": {
     "createTime": {
@@ -4107,7 +4107,7 @@
     }
    }
   },
-  "v1.UpdateWorkflowRequest": {
+  "v1.UpdateWorkflowPlanRequest": {
    "required": [
     "alias",
     "description",
@@ -4138,7 +4138,7 @@
   "v1.VelaQLViewResponse": {
    "type": "object"
   },
-  "v1.WorkflowBase": {
+  "v1.WorkflowPlanBase": {
    "required": [
     "name",
     "alias",

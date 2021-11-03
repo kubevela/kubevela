@@ -50,7 +50,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 	It("Test CreateApplication function", func() {
 		By("test sample create")
-		req := v1.CreateApplicationRequest{
+		req := v1.CreateApplicationPlanRequest{
 			Name:        "test-app",
 			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
@@ -66,7 +66,7 @@ var _ = Describe("Test application usecase function", func() {
 		By("test with oam yaml config create")
 		bs, err := ioutil.ReadFile("./testdata/example-app.yaml")
 		Expect(err).Should(Succeed())
-		req = v1.CreateApplicationRequest{
+		req = v1.CreateApplicationPlanRequest{
 			Name:        "test-app-sadasd",
 			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
@@ -78,7 +78,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
 
-		req = v1.CreateApplicationRequest{
+		req = v1.CreateApplicationPlanRequest{
 			Name:        "test-app-sadasd2",
 			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
@@ -93,7 +93,7 @@ var _ = Describe("Test application usecase function", func() {
 
 		bs, err = ioutil.ReadFile("./testdata/example-app-error.yaml")
 		Expect(err).Should(Succeed())
-		req = v1.CreateApplicationRequest{
+		req = v1.CreateApplicationPlanRequest{
 			Name:        "test-app-sadasd3",
 			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
@@ -106,7 +106,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(equal).Should(BeTrue())
 
 		By("Test create app with env binding")
-		req = v1.CreateApplicationRequest{
+		req = v1.CreateApplicationPlanRequest{
 			Name:        "test-app-sadasd4",
 			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
@@ -140,7 +140,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListApplications function", func() {
-		apps, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{})
+		apps, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioPlanOptions{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(apps), 3)).Should(BeEmpty())
 	})
@@ -217,7 +217,7 @@ var _ = Describe("Test application usecase function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
-		base, err := appUsecase.AddComponent(context.TODO(), appModel, v1.CreateComponentRequest{
+		base, err := appUsecase.AddComponent(context.TODO(), appModel, v1.CreateComponentPlanRequest{
 			Name:          "test2",
 			Description:   "this is a test2 component",
 			Labels:        map[string]string{},
