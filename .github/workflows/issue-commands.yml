@@ -45,7 +45,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const version = process.env.VERSION
-            const label = "backport release-" + version
+            var label string
+            if (version.includes("release")) {
+              label = "backport version"
+            } else {
+              label = "backport release-" + version
+            }
             // Add our backport label.
             github.issues.addLabels({
               // Every pull request is an issue, but not every issue is a pull request.
