@@ -64,6 +64,11 @@ image: "myserver"
 		Name: "service",
 	}
 
+	svcAuxWithAbnormalName := Auxiliary{
+		Ins:  svcIns,
+		Name: "service-1",
+	}
+
 	targetParams := map[string]interface{}{
 		"parameter1": "string",
 		"parameter2": map[string]string{
@@ -98,6 +103,7 @@ image: "myserver"
 	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1")
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
+	ctx.AppendAuxiliaries(svcAuxWithAbnormalName)
 	ctx.SetParameters(targetParams)
 	ctx.PushData(model.ContextDataArtifacts, targetData)
 	ctx.PushData("arbitraryData", targetArbitraryData)
@@ -129,6 +135,10 @@ image: "myserver"
 	assert.Equal(t, `{"image":"myserver"}`, string(inputJs))
 
 	outputsJs, err := ctxInst.Lookup("context", model.OutputsFieldName, "service").MarshalJSON()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\"}", string(outputsJs))
+
+	outputsJs, err = ctxInst.Lookup("context", model.OutputsFieldName, "service-1").MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\"}", string(outputsJs))
 
