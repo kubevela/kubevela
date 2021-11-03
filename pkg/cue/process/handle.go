@@ -197,7 +197,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if len(ctx.auxiliaries) > 0 {
 		var auxLines []string
 		for _, auxiliary := range ctx.auxiliaries {
-			auxLines = append(auxLines, fmt.Sprintf("%s: %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
+			auxLines = append(auxLines, fmt.Sprintf("\"%s\": %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
 		}
 		if len(auxLines) > 0 {
 			buff += fmt.Sprintf(model.OutputsFieldName+": {%s}\n", strings.Join(auxLines, "\n"))
