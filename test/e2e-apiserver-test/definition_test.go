@@ -29,16 +29,29 @@ import (
 
 var _ = Describe("Test definitions rest api", func() {
 
-	It("Test list component definitions", func() {
+	It("Test list definitions", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/componentdefinitions")
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/definitions?type=component")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var componentdefinitions apisv1.ListComponentDefinitionResponse
-		err = json.NewDecoder(res.Body).Decode(&componentdefinitions)
+		var definitions apisv1.ListDefinitionResponse
+		err = json.NewDecoder(res.Body).Decode(&definitions)
+		Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	It("Test get definition", func() {
+		defer GinkgoRecover()
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/definitions/ingress")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var definition apisv1.DetailDefinitionResponse
+		err = json.NewDecoder(res.Body).Decode(&definition)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 })
