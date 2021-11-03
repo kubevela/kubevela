@@ -23,10 +23,10 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -39,7 +39,7 @@ type DefinitionUsecase interface {
 	// ListDefinitions list definition base info
 	ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error)
 	// DetailDefinition get definition detail
-	DetailDefinition(ctx context.Context, name string) (*apisv1.DetailDefinitionResponse, error)
+	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
 }
 
 type definitionUsecaseImpl struct {
@@ -57,72 +57,54 @@ func NewDefinitionUsecase() DefinitionUsecase {
 }
 
 func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error) {
-	var defs []*apisv1.DefinitionBase
+	defs := &unstructured.UnstructuredList{}
 	switch defType {
 	case "component":
-		if mc := d.caches["componentDefinitions"]; mc != nil && !mc.IsExpired() {
-			return mc.GetData().([]*apisv1.DefinitionBase), nil
-		}
-		var componentDefinitions v1beta1.ComponentDefinitionList
-		if err := d.kubeClient.List(ctx, &componentDefinitions, &client.ListOptions{
-			Namespace: types.DefaultKubeVelaNS,
-		}); err != nil {
-			return nil, err
-		}
-		for _, cd := range componentDefinitions.Items {
-			defs = append(defs, &apisv1.DefinitionBase{
-				Name:        cd.Name,
-				Description: cd.Annotations[types.AnnDescription],
-			})
-		}
-		d.caches["componentDefinitions"] = utils.NewMemoryCache(defs, time.Minute*3)
+		defs.SetAPIVersion("core.oam.dev/v1beta1")
+		defs.SetKind("ComponentDefinition")
+		return d.listDefinitions(ctx, defs, "componentDefinitions")
 
 	case "trait":
-		if mc := d.caches["traitDefinitions"]; mc != nil && !mc.IsExpired() {
-			return mc.GetData().([]*apisv1.DefinitionBase), nil
-		}
-		var traitDefinitions v1beta1.TraitDefinitionList
-		if err := d.kubeClient.List(ctx, &traitDefinitions, &client.ListOptions{
-			Namespace: types.DefaultKubeVelaNS,
-		}); err != nil {
-			return nil, err
-		}
-		for _, td := range traitDefinitions.Items {
-			defs = append(defs, &apisv1.DefinitionBase{
-				Name:        td.Name,
-				Description: td.Annotations[types.AnnDescription],
-			})
-		}
-		d.caches["traitDefinitions"] = utils.NewMemoryCache(defs, time.Minute*3)
+		defs.SetAPIVersion("core.oam.dev/v1beta1")
+		defs.SetKind("TraitDefinition")
+		return d.listDefinitions(ctx, defs, "traitDefinitions")
 
 	case "workflowstep":
-		if mc := d.caches["workflowStepDefinitions"]; mc != nil && !mc.IsExpired() {
-			return mc.GetData().([]*apisv1.DefinitionBase), nil
-		}
-		var stepDefinitions v1beta1.WorkflowStepDefinitionList
-		if err := d.kubeClient.List(ctx, &stepDefinitions, &client.ListOptions{
-			Namespace: types.DefaultKubeVelaNS,
-		}); err != nil {
-			return nil, err
-		}
-		for _, sd := range stepDefinitions.Items {
-			defs = append(defs, &apisv1.DefinitionBase{
-				Name:        sd.Name,
-				Description: sd.Annotations[types.AnnDescription],
-			})
-		}
-		d.caches["workflowStepDefinitions"] = utils.NewMemoryCache(defs, time.Minute*3)
-	}
+		defs.SetAPIVersion("core.oam.dev/v1beta1")
+		defs.SetKind("WorkflowStepDefinition")
+		return d.listDefinitions(ctx, defs, "workflowStepDefinitions")
 
+	default:
+		return nil, fmt.Errorf("invalid definition type")
+	}
+}
+
+func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache string) ([]*apisv1.DefinitionBase, error) {
+	if mc := d.caches[cache]; mc != nil && !mc.IsExpired() {
+		return mc.GetData().([]*apisv1.DefinitionBase), nil
+	}
+	if err := d.kubeClient.List(ctx, list, &client.ListOptions{
+		Namespace: types.DefaultKubeVelaNS,
+	}); err != nil {
+		return nil, err
+	}
+	var defs []*apisv1.DefinitionBase
+	for _, def := range list.Items {
+		defs = append(defs, &apisv1.DefinitionBase{
+			Name:        def.GetName(),
+			Description: def.GetAnnotations()[types.AnnDescription],
+		})
+	}
+	d.caches[cache] = utils.NewMemoryCache(defs, time.Minute*3)
 	return defs, nil
 }
 
 // DetailDefinition get definition detail
-func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name string) (*apisv1.DetailDefinitionResponse, error) {
+func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error) {
 	var cm v1.ConfigMap
 	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      fmt.Sprintf("schema-%s", name),
+		Name:      fmt.Sprintf("%s-schema-%s", defType, name),
 	}, &cm); err != nil {
 		return nil, err
 	}

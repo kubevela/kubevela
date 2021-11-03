@@ -94,7 +94,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 	It("Test DetailDefinition function", func() {
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "schema-apply-object",
+				Name:      "workflowstep-schema-apply-object",
 				Namespace: "vela-system",
 			},
 			Data: map[string]string{
@@ -103,7 +103,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		}
 		err := k8sClient.Create(context.Background(), cm)
 		Expect(err).Should(Succeed())
-		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object")
+		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object", "workflowstep")
 		Expect(err).Should(BeNil())
 		Expect(schema.Schema).Should(Equal(&v1.DefinitionSchema{
 			Properties: map[string]v1.DefinitionProperties{
