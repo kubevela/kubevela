@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 
 	"cuelang.org/go/cue"
@@ -181,7 +183,10 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				exec.err(err, StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
 			}
-
+			if isDebugMode(taskv) {
+				exec.printStep("workflowStepStart", "workflow", "", taskv)
+				defer exec.printStep("workflowStepEnd", "workflow", "", taskv)
+			}
 			if err := exec.doSteps(ctx, taskv); err != nil {
 				exec.err(err, StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
@@ -264,8 +269,17 @@ func (exec *executor) status() common.WorkflowStepStatus {
 	return exec.wfStatus
 }
 
+func (exec *executor) printStep(phase string, provider string, do string, v *value.Value) {
+	msg, _ := v.String()
+	klog.InfoS("cue eval: "+msg, "stepID", exec.wfStatus.ID, "phase", phase, "provider", provider, "do", do)
+}
+
 // Handle process task-step value by provider and do.
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
+	if isDebugMode(v) {
+		exec.printStep("stepStart", provider, do, v)
+		defer exec.printStep("stepEnd", provider, do, v)
+	}
 	h, exist := exec.handlers.GetHandler(provider, do)
 	if !exist {
 		return errors.Errorf("handler not found")
@@ -334,6 +348,11 @@ func isStepList(fieldName string) bool {
 		return true
 	}
 	return strings.HasPrefix(fieldName, "#up_")
+}
+
+func isDebugMode(v *value.Value) bool {
+	debug, _ := v.CueValue().LookupDef("#debug").Bool()
+	return debug
 }
 
 func opTpy(v *value.Value) string {
