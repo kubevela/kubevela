@@ -27,8 +27,7 @@ import (
 
 var (
 	//go:embed pkgs op.cue
-	fs         embed.FS
-	pkgContent string
+	fs embed.FS
 )
 
 // GetPackages Get Stdlib packages
@@ -44,7 +43,7 @@ func GetPackages(tagTempl string) (map[string]string, error) {
 		return nil, err
 	}
 
-	pkgContent = string(opBytes) + "\n"
+	pkgContent := string(opBytes) + "\n"
 	for _, file := range files {
 		body, err := fs.ReadFile("pkgs/" + file.Name())
 		if err != nil {
