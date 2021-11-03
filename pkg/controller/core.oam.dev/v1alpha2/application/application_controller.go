@@ -22,19 +22,19 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
-
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -43,9 +43,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha1/envbinding"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -204,7 +204,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if wfStatus != nil {
 				ref, err := handler.DispatchAndGC(ctx)
 				if err == nil {
-					err = envbinding.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, r.Client, policies, func(c context.Context) error {
+					err = multicluster.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, app, func(c context.Context) error {
 						_, e := handler.DispatchAndGC(c)
 						return e
 					})
@@ -332,6 +332,9 @@ func (r *Reconciler) handleFinalizers(ctx context.Context, app *v1beta1.Applicat
 					klog.ErrorS(err, "Failed to delete resource tracker", "name", rt.Name)
 					return true, errors.WithMessage(err, "cannot remove finalizer")
 				}
+			}
+			if err := multicluster.GarbageCollectionForAllResourceTrackersInSubCluster(ctx, r.Client, app); err != nil {
+				return true, err
 			}
 			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
 			// legacyOnlyRevisionFinalizer will be deprecated in the future

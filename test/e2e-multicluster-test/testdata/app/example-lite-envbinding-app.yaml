@@ -1,0 +1,32 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-lite-app
+  namespace: default
+spec:
+  components:
+    - name: data-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
+  policies:
+    - name: example-multi-env-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: test
+            placement:
+              clusterSelector:
+                name: TEST_CLUSTER_NAME
+
+  workflow:
+    steps:
+      # deploy to test env
+      - name: deploy-test
+        type: deploy2env
+        properties:
+          policy: example-multi-env-policy
+          env: test

@@ -36,11 +36,10 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/references/a/preimport"
@@ -385,15 +384,20 @@ func getMutableClusterSecret(c client.Client, clusterName string) (*v1.Secret, e
 	if labels == nil || labels[v1alpha12.LabelKeyClusterCredentialType] == "" {
 		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, v1alpha12.LabelKeyClusterCredentialType)
 	}
-	ebs := &v1alpha1.EnvBindingList{}
-	if err := c.List(context.Background(), ebs); err != nil {
-		return nil, errors.Wrap(err, "failed to find EnvBindings to check clusters")
+	apps := &v1beta1.ApplicationList{}
+	if err := c.List(context.Background(), apps); err != nil {
+		return nil, errors.Wrap(err, "failed to find applications to check clusters")
 	}
 	errs := errors3.ErrorList{}
-	for _, eb := range ebs.Items {
-		for _, decision := range eb.Status.ClusterDecisions {
-			if decision.Cluster == clusterName {
-				errs.Append(fmt.Errorf("application %s/%s (env: %s, envBinding: %s) is currently using cluster %s", eb.Namespace, eb.Labels[oam.LabelAppName], decision.Env, eb.Name, clusterName))
+	for _, app := range apps.Items {
+		status, err := envbinding.GetEnvBindingPolicyStatus(app.DeepCopy(), "")
+		if err == nil && status != nil {
+			for _, env := range status.Envs {
+				for _, placement := range env.Placements {
+					if placement.Cluster == clusterName {
+						errs.Append(fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
+					}
+				}
 			}
 		}
 	}

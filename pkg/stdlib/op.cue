@@ -1,5 +1,4 @@
 import (
-	"encoding/yaml"
 	"encoding/json"
 	"encoding/base64"
 	"strings"
@@ -106,57 +105,7 @@ import (
 	}
 }
 
-#ApplyEnvBindApp: #Steps & {
-	env:        string
-	policy:     string
-	app:        string
-	namespace:  string
-	_namespace: namespace
-
-	envBinding: kube.#Read & {
-		value: {
-			apiVersion: "core.oam.dev/v1alpha1"
-			kind:       "EnvBinding"
-			metadata: {
-				name:      policy
-				namespace: _namespace
-			}
-		}
-	} @step(1)
-
-	// wait until envBinding.value.status equal "finished"
-	wait: #ConditionalWait & {
-		continue: envBinding.value.status.phase == "finished"
-	} @step(2)
-
-	configMap: kube.#Read & {
-		value: {
-			apiVersion: "v1"
-			kind:       "ConfigMap"
-			metadata: {
-				name:      policy
-				namespace: _namespace
-			}
-			data?: _
-		}
-	} @step(3)
-
-	patchedApp: yaml.Unmarshal(configMap.value.data["\(env)"])[context.name]
-	components: patchedApp.spec.components
-	apply:      #Steps & {
-		for key, comp in components {
-			"\(key)": #ApplyComponent & {
-				value: comp
-				if patchedApp.metadata.labels != _|_ && patchedApp.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
-					cluster: patchedApp.metadata.labels["cluster.oam.dev/clusterName"]
-				}
-				if patchedApp.metadata.labels != _|_ && patchedApp.metadata.labels["envbinding.oam.dev/override-namespace"] != _|_ {
-					namespace: patchedApp.metadata.labels["envbinding.oam.dev/override-namespace"]
-				}
-			} @step(4)
-		}
-	}
-}
+#ApplyEnvBindApp: multicluster.#ApplyEnvBindApp
 
 #HTTPGet: http.#Do & {method: "GET"}
 

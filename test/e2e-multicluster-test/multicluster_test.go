@@ -29,6 +29,7 @@ import (
 	v13 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	v14 "k8s.io/api/rbac/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
@@ -88,6 +89,35 @@ var _ = Describe("Test multicluster scenario", func() {
 			out, err = execCommand("cluster", "list")
 			Expect(err).Should(Succeed())
 			Expect(out).ShouldNot(ContainSubstring(newClusterName))
+		})
+
+		It("Test detach cluster with application use", func() {
+			const testClusterName = "test-cluster"
+			_, err := execCommand("cluster", "join", "/tmp/worker.kubeconfig", "--name", testClusterName)
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			bs, err := ioutil.ReadFile("./testdata/app/example-lite-envbinding-app.yaml")
+			Expect(err).Should(Succeed())
+			appYaml := strings.ReplaceAll(string(bs), "TEST_CLUSTER_NAME", testClusterName)
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			ctx := context.Background()
+			err = k8sClient.Create(ctx, app)
+			Expect(err).Should(Succeed())
+			namespacedName := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, namespacedName, app)).Should(Succeed())
+				g.Expect(len(app.Status.PolicyStatus)).ShouldNot(Equal(0))
+			}, 30*time.Second).Should(Succeed())
+			_, err = execCommand("cluster", "detach", testClusterName)
+			Expect(err).ShouldNot(Succeed())
+			err = k8sClient.Delete(ctx, app)
+			Expect(err).Should(Succeed())
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, namespacedName, app)
+				g.Expect(kerrors.IsNotFound(err)).Should(BeTrue())
+			}, 30*time.Second).Should(Succeed())
+			_, err = execCommand("cluster", "detach", testClusterName)
+			Expect(err).Should(Succeed())
 		})
 
 		It("Test generate service account kubeconfig", func() {
@@ -173,6 +203,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			// 2. Namespace selector.
 			// 3. A special cluster: local cluster
 			// 4. Component selector.
+			By("apply application")
 			app := &v1beta1.Application{}
 			bs, err := ioutil.ReadFile("./testdata/app/example-envbinding-app.yaml")
 			Expect(err).Should(Succeed())
@@ -182,6 +213,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			err = k8sClient.Create(hubCtx, app)
 			Expect(err).Should(Succeed())
 			var hubDeployName string
+			By("wait application resource ready")
 			Eventually(func(g Gomega) {
 				// check deployments in clusters
 				deploys := &v13.DeploymentList{}
@@ -194,10 +226,12 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &v13.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(2))
-			}, 2*time.Minute).Should(Succeed())
+			}, time.Minute).Should(Succeed())
 			Expect(hubDeployName).Should(Equal("data-worker"))
 			// delete application
+			By("delete application")
 			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
+			By("wait application resource delete")
 			Eventually(func(g Gomega) {
 				// check deployments in clusters
 				deploys := &v13.DeploymentList{}
@@ -206,7 +240,7 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &v13.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
-			}, 2*time.Minute).Should(Succeed())
+			}, time.Minute).Should(Succeed())
 		})
 	})
 

@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
@@ -180,6 +181,9 @@ func (af *Appfile) PrepareWorkflowAndPolicy() (policies []*unstructured.Unstruct
 func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
 	var uns []*unstructured.Unstructured
 	for _, wl := range workloads {
+		if wl.Type == v1alpha1.EnvBindingPolicyType {
+			continue
+		}
 		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts)
 		if err != nil {
 			return nil, err

@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -859,7 +860,8 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 		ns := resource.Namespace
 		r := &unstructured.Unstructured{}
 		r.GetObjectKind().SetGroupVersionKind(resource.GroupVersionKind())
-		err := h.r.Get(ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
+		_ctx := multicluster.ContextWithClusterName(ctx, resource.Cluster)
+		err := h.r.Get(_ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
 		if err != nil {
 			return err
 		}
@@ -877,7 +879,8 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 		listOpts := []client.ListOption{client.MatchingLabels{
 			oam.LabelControllerRevisionComponent: curComp.Name,
 		}, client.InNamespace(h.app.Namespace)}
-		if err := h.r.List(ctx, crList, listOpts...); err != nil {
+		_ctx := multicluster.ContextWithClusterName(ctx, curComp.Cluster)
+		if err := h.r.List(_ctx, crList, listOpts...); err != nil {
 			return err
 		}
 		needKill := len(crList.Items) - h.r.appRevisionLimit - len(compRevisionInUse[curComp.Name])
@@ -893,7 +896,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 			if _, inUse := compRevisionInUse[curComp.Name][rev.Name]; inUse {
 				continue
 			}
-			if err := h.r.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
+			if err := h.r.Delete(_ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
 			needKill--

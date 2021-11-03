@@ -306,6 +306,17 @@ type AppStatus struct {
 
 	// AppliedResources record the resources that the  workflow step apply.
 	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
+
+	// PolicyStatus records the status of policy
+	PolicyStatus []PolicyStatus `json:"policy,omitempty"`
+}
+
+// PolicyStatus records the status of policy
+type PolicyStatus struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Status *runtime.RawExtension `json:"status,omitempty"`
 }
 
 // WorkflowStatus record the status of workflow

@@ -157,6 +157,16 @@ func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTy
 	return nil
 }
 
+// LoadPolicies load policy describe info in application.
+func (p *provider) LoadPolicies(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	for _, po := range p.app.Spec.Policies {
+		if err := v.FillObject(po, "value", po.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Install register handlers to provider discover.
 func Install(p providers.Providers, app *v1beta1.Application, apply ComponentApply, render ComponentRender) {
 	prd := &provider{
@@ -168,5 +178,6 @@ func Install(p providers.Providers, app *v1beta1.Application, apply ComponentApp
 		"component-render": prd.RenderComponent,
 		"component-apply":  prd.ApplyComponent,
 		"load":             prd.LoadComponent,
+		"load-policies":    prd.LoadPolicies,
 	})
 }

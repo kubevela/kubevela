@@ -23,3 +23,10 @@
 	#do:       "load"
 	...
 }
+
+#LoadPolicies: {
+	#provider: "oam"
+	#do:       "load-policies"
+	value?: {...}
+	...
+}
