@@ -173,7 +173,7 @@ spec:
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
@@ -264,7 +264,7 @@ spec:
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
@@ -306,8 +306,9 @@ spec:
 			cd.SetNamespace(namespace)
 			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: cd.Name, Namespace: cd.Namespace}}
+			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, cd.Name)
+			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, cd.Name)
 			Eventually(func() bool {
 				testutil.ReconcileRetry(&r, req)
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: cd.Namespace, Name: name}, &cm)
@@ -347,7 +348,7 @@ spec:
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
@@ -392,7 +393,7 @@ spec:
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
@@ -501,7 +502,7 @@ spec:
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
@@ -725,7 +726,7 @@ spec:
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			name := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				testutil.ReconcileRetry(&r, req)
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
