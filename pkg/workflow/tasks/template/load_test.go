@@ -51,7 +51,7 @@ func TestLoad(t *testing.T) {
 		},
 	}
 	tdm := mock.NewMockDiscoveryMapper()
-	loader := NewTemplateLoader(cli, tdm)
+	loader := NewWorkflowStepTemplateLoader(cli, tdm)
 
 	tmpl, err := loader.LoadTaskTemplate(context.Background(), "builtin-apply-component")
 	assert.NilError(t, err)

@@ -24,8 +24,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Query contains query data
-type Query struct {
+// QueryView contains query data
+type QueryView struct {
 	View      string
 	Parameter map[string]interface{}
 	Export    string
@@ -56,16 +56,16 @@ func init() {
 	kvRegexp = regexp.MustCompile(PatternKV)
 }
 
-// ParseVelaQL parse velaQL to Query
-func ParseVelaQL(ql string) (Query, error) {
-	query := Query{
+// ParseVelaQL parse velaQL to QueryView
+func ParseVelaQL(ql string) (QueryView, error) {
+	qv := QueryView{
 		Export: DefaultExportValue,
 	}
 
 	groupNames := qlRegexp.SubexpNames()
 	matched := qlRegexp.FindStringSubmatch(ql)
 	if len(matched) != len(groupNames) || (len(matched) != 0 && matched[0] != ql) {
-		return query, errors.New("fail to parse the velaQL")
+		return qv, errors.New("fail to parse the velaQL")
 	}
 
 	result := make(map[string]string, len(groupNames))
@@ -76,19 +76,19 @@ func ParseVelaQL(ql string) (Query, error) {
 	}
 
 	if len(result["view"]) == 0 {
-		return query, errors.New("view name shouldn't be empty")
+		return qv, errors.New("view name shouldn't be empty")
 	}
 
-	query.View = result[KeyWordView]
+	qv.View = result[KeyWordView]
 	if len(result[KeyWordExport]) != 0 {
-		query.Export = result[KeyWordExport]
+		qv.Export = result[KeyWordExport]
 	}
 	var err error
-	query.Parameter, err = ParseParameter(result[KeyWordParameter])
+	qv.Parameter, err = ParseParameter(result[KeyWordParameter])
 	if err != nil {
-		return query, err
+		return qv, err
 	}
-	return query, nil
+	return qv, nil
 }
 
 // ParseParameter parse parameter to map[string]interface{}

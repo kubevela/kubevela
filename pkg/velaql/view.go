@@ -29,25 +29,29 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
-const qlNs = "vela-system"
+const (
+	qlNs = "vela-system"
+
+	// ViewTaskPhaseSucceeded means view task run succeeded.
+	ViewTaskPhaseSucceeded = "succeeded"
+)
 
 // ViewHandler view handler
 type ViewHandler struct {
-	cli          client.Client
-	workflowStep v1beta1.WorkflowStep
-	dm           discoverymapper.DiscoveryMapper
-	pd           *packages.PackageDiscover
-	namespace    string
+	cli       client.Client
+	viewTask  v1beta1.WorkflowStep
+	dm        discoverymapper.DiscoveryMapper
+	pd        *packages.PackageDiscover
+	namespace string
 }
 
 // NewViewHandler new view handler
@@ -61,32 +65,27 @@ func NewViewHandler(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *p
 }
 
 // QueryView generate view step
-func (v *ViewHandler) QueryView(ctx context.Context, query Query) (*value.Value, error) {
-	outputsTemplate := fmt.Sprintf(OutputsTemplate, query.Export, query.Export)
+func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value.Value, error) {
+	outputsTemplate := fmt.Sprintf(OutputsTemplate, qv.Export, qv.Export)
 	queryKey := QueryParameterKey{}
 	if err := json.Unmarshal([]byte(outputsTemplate), &queryKey); err != nil {
 		return nil, err
 	}
 
-	v.workflowStep = v1beta1.WorkflowStep{
-		Name:       fmt.Sprintf("%s-%s", query.View, query.Export),
-		Type:       query.View,
-		Properties: oamutil.Object2RawExtension(query.Parameter),
+	handler.viewTask = v1beta1.WorkflowStep{
+		Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
+		Type:       qv.View,
+		Properties: oamutil.Object2RawExtension(qv.Parameter),
 		Outputs:    queryKey.Outputs,
 	}
 
-	ctx = oamutil.SetNamespaceInCtx(ctx, v.namespace)
-	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, v.cli, v.dispatch, v.delete)
-	taskDiscover := tasks.NewTaskDiscover(handlerProviders, v.pd, v.cli, v.dm)
-	genTask, err := taskDiscover.GetTaskGenerator(ctx, v.workflowStep.Type)
+	taskDiscover := tasks.NewViewTaskDiscover(handler.pd, handler.cli, handler.dispatch, handler.delete, handler.namespace)
+	genTask, err := taskDiscover.GetTaskGenerator(ctx, handler.viewTask.Type)
 	if err != nil {
 		return nil, err
 	}
 
-	runner, err := genTask(v.workflowStep, &wfTypes.GeneratorOptions{
-		ID: utils.RandomString(10),
-	})
+	runner, err := genTask(handler.viewTask, &wfTypes.GeneratorOptions{ID: utils.RandomString(10)})
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +98,15 @@ func (v *ViewHandler) QueryView(ctx context.Context, query Query) (*value.Value,
 	if err != nil {
 		return nil, err
 	}
-	if status.Phase != common.WorkflowStepPhaseSucceeded {
+	if string(status.Phase) != ViewTaskPhaseSucceeded {
 		return nil, errors.Errorf("failed to query the view %s", status.Message)
 	}
-	return viewCtx.GetVar(query.Export)
+	return viewCtx.GetVar(qv.Export)
 }
 
-func (v *ViewHandler) dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
-	applicator := apply.NewAPIApplicator(v.cli)
+func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+	ctx = multicluster.ContextWithClusterName(ctx, cluster)
+	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
 		if err := applicator.Apply(ctx, manifest); err != nil {
 			return err
@@ -115,8 +115,8 @@ func (v *ViewHandler) dispatch(ctx context.Context, cluster string, owner common
 	return nil
 }
 
-func (v *ViewHandler) delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
-	return v.cli.Delete(ctx, manifest)
+func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
+	return handler.cli.Delete(ctx, manifest)
 }
 
 // QueryParameterKey query parameter key
