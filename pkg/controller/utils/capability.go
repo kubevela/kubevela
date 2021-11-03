@@ -61,6 +61,10 @@ const (
 	TerraformTupleTypePrefix  string = "tuple("
 	TerraformMapTypePrefix    string = "map("
 	TerraformObjectTypePrefix string = "object("
+
+	typeTraitDefinition        = "trait"
+	typeComponentDefinition    = "component"
+	typeWorkflowStepDefinition = "workflowstep"
 )
 
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
@@ -245,7 +249,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -263,7 +267,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeComponentDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -326,7 +330,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -344,7 +348,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeTraitDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -395,7 +399,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -413,7 +417,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -426,8 +430,8 @@ type CapabilityBaseDefinition struct {
 
 // CreateOrUpdateConfigMap creates ConfigMap to store OpenAPI v3 schema or or updates data in ConfigMap
 func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace,
-	definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
-	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, definitionName)
+	definitionName, definitionType string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
+	cmName := fmt.Sprintf("%s-%s%s", definitionType, types.CapabilityConfigMapNamePrefix, definitionName)
 	var cm v1.ConfigMap
 	var data = map[string]string{
 		types.OpenapiV3JSONSchema: string(jsonSchema),
