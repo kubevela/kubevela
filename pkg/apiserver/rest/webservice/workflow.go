@@ -46,7 +46,7 @@ type workflowWebService struct {
 
 func (w *workflowWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/workflows").
+	ws.Path(versionPrefix+"/workflowplans").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for cluster manage")
@@ -58,31 +58,31 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("appName", "identifier of the application.").DataType("string")).
 		Param(ws.QueryParameter("enable", "query based on enable status").DataType("boolean")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Writes(apis.ListWorkflowResponse{}).Do(returns200, returns500))
+		Writes(apis.ListWorkflowPlanResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(w.createApplicationWorkflow).
 		Doc("create application workflow").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(apis.CreateWorkflowRequest{}).
-		Returns(200, "create success", apis.DetailWorkflowResponse{}).
+		Reads(apis.CreateWorkflowPlanRequest{}).
+		Returns(200, "create success", apis.DetailWorkflowPlanResponse{}).
 		Returns(400, "create failure", bcode.Bcode{}).
-		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+		Writes(apis.DetailWorkflowPlanResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.GET("/{name}").To(w.detailWorkflow).
 		Doc("detail application workflow").
 		Param(ws.PathParameter("name", "identifier of the workflow.").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(w.workflowCheckFilter).
-		Returns(200, "create success", apis.DetailWorkflowResponse{}).
-		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+		Returns(200, "create success", apis.DetailWorkflowPlanResponse{}).
+		Writes(apis.DetailWorkflowPlanResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.PUT("/{name}").To(w.updateWorkflow).
 		Doc("update application workflow config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(w.workflowCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
-		Reads(apis.UpdateWorkflowRequest{}).
-		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+		Reads(apis.UpdateWorkflowPlanRequest{}).
+		Writes(apis.DetailWorkflowPlanResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.DELETE("/{name}").To(w.deleteWorkflow).
 		Doc("deletet workflow").
@@ -140,7 +140,7 @@ func (w *workflowWebService) listApplicationWorkflows(req *restful.Request, res 
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.ListWorkflowResponse{Workflows: workflows}); err != nil {
+	if err := res.WriteEntity(apis.ListWorkflowPlanResponse{WorkflowPlans: workflows}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -148,7 +148,7 @@ func (w *workflowWebService) listApplicationWorkflows(req *restful.Request, res 
 
 func (w *workflowWebService) createApplicationWorkflow(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
-	var createReq apis.CreateWorkflowRequest
+	var createReq apis.CreateWorkflowPlanRequest
 	if err := req.ReadEntity(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -178,7 +178,7 @@ func (w *workflowWebService) createApplicationWorkflow(req *restful.Request, res
 }
 
 func (w *workflowWebService) detailWorkflow(req *restful.Request, res *restful.Response) {
-	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.WorkflowPlan)
 	detail, err := w.workflowUsecase.DetailWorkflow(req.Request.Context(), workflow)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -191,9 +191,9 @@ func (w *workflowWebService) detailWorkflow(req *restful.Request, res *restful.R
 }
 
 func (w *workflowWebService) updateWorkflow(req *restful.Request, res *restful.Response) {
-	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.WorkflowPlan)
 	// Verify the validity of parameters
-	var updateReq apis.UpdateWorkflowRequest
+	var updateReq apis.UpdateWorkflowPlanRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return

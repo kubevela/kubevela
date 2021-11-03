@@ -187,16 +187,16 @@ type ClusterBase struct {
 	Reason string `json:"reason"`
 }
 
-// ListApplicatioOptions list application query options
-type ListApplicatioOptions struct {
+// ListApplicatioPlanOptions list application plan query options
+type ListApplicatioPlanOptions struct {
 	Namespace string `json:"namespace"`
 	Cluster   string `json:"cluster"`
 	Query     string `json:"query"`
 }
 
-// ListApplicationResponse list applications by query params
-type ListApplicationResponse struct {
-	Applications []*ApplicationBase `json:"applications"`
+// ListApplicationPlanResponse list applications by query params
+type ListApplicationPlanResponse struct {
+	ApplicationPlans []*ApplicationPlanBase `json:"applicationplans"`
 }
 
 // EnvBindList env bind list
@@ -212,8 +212,8 @@ func (e EnvBindList) ContainCluster(name string) bool {
 	return false
 }
 
-// ApplicationBase application base model
-type ApplicationBase struct {
+// ApplicationPlanBase application base model
+type ApplicationPlanBase struct {
 	Name            string            `json:"name"`
 	Alias           string            `json:"alias"`
 	Namespace       string            `json:"namespace"`
@@ -246,8 +246,8 @@ type GatewayRule struct {
 	ComponentPort int32    `json:"componentPort"`
 }
 
-// CreateApplicationRequest create application request body
-type CreateApplicationRequest struct {
+// CreateApplicationPlanRequest create application plan request body
+type CreateApplicationPlanRequest struct {
 	Name        string            `json:"name" validate:"checkname"`
 	Alias       string            `json:"alias" validate:"checkalias"`
 	Namespace   string            `json:"namespace" validate:"checkname"`
@@ -274,9 +274,9 @@ type ClusterSelector struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// DetailApplicationResponse application detail
-type DetailApplicationResponse struct {
-	ApplicationBase
+// DetailApplicationPlanResponse application plan detail
+type DetailApplicationPlanResponse struct {
+	ApplicationPlanBase
 	Policies       []string                `json:"policies"`
 	Status         string                  `json:"status"`
 	ResourceInfo   ApplicationResourceInfo `json:"resourceInfo"`
@@ -296,8 +296,8 @@ type ApplicationResourceInfo struct {
 	// Others, such as: Memory、CPU、GPU、Storage
 }
 
-// ComponentBase component base model
-type ComponentBase struct {
+// ComponentPlanBase component plan base model
+type ComponentPlanBase struct {
 	Name          string            `json:"name"`
 	Alias         string            `json:"alias"`
 	Description   string            `json:"description"`
@@ -312,13 +312,13 @@ type ComponentBase struct {
 	UpdateTime    time.Time         `json:"updateTime"`
 }
 
-// ComponentListResponse list component
-type ComponentListResponse struct {
-	Components []*ComponentBase `json:"components"`
+// ComponentPlanListResponse list component plan
+type ComponentPlanListResponse struct {
+	ComponentPlans []*ComponentPlanBase `json:"componentplans"`
 }
 
-// CreateComponentRequest create component request model
-type CreateComponentRequest struct {
+// CreateComponentPlanRequest create component plan request model
+type CreateComponentPlanRequest struct {
 	Name          string            `json:"name" validate:"checkname"`
 	Alias         string            `json:"alias" validate:"checkalias"`
 	Description   string            `json:"description"`
@@ -330,9 +330,9 @@ type CreateComponentRequest struct {
 	DependsOn     []string          `json:"dependsOn"`
 }
 
-// DetailComponentResponse detail component model
-type DetailComponentResponse struct {
-	model.ApplicationComponent
+// DetailComponentPlanResponse detail component plan model
+type DetailComponentPlanResponse struct {
+	model.ApplicationComponentPlan
 	//TODO: Status
 }
 
@@ -452,8 +452,8 @@ type PolicyDefinition struct {
 	Parameters  []types.Parameter `json:"parameters"`
 }
 
-// CreateWorkflowRequest create workflow request
-type CreateWorkflowRequest struct {
+// CreateWorkflowPlanRequest create workflow plan request
+type CreateWorkflowPlanRequest struct {
 	AppName     string         `json:"appName" validate:"checkname"`
 	Name        string         `json:"name"  validate:"checkname"`
 	Alias       string         `json:"alias"  validate:"checkalias"`
@@ -463,8 +463,8 @@ type CreateWorkflowRequest struct {
 	Default     bool           `json:"default"`
 }
 
-// UpdateWorkflowRequest update or create application workflow
-type UpdateWorkflowRequest struct {
+// UpdateWorkflowPlanRequest update or create application workflow
+type UpdateWorkflowPlanRequest struct {
 	Alias       string         `json:"alias"  validate:"checkalias"`
 	Description string         `json:"description"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
@@ -483,20 +483,20 @@ type WorkflowStep struct {
 	Outputs    common.StepOutputs `json:"outputs,omitempty"`
 }
 
-// DetailWorkflowResponse detail workflow response
-type DetailWorkflowResponse struct {
-	WorkflowBase
+// DetailWorkflowPlanResponse detail workflow response
+type DetailWorkflowPlanResponse struct {
+	WorkflowPlanBase
 	Steps      []WorkflowStep  `json:"steps,omitempty"`
 	LastRecord *WorkflowRecord `json:"workflowRecord"`
 }
 
-// ListWorkflowResponse list application workflows
-type ListWorkflowResponse struct {
-	Workflows []*WorkflowBase `json:"workflows"`
+// ListWorkflowPlanResponse list application workflows
+type ListWorkflowPlanResponse struct {
+	WorkflowPlans []*WorkflowPlanBase `json:"workflowplans"`
 }
 
-// WorkflowBase workflow base model
-type WorkflowBase struct {
+// WorkflowPlanBase workflow base model
+type WorkflowPlanBase struct {
 	Name        string    `json:"name"`
 	Alias       string    `json:"alias"`
 	Description string    `json:"description"`

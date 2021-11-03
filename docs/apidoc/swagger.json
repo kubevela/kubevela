@@ -15,7 +15,300 @@
   "version": "v1beta1"
  },
  "paths": {
-  "/api/v1/applications": {
+  "/api/v1/addon_registries": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon_registry"
+    ],
+    "summary": "list all addon registry",
+    "operationId": "listAddonRegistry",
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ListAddonRegistryResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   },
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon_registry"
+    ],
+    "summary": "create an addon registry",
+    "operationId": "createAddonRegistry",
+    "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/v1.CreateAddonRegistryRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonRegistryMeta"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addon_registries/{name}": {
+   "delete": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon_registry"
+    ],
+    "summary": "delete an addon registry",
+    "operationId": "deleteAddonRegistry",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the addon registry",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonRegistryMeta"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "list all addons",
+    "operationId": "listAddons",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "Fuzzy search based on name and description.",
+      "name": "query",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ListAddonResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/{name}": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "show details of an addon",
+    "operationId": "detailAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to query detail",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.DetailAddonResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/{name}/disable": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "disable an addon",
+    "operationId": "disableAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to enable",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonStatusResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/{name}/enable": {
+   "post": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "enable an addon",
+    "operationId": "enableAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to enable",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonStatusResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/addons/{name}/status": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "addon"
+    ],
+    "summary": "show status of an addon",
+    "operationId": "statusAddon",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "addon name to query status",
+      "name": "name",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.AddonStatusResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/applicationplans": {
    "get": {
     "consumes": [
      "application/xml",
@@ -53,7 +346,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ListApplicationResponse"
+       "$ref": "#/definitions/v1.ListApplicationPlanResponse"
       }
      },
      "400": {
@@ -83,14 +376,14 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.CreateApplicationRequest"
+       "$ref": "#/definitions/v1.CreateApplicationPlanRequest"
       }
      }
     ],
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ApplicationBase"
+       "$ref": "#/definitions/v1.ApplicationPlanBase"
       }
      },
      "400": {
@@ -101,7 +394,7 @@
     }
    }
   },
-  "/api/v1/applications/{name}": {
+  "/api/v1/applicationplans/{name}": {
    "get": {
     "consumes": [
      "application/xml",
@@ -128,7 +421,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.DetailApplicationResponse"
+       "$ref": "#/definitions/v1.DetailApplicationPlanResponse"
       }
      },
      "400": {
@@ -175,7 +468,7 @@
     }
    }
   },
-  "/api/v1/applications/{name}/components": {
+  "/api/v1/applicationplans/{name}/componentplans": {
    "get": {
     "consumes": [
      "application/xml",
@@ -188,7 +481,7 @@
     "tags": [
      "application"
     ],
-    "summary": "gets the component topology of the application",
+    "summary": "gets the componentplan topology of the application",
     "operationId": "listApplicationComponents",
     "parameters": [
      {
@@ -200,16 +493,15 @@
      },
      {
       "type": "string",
-      "description": "list components that deployed in define cluster",
-      "name": "cluster",
-      "in": "path",
-      "required": true
+      "description": "list components that deployed in define env",
+      "name": "envName",
+      "in": "query"
      }
     ],
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ComponentListResponse"
+       "$ref": "#/definitions/v1.ComponentPlanListResponse"
       }
      },
      "400": {
@@ -231,7 +523,7 @@
     "tags": [
      "application"
     ],
-    "summary": "create component for application",
+    "summary": "create component plan for application plan",
     "operationId": "createComponent",
     "parameters": [
      {
@@ -246,14 +538,14 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.CreateComponentRequest"
+       "$ref": "#/definitions/v1.CreateComponentPlanRequest"
       }
      }
     ],
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ComponentBase"
+       "$ref": "#/definitions/v1.ComponentPlanBase"
       }
      },
      "400": {
@@ -264,7 +556,7 @@
     }
    }
   },
-  "/api/v1/applications/{name}/components/{componentName}": {
+  "/api/v1/applicationplans/{name}/componentplans/{componentName}": {
    "get": {
     "consumes": [
      "application/xml",
@@ -277,7 +569,7 @@
     "tags": [
      "application"
     ],
-    "summary": "detail component for application",
+    "summary": "detail component plan for application plan",
     "operationId": "detailComponent",
     "parameters": [
      {
@@ -291,7 +583,7 @@
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.DetailComponentResponse"
+       "$ref": "#/definitions/v1.DetailComponentPlanResponse"
       }
      },
      "400": {
@@ -302,7 +594,7 @@
     }
    }
   },
-  "/api/v1/applications/{name}/deploy": {
+  "/api/v1/applicationplans/{name}/deploy": {
    "post": {
     "consumes": [
      "application/xml",
@@ -340,7 +632,7 @@
     }
    }
   },
-  "/api/v1/applications/{name}/policies": {
+  "/api/v1/applicationplans/{name}/policies": {
    "get": {
     "consumes": [
      "application/xml",
@@ -422,7 +714,7 @@
     }
    }
   },
-  "/api/v1/applications/{name}/policies/{policyName}": {
+  "/api/v1/applicationplans/{name}/policies/{policyName}": {
    "get": {
     "consumes": [
      "application/xml",
@@ -561,7 +853,7 @@
     }
    }
   },
-  "/api/v1/applications/{name}/template": {
+  "/api/v1/applicationplans/{name}/template": {
    "post": {
     "consumes": [
      "application/xml",
@@ -716,6 +1008,13 @@
     "operationId": "listCloudClusters",
     "parameters": [
      {
+      "type": "string",
+      "description": "identifier of the cloud provider",
+      "name": "provider",
+      "in": "path",
+      "required": true
+     },
+     {
       "type": "int",
       "default": 0,
       "description": "Page for paging",
@@ -768,6 +1067,13 @@
     "summary": "create cluster from cloud cluster",
     "operationId": "connectCloudCluster",
     "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the cloud provider",
+      "name": "provider",
+      "in": "path",
+      "required": true
+     },
      {
       "name": "body",
       "in": "body",
@@ -828,7 +1134,7 @@
      }
     }
    },
-   "post": {
+   "put": {
     "consumes": [
      "application/xml",
      "application/json"
@@ -1015,7 +1321,44 @@
     }
    }
   },
-  "/api/v1/workflows": {
+  "/api/v1/query": {
+   "get": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "velaQL"
+    ],
+    "summary": "use velaQL to query resource status",
+    "operationId": "queryView",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "velaql query statement",
+      "name": "velaql",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.VelaQLViewResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/workflowplans": {
    "get": {
     "consumes": [
      "application/xml",
@@ -1076,7 +1419,7 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.CreateWorkflowRequest"
+       "$ref": "#/definitions/v1.CreateWorkflowPlanRequest"
       }
      }
     ],
@@ -1099,7 +1442,7 @@
     }
    }
   },
-  "/api/v1/workflows/{name}": {
+  "/api/v1/workflowplans/{name}": {
    "get": {
     "consumes": [
      "application/xml",
@@ -1162,7 +1505,7 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.UpdateWorkflowRequest"
+       "$ref": "#/definitions/v1.UpdateWorkflowPlanRequest"
       }
      }
     ],
@@ -1214,7 +1557,7 @@
     }
    }
   },
-  "/api/v1/workflows/{name}/records": {
+  "/api/v1/workflowplans/{name}/records": {
    "get": {
     "consumes": [
      "application/xml",
@@ -1228,7 +1571,7 @@
      "cluster"
     ],
     "summary": "query application workflow execution record",
-    "operationId": "noop",
+    "operationId": "listWorkflowRecords",
     "parameters": [
      {
       "type": "string",
@@ -1265,7 +1608,7 @@
     }
    }
   },
-  "/v1/addons": {
+  "/api/v1/workflowplans/{name}/records/{record}": {
    "get": {
     "consumes": [
      "application/xml",
@@ -1276,16 +1619,24 @@
      "application/xml"
     ],
     "tags": [
-     "addon"
+     "cluster"
     ],
-    "summary": "list all addons",
-    "operationId": "noop",
+    "summary": "query application workflow execution record detail",
+    "operationId": "detailWorkflowRecord",
     "parameters": [
      {
       "type": "string",
-      "description": "Cluster-based search",
-      "name": "cluster",
-      "in": "query"
+      "description": "identifier of the workflow",
+      "name": "name",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "description": "identifier of the workflow record",
+      "name": "record",
+      "in": "path",
+      "required": true
      }
     ],
     "responses": {
@@ -1297,187 +1648,6 @@
      },
      "500": {
       "description": "Bummer, something went wrong"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "create an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.CreateAddonRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "show details of an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the addon",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "delete an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the addon",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}/disable": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "disable an addon on a cluster",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "cluster name",
-      "name": "cluster",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}/enable": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "enable an addon on a cluster",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "cluster name",
-      "name": "cluster",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/addons/{name}/status": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "addon"
-    ],
-    "summary": "show status of an addon",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the addon",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
      }
     }
    }
@@ -1619,6 +1789,7 @@
   },
   "cloudprovider.CloudCluster": {
    "required": [
+    "provider",
     "id",
     "name",
     "type",
@@ -1647,6 +1818,9 @@
     "name": {
      "type": "string"
     },
+    "provider": {
+     "type": "string"
+    },
     "status": {
      "type": "string"
     },
@@ -1661,10 +1835,10 @@
   "common.AppRolloutStatus": {
    "required": [
     "batchRollingState",
-    "currentBatch",
     "upgradedReplicas",
-    "upgradedReadyReplicas",
     "rollingState",
+    "currentBatch",
+    "upgradedReadyReplicas",
     "lastTargetAppRevision"
    ],
    "properties": {
@@ -2129,16 +2303,20 @@
     "type": "string"
    }
   },
-  "model.ApplicationComponent": {
+  "model.ApplicationComponentPlan": {
    "required": [
     "createTime",
     "updateTime",
     "appPrimaryKey",
     "creator",
     "name",
+    "alias",
     "type"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "appPrimaryKey": {
      "type": "string"
     },
@@ -2197,7 +2375,7 @@
     "traits": {
      "type": "array",
      "items": {
-      "$ref": "#/definitions/model.ApplicationTrait"
+      "$ref": "#/definitions/model.ApplicationTraitPlan"
      }
     },
     "type": {
@@ -2209,7 +2387,7 @@
     }
    }
   },
-  "model.ApplicationTrait": {
+  "model.ApplicationTraitPlan": {
    "required": [
     "type"
    ],
@@ -2218,6 +2396,86 @@
      "$ref": "#/definitions/model.JSONStruct"
     },
     "type": {
+     "type": "string"
+    }
+   }
+  },
+  "model.Cluster": {
+   "required": [
+    "createTime",
+    "updateTime",
+    "name",
+    "alias",
+    "description",
+    "icon",
+    "labels",
+    "status",
+    "reason",
+    "provider",
+    "apiServerURL",
+    "dashboardURL",
+    "kubeConfig",
+    "kubeConfigSecret"
+   ],
+   "properties": {
+    "alias": {
+     "type": "string"
+    },
+    "apiServerURL": {
+     "type": "string"
+    },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "dashboardURL": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "kubeConfig": {
+     "type": "string"
+    },
+    "kubeConfigSecret": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "provider": {
+     "$ref": "#/definitions/model.ProviderInfo"
+    },
+    "reason": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  },
+  "model.GitAddonSource": {
+   "properties": {
+    "path": {
+     "type": "string"
+    },
+    "token": {
+     "type": "string"
+    },
+    "url": {
      "type": "string"
     }
    }
@@ -2243,6 +2501,7 @@
   },
   "model.ProviderInfo": {
    "required": [
+    "provider",
     "name",
     "id",
     "zone",
@@ -2259,6 +2518,9 @@
      }
     },
     "name": {
+     "type": "string"
+    },
+    "provider": {
      "type": "string"
     },
     "zone": {
@@ -2322,8 +2584,7 @@
     "version",
     "description",
     "icon",
-    "tags",
-    "phase"
+    "tags"
    ],
    "properties": {
     "description": {
@@ -2333,9 +2594,6 @@
      "type": "string"
     },
     "name": {
-     "type": "string"
-    },
-    "phase": {
      "type": "string"
     },
     "tags": {
@@ -2349,68 +2607,29 @@
     }
    }
   },
+  "v1.AddonRegistryMeta": {
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "git": {
+     "$ref": "#/definitions/model.GitAddonSource"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
   "v1.AddonStatusResponse": {
    "required": [
     "phase"
    ],
    "properties": {
+    "enabling_progress": {
+     "$ref": "#/definitions/v1.EnablingProgress"
+    },
     "phase": {
      "type": "string"
-    }
-   }
-  },
-  "v1.ApplicationBase": {
-   "required": [
-    "name",
-    "namespace",
-    "description",
-    "createTime",
-    "updateTime",
-    "icon",
-    "status",
-    "gatewayRule"
-   ],
-   "properties": {
-    "createTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "description": {
-     "type": "string"
-    },
-    "envBind": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.EnvBind"
-     }
-    },
-    "gatewayRule": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.GatewayRule"
-     }
-    },
-    "icon": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "namespace": {
-     "type": "string"
-    },
-    "status": {
-     "type": "string"
-    },
-    "updateTime": {
-     "type": "string",
-     "format": "date-time"
     }
    }
   },
@@ -2463,6 +2682,65 @@
     },
     "version": {
      "type": "string"
+    }
+   }
+  },
+  "v1.ApplicationPlanBase": {
+   "required": [
+    "name",
+    "alias",
+    "namespace",
+    "description",
+    "createTime",
+    "updateTime",
+    "icon",
+    "status",
+    "gatewayRule"
+   ],
+   "properties": {
+    "alias": {
+     "type": "string"
+    },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "description": {
+     "type": "string"
+    },
+    "envBind": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.EnvBind"
+     }
+    },
+    "gatewayRule": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.GatewayRule"
+     }
+    },
+    "icon": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "namespace": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
     }
    }
   },
@@ -2578,6 +2856,7 @@
   "v1.ClusterBase": {
    "required": [
     "name",
+    "alias",
     "description",
     "icon",
     "labels",
@@ -2588,6 +2867,9 @@
     "reason"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "apiServerURL": {
      "type": "string"
     },
@@ -2693,9 +2975,28 @@
     }
    }
   },
-  "v1.ComponentBase": {
+  "v1.ComponentDefinitionBase": {
    "required": [
     "name",
+    "description",
+    "icon"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.ComponentPlanBase": {
+   "required": [
+    "name",
+    "alias",
     "description",
     "componentType",
     "envNames",
@@ -2705,6 +3006,9 @@
     "updateTime"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "componentType": {
      "type": "string"
     },
@@ -2751,33 +3055,15 @@
     }
    }
   },
-  "v1.ComponentDefinitionBase": {
+  "v1.ComponentPlanListResponse": {
    "required": [
-    "name",
-    "description",
-    "icon"
+    "componentplans"
    ],
    "properties": {
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ComponentListResponse": {
-   "required": [
-    "components"
-   ],
-   "properties": {
-    "components": {
+    "componentplans": {
      "type": "array",
      "items": {
-      "$ref": "#/definitions/v1.ComponentBase"
+      "$ref": "#/definitions/v1.ComponentPlanBase"
      }
     }
    }
@@ -2788,6 +3074,7 @@
     "accessKeySecret",
     "clusterID",
     "name",
+    "alias",
     "icon"
    ],
    "properties": {
@@ -2795,6 +3082,9 @@
      "type": "string"
     },
     "accessKeySecret": {
+     "type": "string"
+    },
+    "alias": {
      "type": "string"
     },
     "clusterID": {
@@ -2817,51 +3107,31 @@
     }
    }
   },
-  "v1.CreateAddonRequest": {
+  "v1.CreateAddonRegistryRequest": {
    "required": [
-    "name",
-    "version",
-    "icon",
-    "tags"
+    "name"
    ],
    "properties": {
-    "deploy_data": {
-     "type": "string"
-    },
-    "deploy_url": {
-     "type": "string"
-    },
-    "description": {
-     "type": "string"
-    },
-    "detail": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
+    "git": {
+     "$ref": "#/definitions/model.GitAddonSource"
     },
     "name": {
-     "type": "string"
-    },
-    "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "version": {
      "type": "string"
     }
    }
   },
-  "v1.CreateApplicationRequest": {
+  "v1.CreateApplicationPlanRequest": {
    "required": [
     "name",
+    "alias",
     "namespace",
     "description",
     "icon"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "deploy": {
      "type": "boolean"
     },
@@ -2915,9 +3185,13 @@
   "v1.CreateClusterRequest": {
    "required": [
     "name",
+    "alias",
     "icon"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "dashboardURL": {
      "type": "string"
     },
@@ -2944,15 +3218,19 @@
     }
    }
   },
-  "v1.CreateComponentRequest": {
+  "v1.CreateComponentPlanRequest": {
    "required": [
     "name",
+    "alias",
     "description",
     "icon",
     "componentType",
     "dependsOn"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "componentType": {
      "type": "string"
     },
@@ -3024,15 +3302,19 @@
     }
    }
   },
-  "v1.CreateWorkflowRequest": {
+  "v1.CreateWorkflowPlanRequest": {
    "required": [
     "appName",
     "name",
+    "alias",
     "description",
     "enable",
     "default"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "appName": {
      "type": "string"
     },
@@ -3058,18 +3340,14 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
+    "version",
     "description",
     "icon",
     "tags",
-    "phase",
-    "name",
-    "version"
+    "name"
    ],
    "properties": {
     "deploy_data": {
-     "type": "string"
-    },
-    "deploy_url": {
      "type": "string"
     },
     "description": {
@@ -3084,9 +3362,6 @@
     "name": {
      "type": "string"
     },
-    "phase": {
-     "type": "string"
-    },
     "tags": {
      "type": "array",
      "items": {
@@ -3098,22 +3373,26 @@
     }
    }
   },
-  "v1.DetailApplicationResponse": {
+  "v1.DetailApplicationPlanResponse": {
    "required": [
-    "description",
-    "createTime",
+    "icon",
     "status",
     "gatewayRule",
-    "name",
     "namespace",
+    "description",
+    "createTime",
     "updateTime",
-    "icon",
+    "name",
+    "alias",
     "policies",
     "status",
     "resourceInfo",
     "workflowStatus"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "createTime": {
      "type": "string",
      "format": "date-time"
@@ -3174,20 +3453,32 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "status",
-    "icon",
+    "createTime",
     "description",
-    "labels",
-    "providerInfo",
-    "apiServerURL",
-    "dashboardURL",
+    "status",
     "reason",
+    "kubeConfig",
+    "kubeConfigSecret",
     "name",
+    "alias",
+    "provider",
+    "labels",
+    "dashboardURL",
+    "updateTime",
+    "icon",
+    "apiServerURL",
     "resourceInfo"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "apiServerURL": {
      "type": "string"
+    },
+    "createTime": {
+     "type": "string",
+     "format": "date-time"
     },
     "dashboardURL": {
      "type": "string"
@@ -3196,6 +3487,12 @@
      "type": "string"
     },
     "icon": {
+     "type": "string"
+    },
+    "kubeConfig": {
+     "type": "string"
+    },
+    "kubeConfigSecret": {
      "type": "string"
     },
     "labels": {
@@ -3207,13 +3504,10 @@
     "name": {
      "type": "string"
     },
-    "providerInfo": {
+    "provider": {
      "$ref": "#/definitions/model.ProviderInfo"
     },
     "reason": {
-     "type": "string"
-    },
-    "remoteManageURL": {
      "type": "string"
     },
     "resourceInfo": {
@@ -3221,12 +3515,17 @@
     },
     "status": {
      "type": "string"
+    },
+    "updateTime": {
+     "type": "string",
+     "format": "date-time"
     }
    }
   },
-  "v1.DetailComponentResponse": {
+  "v1.DetailComponentPlanResponse": {
    "required": [
     "appPrimaryKey",
+    "alias",
     "type",
     "updateTime",
     "creator",
@@ -3234,6 +3533,9 @@
     "createTime"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "appPrimaryKey": {
      "type": "string"
     },
@@ -3292,7 +3594,7 @@
     "traits": {
      "type": "array",
      "items": {
-      "$ref": "#/definitions/model.ApplicationTrait"
+      "$ref": "#/definitions/model.ApplicationTraitPlan"
      }
     },
     "type": {
@@ -3306,13 +3608,13 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
+    "description",
     "creator",
     "properties",
     "createTime",
     "updateTime",
     "name",
-    "type",
-    "description"
+    "type"
    ],
    "properties": {
     "createTime": {
@@ -3340,17 +3642,21 @@
     }
    }
   },
-  "v1.DetailWorkflowResponse": {
+  "v1.DetailWorkflowPlanResponse": {
    "required": [
+    "description",
+    "enable",
     "default",
     "createTime",
     "updateTime",
     "name",
-    "description",
-    "enable",
+    "alias",
     "workflowRecord"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "createTime": {
      "type": "string",
      "format": "date-time"
@@ -3382,7 +3688,72 @@
     }
    }
   },
+  "v1.DetailWorkflowRecordResponse": {
+   "required": [
+    "name",
+    "namespace",
+    "suspend",
+    "terminated",
+    "deployTime",
+    "deployUser",
+    "commit",
+    "sourceType"
+   ],
+   "properties": {
+    "commit": {
+     "type": "string"
+    },
+    "deployTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "deployUser": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "namespace": {
+     "type": "string"
+    },
+    "sourceType": {
+     "type": "string"
+    },
+    "startTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "steps": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/common.WorkflowStepStatus"
+     }
+    },
+    "suspend": {
+     "type": "boolean"
+    },
+    "terminated": {
+     "type": "boolean"
+    }
+   }
+  },
   "v1.EmptyResponse": {},
+  "v1.EnablingProgress": {
+   "required": [
+    "enabled_components",
+    "total_components"
+   ],
+   "properties": {
+    "enabled_components": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "total_components": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
   "v1.EnvBind": {
    "required": [
     "name",
@@ -3427,6 +3798,19 @@
     }
    }
   },
+  "v1.ListAddonRegistryResponse": {
+   "required": [
+    "registrys"
+   ],
+   "properties": {
+    "registrys": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.AddonRegistryMeta"
+     }
+    }
+   }
+  },
   "v1.ListAddonResponse": {
    "required": [
     "addons"
@@ -3440,6 +3824,19 @@
     }
    }
   },
+  "v1.ListApplicationPlanResponse": {
+   "required": [
+    "applicationplans"
+   ],
+   "properties": {
+    "applicationplans": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.ApplicationPlanBase"
+     }
+    }
+   }
+  },
   "v1.ListApplicationPolicy": {
    "required": [
     "policies"
@@ -3449,19 +3846,6 @@
      "type": "array",
      "items": {
       "$ref": "#/definitions/v1.PolicyBase"
-     }
-    }
-   }
-  },
-  "v1.ListApplicationResponse": {
-   "required": [
-    "applications"
-   ],
-   "properties": {
-    "applications": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ApplicationBase"
      }
     }
    }
@@ -3532,6 +3916,19 @@
      "type": "array",
      "items": {
       "$ref": "#/definitions/v1.PolicyDefinition"
+     }
+    }
+   }
+  },
+  "v1.ListWorkflowPlanResponse": {
+   "required": [
+    "workflowplans"
+   ],
+   "properties": {
+    "workflowplans": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/v1.WorkflowPlanBase"
      }
     }
    }
@@ -3710,13 +4107,17 @@
     }
    }
   },
-  "v1.UpdateWorkflowRequest": {
+  "v1.UpdateWorkflowPlanRequest": {
    "required": [
+    "alias",
     "description",
     "enable",
     "default"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "default": {
      "type": "boolean"
     },
@@ -3734,9 +4135,13 @@
     }
    }
   },
-  "v1.WorkflowBase": {
+  "v1.VelaQLViewResponse": {
+   "type": "object"
+  },
+  "v1.WorkflowPlanBase": {
    "required": [
     "name",
+    "alias",
     "description",
     "enable",
     "default",
@@ -3744,6 +4149,9 @@
     "updateTime"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "createTime": {
      "type": "string",
      "format": "date-time"
@@ -3766,7 +4174,38 @@
     }
    }
   },
-  "v1.WorkflowRecord": {},
+  "v1.WorkflowRecord": {
+   "required": [
+    "name",
+    "namespace",
+    "suspend",
+    "terminated"
+   ],
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "namespace": {
+     "type": "string"
+    },
+    "startTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "steps": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/common.WorkflowStepStatus"
+     }
+    },
+    "suspend": {
+     "type": "boolean"
+    },
+    "terminated": {
+     "type": "boolean"
+    }
+   }
+  },
   "v1.WorkflowStep": {
    "required": [
     "name",

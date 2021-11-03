@@ -88,22 +88,22 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	Expect(kubeStore).ToNot(BeNil())
 
 	It("Test add funtion", func() {
-		err := kubeStore.Add(context.TODO(), &model.Application{Name: "kubevela-app", Description: "default"})
+		err := kubeStore.Add(context.TODO(), &model.ApplicationPlan{Name: "kubevela-app", Description: "default"})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Test batch add funtion", func() {
 		var datas = []datastore.Entity{
-			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
-			&model.Application{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
-			&model.Application{Namespace: "test-namespace2", Name: "kubevela-app-4", Description: "this is demo 4"},
+			&model.ApplicationPlan{Name: "kubevela-app-2", Description: "this is demo 2"},
+			&model.ApplicationPlan{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
+			&model.ApplicationPlan{Namespace: "test-namespace2", Name: "kubevela-app-4", Description: "this is demo 4"},
 		}
 		err := kubeStore.BatchAdd(context.TODO(), datas)
 		Expect(err).ToNot(HaveOccurred())
 
 		var datas2 = []datastore.Entity{
-			&model.Application{Namespace: "test-namespace", Name: "can-delete", Description: "this is demo can-delete"},
-			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
+			&model.ApplicationPlan{Namespace: "test-namespace", Name: "can-delete", Description: "this is demo can-delete"},
+			&model.ApplicationPlan{Name: "kubevela-app-2", Description: "this is demo 2"},
 		}
 		err = kubeStore.BatchAdd(context.TODO(), datas2)
 		equal := cmp.Diff(strings.Contains(err.Error(), "save components occur error"), true)
@@ -111,7 +111,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	})
 
 	It("Test get funtion", func() {
-		app := &model.Application{Name: "kubevela-app"}
+		app := &model.ApplicationPlan{Name: "kubevela-app"}
 		err := kubeStore.Get(context.TODO(), app)
 		Expect(err).Should(BeNil())
 		diff := cmp.Diff(app.Description, "default")
@@ -119,11 +119,11 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	})
 
 	It("Test put funtion", func() {
-		err := kubeStore.Put(context.TODO(), &model.Application{Name: "kubevela-app", Description: "this is demo"})
+		err := kubeStore.Put(context.TODO(), &model.ApplicationPlan{Name: "kubevela-app", Description: "this is demo"})
 		Expect(err).ToNot(HaveOccurred())
 	})
 	It("Test index", func() {
-		var app = model.Application{
+		var app = model.ApplicationPlan{
 			Namespace: "test",
 		}
 		selector, err := labels.Parse(fmt.Sprintf("table=%s", app.TableName()))
@@ -137,7 +137,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(cmp.Diff(selector.String(), "namespace=test,table=vela_application")).Should(BeEmpty())
 	})
 	It("Test list function", func() {
-		var app model.Application
+		var app model.ApplicationPlan
 		list, err := kubeStore.List(context.TODO(), &app, &datastore.ListOptions{Page: -1})
 		Expect(err).ShouldNot(HaveOccurred())
 		diff := cmp.Diff(len(list), 4)
@@ -166,7 +166,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	})
 
 	It("Test count function", func() {
-		var app model.Application
+		var app model.ApplicationPlan
 		count, err := kubeStore.Count(context.TODO(), &app)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(4)))
@@ -178,7 +178,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	})
 
 	It("Test isExist function", func() {
-		var app model.Application
+		var app model.ApplicationPlan
 		app.Name = "kubevela-app-3"
 		exist, err := kubeStore.IsExist(context.TODO(), &app)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -193,7 +193,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	})
 
 	It("Test delete funtion", func() {
-		var app model.Application
+		var app model.ApplicationPlan
 		app.Name = "kubevela-app"
 		err := kubeStore.Delete(context.TODO(), &app)
 		Expect(err).ShouldNot(HaveOccurred())

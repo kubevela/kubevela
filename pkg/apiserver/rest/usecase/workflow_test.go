@@ -40,22 +40,22 @@ var _ = Describe("Test workflow usecase functions", func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds}
 	})
 	It("Test CreateWorkflow function", func() {
-		req := apisv1.CreateWorkflowRequest{
+		req := apisv1.CreateWorkflowPlanRequest{
 			Name:        "test-workflow-1",
 			Description: "this is a workflow",
 		}
-		base, err := workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
+		base, err := workflowUsecase.CreateWorkflow(context.TODO(), &model.ApplicationPlan{
 			Name: "test-app",
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 
-		req = apisv1.CreateWorkflowRequest{
+		req = apisv1.CreateWorkflowPlanRequest{
 			Name:        "test-workflow-2",
 			Description: "this is test workflow",
 			Default:     true,
 		}
-		base, err = workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
+		base, err = workflowUsecase.CreateWorkflow(context.TODO(), &model.ApplicationPlan{
 			Name: "test-app",
 		}, req)
 		Expect(err).Should(BeNil())
@@ -63,7 +63,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 	})
 
 	It("Test GetApplicationDefaultWorkflow function", func() {
-		workflow, err := workflowUsecase.GetApplicationDefaultWorkflow(context.TODO(), &model.Application{
+		workflow, err := workflowUsecase.GetApplicationDefaultWorkflow(context.TODO(), &model.ApplicationPlan{
 			Name: "test-app",
 		})
 		Expect(err).Should(BeNil())
