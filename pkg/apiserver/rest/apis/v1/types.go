@@ -332,7 +332,7 @@ type CreateComponentRequest struct {
 
 // DetailComponentResponse detail component model
 type DetailComponentResponse struct {
-	model.ApplicationComponent
+	model.ApplicationComponentPlan
 	//TODO: Status
 }
 

@@ -24,12 +24,12 @@ import (
 )
 
 func init() {
-	RegistModel(&Workflow{})
+	RegistModel(&WorkflowPlan{})
 	RegistModel(&WorkflowRecord{})
 }
 
-// Workflow application delivery plan database model
-type Workflow struct {
+// WorkflowPlan application delivery plan database model
+type WorkflowPlan struct {
 	Model
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`
@@ -55,17 +55,17 @@ type WorkflowStep struct {
 }
 
 // TableName return custom table name
-func (w *Workflow) TableName() string {
+func (w *WorkflowPlan) TableName() string {
 	return tableNamePrefix + "workflow"
 }
 
 // PrimaryKey return custom primary key
-func (w *Workflow) PrimaryKey() string {
+func (w *WorkflowPlan) PrimaryKey() string {
 	return w.Name
 }
 
 // Index return custom primary key
-func (w *Workflow) Index() map[string]string {
+func (w *WorkflowPlan) Index() map[string]string {
 	index := make(map[string]string)
 	if w.Name != "" {
 		index["name"] = w.Name

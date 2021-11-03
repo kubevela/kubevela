@@ -46,7 +46,7 @@ type workflowWebService struct {
 
 func (w *workflowWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/workflows").
+	ws.Path(versionPrefix+"/workflowplans").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for cluster manage")
@@ -178,7 +178,7 @@ func (w *workflowWebService) createApplicationWorkflow(req *restful.Request, res
 }
 
 func (w *workflowWebService) detailWorkflow(req *restful.Request, res *restful.Response) {
-	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.WorkflowPlan)
 	detail, err := w.workflowUsecase.DetailWorkflow(req.Request.Context(), workflow)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -191,7 +191,7 @@ func (w *workflowWebService) detailWorkflow(req *restful.Request, res *restful.R
 }
 
 func (w *workflowWebService) updateWorkflow(req *restful.Request, res *restful.Response) {
-	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.WorkflowPlan)
 	// Verify the validity of parameters
 	var updateReq apis.UpdateWorkflowRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
