@@ -40,6 +40,34 @@ func ReadPlacementDecisions(app *v1beta1.Application, policyName string, envName
 	return nil, false, nil
 }
 
+// updateClusterConnections update cluster connection in envbinding status with decisions
+func updateClusterConnections(status *v1alpha1.EnvBindingStatus, decisions []v1alpha1.PlacementDecision, app *v1beta1.Application) {
+	var currentRev string
+	if app.Status.LatestRevision != nil {
+		currentRev = app.Status.LatestRevision.Name
+	}
+	clusterMap := map[string]bool{}
+	for _, decision := range decisions {
+		clusterMap[decision.Cluster] = true
+	}
+	for clusterName := range clusterMap {
+		exists := false
+		for idx, conn := range status.ClusterConnections {
+			if conn.ClusterName == clusterName {
+				exists = true
+				status.ClusterConnections[idx].LastActiveRevision = currentRev
+				break
+			}
+		}
+		if !exists {
+			status.ClusterConnections = append(status.ClusterConnections, v1alpha1.ClusterConnection{
+				ClusterName:        clusterName,
+				LastActiveRevision: currentRev,
+			})
+		}
+	}
+}
+
 // WritePlacementDecisions write placement decisions into application status
 func WritePlacementDecisions(app *v1beta1.Application, policyName string, envName string, decisions []v1alpha1.PlacementDecision) error {
 	statusExists := false
@@ -65,6 +93,7 @@ func WritePlacementDecisions(app *v1beta1.Application, policyName string, envNam
 					Placements: decisions,
 				})
 			}
+			updateClusterConnections(envBindingStatus, decisions, app)
 			bs, err := json.Marshal(envBindingStatus)
 			if err != nil {
 				return err
@@ -75,12 +104,14 @@ func WritePlacementDecisions(app *v1beta1.Application, policyName string, envNam
 		}
 	}
 	if !statusExists {
-		bs, err := json.Marshal(&v1alpha1.EnvBindingStatus{
+		envBindingStatus := &v1alpha1.EnvBindingStatus{
 			Envs: []v1alpha1.EnvStatus{{
 				Env:        envName,
 				Placements: decisions,
 			}},
-		})
+		}
+		updateClusterConnections(envBindingStatus, decisions, app)
+		bs, err := json.Marshal(envBindingStatus)
 		if err != nil {
 			return err
 		}

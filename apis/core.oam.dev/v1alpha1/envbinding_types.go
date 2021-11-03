@@ -75,7 +75,14 @@ type EnvStatus struct {
 	Placements []PlacementDecision `json:"placements"`
 }
 
+// ClusterConnection records the connection with clusters and the last active app revision when they are active (still be used)
+type ClusterConnection struct {
+	ClusterName        string `json:"clusterName"`
+	LastActiveRevision string `json:"lastActiveRevision"`
+}
+
 // EnvBindingStatus records the status of all env
 type EnvBindingStatus struct {
-	Envs []EnvStatus `json:"envs"`
+	Envs               []EnvStatus         `json:"envs"`
+	ClusterConnections []ClusterConnection `json:"clusterConnections"`
 }
