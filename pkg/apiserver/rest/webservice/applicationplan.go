@@ -29,18 +29,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
-type applicationWebService struct {
+type applicationPlanWebService struct {
 	applicationUsecase usecase.ApplicationUsecase
 }
 
-// NewApplicationWebService new application manage webservice
-func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase) WebService {
-	return &applicationWebService{
+// NewApplicationPlanWebService new application manage webservice
+func NewApplicationPlanWebService(applicationUsecase usecase.ApplicationUsecase) WebService {
+	return &applicationPlanWebService{
 		applicationUsecase: applicationUsecase,
 	}
 }
 
-func (c *applicationWebService) GetWebService() *restful.WebService {
+func (c *applicationPlanWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/applicationplans").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -49,8 +49,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 
 	tags := []string{"application"}
 
-	ws.Route(ws.GET("/").To(c.listApplications).
-		Doc("list all applications").
+	ws.Route(ws.GET("/").To(c.listApplicationPlans).
+		Doc("list all application plans").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("namespace", "Namespace-based search").DataType("string")).
@@ -59,37 +59,49 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListApplicationPlanResponse{}))
 
-	ws.Route(ws.POST("/").To(c.createApplication).
-		Doc("create one application").
+	ws.Route(ws.POST("/").To(c.createApplicationPlan).
+		Doc("create one application plan").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateApplicationPlanRequest{}).
 		Returns(200, "", apis.ApplicationPlanBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationPlanBase{}))
 
-	ws.Route(ws.DELETE("/{name}").To(c.deleteApplication).
+	ws.Route(ws.DELETE("/{name}").To(c.deleteApplicationPlan).
 		Doc("delete one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Returns(200, "", apis.EmptyResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{name}").To(c.detailApplication).
+	ws.Route(ws.GET("/{name}").To(c.detailApplicationPlan).
 		Doc("detail one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Returns(200, "", apis.DetailApplicationPlanResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailApplicationPlanResponse{}))
+
+	ws.Route(ws.POST("/{name}/envs/{envName}/diff").To(c.setApplicationEnvDiff).
+		Doc("set application plan differences in the specified environment").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.envCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application plan").DataType("string")).
+		Reads(apis.PutApplicationPlanEnvDiffRequest{}).
+		Returns(200, "", apis.ApplicationPlanEnvDiff{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationPlanEnvDiff{}))
 
 	ws.Route(ws.POST("/{name}/template").To(c.publishApplicationTemplate).
 		Doc("create one application template").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Reads(apis.CreateApplicationTemplateRequest{}).
 		Returns(200, "", apis.ApplicationTemplateBase{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -99,7 +111,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Doc("deploy or upgrade the application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Returns(200, "", apis.ApplicationDeployRequest{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationDeployResponse{}))
@@ -107,7 +119,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{name}/componentplans").To(c.listApplicationComponents).
 		Doc("gets the componentplan topology of the application").
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Param(ws.QueryParameter("envName", "list components that deployed in define env").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.ComponentPlanListResponse{}).
@@ -117,7 +129,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/{name}/componentplans").To(c.createComponent).
 		Doc("create component plan for application plan").
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateComponentPlanRequest{}).
 		Returns(200, "", apis.ComponentPlanBase{}).
@@ -127,7 +139,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{name}/componentplans/{componentName}").To(c.detailComponent).
 		Doc("detail component plan for application plan").
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.DetailComponentPlanResponse{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -136,7 +148,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{name}/policies").To(c.listApplicationPolicies).
 		Doc("list policy for application").
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.ListApplicationPolicy{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -185,8 +197,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	return ws
 }
 
-func (c *applicationWebService) appCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	app, err := c.applicationUsecase.GetApplication(req.Request.Context(), req.PathParameter("name"))
+func (c *applicationPlanWebService) appCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	app, err := c.applicationUsecase.GetApplicationPlan(req.Request.Context(), req.PathParameter("name"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -195,7 +207,24 @@ func (c *applicationWebService) appCheckFilter(req *restful.Request, res *restfu
 	chain.ProcessFilter(req, res)
 }
 
-func (c *applicationWebService) createApplication(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) envCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
+	envBinding, err := c.applicationUsecase.GetApplicationPlanEnvBindingPolicy(req.Request.Context(), app)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	for _, env := range envBinding.Envs {
+		if env.Name == req.PathParameter("envName") {
+			req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyApplicationEnvBinding, env))
+			chain.ProcessFilter(req, res)
+			return
+		}
+	}
+	bcode.ReturnError(req, res, bcode.ErrApplicationNotEnv)
+}
+
+func (c *applicationPlanWebService) createApplicationPlan(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateApplicationPlanRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -207,7 +236,7 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 		return
 	}
 	// Call the usecase layer code
-	appBase, err := c.applicationUsecase.CreateApplication(req.Request.Context(), createReq)
+	appBase, err := c.applicationUsecase.CreateApplicationPlan(req.Request.Context(), createReq)
 	if err != nil {
 		log.Logger.Errorf("create application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -221,8 +250,8 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
-	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioPlanOptions{
+func (c *applicationPlanWebService) listApplicationPlans(req *restful.Request, res *restful.Response) {
+	apps, err := c.applicationUsecase.ListApplicationPlans(req.Request.Context(), apis.ListApplicatioPlanOptions{
 		Namespace: req.QueryParameter("namespace"),
 		Cluster:   req.QueryParameter("cluster"),
 		Query:     req.QueryParameter("query"),
@@ -237,9 +266,9 @@ func (c *applicationWebService) listApplications(req *restful.Request, res *rest
 	}
 }
 
-func (c *applicationWebService) detailApplication(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) detailApplicationPlan(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
-	detail, err := c.applicationUsecase.DetailApplication(req.Request.Context(), app)
+	detail, err := c.applicationUsecase.DetailApplicationPlan(req.Request.Context(), app)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -250,7 +279,7 @@ func (c *applicationWebService) detailApplication(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationWebService) publishApplicationTemplate(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) publishApplicationTemplate(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	base, err := c.applicationUsecase.PublishApplicationTemplate(req.Request.Context(), app)
 	if err != nil {
@@ -264,7 +293,7 @@ func (c *applicationWebService) publishApplicationTemplate(req *restful.Request,
 }
 
 // deployApplication TODO: return event model
-func (c *applicationWebService) deployApplication(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) deployApplication(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	// Verify the validity of parameters
 	var createReq apis.ApplicationDeployRequest
@@ -287,9 +316,9 @@ func (c *applicationWebService) deployApplication(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationWebService) deleteApplication(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) deleteApplicationPlan(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
-	err := c.applicationUsecase.DeleteApplication(req.Request.Context(), app)
+	err := c.applicationUsecase.DeleteApplicationPlan(req.Request.Context(), app)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -300,9 +329,11 @@ func (c *applicationWebService) deleteApplication(req *restful.Request, res *res
 	}
 }
 
-func (c *applicationWebService) listApplicationComponents(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) listApplicationComponents(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
-	components, err := c.applicationUsecase.ListComponents(req.Request.Context(), app)
+	components, err := c.applicationUsecase.ListComponents(req.Request.Context(), app, apis.ListApplicationComponentOptions{
+		EnvName: req.QueryParameter("envName"),
+	})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -313,7 +344,7 @@ func (c *applicationWebService) listApplicationComponents(req *restful.Request, 
 	}
 }
 
-func (c *applicationWebService) createComponent(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) createComponent(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	// Verify the validity of parameters
 	var createReq apis.CreateComponentPlanRequest
@@ -336,7 +367,7 @@ func (c *applicationWebService) createComponent(req *restful.Request, res *restf
 	}
 }
 
-func (c *applicationWebService) detailComponent(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) detailComponent(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	detail, err := c.applicationUsecase.DetailComponent(req.Request.Context(), app, req.PathParameter("componentName"))
 	if err != nil {
@@ -349,7 +380,7 @@ func (c *applicationWebService) detailComponent(req *restful.Request, res *restf
 	}
 }
 
-func (c *applicationWebService) createApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) createApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	// Verify the validity of parameters
 	var createReq apis.CreatePolicyRequest
@@ -372,7 +403,7 @@ func (c *applicationWebService) createApplicationPolicy(req *restful.Request, re
 	}
 }
 
-func (c *applicationWebService) listApplicationPolicies(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) listApplicationPolicies(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	policies, err := c.applicationUsecase.ListPolicies(req.Request.Context(), app)
 	if err != nil {
@@ -385,7 +416,7 @@ func (c *applicationWebService) listApplicationPolicies(req *restful.Request, re
 	}
 }
 
-func (c *applicationWebService) detailApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) detailApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	detail, err := c.applicationUsecase.DetailPolicy(req.Request.Context(), app, req.PathParameter("policyName"))
 	if err != nil {
@@ -398,7 +429,7 @@ func (c *applicationWebService) detailApplicationPolicy(req *restful.Request, re
 	}
 }
 
-func (c *applicationWebService) deleteApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) deleteApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	err := c.applicationUsecase.DeletePolicy(req.Request.Context(), app, req.PathParameter("policyName"))
 	if err != nil {
@@ -411,7 +442,7 @@ func (c *applicationWebService) deleteApplicationPolicy(req *restful.Request, re
 	}
 }
 
-func (c *applicationWebService) updateApplicationPolicy(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) updateApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	// Verify the validity of parameters
 	var updateReq apis.UpdatePolicyRequest
@@ -429,6 +460,29 @@ func (c *applicationWebService) updateApplicationPolicy(req *restful.Request, re
 		return
 	}
 	if err := res.WriteEntity(response); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationPlanWebService) setApplicationEnvDiff(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
+	// Verify the validity of parameters
+	var updateReq apis.PutApplicationPlanEnvDiffRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	diff, err := c.applicationUsecase.UpdateApplicationPlanEnvBindingDiff(req.Request.Context(), app, req.PathParameter("envName"), updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(diff); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

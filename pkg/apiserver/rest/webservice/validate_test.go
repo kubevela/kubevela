@@ -52,5 +52,19 @@ var _ = Describe("Test validate function", func() {
 		}
 		err = validate.Struct(&app3)
 		Expect(err).Should(BeNil())
+
+		var app4 = apisv1.CreateApplicationPlanRequest{
+			Name:      "asdasd-asdasd",
+			Namespace: "namespace",
+		}
+		err = validate.Struct(&app4)
+		Expect(err).Should(BeNil())
+
+		var component = apisv1.CreateComponentPlanRequest{
+			Name:          "asdasd-asdasd",
+			ComponentType: "alibaba-ack",
+		}
+		err = validate.Struct(&component)
+		Expect(err).Should(BeNil())
 	})
 })

@@ -68,7 +68,7 @@ func Init(ctx context.Context, ds datastore.DataStore) {
 	definitionUsecase := usecase.NewDefinitionUsecase()
 	addonUsecase := usecase.NewAddonUsecase(ds)
 	RegistWebService(NewClusterWebService(clusterUsecase))
-	RegistWebService(NewApplicationWebService(applicationUsecase))
+	RegistWebService(NewApplicationPlanWebService(applicationUsecase))
 	RegistWebService(NewNamespaceWebService(namespaceUsecase))
 	RegistWebService(NewDefinitionWebservice(definitionUsecase))
 	RegistWebService(NewAddonWebService(addonUsecase))

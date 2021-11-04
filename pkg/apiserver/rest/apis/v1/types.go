@@ -28,10 +28,11 @@ import (
 var (
 	// CtxKeyApplication request context key of application
 	CtxKeyApplication = "application"
+	// CtxKeyWorkflow request context key of workflow
+	CtxKeyWorkflow = "workflow"
+	// CtxKeyApplicationEnvBinding request context key of env binding
+	CtxKeyApplicationEnvBinding = "envbinding-policy"
 )
-
-// CtxKeyWorkflow request context key of workflow
-var CtxKeyWorkflow = "workflow"
 
 // AddonPhase defines the phase of an addon
 type AddonPhase string
@@ -358,6 +359,11 @@ type DetailComponentPlanResponse struct {
 	//TODO: Status
 }
 
+// ListApplicationComponentOptions list app plan component list
+type ListApplicationComponentOptions struct {
+	EnvName string `json:"envName"`
+}
+
 // CreateApplicationTemplateRequest create app template request model
 type CreateApplicationTemplateRequest struct {
 	TemplateName string `json:"templateName" validate:"checkname"`
@@ -416,12 +422,14 @@ type DetailDefinitionResponse struct {
 	Schema *DefinitionSchema `json:"schema"`
 }
 
+// DefinitionSchema definition schema info
 type DefinitionSchema struct {
 	Properties map[string]DefinitionProperties `json:"properties"`
 	Required   []string                        `json:"required"`
 	Type       string                          `json:"type"`
 }
 
+// DefinitionProperties definition properties
 type DefinitionProperties struct {
 	Default     string `json:"default"`
 	Description string `json:"description"`
@@ -596,3 +604,13 @@ type ApplicationDeployResponse struct {
 
 // VelaQLViewResponse query response
 type VelaQLViewResponse map[string]interface{}
+
+// ApplicationPlanEnvDiff application plan env deployment diff
+type ApplicationPlanEnvDiff struct {
+	SelectorComponents []string `json:"selectorComponents"`
+}
+
+// PutApplicationPlanEnvDiffRequest set diff request
+type PutApplicationPlanEnvDiffRequest struct {
+	ApplicationPlanEnvDiff
+}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -49,18 +50,21 @@ type PolicyType string
 const (
 	// EnvBindPolicy Multiple environment distribution policy
 	EnvBindPolicy PolicyType = "env-binding"
+
+	// EnvBindPolicyDefaultName default policy name
+	EnvBindPolicyDefaultName string = "env-bindings"
 )
 
 // ApplicationUsecase application usecase
 type ApplicationUsecase interface {
-	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error)
-	GetApplication(ctx context.Context, appName string) (*model.ApplicationPlan, error)
-	DetailApplication(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error)
+	ListApplicationPlans(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error)
+	GetApplicationPlan(ctx context.Context, appName string) (*model.ApplicationPlan, error)
+	DetailApplicationPlan(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error)
 	PublishApplicationTemplate(ctx context.Context, app *model.ApplicationPlan) (*apisv1.ApplicationTemplateBase, error)
-	CreateApplication(context.Context, apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error)
-	DeleteApplication(ctx context.Context, app *model.ApplicationPlan) error
+	CreateApplicationPlan(context.Context, apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error)
+	DeleteApplicationPlan(ctx context.Context, app *model.ApplicationPlan) error
 	Deploy(ctx context.Context, app *model.ApplicationPlan, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error)
-	ListComponents(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.ComponentPlanBase, error)
+	ListComponents(ctx context.Context, app *model.ApplicationPlan, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentPlanBase, error)
 	AddComponent(ctx context.Context, app *model.ApplicationPlan, com apisv1.CreateComponentPlanRequest) (*apisv1.ComponentPlanBase, error)
 	DetailComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) (*apisv1.DetailComponentPlanResponse, error)
 	DeleteComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) error
@@ -69,6 +73,8 @@ type ApplicationUsecase interface {
 	DetailPolicy(ctx context.Context, app *model.ApplicationPlan, policyName string) (*apisv1.DetailPolicyResponse, error)
 	DeletePolicy(ctx context.Context, app *model.ApplicationPlan, policyName string) error
 	UpdatePolicy(ctx context.Context, app *model.ApplicationPlan, policyName string, policy apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error)
+	GetApplicationPlanEnvBindingPolicy(ctx context.Context, app *model.ApplicationPlan) (*v1alpha1.EnvBindingSpec, error)
+	UpdateApplicationPlanEnvBindingDiff(ctx context.Context, app *model.ApplicationPlan, envName string, diff apisv1.PutApplicationPlanEnvDiffRequest) (*apisv1.ApplicationPlanEnvDiff, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -92,8 +98,8 @@ func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUseca
 	}
 }
 
-// ListApplications list applications
-func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error) {
+// ListApplicationPlans list applications
+func (c *applicationUsecaseImpl) ListApplicationPlans(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error) {
 	var app = model.ApplicationPlan{}
 	if listOptions.Namespace != "" {
 		app.Namespace = listOptions.Namespace
@@ -116,28 +122,34 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 		}
 		list = append(list, appBase)
 	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].UpdateTime.Unix() > list[j].UpdateTime.Unix()
+	})
 	return list, nil
 }
 
-// GetApplication get application model
-func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName string) (*model.ApplicationPlan, error) {
+// GetApplicationPlan get application model
+func (c *applicationUsecaseImpl) GetApplicationPlan(ctx context.Context, appName string) (*model.ApplicationPlan, error) {
 	var app = model.ApplicationPlan{
 		Name: appName,
 	}
 	if err := c.ds.Get(ctx, &app); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrApplicationNotExist
+		}
 		return nil, err
 	}
 	return &app, nil
 }
 
-// DetailApplication detail application info
-func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error) {
+// DetailApplicationPlan detail application plan info
+func (c *applicationUsecaseImpl) DetailApplicationPlan(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error) {
 	base := c.converAppModelToBase(ctx, app)
 	policys, err := c.queryApplicationPolicys(ctx, app)
 	if err != nil {
 		return nil, err
 	}
-	components, err := c.ListComponents(ctx, app)
+	components, err := c.ListComponents(ctx, app, apisv1.ListApplicationComponentOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -162,8 +174,8 @@ func (c *applicationUsecaseImpl) PublishApplicationTemplate(ctx context.Context,
 	return nil, nil
 }
 
-// CreateApplication create application
-func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error) {
+// CreateApplicationPlan create application
+func (c *applicationUsecaseImpl) CreateApplicationPlan(ctx context.Context, req apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error) {
 	application := model.ApplicationPlan{
 		Name:        req.Name,
 		Alias:       req.Alias,
@@ -240,38 +252,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 
 	// build-in create env binding policy
 	if len(req.EnvBind) > 0 {
-		policy := model.ApplicationPolicyPlan{
-			AppPrimaryKey: application.PrimaryKey(),
-			Name:          "env-binds",
-			Description:   "build-in create",
-			Type:          string(EnvBindPolicy),
-			Creator:       "",
-		}
-		var envBindingSpec v1alpha1.EnvBindingSpec
-		for _, envBind := range req.EnvBind {
-			placement := v1alpha1.EnvPlacement{
-				ClusterSelector: &common.ClusterSelector{
-					Name: envBind.ClusterSelector.Name,
-				},
-			}
-			if envBind.ClusterSelector.Namespace != "" {
-				placement.NamespaceSelector = &v1alpha1.NamespaceSelector{
-					Name: envBind.ClusterSelector.Namespace,
-				}
-			}
-			envBindingSpec.Envs = append(envBindingSpec.Envs, v1alpha1.EnvConfig{
-				Name:      envBind.Name,
-				Placement: placement,
-			})
-		}
-		properties, err := model.NewJSONStructByStruct(envBindingSpec)
-		if err != nil {
-			log.Logger.Errorf("new env binding properties failure,%s", err.Error())
-			return nil, bcode.ErrInvalidProperties
-		}
-		policy.Properties = properties
-		if err := c.ds.Add(ctx, &policy); err != nil {
-			log.Logger.Errorf("save env binding policy failure,%s", err.Error())
+		if _, err := c.createApplictionPlanEnvBindingPolicy(ctx, &application, req.EnvBind); err != nil {
 			return nil, err
 		}
 	}
@@ -336,7 +317,7 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 	return c.ds.BatchAdd(ctx, componentModels)
 }
 
-func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.ComponentPlanBase, error) {
+func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.ApplicationPlan, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentPlanBase, error) {
 	var component = model.ApplicationComponentPlan{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
@@ -344,11 +325,29 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 	if err != nil {
 		return nil, err
 	}
+	envComponents := map[string]bool{}
+	if op.EnvName != "" {
+		envbinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
+		if err != nil && !errors.Is(err, bcode.ErrApplicationNotEnv) {
+			log.Logger.Errorf("query app plan env binding policy config failure %s", err.Error())
+		}
+		if envbinding != nil {
+			for _, env := range envbinding.Envs {
+				if env.Selector != nil && env.Name == op.EnvName {
+					for _, componentName := range env.Selector.Components {
+						envComponents[componentName] = true
+					}
+				}
+			}
+		}
+	}
+
 	var list []*apisv1.ComponentPlanBase
 	for _, component := range components {
-		log.Logger.Infof("component name %s", component.PrimaryKey())
 		pm := component.(*model.ApplicationComponentPlan)
-		list = append(list, c.converComponentModelToBase(pm))
+		if len(envComponents) == 0 || envComponents[pm.Name] {
+			list = append(list, c.converComponentModelToBase(pm))
+		}
 	}
 	return list, nil
 }
@@ -412,18 +411,29 @@ func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.Applicati
 
 func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app *model.ApplicationPlan, policys []v1beta1.AppPolicy) error {
 	var policyModels []datastore.Entity
+	var envbindingPolicy *model.ApplicationPolicyPlan
 	for _, policy := range policys {
 		properties, err := model.NewJSONStruct(policy.Properties)
 		if err != nil {
 			log.Logger.Errorf("parse trait properties failire %w", err)
 			return bcode.ErrInvalidProperties
 		}
-		policyModels = append(policyModels, &model.ApplicationPolicyPlan{
+		appPolicyPlan := &model.ApplicationPolicyPlan{
 			AppPrimaryKey: app.PrimaryKey(),
 			Name:          policy.Name,
 			Type:          policy.Type,
 			Properties:    properties,
-		})
+		}
+		if policy.Type != string(EnvBindPolicy) {
+			policyModels = append(policyModels, appPolicyPlan)
+		} else {
+			envbindingPolicy = appPolicyPlan
+		}
+	}
+	// If multiple configurations are configured, enable only the last one.
+	if envbindingPolicy != nil {
+		envbindingPolicy.Name = EnvBindPolicyDefaultName
+		policyModels = append(policyModels, envbindingPolicy)
 	}
 	return c.ds.BatchAdd(ctx, policyModels)
 }
@@ -441,6 +451,64 @@ func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, ap
 		list = append(list, pm)
 	}
 	return
+}
+
+func (c *applicationUsecaseImpl) GetApplicationPlanEnvBindingPolicy(ctx context.Context, app *model.ApplicationPlan) (*v1alpha1.EnvBindingSpec, error) {
+	var policy = model.ApplicationPolicyPlan{
+		AppPrimaryKey: app.PrimaryKey(),
+		Type:          string(EnvBindPolicy),
+		Name:          EnvBindPolicyDefaultName,
+	}
+	err := c.ds.Get(ctx, &policy)
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrApplicationNotEnv
+		}
+		return nil, err
+	}
+	var envBindingSpec v1alpha1.EnvBindingSpec
+	if err := json.Unmarshal([]byte(policy.Properties.JSON()), &envBindingSpec); err != nil {
+		return nil, err
+	}
+	return &envBindingSpec, nil
+}
+
+func (c *applicationUsecaseImpl) createApplictionPlanEnvBindingPolicy(ctx context.Context, app *model.ApplicationPlan, envbinds apisv1.EnvBindList) (*model.ApplicationPolicyPlan, error) {
+	policy := &model.ApplicationPolicyPlan{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          EnvBindPolicyDefaultName,
+		Description:   "build-in create",
+		Type:          string(EnvBindPolicy),
+		Creator:       "",
+	}
+	var envBindingSpec v1alpha1.EnvBindingSpec
+	for _, envBind := range envbinds {
+		placement := v1alpha1.EnvPlacement{
+			ClusterSelector: &common.ClusterSelector{
+				Name: envBind.ClusterSelector.Name,
+			},
+		}
+		if envBind.ClusterSelector.Namespace != "" {
+			placement.NamespaceSelector = &v1alpha1.NamespaceSelector{
+				Name: envBind.ClusterSelector.Namespace,
+			}
+		}
+		envBindingSpec.Envs = append(envBindingSpec.Envs, v1alpha1.EnvConfig{
+			Name:      envBind.Name,
+			Placement: placement,
+		})
+	}
+	properties, err := model.NewJSONStructByStruct(envBindingSpec)
+	if err != nil {
+		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
+		return nil, bcode.ErrInvalidProperties
+	}
+	policy.Properties = properties
+	if err := c.ds.Add(ctx, policy); err != nil {
+		log.Logger.Errorf("save env binding policy failure,%s", err.Error())
+		return nil, err
+	}
+	return policy, nil
 }
 
 // DetailPolicy detail app policy
@@ -690,12 +758,12 @@ func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *
 	return appBeas
 }
 
-// DeleteApplication delete application
-func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *model.ApplicationPlan) error {
+// DeleteApplicationPlan delete application plan
+func (c *applicationUsecaseImpl) DeleteApplicationPlan(ctx context.Context, app *model.ApplicationPlan) error {
 	// TODO: check app can be deleted
 
 	// query all components to deleted
-	components, err := c.ListComponents(ctx, app)
+	components, err := c.ListComponents(ctx, app, apisv1.ListApplicationComponentOptions{})
 	if err != nil {
 		return err
 	}
@@ -853,4 +921,36 @@ func (c *applicationUsecaseImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 	return &apisv1.DetailPolicyResponse{
 		PolicyBase: *c.converPolicyModelToBase(&policy),
 	}, nil
+}
+
+// UpdateApplicationPlanEnvBindingDiff update application env binding diff
+func (c *applicationUsecaseImpl) UpdateApplicationPlanEnvBindingDiff(ctx context.Context, app *model.ApplicationPlan, envName string, diff apisv1.PutApplicationPlanEnvDiffRequest) (*apisv1.ApplicationPlanEnvDiff, error) {
+	envBinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	for i, env := range envBinding.Envs {
+		if env.Name == envName {
+			envBinding.Envs[i].Selector = &v1alpha1.EnvSelector{
+				Components: diff.SelectorComponents,
+			}
+		}
+	}
+	properties, err := model.NewJSONStructByStruct(envBinding)
+	if err != nil {
+		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
+		return nil, bcode.ErrInvalidProperties
+	}
+	policy := &model.ApplicationPolicyPlan{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          EnvBindPolicyDefaultName,
+	}
+	if err := c.ds.Get(ctx, policy); err != nil {
+		return nil, err
+	}
+	policy.Properties = properties
+	if err := c.ds.Put(ctx, policy); err != nil {
+		return nil, err
+	}
+	return &apisv1.ApplicationPlanEnvDiff{SelectorComponents: diff.SelectorComponents}, nil
 }

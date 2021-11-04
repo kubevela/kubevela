@@ -125,7 +125,7 @@ func (w *workflowWebService) listApplicationWorkflows(req *restful.Request, res 
 		bcode.ReturnError(req, res, bcode.ErrMustQueryByApp)
 		return
 	}
-	app, err := w.applicationUsecase.GetApplication(req.Request.Context(), req.QueryParameter("appName"))
+	app, err := w.applicationUsecase.GetApplicationPlan(req.Request.Context(), req.QueryParameter("appName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -157,7 +157,7 @@ func (w *workflowWebService) createApplicationWorkflow(req *restful.Request, res
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	app, err := w.applicationUsecase.GetApplication(req.Request.Context(), createReq.AppName)
+	app, err := w.applicationUsecase.GetApplicationPlan(req.Request.Context(), createReq.AppName)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
