@@ -341,7 +341,7 @@ func (w *workflowUsecaseImpl) updateRecordDeployEventStatus(ctx context.Context,
 		return err
 	}
 	if terminated {
-		deployEvent.Status = model.DeployEventTermintad
+		deployEvent.Status = model.DeployEventTerminated
 	} else {
 		deployEvent.Status = model.DeployEventComplete
 	}

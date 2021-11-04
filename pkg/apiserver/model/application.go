@@ -188,7 +188,8 @@ var DeployEventComplete = "complete"
 // DeployEventFail event status failure
 var DeployEventFail = "failure"
 
-var DeployEventTermintad = "terminated"
+// DeployEventTerminated event status terminated
+var DeployEventTerminated = "terminated"
 
 // ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
 type ApplicationRevision struct {
