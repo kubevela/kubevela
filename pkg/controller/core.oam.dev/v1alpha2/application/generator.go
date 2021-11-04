@@ -48,7 +48,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	af *appfile.Appfile,
 	appRev *v1beta1.ApplicationRevision) ([]wfTypes.TaskRunner, error) {
 	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, h.r.Client, h.Dispatch)
+	kube.Install(handlerProviders, h.r.Client, h.Dispatch, h.Delete)
 	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm)

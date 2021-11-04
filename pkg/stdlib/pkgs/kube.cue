@@ -41,4 +41,5 @@
 			namespace: *"default" | string
 		}
 	}
+	...
 }

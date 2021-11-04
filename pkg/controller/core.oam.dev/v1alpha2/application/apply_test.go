@@ -20,6 +20,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
@@ -28,10 +29,13 @@ import (
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
@@ -40,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const workloadDefinition = `
@@ -215,3 +220,122 @@ var _ = Describe("Test statusAggregate", func() {
 		Expect(err).Should(BeNil())
 	})
 })
+
+var _ = Describe("Test deleter resource", func() {
+	It("Test delete resource will remove ref from reference", func() {
+		deployName := "test-del-resource-workload"
+		namespace := "test-del-resource-namespace"
+		ctx := context.Background()
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).Should(BeNil())
+		deploy := appsv1.Deployment{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      deployName,
+			},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: pointer.Int32Ptr(3),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "test",
+					},
+				},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"app": "test",
+						},
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{
+								Name:  "test-container",
+								Image: "test-image",
+							},
+						},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
+		u := unstructured.Unstructured{}
+		u.SetAPIVersion("apps/v1")
+		u.SetKind("Deployment")
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: deployName, Namespace: namespace}, &u)).Should(BeNil())
+		appliedRsc := []common.ClusterObjectReference{
+			{
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{
+					Kind:       u.GetKind(),
+					APIVersion: u.GetAPIVersion(),
+					Namespace:  u.GetNamespace(),
+					Name:       deployName,
+				},
+			},
+			{
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{
+					Kind:       "StatefulSet",
+					APIVersion: "apps/v1",
+					Namespace:  "test-namespace",
+					Name:       "test-sts",
+				},
+			},
+		}
+		h := AppHandler{r: reconciler, appliedResources: appliedRsc}
+		Expect(h.Delete(ctx, "", common.WorkflowResourceCreator, &u))
+		checkDeploy := unstructured.Unstructured{}
+		checkDeploy.SetAPIVersion("apps/v1")
+		checkDeploy.SetKind("Deployment")
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: deployName, Namespace: namespace}, &u)).Should(SatisfyAny(util.NotFoundMatcher{}))
+		Expect(len(h.appliedResources)).Should(BeEquivalentTo(1))
+		Expect(h.appliedResources[0].Kind).Should(BeEquivalentTo("StatefulSet"))
+		Expect(h.appliedResources[0].Name).Should(BeEquivalentTo("test-sts"))
+	})
+})
+
+func TestDeleteAppliedResourceFunc(t *testing.T) {
+	h := AppHandler{appliedResources: []common.ClusterObjectReference{
+		{
+			ObjectReference: corev1.ObjectReference{
+				Name: "wl-1",
+				Kind: "Deployment",
+			},
+		},
+		{
+			ObjectReference: corev1.ObjectReference{
+				Name: "wl-2",
+				Kind: "Deployment",
+			},
+		},
+		{
+			ObjectReference: corev1.ObjectReference{
+				Name: "wl-1",
+				Kind: "StatefulSet",
+			},
+		},
+		{
+			Cluster: "runtime-cluster",
+			ObjectReference: corev1.ObjectReference{
+				Name: "wl-1",
+				Kind: "StatefulSet",
+			},
+		},
+	}}
+	deleteResc_1 := common.ClusterObjectReference{ObjectReference: corev1.ObjectReference{Name: "wl-1", Kind: "StatefulSet"}, Cluster: "runtime-cluster"}
+	deleteResc_2 := common.ClusterObjectReference{ObjectReference: corev1.ObjectReference{Name: "wl-2", Kind: "Deployment"}}
+	h.deleteAppliedResource(deleteResc_1)
+	h.deleteAppliedResource(deleteResc_2)
+	if len(h.appliedResources) != 2 {
+		t.Errorf("applied length error acctually %d", len(h.appliedResources))
+	}
+	if h.appliedResources[0].Name != "wl-1" || h.appliedResources[0].Kind != "Deployment" {
+		t.Errorf("resource missmatch")
+	}
+	if h.appliedResources[1].Name != "wl-1" || h.appliedResources[1].Kind != "StatefulSet" {
+		t.Errorf("resource missmatch")
+	}
+}
