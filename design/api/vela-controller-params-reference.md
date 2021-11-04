@@ -22,6 +22,7 @@
 |        disable-caps         | string |                ""                 |           To be disabled builtin capability list.            |
 |       storage-driver        | string |               Local               |         Application file save to the storage driver          |
 |  informer-re-sync-interval  |  time  |                1h                 | Controller shared informer lister full re-sync period, the interval between two routinely reconciles for one CR (like Application) if no changes made to it. |
+|      reconcile-timeout      |  time  |                3m                 |           The timeout for controller reconcile.              |
 | system-definition-namespace | string |            vela-system            |     define the namespace of the system-level definition      |
 |    concurrent-reconciles    |  int   |                 4                 | The concurrent reconcile number of the controller. You can increase the degree of concurrency if a large number of CPU cores are provided to the controller. |
 |        kube-api-qps         |  int   |                50                 | The qps for reconcile k8s clients. Increase it if you have high concurrency. A small number might restrict the requests to the api-server which may cause a long waiting queue when there are a large number of inflight requests. Try to avoid setting it too high since it will cause large burden on apiserver. |
