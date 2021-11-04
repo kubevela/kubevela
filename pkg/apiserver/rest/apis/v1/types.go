@@ -228,7 +228,7 @@ type EnvBindList []*EnvBind
 // ContainCluster contain cluster name
 func (e EnvBindList) ContainCluster(name string) bool {
 	for _, eb := range e {
-		if eb.ClusterSelector != nil && eb.ClusterSelector.Name == name {
+		if eb.ClusterSelector.Name == name {
 			return true
 		}
 	}
@@ -283,11 +283,21 @@ type CreateApplicationPlanRequest struct {
 	Deploy bool `json:"deploy,omitempty"`
 }
 
+// UpdateApplicationPlanRequest update application plan base config
+type UpdateApplicationPlanRequest struct {
+	Alias       string            `json:"alias" validate:"checkalias"`
+	Description string            `json:"description"`
+	Icon        string            `json:"icon"`
+	Labels      map[string]string `json:"labels,omitempty"`
+}
+
 // EnvBind application env bind
 type EnvBind struct {
-	Name            string           `json:"name" validate:"checkname"`
-	Description     string           `json:"description,omitempty"`
-	ClusterSelector *ClusterSelector `json:"clusterSelector"`
+	Name              string             `json:"name" validate:"checkname"`
+	Alias             string             `json:"alias" validate:"checkalias"`
+	Description       string             `json:"description,omitempty"`
+	ClusterSelector   ClusterSelector    `json:"clusterSelector"`
+	ComponentSelector *ComponentSelector `json:"componentSelector"`
 }
 
 // ClusterSelector cluster selector
@@ -295,6 +305,11 @@ type ClusterSelector struct {
 	Name string `json:"name" validate:"checkname"`
 	// Adapt to a scenario where only one Namespace is available or a user-defined Namespace is available.
 	Namespace string `json:"namespace,omitempty"`
+}
+
+// ComponentSelector component selector
+type ComponentSelector struct {
+	Components []string `json:"components"`
 }
 
 // DetailApplicationPlanResponse application plan detail
@@ -605,12 +620,15 @@ type ApplicationDeployResponse struct {
 // VelaQLViewResponse query response
 type VelaQLViewResponse map[string]interface{}
 
-// ApplicationPlanEnvDiff application plan env deployment diff
-type ApplicationPlanEnvDiff struct {
-	SelectorComponents []string `json:"selectorComponents"`
+// PutApplicationPlanEnvRequest set diff request
+type PutApplicationPlanEnvRequest struct {
+	ComponentSelector *ComponentSelector `json:"componentSelector,omitempty"`
+	Alias             *string            `json:"alias,omitempty" validate:"checkalias"`
+	Description       *string            `json:"description,omitempty"`
+	ClusterSelector   *ClusterSelector   `json:"clusterSelector,omitempty"`
 }
 
-// PutApplicationPlanEnvDiffRequest set diff request
-type PutApplicationPlanEnvDiffRequest struct {
-	ApplicationPlanEnvDiff
+// CreateApplicationEnvPlanRequest new application env plan
+type CreateApplicationEnvPlanRequest struct {
+	EnvBind
 }

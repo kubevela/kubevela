@@ -407,7 +407,7 @@
     "tags": [
      "application"
     ],
-    "summary": "detail one application",
+    "summary": "detail one application plan",
     "operationId": "detailApplicationPlan",
     "parameters": [
      {
@@ -422,6 +422,50 @@
      "200": {
       "schema": {
        "$ref": "#/definitions/v1.DetailApplicationPlanResponse"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   },
+   "put": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "application"
+    ],
+    "summary": "update one application plan",
+    "operationId": "updateApplicationPlan",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the application plan",
+      "name": "name",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/v1.UpdateApplicationPlanRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.ApplicationPlanBase"
       }
      },
      "400": {
@@ -632,7 +676,7 @@
     }
    }
   },
-  "/api/v1/applicationplans/{name}/envs/{envName}/diff": {
+  "/api/v1/applicationplans/{name}/envs": {
    "post": {
     "consumes": [
      "application/xml",
@@ -645,8 +689,54 @@
     "tags": [
      "application"
     ],
+    "summary": "creating an application environment plan",
+    "operationId": "createApplicationEnv",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the application plan",
+      "name": "name",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/v1.CreateApplicationEnvPlanRequest"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.EnvBind"
+      }
+     },
+     "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/applicationplans/{name}/envs/{envName}": {
+   "put": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "application"
+    ],
     "summary": "set application plan differences in the specified environment",
-    "operationId": "setApplicationEnvDiff",
+    "operationId": "updateApplicationEnvBinding",
     "parameters": [
      {
       "type": "string",
@@ -667,17 +757,60 @@
       "in": "body",
       "required": true,
       "schema": {
-       "$ref": "#/definitions/v1.PutApplicationPlanEnvDiffRequest"
+       "$ref": "#/definitions/v1.PutApplicationPlanEnvRequest"
       }
      }
     ],
     "responses": {
      "200": {
       "schema": {
-       "$ref": "#/definitions/v1.ApplicationPlanEnvDiff"
+       "$ref": "#/definitions/v1.EnvBind"
       }
      },
      "400": {
+      "schema": {
+       "$ref": "#/definitions/bcode.Bcode"
+      }
+     }
+    }
+   },
+   "delete": {
+    "consumes": [
+     "application/xml",
+     "application/json"
+    ],
+    "produces": [
+     "application/json",
+     "application/xml"
+    ],
+    "tags": [
+     "application"
+    ],
+    "summary": "delete an application environment plan",
+    "operationId": "deleteApplicationEnv",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "identifier of the application plan",
+      "name": "name",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "description": "identifier of the application plan",
+      "name": "envName",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "schema": {
+       "$ref": "#/definitions/v1.EmptyResponse"
+      }
+     },
+     "404": {
       "schema": {
        "$ref": "#/definitions/bcode.Bcode"
       }
@@ -2112,10 +2245,10 @@
   },
   "common.AppRolloutStatus": {
    "required": [
-    "currentBatch",
     "rollingState",
     "batchRollingState",
     "upgradedReplicas",
+    "currentBatch",
     "upgradedReadyReplicas",
     "lastTargetAppRevision"
    ],
@@ -3022,19 +3155,6 @@
     }
    }
   },
-  "v1.ApplicationPlanEnvDiff": {
-   "required": [
-    "selectorComponents"
-   ],
-   "properties": {
-    "selectorComponents": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   }
-  },
   "v1.ApplicationRequest": {
    "required": [
     "components"
@@ -3341,6 +3461,19 @@
     }
    }
   },
+  "v1.ComponentSelector": {
+   "required": [
+    "components"
+   ],
+   "properties": {
+    "components": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
   "v1.ConnectCloudClusterRequest": {
    "required": [
     "accessKeyID",
@@ -3387,6 +3520,31 @@
    "properties": {
     "git": {
      "$ref": "#/definitions/model.GitAddonSource"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.CreateApplicationEnvPlanRequest": {
+   "required": [
+    "componentSelector",
+    "name",
+    "alias",
+    "clusterSelector"
+   ],
+   "properties": {
+    "alias": {
+     "type": "string"
+    },
+    "clusterSelector": {
+     "$ref": "#/definitions/v1.ClusterSelector"
+    },
+    "componentSelector": {
+     "$ref": "#/definitions/v1.ComponentSelector"
+    },
+    "description": {
+     "type": "string"
     },
     "name": {
      "type": "string"
@@ -3728,11 +3886,11 @@
   },
   "v1.DetailAddonResponse": {
    "required": [
-    "tags",
     "name",
     "version",
     "description",
-    "icon"
+    "icon",
+    "tags"
    ],
    "properties": {
     "deploy_data": {
@@ -3763,15 +3921,15 @@
   },
   "v1.DetailApplicationPlanResponse": {
    "required": [
-    "namespace",
-    "description",
-    "gatewayRule",
-    "status",
     "name",
+    "namespace",
+    "icon",
+    "gatewayRule",
     "alias",
+    "description",
     "createTime",
     "updateTime",
-    "icon",
+    "status",
     "policies",
     "status",
     "resourceInfo",
@@ -3841,20 +3999,20 @@
   },
   "v1.DetailClusterResponse": {
    "required": [
-    "name",
-    "alias",
-    "labels",
+    "reason",
     "provider",
-    "createTime",
+    "updateTime",
+    "description",
     "dashboardURL",
     "kubeConfigSecret",
-    "updateTime",
-    "status",
-    "apiServerURL",
-    "kubeConfig",
-    "description",
+    "createTime",
+    "name",
     "icon",
-    "reason",
+    "apiServerURL",
+    "alias",
+    "labels",
+    "status",
+    "kubeConfig",
     "resourceInfo"
    ],
    "properties": {
@@ -3912,13 +4070,13 @@
   },
   "v1.DetailComponentPlanResponse": {
    "required": [
-    "creator",
-    "type",
     "createTime",
-    "name",
-    "alias",
     "updateTime",
-    "appPrimaryKey"
+    "alias",
+    "appPrimaryKey",
+    "creator",
+    "name",
+    "type"
    ],
    "properties": {
     "alias": {
@@ -4006,13 +4164,13 @@
   },
   "v1.DetailPolicyResponse": {
    "required": [
+    "properties",
+    "createTime",
+    "updateTime",
     "name",
     "type",
     "description",
-    "creator",
-    "properties",
-    "createTime",
-    "updateTime"
+    "creator"
    ],
    "properties": {
     "createTime": {
@@ -4042,13 +4200,13 @@
   },
   "v1.DetailWorkflowPlanResponse": {
    "required": [
+    "description",
     "enable",
     "default",
     "createTime",
     "updateTime",
     "name",
     "alias",
-    "description",
     "workflowRecord"
    ],
    "properties": {
@@ -4088,10 +4246,10 @@
   },
   "v1.DetailWorkflowRecordResponse": {
    "required": [
-    "suspend",
-    "terminated",
     "name",
     "namespace",
+    "suspend",
+    "terminated",
     "deployTime",
     "deployUser",
     "commit",
@@ -4155,11 +4313,19 @@
   "v1.EnvBind": {
    "required": [
     "name",
-    "clusterSelector"
+    "alias",
+    "clusterSelector",
+    "componentSelector"
    ],
    "properties": {
+    "alias": {
+     "type": "string"
+    },
     "clusterSelector": {
      "$ref": "#/definitions/v1.ClusterSelector"
+    },
+    "componentSelector": {
+     "$ref": "#/definitions/v1.ComponentSelector"
     },
     "description": {
      "type": "string"
@@ -4500,14 +4666,41 @@
     }
    }
   },
-  "v1.PutApplicationPlanEnvDiffRequest": {
+  "v1.PutApplicationPlanEnvRequest": {
+   "properties": {
+    "alias": {
+     "type": "string"
+    },
+    "clusterSelector": {
+     "$ref": "#/definitions/v1.ClusterSelector"
+    },
+    "componentSelector": {
+     "$ref": "#/definitions/v1.ComponentSelector"
+    },
+    "description": {
+     "type": "string"
+    }
+   }
+  },
+  "v1.UpdateApplicationPlanRequest": {
    "required": [
-    "selectorComponents"
+    "alias",
+    "description",
+    "icon"
    ],
    "properties": {
-    "selectorComponents": {
-     "type": "array",
-     "items": {
+    "alias": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "icon": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
       "type": "string"
      }
     }

@@ -77,7 +77,7 @@ func (c *applicationPlanWebService) GetWebService() *restful.WebService {
 		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{name}").To(c.detailApplicationPlan).
-		Doc("detail one application").
+		Doc("detail one application plan").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
@@ -85,17 +85,48 @@ func (c *applicationPlanWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailApplicationPlanResponse{}))
 
-	ws.Route(ws.POST("/{name}/envs/{envName}/diff").To(c.setApplicationEnvDiff).
+	ws.Route(ws.PUT("/{name}").To(c.updateApplicationPlan).
+		Doc("update one application plan").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
+		Reads(apis.UpdateApplicationPlanRequest{}).
+		Returns(200, "", apis.ApplicationPlanBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationPlanBase{}))
+
+	ws.Route(ws.PUT("/{name}/envs/{envName}").To(c.updateApplicationEnvBinding).
 		Doc("set application plan differences in the specified environment").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Filter(c.envCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
 		Param(ws.PathParameter("envName", "identifier of the application plan").DataType("string")).
-		Reads(apis.PutApplicationPlanEnvDiffRequest{}).
-		Returns(200, "", apis.ApplicationPlanEnvDiff{}).
+		Reads(apis.PutApplicationPlanEnvRequest{}).
+		Returns(200, "", apis.EnvBind{}).
 		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.ApplicationPlanEnvDiff{}))
+		Writes(apis.EnvBind{}))
+
+	ws.Route(ws.POST("/{name}/envs").To(c.createApplicationEnv).
+		Doc("creating an application environment plan").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
+		Reads(apis.CreateApplicationEnvPlanRequest{}).
+		Returns(200, "", apis.EnvBind{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.DELETE("/{name}/envs/{envName}").To(c.deleteApplicationEnv).
+		Doc("delete an application environment plan").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.envCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application plan").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application plan").DataType("string")).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(404, "", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.POST("/{name}/template").To(c.publishApplicationTemplate).
 		Doc("create one application template").
@@ -465,10 +496,10 @@ func (c *applicationPlanWebService) updateApplicationPolicy(req *restful.Request
 	}
 }
 
-func (c *applicationPlanWebService) setApplicationEnvDiff(req *restful.Request, res *restful.Response) {
+func (c *applicationPlanWebService) updateApplicationEnvBinding(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
 	// Verify the validity of parameters
-	var updateReq apis.PutApplicationPlanEnvDiffRequest
+	var updateReq apis.PutApplicationPlanEnvRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -477,12 +508,71 @@ func (c *applicationPlanWebService) setApplicationEnvDiff(req *restful.Request, 
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	diff, err := c.applicationUsecase.UpdateApplicationPlanEnvBindingDiff(req.Request.Context(), app, req.PathParameter("envName"), updateReq)
+	diff, err := c.applicationUsecase.UpdateApplicationEnvBindingPlan(req.Request.Context(), app, req.PathParameter("envName"), updateReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 	if err := res.WriteEntity(diff); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationPlanWebService) updateApplicationPlan(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
+	// Verify the validity of parameters
+	var updateReq apis.UpdateApplicationPlanRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	base, err := c.applicationUsecase.UpdateApplicationPlan(req.Request.Context(), app, updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationPlanWebService) createApplicationEnv(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
+	// Verify the validity of parameters
+	var createReq apis.CreateApplicationEnvPlanRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	base, err := c.applicationUsecase.CreateApplicationEnvBindingPlan(req.Request.Context(), app, createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationPlanWebService) deleteApplicationEnv(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.ApplicationPlan)
+	err := c.applicationUsecase.DeleteApplicationEnvBindingPlan(req.Request.Context(), app, req.PathParameter("envName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

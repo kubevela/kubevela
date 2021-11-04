@@ -57,3 +57,6 @@ var ErrApplicationNotExist = NewBcode(404, 10012, "application plan name is not 
 
 // ErrApplicationNotEnv no env binding policy
 var ErrApplicationNotEnv = NewBcode(404, 10013, "application plan not set env binding policy")
+
+// ErrApplicationEnvExist application env is exist
+var ErrApplicationEnvExist = NewBcode(400, 10014, "application env plan is exist")

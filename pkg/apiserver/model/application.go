@@ -62,16 +62,23 @@ func (a *ApplicationPlan) Index() map[string]string {
 
 // EnvBind application env bind
 type EnvBind struct {
-	Name            string           `json:"name" validate:"checkname"`
-	Description     string           `json:"description,omitempty"`
-	ClusterSelector *ClusterSelector `json:"clusterSelector"`
+	Name              string             `json:"name"`
+	Alias             string             `json:"alias"`
+	Description       string             `json:"description,omitempty"`
+	ClusterSelector   ClusterSelector    `json:"clusterSelector"`
+	ComponentSelector *ComponentSelector `json:"componentSelector"`
 }
 
 // ClusterSelector cluster selector
 type ClusterSelector struct {
-	Name string `json:"name" validate:"checkname"`
+	Name string `json:"name"`
 	// Adapt to a scenario where only one Namespace is available or a user-defined Namespace is available.
 	Namespace string `json:"namespace,omitempty"`
+}
+
+// ComponentSelector component selector
+type ComponentSelector struct {
+	Components []string `json:"components"`
 }
 
 // ApplicationComponentPlan component database model
