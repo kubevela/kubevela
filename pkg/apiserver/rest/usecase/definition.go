@@ -47,6 +47,13 @@ type definitionUsecaseImpl struct {
 	caches     map[string]*utils.MemoryCache
 }
 
+const (
+	definitionAPIVersion       = "core.oam.dev/v1beta1"
+	kindComponentDefinition    = "ComponentDefinition"
+	kindTraitDefinition        = "TraitDefinition"
+	kindWorkflowStepDefinition = "WorkflowStepDefinition"
+)
+
 // NewDefinitionUsecase new definition usecase
 func NewDefinitionUsecase() DefinitionUsecase {
 	kubecli, err := clients.GetKubeClient()
@@ -60,19 +67,19 @@ func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, de
 	defs := &unstructured.UnstructuredList{}
 	switch defType {
 	case "component":
-		defs.SetAPIVersion("core.oam.dev/v1beta1")
-		defs.SetKind("ComponentDefinition")
-		return d.listDefinitions(ctx, defs, "componentDefinitions")
+		defs.SetAPIVersion(definitionAPIVersion)
+		defs.SetKind(kindComponentDefinition)
+		return d.listDefinitions(ctx, defs, kindComponentDefinition)
 
 	case "trait":
-		defs.SetAPIVersion("core.oam.dev/v1beta1")
-		defs.SetKind("TraitDefinition")
-		return d.listDefinitions(ctx, defs, "traitDefinitions")
+		defs.SetAPIVersion(definitionAPIVersion)
+		defs.SetKind(kindTraitDefinition)
+		return d.listDefinitions(ctx, defs, kindTraitDefinition)
 
 	case "workflowstep":
-		defs.SetAPIVersion("core.oam.dev/v1beta1")
-		defs.SetKind("WorkflowStepDefinition")
-		return d.listDefinitions(ctx, defs, "workflowStepDefinitions")
+		defs.SetAPIVersion(definitionAPIVersion)
+		defs.SetKind(kindWorkflowStepDefinition)
+		return d.listDefinitions(ctx, defs, kindWorkflowStepDefinition)
 
 	default:
 		return nil, fmt.Errorf("invalid definition type")
