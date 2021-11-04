@@ -43,5 +43,17 @@ var ErrLocalClusterReserved = NewBcode(400, 40007, "local cluster is reserved")
 // ErrLocalClusterImmutable local cluster kubeConfig is immutable
 var ErrLocalClusterImmutable = NewBcode(400, 40008, "local cluster is immutable")
 
+// ErrCloudClusterAlreadyExists cloud cluster already exists
+var ErrCloudClusterAlreadyExists = NewBcode(400, 40009, "cloud cluster already exists")
+
+// ErrTerraformConfigurationNotFound cannot find terraform configuration
+var ErrTerraformConfigurationNotFound = NewBcode(404, 40010, "cannot find terraform configuration")
+
+// ErrClusterIDNotFoundInTerraformConfiguration cannot find cluster_id in terraform configuration
+var ErrClusterIDNotFoundInTerraformConfiguration = NewBcode(500, 40011, "cannot find cluster_id in terraform configuration")
+
+// ErrBootstrapTerraformConfiguration failed to bootstrap terraform configuration
+var ErrBootstrapTerraformConfiguration = NewBcode(500, 40012, "failed to bootstrap terraform configuration")
+
 // ErrInvalidAccessKeyOrSecretKey access key or secret key is invalid
 var ErrInvalidAccessKeyOrSecretKey = NewBcode(400, 40013, "access key or secret key is invalid")

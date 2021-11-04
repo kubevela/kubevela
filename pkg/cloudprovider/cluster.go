@@ -17,7 +17,15 @@ limitations under the License.
 package cloudprovider
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	// CloudClusterCreatorLabelKey labels the creator of cloud cluster
+	CloudClusterCreatorLabelKey = "api.core.oam.dev/cloud-cluster-creator"
 )
 
 // CloudClusterProvider abstracts the cloud provider to provide cluster access
@@ -26,13 +34,14 @@ type CloudClusterProvider interface {
 	ListCloudClusters(pageNumber int, pageSize int) ([]*CloudCluster, int, error)
 	GetClusterKubeConfig(clusterID string) (string, error)
 	GetClusterInfo(clusterID string) (*CloudCluster, error)
+	CreateCloudCluster(ctx context.Context, clusterName string, zone string, worker int, cpu int64, mem int64) (string, error)
 }
 
 // GetClusterProvider creates interface for getting cloud cluster provider
-func GetClusterProvider(provider string, accessKeyID string, accessKeySecret string) (CloudClusterProvider, error) {
+func GetClusterProvider(provider string, accessKeyID string, accessKeySecret string, k8sClient client.Client) (CloudClusterProvider, error) {
 	switch provider {
 	case ProviderAliyun:
-		return NewAliyunCloudProvider(accessKeyID, accessKeySecret)
+		return NewAliyunCloudProvider(accessKeyID, accessKeySecret, k8sClient)
 	default:
 		return nil, errors.Errorf("cluster provider %s is not implemented", provider)
 	}

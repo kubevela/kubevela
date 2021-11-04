@@ -17,14 +17,23 @@ limitations under the License.
 package cloudprovider
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
 	cs20151215 "github.com/alibabacloud-go/cs-20151215/v2/client"
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
 	"github.com/alibabacloud-go/tea/tea"
+	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
+	v1beta12 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	"github.com/pkg/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
@@ -34,10 +43,13 @@ const (
 // AliyunCloudProvider describes the cloud provider in aliyun
 type AliyunCloudProvider struct {
 	*cs20151215.Client
+	k8sClient       client.Client
+	accessKeyID     string
+	accessKeySecret string
 }
 
 // NewAliyunCloudProvider create aliyun cloud provider
-func NewAliyunCloudProvider(accessKeyID string, accessKeySecret string) (*AliyunCloudProvider, error) {
+func NewAliyunCloudProvider(accessKeyID string, accessKeySecret string, k8sClient client.Client) (*AliyunCloudProvider, error) {
 	config := &openapi.Config{
 		AccessKeyId:     pointer.String(accessKeyID),
 		AccessKeySecret: pointer.String(accessKeySecret),
@@ -47,7 +59,7 @@ func NewAliyunCloudProvider(accessKeyID string, accessKeySecret string) (*Aliyun
 	if err != nil {
 		return nil, err
 	}
-	return &AliyunCloudProvider{Client: c}, nil
+	return &AliyunCloudProvider{Client: c, k8sClient: k8sClient, accessKeyID: accessKeyID, accessKeySecret: accessKeySecret}, nil
 }
 
 // IsInvalidKey check if error is InvalidAccessKey or InvalidSecretKey
@@ -132,4 +144,62 @@ func (provider *AliyunCloudProvider) GetClusterInfo(clusterID string) (*CloudClu
 		APIServerURL: url.APIServerEndpoint,
 		DashBoardURL: url.DashboardEndpoint,
 	}, nil
+}
+
+// CreateCloudCluster create cloud cluster
+func (provider *AliyunCloudProvider) CreateCloudCluster(ctx context.Context, clusterName string, zone string, worker int, cpu int64, mem int64) (string, error) {
+	name := GetCloudClusterFullName(ProviderAliyun, clusterName)
+	ns := util.GetRuntimeNamespace()
+	terraformProviderName, err := bootstrapTerraformProvider(ctx, provider.k8sClient, ns, ProviderAliyun, "alibaba", provider.accessKeyID, provider.accessKeySecret, "cn-hongkong")
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to bootstrap terraform provider")
+	}
+	properties := map[string]interface{}{
+		"k8s_name_prefix": clusterName,
+	}
+	if zone != "" {
+		properties["zone_id"] = zone
+	}
+	if cpu != 0 {
+		properties["cpu_core_count"] = cpu
+	}
+	if mem != 0 {
+		properties["memory_size"] = mem
+	}
+	if worker != 0 {
+		properties["k8s_worker_number"] = worker
+	}
+	bs, err := json.Marshal(properties)
+	if err != nil {
+		return name, errors.Wrapf(err, "failed to marshal cloud cluster app properties")
+	}
+
+	cfg := v1beta12.Configuration{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Labels: map[string]string{
+				CloudClusterCreatorLabelKey: ProviderAliyun,
+			},
+		},
+		Spec: v1beta12.ConfigurationSpec{
+			Path:     "alibaba/cs/dedicated-kubernetes",
+			Remote:   "https://github.com/kubevela-contrib/terraform-modules.git",
+			Variable: &runtime.RawExtension{Raw: bs},
+			ProviderReference: &types.Reference{
+				Name:      terraformProviderName,
+				Namespace: ns,
+			},
+			WriteConnectionSecretToReference: &types.SecretReference{
+				Name:      name,
+				Namespace: ns,
+			},
+		},
+	}
+
+	if err = provider.k8sClient.Create(ctx, &cfg); err != nil {
+		return name, errors.Wrapf(err, "failed to create cloud cluster terraform configuration")
+	}
+
+	return name, nil
 }

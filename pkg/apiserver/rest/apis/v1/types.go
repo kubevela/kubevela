@@ -139,6 +139,17 @@ type ConnectCloudClusterRequest struct {
 	Labels          map[string]string `json:"labels,omitempty"`
 }
 
+// CreateCloudClusterRequest request parameters to create a cloud cluster (buy one)
+type CreateCloudClusterRequest struct {
+	AccessKeyID       string `json:"accessKeyID"`
+	AccessKeySecret   string `json:"accessKeySecret"`
+	Name              string `json:"name" validate:"checkname"`
+	Zone              string `json:"zone"`
+	WorkerNumber      int    `json:"workerNumber"`
+	CPUCoresPerWorker int64  `json:"cpuCoresPerWorker"`
+	MemoryPerWorker   int64  `json:"memoryPerWorker"`
+}
+
 // ClusterResourceInfo resource info of cluster
 type ClusterResourceInfo struct {
 	WorkerNumber     int      `json:"workerNumber"`
@@ -169,6 +180,17 @@ type ListClusterResponse struct {
 type ListCloudClusterResponse struct {
 	Clusters []cloudprovider.CloudCluster `json:"clusters"`
 	Total    int                          `json:"total"`
+}
+
+// CreateCloudClusterResponse return values for cloud cluster create request
+type CreateCloudClusterResponse struct {
+	ClusterID string `json:"clusterID"`
+	Status    string `json:"status"`
+}
+
+// ListCloudClusterCreationResponse return the cluster names of creation process of cloud clusters
+type ListCloudClusterCreationResponse struct {
+	Creations []string `json:"creations"`
 }
 
 // ClusterBase cluster base model

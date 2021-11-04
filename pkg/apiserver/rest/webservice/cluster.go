@@ -109,6 +109,41 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
 
+	ws.Route(ws.POST("/cloud-clusters/{provider}/create").To(c.createCloudCluster).
+		Doc("create cloud cluster").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
+		Reads(&apis.CreateCloudClusterRequest{}).
+		Returns(200, "", apis.CreateCloudClusterResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.CreateCloudClusterResponse{}))
+
+	ws.Route(ws.GET("/cloud-clusters/{provider}/creation/{cloudClusterName}").To(c.getCloudClusterCreationStatus).
+		Doc("check cloud cluster create status").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
+		Param(ws.PathParameter("cloudClusterName", "identifier for cloud cluster which is creating").DataType("string")).
+		Returns(200, "", apis.CreateCloudClusterResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.CreateCloudClusterResponse{}))
+
+	ws.Route(ws.GET("/cloud-clusters/{provider}/creation").To(c.listCloudClusterCreation).
+		Doc("list cloud cluster creation").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
+		Returns(200, "", apis.ListCloudClusterCreationResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ListCloudClusterCreationResponse{}))
+
+	ws.Route(ws.DELETE("/cloud-clusters/{provider}/creation/{cloudClusterName}").To(c.deleteCloudClusterCreation).
+		Doc("delete cloud cluster creation").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
+		Param(ws.PathParameter("cloudClusterName", "identifier for cloud cluster which is creating").DataType("string")).
+		Returns(200, "", apis.CreateCloudClusterResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.CreateCloudClusterResponse{}))
+
 	return ws
 }
 
@@ -276,6 +311,87 @@ func (c *ClusterWebService) connectCloudCluster(req *restful.Request, res *restf
 
 	// Write back response data
 	if err := res.WriteEntity(cluster); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) createCloudCluster(req *restful.Request, res *restful.Response) {
+	provider := req.PathParameter("provider")
+
+	// Verify the validity of parameters
+	var createReq apis.CreateCloudClusterRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Call the usecase layer code
+	resp, err := c.clusterUsecase.CreateCloudCluster(req.Request.Context(), provider, createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(resp); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) getCloudClusterCreationStatus(req *restful.Request, res *restful.Response) {
+	provider := req.PathParameter("provider")
+	cloudClusterName := req.PathParameter("cloudClusterName")
+
+	// Call the usecase layer code
+	resp, err := c.clusterUsecase.GetCloudClusterCreationStatus(req.Request.Context(), provider, cloudClusterName)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(resp); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) listCloudClusterCreation(req *restful.Request, res *restful.Response) {
+	provider := req.PathParameter("provider")
+
+	// Call the usecase layer code
+	resp, err := c.clusterUsecase.ListCloudClusterCreation(req.Request.Context(), provider)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(resp); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) deleteCloudClusterCreation(req *restful.Request, res *restful.Response) {
+	provider := req.PathParameter("provider")
+	cloudClusterName := req.PathParameter("cloudClusterName")
+
+	// Call the usecase layer code
+	resp, err := c.clusterUsecase.DeleteCloudClusterCreation(req.Request.Context(), provider, cloudClusterName)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(resp); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
