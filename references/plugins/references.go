@@ -707,7 +707,13 @@ type CommonSchema struct {
 
 // GenerateHelmAndKubeProperties get all properties of a Helm/Kube Category type capability
 func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, capability *types.Capability) ([]CommonReference, []ConsoleReference, error) {
-	cmName := fmt.Sprintf("component-%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
+	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
+	switch capability.Type {
+	case types.TypeComponentDefinition:
+		cmName = fmt.Sprintf("component-%s", cmName)
+	case types.TypeTrait:
+		cmName = fmt.Sprintf("trait-%s", cmName)
+	}
 	var cm v1.ConfigMap
 	commonRefs = make([]CommonReference, 0)
 	if err := ref.Client.Get(ctx, client.ObjectKey{Namespace: capability.Namespace, Name: cmName}, &cm); err != nil {
