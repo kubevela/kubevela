@@ -41,6 +41,7 @@ const (
 // Dispatcher is a client for apply resources.
 type Dispatcher func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error
 
+// Deleter is a client for delete resources.
 type Deleter func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error
 
 type provider struct {
