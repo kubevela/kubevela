@@ -128,3 +128,8 @@ multicluster:
     secureTLS:
       enabled: true
       certPath: /etc/k8s-cluster-gateway-certs
+
+test:
+  app:
+    repository: oamdev/hello-world
+    tag: latest

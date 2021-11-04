@@ -9,7 +9,7 @@ metadata:
 spec:
   containers:
     - name: wget
-      image: {{ .Values.imageRegistry }}oamdev/busybox
+      image: {{ .Values.imageRegistry }}{{ .Values.test.app.repository }}:{{ .Values.test.app.tag }}
       command: ['wget']
       args: ['{{ include "oam-runtime.fullname" . }}:{{ .Values.healthCheck.port }}']
   restartPolicy: Never
