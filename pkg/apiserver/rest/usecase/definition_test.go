@@ -98,7 +98,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 				Namespace: "vela-system",
 			},
 			Data: map[string]string{
-				"openapi-v3-json-schema": `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
+				"openapi-v3-json-schema": `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"volumes": {"description":"Specify volume type, options: pvc, configMap, secret, emptyDir","enum":["pvc","configMap","secret","emptyDir"],"title":"volumes","type":"string"}, "rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
 			},
 		}
 		err := k8sClient.Create(context.Background(), cm)
@@ -106,6 +106,12 @@ var _ = Describe("Test namespace usecase functions", func() {
 		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object", "workflowstep")
 		Expect(schema.Schema).Should(Equal(&v1.DefinitionSchema{
 			Properties: map[string]*v1.DefinitionProperties{
+				"volumes": {
+					Title:       "volumes",
+					Type:        "string",
+					Description: "Specify volume type, options: pvc, configMap, secret, emptyDir",
+					Enum:        []interface{}{"pvc", "configMap", "secret", "emptyDir"},
+				},
 				"batchPartition": {
 					Title: "batchPartition",
 					Type:  "integer",
