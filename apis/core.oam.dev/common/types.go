@@ -313,9 +313,9 @@ type WorkflowStatus struct {
 	AppRevision string       `json:"appRevision,omitempty"`
 	Mode        WorkflowMode `json:"mode"`
 
-	Suspend    bool `json:"suspend"`
-	Terminated bool `json:"terminated"`
-	Finished   bool `json:"finished"`
+	Suspend    bool `json:"suspend,omitempty"`
+	Terminated bool `json:"terminated,omitempty"`
+	Finished   bool `json:"finished,omitempty"`
 
 	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
