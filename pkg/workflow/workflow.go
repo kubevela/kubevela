@@ -30,6 +30,7 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
@@ -131,6 +132,12 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 
 // Trace record the workflow execute history.
 func (w *workflow) Trace() error {
+	// add annotation for apiserver sync
+	if w.app.Annotations == nil {
+		w.app.Annotations = make(map[string]string)
+	}
+	w.app.Annotations[oam.AnnotationWorkflowName] = w.app.Name
+
 	data, err := json.Marshal(w.app)
 	if err != nil {
 		return err

@@ -20,15 +20,22 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 )
 
@@ -85,7 +92,56 @@ func New(cfg Config) (a APIServer, err error) {
 
 func (s *restServer) Run(ctx context.Context) error {
 	s.RegisterServices()
+
+	l, err := s.setupLeaderElection()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		l.Run(ctx)
+	}()
+
 	return s.startHTTP(ctx)
+}
+
+func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElector, error) {
+	restCfg := ctrl.GetConfigOrDie()
+
+	rl, err := resourcelock.NewFromKubeconfig(resourcelock.LeasesResourceLock, types.DefaultKubeVelaNS, "apiserver-lock", resourcelock.ResourceLockConfig{
+		Identity: "apiserver-identity",
+	}, restCfg, time.Second*10)
+	if err != nil {
+		klog.ErrorS(err, "Unable to setup the resource lock")
+		return nil, err
+	}
+
+	l, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+		Lock:          rl,
+		LeaseDuration: time.Second * 15,
+		RenewDeadline: time.Second * 10,
+		RetryPeriod:   time.Second * 2,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(_ context.Context) {
+				w := usecase.NewWorkflowUsecase(s.dataStore)
+				for {
+					klog.Info("=================test")
+					if err := w.SyncWorkflowRecord(context.Background()); err != nil {
+						klog.ErrorS(err, "syncWorkflowRecordError")
+					}
+					time.Sleep(time.Second * 5)
+				}
+			},
+			OnStoppedLeading: func() {},
+		},
+		ReleaseOnCancel: true,
+	})
+	if err != nil {
+		klog.ErrorS(err, "Unable to setup the leader election")
+		return nil, err
+	}
+
+	return l, nil
 }
 
 // RegisterServices register web service
