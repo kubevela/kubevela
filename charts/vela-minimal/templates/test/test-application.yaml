@@ -10,7 +10,7 @@ spec:
     - name: helm-test-express-server
       type: webservice
       properties:
-        image: crccheck/hello-world
+        image: {{ .Values.imageRegistry }}oamdev/hello-world
         port: 8000
       # traits:
       #   - type: ingress

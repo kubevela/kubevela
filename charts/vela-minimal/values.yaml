@@ -7,6 +7,8 @@ replicaCount: 1
 applyOnceOnly: "off"
 
 disableCaps: "manualscalertrait,containerizedwokrload,envbinding"
+
+imageRegistry: ""
 image:
   repository: oamdev/vela-core
   tag: latest

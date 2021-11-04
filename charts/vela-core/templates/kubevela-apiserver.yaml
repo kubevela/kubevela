@@ -30,7 +30,7 @@ spec:
           args:
             - "apiserver"
             - "--port={{ .Values.apiServer.port }}"
-          image: {{ .Values.apiserverImage.repository }}:{{ .Values.apiserverImage.tag }}
+          image: {{ .Values.imageRegistry }}{{ .Values.apiserverImage.repository }}:{{ .Values.apiserverImage.tag }}
           imagePullPolicy: {{ quote .Values.apiserverImage.pullPolicy }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
