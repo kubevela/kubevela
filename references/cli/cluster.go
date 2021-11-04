@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -30,6 +29,9 @@ import (
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -83,6 +85,7 @@ func ClusterCommandGroup(c common.Args) *cobra.Command {
 		NewClusterJoinCommand(&c),
 		NewClusterRenameCommand(&c),
 		NewClusterDetachCommand(&c),
+		NewClusterProbeCommand(&c),
 	)
 	return cmd
 }
@@ -319,6 +322,28 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to detach cluster %s", clusterName)
 			}
 			cmd.Printf("Detach cluster %s successfully.\n", clusterName)
+			return nil
+		},
+	}
+	return cmd
+}
+
+// NewClusterProbeCommand create command to help user try health probe for existing cluster
+func NewClusterProbeCommand(c *common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "probe [CLUSTER_NAME]",
+		Short: "probe managed cluster",
+		Args:  cobra.ExactValidArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clusterName := args[0]
+			if clusterName == multicluster.ClusterLocalName {
+				return errors.New("you must specify a remote cluster name")
+			}
+			content, err := versioned.NewForConfigOrDie(c.Config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
+			if err != nil {
+				return errors.Wrapf(err, "failed connect cluster %s", clusterName)
+			}
+			cmd.Printf("Connect to cluster %s successfully.\n%s\n", clusterName, string(content))
 			return nil
 		},
 	}
