@@ -41,9 +41,12 @@ const (
 // Dispatcher is a client for apply resources.
 type Dispatcher func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error
 
+type Deleter func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error
+
 type provider struct {
-	apply Dispatcher
-	cli   client.Client
+	apply  Dispatcher
+	delete Deleter
+	cli    client.Client
 }
 
 // Apply create or update CR in cluster.
@@ -170,18 +173,19 @@ func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Actio
 	if err != nil {
 		return err
 	}
-	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	if err := h.cli.Delete(readCtx, obj); err != nil {
+	deleteCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if err := h.delete(deleteCtx, cluster, common.WorkflowResourceCreator, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
 	return nil
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client, apply Dispatcher) {
+func Install(p providers.Providers, cli client.Client, apply Dispatcher, deleter Deleter) {
 	prd := &provider{
-		apply: apply,
-		cli:   cli,
+		apply:  apply,
+		delete: deleter,
+		cli:    cli,
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"apply":  prd.Apply,
