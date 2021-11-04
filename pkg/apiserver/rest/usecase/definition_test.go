@@ -98,29 +98,42 @@ var _ = Describe("Test namespace usecase functions", func() {
 				Namespace: "vela-system",
 			},
 			Data: map[string]string{
-				"openapi-v3-json-schema": `{"properties":{"cluster":{"default":"","description":"Specify the cluster of the object","title":"cluster","type":"string"},"value":{"description":"Specify the value of the object","title":"value","type":"object"}},"required":["value","cluster"],"type":"object"}`,
+				"openapi-v3-json-schema": `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
 			},
 		}
 		err := k8sClient.Create(context.Background(), cm)
 		Expect(err).Should(Succeed())
 		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object", "workflowstep")
-		Expect(err).Should(BeNil())
 		Expect(schema.Schema).Should(Equal(&v1.DefinitionSchema{
-			Properties: map[string]v1.DefinitionProperties{
-				"value": {
-					Default:     "",
-					Description: "Specify the value of the object",
-					Title:       "value",
-					Type:        "object",
+			Properties: map[string]*v1.DefinitionProperties{
+				"batchPartition": {
+					Title: "batchPartition",
+					Type:  "integer",
 				},
-				"cluster": {
-					Default:     "",
-					Description: "Specify the cluster of the object",
-					Title:       "cluster",
-					Type:        "string",
+				"rolloutBatches": {
+					Items: &v1.DefinitionSchema{
+						Properties: map[string]*v1.DefinitionProperties{
+							"replicas": {
+								Title: "replicas",
+								Type:  "integer",
+							},
+						},
+						Required: []string{"replicas"},
+						Type:     "object",
+					},
+					Title: "rolloutBatches",
+					Type:  "array",
+				},
+				"targetSize": {
+					Title: "targetSize",
+					Type:  "integer",
+				},
+				"targetRevision": {
+					Title: "targetRevision",
+					Type:  "string",
 				},
 			},
-			Required: []string{"value", "cluster"},
+			Required: []string{"targetRevision", "targetSize"},
 			Type:     "object",
 		}))
 	})

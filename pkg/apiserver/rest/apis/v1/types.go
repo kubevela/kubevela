@@ -417,16 +417,17 @@ type DetailDefinitionResponse struct {
 }
 
 type DefinitionSchema struct {
-	Properties map[string]DefinitionProperties `json:"properties"`
-	Required   []string                        `json:"required"`
-	Type       string                          `json:"type"`
+	Properties map[string]*DefinitionProperties `json:"properties"`
+	Required   []string                         `json:"required"`
+	Type       string                           `json:"type"`
 }
 
 type DefinitionProperties struct {
-	Default     string `json:"default"`
-	Description string `json:"description"`
-	Title       string `json:"title"`
-	Type        string `json:"type"`
+	Items       *DefinitionSchema `json:"items,omitempty"`
+	Default     string            `json:"default,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Title       string            `json:"title"`
+	Type        string            `json:"type"`
 }
 
 // DefinitionBase is the definition base model
