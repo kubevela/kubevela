@@ -51,7 +51,7 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the definition").DataType("string")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "create success", apis.DetailWorkflowResponse{}).
+		Returns(200, "create success", apis.DetailDefinitionResponse{}).
 		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
 	return ws
 }
