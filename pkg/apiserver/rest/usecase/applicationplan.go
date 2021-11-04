@@ -114,7 +114,7 @@ func (c *applicationUsecaseImpl) ListApplicationPlans(ctx context.Context, listO
 	}
 	var list []*apisv1.ApplicationPlanBase
 	for _, entity := range entitys {
-		appBase := c.converAppModelToBase(ctx, entity.(*model.ApplicationPlan))
+		appBase := c.converAppModelToBase(entity.(*model.ApplicationPlan))
 		if listOptions.Query != "" &&
 			!(strings.Contains(appBase.Alias, listOptions.Query) ||
 				strings.Contains(appBase.Name, listOptions.Query) ||
@@ -148,7 +148,7 @@ func (c *applicationUsecaseImpl) GetApplicationPlan(ctx context.Context, appName
 
 // DetailApplicationPlan detail application plan info
 func (c *applicationUsecaseImpl) DetailApplicationPlan(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error) {
-	base := c.converAppModelToBase(ctx, app)
+	base := c.converAppModelToBase(app)
 	policys, err := c.queryApplicationPolicys(ctx, app)
 	if err != nil {
 		return nil, err
@@ -269,7 +269,7 @@ func (c *applicationUsecaseImpl) CreateApplicationPlan(ctx context.Context, req 
 		return nil, err
 	}
 	// render app base info.
-	base := c.converAppModelToBase(ctx, &application)
+	base := c.converAppModelToBase(&application)
 	// deploy to cluster if need.
 	if req.Deploy && canDeploy {
 		if _, err := c.Deploy(ctx, &application, apisv1.ApplicationDeployRequest{
@@ -290,7 +290,7 @@ func (c *applicationUsecaseImpl) UpdateApplicationPlan(ctx context.Context, app 
 	if err := c.ds.Put(ctx, app); err != nil {
 		return nil, err
 	}
-	return c.converAppModelToBase(ctx, app), nil
+	return c.converAppModelToBase(app), nil
 }
 
 func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, app *model.ApplicationPlan, components []common.ApplicationComponent) error {
@@ -735,7 +735,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	return app, nil
 }
 
-func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.ApplicationPlan) *apisv1.ApplicationPlanBase {
+func (c *applicationUsecaseImpl) converAppModelToBase(app *model.ApplicationPlan) *apisv1.ApplicationPlanBase {
 	appBase := &apisv1.ApplicationPlanBase{
 		Name:        app.Name,
 		Alias:       app.Alias,
