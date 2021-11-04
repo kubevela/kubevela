@@ -101,3 +101,8 @@ dependCheckWait: 30s
 
 # OAMSpecVer is the oam spec version controller want to setup
 OAMSpecVer: "v0.2"
+
+test:
+  app:
+    repository: oamdev/busybox
+    tag: latest

@@ -133,3 +133,11 @@ multicluster:
     secureTLS:
       enabled: true
       certPath: /etc/k8s-cluster-gateway-certs
+
+test:
+  app:
+    repository: oamdev/hello-world
+    tag: latest
+  k8s:
+    repository: oamdev/alpine-k8s
+    tag: 1.18.2
