@@ -18,11 +18,15 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -32,14 +36,23 @@ import (
 
 // DefinitionUsecase definition usecase, Implement the management of ComponentDefinition、TraitDefinition and WorkflowStepDefinition.
 type DefinitionUsecase interface {
-	// ListComponentDefinitions list component definition base info
-	ListComponentDefinitions(ctx context.Context, envName string) ([]*apisv1.ComponentDefinitionBase, error)
+	// ListDefinitions list definition base info
+	ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error)
+	// DetailDefinition get definition detail
+	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
 }
 
 type definitionUsecaseImpl struct {
 	kubeClient client.Client
 	caches     map[string]*utils.MemoryCache
 }
+
+const (
+	definitionAPIVersion       = "core.oam.dev/v1beta1"
+	kindComponentDefinition    = "ComponentDefinition"
+	kindTraitDefinition        = "TraitDefinition"
+	kindWorkflowStepDefinition = "WorkflowStepDefinition"
+)
 
 // NewDefinitionUsecase new definition usecase
 func NewDefinitionUsecase() DefinitionUsecase {
@@ -50,23 +63,68 @@ func NewDefinitionUsecase() DefinitionUsecase {
 	return &definitionUsecaseImpl{kubeClient: kubecli, caches: make(map[string]*utils.MemoryCache)}
 }
 
-func (d *definitionUsecaseImpl) ListComponentDefinitions(ctx context.Context, envName string) ([]*apisv1.ComponentDefinitionBase, error) {
-	// check cache
-	if mc := d.caches["componentDefinitions"]; mc != nil && !mc.IsExpired() {
-		return mc.GetData().([]*apisv1.ComponentDefinitionBase), nil
+func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error) {
+	defs := &unstructured.UnstructuredList{}
+	switch defType {
+	case "component":
+		defs.SetAPIVersion(definitionAPIVersion)
+		defs.SetKind(kindComponentDefinition)
+		return d.listDefinitions(ctx, defs, kindComponentDefinition)
+
+	case "trait":
+		defs.SetAPIVersion(definitionAPIVersion)
+		defs.SetKind(kindTraitDefinition)
+		return d.listDefinitions(ctx, defs, kindTraitDefinition)
+
+	case "workflowstep":
+		defs.SetAPIVersion(definitionAPIVersion)
+		defs.SetKind(kindWorkflowStepDefinition)
+		return d.listDefinitions(ctx, defs, kindWorkflowStepDefinition)
+
+	default:
+		return nil, fmt.Errorf("invalid definition type")
 	}
-	var componentDefinitions v1beta1.ComponentDefinitionList
-	if err := d.kubeClient.List(ctx, &componentDefinitions, &client.ListOptions{}); err != nil {
+}
+
+func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache string) ([]*apisv1.DefinitionBase, error) {
+	if mc := d.caches[cache]; mc != nil && !mc.IsExpired() {
+		return mc.GetData().([]*apisv1.DefinitionBase), nil
+	}
+	if err := d.kubeClient.List(ctx, list, &client.ListOptions{
+		Namespace: types.DefaultKubeVelaNS,
+	}); err != nil {
 		return nil, err
 	}
-	var cdb []*apisv1.ComponentDefinitionBase
-	for _, cd := range componentDefinitions.Items {
-		cdb = append(cdb, &apisv1.ComponentDefinitionBase{
-			Name:        cd.Name,
-			Description: cd.Annotations[types.AnnDescription],
+	var defs []*apisv1.DefinitionBase
+	for _, def := range list.Items {
+		defs = append(defs, &apisv1.DefinitionBase{
+			Name:        def.GetName(),
+			Description: def.GetAnnotations()[types.AnnDescription],
 		})
 	}
-	// set cache
-	d.caches["componentDefinitions"] = utils.NewMemoryCache(cdb, time.Minute*3)
-	return cdb, nil
+	d.caches[cache] = utils.NewMemoryCache(defs, time.Minute*3)
+	return defs, nil
+}
+
+// DetailDefinition get definition detail
+func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error) {
+	var cm v1.ConfigMap
+	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      fmt.Sprintf("%s-schema-%s", defType, name),
+	}, &cm); err != nil {
+		return nil, err
+	}
+
+	data, ok := cm.Data["openapi-v3-json-schema"]
+	if !ok {
+		return nil, fmt.Errorf("failed to get definition schema")
+	}
+	schema := &apisv1.DefinitionSchema{}
+	if err := json.Unmarshal([]byte(data), schema); err != nil {
+		return nil, err
+	}
+	return &apisv1.DetailDefinitionResponse{
+		Schema: schema,
+	}, nil
 }

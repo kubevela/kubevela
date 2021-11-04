@@ -70,7 +70,7 @@ func Init(ctx context.Context, ds datastore.DataStore) {
 	RegistWebService(NewClusterWebService(clusterUsecase))
 	RegistWebService(NewApplicationWebService(applicationUsecase))
 	RegistWebService(NewNamespaceWebService(namespaceUsecase))
-	RegistWebService(NewComponentDefinitionWebservice(definitionUsecase))
+	RegistWebService(NewDefinitionWebservice(definitionUsecase))
 	RegistWebService(NewAddonWebService(addonUsecase))
 	RegistWebService(NewAddonRegistryWebService(addonUsecase))
 	RegistWebService(NewOAMApplication(oamApplicationUsecase))
