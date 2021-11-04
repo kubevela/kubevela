@@ -713,6 +713,7 @@ func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, ca
 		cmName = fmt.Sprintf("component-%s", cmName)
 	case types.TypeTrait:
 		cmName = fmt.Sprintf("trait-%s", cmName)
+	default:
 	}
 	var cm v1.ConfigMap
 	commonRefs = make([]CommonReference, 0)
