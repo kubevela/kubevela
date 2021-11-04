@@ -724,10 +724,8 @@ spec:
                   terminated:
                     type: boolean
                 required:
-                - finished
                 - mode
                 - suspend
-                - terminated
                 type: object
             type: object
         type: object
@@ -1531,10 +1529,8 @@ spec:
                   terminated:
                     type: boolean
                 required:
-                - finished
                 - mode
                 - suspend
-                - terminated
                 type: object
             type: object
         type: object

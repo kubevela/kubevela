@@ -313,7 +313,7 @@ type WorkflowStatus struct {
 	AppRevision string       `json:"appRevision,omitempty"`
 	Mode        WorkflowMode `json:"mode"`
 
-	Suspend    bool `json:"suspend,omitempty"`
+	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated,omitempty"`
 	Finished   bool `json:"finished,omitempty"`
 
