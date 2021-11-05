@@ -24,10 +24,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/go-openapi/spec"
 
+	"github.com/google/uuid"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
 	"github.com/oam-dev/kubevela/version"
@@ -35,11 +37,14 @@ import (
 
 func main() {
 	s := &Server{}
-	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8000", "The bind address used to serve the http APIs.")
+	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8001", "The bind address used to serve the http APIs.")
 	flag.StringVar(&s.restCfg.MetricPath, "metrics-path", "/metrics", "The path to expose the metrics.")
 	flag.StringVar(&s.restCfg.Datastore.Type, "datastore-type", "kubeapi", "Metadata storage driver type, support kubeapi and mongodb")
 	flag.StringVar(&s.restCfg.Datastore.Database, "datastore-database", "kubevela", "Metadata storage database name, takes effect when the storage driver is mongodb.")
 	flag.StringVar(&s.restCfg.Datastore.URL, "datastore-url", "", "Metadata storage database url,takes effect when the storage driver is mongodb.")
+	flag.StringVar(&s.restCfg.LeaderConfig.ID, "id", uuid.New().String(), "the holder identity name")
+	flag.StringVar(&s.restCfg.LeaderConfig.LockName, "lock-name", "apiserver-lock", "the lease lock resource name")
+	flag.DurationVar(&s.restCfg.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
 	flag.Parse()
 
 	if len(os.Args) > 2 && os.Args[1] == "build-swagger" {
@@ -71,9 +76,10 @@ func main() {
 	}
 
 	srvc := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		if err := s.run(); err != nil {
+		if err := s.run(ctx); err != nil {
 			log.Logger.Errorf("failed to run apiserver: %v", err)
 		}
 		close(srvc)
@@ -84,7 +90,9 @@ func main() {
 	select {
 	case <-term:
 		log.Logger.Infof("Received SIGTERM, exiting gracefully...")
+		cancel()
 	case <-srvc:
+		cancel()
 		os.Exit(1)
 	}
 	log.Logger.Infof("See you next time!")
@@ -95,10 +103,8 @@ type Server struct {
 	restCfg rest.Config
 }
 
-func (s *Server) run() error {
+func (s *Server) run(ctx context.Context) error {
 	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
-
-	ctx := context.Background()
 
 	server, err := rest.New(s.restCfg)
 	if err != nil {
