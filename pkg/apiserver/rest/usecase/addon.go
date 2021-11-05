@@ -63,7 +63,7 @@ type AddonUsecase interface {
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
-	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
+	GetAddon(ctx context.Context, name string, registry string, detailed bool) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
 }
@@ -87,8 +87,9 @@ type addonUsecaseImpl struct {
 	apply      apply.Applicator
 }
 
-func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
-	addons, err := u.ListAddons(ctx, true, registry, "")
+// GetAddon will get
+func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string, detailed bool) (*apis.DetailAddonResponse, error) {
+	addons, err := u.ListAddons(ctx, detailed, registry, "")
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +103,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 }
 
 func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, error) {
-	_, err := u.GetAddon(context.Background(), name, "")
+	_, err := u.GetAddon(context.Background(), name, "", false)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +111,7 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	var app v1beta1.Application
 	err = u.kubeClient.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      addonutil.TransAddonName(name),
+		Name:      name,
 	}, &app)
 	if err != nil {
 		if errors2.IsNotFound(err) {
@@ -154,13 +155,13 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 	}
 
 	if query != "" {
-		var new []*apis.DetailAddonResponse
+		var filtered []*apis.DetailAddonResponse
 		for i, addon := range addons {
 			if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
-				new = append(new, addons[i])
+				filtered = append(filtered, addons[i])
 			}
 		}
-		addons = new
+		addons = filtered
 	}
 
 	sort.Slice(addons, func(i, j int) bool {
@@ -273,7 +274,7 @@ func renderCUETemplate(template string, parameters string, args map[string]strin
 }
 
 func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
-	addon, err := u.GetAddon(ctx, name, "")
+	addon, err := u.GetAddon(ctx, name, "", true)
 	if err != nil {
 		return err
 	}
