@@ -164,7 +164,6 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 	s.statusAddon(req, res)
 }
 
-// TODO refactor to return addon status without render whole app
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
 	status, err := s.addonUsecase.StatusAddon(name)
