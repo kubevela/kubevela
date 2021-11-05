@@ -61,6 +61,9 @@ const (
 
 	// LabelAddonsName records the name of initializer stored in configMap
 	LabelAddonsName = "addons.oam.dev/type"
+
+	// LabelAddonName indicates the name of the corresponding Addon
+	LabelAddonName = "addons.oam.dev/name"
 )
 
 const (

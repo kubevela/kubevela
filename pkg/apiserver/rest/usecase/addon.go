@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -14,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
 	"golang.org/x/oauth2"
@@ -23,6 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -219,6 +220,9 @@ func renderApplication(addon *restapis.DetailAddonResponse, args *apis.EnableAdd
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      addon.Name,
 			Namespace: types.DefaultKubeVelaNS,
+			Labels:    map[string]string{
+				oam.LabelAddonName: addon.Name
+			},
 		},
 		Spec: v1beta1.ApplicationSpec{
 			Components: []common2.ApplicationComponent{},
