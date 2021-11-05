@@ -1,0 +1,88 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: azure-storage-account
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Terraform configuration for Azure Blob Storage Account
+    provider: azure
+  labels:
+    type: terraform
+spec:
+  workload:
+    definition:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Configuration
+  schematic:
+    terraform:
+      providerRef:
+        name: azure
+        namespace: default
+      configuration: |
+        # Configure the Microsoft Azure Provider
+        provider "azurerm" {
+          features {}
+        }
+
+        resource "azurerm_storage_account" "sa" {
+          name                      = var.name
+          resource_group_name       = var.resource_group_name
+          location                  = var.location
+          account_tier              = "Standard"
+          account_replication_type  = "GRS"
+          enable_https_traffic_only = true
+
+          dynamic "static_website" {
+            for_each = var.static_website
+            content {
+              index_document     = static_website.value["index_document"]
+              error_404_document = static_website.value["error_404_document"]
+            }
+          }
+
+          tags = var.tags
+        }
+
+        variable "resource_group_name" {
+          description = "Name of resource group. Defaults to 'rsg'."
+          type        = string
+          default     = "rsg"
+        }
+
+        variable "name" {
+          description = "Name of storage account. Defaults to 'storageaccount'."
+          type        = string
+          default     = "storageaccount"
+        }
+
+        variable "location" {
+          description = "Location of storage account. Defaults to 'West Europe'."
+          type        = string
+          default     = "West Europe"
+        }
+
+        variable "tags" {
+          description = "Tags for storage account. Defaults to '{}'."
+          type        = map(string)
+          default     = {}
+        }
+
+        variable "static_website" {
+          description = "Static website configuration. Defaults to disabled."
+          type        = list(map(string))
+          default     = [{
+            index_document = null
+            error_404_document = null
+          }]
+        }
+
+        output "BLOB_CONNECTION_STRING" {
+          description = "Blob storage connection string"
+          sensitive   = true
+          value       = azurerm_storage_account.sa.primary_connection_string
+        }
+
+        output "BLOB_WEB_ENDPOINT" {
+          description = "Blob storage static web endpoint"
+          value       = azurerm_storage_account.sa.primary_web_endpoint
+        }
