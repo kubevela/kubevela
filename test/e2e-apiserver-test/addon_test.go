@@ -2,15 +2,19 @@ package e2e_apiserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/wait"
-
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
@@ -73,7 +77,17 @@ var _ = Describe("Test addon rest api", func() {
 	})
 
 	It("should enable and disable an addon", func() {
-		Skip("flux-system namespace won't be created so this won't work, we should add a application template in format")
+		// todo(qiaozp) we should remove this namespace creation. This should be solved with a application template.
+		ns := v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "flux-system",
+			},
+		}
+		args := common.Args{}
+		client, err := args.GetClient()
+		Expect(err).Should(BeNil())
+		Expect(client.Create(context.Background(), &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		defer GinkgoRecover()
 		req := apis.EnableAddonRequest{
 			Args: map[string]string{
