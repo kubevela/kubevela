@@ -42,7 +42,7 @@ var _ = Describe("Test application rest api", func() {
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
-			EnvBind: []*apisv1.EnvBind{{Name: "dev-env", ClusterSelector: &apisv1.ClusterSelector{
+			EnvBind: []*apisv1.EnvBind{{Name: "dev-env", ClusterSelector: apisv1.ClusterSelector{
 				Name: "dev-cluster",
 			}}},
 		}

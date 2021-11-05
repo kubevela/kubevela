@@ -29,10 +29,11 @@ import (
 var (
 	// CtxKeyApplication request context key of application
 	CtxKeyApplication = "application"
+	// CtxKeyWorkflow request context key of workflow
+	CtxKeyWorkflow = "workflow"
+	// CtxKeyApplicationEnvBinding request context key of env binding
+	CtxKeyApplicationEnvBinding = "envbinding-policy"
 )
-
-// CtxKeyWorkflow request context key of workflow
-var CtxKeyWorkflow = "workflow"
 
 // AddonPhase defines the phase of an addon
 type AddonPhase string
@@ -228,7 +229,7 @@ type EnvBindList []*EnvBind
 // ContainCluster contain cluster name
 func (e EnvBindList) ContainCluster(name string) bool {
 	for _, eb := range e {
-		if eb.ClusterSelector != nil && eb.ClusterSelector.Name == name {
+		if eb.ClusterSelector.Name == name {
 			return true
 		}
 	}
@@ -283,11 +284,21 @@ type CreateApplicationPlanRequest struct {
 	Deploy bool `json:"deploy,omitempty"`
 }
 
+// UpdateApplicationPlanRequest update application plan base config
+type UpdateApplicationPlanRequest struct {
+	Alias       string            `json:"alias" validate:"checkalias"`
+	Description string            `json:"description"`
+	Icon        string            `json:"icon"`
+	Labels      map[string]string `json:"labels,omitempty"`
+}
+
 // EnvBind application env bind
 type EnvBind struct {
-	Name            string           `json:"name" validate:"checkname"`
-	Description     string           `json:"description,omitempty"`
-	ClusterSelector *ClusterSelector `json:"clusterSelector"`
+	Name              string             `json:"name" validate:"checkname"`
+	Alias             string             `json:"alias" validate:"checkalias"`
+	Description       string             `json:"description,omitempty"`
+	ClusterSelector   ClusterSelector    `json:"clusterSelector"`
+	ComponentSelector *ComponentSelector `json:"componentSelector"`
 }
 
 // ClusterSelector cluster selector
@@ -295,6 +306,11 @@ type ClusterSelector struct {
 	Name string `json:"name" validate:"checkname"`
 	// Adapt to a scenario where only one Namespace is available or a user-defined Namespace is available.
 	Namespace string `json:"namespace,omitempty"`
+}
+
+// ComponentSelector component selector
+type ComponentSelector struct {
+	Components []string `json:"components"`
 }
 
 // DetailApplicationPlanResponse application plan detail
@@ -359,6 +375,11 @@ type DetailComponentPlanResponse struct {
 	//TODO: Status
 }
 
+// ListApplicationComponentOptions list app plan component list
+type ListApplicationComponentOptions struct {
+	EnvName string `json:"envName"`
+}
+
 // CreateApplicationTemplateRequest create app template request model
 type CreateApplicationTemplateRequest struct {
 	TemplateName string `json:"templateName" validate:"checkname"`
@@ -417,12 +438,14 @@ type DetailDefinitionResponse struct {
 	Schema *DefinitionSchema `json:"schema"`
 }
 
+// DefinitionSchema definition schema info
 type DefinitionSchema struct {
 	Properties map[string]*DefinitionProperties `json:"properties"`
 	Required   []string                         `json:"required"`
 	Type       string                           `json:"type"`
 }
 
+// DefinitionProperties definition properties
 type DefinitionProperties struct {
 	Items       *DefinitionSchema `json:"items,omitempty"`
 	Enum        []interface{}     `json:"enum,omitempty"`
@@ -611,3 +634,16 @@ type ApplicationDeployResponse struct {
 
 // VelaQLViewResponse query response
 type VelaQLViewResponse map[string]interface{}
+
+// PutApplicationPlanEnvRequest set diff request
+type PutApplicationPlanEnvRequest struct {
+	ComponentSelector *ComponentSelector `json:"componentSelector,omitempty"`
+	Alias             *string            `json:"alias,omitempty" validate:"checkalias"`
+	Description       *string            `json:"description,omitempty"`
+	ClusterSelector   *ClusterSelector   `json:"clusterSelector,omitempty"`
+}
+
+// CreateApplicationEnvPlanRequest new application env plan
+type CreateApplicationEnvPlanRequest struct {
+	EnvBind
+}
