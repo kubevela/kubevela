@@ -179,6 +179,8 @@ e2e-apiserver-test:
 	@$(OK) tests pass
 
 e2e-test:
+	# Used to test addon enable/disable
+	cp bin/vela /usr/local/bin/
 	# Run e2e test
 	ginkgo -v  --skip="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
