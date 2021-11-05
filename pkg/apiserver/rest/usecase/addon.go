@@ -103,13 +103,8 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 }
 
 func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, error) {
-	_, err := u.GetAddon(context.Background(), name, "", false)
-	if err != nil {
-		return nil, err
-	}
-
 	var app v1beta1.Application
-	err = u.kubeClient.Get(context.Background(), client.ObjectKey{
+	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      name,
 	}, &app)
