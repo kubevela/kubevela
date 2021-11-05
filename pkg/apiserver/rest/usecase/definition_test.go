@@ -20,6 +20,7 @@ import (
 	"context"
 	"io/ioutil"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -28,7 +29,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -98,49 +98,18 @@ var _ = Describe("Test namespace usecase functions", func() {
 				Namespace: "vela-system",
 			},
 			Data: map[string]string{
-				"openapi-v3-json-schema": `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"volumes": {"description":"Specify volume type, options: pvc, configMap, secret, emptyDir","enum":["pvc","configMap","secret","emptyDir"],"title":"volumes","type":"string"}, "rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
+				"openapi-v3-json-schema": `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"volumes":{"description":"Specify volume type, options: pvc, configMap, secret, emptyDir","enum":["pvc","configMap","secret","emptyDir"],"title":"volumes","type":"string"}, "rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
 			},
 		}
 		err := k8sClient.Create(context.Background(), cm)
 		Expect(err).Should(Succeed())
 		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object", "workflowstep")
-		Expect(schema.Schema).Should(Equal(&v1.DefinitionSchema{
-			Properties: map[string]*v1.DefinitionSchema{
-				"volumes": {
-					Title:       "volumes",
-					Type:        "string",
-					Description: "Specify volume type, options: pvc, configMap, secret, emptyDir",
-					Enum:        []interface{}{"pvc", "configMap", "secret", "emptyDir"},
-				},
-				"batchPartition": {
-					Title: "batchPartition",
-					Type:  "integer",
-				},
-				"rolloutBatches": {
-					Items: &v1.DefinitionSchema{
-						Properties: map[string]*v1.DefinitionSchema{
-							"replicas": {
-								Title: "replicas",
-								Type:  "integer",
-							},
-						},
-						Required: []string{"replicas"},
-						Type:     "object",
-					},
-					Title: "rolloutBatches",
-					Type:  "array",
-				},
-				"targetSize": {
-					Title: "targetSize",
-					Type:  "integer",
-				},
-				"targetRevision": {
-					Title: "targetRevision",
-					Type:  "string",
-				},
-			},
-			Required: []string{"targetRevision", "targetSize"},
-			Type:     "object",
-		}))
+		Expect(err).Should(Succeed())
+
+		schemaFromCM := &openapi3.Schema{}
+		err = schemaFromCM.UnmarshalJSON([]byte(cm.Data["openapi-v3-json-schema"]))
+		Expect(err).Should(Succeed())
+
+		Expect(schema.Schema).Should(Equal(schemaFromCM))
 	})
 })
