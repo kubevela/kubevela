@@ -112,6 +112,7 @@ type Definition struct {
 type AddonElementFile struct {
 	Data string
 	Name string
+	Path []string
 }
 
 // DetailAddonResponse defines the format for showing the addon details

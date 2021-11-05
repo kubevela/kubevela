@@ -220,7 +220,7 @@ func renderApplication(addon *restapis.DetailAddonResponse, args *apis.EnableAdd
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      addon.Name,
 			Namespace: types.DefaultKubeVelaNS,
-			Labels:    map[string]string{
+			Labels: map[string]string{
 				oam.LabelAddonName: addon.Name,
 			},
 		},
@@ -241,7 +241,7 @@ func renderApplication(addon *restapis.DetailAddonResponse, args *apis.EnableAdd
 			log.Logger.Errorf("failed to render CUE template: %v", err)
 			return nil, bcode.ErrAddonRenderFail
 		}
-		comp, err := renderRawComponent(apis.AddonElementFile{Data: yamlData, Name: tmpl.Name})
+		comp, err := renderRawComponent(apis.AddonElementFile{Data: yamlData, Name: tmpl.Name, Path: tmpl.Path})
 		if err != nil {
 			return nil, err
 		}
@@ -310,7 +310,7 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 func renderRawComponent(elem apis.AddonElementFile) (*common2.ApplicationComponent, error) {
 	baseRawComponent := common2.ApplicationComponent{
 		Type: "raw",
-		Name: elem.Name,
+		Name: strings.Join(append(elem.Path, elem.Name), "-"),
 	}
 	obj := &unstructured.Unstructured{}
 	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
@@ -411,7 +411,16 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 }
 
 func readTemplates(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.RepositoryContent) error {
-	dirName := dir.GetName()
+	dirPath := strings.Split(dir.GetPath(), "/")
+	// remove
+	for i, d := range dirPath {
+		if d == AddonTemplateDirName {
+			dirPath = dirPath[i:]
+			break
+		}
+		dirPath = dirPath[i:]
+	}
+
 	_, files, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *dir.Path, nil)
 	if err != nil {
 		return err
@@ -434,9 +443,9 @@ func readTemplates(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.Re
 			}
 			switch filepath.Ext(file.GetName()) {
 			case ".cue":
-				addon.CUETemplates = append(addon.CUETemplates, apis.AddonElementFile{Data: b, Name: strings.Join([]string{dirName, file.GetName()}, "-")})
+				addon.CUETemplates = append(addon.CUETemplates, apis.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
 			default:
-				addon.YAMLTemplates = append(addon.YAMLTemplates, apis.AddonElementFile{Data: b, Name: strings.Join([]string{dirName, file.GetName()}, "-")})
+				addon.YAMLTemplates = append(addon.YAMLTemplates, apis.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
 			}
 		case "dir":
 			err = readTemplates(addon, h, file)
