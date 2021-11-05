@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"regexp"
 	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -417,16 +418,30 @@ type DetailDefinitionResponse struct {
 }
 
 type DefinitionSchema struct {
-	Properties map[string]DefinitionProperties `json:"properties"`
-	Required   []string                        `json:"required"`
-	Type       string                          `json:"type"`
+	Properties map[string]*DefinitionProperties `json:"properties"`
+	Required   []string                         `json:"required"`
+	Type       string                           `json:"type"`
 }
 
 type DefinitionProperties struct {
-	Default     string `json:"default"`
-	Description string `json:"description"`
-	Title       string `json:"title"`
-	Type        string `json:"type"`
+	Items       *DefinitionSchema `json:"items,omitempty"`
+	Enum        []interface{}     `json:"enum,omitempty"`
+	Default     interface{}       `json:"default,omitempty"`
+	Example     interface{}       `json:"example,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Title       string            `json:"title"`
+	Type        string            `json:"type"`
+
+	// Number
+	Min        *float64 `json:"minimum,omitempty"`
+	Max        *float64 `json:"maximum,omitempty"`
+	MultipleOf *float64 `json:"multipleOf,omitempty"`
+
+	// String
+	MinLength       uint64  `json:"minLength,omitempty"`
+	MaxLength       *uint64 `json:"maxLength,omitempty"`
+	Pattern         string  `json:"pattern,omitempty"`
+	compiledPattern *regexp.Regexp
 }
 
 // DefinitionBase is the definition base model
