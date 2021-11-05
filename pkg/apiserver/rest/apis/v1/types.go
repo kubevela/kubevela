@@ -472,20 +472,16 @@ type DetailDefinitionResponse struct {
 
 // DefinitionSchema definition schema info
 type DefinitionSchema struct {
-	Properties map[string]*DefinitionProperties `json:"properties"`
-	Required   []string                         `json:"required"`
-	Type       string                           `json:"type"`
-}
-
-// DefinitionProperties definition properties
-type DefinitionProperties struct {
-	Items       *DefinitionSchema `json:"items,omitempty"`
-	Enum        []interface{}     `json:"enum,omitempty"`
-	Default     interface{}       `json:"default,omitempty"`
-	Example     interface{}       `json:"example,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Title       string            `json:"title"`
-	Type        string            `json:"type"`
+	Properties  map[string]*DefinitionSchema `json:"properties,omitempty"`
+	Required    []string                     `json:"required,omitempty"`
+	Type        string                       `json:"type"`
+	Items       *DefinitionSchema            `json:"items,omitempty"`
+	ValueFrom   *DefinitionSchema            `json:"valueFrom,omitempty"`
+	Enum        []interface{}                `json:"enum,omitempty"`
+	Default     interface{}                  `json:"default,omitempty"`
+	Example     interface{}                  `json:"example,omitempty"`
+	Description string                       `json:"description,omitempty"`
+	Title       string                       `json:"title,omitempty"`
 
 	// Number
 	Min        *float64 `json:"minimum,omitempty"`

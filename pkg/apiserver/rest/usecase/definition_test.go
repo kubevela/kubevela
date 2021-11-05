@@ -105,7 +105,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object", "workflowstep")
 		Expect(schema.Schema).Should(Equal(&v1.DefinitionSchema{
-			Properties: map[string]*v1.DefinitionProperties{
+			Properties: map[string]*v1.DefinitionSchema{
 				"volumes": {
 					Title:       "volumes",
 					Type:        "string",
@@ -118,7 +118,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 				},
 				"rolloutBatches": {
 					Items: &v1.DefinitionSchema{
-						Properties: map[string]*v1.DefinitionProperties{
+						Properties: map[string]*v1.DefinitionSchema{
 							"replicas": {
 								Title: "replicas",
 								Type:  "integer",
