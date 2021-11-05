@@ -87,7 +87,7 @@ type addonUsecaseImpl struct {
 	apply      apply.Applicator
 }
 
-// GetAddon will get
+// GetAddon will get addon information, if detailed is not set, addon's componennt and internal definition won't be returned
 func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string, detailed bool) (*apis.DetailAddonResponse, error) {
 	addons, err := u.ListAddons(ctx, detailed, registry, "")
 	if err != nil {
