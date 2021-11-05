@@ -31,27 +31,26 @@ import (
 func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 	testcases := []struct {
 		baseApp     *v1beta1.Application
-		envConfig   *v1alpha1.EnvConfig
+		envName     string
+		envPatch    v1alpha1.EnvPatch
 		expectedApp *v1beta1.Application
 	}{{
 		baseApp: baseApp,
-		envConfig: &v1alpha1.EnvConfig{
-			Name: "prod",
-			Patch: v1alpha1.EnvPatch{
-				Components: []common.ApplicationComponent{{
-					Name: "express-server",
-					Type: "webservice",
+		envName: "prod",
+		envPatch: v1alpha1.EnvPatch{
+			Components: []common.ApplicationComponent{{
+				Name: "express-server",
+				Type: "webservice",
+				Properties: util.Object2RawExtension(map[string]interface{}{
+					"image": "busybox",
+				}),
+				Traits: []common.ApplicationTrait{{
+					Type: "ingress-1-20",
 					Properties: util.Object2RawExtension(map[string]interface{}{
-						"image": "busybox",
+						"domain": "newTestsvc.example.com",
 					}),
-					Traits: []common.ApplicationTrait{{
-						Type: "ingress-1-20",
-						Properties: util.Object2RawExtension(map[string]interface{}{
-							"domain": "newTestsvc.example.com",
-						}),
-					}},
 				}},
-			},
+			}},
 		},
 		expectedApp: &v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
@@ -83,33 +82,31 @@ func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 		},
 	}, {
 		baseApp: baseApp,
-		envConfig: &v1alpha1.EnvConfig{
-			Name: "prod",
-			Patch: v1alpha1.EnvPatch{
-				Components: []common.ApplicationComponent{{
-					Name: "express-server",
-					Type: "webservice",
-					Traits: []common.ApplicationTrait{{
-						Type: "labels",
-						Properties: util.Object2RawExtension(map[string]interface{}{
-							"test": "label",
-						}),
-					}},
-				}, {
-					Name: "new-server",
-					Type: "worker",
+		envName: "prod",
+		envPatch: v1alpha1.EnvPatch{
+			Components: []common.ApplicationComponent{{
+				Name: "express-server",
+				Type: "webservice",
+				Traits: []common.ApplicationTrait{{
+					Type: "labels",
 					Properties: util.Object2RawExtension(map[string]interface{}{
-						"image": "busybox",
-						"cmd":   []string{"sleep", "1000"},
+						"test": "label",
 					}),
-					Traits: []common.ApplicationTrait{{
-						Type: "labels",
-						Properties: util.Object2RawExtension(map[string]interface{}{
-							"test": "label",
-						}),
-					}},
 				}},
-			},
+			}, {
+				Name: "new-server",
+				Type: "worker",
+				Properties: util.Object2RawExtension(map[string]interface{}{
+					"image": "busybox",
+					"cmd":   []string{"sleep", "1000"},
+				}),
+				Traits: []common.ApplicationTrait{{
+					Type: "labels",
+					Properties: util.Object2RawExtension(map[string]interface{}{
+						"test": "label",
+					}),
+				}},
+			}},
 		},
 		expectedApp: &v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
@@ -160,10 +157,9 @@ func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 	}}
 
 	for _, testcase := range testcases {
-		envBindApp := NewEnvBindApp(testcase.baseApp, testcase.envConfig)
-		err := envBindApp.GenerateConfiguredApplication()
+		app, err := PatchApplication(testcase.baseApp, &testcase.envPatch, nil)
 		assert.NoError(t, err)
-		assert.Equal(t, envBindApp.PatchedApp, testcase.expectedApp)
+		assert.Equal(t, app, testcase.expectedApp)
 	}
 }
 
