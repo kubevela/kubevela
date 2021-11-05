@@ -268,13 +268,15 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 	if af.Namespace == "" {
 		af.Namespace = corev1.NamespaceDefault
 	}
+	// generate context here to avoid nil pointer panic
+	wl.Ctx = NewBasicContext(af.Name, wl.Name, af.AppRevisionName, af.Namespace, wl.Params)
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
 		return generateComponentFromHelmModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	case types.KubeCategory:
 		return generateComponentFromKubeModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	case types.TerraformCategory:
-		return generateComponentFromTerraformModule(wl, af.Name, af.AppRevisionName, af.Namespace)
+		return generateComponentFromTerraformModule(wl, af.Name, af.Namespace)
 	default:
 		return generateComponentFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace)
 	}
@@ -445,18 +447,20 @@ func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *un
 
 // PrepareProcessContext prepares a DSL process Context
 func PrepareProcessContext(wl *Workload, applicationName, revision, namespace string) (process.Context, error) {
-	pCtx := NewBasicContext(wl, applicationName, revision, namespace)
-	if err := wl.EvalContext(pCtx); err != nil {
+	if wl.Ctx == nil {
+		wl.Ctx = NewBasicContext(applicationName, wl.Name, revision, namespace, wl.Params)
+	}
+	if err := wl.EvalContext(wl.Ctx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", applicationName, namespace)
 	}
-	return pCtx, nil
+	return wl.Ctx, nil
 }
 
 // NewBasicContext prepares a basic DSL process Context
-func NewBasicContext(wl *Workload, applicationName, revision, namespace string) process.Context {
-	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
-	if wl.Params != nil {
-		pCtx.SetParameters(wl.Params)
+func NewBasicContext(applicationName, workloadName, revision, namespace string, params map[string]interface{}) process.Context {
+	pCtx := process.NewContext(namespace, workloadName, applicationName, revision)
+	if params != nil {
+		pCtx.SetParameters(params)
 	}
 	return pCtx
 }
@@ -466,18 +470,15 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 	if err != nil {
 		return nil, err
 	}
-	wl.Ctx = pCtx
 	return baseGenerateComponent(pCtx, wl, appName, ns)
 }
 
-func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
-	pCtx := NewBasicContext(wl, appName, revision, ns)
-	return baseGenerateComponent(pCtx, wl, appName, ns)
+func generateComponentFromTerraformModule(wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
+	return baseGenerateComponent(wl.Ctx, wl, appName, ns)
 }
 
 func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
 	var err error
-
 	for _, tr := range wl.Traits {
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)

@@ -17,15 +17,12 @@ limitations under the License.
 package multicluster
 
 import (
-	"context"
-
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
@@ -104,7 +101,7 @@ func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value,
 	}
 	// check if target cluster exists
 	if clusterName != multicluster.ClusterLocalName {
-		if err = p.Get(context.Background(), types.NamespacedName{Namespace: multicluster.ClusterGatewaySecretNamespace, Name: clusterName}, &v1.Secret{}); err != nil {
+		if err = clustermanager.EnsureClusterExists(p, clusterName); err != nil {
 			return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, env)
 		}
 	}

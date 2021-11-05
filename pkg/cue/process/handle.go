@@ -41,6 +41,7 @@ type Context interface {
 	SetParameters(params map[string]interface{})
 	PushData(key string, data interface{})
 	GetCtx() context.Context
+	SetCtx(context.Context)
 }
 
 // Auxiliary are objects rendered by definition template.
@@ -290,6 +291,13 @@ func (ctx *templateContext) GetCtx() context.Context {
 		return ctx.ctx
 	}
 	return context.TODO()
+}
+
+func (ctx *templateContext) SetCtx(newContext context.Context) {
+	if ctx.ctx != nil {
+		return
+	}
+	ctx.ctx = newContext
 }
 
 func structMarshal(v string) string {

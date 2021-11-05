@@ -145,6 +145,8 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
+		wl.Ctx.SetCtx(ctx)
+
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
 		if err != nil {
 			return nil, nil, false, err
