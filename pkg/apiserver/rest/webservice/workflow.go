@@ -51,7 +51,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for cluster manage")
 
-	tags := []string{"cluster"}
+	tags := []string{"workflowplan"}
 
 	ws.Route(ws.GET("/").To(w.listApplicationWorkflows).
 		Doc("list application workflow").

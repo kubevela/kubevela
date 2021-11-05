@@ -137,12 +137,6 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "filter addons from given registry",
-                        "name": "registry",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "description": "Fuzzy search based on name and description.",
                         "name": "query",
                         "in": "query"
@@ -255,14 +249,6 @@
                 "operationId": "enableAddon",
                 "parameters": [
                     {
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/v1.EnableAddonRequest"
-                        }
-                    },
-                    {
                         "type": "string",
                         "description": "addon name to enable",
                         "name": "name",
@@ -333,7 +319,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "list all application plans",
                 "operationId": "listApplicationPlans",
@@ -380,7 +366,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "create one application plan",
                 "operationId": "createApplicationPlan",
@@ -419,7 +405,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "detail one application plan",
                 "operationId": "detailApplicationPlan",
@@ -455,7 +441,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "update one application plan",
                 "operationId": "updateApplicationPlan",
@@ -499,7 +485,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "delete one application",
                 "operationId": "deleteApplicationPlan",
@@ -537,7 +523,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "gets the componentplan topology of the application",
                 "operationId": "listApplicationComponents",
@@ -579,7 +565,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "create component plan for application plan",
                 "operationId": "createComponent",
@@ -625,7 +611,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "detail component plan for application plan",
                 "operationId": "detailComponent",
@@ -663,7 +649,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "deploy or upgrade the application",
                 "operationId": "deployApplication",
@@ -701,7 +687,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "creating an application environment plan",
                 "operationId": "createApplicationEnv",
@@ -747,7 +733,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "set application plan differences in the specified environment",
                 "operationId": "updateApplicationEnvBinding",
@@ -798,7 +784,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "delete an application environment plan",
                 "operationId": "deleteApplicationEnv",
@@ -843,7 +829,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "list policy for application",
                 "operationId": "listApplicationPolicies",
@@ -879,7 +865,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "create policy for application",
                 "operationId": "createApplicationPolicy",
@@ -925,7 +911,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "detail policy for application",
                 "operationId": "detailApplicationPolicy",
@@ -968,7 +954,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "update policy for application",
                 "operationId": "updateApplicationPolicy",
@@ -1019,7 +1005,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "detail policy for application",
                 "operationId": "deleteApplicationPolicy",
@@ -1064,7 +1050,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "application"
+                    "applicationplan"
                 ],
                 "summary": "create one application template",
                 "operationId": "publishApplicationTemplate",
@@ -1794,7 +1780,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "cluster"
+                    "workflowplan"
                 ],
                 "summary": "list application workflow",
                 "operationId": "listApplicationWorkflows",
@@ -1834,7 +1820,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "cluster"
+                    "workflowplan"
                 ],
                 "summary": "create application workflow",
                 "operationId": "createApplicationWorkflow",
@@ -1878,7 +1864,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "cluster"
+                    "workflowplan"
                 ],
                 "summary": "detail application workflow",
                 "operationId": "detailWorkflow",
@@ -1913,7 +1899,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "cluster"
+                    "workflowplan"
                 ],
                 "summary": "update application workflow config",
                 "operationId": "updateWorkflow",
@@ -1956,7 +1942,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "cluster"
+                    "workflowplan"
                 ],
                 "summary": "deletet workflow",
                 "operationId": "deleteWorkflow",
@@ -1993,7 +1979,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "cluster"
+                    "workflowplan"
                 ],
                 "summary": "query application workflow execution record",
                 "operationId": "listWorkflowRecords",
@@ -2044,7 +2030,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "cluster"
+                    "workflowplan"
                 ],
                 "summary": "query application workflow execution record detail",
                 "operationId": "detailWorkflowRecord",
@@ -2088,7 +2074,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "oam"
+                    "oam-application"
                 ],
                 "summary": "get the specified oam application in the specified namespace",
                 "operationId": "getApplication",
@@ -2110,7 +2096,9 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "schema": {
+                            "$ref": "#/definitions/v1.ApplicationResponse"
+                        }
                     }
                 }
             },
@@ -2124,7 +2112,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "oam"
+                    "oam-application"
                 ],
                 "summary": "create or update oam application in the specified namespace",
                 "operationId": "createOrUpdateApplication",
@@ -2168,7 +2156,7 @@
                     "application/xml"
                 ],
                 "tags": [
-                    "oam"
+                    "oam-application"
                 ],
                 "summary": "create or update oam application in the specified namespace",
                 "operationId": "deleteApplication",
@@ -2264,7 +2252,6 @@
                 "upgradedReplicas",
                 "upgradedReadyReplicas",
                 "batchRollingState",
-                "upgradedReplicas",
                 "lastTargetAppRevision"
             ],
             "properties": {
@@ -3037,10 +3024,10 @@
         },
         "regexp.onePassInst": {
             "required": [
-                "Arg",
                 "Rune",
                 "Op",
                 "Out",
+                "Arg",
                 "Next"
             ],
             "properties": {
@@ -3194,58 +3181,15 @@
                 }
             }
         },
-        "v1.AddonDependency": {
-            "properties": {
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1.AddonDeployTo": {
-            "required": [
-                "control_plane",
-                "runtime_cluster"
-            ],
-            "properties": {
-                "control_plane": {
-                    "type": "boolean"
-                },
-                "runtime_cluster": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "v1.AddonElementFile": {
-            "required": [
-                "Data",
-                "Name"
-            ],
-            "properties": {
-                "Data": {
-                    "type": "string"
-                },
-                "Name": {
-                    "type": "string"
-                }
-            }
-        },
         "v1.AddonMeta": {
             "required": [
                 "name",
                 "version",
                 "description",
-                "icon"
+                "icon",
+                "tags"
             ],
             "properties": {
-                "dependencies": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1.AddonDependency"
-                    }
-                },
-                "deploy_to": {
-                    "$ref": "#/definitions/v1.AddonDeployTo"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -3260,9 +3204,6 @@
                     "items": {
                         "type": "string"
                     }
-                },
-                "url": {
-                    "type": "string"
                 },
                 "version": {
                     "type": "string"
@@ -3779,10 +3720,10 @@
         },
         "v1.CreateApplicationEnvPlanRequest": {
             "required": [
-                "name",
-                "alias",
                 "clusterSelector",
-                "componentSelector"
+                "componentSelector",
+                "name",
+                "alias"
             ],
             "properties": {
                 "alias": {
@@ -4071,24 +4012,6 @@
                 }
             }
         },
-        "v1.Definition": {
-            "required": [
-                "kind",
-                "name",
-                "description"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "kind": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "v1.DefinitionBase": {
             "required": [
                 "name",
@@ -4195,33 +4118,15 @@
         },
         "v1.DetailAddonResponse": {
             "required": [
+                "name",
                 "version",
                 "description",
                 "icon",
-                "tags",
-                "name"
+                "tags"
             ],
             "properties": {
-                "cue_templates": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1.AddonElementFile"
-                    }
-                },
-                "definitions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1.Definition"
-                    }
-                },
-                "dependencies": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1.AddonDependency"
-                    }
-                },
-                "deploy_to": {
-                    "$ref": "#/definitions/v1.AddonDeployTo"
+                "deploy_data": {
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"
@@ -4235,39 +4140,28 @@
                 "name": {
                     "type": "string"
                 },
-                "parameters": {
-                    "type": "string"
-                },
                 "tags": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "url": {
-                    "type": "string"
-                },
                 "version": {
                     "type": "string"
-                },
-                "yaml_templates": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1.AddonElementFile"
-                    }
                 }
             }
         },
         "v1.DetailApplicationPlanResponse": {
             "required": [
+                "namespace",
                 "status",
-                "gatewayRule",
-                "description",
+                "createTime",
                 "updateTime",
                 "icon",
                 "name",
                 "alias",
-                "namespace",
+                "description",
+                "gatewayRule",
                 "policies",
                 "status",
                 "resourceInfo",
@@ -4337,20 +4231,20 @@
         },
         "v1.DetailClusterResponse": {
             "required": [
-                "kubeConfig",
+                "name",
+                "alias",
+                "status",
                 "apiServerURL",
-                "dashboardURL",
                 "kubeConfigSecret",
+                "labels",
+                "reason",
+                "kubeConfig",
+                "createTime",
+                "provider",
+                "updateTime",
                 "description",
                 "icon",
-                "provider",
-                "status",
-                "updateTime",
-                "name",
-                "labels",
-                "createTime",
-                "alias",
-                "reason",
+                "dashboardURL",
                 "resourceInfo"
             ],
             "properties": {
@@ -4408,13 +4302,13 @@
         },
         "v1.DetailComponentPlanResponse": {
             "required": [
-                "alias",
-                "updateTime",
                 "type",
                 "createTime",
-                "name",
+                "alias",
+                "updateTime",
                 "appPrimaryKey",
-                "creator"
+                "creator",
+                "name"
             ],
             "properties": {
                 "alias": {
@@ -4502,13 +4396,13 @@
         },
         "v1.DetailPolicyResponse": {
             "required": [
+                "name",
+                "type",
+                "description",
                 "creator",
                 "properties",
                 "createTime",
-                "updateTime",
-                "name",
-                "type",
-                "description"
+                "updateTime"
             ],
             "properties": {
                 "createTime": {
@@ -4538,13 +4432,13 @@
         },
         "v1.DetailWorkflowPlanResponse": {
             "required": [
-                "createTime",
                 "updateTime",
                 "name",
                 "alias",
                 "description",
                 "enable",
                 "default",
+                "createTime",
                 "workflowRecord"
             ],
             "properties": {
@@ -4632,16 +4526,6 @@
             }
         },
         "v1.EmptyResponse": {},
-        "v1.EnableAddonRequest": {
-            "properties": {
-                "args": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
         "v1.EnablingProgress": {
             "required": [
                 "enabled_components",
@@ -5174,15 +5058,23 @@
         "v1.WorkflowStep": {
             "required": [
                 "name",
+                "alias",
                 "type",
+                "description",
                 "dependsOn"
             ],
             "properties": {
+                "alias": {
+                    "type": "string"
+                },
                 "dependsOn": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "description": {
+                    "type": "string"
                 },
                 "inputs": {
                     "type": "array",
@@ -5498,6 +5390,3 @@
                     "type": "string"
                 }
             }
-        }
-    }
-}

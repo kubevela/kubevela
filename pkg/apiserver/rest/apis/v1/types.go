@@ -556,12 +556,14 @@ type UpdateWorkflowPlanRequest struct {
 // WorkflowStep workflow step config
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
-	Name       string             `json:"name" validate:"checkname"`
-	Type       string             `json:"type" validate:"checkname"`
-	DependsOn  []string           `json:"dependsOn"`
-	Properties string             `json:"properties,omitempty"`
-	Inputs     common.StepInputs  `json:"inputs,omitempty"`
-	Outputs    common.StepOutputs `json:"outputs,omitempty"`
+	Name        string             `json:"name" validate:"checkname"`
+	Alias       string             `json:"alias" validate:"checkalias"`
+	Type        string             `json:"type" validate:"checkname"`
+	Description string             `json:"description"`
+	DependsOn   []string           `json:"dependsOn"`
+	Properties  string             `json:"properties,omitempty"`
+	Inputs      common.StepInputs  `json:"inputs,omitempty"`
+	Outputs     common.StepOutputs `json:"outputs,omitempty"`
 }
 
 // DetailWorkflowPlanResponse detail workflow response
