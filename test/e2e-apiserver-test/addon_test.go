@@ -73,6 +73,7 @@ var _ = Describe("Test addon rest api", func() {
 	})
 
 	It("should enable and disable an addon", func() {
+		//Skip("404 error to be found out")
 		defer GinkgoRecover()
 		req := apis.EnableAddonRequest{
 			Args: map[string]string{

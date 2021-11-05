@@ -107,7 +107,7 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	var app v1beta1.Application
 	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      name,
+		Name:      restutils.AddonName2AppName(name),
 	}, &app)
 	if err != nil {
 		if errors2.IsNotFound(err) {
@@ -218,7 +218,7 @@ func renderApplication(addon *restapis.DetailAddonResponse, args *apis.EnableAdd
 	app := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      addon.Name,
+			Name:      restutils.AddonName2AppName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 			Labels: map[string]string{
 				oam.LabelAddonName: addon.Name,
@@ -294,7 +294,7 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 	app := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      restutils.AddonName2AppName(name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 	}
