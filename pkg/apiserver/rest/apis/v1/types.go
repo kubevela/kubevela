@@ -17,9 +17,9 @@ limitations under the License.
 package v1
 
 import (
-	"regexp"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -467,36 +467,7 @@ type ListDefinitionResponse struct {
 
 // DetailDefinitionResponse get definition detail
 type DetailDefinitionResponse struct {
-	Schema *DefinitionSchema `json:"schema"`
-}
-
-// DefinitionSchema definition schema info
-type DefinitionSchema struct {
-	Properties map[string]*DefinitionProperties `json:"properties"`
-	Required   []string                         `json:"required"`
-	Type       string                           `json:"type"`
-}
-
-// DefinitionProperties definition properties
-type DefinitionProperties struct {
-	Items       *DefinitionSchema `json:"items,omitempty"`
-	Enum        []interface{}     `json:"enum,omitempty"`
-	Default     interface{}       `json:"default,omitempty"`
-	Example     interface{}       `json:"example,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Title       string            `json:"title"`
-	Type        string            `json:"type"`
-
-	// Number
-	Min        *float64 `json:"minimum,omitempty"`
-	Max        *float64 `json:"maximum,omitempty"`
-	MultipleOf *float64 `json:"multipleOf,omitempty"`
-
-	// String
-	MinLength       uint64  `json:"minLength,omitempty"`
-	MaxLength       *uint64 `json:"maxLength,omitempty"`
-	Pattern         string  `json:"pattern,omitempty"`
-	compiledPattern *regexp.Regexp
+	Schema *openapi3.Schema `json:"schema"`
 }
 
 // DefinitionBase is the definition base model

@@ -18,7 +18,6 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -120,8 +120,8 @@ func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name, defT
 	if !ok {
 		return nil, fmt.Errorf("failed to get definition schema")
 	}
-	schema := &apisv1.DefinitionSchema{}
-	if err := json.Unmarshal([]byte(data), schema); err != nil {
+	schema := &openapi3.Schema{}
+	if err := schema.UnmarshalJSON([]byte(data)); err != nil {
 		return nil, err
 	}
 	return &apisv1.DetailDefinitionResponse{
