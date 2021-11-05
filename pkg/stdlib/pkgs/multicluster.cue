@@ -19,7 +19,8 @@
 	type: string
 	properties?: {...}
 	traits?: [...{
-		type: string
+		type:     string
+		disable?: bool
 		properties: {...}
 	}]
 }

@@ -18,6 +18,7 @@ package e2e_multicluster_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -36,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
@@ -240,6 +242,80 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &v13.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
+			}, time.Minute).Should(Succeed())
+		})
+
+		It("Test create EnvBinding Application with trait disable and without workflow, delete env, change env and add env", func() {
+			// This test is going to cover multiple functions, including
+			// 1. disable trait
+			// 2. auto deploy2env workflow
+			// 3. delete env
+			// 4. change cluster in env
+			// 5. add env
+			By("apply application")
+			app := &v1beta1.Application{}
+			bs, err := ioutil.ReadFile("./testdata/app/example-envbinding-app-wo-workflow.yaml")
+			Expect(err).Should(Succeed())
+			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			app.SetNamespace(testNamespace)
+			namespacedName := client.ObjectKeyFromObject(app)
+			err = k8sClient.Create(hubCtx, app)
+			Expect(err).Should(Succeed())
+			By("wait application resource ready")
+			Eventually(func(g Gomega) {
+				// check deployments in clusters
+				deploys := &v13.DeploymentList{}
+				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(1))
+				g.Expect(int(*deploys.Items[0].Spec.Replicas)).Should(Equal(2))
+				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(1))
+				g.Expect(int(*deploys.Items[0].Spec.Replicas)).Should(Equal(1))
+			}, time.Minute).Should(Succeed())
+			By("test delete env")
+			spec := &v1alpha1.EnvBindingSpec{}
+			Expect(json.Unmarshal(app.Spec.Policies[0].Properties.Raw, spec)).Should(Succeed())
+			envs := spec.Envs
+			bs, err = json.Marshal(&v1alpha1.EnvBindingSpec{Envs: []v1alpha1.EnvConfig{envs[0]}})
+			Expect(err).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, namespacedName, app)).Should(Succeed())
+			app.Spec.Policies[0].Properties.Raw = bs
+			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				deploys := &v13.DeploymentList{}
+				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(0))
+			}, time.Minute).Should(Succeed())
+			By("test change env cluster name")
+			envs[0].Placement.ClusterSelector.Name = WorkerClusterName
+			bs, err = json.Marshal(&v1alpha1.EnvBindingSpec{Envs: []v1alpha1.EnvConfig{envs[0]}})
+			Expect(err).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, namespacedName, app)).Should(Succeed())
+			app.Spec.Policies[0].Properties.Raw = bs
+			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				deploys := &v13.DeploymentList{}
+				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(0))
+				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(1))
+			}, time.Minute).Should(Succeed())
+			By("test add env")
+			envs[1].Placement.ClusterSelector.Name = multicluster.ClusterLocalName
+			bs, err = json.Marshal(&v1alpha1.EnvBindingSpec{Envs: envs})
+			Expect(err).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, namespacedName, app)).Should(Succeed())
+			app.Spec.Policies[0].Properties.Raw = bs
+			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				deploys := &v13.DeploymentList{}
+				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(1))
+				g.Expect(int(*deploys.Items[0].Spec.Replicas)).Should(Equal(1))
+				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(1))
+				g.Expect(int(*deploys.Items[0].Spec.Replicas)).Should(Equal(2))
 			}, time.Minute).Should(Succeed())
 		})
 	})

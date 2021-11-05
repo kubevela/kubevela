@@ -17,6 +17,8 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
@@ -25,9 +27,52 @@ const (
 	EnvBindingPolicyType = "env-binding"
 )
 
+// EnvTraitPatch is the patch to trait
+type EnvTraitPatch struct {
+	Type       string                `json:"type"`
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
+	Disable    bool                  `json:"disable,omitempty"`
+}
+
+// ToApplicationTrait convert EnvTraitPatch into ApplicationTrait
+func (in *EnvTraitPatch) ToApplicationTrait() *common.ApplicationTrait {
+	out := &common.ApplicationTrait{Type: in.Type}
+	if in.Properties != nil {
+		out.Properties = in.Properties.DeepCopy()
+	}
+	return out
+}
+
+// EnvComponentPatch is the patch to component
+type EnvComponentPatch struct {
+	Name       string                `json:"name"`
+	Type       string                `json:"type"`
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
+	Traits     []EnvTraitPatch       `json:"traits,omitempty"`
+}
+
+// ToApplicationComponent convert EnvComponentPatch into ApplicationComponent
+func (in *EnvComponentPatch) ToApplicationComponent() *common.ApplicationComponent {
+	out := &common.ApplicationComponent{
+		Name: in.Name,
+		Type: in.Type,
+	}
+	if in.Properties != nil {
+		out.Properties = in.Properties.DeepCopy()
+	}
+	if in.Traits != nil {
+		for _, trait := range in.Traits {
+			if !trait.Disable {
+				out.Traits = append(out.Traits, *trait.ToApplicationTrait())
+			}
+		}
+	}
+	return out
+}
+
 // EnvPatch specify the parameter configuration for different environments
 type EnvPatch struct {
-	Components []common.ApplicationComponent `json:"components"`
+	Components []EnvComponentPatch `json:"components,omitempty"`
 }
 
 // NamespaceSelector defines the rules to select a Namespace resource.
@@ -55,7 +100,7 @@ type EnvConfig struct {
 	Name      string       `json:"name"`
 	Placement EnvPlacement `json:"placement,omitempty"`
 	Selector  *EnvSelector `json:"selector,omitempty"`
-	Patch     EnvPatch     `json:"patch"`
+	Patch     EnvPatch     `json:"patch,omitempty"`
 }
 
 // EnvBindingSpec defines a list of envs

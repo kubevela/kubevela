@@ -47,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // constant error information
@@ -159,6 +160,7 @@ type Appfile struct {
 	WorkflowMode  common.WorkflowMode
 
 	parser *Parser
+	app    *v1beta1.Application
 }
 
 // Handler handles reconcile
@@ -174,8 +176,12 @@ func (af *Appfile) PrepareWorkflowAndPolicy() (policies []*unstructured.Unstruct
 		return
 	}
 
-	af.generateSteps()
-	return
+	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
+		&step.Deploy2EnvWorkflowStepGenerator{},
+		&step.ApplyComponentWorkflowStepGenerator{},
+	).Generate(af.app, af.WorkflowSteps)
+
+	return policies, err
 }
 
 func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
@@ -195,20 +201,6 @@ func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured
 		uns = append(uns, un)
 	}
 	return uns, nil
-}
-
-func (af *Appfile) generateSteps() {
-	if len(af.WorkflowSteps) == 0 {
-		for _, comp := range af.Components {
-			af.WorkflowSteps = append(af.WorkflowSteps, v1beta1.WorkflowStep{
-				Name: comp.Name,
-				Type: "apply-component",
-				Properties: util.Object2RawExtension(map[string]string{
-					"component": comp.Name,
-				}),
-			})
-		}
-	}
 }
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {
