@@ -84,7 +84,7 @@ var _ = Describe("Test addon rest api", func() {
 		req := apis.EnableAddonRequest{
 			Args: map[string]string{},
 		}
-		testAddon := "fluxcd"
+		testAddon := "example"
 		res := post("/api/v1/addons/"+testAddon+"/enable", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
