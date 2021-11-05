@@ -103,7 +103,7 @@ var _ = Describe("Test addon rest api", func() {
 		defer res.Body.Close()
 
 		var statusRes apis.AddonStatusResponse
-		err := json.NewDecoder(res.Body).Decode(&statusRes)
+		err = json.NewDecoder(res.Body).Decode(&statusRes)
 
 		Expect(err).Should(BeNil())
 		Expect(statusRes.Phase).Should(Equal(apis.AddonPhaseEnabling))
