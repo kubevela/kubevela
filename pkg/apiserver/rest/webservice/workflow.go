@@ -58,6 +58,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("appName", "identifier of the application.").DataType("string")).
 		Param(ws.QueryParameter("enable", "query based on enable status").DataType("boolean")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListWorkflowPlanResponse{}).
 		Writes(apis.ListWorkflowPlanResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(w.createApplicationWorkflow).
@@ -82,6 +83,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Filter(w.workflowCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
 		Reads(apis.UpdateWorkflowPlanRequest{}).
+		Returns(200, "", apis.DetailWorkflowPlanResponse{}).
 		Writes(apis.DetailWorkflowPlanResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.DELETE("/{name}").To(w.deleteWorkflow).
@@ -89,6 +91,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(w.workflowCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
+		Returns(200, "", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.GET("/{name}/records").To(w.listWorkflowRecords).
@@ -98,6 +101,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Filter(w.workflowCheckFilter).
 		Param(ws.PathParameter("page", "Query the page number.").DataType("integer")).
 		Param(ws.PathParameter("pageSize", "Query the page size number.").DataType("integer")).
+		Returns(200, "", apis.ListWorkflowRecordsResponse{}).
 		Writes(apis.ListWorkflowRecordsResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.GET("/{name}/records/{record}").To(w.detailWorkflowRecord).
@@ -105,6 +109,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
 		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.DetailWorkflowRecordResponse{}).
 		Writes(apis.DetailWorkflowRecordResponse{}).Do(returns200, returns500))
 
 	return ws
