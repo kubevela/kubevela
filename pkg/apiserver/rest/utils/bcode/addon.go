@@ -17,7 +17,6 @@ limitations under the License.
 package bcode
 
 var (
-
 	// ErrAddonNotExist addon not exist
 	ErrAddonNotExist = NewBcode(404, 50001, "addon not exist")
 
@@ -30,14 +29,8 @@ var (
 	// ErrAddonApplyFail fail to apply application to cluster
 	ErrAddonApplyFail = NewBcode(500, 50011, "fail to apply addon application")
 
-	// ErrGetClientFail fail to get k8s client
-	ErrGetClientFail = NewBcode(500, 50012, "fail to initialize kubernetes client")
-
 	// ErrGetApplicationFail fail to get addon application
 	ErrGetApplicationFail = NewBcode(500, 50013, "fail to get addon application")
-
-	// ErrGetConfigMapAddonFail fail to get addon info in configmap
-	ErrGetConfigMapAddonFail = NewBcode(500, 50014, "fail to get addon information in ConfigMap")
 
 	// ErrAddonDisableFail fail to disable addon
 	ErrAddonDisableFail = NewBcode(500, 50016, "fail to disable addon")

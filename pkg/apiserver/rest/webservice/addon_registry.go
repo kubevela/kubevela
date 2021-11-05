@@ -20,7 +20,6 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
@@ -90,7 +89,6 @@ func (s *addonRegistryWebService) createAddonRegistry(req *restful.Request, res 
 	// Call the usecase layer code
 	meta, err := s.addonUsecase.CreateAddonRegistry(req.Request.Context(), createReq)
 	if err != nil {
-		log.Logger.Errorf("create addon registry failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
