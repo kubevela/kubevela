@@ -76,7 +76,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Doc("modify cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
-		Reads(&apis.CreateClusterRequest{}).
+		Reads(apis.CreateClusterRequest{}).
 		Returns(200, "", apis.ClusterBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
@@ -95,7 +95,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("int").DefaultValue("0")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("int").DefaultValue("20")).
-		Reads(&apis.AccessKeyRequest{}).
+		Reads(apis.AccessKeyRequest{}).
 		Returns(200, "", apis.ListCloudClusterResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListCloudClusterResponse{}))
@@ -104,7 +104,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Doc("create cluster from cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
-		Reads(&apis.ConnectCloudClusterRequest{}).
+		Reads(apis.ConnectCloudClusterRequest{}).
 		Returns(200, "", apis.ClusterBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
@@ -112,8 +112,8 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/cloud-clusters/{provider}/create").To(c.createCloudCluster).
 		Doc("create cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
-		Reads(&apis.CreateCloudClusterRequest{}).
+		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string").Required(true)).
+		Reads(apis.CreateCloudClusterRequest{}).
 		Returns(200, "", apis.CreateCloudClusterResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.CreateCloudClusterResponse{}))

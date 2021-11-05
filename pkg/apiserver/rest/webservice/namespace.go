@@ -47,12 +47,14 @@ func (n *namespaceWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(n.listNamespaces).
 		Doc("list all namespaces").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListNamespaceResponse{}).
 		Writes(apis.ListNamespaceResponse{}))
 
 	ws.Route(ws.POST("/").To(n.createNamespace).
 		Doc("create namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateNamespaceRequest{}).
+		Returns(200, "", apis.NamespaceDetailResponse{}).
 		Writes(apis.NamespaceDetailResponse{}))
 	return ws
 }

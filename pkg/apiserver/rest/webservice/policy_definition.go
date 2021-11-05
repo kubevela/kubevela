@@ -33,11 +33,12 @@ func (c *policyDefinitionWebservice) GetWebService() *restful.WebService {
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for policydefinition manage")
 
-	tags := []string{"policydefinition"}
+	tags := []string{"definition"}
 
 	ws.Route(ws.GET("/").To(noop).
 		Doc("list all policydefinition").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListPolicyDefinitionResponse{}).
 		Writes(apis.ListPolicyDefinitionResponse{}))
 	return ws
 }

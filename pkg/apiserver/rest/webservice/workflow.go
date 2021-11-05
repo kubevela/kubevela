@@ -55,7 +55,7 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 
 	ws.Route(ws.GET("/").To(w.listApplicationWorkflows).
 		Doc("list application workflow").
-		Param(ws.QueryParameter("appName", "identifier of the application.").DataType("string")).
+		Param(ws.QueryParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.QueryParameter("enable", "query based on enable status").DataType("boolean")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.ListWorkflowPlanResponse{}).
