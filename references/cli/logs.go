@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"regexp"
 	"text/template"
 	"time"
@@ -95,6 +96,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	}
 	appliedResources := l.App.Status.AppliedResources
 
+	appliedResources = filterWorkload(appliedResources)
 	selectedRes, err := common.AskToChooseOneAppliedResource(appliedResources)
 	if err != nil {
 		return err
@@ -192,4 +194,20 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	<-ctx.Done()
 
 	return nil
+}
+
+func filterWorkload(resources []apicommon.ClusterObjectReference) []apicommon.ClusterObjectReference {
+	var filteredOR []apicommon.ClusterObjectReference
+	loggableWorkload := map[string]bool{
+		"Deployment":  true,
+		"StatefulSet": true,
+		"CloneSet":    true,
+		"Job":         true,
+	}
+	for _, r := range resources {
+		if _, ok := loggableWorkload[r.Kind]; ok {
+			filteredOR = append(filteredOR, r)
+		}
+	}
+	return filteredOR
 }
