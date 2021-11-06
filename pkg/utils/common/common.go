@@ -250,7 +250,7 @@ func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
 		if r.Cluster == "" {
 			r.Cluster = "local"
 		}
-		objs[r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.APIVersion, r.ResourceVersion, r.Name)
+		objs[r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.APIVersion, r.Kind, r.Name)
 	}
 	return objs
 }
