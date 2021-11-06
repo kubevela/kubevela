@@ -84,6 +84,6 @@ require (
 
 replace (
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
-	github.com/wercker/stern => github.com/oam-dev/stern v1.13.0-alpha
+	github.com/wercker/stern => github.com/oam-dev/stern v1.13.1
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24
 )
