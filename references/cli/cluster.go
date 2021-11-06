@@ -20,9 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	"github.com/oam-dev/cluster-register/pkg/hub"
-	"github.com/oam-dev/cluster-register/pkg/spoke"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -35,6 +32,11 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
+	"github.com/oam-dev/cluster-register/pkg/hub"
+	"github.com/oam-dev/cluster-register/pkg/spoke"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -103,6 +105,7 @@ func ClusterCommandGroup(c common.Args) *cobra.Command {
 		NewClusterJoinCommand(&c),
 		NewClusterRenameCommand(&c),
 		NewClusterDetachCommand(&c),
+		NewClusterProbeCommand(&c),
 	)
 	return cmd
 }
@@ -516,5 +519,27 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagKubeConfigPath, "p", "", "Specify the kubeconfig path of managed cluster. If you use ocm to manage your cluster, you must set the kubeconfig-path.")
+	return cmd
+}
+
+// NewClusterProbeCommand create command to help user try health probe for existing cluster
+func NewClusterProbeCommand(c *common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "probe [CLUSTER_NAME]",
+		Short: "probe managed cluster",
+		Args:  cobra.ExactValidArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clusterName := args[0]
+			if clusterName == multicluster.ClusterLocalName {
+				return errors.New("you must specify a remote cluster name")
+			}
+			content, err := versioned.NewForConfigOrDie(c.Config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
+			if err != nil {
+				return errors.Wrapf(err, "failed connect cluster %s", clusterName)
+			}
+			cmd.Printf("Connect to cluster %s successfully.\n%s\n", clusterName, string(content))
+			return nil
+		},
+	}
 	return cmd
 }
