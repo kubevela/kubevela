@@ -1,6 +1,143 @@
+- description: Instructions for assessing whether the container is in a suitable state
+    to serve traffic.
+  jsonKey: readinessProbe
+  label: ReadinessProbe检测
+  sort: 1
+  subParameters:
+  - description: Number of seconds after the container is started before the first
+      probe is initiated.
+    jsonKey: readinessProbe.initialDelaySeconds
+    label: InitialDelaySeconds
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 0
+      required: true
+  - description: How often, in seconds, to execute the probe.
+    jsonKey: readinessProbe.periodSeconds
+    label: PeriodSeconds
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 10
+      required: true
+  - description: Minimum consecutive successes for the probe to be considered successful
+      after having failed.
+    jsonKey: readinessProbe.successThreshold
+    label: SuccessThreshold
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: readinessProbe.tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: readinessProbe.tcpSocket.port
+      label: Port
+      sort: 100
+      uiType: Number
+      validete:
+        required: true
+    uiType: KV
+    validete: {}
+  - description: Number of seconds after which the probe times out.
+    jsonKey: readinessProbe.timeoutSeconds
+    label: TimeoutSeconds
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by executing a command.
+      Either this attribute or the httpGet attribute or the tcpSocket attribute MUST
+      be specified. This attribute is mutually exclusive with both the httpGet attribute
+      and the tcpSocket attribute.
+    jsonKey: readinessProbe.exec
+    label: Exec
+    sort: 100
+    subParameters:
+    - description: A command to be executed inside the container to assess its health.
+        Each space delimited token of the command is a separate array element. Commands
+        exiting 0 are considered to be successful probes, whilst all other exit codes
+        are considered failures.
+      jsonKey: readinessProbe.exec.command
+      label: Command
+      sort: 100
+      uiType: Strings
+      validete:
+        required: true
+    uiType: KV
+    validete: {}
+  - description: Number of consecutive failures required to determine the container
+      is not alive (liveness probe) or not ready (readiness probe).
+    jsonKey: readinessProbe.failureThreshold
+    label: FailureThreshold
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 3
+      required: true
+  - description: Instructions for assessing container health by executing an HTTP
+      GET request. Either this attribute or the exec attribute or the tcpSocket attribute
+      MUST be specified. This attribute is mutually exclusive with both the exec attribute
+      and the tcpSocket attribute.
+    jsonKey: readinessProbe.httpGet
+    label: HttpGet
+    sort: 100
+    subParameters:
+    - description: ""
+      jsonKey: readinessProbe.httpGet.httpHeaders
+      label: HttpHeaders
+      sort: 100
+      subParameters:
+      - description: ""
+        jsonKey: readinessProbe.httpGet.httpHeaders.[].name
+        label: Name
+        sort: 100
+        uiType: Input
+        validete:
+          required: true
+      - description: ""
+        jsonKey: readinessProbe.httpGet.httpHeaders.[].value
+        label: Value
+        sort: 100
+        uiType: Input
+        validete:
+          required: true
+      uiType: Structs
+      validete: {}
+    - description: The endpoint, relative to the port, to which the HTTP GET request
+        should be directed.
+      jsonKey: readinessProbe.httpGet.path
+      label: Path
+      sort: 100
+      uiType: Input
+      validete:
+        required: true
+    - description: The TCP socket within the container to which the HTTP GET request
+        should be directed.
+      jsonKey: readinessProbe.httpGet.port
+      label: Port
+      sort: 100
+      uiType: Number
+      validete:
+        required: true
+    uiType: KV
+    validete: {}
+  uiType: Group
+  validete: {}
 - description: Which image would you like to use for your service
   jsonKey: image
   label: Image
+  sort: 2
   uiType: ImageInput
   validete:
     required: true
@@ -8,6 +145,7 @@
   disable: false
   jsonKey: imagePullPolicy
   label: 镜像更新策略
+  sort: 2
   uiType: Select
   validete:
     options:
@@ -17,68 +155,191 @@
       value: Always
     - label: 永不更新
       value: Never
-- description: Instructions for assessing whether the container is alive.
-  jsonKey: livenessProbe
-  label: LivenessProbe
-  uiType: KV
-  validete: {}
-- description: If addRevisionLabel is true, the appRevision label will be added to
-    the underlying pods
-  jsonKey: addRevisionLabel
-  label: AddRevisionLabel
-  uiType: Switch
-  validete:
-    defaultValue: false
-    required: true
-- description: Number of CPU units for the service, like `0.5` (0.5 CPU core), `1`
-    (1 CPU core)
-  jsonKey: cpu
-  label: Cpu
-  uiType: Input
-  validete: {}
-- description: Specify image pull secrets for your service
-  jsonKey: imagePullSecrets
-  label: ImagePullSecrets
-  uiType: Structs
-  validete: {}
 - description: Specifies the attributes of the memory resource required for the container.
   disable: false
   jsonKey: memory
   label: Memory
+  sort: 3
   uiType: MemoryNumber
+  validete: {}
+- description: Commands to run in the container
+  jsonKey: cmd
+  label: Cmd
+  sort: 100
+  uiType: Strings
   validete: {}
 - description: Which port do you want customer traffic sent to
   jsonKey: port
   label: Port
+  sort: 100
   uiType: Number
   validete:
     defaultValue: 80
     required: true
-- description: Instructions for assessing whether the container is in a suitable state
-    to serve traffic.
-  jsonKey: readinessProbe
-  label: ReadinessProbe
+- description: Specify image pull secrets for your service
+  jsonKey: imagePullSecrets
+  label: ImagePullSecrets
+  sort: 100
+  uiType: Strings
+  validete: {}
+- description: Instructions for assessing whether the container is alive.
+  jsonKey: livenessProbe
+  label: LivenessProbe
+  sort: 100
+  subParameters:
+  - description: Number of seconds after which the probe times out.
+    jsonKey: livenessProbe.timeoutSeconds
+    label: TimeoutSeconds
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by executing a command.
+      Either this attribute or the httpGet attribute or the tcpSocket attribute MUST
+      be specified. This attribute is mutually exclusive with both the httpGet attribute
+      and the tcpSocket attribute.
+    jsonKey: livenessProbe.exec
+    label: Exec
+    sort: 100
+    subParameters:
+    - description: A command to be executed inside the container to assess its health.
+        Each space delimited token of the command is a separate array element. Commands
+        exiting 0 are considered to be successful probes, whilst all other exit codes
+        are considered failures.
+      jsonKey: livenessProbe.exec.command
+      label: Command
+      sort: 100
+      uiType: Strings
+      validete:
+        required: true
+    uiType: KV
+    validete: {}
+  - description: Number of consecutive failures required to determine the container
+      is not alive (liveness probe) or not ready (readiness probe).
+    jsonKey: livenessProbe.failureThreshold
+    label: FailureThreshold
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 3
+      required: true
+  - description: Instructions for assessing container health by executing an HTTP
+      GET request. Either this attribute or the exec attribute or the tcpSocket attribute
+      MUST be specified. This attribute is mutually exclusive with both the exec attribute
+      and the tcpSocket attribute.
+    jsonKey: livenessProbe.httpGet
+    label: HttpGet
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container to which the HTTP GET request
+        should be directed.
+      jsonKey: livenessProbe.httpGet.port
+      label: Port
+      sort: 100
+      uiType: Number
+      validete:
+        required: true
+    - description: ""
+      jsonKey: livenessProbe.httpGet.httpHeaders
+      label: HttpHeaders
+      sort: 100
+      subParameters:
+      - description: ""
+        jsonKey: livenessProbe.httpGet.httpHeaders.[].name
+        label: Name
+        sort: 100
+        uiType: Input
+        validete:
+          required: true
+      - description: ""
+        jsonKey: livenessProbe.httpGet.httpHeaders.[].value
+        label: Value
+        sort: 100
+        uiType: Input
+        validete:
+          required: true
+      uiType: Structs
+      validete: {}
+    - description: The endpoint, relative to the port, to which the HTTP GET request
+        should be directed.
+      jsonKey: livenessProbe.httpGet.path
+      label: Path
+      sort: 100
+      uiType: Input
+      validete:
+        required: true
+    uiType: KV
+    validete: {}
+  - description: Number of seconds after the container is started before the first
+      probe is initiated.
+    jsonKey: livenessProbe.initialDelaySeconds
+    label: InitialDelaySeconds
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 0
+      required: true
+  - description: How often, in seconds, to execute the probe.
+    jsonKey: livenessProbe.periodSeconds
+    label: PeriodSeconds
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 10
+      required: true
+  - description: Minimum consecutive successes for the probe to be considered successful
+      after having failed.
+    jsonKey: livenessProbe.successThreshold
+    label: SuccessThreshold
+    sort: 100
+    uiType: Number
+    validete:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: livenessProbe.tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: livenessProbe.tcpSocket.port
+      label: Port
+      sort: 100
+      uiType: Number
+      validete:
+        required: true
+    uiType: KV
+    validete: {}
   uiType: KV
   validete: {}
 - description: Declare volumes and volumeMounts
   jsonKey: volumes
   label: Volumes
+  sort: 100
   subParameters:
   - description: ""
-    jsonKey: volumes.mountPath
+    jsonKey: volumes.[].mountPath
     label: MountPath
+    sort: 100
     uiType: Input
     validete:
       required: true
   - description: ""
-    jsonKey: volumes.name
+    jsonKey: volumes.[].name
     label: Name
+    sort: 100
     uiType: Input
     validete:
       required: true
   - description: 'Specify volume type, options: "pvc","configMap","secret","emptyDir"'
-    jsonKey: volumes.type
+    jsonKey: volumes.[].type
     label: Type
+    sort: 100
     uiType: Select
     validete:
       options:
@@ -93,15 +354,27 @@
       required: true
   uiType: Structs
   validete: {}
-- description: Commands to run in the container
-  jsonKey: cmd
-  label: Cmd
-  uiType: Structs
+- description: If addRevisionLabel is true, the appRevision label will be added to
+    the underlying pods
+  jsonKey: addRevisionLabel
+  label: AddRevisionLabel
+  sort: 100
+  uiType: Switch
+  validete:
+    defaultValue: false
+    required: true
+- description: Number of CPU units for the service, like `0.5` (0.5 CPU core), `1`
+    (1 CPU core)
+  jsonKey: cpu
+  label: Cpu
+  sort: 100
+  uiType: CPUNumber
   validete: {}
 - description: Define arguments by using environment variables
   disable: false
   jsonKey: env
   label: Env
+  sort: 100
   subParameterGroupOption:
   - - env.name
     - env.value
@@ -109,38 +382,45 @@
     - env.valueFrom
   subParameters:
   - description: The value of the environment variable
-    jsonKey: env.value
+    jsonKey: env.[].value
     label: Value
+    sort: 100
     uiType: Input
     validete: {}
   - description: Specifies a source the value of this var should come from
-    disable: false
-    jsonKey: env.valueFrom
-    label: Secret选择器
+    jsonKey: env.[].valueFrom
+    label: ValueFrom
+    sort: 100
     subParameters:
-    - description: ""
-      jsonKey: env.valueFrom.secretKeyRef
+    - description: Selects a key of a secret in the pod's namespace
+      jsonKey: env.[].valueFrom.secretKeyRef
       label: SecretKeyRef
+      sort: 100
       subParameters:
-      - description: secret name
-        jsonKey: env.valueFrom.secretKeyRef.name
-        label: Secret选择
-        uiType: SecretSelect
+      - description: The key of the secret to select from. Must be a valid secret
+          key
+        jsonKey: env.[].valueFrom.secretKeyRef.key
+        label: Key
+        sort: 100
+        uiType: Input
         validete:
           required: true
-      - description: secret key
-        jsonKey: env.valueFrom.secretKeyRef.key
-        label: SecretKey选择
-        uiType: SecretKeySelect
+      - description: The name of the secret in the pod's namespace to select from
+        jsonKey: env.[].valueFrom.secretKeyRef.name
+        label: Name
+        sort: 100
+        uiType: Input
         validete:
           required: true
-      uiType: Ignore
-      validete: {}
-    uiType: InnerGroup
+      uiType: KV
+      validete:
+        required: true
+    uiType: KV
     validete: {}
   - description: Environment variable name
-    jsonKey: env.name
+    jsonKey: env.[].name
     label: Name
+    sort: 100
     uiType: Input
     validete:
       required: true

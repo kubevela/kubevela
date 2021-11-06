@@ -148,6 +148,12 @@ var _ = Describe("Test namespace usecase functions", func() {
 			fmt.Printf("%s=> %d", schema.JSONKey, schema.Sort)
 		}
 		Expect(cmp.Diff(len(uiSchema), 12)).Should(BeEmpty())
-		Expect(cmp.Diff(uiSchema[0].JSONKey, "image")).Should(BeEmpty())
+		Expect(cmp.Diff(uiSchema[0].JSONKey, "readinessProbe")).Should(BeEmpty())
+		Expect(cmp.Diff(len(uiSchema[0].SubParameters), 8)).Should(BeEmpty())
+
+		outdata, err := yaml.Marshal(uiSchema)
+		Expect(err).Should(Succeed())
+		err = ioutil.WriteFile("./testdata/ui-schema.yaml", outdata, 0755)
+		Expect(err).Should(Succeed())
 	})
 })

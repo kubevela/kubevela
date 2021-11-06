@@ -49,4 +49,8 @@
   validete: {}
 - uiType: ImageInput
   jsonKey: image
+  sort: 2
+- jsonKey: readinessProbe
+  uiType: Group
+  label: ReadinessProbe检测
   sort: 1

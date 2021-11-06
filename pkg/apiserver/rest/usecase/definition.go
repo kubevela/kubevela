@@ -208,6 +208,9 @@ func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIPa
 }
 
 func renderDefaultUISchema(lastKey string, apiSchema *openapi3.Schema) []*utils.UIParameter {
+	if apiSchema == nil {
+		return nil
+	}
 	var params []*utils.UIParameter
 	for key, property := range apiSchema.Properties {
 		nextKey := key
@@ -215,16 +218,23 @@ func renderDefaultUISchema(lastKey string, apiSchema *openapi3.Schema) []*utils.
 			nextKey = fmt.Sprintf("%s.%s", lastKey, key)
 		}
 		if property.Value != nil {
-			param := renderUIParameter(nextKey, utils.FirstUpper(key), property, apiSchema.Required, apiSchema.Type)
+			param := renderUIParameter(nextKey, utils.FirstUpper(key), property, apiSchema.Required)
 			params = append(params, param)
 		}
 	}
 	return params
 }
 
-func renderUIParameter(key, label string, property *openapi3.SchemaRef, required []string, subType string) *utils.UIParameter {
+func renderUIParameter(key, label string, property *openapi3.SchemaRef, required []string) *utils.UIParameter {
 	var parameter utils.UIParameter
+	subType := ""
 	if property.Value.Items != nil {
+		if property.Value.Items.Value != nil {
+			subType = property.Value.Items.Value.Type
+		}
+		parameter.SubParameters = renderDefaultUISchema(key+".[]", property.Value.Items.Value)
+	}
+	if property.Value.Properties != nil {
 		parameter.SubParameters = renderDefaultUISchema(key, property.Value)
 	}
 	parameter.Validate = &utils.Validate{}
