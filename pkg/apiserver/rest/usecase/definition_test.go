@@ -18,6 +18,8 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -29,6 +31,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -98,7 +102,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 				Namespace: "vela-system",
 			},
 			Data: map[string]string{
-				"openapi-v3-json-schema": `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"volumes":{"description":"Specify volume type, options: pvc, configMap, secret, emptyDir","enum":["pvc","configMap","secret","emptyDir"],"title":"volumes","type":"string"}, "rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
+				types.OpenapiV3JSONSchema: `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"volumes": {"description":"Specify volume type, options: pvc, configMap, secret, emptyDir","enum":["pvc","configMap","secret","emptyDir"],"title":"volumes","type":"string"}, "rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
 			},
 		}
 		err := k8sClient.Create(context.Background(), cm)
@@ -110,6 +114,40 @@ var _ = Describe("Test namespace usecase functions", func() {
 		err = schemaFromCM.UnmarshalJSON([]byte(cm.Data["openapi-v3-json-schema"]))
 		Expect(err).Should(Succeed())
 
-		Expect(schema.Schema).Should(Equal(schemaFromCM))
+		Expect(schema.APISchema).Should(Equal(schemaFromCM))
+	})
+
+	It("Test renderDefaultUISchema", func() {
+		schema := &v1.DetailDefinitionResponse{}
+		data, err := ioutil.ReadFile("./testdata/api-schema.json")
+		Expect(err).Should(Succeed())
+		err = json.Unmarshal(data, schema)
+		Expect(err).Should(Succeed())
+		Expect(cmp.Diff(len(schema.APISchema.Required), 3)).Should(BeEmpty())
+		uiSchema := renderDefaultUISchema("", schema.APISchema)
+		Expect(cmp.Diff(len(uiSchema), 12)).Should(BeEmpty())
+	})
+
+	It("Test patchSchema", func() {
+		ddr := &v1.DetailDefinitionResponse{}
+		data, err := ioutil.ReadFile("./testdata/api-schema.json")
+		Expect(err).Should(Succeed())
+		err = json.Unmarshal(data, ddr)
+		Expect(err).Should(Succeed())
+		Expect(cmp.Diff(len(ddr.APISchema.Required), 3)).Should(BeEmpty())
+		defaultschema := renderDefaultUISchema("", ddr.APISchema)
+
+		customschema := []*utils.UIParameter{}
+		cdata, err := ioutil.ReadFile("./testdata/ui-custom-schema.yaml")
+		Expect(err).Should(Succeed())
+		err = yaml.Unmarshal(cdata, &customschema)
+		Expect(err).Should(Succeed())
+
+		uiSchema := patchSchema(defaultschema, customschema)
+		for _, schema := range uiSchema {
+			fmt.Printf("%s=> %d", schema.JSONKey, schema.Sort)
+		}
+		Expect(cmp.Diff(len(uiSchema), 12)).Should(BeEmpty())
+		Expect(cmp.Diff(uiSchema[0].JSONKey, "image")).Should(BeEmpty())
 	})
 })

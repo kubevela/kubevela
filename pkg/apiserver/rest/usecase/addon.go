@@ -30,8 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	restapis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -107,7 +105,7 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	var app v1beta1.Application
 	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      restutils.AddonName2AppName(name),
+		Name:      AddonName2AppName(name),
 	}, &app)
 	if err != nil {
 		if errors2.IsNotFound(err) {
@@ -206,19 +204,19 @@ func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 	}
 	var list []*apis.AddonRegistryMeta
 	for _, entity := range entities {
-		list = append(list, restutils.ConvertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
+		list = append(list, ConvertAddonRegistryModel2AddonRegistryMeta(entity.(*model.AddonRegistry)))
 	}
 	return list, nil
 }
 
-func renderApplication(addon *restapis.DetailAddonResponse, args *apis.EnableAddonRequest) (*v1beta1.Application, error) {
+func renderApplication(addon *apis.DetailAddonResponse, args *apis.EnableAddonRequest) (*v1beta1.Application, error) {
 	if args == nil {
 		args = &apis.EnableAddonRequest{Args: map[string]string{}}
 	}
 	app := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      restutils.AddonName2AppName(addon.Name),
+			Name:      AddonName2AppName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 			Labels: map[string]string{
 				oam.LabelAddonName: addon.Name,
@@ -294,7 +292,7 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 	app := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      restutils.AddonName2AppName(name),
+			Name:      AddonName2AppName(name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 	}
@@ -316,7 +314,7 @@ func renderRawComponent(elem apis.AddonElementFile) (*common2.ApplicationCompone
 	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	_, _, err := dec.Decode([]byte(elem.Data), nil, obj)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 	baseRawComponent.Properties = util.Object2RawExtension(obj)
 	return &baseRawComponent, nil
@@ -558,4 +556,24 @@ func readRepo(h *gitHelper) ([]*github.RepositoryContent, error) {
 		return nil, err
 	}
 	return dirs, nil
+}
+
+// ConvertAddonRegistryModel2AddonRegistryMeta will convert from model to AddonRegistryMeta
+func ConvertAddonRegistryModel2AddonRegistryMeta(r *model.AddonRegistry) *apis.AddonRegistryMeta {
+	return &apis.AddonRegistryMeta{
+		Name: r.Name,
+		Git:  r.Git,
+	}
+}
+
+const addonAppPrefix = "addon-"
+
+// AddonName2AppName -
+func AddonName2AppName(name string) string {
+	return addonAppPrefix + name
+}
+
+// AppName2addonName -
+func AppName2addonName(name string) string {
+	return strings.TrimPrefix(name, addonAppPrefix)
 }

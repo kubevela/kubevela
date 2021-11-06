@@ -79,6 +79,8 @@ const CapabilityConfigMapNamePrefix = "schema-"
 const (
 	// OpenapiV3JSONSchema is the key to store OpenAPI v3 JSON schema in ConfigMap
 	OpenapiV3JSONSchema string = "openapi-v3-json-schema"
+	// UISchema is the key to store ui custom schema
+	UISchema string = "ui-schema"
 )
 
 // CapabilityCategory defines the category of a capability

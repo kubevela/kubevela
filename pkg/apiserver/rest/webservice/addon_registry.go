@@ -22,7 +22,6 @@ import (
 
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -112,7 +111,7 @@ func (s *addonRegistryWebService) deleteAddonRegistry(req *restful.Request, res 
 		return
 	}
 
-	if err := res.WriteEntity(*utils.ConvertAddonRegistryModel2AddonRegistryMeta(r)); err != nil {
+	if err := res.WriteEntity(*usecase.ConvertAddonRegistryModel2AddonRegistryMeta(r)); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

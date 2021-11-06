@@ -20,9 +20,11 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 )
 
@@ -467,7 +469,8 @@ type ListDefinitionResponse struct {
 
 // DetailDefinitionResponse get definition detail
 type DetailDefinitionResponse struct {
-	Schema *openapi3.Schema `json:"schema"`
+	APISchema *openapi3.Schema     `json:"schema"`
+	UISchema  []*utils.UIParameter `json:"uiSchema"`
 }
 
 // DefinitionBase is the definition base model

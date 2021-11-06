@@ -1,0 +1,52 @@
+- description: Specify image pull policy for your service
+  disable: false
+  jsonKey: imagePullPolicy
+  label: 镜像更新策略
+  uiType: Select
+  validete: 
+    options:
+      - label: 镜像不存在时更新
+        value: IfNotPresent
+      - label: 总是更新
+        value: Always
+      - label: 永不更新
+        value: Never
+  sort: 2
+- description: Specifies the attributes of the memory resource required for the container.
+  disable: false
+  jsonKey: memory
+  label: Memory
+  uiType: MemoryNumber
+  sort: 3
+- uiType: CPUNumber
+  jsonKey: cpu
+- description: Define arguments by using environment variables
+  disable: false
+  jsonKey: env
+  label: Env
+  subParameterGroupOption:
+    - - env.name
+      - env.value
+    - - env.name
+      - env.valueFrom
+  subParameters:
+  - description: Specifies a source the value of this var should come from
+    disable: false
+    jsonKey: env.valueFrom
+    label: Secret选择器
+    uiType: InnerGroup
+    subParameters:
+      - jsonKey: env.valueFrom.secretKeyRef
+        uiType: Ignore
+        subParameters:
+          - jsonKey: env.valueFrom.secretKeyRef.name
+            label: Secret选择
+            uiType: SecretSelect
+          - jsonKey: env.valueFrom.secretKeyRef.key
+            label: SecretKey选择
+            uiType: SecretKeySelect
+  uiType: Structs
+  validete: {}
+- uiType: ImageInput
+  jsonKey: image
+  sort: 1
