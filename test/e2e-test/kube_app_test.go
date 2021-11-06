@@ -341,7 +341,7 @@ spec:
 
 	It("Test store JSON schema of Kube parameter in ConfigMap", func() {
 		By("Get the ConfigMap")
-		cmName := fmt.Sprintf("schema-%s", cdName)
+		cmName := fmt.Sprintf("component-schema-%s", cdName)
 		Eventually(func() error {
 			cm := &corev1.ConfigMap{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm); err != nil {
