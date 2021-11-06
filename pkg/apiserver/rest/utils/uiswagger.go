@@ -26,7 +26,7 @@ type UIParameter struct {
 	Sort        uint      `json:"sort"`
 	Label       string    `json:"label"`
 	Description string    `json:"description"`
-	Validate    *Validate `json:"validete,omitempty"`
+	Validate    *Validate `json:"validate,omitempty"`
 	JSONKey     string    `json:"jsonKey"`
 	UIType      string    `json:"uiType"`
 	// means only can be read.

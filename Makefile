@@ -172,12 +172,14 @@ e2e-setup:
 	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 
+build-swagger:
+	go run ./cmd/apiserver/main.go build-swagger ./docs/apidoc/swagger.json
 e2e-api-test:
 	# Run e2e test
 	ginkgo -v -skipPackage capability,setup,application -r e2e
 	ginkgo -v -r e2e/application
 
-e2e-apiserver-test:
+e2e-apiserver-test: build-swagger
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
 	@$(OK) tests pass
 
