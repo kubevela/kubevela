@@ -40,6 +40,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -60,13 +61,6 @@ const (
 	// OCMClusterManagement ocm cluster management solution
 	OCMClusterManagement = "ocm"
 )
-
-// Cluster contains base info of cluster
-type Cluster struct {
-	Name     string
-	Type     string
-	EndPoint string
-}
 
 // ClusterCommandGroup create a group of cluster command
 func ClusterCommandGroup(c common.Args) *cobra.Command {
@@ -120,7 +114,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			table := newUITable().AddRow("CLUSTER", "TYPE", "ENDPOINT")
-			clusters, err := getRegisteredClusters(c.Client)
+			clusters, err := clustermanager.GetRegisteredClusters(c.Client)
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
@@ -136,56 +130,6 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		},
 	}
 	return cmd
-}
-
-func getRegisteredClusters(c client.Client) ([]Cluster, error) {
-	var clusters []Cluster
-	secrets := v1.SecretList{}
-	if err := c.List(context.Background(), &secrets, client.HasLabels{v1alpha12.LabelKeyClusterCredentialType}, client.InNamespace(multicluster.ClusterGatewaySecretNamespace)); err != nil {
-		return nil, errors.Wrapf(err, "failed to get clusterSecret secrets")
-	}
-	for _, clusterSecret := range secrets.Items {
-		clusters = append(clusters, Cluster{
-			Name:     clusterSecret.Name,
-			Type:     clusterSecret.GetLabels()[v1alpha12.LabelKeyClusterCredentialType],
-			EndPoint: string(clusterSecret.Data["endpoint"]),
-		})
-	}
-
-	crdName := types2.NamespacedName{Name: "managedclusters." + ocmclusterv1.GroupName}
-	if err := c.Get(context.Background(), crdName, &v13.CustomResourceDefinition{}); err != nil {
-		if errors2.IsNotFound(err) {
-			return clusters, nil
-		}
-		return nil, err
-	}
-
-	managedClusters := ocmclusterv1.ManagedClusterList{}
-	if err := c.List(context.Background(), &managedClusters); err != nil {
-		return nil, errors.Wrapf(err, "failed to get managed clusters")
-	}
-	for _, cluster := range managedClusters.Items {
-		if len(cluster.Spec.ManagedClusterClientConfigs) != 0 {
-			clusters = append(clusters, Cluster{
-				Name:     cluster.Name,
-				Type:     "ManagedCluster",
-				EndPoint: cluster.Spec.ManagedClusterClientConfigs[0].URL,
-			})
-		}
-	}
-	return clusters, nil
-}
-
-func ensureClusterNotExists(c client.Client, clusterName string) error {
-	secret := &v1.Secret{}
-	err := c.Get(context.Background(), types2.NamespacedName{Name: clusterName, Namespace: multicluster.ClusterGatewaySecretNamespace}, secret)
-	if err == nil {
-		return fmt.Errorf("cluster %s already exists", clusterName)
-	}
-	if !errors2.IsNotFound(err) {
-		return errors.Wrapf(err, "failed to check duplicate cluster secret")
-	}
-	return nil
 }
 
 func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) error {
@@ -282,7 +226,7 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 }
 
 func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi.Cluster, authInfo *clientcmdapi.AuthInfo, clusterName string) error {
-	if err := ensureClusterNotExists(k8sClient, clusterName); err != nil {
+	if err := clustermanager.EnsureClusterNotExists(k8sClient, clusterName); err != nil {
 		return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
 	}
 	var credentialType v1alpha12.CredentialType
@@ -331,7 +275,7 @@ func registerClusterManagedByOCM(hubConfig *rest.Config, spokeConfig *clientcmda
 		return err
 	}
 
-	clusters, err := getRegisteredClusters(hubCluster.Client)
+	clusters, err := clustermanager.GetRegisteredClusters(hubCluster.Client)
 	if err != nil {
 		return err
 	}
@@ -426,7 +370,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "cluster %s is not mutable now", oldClusterName)
 			}
-			if err := ensureClusterNotExists(c.Client, newClusterName); err != nil {
+			if err := clustermanager.EnsureClusterNotExists(c.Client, newClusterName); err != nil {
 				return errors.Wrapf(err, "cannot set cluster name to %s", newClusterName)
 			}
 			if err := c.Client.Delete(context.Background(), clusterSecret); err != nil {
@@ -459,7 +403,7 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 			if clusterName == multicluster.ClusterLocalName {
 				return fmt.Errorf("cannot delete `%s` cluster, it is reserved as the local cluster", multicluster.ClusterLocalName)
 			}
-			clusters, err := getRegisteredClusters(c.Client)
+			clusters, err := clustermanager.GetRegisteredClusters(c.Client)
 			if err != nil {
 				return err
 			}

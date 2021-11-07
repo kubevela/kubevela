@@ -884,7 +884,7 @@ variable "password" {
 			revision: "v1",
 		}
 
-		pCtx := NewBasicContext(args.wl, args.appName, args.revision, ns)
+		pCtx := NewBasicContext(args.appName, args.wl.Name, args.revision, ns, args.wl.Params)
 		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
 		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))

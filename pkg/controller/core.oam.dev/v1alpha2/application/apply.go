@@ -257,7 +257,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 
 		switch wl.CapabilityCategory {
 		case types.TerraformCategory:
-			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.AppRevisionName, appFile.Namespace)
+			pCtx = appfile.NewBasicContext(appFile.Name, wl.Name, appFile.AppRevisionName, appFile.Namespace, wl.Params)
 			ctx := context.Background()
 			var configuration terraformapi.Configuration
 			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
