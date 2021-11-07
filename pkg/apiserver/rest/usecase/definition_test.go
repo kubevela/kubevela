@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
@@ -124,7 +125,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		err = json.Unmarshal(data, schema)
 		Expect(err).Should(Succeed())
 		Expect(cmp.Diff(len(schema.APISchema.Required), 3)).Should(BeEmpty())
-		uiSchema := renderDefaultUISchema("", schema.APISchema)
+		uiSchema := renderDefaultUISchema(schema.APISchema)
 		Expect(cmp.Diff(len(uiSchema), 12)).Should(BeEmpty())
 	})
 
@@ -135,7 +136,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		err = json.Unmarshal(data, ddr)
 		Expect(err).Should(Succeed())
 		Expect(cmp.Diff(len(ddr.APISchema.Required), 3)).Should(BeEmpty())
-		defaultschema := renderDefaultUISchema("", ddr.APISchema)
+		defaultschema := renderDefaultUISchema(ddr.APISchema)
 
 		customschema := []*utils.UIParameter{}
 		cdata, err := ioutil.ReadFile("./testdata/ui-custom-schema.yaml")
@@ -148,8 +149,8 @@ var _ = Describe("Test namespace usecase functions", func() {
 			fmt.Printf("%s=> %d", schema.JSONKey, schema.Sort)
 		}
 		Expect(cmp.Diff(len(uiSchema), 12)).Should(BeEmpty())
-		Expect(cmp.Diff(uiSchema[0].JSONKey, "readinessProbe")).Should(BeEmpty())
-		Expect(cmp.Diff(len(uiSchema[0].SubParameters), 8)).Should(BeEmpty())
+		Expect(cmp.Diff(uiSchema[3].JSONKey, "readinessProbe")).Should(BeEmpty())
+		Expect(cmp.Diff(len(uiSchema[3].SubParameters), 8)).Should(BeEmpty())
 
 		outdata, err := yaml.Marshal(uiSchema)
 		Expect(err).Should(Succeed())
@@ -157,3 +158,15 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 	})
 })
+
+func TestAddDefinitionUISchema(t *testing.T) {
+	du := NewDefinitionUsecase()
+	cdata, err := ioutil.ReadFile("./testdata/ui-custom-schema.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = du.AddDefinitionUISchema(context.TODO(), "webservice", "component", string(cdata))
+	if err != nil {
+		t.Fatal(err)
+	}
+}

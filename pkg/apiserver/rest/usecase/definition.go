@@ -26,9 +26,11 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -44,6 +46,8 @@ type DefinitionUsecase interface {
 	ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error)
 	// DetailDefinition get definition detail
 	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
+	// AddDefinitionUISchema add or update custom definition ui schema
+	AddDefinitionUISchema(ctx context.Context, name, defType, configRaw string) ([]*utils.UIParameter, error)
 }
 
 type definitionUsecaseImpl struct {
@@ -135,7 +139,7 @@ func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name, defT
 		return nil, err
 	}
 	// render default ui schema
-	defaultUISchema := renderDefaultUISchema("", schema)
+	defaultUISchema := renderDefaultUISchema(schema)
 	// patch from custom ui schema
 	customUISchema := d.renderCustomUISchema(ctx, name, defType, defaultUISchema)
 	return &apisv1.DetailDefinitionResponse{
@@ -165,6 +169,48 @@ func (d *definitionUsecaseImpl) renderCustomUISchema(ctx context.Context, name, 
 		return defaultSchema
 	}
 	return patchSchema(defaultSchema, schema)
+}
+
+// AddDefinitionUISchema add definition custom ui schema config
+func (d *definitionUsecaseImpl) AddDefinitionUISchema(ctx context.Context, name, defType, configRaw string) ([]*utils.UIParameter, error) {
+	var uiParameters []*utils.UIParameter
+	err := yaml.Unmarshal([]byte(configRaw), &uiParameters)
+	if err != nil {
+		log.Logger.Errorf("yaml unmarshal failure %s", err.Error())
+		return nil, bcode.ErrInvalidDefinitionUISchema
+	}
+	dataBate, err := json.Marshal(uiParameters)
+	if err != nil {
+		log.Logger.Errorf("json marshal failure %s", err.Error())
+		return nil, bcode.ErrInvalidDefinitionUISchema
+	}
+	var cm v1.ConfigMap
+	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      fmt.Sprintf("%s-uischema-%s", defType, name),
+	}, &cm); err != nil {
+		if apierrors.IsNotFound(err) {
+			err = d.kubeClient.Create(ctx, &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: types.DefaultKubeVelaNS,
+					Name:      fmt.Sprintf("%s-uischema-%s", defType, name),
+				},
+				Data: map[string]string{
+					types.UISchema: string(dataBate),
+				},
+			})
+		}
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		cm.Data[types.UISchema] = string(dataBate)
+		err := d.kubeClient.Update(ctx, &cm)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return uiParameters, nil
 }
 
 func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIParameter {
@@ -207,18 +253,14 @@ func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIPa
 	return defaultSchema
 }
 
-func renderDefaultUISchema(lastKey string, apiSchema *openapi3.Schema) []*utils.UIParameter {
+func renderDefaultUISchema(apiSchema *openapi3.Schema) []*utils.UIParameter {
 	if apiSchema == nil {
 		return nil
 	}
 	var params []*utils.UIParameter
 	for key, property := range apiSchema.Properties {
-		nextKey := key
-		if lastKey != "" {
-			nextKey = fmt.Sprintf("%s.%s", lastKey, key)
-		}
 		if property.Value != nil {
-			param := renderUIParameter(nextKey, utils.FirstUpper(key), property, apiSchema.Required)
+			param := renderUIParameter(key, utils.FirstUpper(key), property, apiSchema.Required)
 			params = append(params, param)
 		}
 	}
@@ -232,10 +274,10 @@ func renderUIParameter(key, label string, property *openapi3.SchemaRef, required
 		if property.Value.Items.Value != nil {
 			subType = property.Value.Items.Value.Type
 		}
-		parameter.SubParameters = renderDefaultUISchema(key+".[]", property.Value.Items.Value)
+		parameter.SubParameters = renderDefaultUISchema(property.Value.Items.Value)
 	}
 	if property.Value.Properties != nil {
-		parameter.SubParameters = renderDefaultUISchema(key, property.Value)
+		parameter.SubParameters = renderDefaultUISchema(property.Value)
 	}
 	parameter.Validate = &utils.Validate{}
 	parameter.Validate.DefaultValue = property.Value.Default

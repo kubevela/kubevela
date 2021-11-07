@@ -3,7 +3,7 @@
   jsonKey: imagePullPolicy
   label: 镜像更新策略
   uiType: Select
-  validete: 
+  validate: 
     options:
       - label: 镜像不存在时更新
         value: IfNotPresent
@@ -25,32 +25,32 @@
   jsonKey: env
   label: Env
   subParameterGroupOption:
-    - - env.name
-      - env.value
-    - - env.name
-      - env.valueFrom
+    - - name
+      - value
+    - - name
+      - valueFrom
   subParameters:
   - description: Specifies a source the value of this var should come from
     disable: false
-    jsonKey: env.valueFrom
+    jsonKey: valueFrom
     label: Secret选择器
     uiType: InnerGroup
     subParameters:
-      - jsonKey: env.valueFrom.secretKeyRef
+      - jsonKey: secretKeyRef
         uiType: Ignore
         subParameters:
-          - jsonKey: env.valueFrom.secretKeyRef.name
+          - jsonKey: name
             label: Secret选择
             uiType: SecretSelect
-          - jsonKey: env.valueFrom.secretKeyRef.key
+          - jsonKey: key
             label: SecretKey选择
             uiType: SecretKeySelect
   uiType: Structs
-  validete: {}
+  validate: {}
 - uiType: ImageInput
   jsonKey: image
-  sort: 2
+  sort: 1
 - jsonKey: readinessProbe
   uiType: Group
   label: ReadinessProbe检测
-  sort: 1
+  sort: 4
