@@ -245,13 +245,13 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 
 // ClusterObject2Map convert ClusterObjectReference to a readable map
 func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
-	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | Kind: %s | Name: %s"
+	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | Component: %s | Kind: %s"
 	objs := make(map[string]string, len(refs))
 	for _, r := range refs {
 		if r.Cluster == "" {
 			r.Cluster = "local"
 		}
-		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Kind, r.Name)
+		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Name, r.Kind)
 	}
 	return objs
 }
