@@ -267,10 +267,11 @@ type ResourceLocation struct {
 func filterWorkload(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
 	var filteredOR []common.ClusterObjectReference
 	loggableWorkload := map[string]bool{
-		"Deployment":  true,
-		"StatefulSet": true,
-		"CloneSet":    true,
-		"Job":         true,
+		"Deployment":    true,
+		"StatefulSet":   true,
+		"CloneSet":      true,
+		"Job":           true,
+		"Configuration": true,
 	}
 	for _, r := range resources {
 		if _, ok := loggableWorkload[r.Kind]; ok {

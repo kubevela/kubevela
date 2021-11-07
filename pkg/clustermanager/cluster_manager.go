@@ -56,10 +56,14 @@ func GetRegisteredClusters(c client.Client) ([]types2.Cluster, error) {
 		return nil, errors.Wrapf(err, "failed to get clusterSecret secrets")
 	}
 	for _, clusterSecret := range secrets.Items {
+		endpoint := string(clusterSecret.Data["endpoint"])
+		if endp, ok := clusterSecret.GetLabels()[v1alpha1.LabelKeyClusterEndpointType]; ok {
+			endpoint = endp
+		}
 		clusters = append(clusters, types2.Cluster{
 			Name:     clusterSecret.Name,
 			Type:     clusterSecret.GetLabels()[v1alpha1.LabelKeyClusterCredentialType],
-			EndPoint: string(clusterSecret.Data["endpoint"]),
+			EndPoint: endpoint,
 		})
 	}
 
@@ -79,8 +83,8 @@ func GetRegisteredClusters(c client.Client) ([]types2.Cluster, error) {
 		if len(cluster.Spec.ManagedClusterClientConfigs) != 0 {
 			clusters = append(clusters, types2.Cluster{
 				Name:     cluster.Name,
-				Type:     "ManagedCluster",
-				EndPoint: cluster.Spec.ManagedClusterClientConfigs[0].URL,
+				Type:     "OCM ManagedServiceAccount",
+				EndPoint: "-",
 			})
 		}
 	}
