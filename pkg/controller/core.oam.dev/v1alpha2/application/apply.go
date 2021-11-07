@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -57,28 +59,37 @@ type AppHandler struct {
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, cluster string, creator common.ResourceCreatorRole, owner *common.ResourceOwner, manifests ...*unstructured.Unstructured) error {
+	thisOwner := owner.DeepCopy()
+	fmt.Println("*************", thisOwner)
 	h.initDispatcher()
 	_, err := h.dispatcher.Dispatch(ctx, manifests)
-	if err == nil {
-		for _, mf := range manifests {
-			if mf == nil {
-				continue
-			}
-			ref := common.ClusterObjectReference{
-				Cluster: cluster,
-				Creator: owner,
-				ObjectReference: corev1.ObjectReference{
-					Name:       mf.GetName(),
-					Namespace:  mf.GetNamespace(),
-					Kind:       mf.GetKind(),
-					APIVersion: mf.GetAPIVersion(),
-				},
-			}
-			h.addAppliedResource(ref)
-		}
+	if err != nil {
+		return err
 	}
-	return err
+	for _, mf := range manifests {
+		if mf == nil {
+			continue
+		}
+		if thisOwner != nil && thisOwner.Type == "Trait" {
+			if ann := mf.GetAnnotations(); ann != nil {
+				thisOwner.Trait = ann[oam.TraitTypeLabel]
+			}
+		}
+		ref := common.ClusterObjectReference{
+			Cluster:   cluster,
+			Creator:   creator,
+			BelongsTo: thisOwner,
+			ObjectReference: corev1.ObjectReference{
+				Name:       mf.GetName(),
+				Namespace:  mf.GetNamespace(),
+				Kind:       mf.GetKind(),
+				APIVersion: mf.GetAPIVersion(),
+			},
+		}
+		h.addAppliedResource(ref)
+	}
+	return nil
 }
 
 // Delete delete manifests from k8s.
@@ -112,6 +123,7 @@ func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
 			}
 		}
 		if !found {
+			fmt.Println("XZZZZZZZZZZZZZZZ", ref)
 			h.appliedResources = append(h.appliedResources, ref)
 		}
 	}
@@ -137,13 +149,17 @@ func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {
 
 // addServiceStatus recorde the whole component status.
 // reconcile run at single threaded. So there is no need to consider to use locker.
-func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComponentStatus) {
+func (h *AppHandler) addServiceStatus(override bool, svcs ...common.ApplicationComponentStatus) {
 	for _, svc := range svcs {
 		found := false
 		for i := range h.services {
 			current := h.services[i]
-			if current.Name == svc.Name {
-				if cover {
+			if h.app.Namespace == "default" {
+				fmt.Println("XXXXXX --", override, "ENV", current.Env, "|", current.Name, "\t Env", svc.Env, "|", svc.Name)
+			}
+			if current.Name == svc.Name && current.Env == svc.Env {
+				if override {
+					fmt.Println("Ovirrdered", current.Env, "|", current.Name, "\t ===> Env", svc.Env, "|", svc.Name)
 					h.services[i] = svc
 				}
 				found = true
@@ -193,7 +209,7 @@ func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.Compon
 	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
 }
 
-func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.ApplicationRevision) (*common.ApplicationComponentStatus, bool, error) {
+func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, clusterName string) (*common.ApplicationComponentStatus, bool, error) {
 
 	var (
 		status = common.ApplicationComponentStatus{
@@ -204,6 +220,10 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 		appName  = appRev.Spec.Application.Name
 		isHealth = true
 	)
+
+	// TODO(wonderflow): we just pass clusterName as envName here, it's wrong
+	// the actual env status should aggregate all clusters included in this env policy
+	status.Env = clusterName
 
 	if wl.CapabilityCategory == types.TerraformCategory {
 		return nil, true, nil
@@ -239,6 +259,7 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 
 	status.Traits = traitStatusList
 	status.Scopes = generateScopeReference(wl.Scopes)
+	fmt.Println("XXXXXXXXXXXXXX override", status)
 	h.addServiceStatus(true, status)
 	return &status, isHealth, nil
 }

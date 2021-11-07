@@ -20,6 +20,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -463,13 +464,32 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 		klog.InfoS("Successfully stored Capability Schema in ConfigMap", "configMap", klog.KRef(namespace, cmName))
 		return cmName, nil
 	}
-
+	if checkEqual(cm.Data, string(jsonSchema)) {
+		return cmName, nil
+	}
 	cm.Data = data
 	if err = k8sClient.Update(ctx, &cm); err != nil {
 		return cmName, fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 	}
 	klog.InfoS("Successfully update Capability Schema in ConfigMap", "configMap", klog.KRef(namespace, cmName))
 	return cmName, nil
+}
+
+func checkEqual(cm map[string]string, newString string) bool {
+	oldString, ok := cm[types.OpenapiV3JSONSchema]
+	if !ok {
+		return false
+	}
+	var oldS, newS = &openapi3.Schema{}, &openapi3.Schema{}
+	err := oldS.UnmarshalJSON([]byte(oldString))
+	if err != nil {
+		return false
+	}
+	err = newS.UnmarshalJSON([]byte(newString))
+	if err != nil {
+		return false
+	}
+	return reflect.DeepEqual(oldS, newS)
 }
 
 // getOpenAPISchema is the main function for GetDefinition API

@@ -39,7 +39,7 @@ const (
 )
 
 // Dispatcher is a client for apply resources.
-type Dispatcher func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error
+type Dispatcher func(ctx context.Context, cluster string, creator common.ResourceCreatorRole, owner *common.ResourceOwner, manifests ...*unstructured.Unstructured) error
 
 // Deleter is a client for delete resources.
 type Deleter func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error
@@ -86,7 +86,10 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 		return err
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
+
+	// TODO(wonderflow) add owner support here, users can specify owner by args
+
+	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, nil, workload); err != nil {
 		return err
 	}
 	return v.FillObject(workload.Object, "value")

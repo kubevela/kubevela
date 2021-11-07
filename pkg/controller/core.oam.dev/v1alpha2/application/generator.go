@@ -133,15 +133,15 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, owner *common.ResourceOwner) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
-
+		owner.Type = "Component"
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
 			return nil, nil, false, err
 		}
 		if len(manifest.PackagedWorkloadResources) != 0 {
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
+			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, owner, manifest.PackagedWorkloadResources...); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
@@ -153,16 +153,16 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		}
 		skipStandardWorkload := skipApplyWorkload(wl)
 		if !skipStandardWorkload {
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyWorkload); err != nil {
+			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, owner, readyWorkload); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "DispatchStandardWorkload")
 			}
 		}
-
-		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyTraits...); err != nil {
+		owner.Type = "Trait"
+		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, owner, readyTraits...); err != nil {
 			return nil, nil, false, errors.WithMessage(err, "DispatchTraits")
 		}
 
-		_, isHealth, err := h.collectHealthStatus(wl, appRev)
+		_, isHealth, err := h.collectHealthStatus(wl, appRev, clusterName)
 		if err != nil {
 			return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
 		}

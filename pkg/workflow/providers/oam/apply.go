@@ -39,7 +39,7 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, owner *common.ResourceOwner) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 // ComponentRender render oam component.
 type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
@@ -50,7 +50,7 @@ type provider struct {
 	app    *v1beta1.Application
 }
 
-// ApplyComponent apply component.
+// RenderComponent render component as CUE extended function.
 func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, err := lookUpValues(v)
 	if err != nil {
@@ -79,13 +79,18 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 	return nil
 }
 
-// ApplyComponent apply component.
+// ApplyComponent apply component as CUE extended function.
 func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, err := lookUpValues(v)
 	if err != nil {
 		return err
 	}
-	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace)
+
+	envName, _ := v.GetString("envName")
+	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, &common.ResourceOwner{
+		Env:       envName,
+		Component: comp.Name,
+	})
 	if err != nil {
 		return err
 	}

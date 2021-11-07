@@ -473,7 +473,7 @@ type ResourceCreatorRole string
 const (
 	// PolicyResourceCreator create the policy resource.
 	PolicyResourceCreator ResourceCreatorRole = "policy"
-	// WorkflowResourceCreator create the resource in workflow.
+	// WorkflowResourceCreator create the resource in workflow other than component and trait.
 	WorkflowResourceCreator ResourceCreatorRole = "workflow"
 )
 
@@ -482,6 +482,23 @@ type ClusterObjectReference struct {
 	Cluster                string              `json:"cluster,omitempty"`
 	Creator                ResourceCreatorRole `json:"creator,omitempty"`
 	corev1.ObjectReference `json:",inline"`
+
+	// BelongsTo indicates the owner of the resource.
+	// Only resources created by workflow and belongs to one component has this field
+	BelongsTo *ResourceOwner `json:"belongsTo,omitempty"`
+}
+
+// ResourceOwner marks which env, component this resource belongs to.
+type ResourceOwner struct {
+	// the env of component
+	// TODO(wonderflow): currently the ENV always equal to Cluster as we didn't support ENV contain multiple clusters
+	Env string `json:"env,omitempty"`
+	// type means it's a workload or trait
+	Type string `json:"type,omitempty"`
+	// the name of component
+	Component string `json:"component,omitempty"`
+	// the type of trait
+	Trait string `json:"trait,omitempty"`
 }
 
 // RawExtensionPointer is the pointer of raw extension

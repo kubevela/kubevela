@@ -343,6 +343,22 @@ spec:
                     apiVersion:
                       description: API version of the referent.
                       type: string
+                    belongsTo:
+                      description: BelongsTo indicates the owner of the resource. Only resources created by workflow and belongs to one component has this field
+                      properties:
+                        component:
+                          description: the name of component
+                          type: string
+                        env:
+                          description: 'the env of component TODO(wonderflow): currently the ENV always equal to Cluster as we didn''t support ENV contain multiple clusters'
+                          type: string
+                        trait:
+                          description: the type of trait
+                          type: string
+                        type:
+                          description: type means it's a workload or trait
+                          type: string
+                      type: object
                     cluster:
                       type: string
                     creator:
@@ -1167,6 +1183,22 @@ spec:
                     apiVersion:
                       description: API version of the referent.
                       type: string
+                    belongsTo:
+                      description: BelongsTo indicates the owner of the resource. Only resources created by workflow and belongs to one component has this field
+                      properties:
+                        component:
+                          description: the name of component
+                          type: string
+                        env:
+                          description: 'the env of component TODO(wonderflow): currently the ENV always equal to Cluster as we didn''t support ENV contain multiple clusters'
+                          type: string
+                        trait:
+                          description: the type of trait
+                          type: string
+                        type:
+                          description: type means it's a workload or trait
+                          type: string
+                      type: object
                     cluster:
                       type: string
                     creator:

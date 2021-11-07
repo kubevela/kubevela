@@ -98,7 +98,7 @@ var _ = AfterSuite(func() {
 var _ = Describe("Test Workflow Provider Kube", func() {
 	It("apply and read", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, _ *common.ResourceOwner, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -160,7 +160,7 @@ cluster: ""
 	})
 	It("patch & apply", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, _ *common.ResourceOwner, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -198,7 +198,7 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 
 	It("list", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, _ *common.ResourceOwner, manifests ...*unstructured.Unstructured) error {
 				return nil
 			},
 			cli: k8sClient,
@@ -279,7 +279,7 @@ cluster: ""
 
 	It("delete", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, _ *common.ResourceOwner, manifests ...*unstructured.Unstructured) error {
 				return nil
 			},
 			delete: func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
@@ -339,7 +339,7 @@ cluster: ""
 
 	It("test error case", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, _ *common.ResourceOwner, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
