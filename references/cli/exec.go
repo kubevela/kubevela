@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
@@ -32,7 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -47,20 +47,21 @@ const (
 
 // VelaExecOptions creates options for `exec` command
 type VelaExecOptions struct {
-	Cmd         *cobra.Command
-	Args        []string
-	Stdin       bool
-	TTY         bool
-	ServiceName string
+	Cmd   *cobra.Command
+	Args  []string
+	Stdin bool
+	TTY   bool
 
-	context.Context
+	Ctx   context.Context
 	VelaC common.Args
 	Env   *types.EnvMeta
 	App   *v1beta1.Application
 
-	f             k8scmdutil.Factory
-	kcExecOptions *cmdexec.ExecOptions
-	ClientSet     kubernetes.Interface
+	resourceName      string
+	resourceNamespace string
+	f                 k8scmdutil.Factory
+	kcExecOptions     *cmdexec.ExecOptions
+	ClientSet         kubernetes.Interface
 }
 
 // NewExecCommand creates `exec` command
@@ -82,8 +83,10 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 		Short: "Execute command in a container",
 		Long:  "Execute command in a container",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := c.SetConfig(); err != nil {
-				return err
+			if c.Config == nil {
+				if err := c.SetConfig(); err != nil {
+					return errors.Wrapf(err, "failed to set config for k8s client")
+				}
 			}
 			o.VelaC = c
 			return nil
@@ -117,19 +120,26 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
+		Example: `
+		# Get output from running 'date' command from app pod, using the first container by default
+		vela exec my-app -- date
+
+		# Switch to raw terminal mode, sends stdin to 'bash' in containers of application my-app
+		# and sends stdout/stderr from 'bash' back to the client
+		kubectl exec my-app -i -t -- bash -il
+		`,
 	}
 	cmd.Flags().BoolVarP(&o.Stdin, "stdin", "i", defaultStdin, "Pass stdin to the container")
 	cmd.Flags().BoolVarP(&o.TTY, "tty", "t", defaultTTY, "Stdin is a TTY")
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
-	cmd.Flags().StringVarP(&o.ServiceName, "svc", "s", "", "service name")
+
 	return cmd
 }
 
 // Init prepares the arguments accepted by the Exec command
 func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []string) error {
-	o.Context = ctx
 	o.Cmd = c
 	o.Args = argsIn
 
@@ -144,27 +154,28 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	}
 	o.App = app
 
-	cf := genericclioptions.NewConfigFlags(true)
-	cf.Namespace = &o.Env.Namespace
-	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
-
-	if o.ClientSet == nil {
-		c, err := kubernetes.NewForConfig(o.VelaC.Config)
-		if err != nil {
-			return err
-		}
-		o.ClientSet = c
+	targetResource, err := common.AskToChooseOneEnvResource(o.App)
+	if err != nil {
+		return err
 	}
+
+	cf := genericclioptions.NewConfigFlags(true)
+	cf.Namespace = &targetResource.Namespace
+	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
+	o.resourceName = targetResource.Name
+	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
+	o.resourceNamespace = targetResource.Namespace
+	k8sClient, err := kubernetes.NewForConfig(o.VelaC.Config)
+	if err != nil {
+		return err
+	}
+	o.ClientSet = k8sClient
 	return nil
 }
 
 // Complete loads data from the command environment
 func (o *VelaExecOptions) Complete() error {
-	compName, err := o.getComponentName()
-	if err != nil {
-		return err
-	}
-	podName, err := o.getPodName(compName)
+	podName, err := o.getPodName(o.resourceName)
 	if err != nil {
 		return err
 	}
@@ -173,53 +184,27 @@ func (o *VelaExecOptions) Complete() error {
 
 	args := make([]string, len(o.Args))
 	copy(args, o.Args)
-	// args for kcExecOptions MUST be in such formart:
+	// args for kcExecOptions MUST be in such format:
 	// [podName, COMMAND...]
 	args[0] = podName
 	return o.kcExecOptions.Complete(o.f, o.Cmd, args, 1)
 }
 
-func (o *VelaExecOptions) getComponentName() (string, error) {
-	svcName := o.ServiceName
-
-	if svcName != "" {
-		for _, cc := range o.App.Spec.Components {
-			if cc.Name == svcName {
-				return svcName, nil
-			}
-		}
-		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
-	}
-
-	compName, err := common.AskToChooseOneService(appfile.GetComponents(o.App))
+func (o *VelaExecOptions) getPodName(resourceName string) (string, error) {
+	podList, err := o.ClientSet.CoreV1().Pods(o.resourceNamespace).List(o.Ctx, v1.ListOptions{})
 	if err != nil {
 		return "", err
 	}
-	return compName, nil
-}
-
-func (o *VelaExecOptions) getPodName(compName string) (string, error) {
-	podList, err := o.ClientSet.CoreV1().Pods(o.Env.Namespace).List(o.Context, v1.ListOptions{
-		LabelSelector: labels.Set(map[string]string{
-			// TODO(roywang) except core workloads, not any workloads will pass these label to pod
-			// find a rigorous way to get pod by compname
-			oam.LabelAppComponent: compName,
-		}).String(),
-	})
-	if err != nil {
-		return "", err
-	}
-	if podList != nil && len(podList.Items) == 0 {
-		return "", fmt.Errorf("cannot get pods")
-	}
+	var pods []string
 	for _, p := range podList.Items {
-		if strings.HasPrefix(p.Name, compName+"-") {
-			return p.Name, nil
+		if strings.HasPrefix(p.Name, resourceName) {
+			pods = append(pods, p.Name)
 		}
 	}
-	// if no pod with name matched prefix as component name
-	// just return the first one
-	return podList.Items[0].Name, nil
+	if len(pods) < 1 {
+		return "", fmt.Errorf("no pods found created by resource %s", resourceName)
+	}
+	return common.AskToChooseOnePods(pods)
 }
 
 // Run executes a validated remote execution against a pod
