@@ -49,11 +49,11 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvSetContext("env set", envName)
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
+	ApplicationExecContext("exec -- COMMAND", applicationName)
 	e2e.JsonAppFileContext("update app-basic, add scaler trait with replicas 2", appbasicAddTraitJsonAppFile)
 	e2e.ComponentListContext("ls", applicationName, workloadType, traitAlias)
 	ApplicationStatusContext("status", applicationName, workloadType)
 	ApplicationStatusDeeplyContext("status", applicationName, workloadType, envName)
-	ApplicationExecContext("exec -- COMMAND", applicationName)
 	// ApplicationPortForwardContext("port-forward", applicationName)
 	e2e.WorkloadDeleteContext("delete", applicationName)
 
