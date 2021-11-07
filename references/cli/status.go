@@ -32,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -153,25 +152,32 @@ func loadRemoteApplication(c client.Client, ns string, name string) (*v1beta1.Ap
 	return app, err
 }
 
+func getComponentType(app *v1beta1.Application, name string) string {
+	for _, c := range app.Spec.Components {
+		if c.Name == name {
+			return c.Type
+		}
+	}
+	return "webservice"
+}
+
 func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) error {
 	remoteApp, err := loadRemoteApplication(c, env.Namespace, appName)
 	if err != nil {
 		return err
 	}
-	for _, comp := range remoteApp.Spec.Components {
+	for _, comp := range remoteApp.Status.Services {
 		compName := comp.Name
 
-		healthStatus, healthInfo, err := healthCheckLoop(ctx, c, compName, appName, env)
-		if err != nil {
-			ioStreams.Info(healthInfo)
-			return err
+		ioStreams.Infof(white.Sprintf("  - Name: %s  Env: %s\n", compName, comp.Env))
+		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
+		healthColor := getHealthStatusColor(comp.Healthy)
+		healthInfo := strings.ReplaceAll(comp.Message, "\n", "\n\t") // format healthInfo output
+		healthstats := "healthy"
+		if !comp.Healthy {
+			healthstats = "unhealthy"
 		}
-		ioStreams.Infof(white.Sprintf("  - Name: %s\n", compName))
-		ioStreams.Infof("    Type: %s\n", comp.Type)
-
-		healthColor := getHealthStatusColor(healthStatus)
-		healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // format healthInfo output
-		ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
+		ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthstats), healthColor.Sprint(healthInfo))
 
 		// load it again after health check
 		remoteApp, err = loadRemoteApplication(c, env.Namespace, appName)
@@ -180,8 +186,7 @@ func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 		}
 		// workload Must found
 		ioStreams.Infof("    Traits:\n")
-		workloadStatus, _ := getWorkloadStatusFromApp(remoteApp, compName)
-		for _, tr := range workloadStatus.Traits {
+		for _, tr := range comp.Traits {
 			if tr.Message != "" {
 				if tr.Healthy {
 					ioStreams.Infof("      - %s%s: %s", emojiSucceed, white.Sprint(tr.Type), tr.Message)
@@ -190,21 +195,8 @@ func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 				}
 				continue
 			}
-			var message string
-			for _, v := range comp.Traits {
-				if v.Type == tr.Type {
-					traitData, _ := util.RawExtension2Map(v.Properties)
-					for k, v := range traitData {
-						message += fmt.Sprintf("%v=%v\n\t\t", k, v)
-					}
-					break
-				}
-			}
-			ioStreams.Infof("      - %s%s: %s", emojiSucceed, white.Sprint(tr.Type), message)
 		}
 		ioStreams.Info("")
-		ioStreams.Infof("    Last Deployment:\n")
-		ioStreams.Infof("      Created at: %v\n", remoteApp.CreationTimestamp)
 	}
 	return nil
 }
@@ -360,15 +352,9 @@ func getWorkloadStatusFromApp(app *v1beta1.Application, compName string) (common
 	return wlStatus, foundWlStatus
 }
 
-func getHealthStatusColor(s HealthStatus) *color.Color {
-	var c *color.Color
-	switch s {
-	case HealthStatusHealthy:
-		c = green
-	case HealthStatusUnknown, HealthStatusNotDiagnosed:
-		c = yellow
-	default:
-		c = red
+func getHealthStatusColor(s bool) *color.Color {
+	if s {
+		return green
 	}
-	return c
+	return yellow
 }

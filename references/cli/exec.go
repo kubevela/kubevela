@@ -126,7 +126,7 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 
 		# Switch to raw terminal mode, sends stdin to 'bash' in containers of application my-app
 		# and sends stdout/stderr from 'bash' back to the client
-		kubectl exec my-app -i -t -- bash -il
+		vela exec my-app -i -t -- bash -il
 		`,
 	}
 	cmd.Flags().BoolVarP(&o.Stdin, "stdin", "i", defaultStdin, "Pass stdin to the container")
