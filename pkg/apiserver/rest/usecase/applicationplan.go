@@ -1013,7 +1013,6 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBindingPlan(ctx context.Con
 			return nil, bcode.ErrApplicationEnvExist
 		}
 	}
-	app.EnvBinds = append(app.EnvBinds, createModelEnvBind(envReq.EnvBind))
 	envBinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
 	if err != nil {
 		if !errors.Is(err, bcode.ErrApplicationNotEnv) {
@@ -1026,6 +1025,7 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBindingPlan(ctx context.Con
 			return nil, err
 		}
 	} else {
+		app.EnvBinds = append(app.EnvBinds, createModelEnvBind(envReq.EnvBind))
 		envBinding.Envs = append(envBinding.Envs, createEnvBind(envReq.EnvBind))
 		properties, err := model.NewJSONStructByStruct(envBinding)
 		if err != nil {

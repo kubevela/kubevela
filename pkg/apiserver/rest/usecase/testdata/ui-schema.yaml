@@ -32,33 +32,6 @@
   label: ReadinessProbe检测
   sort: 4
   subParameters:
-  - description: Minimum consecutive successes for the probe to be considered successful
-      after having failed.
-    jsonKey: successThreshold
-    label: SuccessThreshold
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
-      required: true
-  - description: Instructions for assessing container health by probing a TCP socket.
-      Either this attribute or the exec attribute or the httpGet attribute MUST be
-      specified. This attribute is mutually exclusive with both the exec attribute
-      and the httpGet attribute.
-    jsonKey: tcpSocket
-    label: TcpSocket
-    sort: 100
-    subParameters:
-    - description: The TCP socket within the container that should be probed to assess
-        container health.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
-      validate:
-        required: true
-    uiType: KV
-    validate: {}
   - description: Number of seconds after which the probe times out.
     jsonKey: timeoutSeconds
     label: TimeoutSeconds
@@ -104,21 +77,29 @@
     label: HttpGet
     sort: 100
     subParameters:
+    - description: The TCP socket within the container to which the HTTP GET request
+        should be directed.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
     - description: ""
       jsonKey: httpHeaders
       label: HttpHeaders
       sort: 100
       subParameters:
       - description: ""
-        jsonKey: value
-        label: Value
+        jsonKey: name
+        label: Name
         sort: 100
         uiType: Input
         validate:
           required: true
       - description: ""
-        jsonKey: name
-        label: Name
+        jsonKey: value
+        label: Value
         sort: 100
         uiType: Input
         validate:
@@ -131,14 +112,6 @@
       label: Path
       sort: 100
       uiType: Input
-      validate:
-        required: true
-    - description: The TCP socket within the container to which the HTTP GET request
-        should be directed.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
       validate:
         required: true
     uiType: KV
@@ -160,31 +133,35 @@
     validate:
       defaultValue: 10
       required: true
+  - description: Minimum consecutive successes for the probe to be considered successful
+      after having failed.
+    jsonKey: successThreshold
+    label: SuccessThreshold
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
+    uiType: KV
+    validate: {}
   uiType: Group
   validate: {}
-- description: Commands to run in the container
-  jsonKey: cmd
-  label: Cmd
-  sort: 100
-  uiType: Strings
-  validate: {}
-- description: Which port do you want customer traffic sent to
-  jsonKey: port
-  label: Port
-  sort: 100
-  uiType: Number
-  validate:
-    defaultValue: 80
-    required: true
-- description: If addRevisionLabel is true, the appRevision label will be added to
-    the underlying pods
-  jsonKey: addRevisionLabel
-  label: AddRevisionLabel
-  sort: 100
-  uiType: Switch
-  validate:
-    defaultValue: false
-    required: true
 - description: Number of CPU units for the service, like `0.5` (0.5 CPU core), `1`
     (1 CPU core)
   jsonKey: cpu
@@ -249,6 +226,21 @@
     validate: {}
   uiType: Structs
   validate: {}
+- description: If addRevisionLabel is true, the appRevision label will be added to
+    the underlying pods
+  jsonKey: addRevisionLabel
+  label: AddRevisionLabel
+  sort: 100
+  uiType: Switch
+  validate:
+    defaultValue: false
+    required: true
+- description: Commands to run in the container
+  jsonKey: cmd
+  label: Cmd
+  sort: 100
+  uiType: Strings
+  validate: {}
 - description: Specify image pull secrets for your service
   jsonKey: imagePullSecrets
   label: ImagePullSecrets
@@ -260,15 +252,6 @@
   label: LivenessProbe
   sort: 100
   subParameters:
-  - description: Number of consecutive failures required to determine the container
-      is not alive (liveness probe) or not ready (readiness probe).
-    jsonKey: failureThreshold
-    label: FailureThreshold
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 3
-      required: true
   - description: Instructions for assessing container health by executing an HTTP
       GET request. Either this attribute or the exec attribute or the tcpSocket attribute
       MUST be specified. This attribute is mutually exclusive with both the exec attribute
@@ -388,8 +371,25 @@
         required: true
     uiType: KV
     validate: {}
+  - description: Number of consecutive failures required to determine the container
+      is not alive (liveness probe) or not ready (readiness probe).
+    jsonKey: failureThreshold
+    label: FailureThreshold
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 3
+      required: true
   uiType: KV
   validate: {}
+- description: Which port do you want customer traffic sent to
+  jsonKey: port
+  label: Port
+  sort: 100
+  uiType: Number
+  validate:
+    defaultValue: 80
+    required: true
 - description: Declare volumes and volumeMounts
   jsonKey: volumes
   label: Volumes
