@@ -18,13 +18,10 @@ package cli
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -197,20 +194,7 @@ func (o *VelaExecOptions) Complete() error {
 }
 
 func (o *VelaExecOptions) getPodName(resourceName string) (string, error) {
-	podList, err := o.ClientSet.CoreV1().Pods(o.resourceNamespace).List(o.Ctx, v1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	var pods []string
-	for _, p := range podList.Items {
-		if strings.HasPrefix(p.Name, resourceName) {
-			pods = append(pods, p.Name)
-		}
-	}
-	if len(pods) < 1 {
-		return "", fmt.Errorf("no pods found created by resource %s", resourceName)
-	}
-	return common.AskToChooseOnePods(pods)
+	return getPodNameForResource(o.Ctx, o.ClientSet, resourceName, o.resourceNamespace)
 }
 
 // Run executes a validated remote execution against a pod
