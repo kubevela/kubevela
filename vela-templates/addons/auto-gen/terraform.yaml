@@ -342,36 +342,86 @@ spec:
       spec:
         schematic:
           terraform:
-            configuration: "# Configure the Microsoft Azure Provider\nprovider \"azurerm\"
-              {\n  features {}\n}\n\nresource \"azurerm_resource_group\" \"rsg\" {\n
-              \ count    = var.create_rsg ? 1 : 0\n  name     = var.resource_group_name\n
-              \ location = var.location\n}\n\nresource \"azurerm_storage_account\"
-              \"sa\" {\n  name                      = var.name\n  resource_group_name
-              \      = var.create_rsg ? azurerm_resource_group.rsg[0].name : var.resource_group_name\n
-              \ location                  = var.location\n  account_tier              =
-              \"Standard\"\n  account_replication_type  = \"GRS\"\n  enable_https_traffic_only
-              = true\n\n  dynamic \"static_website\" {\n    for_each = var.static_website\n
-              \   content {\n      index_document     = static_website.value[\"index_document\"]\n
-              \     error_404_document = static_website.value[\"error_404_document\"]\n
-              \   }\n  }\n\n  tags = var.tags\n}\n\nvariable \"create_rsg\" {\n  description
-              = \"Conditional if resource group should be created. Defaults to 'true'.\"\n
-              \ type        = bool\n  default     = true\n}\n\nvariable \"resource_group_name\"
-              {\n  description = \"Name of resource group. Defaults to 'rsg'.\"\n
-              \ type        = string\n  default     = \"rsg\"\n}\n\nvariable \"name\"
-              {\n  description = \"Name of storage account. Defaults to 'storageaccount'.\"\n
-              \ type        = string\n  default     = \"storageaccount\"\n}\n\nvariable
-              \"location\" {\n  description = \"Location of storage account. Defaults
-              to 'West Europe'.\"\n  type        = string\n  default     = \"West
-              Europe\"\n}\n\nvariable \"tags\" {\n  description = \"Tags for storage
-              account. Defaults to '{}'.\"\n  type        = map(string)\n  default
-              \    = {}\n}\n\nvariable \"static_website\" {\n  description = \"Static
-              website configuration. Defaults to disabled.\"\n  type        = list(map(string))\n
-              \ default     = [{\n    index_document = null\n    error_404_document
-              = null\n  }]\n}\n\noutput \"BLOB_CONNECTION_STRING\" {\n  description
-              = \"Blob storage connection string\"\n  sensitive   = true\n  value
-              \      = azurerm_storage_account.sa.primary_connection_string\n}\n\noutput
-              \"BLOB_WEB_ENDPOINT\" {\n  description = \"Blob storage static web endpoint\"\n
-              \ value       = azurerm_storage_account.sa.primary_web_endpoint\n} \n"
+            configuration: |
+              # Configure the Microsoft Azure Provider
+              provider "azurerm" {
+                features {}
+              }
+
+              resource "azurerm_resource_group" "rsg" {
+                count    = var.create_rsg ? 1 : 0
+                name     = var.resource_group_name
+                location = var.location
+              }
+
+              resource "azurerm_storage_account" "sa" {
+                name                      = var.name
+                resource_group_name       = var.create_rsg ? azurerm_resource_group.rsg[0].name : var.resource_group_name
+                location                  = var.location
+                account_tier              = "Standard"
+                account_replication_type  = "GRS"
+                enable_https_traffic_only = true
+
+                dynamic "static_website" {
+                  for_each = var.static_website
+                  content {
+                    index_document     = static_website.value["index_document"]
+                    error_404_document = static_website.value["error_404_document"]
+                  }
+                }
+
+                tags = var.tags
+              }
+
+              variable "create_rsg" {
+                description = "Conditional if resource group should be created. Defaults to 'true'."
+                type        = bool
+                default     = true
+              }
+
+              variable "resource_group_name" {
+                description = "Name of resource group. Defaults to 'rsg'."
+                type        = string
+                default     = "rsg"
+              }
+
+              variable "name" {
+                description = "Name of storage account. Defaults to 'storageaccount'."
+                type        = string
+                default     = "storageaccount"
+              }
+
+              variable "location" {
+                description = "Location of storage account. Defaults to 'West Europe'."
+                type        = string
+                default     = "West Europe"
+              }
+
+              variable "tags" {
+                description = "Tags for storage account. Defaults to '{}'."
+                type        = map(string)
+                default     = {}
+              }
+
+              variable "static_website" {
+                description = "Static website configuration. Defaults to disabled."
+                type        = list(map(string))
+                default     = [{
+                  index_document = null
+                  error_404_document = null
+                }]
+              }
+
+              output "BLOB_CONNECTION_STRING" {
+                description = "Blob storage connection string"
+                sensitive   = true
+                value       = azurerm_storage_account.sa.primary_connection_string
+              }
+
+              output "BLOB_WEB_ENDPOINT" {
+                description = "Blob storage static web endpoint"
+                value       = azurerm_storage_account.sa.primary_web_endpoint
+              }
             providerRef:
               name: azure
               namespace: default
