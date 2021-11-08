@@ -56,7 +56,7 @@ func MergeRawExtension(base *runtime.RawExtension, patch *runtime.RawExtension) 
 }
 
 // MergeComponent merge two component, it will first merge their properties and then merge their traits
-func MergeComponent(base *common.ApplicationComponent, patch *common.ApplicationComponent) (*common.ApplicationComponent, error) {
+func MergeComponent(base *common.ApplicationComponent, patch *v1alpha1.EnvComponentPatch) (*common.ApplicationComponent, error) {
 	newComponent := base.DeepCopy()
 	var err error
 
@@ -78,12 +78,19 @@ func MergeComponent(base *common.ApplicationComponent, patch *common.Application
 	var errs errors2.ErrorList
 	for _, trait := range patch.Traits {
 		if baseTrait, exists := traitMaps[trait.Type]; exists {
+			if trait.Disable {
+				delete(traitMaps, trait.Type)
+				continue
+			}
 			baseTrait.Properties, err = MergeRawExtension(baseTrait.Properties, trait.Properties)
 			if err != nil {
 				errs.Append(errors.Wrapf(err, "failed to merge trait %s", trait.Type))
 			}
 		} else {
-			traitMaps[trait.Type] = trait.DeepCopy()
+			if trait.Disable {
+				continue
+			}
+			traitMaps[trait.Type] = trait.ToApplicationTrait()
 			traitOrders = append(traitOrders, trait.Type)
 		}
 	}
@@ -94,13 +101,15 @@ func MergeComponent(base *common.ApplicationComponent, patch *common.Application
 	// fill in traits
 	newComponent.Traits = []common.ApplicationTrait{}
 	for _, traitType := range traitOrders {
-		newComponent.Traits = append(newComponent.Traits, *traitMaps[traitType])
+		if _, exists := traitMaps[traitType]; exists {
+			newComponent.Traits = append(newComponent.Traits, *traitMaps[traitType])
+		}
 	}
 	return newComponent, nil
 }
 
 func filterComponents(components []string, selector *v1alpha1.EnvSelector) []string {
-	if selector != nil && len(selector.Components) > 0 {
+	if selector != nil {
 		filter := map[string]bool{}
 		for _, compName := range selector.Components {
 			filter[compName] = true
@@ -134,7 +143,7 @@ func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selec
 	for _, comp := range patch.Components {
 		if baseComp, exists := compMaps[comp.Name]; exists {
 			if baseComp.Type != comp.Type {
-				compMaps[comp.Name] = comp.DeepCopy()
+				compMaps[comp.Name] = comp.ToApplicationComponent()
 			} else {
 				compMaps[comp.Name], err = MergeComponent(baseComp, comp.DeepCopy())
 				if err != nil {
@@ -142,7 +151,7 @@ func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selec
 				}
 			}
 		} else {
-			compMaps[comp.Name] = comp.DeepCopy()
+			compMaps[comp.Name] = comp.ToApplicationComponent()
 			compOrders = append(compOrders, comp.Name)
 		}
 	}

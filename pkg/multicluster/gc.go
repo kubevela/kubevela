@@ -26,13 +26,24 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 func getAppliedClusters(app *v1beta1.Application) []string {
+	status, err := envbinding.GetEnvBindingPolicyStatus(app, "")
 	appliedClusters := map[string]bool{}
-	for _, v := range app.Status.AppliedResources {
-		appliedClusters[v.Cluster] = true
+	if err != nil {
+		klog.InfoS("failed to get envbinding policy status during gc", "err", err.Error())
+		// fallback
+		for _, v := range app.Status.AppliedResources {
+			appliedClusters[v.Cluster] = true
+		}
+	}
+	if status != nil {
+		for _, conn := range status.ClusterConnections {
+			appliedClusters[conn.ClusterName] = true
+		}
 	}
 	var clusters []string
 	for cluster := range appliedClusters {

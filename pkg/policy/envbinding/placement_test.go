@@ -93,3 +93,41 @@ func TestReadPlacementDecisions(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateClusterConnections(t *testing.T) {
+	app := &v1beta1.Application{}
+	app.Status.LatestRevision = &common.Revision{Name: "v1"}
+	status := &v1alpha1.EnvBindingStatus{
+		ClusterConnections: []v1alpha1.ClusterConnection{{
+			ClusterName:        "cluster-1",
+			LastActiveRevision: "v0",
+		}, {
+			ClusterName:        "cluster-2",
+			LastActiveRevision: "v0",
+		}},
+	}
+	decisions := []v1alpha1.PlacementDecision{{
+		Cluster: "cluster-1",
+	}, {
+		Cluster: "cluster-3",
+	}}
+	updateClusterConnections(status, decisions, app)
+
+	r := require.New(t)
+	expectedConnections := []v1alpha1.ClusterConnection{{
+		ClusterName:        "cluster-1",
+		LastActiveRevision: "v1",
+	}, {
+		ClusterName:        "cluster-2",
+		LastActiveRevision: "v0",
+	}, {
+		ClusterName:        "cluster-3",
+		LastActiveRevision: "v1",
+	}}
+	r.Equal(len(expectedConnections), len(status.ClusterConnections))
+	for idx, conn := range expectedConnections {
+		_conn := status.ClusterConnections[idx]
+		r.Equal(conn.ClusterName, _conn.ClusterName)
+		r.Equal(conn.LastActiveRevision, _conn.LastActiveRevision)
+	}
+}
