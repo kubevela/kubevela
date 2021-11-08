@@ -146,7 +146,7 @@ type AccessKeyRequest struct {
 // CreateClusterRequest request parameters to create a cluster
 type CreateClusterRequest struct {
 	Name             string            `json:"name" validate:"checkname"`
-	Alias            string            `json:"alias" validate:"checkalias"`
+	Alias            string            `json:"alias" validate:"checkalias" optional:"true"`
 	Description      string            `json:"description,omitempty"`
 	Icon             string            `json:"icon"`
 	KubeConfig       string            `json:"kubeConfig,omitempty" validate:"required_without=KubeConfigSecret"`
@@ -161,8 +161,8 @@ type ConnectCloudClusterRequest struct {
 	AccessKeySecret string            `json:"accessKeySecret"`
 	ClusterID       string            `json:"clusterID"`
 	Name            string            `json:"name" validate:"checkname"`
-	Alias           string            `json:"alias" validate:"checkalias"`
-	Description     string            `json:"description,omitempty"`
+	Alias           string            `json:"alias" optional:"true" validate:"checkalias"`
+	Description     string            `json:"description,omitempty" optional:"true"`
 	Icon            string            `json:"icon"`
 	Labels          map[string]string `json:"labels,omitempty"`
 }
@@ -224,10 +224,10 @@ type ListCloudClusterCreationResponse struct {
 // ClusterBase cluster base model
 type ClusterBase struct {
 	Name        string            `json:"name"`
-	Alias       string            `json:"alias" validate:"checkalias"`
-	Description string            `json:"description"`
-	Icon        string            `json:"icon"`
-	Labels      map[string]string `json:"labels"`
+	Alias       string            `json:"alias" optional:"true" validate:"checkalias"`
+	Description string            `json:"description" optional:"true"`
+	Icon        string            `json:"icon" optional:"true"`
+	Labels      map[string]string `json:"labels" optional:"true"`
 
 	Provider     model.ProviderInfo `json:"providerInfo"`
 	APIServerURL string             `json:"apiServerURL"`
@@ -299,9 +299,9 @@ type GatewayRule struct {
 // CreateApplicationPlanRequest create application plan request body
 type CreateApplicationPlanRequest struct {
 	Name        string            `json:"name" validate:"checkname"`
-	Alias       string            `json:"alias" validate:"checkalias"`
+	Alias       string            `json:"alias" validate:"checkalias" optional:"true"`
 	Namespace   string            `json:"namespace" validate:"checkname"`
-	Description string            `json:"description"`
+	Description string            `json:"description" optional:"true"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	EnvBind     []*EnvBind        `json:"envBind,omitempty"`
@@ -312,19 +312,19 @@ type CreateApplicationPlanRequest struct {
 
 // UpdateApplicationPlanRequest update application plan base config
 type UpdateApplicationPlanRequest struct {
-	Alias       string            `json:"alias" validate:"checkalias"`
-	Description string            `json:"description"`
-	Icon        string            `json:"icon"`
+	Alias       string            `json:"alias" validate:"checkalias" optional:"true"`
+	Description string            `json:"description" optional:"true"`
+	Icon        string            `json:"icon" optional:"true"`
 	Labels      map[string]string `json:"labels,omitempty"`
 }
 
 // EnvBind application env bind
 type EnvBind struct {
 	Name              string             `json:"name" validate:"checkname"`
-	Alias             string             `json:"alias" validate:"checkalias"`
-	Description       string             `json:"description,omitempty"`
+	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description       string             `json:"description,omitempty" optional:"true"`
 	ClusterSelector   ClusterSelector    `json:"clusterSelector"`
-	ComponentSelector *ComponentSelector `json:"componentSelector"`
+	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
 }
 
 // ClusterSelector cluster selector
@@ -385,14 +385,14 @@ type ComponentPlanListResponse struct {
 // CreateComponentPlanRequest create component plan request model
 type CreateComponentPlanRequest struct {
 	Name          string            `json:"name" validate:"checkname"`
-	Alias         string            `json:"alias" validate:"checkalias"`
-	Description   string            `json:"description"`
-	Icon          string            `json:"icon"`
+	Alias         string            `json:"alias" validate:"checkalias" optional:"true"`
+	Description   string            `json:"description" optional:"true"`
+	Icon          string            `json:"icon" optional:"true"`
 	Labels        map[string]string `json:"labels,omitempty"`
 	ComponentType string            `json:"componentType" validate:"checkname"`
-	EnvNames      []string          `json:"envNames,omitempty"`
+	EnvNames      []string          `json:"envNames,omitempty" optional:"true"`
 	Properties    string            `json:"properties,omitempty"`
-	DependsOn     []string          `json:"dependsOn"`
+	DependsOn     []string          `json:"dependsOn" optional:"true"`
 }
 
 // DetailComponentPlanResponse detail component plan model
@@ -532,8 +532,8 @@ type PolicyDefinition struct {
 type CreateWorkflowPlanRequest struct {
 	AppName     string         `json:"appName" validate:"checkname"`
 	Name        string         `json:"name"  validate:"checkname"`
-	Alias       string         `json:"alias"  validate:"checkalias"`
-	Description string         `json:"description"`
+	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
+	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 	Enable      bool           `json:"enable"`
 	Default     bool           `json:"default"`
@@ -541,8 +541,8 @@ type CreateWorkflowPlanRequest struct {
 
 // UpdateWorkflowPlanRequest update or create application workflow
 type UpdateWorkflowPlanRequest struct {
-	Alias       string         `json:"alias"  validate:"checkalias"`
-	Description string         `json:"description"`
+	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
+	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 	Enable      bool           `json:"enable"`
 	Default     bool           `json:"default"`
@@ -552,13 +552,13 @@ type UpdateWorkflowPlanRequest struct {
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
 	Name        string             `json:"name" validate:"checkname"`
-	Alias       string             `json:"alias" validate:"checkalias"`
+	Alias       string             `json:"alias" validate:"checkalias" optional:"true"`
 	Type        string             `json:"type" validate:"checkname"`
-	Description string             `json:"description"`
-	DependsOn   []string           `json:"dependsOn"`
+	Description string             `json:"description" optional:"true"`
+	DependsOn   []string           `json:"dependsOn" optional:"true"`
 	Properties  string             `json:"properties,omitempty"`
-	Inputs      common.StepInputs  `json:"inputs,omitempty"`
-	Outputs     common.StepOutputs `json:"outputs,omitempty"`
+	Inputs      common.StepInputs  `json:"inputs,omitempty" optional:"true"`
+	Outputs     common.StepOutputs `json:"outputs,omitempty" optional:"true"`
 }
 
 // DetailWorkflowPlanResponse detail workflow response
@@ -638,8 +638,8 @@ type VelaQLViewResponse map[string]interface{}
 // PutApplicationPlanEnvRequest set diff request
 type PutApplicationPlanEnvRequest struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector,omitempty"`
-	Alias             *string            `json:"alias,omitempty" validate:"checkalias"`
-	Description       *string            `json:"description,omitempty"`
+	Alias             *string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description       *string            `json:"description,omitempty" optional:"true"`
 	ClusterSelector   *ClusterSelector   `json:"clusterSelector,omitempty"`
 }
 
