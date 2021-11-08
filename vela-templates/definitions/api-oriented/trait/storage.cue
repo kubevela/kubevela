@@ -10,16 +10,16 @@ storage: {
 }
 template: {
 	pvcVolumesList: *[
-		for v in parameter.pvc {
+			for v in parameter.pvc {
 			{
 				name: "pvc-" + v.name
 				persistentVolumeClaim: claimName: v.name
 			}
-		}
+		},
 	] | []
 
 	configMapVolumesList: *[
-		for v in parameter.configMap {
+				for v in parameter.configMap {
 			{
 				name: "configmap-" + v.name
 				configMap: {
@@ -30,11 +30,11 @@ template: {
 					}
 				}
 			}
-		}
+		},
 	] | []
 
 	secretVolumesList: *[
-		for v in parameter.secret {
+				for v in parameter.secret {
 			{
 				name: "secret-" + v.name
 				secret: {
@@ -45,89 +45,89 @@ template: {
 					}
 				}
 			}
-		}
+		},
 	] | []
 
 	emptyDirVolumesList: *[
-		for v in parameter.emptyDir {
+				for v in parameter.emptyDir {
 			{
 				name: "emptydir-" + v.name
 				emptyDir: {
 					medium: v.medium
 				}
 			}
-		}
+		},
 	] | []
 
 	pvcVolumeMountsList: *[
-		for v in parameter.pvc {
+				for v in parameter.pvc {
 			if v.volumeMode == "Filesystem" {
 				{
 					name:      "pvc-" + v.name
-					mountPath:  v.mountPath
+					mountPath: v.mountPath
 				}
 			}
-		}
+		},
 	] | []
 
 	configMapVolumeMountsList: *[
-		for v in parameter.configMap {
+					for v in parameter.configMap {
 			{
 				name:      "configmap-" + v.name
 				mountPath: v.mountPath
 			}
-		}
+		},
 	] | []
 
 	configMapEnvMountsList: *[
-		for v in parameter.configMap if v.mountToEnv != _|_ {
+				for v in parameter.configMap if v.mountToEnv != _|_ {
 			{
-				name:      v.mountToEnv.envName
+				name: v.mountToEnv.envName
 				valueFrom: configMapKeyRef: {
 					name: v.name
-					key: 	v.mountToEnv.configMapKey
+					key:  v.mountToEnv.configMapKey
 				}
 			}
-		}
+		},
 	] | []
 
 	secretVolumeMountsList: *[
-		for v in parameter.secret {
+				for v in parameter.secret {
 			{
 				name:      "secret-" + v.name
 				mountPath: v.mountPath
 			}
-		}
+		},
 	] | []
 
 	secretEnvMountsList: *[
-		for v in parameter.secret if v.mountToEnv != _|_ {
+				for v in parameter.secret if v.mountToEnv != _|_ {
 			{
-				name:      v.mountToEnv.envName
+				name: v.mountToEnv.envName
 				valueFrom: secretKeyRef: {
 					name: v.name
-					key: 	v.mountToEnv.secretKey
+					key:  v.mountToEnv.secretKey
 				}
 			}
-		}
+		},
 	] | []
 
 	emptyDirVolumeMountsList: *[
-		for v in parameter.emptyDir {
+					for v in parameter.emptyDir {
 			{
 				name:      "emptydir-" + v.name
 				mountPath: v.mountPath
 			}
-		}
+		},
 	] | []
 
 	volumeDevicesList: *[
-		for v in parameter.pvc if v.volumeMode == "Block" {
+				for v in parameter.pvc if v.volumeMode == "Block" {
 			{
-				name:      "pvc-" + v.name
+				name:       "pvc-" + v.name
 				devicePath: v.mountPath
 			}
-		}
+		},
 	] | []
 
 	patch: spec: template: spec: {
@@ -156,7 +156,7 @@ template: {
 					}
 					spec: {
 						accessModes: v.accessModes
-						volumeMode: v.volumeMode
+						volumeMode:  v.volumeMode
 						if v.volumeName != _|_ {
 							volumeName: v.volumeName
 						}
@@ -193,7 +193,7 @@ template: {
 					apiVersion: "v1"
 					kind:       "ConfigMap"
 					metadata: name: v.name
-					if v.data !=  _|_ {
+					if v.data != _|_ {
 						data: v.data
 					}
 				}
@@ -206,7 +206,7 @@ template: {
 					apiVersion: "v1"
 					kind:       "Secret"
 					metadata: name: v.name
-					if v.data !=  _|_ {
+					if v.data != _|_ {
 						data: v.data
 					}
 					if v.stringData != _|_ {
@@ -221,12 +221,12 @@ template: {
 	parameter: {
 		// +usage=Declare pvc type storage
 		pvc?: [...{
-			name: string
-			mountOnly: *false | bool
-			mountPath: string
-			volumeMode:  *"Filesystem" | string
-			volumeName?: string
-			accessModes: *["ReadWriteOnce"] | [...string]
+			name:              string
+			mountOnly:         *false | bool
+			mountPath:         string
+			volumeMode:        *"Filesystem" | string
+			volumeName?:       string
+			accessModes:       *["ReadWriteOnce"] | [...string]
 			storageClassName?: string
 			resources?: {
 				requests: storage: =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
@@ -254,15 +254,15 @@ template: {
 
 		// +usage=Declare config map type storage
 		configMap?: [...{
-			name: string
+			name:      string
 			mountOnly: *false | bool
 			mountToEnv?: {
-				envName: string
+				envName:      string
 				configMapKey: string
 			}
-			mountPath: string
+			mountPath:   string
 			defaultMode: *420 | int
-			readOnly:  *false | bool
+			readOnly:    *false | bool
 			data?: {...}
 			items?: [...{
 				key:  string
@@ -273,15 +273,15 @@ template: {
 
 		// +usage=Declare secret type storage
 		secret?: [...{
-			name: string
+			name:      string
 			mountOnly: *false | bool
 			mountToEnv?: {
-				envName: string
+				envName:   string
 				secretKey: string
 			}
-			mountPath: string
+			mountPath:   string
 			defaultMode: *420 | int
-			readOnly:  *false | bool
+			readOnly:    *false | bool
 			stringData?: {...}
 			data?: {...}
 			items?: [...{
@@ -293,9 +293,9 @@ template: {
 
 		// +usage=Declare empty dir type storage
 		emptyDir?: [...{
-			name: string
+			name:      string
 			mountPath: string
-			medium: *"" | "Memory"	
+			medium:    *"" | "Memory"
 		}]
 	}
 
