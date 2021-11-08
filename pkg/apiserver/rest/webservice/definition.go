@@ -41,7 +41,7 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(d.listDefinitions).
 		Doc("list all definitions").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("type", "query the definition type").DataType("string")).
+		Param(ws.QueryParameter("type", "query the definition type").DataType("string").Required(true).AllowableValues(map[string]string{"component": "", "trait": "", "workflowstep": ""})).
 		Param(ws.QueryParameter("envName", "if specified, query the definition supported by the env.").DataType("string")).
 		Returns(200, "", apis.ListDefinitionResponse{}).
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))

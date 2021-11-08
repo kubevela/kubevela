@@ -20,9 +20,11 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
 )
 
@@ -467,7 +469,8 @@ type ListDefinitionResponse struct {
 
 // DetailDefinitionResponse get definition detail
 type DetailDefinitionResponse struct {
-	Schema *openapi3.Schema `json:"schema"`
+	APISchema *openapi3.Schema     `json:"schema"`
+	UISchema  []*utils.UIParameter `json:"uiSchema"`
 }
 
 // DefinitionBase is the definition base model
@@ -556,12 +559,14 @@ type UpdateWorkflowPlanRequest struct {
 // WorkflowStep workflow step config
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
-	Name       string             `json:"name" validate:"checkname"`
-	Type       string             `json:"type" validate:"checkname"`
-	DependsOn  []string           `json:"dependsOn"`
-	Properties string             `json:"properties,omitempty"`
-	Inputs     common.StepInputs  `json:"inputs,omitempty"`
-	Outputs    common.StepOutputs `json:"outputs,omitempty"`
+	Name        string             `json:"name" validate:"checkname"`
+	Alias       string             `json:"alias" validate:"checkalias"`
+	Type        string             `json:"type" validate:"checkname"`
+	Description string             `json:"description"`
+	DependsOn   []string           `json:"dependsOn"`
+	Properties  string             `json:"properties,omitempty"`
+	Inputs      common.StepInputs  `json:"inputs,omitempty"`
+	Outputs     common.StepOutputs `json:"outputs,omitempty"`
 }
 
 // DetailWorkflowPlanResponse detail workflow response

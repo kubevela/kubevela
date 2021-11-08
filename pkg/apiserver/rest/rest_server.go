@@ -48,6 +48,7 @@ type Config struct {
 // APIServer interface for call api server
 type APIServer interface {
 	Run(context.Context) error
+	RegisterServices() restfulspec.Config
 }
 
 type restServer struct {
@@ -83,16 +84,13 @@ func New(cfg Config) (a APIServer, err error) {
 }
 
 func (s *restServer) Run(ctx context.Context) error {
-	webservice.Init(ctx, s.dataStore)
-	err := s.registerServices()
-	if err != nil {
-		return err
-	}
+	s.RegisterServices()
 	return s.startHTTP(ctx)
 }
 
-func (s *restServer) registerServices() error {
-
+// RegisterServices register web service
+func (s *restServer) RegisterServices() restfulspec.Config {
+	webservice.Init(s.dataStore)
 	/* **************************************************************  */
 	/* *************       Open API Route Group     *****************  */
 	/* **************************************************************  */
@@ -119,7 +117,7 @@ func (s *restServer) registerServices() error {
 		APIPath:                       "/apidocs.json",
 		PostBuildSwaggerObjectHandler: enrichSwaggerObject}
 	s.webContainer.Add(restfulspec.NewOpenAPIService(config))
-	return nil
+	return config
 }
 
 func enrichSwaggerObject(swo *spec.Swagger) {

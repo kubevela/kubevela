@@ -47,7 +47,7 @@ func (c *applicationPlanWebService) GetWebService() *restful.WebService {
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for application manage")
 
-	tags := []string{"application"}
+	tags := []string{"applicationplan"}
 
 	ws.Route(ws.GET("/").To(c.listApplicationPlans).
 		Doc("list all application plans").

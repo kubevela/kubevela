@@ -17,7 +17,6 @@ limitations under the License.
 package webservice
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/emicklei/go-restful/v3"
@@ -58,7 +57,7 @@ func returns500(b *restful.RouteBuilder) {
 
 // Init init all webservice, pass in the required parameter object.
 // It can be implemented using the idea of dependency injection.
-func Init(ctx context.Context, ds datastore.DataStore) {
+func Init(ds datastore.DataStore) {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
 	workflowUsecase := usecase.NewWorkflowUsecase(ds)
 	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase)

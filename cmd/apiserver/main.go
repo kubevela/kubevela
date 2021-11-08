@@ -18,11 +18,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+
+	restfulspec "github.com/emicklei/go-restful-openapi/v2"
+	"github.com/go-openapi/spec"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
@@ -38,6 +42,34 @@ func main() {
 	flag.StringVar(&s.restCfg.Datastore.URL, "datastore-url", "", "Metadata storage database url,takes effect when the storage driver is mongodb.")
 	flag.Parse()
 
+	if len(os.Args) > 2 && os.Args[1] == "build-swagger" {
+		func() {
+			swagger, err := s.buildSwagger()
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			outData, err := json.MarshalIndent(swagger, "", "\t")
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			swaggerFile, err := os.OpenFile(os.Args[2], os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			defer func() {
+				if err := swaggerFile.Close(); err != nil {
+					log.Logger.Errorf("close swagger file failure %s", err.Error())
+				}
+			}()
+			_, err = swaggerFile.Write(outData)
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			fmt.Println("build swagger config file success")
+		}()
+		return
+	}
+
 	srvc := make(chan struct{})
 
 	go func() {
@@ -48,6 +80,7 @@ func main() {
 	}()
 	var term = make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
 	select {
 	case <-term:
 		log.Logger.Infof("Received SIGTERM, exiting gracefully...")
@@ -71,5 +104,14 @@ func (s *Server) run() error {
 	if err != nil {
 		return fmt.Errorf("create apiserver failed : %w ", err)
 	}
+
 	return server.Run(ctx)
+}
+
+func (s *Server) buildSwagger() (*spec.Swagger, error) {
+	server, err := rest.New(s.restCfg)
+	if err != nil {
+		return nil, fmt.Errorf("create apiserver failed : %w ", err)
+	}
+	return restfulspec.BuildSwagger(server.RegisterServices()), nil
 }

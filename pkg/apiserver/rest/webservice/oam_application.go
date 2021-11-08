@@ -44,13 +44,14 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for oam application manage")
 
-	tags := []string{"oam"}
+	tags := []string{"oam-application"}
 
 	ws.Route(ws.GET("/namespaces/{namespace}/applications/{appname}").To(c.getApplication).
 		Doc("get the specified oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
+		Returns(200, "", apis.ApplicationResponse{}).
 		Writes(apis.ApplicationResponse{}))
 
 	ws.Route(ws.POST("/namespaces/{namespace}/applications/{appname}").To(c.createOrUpdateApplication).
