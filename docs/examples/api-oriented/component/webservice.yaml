@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: webservice-app
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        ports:
+         - 8000
+         - 8001
+      traits:
+        - type: ingress-1-20
+          properties:
+            domain: testsvc.example.com
+            http:
+              "/": 8000
