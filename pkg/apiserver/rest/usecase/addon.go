@@ -2,9 +2,13 @@ package usecase
 
 import (
 	"context"
+	"cuelang.org/go/cue"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/getkin/kin-openapi/openapi3"
+	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -473,9 +477,41 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 			}
 		}
 
+		if detailed && addonRes.Parameters != "" {
+			err = genAddonAPISchema(addonRes)
+			if err != nil {
+				continue
+			}
+			// render default ui schema
+			addonRes.UISchema = renderDefaultUISchema(addonRes.APISchema)
+		}
 		addons = append(addons, addonRes)
 	}
 	return addons, nil
+}
+
+func genAddonAPISchema(addonRes *apis.DetailAddonResponse) error {
+	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
+	if err != nil {
+		return err
+	}
+	var r cue.Runtime
+	cueInst, err := r.Compile("-", param)
+	if err != nil {
+		return err
+	}
+	data, err := common.GenOpenAPI(cueInst)
+	if err != nil {
+		log.Logger.Errorf("fail to generate openAPI json schema for addon: %s, err: %s", addonRes.Name, err)
+		return err
+	}
+	schema := &openapi3.Schema{}
+	if err := schema.UnmarshalJSON(data); err != nil {
+		log.Logger.Errorf("fail to unmarshal openAPI json schema for addon %s, err: %s", addonRes.Name, err)
+		return err
+	}
+	addonRes.APISchema = schema
+	return nil
 }
 
 func cutPathUntil(path []string, end string) ([]string, error) {
