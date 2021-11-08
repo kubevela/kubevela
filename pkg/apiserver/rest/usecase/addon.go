@@ -47,8 +47,11 @@ const (
 	// AddonMetadataFileName is the addon meatadata.yaml file name
 	AddonMetadataFileName string = "metadata.yaml"
 
-	// AddonTemplateDirName is the addon template/ dir name
-	AddonTemplateDirName string = "template"
+	// AddonTemplateFileName is the addon template.yaml dir name
+	AddonTemplateFileName string = "template.yaml"
+
+	// AddonResourcesDirName is the addon resources/ dir name
+	AddonResourcesDirName string = "resources"
 
 	// AddonDefinitionsDirName is the addon definitions/ dir name
 	AddonDefinitionsDirName string = "definitions"
@@ -143,7 +146,8 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 		}
 		gitAddons, err := getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
 		if err != nil {
-			return nil, err
+			log.Logger.Errorf("fail to get addons from registry %s", r.Name)
+			continue
 		}
 		addons = mergeAddons(addons, gitAddons)
 	}
@@ -213,19 +217,25 @@ func renderApplication(addon *apis.DetailAddonResponse, args *apis.EnableAddonRe
 	if args == nil {
 		args = &apis.EnableAddonRequest{Args: map[string]string{}}
 	}
-	app := &v1beta1.Application{
-		TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      AddonName2AppName(addon.Name),
-			Namespace: types.DefaultKubeVelaNS,
-			Labels: map[string]string{
-				oam.LabelAddonName: addon.Name,
+	app := addon.AppTemplate
+	if app == nil {
+		app = &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      AddonName2AppName(addon.Name),
+				Namespace: types.DefaultKubeVelaNS,
+				Labels: map[string]string{
+					oam.LabelAddonName: addon.Name,
+				},
 			},
-		},
-		Spec: v1beta1.ApplicationSpec{
-			Components: []common2.ApplicationComponent{},
-		},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common2.ApplicationComponent{},
+			},
+		}
 	}
+	app.Name = AddonName2AppName(addon.Name)
+	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
+
 	for _, tmpl := range addon.YAMLTemplates {
 		comp, err := renderRawComponent(tmpl)
 		if err != nil {
@@ -234,40 +244,22 @@ func renderApplication(addon *apis.DetailAddonResponse, args *apis.EnableAddonRe
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
 	for _, tmpl := range addon.CUETemplates {
-		yamlData, err := renderCUETemplate(tmpl.Data, addon.Parameters, args.Args)
+		comp, err := renderCUETemplate(tmpl, addon.Parameters, args.Args)
 		if err != nil {
 			log.Logger.Errorf("failed to render CUE template: %v", err)
 			return nil, bcode.ErrAddonRenderFail
 		}
-		comp, err := renderRawComponent(apis.AddonElementFile{Data: yamlData, Name: tmpl.Name, Path: tmpl.Path})
+		app.Spec.Components = append(app.Spec.Components, *comp)
+	}
+	for _, def := range addon.Definitions {
+		comp, err := renderRawComponent(def)
 		if err != nil {
 			return nil, err
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
-	return app, nil
-}
 
-func renderCUETemplate(template string, parameters string, args map[string]string) (string, error) {
-	bt, err := json.Marshal(args)
-	if err != nil {
-		return "", err
-	}
-	var paramFile = cuemodel.ParameterFieldName + ": {}"
-	if string(bt) != "null" {
-		paramFile = fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
-	}
-	param := fmt.Sprintf("%s\n%s", paramFile, parameters)
-	v, err := value.NewValue(param, nil, "")
-	if err != nil {
-		return "", err
-	}
-	out, err := v.LookupByScript(fmt.Sprintf("{%s}", template))
-	if err != nil {
-		return "", err
-	}
-	b, err := cueyaml.Encode(out.CueValue())
-	return string(b), err
+	return app, nil
 }
 
 func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
@@ -320,6 +312,41 @@ func renderRawComponent(elem apis.AddonElementFile) (*common2.ApplicationCompone
 	return &baseRawComponent, nil
 }
 
+// renderCUETemplate will return a component from cue template
+func renderCUETemplate(elem apis.AddonElementFile, parameters string, args map[string]string) (*common2.ApplicationComponent, error) {
+	bt, err := json.Marshal(args)
+	if err != nil {
+		return nil, err
+	}
+	var paramFile = cuemodel.ParameterFieldName + ": {}"
+	if string(bt) != "null" {
+		paramFile = fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
+	}
+	param := fmt.Sprintf("%s\n%s", paramFile, parameters)
+	v, err := value.NewValue(param, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	out, err := v.LookupByScript(fmt.Sprintf("{%s}", elem.Data))
+	if err != nil {
+		return nil, err
+	}
+	compContent, err := out.LookupValue("output")
+	if err != nil {
+		return nil, err
+	}
+	b, err := cueyaml.Encode(compContent.CueValue())
+
+	comp := common2.ApplicationComponent{
+		Name: strings.Join(append(elem.Path, elem.Name), "-"),
+	}
+	err = yaml.Unmarshal(b, &comp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &comp, err
+}
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {
 	return &model.AddonRegistry{
 		Name: req.Name,
@@ -390,11 +417,16 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 					break
 				}
 				err = readDefinitions(addonRes, gith, file)
-			case AddonTemplateDirName:
+			case AddonResourcesDirName:
 				if !detailed {
 					break
 				}
-				err = readTemplates(addonRes, gith, file)
+				err = readResources(addonRes, gith, file)
+			case AddonTemplateFileName:
+				if !detailed {
+					break
+				}
+				err = readTemplate(addonRes, gith, file)
 			}
 
 			if err != nil {
@@ -408,15 +440,38 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.Detail
 	return addons, nil
 }
 
-func readTemplates(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.RepositoryContent) error {
-	dirPath := strings.Split(dir.GetPath(), "/")
-	// remove
-	for i, d := range dirPath {
-		if d == AddonTemplateDirName {
-			dirPath = dirPath[i:]
-			break
+func cutPathUntil(path []string, end string) ([]string, error) {
+	for i, d := range path {
+		if d == end {
+			return path[i:], nil
 		}
-		dirPath = dirPath[i:]
+	}
+	return nil, errors.New("cut path fail, target directory name not found")
+}
+
+func readTemplate(addon *apis.DetailAddonResponse, h *gitHelper, file *github.RepositoryContent) error {
+	content, _, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *file.Path, nil)
+	if err != nil {
+		return err
+	}
+	data, err := content.GetContent()
+	if err != nil {
+		return err
+	}
+	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	addon.AppTemplate = &v1beta1.Application{}
+	_, _, err = dec.Decode([]byte(data), nil, addon.AppTemplate)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func readResources(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.RepositoryContent) error {
+	dirPath := strings.Split(dir.GetPath(), "/")
+	dirPath, err := cutPathUntil(dirPath, AddonResourcesDirName)
+	if err != nil {
+		return err
 	}
 
 	_, files, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *dir.Path, nil)
@@ -446,7 +501,7 @@ func readTemplates(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.Re
 				addon.YAMLTemplates = append(addon.YAMLTemplates, apis.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
 			}
 		case "dir":
-			err = readTemplates(addon, h, file)
+			err = readResources(addon, h, file)
 			if err != nil {
 				return err
 			}
@@ -456,6 +511,12 @@ func readTemplates(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.Re
 }
 
 func readDefinitions(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.RepositoryContent) error {
+	dirPath := strings.Split(dir.GetPath(), "/")
+	dirPath, err := cutPathUntil(dirPath, AddonDefinitionsDirName)
+	if err != nil {
+		return err
+	}
+
 	_, files, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *dir.Path, nil)
 	if err != nil {
 		return err
@@ -471,11 +532,7 @@ func readDefinitions(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.
 			if err != nil {
 				return err
 			}
-			d, err := getDefinitionMetaFromYAML(b)
-			if err != nil {
-				return err
-			}
-			addon.Definitions = append(addon.Definitions, d)
+			addon.Definitions = append(addon.Definitions, apis.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
 		case "dir":
 			err = readDefinitions(addon, h, file)
 			if err != nil {
@@ -484,23 +541,6 @@ func readDefinitions(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.
 		}
 	}
 	return nil
-}
-
-func getDefinitionMetaFromYAML(data string) (*apis.Definition, error) {
-	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	obj := &unstructured.Unstructured{}
-	_, _, err := dec.Decode([]byte(data), nil, obj)
-	if err != nil {
-		return nil, bcode.ErrAddonRenderFail
-	}
-	d := &apis.Definition{
-		Name: obj.GetName(),
-		Kind: obj.GetKind(),
-	}
-	if ann := obj.GetAnnotations(); ann != nil {
-		d.Description = ann[types.AnnDescription]
-	}
-	return d, nil
 }
 
 func readMetadata(addon *apis.DetailAddonResponse, h *gitHelper, file *github.RepositoryContent) error {

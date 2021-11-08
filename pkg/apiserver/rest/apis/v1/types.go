@@ -22,6 +22,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
@@ -103,13 +104,6 @@ type AddonMeta struct {
 	Dependencies []*AddonDependency `json:"dependencies,omitempty"`
 }
 
-// Definition defines the metadata for a single X-Definition
-type Definition struct {
-	Kind        string `json:"kind"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-}
-
 // AddonElementFile can be addon's definition or addon's component
 type AddonElementFile struct {
 	Data string
@@ -122,14 +116,12 @@ type DetailAddonResponse struct {
 	AddonMeta
 
 	// More details about the addon, e.g. README
-	Detail string `json:"detail,omitempty"`
-
-	Definitions []*Definition `json:"definitions"`
-
-	Parameters string `json:"parameters"`
-
-	CUETemplates  []AddonElementFile `json:"cue_templates"`
-	YAMLTemplates []AddonElementFile `json:"yaml_templates,omitempty"`
+	Detail        string               `json:"detail,omitempty"`
+	Definitions   []AddonElementFile   `json:"definitions"`
+	Parameters    string               `json:"parameters"`
+	CUETemplates  []AddonElementFile   `json:"cue_templates"`
+	YAMLTemplates []AddonElementFile   `json:"yaml_templates,omitempty"`
+	AppTemplate   *v1beta1.Application `json:"app_template"`
 }
 
 // AddonStatusResponse defines the format of addon status response
