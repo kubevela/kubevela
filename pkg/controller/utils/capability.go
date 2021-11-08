@@ -420,7 +420,7 @@ func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover)
 
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
 func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
-	template, err := prepareParameterCue(capability.Name, capability.CueTemplate)
+	template, err := PrepareParameterCue(capability.Name, capability.CueTemplate)
 	if err != nil {
 		if errors.As(err, &ErrNoSectionParameterInCue{}) {
 			// return OpenAPI with empty object parameter, making it possible to generate ConfigMap
@@ -462,8 +462,8 @@ func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]
 	return generateOpenAPISchemaFromCapabilityParameter(capability, nil)
 }
 
-// prepareParameterCue cuts `parameter` section form definition .cue file
-func prepareParameterCue(capabilityName, capabilityTemplate string) (string, error) {
+// PrepareParameterCue cuts `parameter` section form definition .cue file
+func PrepareParameterCue(capabilityName, capabilityTemplate string) (string, error) {
 	var template string
 	var withParameterFlag bool
 	r := regexp.MustCompile(`[[:space:]]*parameter:[[:space:]]*`)

@@ -115,6 +115,9 @@ type AddonElementFile struct {
 type DetailAddonResponse struct {
 	AddonMeta
 
+	APISchema *openapi3.Schema     `json:"schema"`
+	UISchema  []*utils.UIParameter `json:"uiSchema"`
+
 	// More details about the addon, e.g. README
 	Detail        string               `json:"detail,omitempty"`
 	Definitions   []AddonElementFile   `json:"definitions"`
