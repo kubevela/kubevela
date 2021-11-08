@@ -24,9 +24,15 @@ spec:
           features {}
         }
 
+        resource "azurerm_resource_group" "rsg" {
+          count    = var.create_rsg ? 1 : 0
+          name     = var.resource_group_name
+          location = var.location
+        }
+
         resource "azurerm_storage_account" "sa" {
           name                      = var.name
-          resource_group_name       = var.resource_group_name
+          resource_group_name       = var.create_rsg ? azurerm_resource_group.rsg[0].name : var.resource_group_name
           location                  = var.location
           account_tier              = "Standard"
           account_replication_type  = "GRS"
@@ -41,6 +47,12 @@ spec:
           }
 
           tags = var.tags
+        }
+
+        variable "create_rsg" {
+          description = "Conditional if resource group should be created. Defaults to 'true'."
+          type        = bool
+          default     = true
         }
 
         variable "resource_group_name" {
