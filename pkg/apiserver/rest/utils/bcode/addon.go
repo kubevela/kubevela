@@ -20,8 +20,6 @@ import (
 	"github.com/google/go-github/v32/github"
 )
 
-const createGithubTokenLink = "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token"
-
 var (
 	// ErrAddonNotExist addon registry not exist
 	ErrAddonNotExist = NewBcode(404, 50001, "addon not exist")
@@ -33,7 +31,7 @@ var (
 	ErrAddonRegistryInvalid = NewBcode(400, 50003, "addon registry invalid")
 
 	// ErrAddonRegistryRateLimit addon registry is rate limited by Github
-	ErrAddonRegistryRateLimit = NewBcode(400, 50004, "Github rate limit, please add a token: "+createGithubTokenLink)
+	ErrAddonRegistryRateLimit = NewBcode(400, 50004, "Exceed Github rate limit")
 
 	// ErrAddonRender fail to render addon application
 	ErrAddonRender = NewBcode(500, 50010, "addon render fail")
