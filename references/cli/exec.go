@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
@@ -161,10 +162,15 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 
 	cf := genericclioptions.NewConfigFlags(true)
 	cf.Namespace = &targetResource.Namespace
+	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
+		cfg.Wrap(multicluster.NewClusterGatewayRoundTripperWrapperGenerator(targetResource.Cluster))
+		return cfg
+	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.resourceName = targetResource.Name
 	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
 	o.resourceNamespace = targetResource.Namespace
+	o.VelaC.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	k8sClient, err := kubernetes.NewForConfig(o.VelaC.Config)
 	if err != nil {
 		return err
