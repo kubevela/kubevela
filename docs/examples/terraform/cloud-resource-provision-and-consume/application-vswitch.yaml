@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-vpc-sample
+spec:
+  components:
+    - name: sample-vswitch
+      type: alibaba-vswitch
+      properties:
+        vpc_cidr: "172.16.0.0/12"
+        vswitch_cidr: "172.16.0.0/18"
+        zone_id: cn-beijing-a
+
+        writeConnectionSecretToRef:
+          name: vswitch-conn
