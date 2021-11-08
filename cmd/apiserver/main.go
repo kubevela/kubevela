@@ -37,7 +37,7 @@ import (
 
 func main() {
 	s := &Server{}
-	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8001", "The bind address used to serve the http APIs.")
+	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8000", "The bind address used to serve the http APIs.")
 	flag.StringVar(&s.restCfg.MetricPath, "metrics-path", "/metrics", "The path to expose the metrics.")
 	flag.StringVar(&s.restCfg.Datastore.Type, "datastore-type", "kubeapi", "Metadata storage driver type, support kubeapi and mongodb")
 	flag.StringVar(&s.restCfg.Datastore.Database, "datastore-database", "kubevela", "Metadata storage database name, takes effect when the storage driver is mongodb.")
