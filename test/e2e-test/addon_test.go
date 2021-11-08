@@ -87,12 +87,12 @@ var _ = Describe("Addon tests", func() {
 
 	It("Addons are successfully created", func() {
 		By("Install Addon FluxCD")
-		output, err := exec.Command("vela addon enable fluxcd").Output()
+		output, err := exec.Command("bash", "-c", "vela addon enable fluxcd").Output()
 		Expect(err).Should(BeNil())
 		Expect(string(output)).Should(ContainSubstring("Successfully enable addon:"))
 
 		By("Install Addon Terraform")
-		output, err = exec.Command("vela addon enable terraform").Output()
+		output, err = exec.Command("bash", "-c", "vela addon enable terraform").Output()
 		Expect(err).Should(BeNil())
 		Expect(string(output)).Should(ContainSubstring("Successfully enable addon:"))
 
@@ -109,8 +109,8 @@ var _ = Describe("Addon tests", func() {
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: terraformApp.Namespace, Name: terraformApp.Name}, &app)
 				if len(app.Status.Services) == 1 {
-                    return nil
-                }
+					return nil
+				}
 				return errors.New("expect 1 service")
 			},
 			time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
