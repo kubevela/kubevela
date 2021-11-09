@@ -231,10 +231,11 @@ func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string,
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
-	return getStatusMessage(templateContext, customStatusTemplate, parameter)
+	return getStatusMessage(wd.pd, templateContext, customStatusTemplate, parameter)
 }
 
-func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
+func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
+	bi := build.NewContext().NewInstance("", nil)
 	var ctxBuff string
 	var paramBuff = "parameter: {}\n"
 
@@ -251,10 +252,12 @@ func getStatusMessage(templateContext map[string]interface{}, customStatusTempla
 	if string(bt) != "null" {
 		paramBuff = "parameter: " + string(bt) + "\n"
 	}
-	var buff = ctxBuff + paramBuff + customStatusTemplate
+	var buff = customStatusTemplate + "\n" + ctxBuff + paramBuff
+	if err := bi.AddFile("-", buff); err != nil {
+		return "", errors.WithMessagef(err, "invalid cue template of customStatus")
+	}
 
-	var r cue.Runtime
-	inst, err := r.Compile("-", buff)
+	inst, err := pd.ImportPackagesAndBuildInstance(bi)
 	if err != nil {
 		return "", errors.WithMessage(err, "compile customStatus template")
 	}
@@ -426,7 +429,7 @@ func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, cu
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
-	return getStatusMessage(templateContext, customStatusTemplate, parameter)
+	return getStatusMessage(td.pd, templateContext, customStatusTemplate, parameter)
 }
 
 // HealthCheck address health check for trait

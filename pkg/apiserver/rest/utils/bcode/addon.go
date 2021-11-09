@@ -46,11 +46,14 @@ var (
 	ErrGetAddonApplication = NewBcode(500, 50013, "fail to get addon application")
 )
 
+// IsGithubRateLimit check if error is github rate limit
 func IsGithubRateLimit(err error) bool {
+	// nolint
 	_, ok := err.(*github.RateLimitError)
 	return ok
 }
 
+// WrapGithubRateLimitErr wraps error if it is github rate limit
 func WrapGithubRateLimitErr(err error) error {
 	if IsGithubRateLimit(err) {
 		return ErrAddonRegistryRateLimit

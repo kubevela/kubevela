@@ -33,9 +33,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -76,8 +75,8 @@ func ensureClusterNotExists(ctx context.Context, c client.Client, clusterName st
 	return nil
 }
 
-// getMutableClusterSecret retrieves the cluster secret and check if any application is using the cluster
-func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName string) (*v1.Secret, error) {
+// GetMutableClusterSecret retrieves the cluster secret and check if any application is using the cluster
+func GetMutableClusterSecret(ctx context.Context, c client.Client, clusterName string) (*v1.Secret, error) {
 	clusterSecret := &v1.Secret{}
 	if err := c.Get(ctx, types2.NamespacedName{Namespace: ClusterGatewaySecretNamespace, Name: clusterName}, clusterSecret); err != nil {
 		return nil, errors.Wrapf(err, "failed to find target cluster secret %s", clusterName)
@@ -86,15 +85,20 @@ func getMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 	if labels == nil || labels[v1alpha12.LabelKeyClusterCredentialType] == "" {
 		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, v1alpha12.LabelKeyClusterCredentialType)
 	}
-	ebs := &v1alpha1.EnvBindingList{}
-	if err := c.List(ctx, ebs); err != nil {
-		return nil, errors.Wrap(err, "failed to find EnvBindings to check clusters")
+	apps := &v1beta1.ApplicationList{}
+	if err := c.List(ctx, apps); err != nil {
+		return nil, errors.Wrap(err, "failed to find applications to check clusters")
 	}
 	errs := errors3.ErrorList{}
-	for _, eb := range ebs.Items {
-		for _, decision := range eb.Status.ClusterDecisions {
-			if decision.Cluster == clusterName {
-				errs.Append(fmt.Errorf("application %s/%s (env: %s, envBinding: %s) is currently using cluster %s", eb.Namespace, eb.Labels[oam.LabelAppName], decision.Env, eb.Name, clusterName))
+	for _, app := range apps.Items {
+		status, err := envbinding.GetEnvBindingPolicyStatus(app.DeepCopy(), "")
+		if err == nil && status != nil {
+			for _, env := range status.Envs {
+				for _, placement := range env.Placements {
+					if placement.Cluster == clusterName {
+						errs.Append(fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
+					}
+				}
 			}
 		}
 	}
@@ -177,7 +181,7 @@ func DetachCluster(ctx context.Context, k8sClient client.Client, clusterName str
 	if clusterName == ClusterLocalName {
 		return ErrReservedLocalClusterName
 	}
-	clusterSecret, err := getMutableClusterSecret(ctx, k8sClient, clusterName)
+	clusterSecret, err := GetMutableClusterSecret(ctx, k8sClient, clusterName)
 	if err != nil {
 		return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)
 	}
@@ -189,7 +193,7 @@ func RenameCluster(ctx context.Context, k8sClient client.Client, oldClusterName 
 	if newClusterName == ClusterLocalName {
 		return ErrReservedLocalClusterName
 	}
-	clusterSecret, err := getMutableClusterSecret(ctx, k8sClient, oldClusterName)
+	clusterSecret, err := GetMutableClusterSecret(ctx, k8sClient, oldClusterName)
 	if err != nil {
 		return errors.Wrapf(err, "cluster %s is not mutable now", oldClusterName)
 	}

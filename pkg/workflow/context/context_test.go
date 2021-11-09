@@ -259,13 +259,10 @@ func TestContext(t *testing.T) {
 		},
 	}
 
-	wfCtx, err := NewContext(cli, "default", "app-v1")
+	wfCtx, err := NewContext(cli, "default", "app-v1", "testuid")
 	assert.NilError(t, err)
 	err = wfCtx.Commit()
 	assert.NilError(t, err)
-
-	_, err = NewContext(cli, "default", "app-not-found")
-	assert.Equal(t, err != nil, true)
 
 	wfCtx, err = LoadContext(cli, "default", "app-v1")
 	assert.NilError(t, err)
@@ -276,7 +273,7 @@ func TestContext(t *testing.T) {
 	_, err = LoadContext(cli, "default", "app-v1")
 	assert.Equal(t, err != nil, true)
 
-	wfCtx, err = NewEmptyContext(cli, "default", "app-v1")
+	wfCtx, err = NewContext(cli, "default", "app-v1", "testuid")
 	assert.NilError(t, err)
 	assert.Equal(t, len(wfCtx.GetComponents()), 0)
 	_, err = wfCtx.GetComponent("server")

@@ -390,19 +390,6 @@ wait: op.#ConditionalWait & {
 		notCueStepDef.Namespace = "default"
 		err = k8sClient.Create(context.Background(), &notCueStepDef)
 		Expect(err).To(BeNil())
-
-		appfile := &Appfile{
-			Components: []common.ApplicationComponent{
-				{
-					Name: "test1",
-				},
-				{
-					Name: "test2",
-				},
-			},
-		}
-		appfile.generateSteps()
-		Expect(len(appfile.WorkflowSteps)).Should(Equal(2))
 	})
 })
 
@@ -469,6 +456,7 @@ spec:
 					engine: definition.NewWorkloadAbstractEngine("test-policy", pd),
 				},
 			},
+			app: &v1beta1.Application{},
 		}
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
@@ -884,7 +872,7 @@ variable "password" {
 			revision: "v1",
 		}
 
-		pCtx := NewBasicContext(args.wl, args.appName, args.revision, ns)
+		pCtx := NewBasicContext(args.appName, args.wl.Name, args.revision, ns, args.wl.Params)
 		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
 		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))

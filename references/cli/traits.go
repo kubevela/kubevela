@@ -18,9 +18,10 @@ package cli
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -33,77 +34,113 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
-// NewTraitsCommand creates `traits` command
-func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+var (
+	regName string
+	regURL  string
+	token   string
+	label   string
+	filter  filterFunc
+)
+
+// NewTraitCommand creates `traits` command
+func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var isDiscover bool
 	cmd := &cobra.Command{
-		Use:                   "traits",
-		Aliases:               []string{"trait"},
-		DisableFlagsInUseLine: true,
-		Short:                 "List traits",
-		Long:                  "List traits",
-		Example:               `vela traits`,
+		Use:     "trait",
+		Aliases: []string{"traits"},
+		Short:   "List/get traits",
+		Long:    "List traits & get trait in registry",
+		Example: `vela trait`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			isDiscover, _ := cmd.Flags().GetBool("discover")
-			env, err := GetFlagEnvOrCurrent(cmd, c)
-			if err != nil {
-				return err
-			}
-			label, err := cmd.Flags().GetString(types.LabelArg)
-			if err != nil {
-				return err
-			}
-			if label != "" && len(strings.Split(label, "=")) != 2 {
-				return fmt.Errorf("label %s is not in the right format", label)
-
-			}
-			if !isDiscover {
-				return printTraitList(env.Namespace, c, ioStreams, label)
-			}
-			option := types.TypeTrait
-			err = printCenterCapabilities(env.Namespace, "", c, ioStreams, &option, label)
-			if err != nil {
-				return err
+			// parse label filter
+			if label != "" {
+				words := strings.Split(label, "=")
+				if len(words) < 2 {
+					return errors.New("label is invalid")
+				}
+				filter = createLabelFilter(words[0], words[1])
 			}
 
-			return nil
+			var registry Registry
+			var err error
+			if isDiscover {
+				if regURL != "" {
+					ioStreams.Infof("Showing trait definition from url: %s\n", regURL)
+					registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
+					if err != nil {
+						return errors.Wrap(err, "creating registry err, please check registry url")
+					}
+				} else {
+					ioStreams.Infof("Showing trait definition from registry: %s\n", regName)
+					registry, err = GetRegistry(regName)
+					if err != nil {
+						return errors.Wrap(err, "get registry err")
+					}
+				}
+				return PrintTraitListFromRegistry(registry, ioStreams, filter)
+
+			}
+			return PrintInstalledTraitDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
-	cmd.Flags().Bool("discover", false, "discover traits in capability centers")
-	cmd.Flags().String(types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
+	cmd.SetOut(ioStreams.Out)
+	cmd.AddCommand(
+		NewTraitGetCommand(c, ioStreams),
+	)
+	cmd.Flags().BoolVar(&isDiscover, "discover", false, "discover traits in registries")
+	cmd.PersistentFlags().StringVar(&regURL, "url", "", "specify the registry URL")
+	cmd.PersistentFlags().StringVar(&token, "token", "", "specify token when using --url to specify registry url")
+	cmd.PersistentFlags().StringVar(&regName, "registry", DefaultRegistry, "specify the registry name")
+	cmd.Flags().StringVar(&label, types.LabelArg, "", "a label to filter components, the format is `--label type=terraform`")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams, label string) error {
-	table := newUITable()
-	table.Wrap = true
+// NewTraitGetCommand creates `trait get` command
+func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "get <trait>",
+		Short:   "get trait from registry",
+		Long:    "get trait from registry",
+		Example: "vela trait get <trait>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				ioStreams.Error("you must specify the trait name")
+				return nil
+			}
+			name := args[0]
+			var registry Registry
+			var err error
 
-	traitDefinitionList, err := common.ListRawTraitDefinitions(userNamespace, c)
-	if err != nil {
-		return err
+			if regURL != "" {
+				ioStreams.Infof("Getting trait definition from url: %s\n", regURL)
+				registry, err = NewRegistry(context.Background(), token, "temporary-registry", regURL)
+				if err != nil {
+					return errors.Wrap(err, "creating registry err, please check registry url")
+				}
+			} else {
+				ioStreams.Infof("Getting trait definition from registry: %s\n", regName)
+				registry, err = GetRegistry(regName)
+				if err != nil {
+					return errors.Wrap(err, "get registry err")
+				}
+			}
+			return errors.Wrap(InstallTraitByNameFromRegistry(c, ioStreams, name, registry), "install trait definition err")
+		},
 	}
-	table.AddRow("NAME", "NAMESPACE", "APPLIES-TO", "CONFLICTS-WITH", "POD-DISRUPTIVE", "DESCRIPTION")
-	for _, t := range traitDefinitionList {
-		if label != "" && !common.CheckLabelExistence(t.Labels, label) {
-			continue
-		}
-		table.AddRow(t.Name, t.Namespace, strings.Join(t.Spec.AppliesToWorkloads, ","), strings.Join(t.Spec.ConflictsWith, ","), t.Spec.PodDisruptive, plugins.GetDescription(t.Annotations))
-	}
-	ioStreams.Info(table.String())
-	return nil
+	return cmd
 }
 
 // PrintTraitListFromRegistry print a table which shows all traits from registry
-func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.IOStreams) error {
+func PrintTraitListFromRegistry(registry Registry, ioStreams cmdutil.IOStreams, filter filterFunc) error {
 	var scheme = runtime.NewScheme()
 	err := core.AddToScheme(scheme)
 	if err != nil {
@@ -118,8 +155,7 @@ func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.I
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from registry: %s\n", url)))
-	caps, err := getCapsFromRegistry(url)
+	caps, err := registry.ListCaps()
 	if err != nil {
 		return err
 	}
@@ -131,12 +167,12 @@ func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.I
 	if err != nil {
 		return err
 	}
-	if isDiscover {
-		table.AddRow("NAME", "REGISTRY", "DEFINITION", "APPLIES-TO")
-	} else {
-		table.AddRow("NAME", "DEFINITION", "APPLIES-TO")
-	}
+
+	table.AddRow("NAME", "REGISTRY", "DEFINITION", "APPLIES-TO", "STATUS")
 	for _, c := range caps {
+		if filter != nil && !filter(c) {
+			continue
+		}
 		if c.Type != types.TypeTrait {
 			continue
 		}
@@ -146,39 +182,16 @@ func PrintTraitListFromRegistry(isDiscover bool, url string, ioStreams cmdutil.I
 				c.Status = installed
 			}
 		}
-		if c.Status == uninstalled && isDiscover {
-			table.AddRow(c.Name, "default", c.CrdName, c.AppliesTo)
-		}
-		if c.Status == installed && !isDiscover {
-			table.AddRow(c.Name, c.CrdName, c.AppliesTo)
-		}
+		table.AddRow(c.Name, "default", c.CrdName, c.AppliesTo, c.Status)
 	}
 	ioStreams.Info(table.String())
 
 	return nil
 }
 
-// getCapsFromRegistry will retrieve caps from registry
-func getCapsFromRegistry(regURL string) ([]types.Capability, error) {
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
-	if err != nil {
-		return []types.Capability{}, err
-	}
-	caps, err := g.ListCaps()
-	if err != nil {
-		return []types.Capability{}, err
-	}
-	return caps, nil
-}
-
-// InstallTraitByName will install given traitName trait to cluster
-func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName, regURL string) error {
-
-	g, err := plugins.NewRegistry(context.Background(), "", "url-registry", regURL)
-	if err != nil {
-		return err
-	}
-	capObj, data, err := g.GetCap(traitName)
+// InstallTraitByNameFromRegistry will install given traitName trait to cluster
+func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams, traitName string, registry Registry) error {
+	capObj, data, err := registry.GetCap(traitName)
 	if err != nil {
 		return err
 	}
@@ -200,8 +213,40 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 	return nil
 }
 
-// DefaultRegistry is default capability center of kubectl-vela
-var DefaultRegistry = "oss://registry.kubevela.net"
+// PrintInstalledTraitDef will print all TraitDefinition in cluster
+func PrintInstalledTraitDef(io cmdutil.IOStreams, filter filterFunc) error {
+	var list v1beta1.TraitDefinitionList
+	err := clt.List(context.Background(), &list)
+	if err != nil {
+		return errors.Wrap(err, "get trait definition list error")
+	}
+	dm, err := (&common2.Args{}).GetDiscoveryMapper()
+	if err != nil {
+		return errors.Wrap(err, "get discovery mapper error")
+	}
+
+	table := newUITable()
+	table.AddRow("NAME", "APPLIES-TO")
+
+	for _, td := range list.Items {
+		data, err := json.Marshal(td)
+		if err != nil {
+			io.Infof("error encoding definition: %s\n", td.Name)
+			continue
+		}
+		capa, err := ParseCapability(dm, data)
+		if err != nil {
+			io.Errorf("error parsing capability: %s\n", td.Name)
+			continue
+		}
+		if filter != nil && !filter(capa) {
+			continue
+		}
+		table.AddRow(capa.Name, capa.AppliesTo)
+	}
+	io.Infof(table.String())
+	return nil
+}
 
 const installed = "installed"
 const uninstalled = "uninstalled"

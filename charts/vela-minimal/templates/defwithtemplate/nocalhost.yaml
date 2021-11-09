@@ -18,10 +18,27 @@ spec:
         	"encoding/json"
         )
 
+        outputs: nocalhostService: {
+        	apiVersion: "v1"
+        	kind:       "Service"
+        	metadata: name: context.name
+        	spec: {
+        		selector: "app.oam.dev/component": context.name
+        		ports: [
+        			{
+        				port:       parameter.port
+        				targetPort: parameter.port
+        			},
+        		]
+        		type: "ClusterIP"
+        	}
+        }
         patch: metadata: annotations: {
         	"dev.nocalhost/application-name":      context.appName
         	"dev.nocalhost/application-namespace": context.namespace
         	"dev.nocalhost":                       json.Marshal({
+        		name:        context.name
+        		serviceType: parameter.serviceType
         		containers: [
         			{
         				name: context.name
@@ -29,7 +46,24 @@ spec:
         					if parameter.gitUrl != _|_ {
         						gitUrl: parameter.gitUrl
         					}
-        					image:   parameter.image
+        					if parameter.image == "go" {
+        						image: "nocalhost-docker.pkg.coding.net/nocalhost/dev-images/golang:latest"
+        					}
+        					if parameter.image == "java" {
+        						image: "nocalhost-docker.pkg.coding.net/nocalhost/dev-images/java:latest"
+        					}
+        					if parameter.image == "python" {
+        						image: "nocalhost-docker.pkg.coding.net/nocalhost/dev-images/python:latest"
+        					}
+        					if parameter.image == "node" {
+        						image: "nocalhost-docker.pkg.coding.net/nocalhost/dev-images/node:latest"
+        					}
+        					if parameter.image == "ruby" {
+        						image: "nocalhost-docker.pkg.coding.net/nocalhost/dev-images/ruby:latest"
+        					}
+        					if parameter.image != "go" && parameter.image != "java" && parameter.image != "python" && parameter.image != "node" && parameter.image != "ruby" {
+        						image: parameter.image
+        					}
         					shell:   parameter.shell
         					workDir: parameter.workDir
         					if parameter.storageClass != _|_ {
@@ -68,27 +102,33 @@ spec:
         					if parameter.portForward != _|_ {
         						portForward: parameter.portForward
         					}
+        					if parameter.portForward == _|_ {
+        						portForward: ["\(parameter.port)" + ":" + "\(parameter.port)"]
+        					}
         				}
         			},
         		]
         	})
         }
+        language: "go" | "java" | "python" | "node" | "ruby"
         parameter: {
+        	port:          int
+        	serviceType:   *"deployment" | string
         	gitUrl?:       string
-        	image:         string
+        	image:         language | string
         	shell:         *"bash" | string
         	workDir:       *"/home/nocalhost-dev" | string
         	storageClass?: string
-        	command?: {
-        		run?: [...string]
-        		debug?: [...string]
+        	command: {
+        		run:   *["sh", "run.sh"] | [...string]
+        		debug: *["sh", "debug.sh"] | [...string]
         	}
         	debug?: remoteDebugPort?: int
         	hotReload: *true | bool
         	sync: {
-        		type: *"send" | string
-        		filePattern?: [...string]
-        		ignoreFilePattern?: [...string]
+        		type:              *"send" | string
+        		filePattern:       *["./"] | [...string]
+        		ignoreFilePattern: *[".git", ".vscode", ".idea", ".gradle", "build"] | [...string]
         	}
         	env?: [...{
         		name:  string

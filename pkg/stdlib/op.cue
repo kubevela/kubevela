@@ -1,5 +1,4 @@
 import (
-	"encoding/yaml"
 	"encoding/json"
 	"encoding/base64"
 	"strings"
@@ -35,6 +34,32 @@ import (
 }
 
 #ApplyComponent: oam.#ApplyComponent
+
+#RenderComponent: oam.#RenderComponent
+
+#ApplyComponentRemaining: #Steps & {
+	// exceptions specify the resources not to apply.
+	exceptions: [...string]
+	_exceptions: {for c in exceptions {"\(c)": true}}
+	component: string
+
+	load:   oam.#LoadComponets @step(1)
+	render: #Steps & {
+		rendered: oam.#RenderComponent & {
+			value: load.value[component]
+		}
+		comp: kube.#Apply & {
+			value: rendered.output
+		}
+		for name, c in rendered.outputs {
+			if _exceptions[name] == _|_ {
+				"\(name)": kube.#Apply & {
+					value: c
+				}
+			}
+		}
+	} @step(2)
+}
 
 #ApplyRemaining: #Steps & {
 	// exceptions specify the resources not to apply.
@@ -80,57 +105,7 @@ import (
 	}
 }
 
-#ApplyEnvBindApp: #Steps & {
-	env:        string
-	policy:     string
-	app:        string
-	namespace:  string
-	_namespace: namespace
-
-	envBinding: kube.#Read & {
-		value: {
-			apiVersion: "core.oam.dev/v1alpha1"
-			kind:       "EnvBinding"
-			metadata: {
-				name:      policy
-				namespace: _namespace
-			}
-		}
-	} @step(1)
-
-	// wait until envBinding.value.status equal "finished"
-	wait: #ConditionalWait & {
-		continue: envBinding.value.status.phase == "finished"
-	} @step(2)
-
-	configMap: kube.#Read & {
-		value: {
-			apiVersion: "v1"
-			kind:       "ConfigMap"
-			metadata: {
-				name:      policy
-				namespace: _namespace
-			}
-			data?: _
-		}
-	} @step(3)
-
-	patchedApp: yaml.Unmarshal(configMap.value.data["\(env)"])[context.name]
-	components: patchedApp.spec.components
-	apply:      #Steps & {
-		for key, comp in components {
-			"\(key)": #ApplyComponent & {
-				value: comp
-				if patchedApp.metadata.labels != _|_ && patchedApp.metadata.labels["cluster.oam.dev/clusterName"] != _|_ {
-					cluster: patchedApp.metadata.labels["cluster.oam.dev/clusterName"]
-				}
-				if patchedApp.metadata.labels != _|_ && patchedApp.metadata.labels["envbinding.oam.dev/override-namespace"] != _|_ {
-					namespace: patchedApp.metadata.labels["envbinding.oam.dev/override-namespace"]
-				}
-			} @step(4)
-		}
-	}
-}
+#ApplyEnvBindApp: multicluster.#ApplyEnvBindApp
 
 #HTTPGet: http.#Do & {method: "GET"}
 

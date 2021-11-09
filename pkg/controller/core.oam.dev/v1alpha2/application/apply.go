@@ -81,6 +81,25 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.
 	return err
 }
 
+// Delete delete manifests from k8s.
+func (h *AppHandler) Delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
+	if err := h.r.Delete(ctx, manifest); err != nil {
+		return err
+	}
+	ref := common.ClusterObjectReference{
+		Cluster: cluster,
+		Creator: owner,
+		ObjectReference: corev1.ObjectReference{
+			Name:       manifest.GetName(),
+			Namespace:  manifest.GetNamespace(),
+			Kind:       manifest.GetKind(),
+			APIVersion: manifest.GetAPIVersion(),
+		},
+	}
+	h.deleteAppliedResource(ref)
+	return nil
+}
+
 // addAppliedResource recorde applied resource.
 // reconcile run at single threaded. So there is no need to consider to use locker.
 func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
@@ -96,6 +115,16 @@ func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
 			h.appliedResources = append(h.appliedResources, ref)
 		}
 	}
+}
+
+func (h *AppHandler) deleteAppliedResource(ref common.ClusterObjectReference) {
+	resouces := []common.ClusterObjectReference{}
+	for _, current := range h.appliedResources {
+		if !isSameObjReference(current, ref) {
+			resouces = append(resouces, current)
+		}
+	}
+	h.appliedResources = resouces
 }
 
 func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {
@@ -228,7 +257,7 @@ func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.A
 
 		switch wl.CapabilityCategory {
 		case types.TerraformCategory:
-			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.AppRevisionName, appFile.Namespace)
+			pCtx = appfile.NewBasicContext(appFile.Name, wl.Name, appFile.AppRevisionName, appFile.Namespace, wl.Params)
 			ctx := context.Background()
 			var configuration terraformapi.Configuration
 			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {

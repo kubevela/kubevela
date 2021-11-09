@@ -1,0 +1,17 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: bookinfo-authors
+spec:
+  components:
+    - name: authors
+      type: webservice
+      properties:
+        image: nocalhost-docker.pkg.coding.net/nocalhost/bookinfo/authors:latest
+        port: 9080
+      traits:
+        - type: nocalhost
+          properties:
+            port: 9080
+            gitUrl: https://github.com/nocalhost/bookinfo-authors.git
+            image: go

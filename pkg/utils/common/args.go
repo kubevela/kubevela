@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/flowcontrol"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -43,6 +44,7 @@ func (a *Args) SetConfig() error {
 	if err != nil {
 		return err
 	}
+	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
 	a.Config = restConf
 	return nil
 }

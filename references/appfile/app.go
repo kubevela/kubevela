@@ -84,7 +84,7 @@ func LoadApplication(namespace, appName string, c common.Args) (*v1beta1.Applica
 	return app, nil
 }
 
-// GetComponents will get oam components from Appfile.
+// GetComponents will get oam components from v1beta1.Application.
 func GetComponents(app *v1beta1.Application) []string {
 	var components []string
 	for _, cmp := range app.Spec.Components {

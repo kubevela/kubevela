@@ -439,7 +439,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 
 		switch wl.CapabilityCategory {
 		case oamtypes.TerraformCategory:
-			pCtx = af.NewBasicContext(wl, appfile.Name, appfile.AppRevisionName, appfile.Namespace)
+			pCtx = af.NewBasicContext(appfile.Name, wl.Name, appfile.AppRevisionName, appfile.Namespace, wl.Params)
 			ctx := context.Background()
 			var configuration terraformapi.Configuration
 			if err := c.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: ns}, &configuration); err != nil {

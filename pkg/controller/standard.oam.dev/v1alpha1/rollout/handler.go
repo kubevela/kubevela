@@ -34,6 +34,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -238,6 +239,19 @@ func (h *handler) checkWorkloadNotExist(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return false, nil
+}
+
+func getWorkloadReplicasNum(u unstructured.Unstructured) (int32, error) {
+	replicaPath, err := applicationrollout.GetWorkloadReplicasPath(u)
+	if err != nil {
+		return 0, fmt.Errorf("get workload replicas path err %w", err)
+	}
+	wlpv := fieldpath.Pave(u.UnstructuredContent())
+	replicas, err := wlpv.GetInteger(replicaPath)
+	if err != nil {
+		return 0, fmt.Errorf("get workload replicas err %w", err)
+	}
+	return int32(replicas), nil
 }
 
 // checkRollingTerminated check the rollout if have finished

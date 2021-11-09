@@ -1,3 +1,0 @@
-# keda
-
-keda

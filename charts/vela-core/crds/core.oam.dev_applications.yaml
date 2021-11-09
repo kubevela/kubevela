@@ -443,6 +443,23 @@ spec:
                 description: The generation observed by the application controller.
                 format: int64
                 type: integer
+              policy:
+                description: PolicyStatus records the status of policy
+                items:
+                  description: PolicyStatus records the status of policy
+                  properties:
+                    name:
+                      type: string
+                    status:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    type:
+                      type: string
+                  required:
+                  - name
+                  - type
+                  type: object
+                type: array
               resourceTracker:
                 description: ResourceTracker record the status of the ResourceTracker
                 properties:
@@ -1250,6 +1267,23 @@ spec:
                 description: The generation observed by the application controller.
                 format: int64
                 type: integer
+              policy:
+                description: PolicyStatus records the status of policy
+                items:
+                  description: PolicyStatus records the status of policy
+                  properties:
+                    name:
+                      type: string
+                    status:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    type:
+                      type: string
+                  required:
+                  - name
+                  - type
+                  type: object
+                type: array
               resourceTracker:
                 description: ResourceTracker record the status of the ResourceTracker
                 properties:

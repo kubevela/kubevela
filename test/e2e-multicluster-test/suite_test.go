@@ -18,13 +18,16 @@ package e2e_multicluster_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/cli"
@@ -70,6 +73,16 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	_, err := execCommand("cluster", "detach", WorkerClusterName)
-	Expect(err).Should(Succeed())
+	Eventually(func(g Gomega) {
+		apps := &v1beta1.ApplicationList{}
+		Expect(k8sClient.List(context.Background(), apps)).Should(Succeed())
+		for _, app := range apps.Items {
+			Expect(k8sClient.Delete(context.Background(), app.DeepCopy())).Should(Succeed())
+		}
+		Expect(len(apps.Items)).Should(Equal(0))
+	}, 3*time.Minute).Should(Succeed())
+	Eventually(func(g Gomega) {
+		_, err := execCommand("cluster", "detach", WorkerClusterName)
+		Expect(err).Should(Succeed())
+	}, time.Minute).Should(Succeed())
 })

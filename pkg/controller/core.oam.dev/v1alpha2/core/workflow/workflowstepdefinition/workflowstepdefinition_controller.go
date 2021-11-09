@@ -122,6 +122,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.record.Event(&wfstepdefinition, event.Warning("failed to garbage collect DefinitionRevision of type WorkflowStepDefinition", err))
 	}
 
+	def := utils.NewCapabilityStepDef(&wfstepdefinition)
+	def.Name = req.NamespacedName.Name
+	// Store the parameter of stepDefinition to configMap
+	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
+	if err != nil {
+		klog.InfoS("Could not store capability in ConfigMap", "err", err)
+		r.record.Event(&(wfstepdefinition), event.Warning("Could not store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &wfstepdefinition,
+			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, wfstepdefinition.Name, err)))
+	}
+
+	if wfstepdefinition.Status.ConfigMapRef != cmName {
+		wfstepdefinition.Status.ConfigMapRef = cmName
+		if err := r.UpdateStatus(ctx, &wfstepdefinition); err != nil {
+			klog.ErrorS(err, "Could not update WorkflowStepDefinition Status", "workflowStepDefinition", klog.KRef(req.Namespace, req.Name))
+			r.record.Event(&wfstepdefinition, event.Warning("Could not update WorkflowStepDefinition Status", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &wfstepdefinition,
+				condition.ReconcileError(fmt.Errorf(util.ErrUpdateWorkflowStepDefinition, wfstepdefinition.Name, err)))
+		}
+		klog.InfoS("Successfully updated the status.configMapRef of the WorkflowStepDefinition", "workflowStepDefinition",
+			klog.KRef(req.Namespace, req.Name), "status.configMapRef", cmName)
+	}
 	return ctrl.Result{}, nil
 }
 
