@@ -9,7 +9,7 @@ spec:
       properties:
         image: crccheck/hello-world
         ports:
-         - 8000
+          - port: 8000
       traits:
         - type: storage
           properties:
