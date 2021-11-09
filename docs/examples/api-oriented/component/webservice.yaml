@@ -7,6 +7,8 @@ spec:
     - name: express-server
       type: webservice
       properties:
+        labels:
+          test-label: test-value
         image: crccheck/hello-world
         ports:
           - port: 8000

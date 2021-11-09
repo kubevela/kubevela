@@ -15,90 +15,104 @@ template: {
 		spec: {
 			parallelism: parameter.count
 			completions: parameter.count
-			template: spec: {
-				restartPolicy: parameter.restart
-				containers: [{
-					name:  context.name
-					image: parameter.image
+			template: {
+				if parameter.labels != _|_ {
+					metadata: labels: parameter.labels
+				}
+				if parameter.annotations != _|_ {
+					metadata: annotations: parameter.annotations
+				}
+				spec: {
+					restartPolicy: parameter.restart
+					containers: [{
+						name:  context.name
+						image: parameter.image
 
-					if parameter["imagePullPolicy"] != _|_ {
-						imagePullPolicy: parameter.imagePullPolicy
-					}
-
-					if parameter["cmd"] != _|_ {
-						command: parameter.cmd
-					}
-
-					if parameter["env"] != _|_ {
-						env: parameter.env
-					}
-
-					if parameter["cpu"] != _|_ {
-						resources: {
-							limits: cpu:   parameter.cpu
-							requests: cpu: parameter.cpu
+						if parameter["imagePullPolicy"] != _|_ {
+							imagePullPolicy: parameter.imagePullPolicy
 						}
-					}
 
-					if parameter["memory"] != _|_ {
-						resources: {
-							limits: memory:   parameter.memory
-							requests: memory: parameter.memory
+						if parameter["cmd"] != _|_ {
+							command: parameter.cmd
 						}
-					}
+
+						if parameter["env"] != _|_ {
+							env: parameter.env
+						}
+
+						if parameter["cpu"] != _|_ {
+							resources: {
+								limits: cpu:   parameter.cpu
+								requests: cpu: parameter.cpu
+							}
+						}
+
+						if parameter["memory"] != _|_ {
+							resources: {
+								limits: memory:   parameter.memory
+								requests: memory: parameter.memory
+							}
+						}
+
+						if parameter["volumes"] != _|_ {
+							volumeMounts: [ for v in parameter.volumes {
+								{
+									mountPath: v.mountPath
+									name:      v.name
+								}}]
+						}
+					}]
 
 					if parameter["volumes"] != _|_ {
-						volumeMounts: [ for v in parameter.volumes {
+						volumes: [ for v in parameter.volumes {
 							{
-								mountPath: v.mountPath
-								name:      v.name
+								name: v.name
+								if v.type == "pvc" {
+									persistentVolumeClaim: claimName: v.claimName
+								}
+								if v.type == "configMap" {
+									configMap: {
+										defaultMode: v.defaultMode
+										name:        v.cmName
+										if v.items != _|_ {
+											items: v.items
+										}
+									}
+								}
+								if v.type == "secret" {
+									secret: {
+										defaultMode: v.defaultMode
+										secretName:  v.secretName
+										if v.items != _|_ {
+											items: v.items
+										}
+									}
+								}
+								if v.type == "emptyDir" {
+									emptyDir: medium: v.medium
+								}
 							}}]
 					}
-				}]
 
-				if parameter["volumes"] != _|_ {
-					volumes: [ for v in parameter.volumes {
-						{
-							name: v.name
-							if v.type == "pvc" {
-								persistentVolumeClaim: claimName: v.claimName
-							}
-							if v.type == "configMap" {
-								configMap: {
-									defaultMode: v.defaultMode
-									name:        v.cmName
-									if v.items != _|_ {
-										items: v.items
-									}
-								}
-							}
-							if v.type == "secret" {
-								secret: {
-									defaultMode: v.defaultMode
-									secretName:  v.secretName
-									if v.items != _|_ {
-										items: v.items
-									}
-								}
-							}
-							if v.type == "emptyDir" {
-								emptyDir: medium: v.medium
-							}
-						}}]
+					if parameter["imagePullSecrets"] != _|_ {
+						imagePullSecrets: [ for v in parameter.imagePullSecrets {
+							name: v
+						},
+						]
+					}
+
 				}
-
-				if parameter["imagePullSecrets"] != _|_ {
-					imagePullSecrets: [ for v in parameter.imagePullSecrets {
-						name: v
-					},
-					]
-				}
-
 			}
 		}
 	}
 
 	parameter: {
+		// +usage=Specify the labels in the workload
+		labels?: {...}
+
+		// +usage=Specify the annotations in the workload
+		annotations?: {...}
+
 		// +usage=Specify number of tasks to run in parallel
 		// +short=c
 		count: *1 | int

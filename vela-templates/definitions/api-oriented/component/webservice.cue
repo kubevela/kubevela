@@ -18,12 +18,20 @@ template: {
 			}
 
 			template: {
-				metadata: labels: {
-					"app.oam.dev/component": context.name
-					if parameter.addRevisionLabel {
-						"app.oam.dev/appRevision": context.appRevision
+				metadata: {
+					labels: {
+						if parameter.labels != _|_ {
+							parameter.labels
+						}
+						if parameter.addRevisionLabel {
+							"app.oam.dev/appRevision": context.appRevision
+						}
+						"app.oam.dev/component": context.name
+						"app.oam.dev/revision":  context.revision
 					}
-					"app.oam.dev/revision": context.revision
+					if parameter.annotations != _|_ {
+						annotations: parameter.annotations
+					}
 				}
 
 				spec: {
@@ -133,6 +141,12 @@ template: {
 		}
 	}
 	parameter: {
+		// +usage=Specify the labels in the workload
+		labels?: {...}
+
+		// +usage=Specify the annotations in the workload
+		annotations?: {...}
+
 		// +usage=Which image would you like to use for your service
 		// +short=i
 		image: string
