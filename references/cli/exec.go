@@ -18,15 +18,13 @@ package cli
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
@@ -126,7 +124,7 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 
 		# Switch to raw terminal mode, sends stdin to 'bash' in containers of application my-app
 		# and sends stdout/stderr from 'bash' back to the client
-		kubectl exec my-app -i -t -- bash -il
+		vela exec my-app -i -t -- bash -il
 		`,
 	}
 	cmd.Flags().BoolVarP(&o.Stdin, "stdin", "i", defaultStdin, "Pass stdin to the container")
@@ -161,10 +159,15 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 
 	cf := genericclioptions.NewConfigFlags(true)
 	cf.Namespace = &targetResource.Namespace
+	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
+		cfg.Wrap(multicluster.NewClusterGatewayRoundTripperWrapperGenerator(targetResource.Cluster))
+		return cfg
+	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.resourceName = targetResource.Name
 	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
 	o.resourceNamespace = targetResource.Namespace
+	o.VelaC.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	k8sClient, err := kubernetes.NewForConfig(o.VelaC.Config)
 	if err != nil {
 		return err
@@ -191,20 +194,7 @@ func (o *VelaExecOptions) Complete() error {
 }
 
 func (o *VelaExecOptions) getPodName(resourceName string) (string, error) {
-	podList, err := o.ClientSet.CoreV1().Pods(o.resourceNamespace).List(o.Ctx, v1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	var pods []string
-	for _, p := range podList.Items {
-		if strings.HasPrefix(p.Name, resourceName) {
-			pods = append(pods, p.Name)
-		}
-	}
-	if len(pods) < 1 {
-		return "", fmt.Errorf("no pods found created by resource %s", resourceName)
-	}
-	return common.AskToChooseOnePods(pods)
+	return getPodNameForResource(o.Ctx, o.ClientSet, resourceName, o.resourceNamespace)
 }
 
 // Run executes a validated remote execution against a pod

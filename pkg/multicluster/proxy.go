@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/transport"
 	"k8s.io/klog/v2"
 
 	clusterapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
@@ -76,3 +77,31 @@ func (rt *secretMultiClusterRoundTripper) CancelRequest(req *http.Request) {
 
 // WrappedRoundTripper can get the wrapped RoundTripper
 func (rt *secretMultiClusterRoundTripper) WrappedRoundTripper() http.RoundTripper { return rt.rt }
+
+type secretMultiClusterRoundTripperForCluster struct {
+	rt          http.RoundTripper
+	clusterName string
+}
+
+// RoundTrip is the main function for the re-write API path logic
+func (rt *secretMultiClusterRoundTripperForCluster) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.clusterName != "" && rt.clusterName != ClusterLocalName {
+		req.URL.Path = FormatProxyURL(rt.clusterName, req.URL.Path)
+	}
+	return rt.rt.RoundTrip(req)
+}
+
+// NewSecretModeMultiClusterRoundTripperForCluster will re-write the API path to the specific cluster
+func NewSecretModeMultiClusterRoundTripperForCluster(rt http.RoundTripper, clusterName string) http.RoundTripper {
+	return &secretMultiClusterRoundTripperForCluster{
+		rt:          rt,
+		clusterName: clusterName,
+	}
+}
+
+// NewClusterGatewayRoundTripperWrapperGenerator create RoundTripper WrapperFunc that redirect requests to target cluster
+func NewClusterGatewayRoundTripperWrapperGenerator(clusterName string) transport.WrapperFunc {
+	return func(rt http.RoundTripper) http.RoundTripper {
+		return NewSecretModeMultiClusterRoundTripperForCluster(rt, clusterName)
+	}
+}

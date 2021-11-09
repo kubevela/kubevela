@@ -98,7 +98,16 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	ctx = multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
+	// TODO(@zzxwill): fix the hardcode logs
+	if selectedRes.Kind == "Configuration" {
+		selectedRes.Namespace = "vela-system"
+		selectedRes.Cluster = "local"
+		selectedRes.Name += "-apply"
+	}
+
+	if selectedRes.Cluster != "" && selectedRes.Cluster != "local" {
+		ctx = multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
+	}
 	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
 	labelSelector := labels.Everything()
 	pod, err := regexp.Compile(selectedRes.Name + "-.*")
@@ -107,7 +116,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	}
 	container := regexp.MustCompile(".*")
 	namespace := selectedRes.Namespace
-	added, removed, err := stern.Watch(ctx, clientSet.CoreV1().Pods(namespace), pod, container, nil, stern.RUNNING, labelSelector)
+	added, removed, err := stern.Watch(ctx, clientSet.CoreV1().Pods(namespace), pod, container, nil, []stern.ContainerState{stern.RUNNING, stern.TERMINATED}, labelSelector)
 	if err != nil {
 		return err
 	}

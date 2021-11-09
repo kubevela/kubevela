@@ -26,7 +26,7 @@ import (
 	"github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/e2e"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -50,11 +50,11 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.EnvSetContext("env set", envName)
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
 	ApplicationExecContext("exec -- COMMAND", applicationName)
+	ApplicationPortForwardContext("port-forward", applicationName)
 	e2e.JsonAppFileContext("update app-basic, add scaler trait with replicas 2", appbasicAddTraitJsonAppFile)
 	e2e.ComponentListContext("ls", applicationName, workloadType, traitAlias)
 	ApplicationStatusContext("status", applicationName, workloadType)
 	ApplicationStatusDeeplyContext("status", applicationName, workloadType, envName)
-	// ApplicationPortForwardContext("port-forward", applicationName)
 	e2e.WorkloadDeleteContext("delete", applicationName)
 
 	ApplicationInitIntercativeCliContext("test vela init app", appNameForInit, workloadType)
@@ -81,7 +81,7 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			ginkgo.By("check Application reconciled ready")
-			app := &v1alpha2.Application{}
+			app := &v1beta1.Application{}
 			gomega.Eventually(func() bool {
 				_ = k8sclient.Get(context2.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, app)
 				return app.Status.LatestRevision != nil
@@ -90,7 +90,7 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			cli := fmt.Sprintf("vela status %s", applicationName)
 			output, err := e2e.LongTimeExec(cli, 120*time.Second)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
+			gomega.Expect(output).To(gomega.ContainSubstring("healthy"))
 			// TODO(zzxwill) need to check workloadType after app status is refined
 		})
 	})
@@ -112,7 +112,7 @@ var ApplicationExecContext = func(context string, appName string) bool {
 var ApplicationPortForwardContext = func(context string, appName string) bool {
 	return ginkgo.Context(context, func() {
 		ginkgo.It("should get output of port-forward successfully", func() {
-			cli := fmt.Sprintf("vela port-forward %s 80:80 ", appName)
+			cli := fmt.Sprintf("vela port-forward %s 8080:80 ", appName)
 			output, err := e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Forward successfully"))

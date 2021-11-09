@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
+	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -253,7 +254,7 @@ func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
 		if r.Cluster == "" {
 			r.Cluster = "local"
 		}
-		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Name, r.Kind)
+		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name+"/"+r.Kind] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Name, r.Kind)
 	}
 	return objs
 }
@@ -264,34 +265,47 @@ type ResourceLocation struct {
 	Namespace string
 }
 
-func filterWorkload(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
-	var filteredOR []common.ClusterObjectReference
-	loggableWorkload := map[string]bool{
-		"Deployment":  true,
-		"StatefulSet": true,
-		"CloneSet":    true,
-		"Job":         true,
+type clusterObjectReferenceFilter func(common.ClusterObjectReference) bool
+
+func clusterObjectReferenceTypeFilterGenerator(allowedKinds ...string) clusterObjectReferenceFilter {
+	allowedKindMap := map[string]bool{}
+	for _, allowedKind := range allowedKinds {
+		allowedKindMap[allowedKind] = true
 	}
-	for _, r := range resources {
-		if _, ok := loggableWorkload[r.Kind]; ok {
-			filteredOR = append(filteredOR, r)
-		}
+	return func(item common.ClusterObjectReference) bool {
+		_, exists := allowedKindMap[item.Kind]
+		return exists
 	}
-	return filteredOR
 }
 
-// AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
-// resources is a map for component to applied resources
-// return the selected ClusterObjectReference
-func AskToChooseOneEnvResource(app *v1beta1.Application) (*common.ClusterObjectReference, error) {
+var isWorkloadClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Configuration")
+var isPortForwardEndpointClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Service")
+
+func filterResource(inputs []common.ClusterObjectReference, filters ...clusterObjectReferenceFilter) (outputs []common.ClusterObjectReference) {
+	for _, item := range inputs {
+		flag := true
+		for _, filter := range filters {
+			if !filter(item) {
+				flag = false
+				break
+			}
+		}
+		if flag {
+			outputs = append(outputs, item)
+		}
+	}
+	return
+}
+
+func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectReferenceFilter) (*common.ClusterObjectReference, error) {
 	resources := app.Status.AppliedResources
 	if len(resources) == 0 {
 		return nil, fmt.Errorf("no resources in the application deployed yet")
 	}
-	resources = filterWorkload(resources)
+	resources = filterResource(resources, filters...)
 	// filter locations
 	if len(resources) == 0 {
-		return nil, fmt.Errorf("no supported workload resources detected in deployed resources")
+		return nil, fmt.Errorf("no supported resources detected in deployed resources")
 	}
 	if len(resources) == 1 {
 		return &resources[0], nil
@@ -318,44 +332,43 @@ func AskToChooseOneEnvResource(app *v1beta1.Application) (*common.ClusterObjectR
 	return nil, fmt.Errorf("choosing resource err %w", err)
 }
 
-// AskToChooseOneService will ask users to select one service of the application if more than one
-func AskToChooseOneService(svcNames []string) (string, error) {
-	if len(svcNames) == 0 {
-		return "", fmt.Errorf("no service exist in the application")
+// AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
+// resource is a map for component to applied resources
+// return the selected ClusterObjectReference
+func AskToChooseOneEnvResource(app *v1beta1.Application) (*common.ClusterObjectReference, error) {
+	return askToChooseOneResource(app, isWorkloadClusterObjectReferenceFilter)
+}
+
+// AskToChooseOnePortForwardEndpoint will ask user to select one applied resource as port forward endpoint
+func AskToChooseOnePortForwardEndpoint(app *v1beta1.Application) (*common.ClusterObjectReference, error) {
+	return askToChooseOneResource(app, isPortForwardEndpointClusterObjectReferenceFilter)
+}
+
+func askToChooseOneInApplication(category string, options []string) (decision string, err error) {
+	if len(options) == 0 {
+		return "", fmt.Errorf("no %s exists in the application", category)
 	}
-	if len(svcNames) == 1 {
-		return svcNames[0], nil
+	if len(options) == 1 {
+		return options[0], nil
 	}
 	prompt := &survey.Select{
-		Message: "You have multiple services in your app. Please choose one service: ",
-		Options: svcNames,
+		Message: fmt.Sprintf("You have multiple %ss in your app. Please choose one %s: ", category, category),
+		Options: options,
 	}
-	var svcName string
-	err := survey.AskOne(prompt, &svcName)
-	if err != nil {
-		return "", fmt.Errorf("choosing service err %w", err)
+	if err = survey.AskOne(prompt, &decision); err != nil {
+		return "", errors2.Wrapf(err, "choosing %s failed", category)
 	}
-	return svcName, nil
+	return
+}
+
+// AskToChooseOneService will ask users to select one service of the application if more than one
+func AskToChooseOneService(svcNames []string) (string, error) {
+	return askToChooseOneInApplication("service", svcNames)
 }
 
 // AskToChooseOnePods will ask users to select one pods of the resource if more than one
 func AskToChooseOnePods(podNames []string) (string, error) {
-	if len(podNames) == 0 {
-		return "", fmt.Errorf("no service exist in the application")
-	}
-	if len(podNames) == 1 {
-		return podNames[0], nil
-	}
-	prompt := &survey.Select{
-		Message: "You have multiple pods in the specified resource. Please choose one: ",
-		Options: podNames,
-	}
-	var svcName string
-	err := survey.AskOne(prompt, &svcName)
-	if err != nil {
-		return "", fmt.Errorf("choosing pod err %w", err)
-	}
-	return svcName, nil
+	return askToChooseOneInApplication("pod", podNames)
 }
 
 // ReadYamlToObject will read a yaml K8s object to runtime.Object

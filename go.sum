@@ -1215,8 +1215,8 @@ github.com/oam-dev/cluster-gateway v1.1.6 h1:CY6m2Qcs6XJ/l/NY48CdHD7GAel9zZ/erUO
 github.com/oam-dev/cluster-gateway v1.1.6/go.mod h1:SF7S4Ss+VUs2OVxmvSrrFGcaNFoXy6JWxHAnUxC1QcY=
 github.com/oam-dev/cluster-register v1.0.1 h1:mUT+vZeM5IZcwgLI003736xUyu/4FNqnsp3OnePUXcI=
 github.com/oam-dev/cluster-register v1.0.1/go.mod h1:AoqoF9HgmluxtRBYyvKDbLNdlPY6Xvm+/6uo6LjLaBw=
-github.com/oam-dev/stern v1.13.1 h1:Gt7xMBmQjRueHVFjRo5CHDTVhiYrssjlmvPwRiZtq7c=
-github.com/oam-dev/stern v1.13.1/go.mod h1:0pLjZt0amXE/ErF16Rdrgd98H2owN8Hmn3/7CX5+AeA=
+github.com/oam-dev/stern v1.13.2 h1:jlGgtJbKmIVhzkH44ft5plkgs8XEfvxbFrQdX60CQR4=
+github.com/oam-dev/stern v1.13.2/go.mod h1:0pLjZt0amXE/ErF16Rdrgd98H2owN8Hmn3/7CX5+AeA=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28 h1:tD8HiFKnt0jnwdTWjeqUnfnUYLD/+Nsmj8ZGIxqDWiU=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28/go.mod h1:Mu8i0/DdplvnjwRbAYPsc8+LRR27n/mp8VWdkN10GzE=
 github.com/oam-dev/terraform-controller v0.2.5 h1:ntSyLUZkjvyHPJEuSYGvsa5+Sb3fDXkqoS+iD3avHQo=
