@@ -73,6 +73,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.PUT("/{name}").To(s.updateAddonRegistry).
 		Doc("update an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreateAddonRegistryRequest{}).
 		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
 		Returns(200, "", apis.AddonRegistryMeta{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -149,7 +150,7 @@ func (s *addonRegistryWebService) updateAddonRegistry(req *restful.Request, res 
 		return
 	}
 	// Call the usecase layer code
-	meta, err := s.addonUsecase.UpdateAddonRegistry(req.Request.Context(),req.PathParameter("name"), createReq)
+	meta, err := s.addonUsecase.UpdateAddonRegistry(req.Request.Context(), req.PathParameter("name"), createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
