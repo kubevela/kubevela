@@ -39,7 +39,7 @@ template: {
 							ports: [ for v in parameter.ports {
 								{
 									containerPort: v.port
-									protocol: v.protocol
+									protocol:      v.protocol
 								}}]
 						}
 
@@ -143,7 +143,7 @@ template: {
 		// +usage=Specify image pull secrets for your service
 		imagePullSecrets?: [...string]
 
-	  // +usage=Deprecated field, please use ports instead
+		// +usage=Deprecated field, please use ports instead
 		// +short=p
 		port?: int
 
