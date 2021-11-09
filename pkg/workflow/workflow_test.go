@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -72,6 +74,7 @@ var _ = Describe("Test Workflow", func() {
 		workflowStatus := app.Status.Workflow
 		Expect(workflowStatus.ContextBackend.Name).Should(BeEquivalentTo("workflow-" + app.Name + "-context"))
 		workflowStatus.ContextBackend = nil
+		cleanStepTimeStamp(workflowStatus)
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
 			Mode:        common.WorkflowModeStep,
@@ -105,8 +108,13 @@ var _ = Describe("Test Workflow", func() {
 		wf = NewWorkflow(app, k8sClient, common.WorkflowModeStep)
 		state, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(state).Should(BeEquivalentTo(common.WorkflowStateFinished))
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateTerminated))
+		app.Status.Workflow.Finished = true
+		state, err = wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSucceeded))
 		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
@@ -148,6 +156,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSuspended))
 		wfStatus := *app.Status.Workflow
 		wfStatus.ContextBackend = nil
+		cleanStepTimeStamp(&wfStatus)
 		Expect(cmp.Diff(wfStatus, common.WorkflowStatus{
 			AppRevision: wfStatus.AppRevision,
 			Mode:        common.WorkflowModeStep,
@@ -174,8 +183,9 @@ var _ = Describe("Test Workflow", func() {
 		app.Labels = map[string]string{"for-test": "changed"}
 		state, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(state).Should(BeEquivalentTo(common.WorkflowStateFinished))
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSucceeded))
 		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
@@ -196,7 +206,7 @@ var _ = Describe("Test Workflow", func() {
 
 		state, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(state).Should(BeEquivalentTo(common.WorkflowStateFinished))
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSucceeded))
 	})
 
 	It("test for terminate", func() {
@@ -215,6 +225,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateTerminated))
 		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
@@ -251,6 +262,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateExecuting))
 		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
@@ -291,6 +303,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateExecuting))
 		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeDAG,
@@ -312,8 +325,9 @@ var _ = Describe("Test Workflow", func() {
 		pending = false
 		state, err = wf.ExecuteSteps(context.Background(), revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(state).Should(BeEquivalentTo(common.WorkflowStateFinished))
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSucceeded))
 		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeDAG,
@@ -332,10 +346,36 @@ var _ = Describe("Test Workflow", func() {
 			}},
 		})).Should(BeEquivalentTo(""))
 	})
+
+	It("step commit data without success", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "wait-with-set-var",
+			},
+			{
+				Name: "s2",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		state, err := wf.ExecuteSteps(context.Background(), revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateExecuting))
+		Expect(app.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
+		wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+		Expect(err).ToNot(HaveOccurred())
+		v, err := wfCtx.GetVar("saved")
+		Expect(err).ToNot(HaveOccurred())
+		saved, err := v.CueValue().Bool()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(saved).Should(BeEquivalentTo(true))
+	})
 })
 
 func makeTestCase(steps []oamcore.WorkflowStep) (*oamcore.Application, []wfTypes.TaskRunner) {
 	app := &oamcore.Application{
+		ObjectMeta: metav1.ObjectMeta{UID: "test-uid"},
 		Spec: oamcore.ApplicationSpec{
 			Workflow: &oamcore.Workflow{
 				Steps: steps,
@@ -401,6 +441,16 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 				Phase: common.WorkflowStepPhaseRunning,
 			}, &wfTypes.Operation{}, errors.New("error for test")
 		}
+	case "wait-with-set-var":
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			v, _ := value.NewValue(`saved: true`, nil, "")
+			err := ctx.SetVar(v)
+			return common.WorkflowStepStatus{
+				Name:  name,
+				Type:  "wait-with-set-var",
+				Phase: common.WorkflowStepPhaseRunning,
+			}, &wfTypes.Operation{}, err
+		}
 
 	default:
 		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
@@ -462,4 +512,12 @@ func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOpt
 // Pending check task should be executed or not.
 func (tr *testTaskRunner) Pending(ctx wfContext.Context) bool {
 	return tr.checkPending(ctx)
+}
+
+func cleanStepTimeStamp(wfStatus *common.WorkflowStatus) {
+	wfStatus.StartTime = metav1.Time{}
+	for index := range wfStatus.Steps {
+		wfStatus.Steps[index].FirstExecuteTime = metav1.Time{}
+		wfStatus.Steps[index].LastExecuteTime = metav1.Time{}
+	}
 }

@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 # Vela version
 VELA_VERSION ?= master
 # Repo info
@@ -50,7 +52,8 @@ test: vet lint staticcheck unit-test-core
 	@$(OK) unit-tests pass
 
 unit-test-core:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./references/...  | grep -v apiserver)
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... | grep -v apiserver)
+	go test $(shell go list ./references/... | grep -v apiserver)
 unit-test-apiserver:
 	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep apiserver)
 
@@ -68,7 +71,6 @@ doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
 
-PWD := $(shell pwd)	
 cross-build:
 	rm -rf _bin
 	go get github.com/mitchellh/gox@v0.4.0
@@ -173,7 +175,7 @@ e2e-api-test:
 	ginkgo -v -r e2e/application
 
 e2e-apiserver-test:
-	ginkgo -v  ./test/e2e-apiserver-test
+	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
 	@$(OK) tests pass
 
 e2e-test:
@@ -332,9 +334,9 @@ KUSTOMIZE_VERSION ?= 3.8.2
 kustomize:
 ifeq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
 	@{ \
-	set -e ;\
+	set -eo pipefail ;\
 	echo 'installing kustomize-v$(KUSTOMIZE_VERSION) into $(GOBIN)' ;\
-	curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(GOBIN);\
+	curl -sS https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(GOBIN);\
 	echo 'Install succeed' ;\
 	}
 KUSTOMIZE=$(GOBIN)/kustomize

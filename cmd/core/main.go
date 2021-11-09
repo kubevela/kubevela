@@ -32,6 +32,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -111,6 +112,8 @@ func main() {
 	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
 	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 60*time.Minute,
 		"controller shared informer lister full re-sync period")
+	flag.DurationVar(&commonconfig.ReconcileTimeout, "reconcile-timeout", time.Minute*3,
+		"the timeout for controller reconcile")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.IntVar(&controllerArgs.ConcurrentReconciles, "concurrent-reconciles", 4, "concurrent-reconciles is the concurrent reconcile number of the controller. The default value is 4")
 	flag.Float64Var(&qps, "kube-api-qps", 50, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
@@ -192,7 +195,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-
+	ctrl.SetLogger(klogr.New())
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     scheme,
 		MetricsBindAddress:         metricsAddr,

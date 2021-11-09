@@ -62,8 +62,3 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	cmd.Println(table.String())
 	cmd.Println()
 }
-
-// AddTokenVarFlags adds token flag to a command
-func AddTokenVarFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
-}

@@ -26,11 +26,12 @@ var (
 	PerfEnabled = false
 )
 
-const (
-	reconcileTimeout = time.Minute
+var (
+	// ReconcileTimeout timeout for controller to reconcile
+	ReconcileTimeout = time.Minute * 3
 )
 
 // NewReconcileContext create context with default timeout (60s)
 func NewReconcileContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, reconcileTimeout)
+	return context.WithTimeout(ctx, ReconcileTimeout)
 }

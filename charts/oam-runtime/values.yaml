@@ -68,8 +68,8 @@ admissionWebhooks:
   patch:
     enabled: true
     image:
-      repository: wonderflow/kube-webhook-certgen
-      tag: v2.1
+      repository: oamdev/kube-webhook-certgen
+      tag: v2.3
       pullPolicy: IfNotPresent
     affinity: {}
     tolerations: []

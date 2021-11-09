@@ -1245,9 +1245,36 @@ if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
 			statusTemp: `message: parameter.configInfo.name + ".type: " + context.outputs["\(parameter.configInfo.name)"].spec.type`,
 			expMessage: "test-name.type: NodePort",
 		},
+		"import package in template": {
+			tpContext: map[string]interface{}{
+				"outputs": map[string]interface{}{
+					"service": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"type":      "NodePort",
+							"clusterIP": "10.0.0.1",
+							"ports": []interface{}{
+								map[string]interface{}{
+									"port": 80,
+								},
+							},
+						},
+					},
+					"ingress": map[string]interface{}{
+						"rules": []interface{}{
+							map[string]interface{}{
+								"host": "example.com",
+							},
+						},
+					},
+				},
+			},
+			statusTemp: `import "strconv"
+      message: "ports: " + strconv.FormatInt(context.outputs.service.spec.ports[0].port,10)`,
+			expMessage: "ports: 80",
+		},
 	}
 	for message, ca := range cases {
-		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp, ca.parameter)
+		gotMessage, err := getStatusMessage(&packages.PackageDiscover{}, ca.tpContext, ca.statusTemp, ca.parameter)
 		assert.NoError(t, err, message)
 		assert.Equal(t, ca.expMessage, gotMessage, message)
 	}

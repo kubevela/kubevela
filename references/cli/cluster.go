@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -28,14 +27,22 @@ import (
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
+	"github.com/oam-dev/cluster-register/pkg/hub"
+	"github.com/oam-dev/cluster-register/pkg/spoke"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/references/a/preimport"
@@ -44,6 +51,15 @@ import (
 const (
 	// FlagClusterName specifies the cluster name
 	FlagClusterName = "name"
+	// FlagClusterManagementEngine specifies the cluster management type, eg: ocm
+	FlagClusterManagementEngine = "engine"
+	// FlagKubeConfigPath specifies the kubeconfig path
+	FlagKubeConfigPath = "kubeconfig-path"
+
+	// ClusterGateWayClusterManagement cluster-gateway cluster management solution
+	ClusterGateWayClusterManagement = "cluster-gateway"
+	// OCMClusterManagement ocm cluster management solution
+	OCMClusterManagement = "ocm"
 )
 
 // ClusterCommandGroup create a group of cluster command
@@ -83,6 +99,7 @@ func ClusterCommandGroup(c common.Args) *cobra.Command {
 		NewClusterJoinCommand(&c),
 		NewClusterRenameCommand(&c),
 		NewClusterDetachCommand(&c),
+		NewClusterProbeCommand(&c),
 	)
 	return cmd
 }
@@ -96,13 +113,13 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Long:    "list child clusters managed by KubeVela",
 		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			secrets := v1.SecretList{}
-			if err := c.Client.List(context.Background(), &secrets, client.HasLabels{v1alpha12.LabelKeyClusterCredentialType}, client.InNamespace(multicluster.ClusterGatewaySecretNamespace)); err != nil {
-				return errors.Wrapf(err, "failed to get cluster secrets")
-			}
 			table := newUITable().AddRow("CLUSTER", "TYPE", "ENDPOINT")
-			for _, secret := range secrets.Items {
-				table.AddRow(secret.Name, secret.GetLabels()[v1alpha12.LabelKeyClusterCredentialType], string(secret.Data["endpoint"]))
+			clusters, err := clustermanager.GetRegisteredClusters(c.Client)
+			if err != nil {
+				return errors.Wrap(err, "fail to get registered cluster")
+			}
+			for _, cluster := range clusters {
+				table.AddRow(cluster.Name, cluster.Type, cluster.EndPoint)
 			}
 			if len(table.Rows) == 1 {
 				cmd.Println("No managed cluster found.")
@@ -113,18 +130,6 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		},
 	}
 	return cmd
-}
-
-func ensureClusterNotExists(c client.Client, clusterName string) error {
-	secret := &v1.Secret{}
-	err := c.Get(context.Background(), types2.NamespacedName{Name: clusterName, Namespace: multicluster.ClusterGatewaySecretNamespace}, secret)
-	if err == nil {
-		return fmt.Errorf("cluster %s already exists", clusterName)
-	}
-	if !errors2.IsNotFound(err) {
-		return errors.Wrapf(err, "failed to check duplicate cluster secret")
-	}
-	return nil
 }
 
 func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) error {
@@ -180,7 +185,6 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("authInfo %s not found", ctx.AuthInfo)
 			}
-
 			// get ClusterName from flag or config
 			clusterName, err := cmd.Flags().GetString(FlagClusterName)
 			if err != nil {
@@ -193,46 +197,129 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 				return fmt.Errorf("cannot use `%s` as cluster name, it is reserved as the local cluster", multicluster.ClusterLocalName)
 			}
 
-			if err := ensureClusterNotExists(c.Client, clusterName); err != nil {
-				return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
+			clusterManagementType, err := cmd.Flags().GetString(FlagClusterManagementEngine)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get cluster management type flag")
 			}
-			var credentialType v1alpha12.CredentialType
-			data := map[string][]byte{
-				"endpoint": []byte(cluster.Server),
-				"ca.crt":   cluster.CertificateAuthorityData,
+
+			if clusterManagementType == "" {
+				clusterManagementType = ClusterGateWayClusterManagement
 			}
-			if len(authInfo.Token) > 0 {
-				credentialType = v1alpha12.CredentialTypeServiceAccountToken
-				data["token"] = []byte(authInfo.Token)
-			} else {
-				credentialType = v1alpha12.CredentialTypeX509Certificate
-				data["tls.crt"] = authInfo.ClientCertificateData
-				data["tls.key"] = authInfo.ClientKeyData
-			}
-			secret := &v1.Secret{
-				ObjectMeta: v12.ObjectMeta{
-					Name:      clusterName,
-					Namespace: multicluster.ClusterGatewaySecretNamespace,
-					Labels: map[string]string{
-						v1alpha12.LabelKeyClusterCredentialType: string(credentialType),
-					},
-				},
-				Type: v1.SecretTypeOpaque,
-				Data: data,
-			}
-			if err := c.Client.Create(context.Background(), secret); err != nil {
-				return errors.Wrapf(err, "failed to add cluster to kubernetes")
-			}
-			if err := ensureResourceTrackerCRDInstalled(c.Client, clusterName); err != nil {
-				_ = c.Client.Delete(context.Background(), secret)
-				return errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
+
+			switch clusterManagementType {
+			case ClusterGateWayClusterManagement:
+				if err = registerClusterManagedByVela(c.Client, cluster, authInfo, clusterName); err != nil {
+					return err
+				}
+			case OCMClusterManagement:
+				if err = registerClusterManagedByOCM(c.Config, config, clusterName); err != nil {
+					return err
+				}
 			}
 			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, cluster.Server)
 			return nil
 		},
 	}
 	cmd.Flags().StringP(FlagClusterName, "n", "", "Specify the cluster name. If empty, it will use the cluster name in config file. Default to be empty.")
+	cmd.Flags().StringP(FlagClusterManagementEngine, "t", "", "Specify the cluster management engine. If empty, it will use cluster-gateway cluster management solution. Default to be empty.")
 	return cmd
+}
+
+func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi.Cluster, authInfo *clientcmdapi.AuthInfo, clusterName string) error {
+	if err := clustermanager.EnsureClusterNotExists(k8sClient, clusterName); err != nil {
+		return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
+	}
+	var credentialType v1alpha12.CredentialType
+	data := map[string][]byte{
+		"endpoint": []byte(cluster.Server),
+		"ca.crt":   cluster.CertificateAuthorityData,
+	}
+	if len(authInfo.Token) > 0 {
+		credentialType = v1alpha12.CredentialTypeServiceAccountToken
+		data["token"] = []byte(authInfo.Token)
+	} else {
+		credentialType = v1alpha12.CredentialTypeX509Certificate
+		data["tls.crt"] = authInfo.ClientCertificateData
+		data["tls.key"] = authInfo.ClientKeyData
+	}
+	secret := &v1.Secret{
+		ObjectMeta: v12.ObjectMeta{
+			Name:      clusterName,
+			Namespace: multicluster.ClusterGatewaySecretNamespace,
+			Labels: map[string]string{
+				v1alpha12.LabelKeyClusterCredentialType: string(credentialType),
+			},
+		},
+		Type: v1.SecretTypeOpaque,
+		Data: data,
+	}
+	if err := k8sClient.Create(context.Background(), secret); err != nil {
+		return errors.Wrapf(err, "failed to add cluster to kubernetes")
+	}
+	if err := ensureResourceTrackerCRDInstalled(k8sClient, clusterName); err != nil {
+		_ = k8sClient.Delete(context.Background(), secret)
+		return errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
+	}
+	return nil
+}
+
+func registerClusterManagedByOCM(hubConfig *rest.Config, spokeConfig *clientcmdapi.Config, clusterName string) error {
+	ctx := context.Background()
+	hubCluster, err := hub.NewHubCluster(hubConfig)
+	if err != nil {
+		return errors.Wrap(err, "fail to create client connect to hub cluster")
+	}
+
+	crdName := types2.NamespacedName{Name: "managedclusters." + ocmclusterv1.GroupName}
+	if err := hubCluster.Client.Get(context.Background(), crdName, &v13.CustomResourceDefinition{}); err != nil {
+		return err
+	}
+
+	clusters, err := clustermanager.GetRegisteredClusters(hubCluster.Client)
+	if err != nil {
+		return err
+	}
+
+	for _, cluster := range clusters {
+		if cluster.Name == clusterName {
+			return errors.Errorf("you have register a cluster named %s", clusterName)
+		}
+	}
+
+	spokeRestConf, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+		return spokeConfig, nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "fail to convert spoke-cluster kubeconfig")
+	}
+
+	hubKubeToken, err := hubCluster.GenerateHubClusterKubeConfig(ctx, "")
+	if err != nil {
+		return errors.Wrap(err, "fail to generate the token for spoke-cluster")
+	}
+
+	spokeCluster, err := spoke.NewSpokeCluster(clusterName, spokeRestConf, hubKubeToken)
+	if err != nil {
+		return errors.Wrap(err, "fail to connect spoke cluster")
+	}
+
+	err = spokeCluster.InitSpokeClusterEnv(ctx)
+	if err != nil {
+		return errors.Wrap(err, "fail to prepare the env for spoke-cluster")
+	}
+
+	csrCheck := newTrackingSpinner("wait for managed-cluster register request ...")
+	csrCheck.Start()
+	defer csrCheck.Stop()
+	ready, err := hubCluster.Wait4SpokeClusterReady(ctx, clusterName)
+	if err != nil || !ready {
+		return errors.Errorf("fail to waiting for register request")
+	}
+
+	if err = hubCluster.RegisterSpokeCluster(ctx, spokeCluster.Name); err != nil {
+		return errors.Wrap(err, "fail to approve spoke cluster")
+	}
+	return nil
 }
 
 func getMutableClusterSecret(c client.Client, clusterName string) (*v1.Secret, error) {
@@ -244,15 +331,20 @@ func getMutableClusterSecret(c client.Client, clusterName string) (*v1.Secret, e
 	if labels == nil || labels[v1alpha12.LabelKeyClusterCredentialType] == "" {
 		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, v1alpha12.LabelKeyClusterCredentialType)
 	}
-	ebs := &v1alpha1.EnvBindingList{}
-	if err := c.List(context.Background(), ebs); err != nil {
-		return nil, errors.Wrap(err, "failed to find EnvBindings to check clusters")
+	apps := &v1beta1.ApplicationList{}
+	if err := c.List(context.Background(), apps); err != nil {
+		return nil, errors.Wrap(err, "failed to find applications to check clusters")
 	}
 	errs := errors3.ErrorList{}
-	for _, eb := range ebs.Items {
-		for _, decision := range eb.Status.ClusterDecisions {
-			if decision.Cluster == clusterName {
-				errs.Append(fmt.Errorf("application %s/%s (env: %s, envBinding: %s) is currently using cluster %s", eb.Namespace, eb.Labels[oam.LabelAppName], decision.Env, eb.Name, clusterName))
+	for _, app := range apps.Items {
+		status, err := envbinding.GetEnvBindingPolicyStatus(app.DeepCopy(), "")
+		if err == nil && status != nil {
+			for _, env := range status.Envs {
+				for _, placement := range env.Placements {
+					if placement.Cluster == clusterName {
+						errs.Append(fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
+					}
+				}
 			}
 		}
 	}
@@ -278,7 +370,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "cluster %s is not mutable now", oldClusterName)
 			}
-			if err := ensureClusterNotExists(c.Client, newClusterName); err != nil {
+			if err := clustermanager.EnsureClusterNotExists(c.Client, newClusterName); err != nil {
 				return errors.Wrapf(err, "cannot set cluster name to %s", newClusterName)
 			}
 			if err := c.Client.Delete(context.Background(), clusterSecret); err != nil {
@@ -311,14 +403,85 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 			if clusterName == multicluster.ClusterLocalName {
 				return fmt.Errorf("cannot delete `%s` cluster, it is reserved as the local cluster", multicluster.ClusterLocalName)
 			}
-			clusterSecret, err := getMutableClusterSecret(c.Client, clusterName)
+			clusters, err := clustermanager.GetRegisteredClusters(c.Client)
 			if err != nil {
-				return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)
+				return err
 			}
-			if err := c.Client.Delete(context.Background(), clusterSecret); err != nil {
-				return errors.Wrapf(err, "failed to detach cluster %s", clusterName)
+			var clusterType string
+			for _, cluster := range clusters {
+				if cluster.Name == clusterName {
+					clusterType = cluster.Type
+				}
+			}
+			if clusterType == "" {
+				return errors.Errorf("cluster %s is not regitsered", clusterName)
+			}
+
+			switch clusterType {
+			case string(v1alpha12.CredentialTypeX509Certificate), string(v1alpha12.CredentialTypeServiceAccountToken):
+				clusterSecret, err := getMutableClusterSecret(c.Client, clusterName)
+				if err != nil {
+					return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)
+				}
+				if err := c.Client.Delete(context.Background(), clusterSecret); err != nil {
+					return errors.Wrapf(err, "failed to detach cluster %s", clusterName)
+				}
+			case "ManagedCluster":
+				configPath, err := cmd.Flags().GetString(FlagKubeConfigPath)
+				if err != nil {
+					return errors.Wrapf(err, "failed to get cluster management type flag")
+				}
+				if configPath == "" {
+					return errors.New("kubeconfig-path shouldn't be empty")
+				}
+				config, err := clientcmd.LoadFromFile(configPath)
+				if err != nil {
+					return err
+				}
+				restConfig, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+					return config, nil
+				})
+				if err != nil {
+					return err
+				}
+				if err = spoke.CleanSpokeClusterEnv(restConfig); err != nil {
+					return err
+				}
+				managedCluster := ocmclusterv1.ManagedCluster{
+					ObjectMeta: v12.ObjectMeta{
+						Name: clusterName,
+					},
+				}
+				if err = c.Client.Delete(context.Background(), &managedCluster); err != nil {
+					if !errors2.IsNotFound(err) {
+						return err
+					}
+				}
 			}
 			cmd.Printf("Detach cluster %s successfully.\n", clusterName)
+			return nil
+		},
+	}
+	cmd.Flags().StringP(FlagKubeConfigPath, "p", "", "Specify the kubeconfig path of managed cluster. If you use ocm to manage your cluster, you must set the kubeconfig-path.")
+	return cmd
+}
+
+// NewClusterProbeCommand create command to help user try health probe for existing cluster
+func NewClusterProbeCommand(c *common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "probe [CLUSTER_NAME]",
+		Short: "probe managed cluster",
+		Args:  cobra.ExactValidArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clusterName := args[0]
+			if clusterName == multicluster.ClusterLocalName {
+				return errors.New("you must specify a remote cluster name")
+			}
+			content, err := versioned.NewForConfigOrDie(c.Config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
+			if err != nil {
+				return errors.Wrapf(err, "failed connect cluster %s", clusterName)
+			}
+			cmd.Printf("Connect to cluster %s successfully.\n%s\n", clusterName, string(content))
 			return nil
 		},
 	}

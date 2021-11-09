@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -83,7 +84,7 @@ func TestWorkflowSuspend(t *testing.T) {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "workflow",
-					Namespace: "default",
+					Namespace: "test",
 				},
 				Spec: workflowSpec,
 				Status: common.AppStatus{
@@ -105,7 +106,17 @@ func TestWorkflowSuspend(t *testing.T) {
 				err := c.Client.Create(ctx, tc.app)
 				r.NoError(err)
 
-				cmd.SetArgs([]string{tc.app.Name})
+				if tc.app.Namespace != corev1.NamespaceDefault {
+					err := c.Client.Create(ctx, &corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: tc.app.Namespace,
+						},
+					})
+					r.NoError(err)
+					cmd.SetArgs([]string{tc.app.Name, "-n", tc.app.Namespace})
+				} else {
+					cmd.SetArgs([]string{tc.app.Name})
+				}
 			}
 			err := cmd.Execute()
 			if tc.expectedErr != nil {
@@ -190,7 +201,7 @@ func TestWorkflowResume(t *testing.T) {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "workflow",
-					Namespace: "default",
+					Namespace: "test",
 				},
 				Spec: workflowSpec,
 				Status: common.AppStatus{
@@ -212,7 +223,17 @@ func TestWorkflowResume(t *testing.T) {
 				err := c.Client.Create(ctx, tc.app)
 				r.NoError(err)
 
-				cmd.SetArgs([]string{tc.app.Name})
+				if tc.app.Namespace != corev1.NamespaceDefault {
+					err := c.Client.Create(ctx, &corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: tc.app.Namespace,
+						},
+					})
+					r.NoError(err)
+					cmd.SetArgs([]string{tc.app.Name, "-n", tc.app.Namespace})
+				} else {
+					cmd.SetArgs([]string{tc.app.Name})
+				}
 			}
 			err := cmd.Execute()
 			if tc.expectedErr != nil {
@@ -268,7 +289,7 @@ func TestWorkflowTerminate(t *testing.T) {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "workflow",
-					Namespace: "default",
+					Namespace: "test",
 				},
 				Spec: workflowSpec,
 				Status: common.AppStatus{
@@ -290,7 +311,17 @@ func TestWorkflowTerminate(t *testing.T) {
 				err := c.Client.Create(ctx, tc.app)
 				r.NoError(err)
 
-				cmd.SetArgs([]string{tc.app.Name})
+				if tc.app.Namespace != corev1.NamespaceDefault {
+					err := c.Client.Create(ctx, &corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: tc.app.Namespace,
+						},
+					})
+					r.NoError(err)
+					cmd.SetArgs([]string{tc.app.Name, "-n", tc.app.Namespace})
+				} else {
+					cmd.SetArgs([]string{tc.app.Name})
+				}
 			}
 			err := cmd.Execute()
 			if tc.expectedErr != nil {
@@ -346,7 +377,7 @@ func TestWorkflowRestart(t *testing.T) {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "workflow",
-					Namespace: "default",
+					Namespace: "test",
 				},
 				Spec: workflowSpec,
 				Status: common.AppStatus{
@@ -368,7 +399,17 @@ func TestWorkflowRestart(t *testing.T) {
 				err := c.Client.Create(ctx, tc.app)
 				r.NoError(err)
 
-				cmd.SetArgs([]string{tc.app.Name})
+				if tc.app.Namespace != corev1.NamespaceDefault {
+					err := c.Client.Create(ctx, &corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: tc.app.Namespace,
+						},
+					})
+					r.NoError(err)
+					cmd.SetArgs([]string{tc.app.Name, "-n", tc.app.Namespace})
+				} else {
+					cmd.SetArgs([]string{tc.app.Name})
+				}
 			}
 			err := cmd.Execute()
 			if tc.expectedErr != nil {

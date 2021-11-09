@@ -222,6 +222,10 @@ spec:
                               configuration:
                                 description: Configuration is Terraform Configuration
                                 type: string
+                              path:
+                                description: Path is the sub-directory of remote git
+                                  repository. It's valid when remote is set
+                                type: string
                               providerRef:
                                 description: ProviderReference specifies the reference
                                   to Provider
@@ -506,6 +510,10 @@ spec:
                               configuration:
                                 description: Configuration is Terraform Configuration
                                 type: string
+                              path:
+                                description: Path is the sub-directory of remote git
+                                  repository. It's valid when remote is set
+                                type: string
                               providerRef:
                                 description: ProviderReference specifies the reference
                                   to Provider
@@ -783,6 +791,10 @@ spec:
                               configuration:
                                 description: Configuration is Terraform Configuration
                                 type: string
+                              path:
+                                description: Path is the sub-directory of remote git
+                                  repository. It's valid when remote is set
+                                type: string
                               providerRef:
                                 description: ProviderReference specifies the reference
                                   to Provider
@@ -1041,6 +1053,10 @@ spec:
                               configuration:
                                 description: Configuration is Terraform Configuration
                                 type: string
+                              path:
+                                description: Path is the sub-directory of remote git
+                                  repository. It's valid when remote is set
+                                type: string
                               providerRef:
                                 description: ProviderReference specifies the reference
                                   to Provider
@@ -1107,6 +1123,10 @@ spec:
                           - type
                           type: object
                         type: array
+                      configMapRef:
+                        description: ConfigMapRef refer to a ConfigMap which contains
+                          OpenAPI V3 JSON schema of Component parameters.
+                        type: string
                       latestRevision:
                         description: LatestRevision of the component definition
                         properties:

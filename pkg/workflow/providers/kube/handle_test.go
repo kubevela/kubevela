@@ -31,8 +31,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -146,20 +148,12 @@ cluster: ""
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("value")
 		Expect(err).ToNot(HaveOccurred())
-		//rv := new(unstructured.Unstructured)
-		//err = result.UnmarshalTo(rv)
-		//Expect(err).ToNot(HaveOccurred())
-		//rv.SetCreationTimestamp(metav1.Time{})
-		//rv.SetUID("")
 
 		expected := new(unstructured.Unstructured)
 		ev, err := result.MakeValue(expectedCue)
 		Expect(err).ToNot(HaveOccurred())
 		err = ev.UnmarshalTo(expected)
 		Expect(err).ToNot(HaveOccurred())
-		//rv.SetManagedFields(nil)
-		//rv.SetResourceVersion("")
-		//rv.SetSelfLink("")
 
 		err = result.FillObject(expected.Object)
 		Expect(err).ToNot(HaveOccurred())
@@ -200,6 +194,147 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 				Name:      "test-app-1",
 			}, workload)
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
+	})
+
+	It("list", func() {
+		p := &provider{
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+				return nil
+			},
+			cli: k8sClient,
+		}
+
+		ctx := context.Background()
+		for i := 2; i >= 0; i-- {
+			err := k8sClient.Create(ctx, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("test-%v", i),
+					Namespace: "default",
+					Labels: map[string]string{
+						"test":  "test",
+						"index": fmt.Sprintf("test-%v", i),
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  fmt.Sprintf("test-%v", i),
+							Image: "busybox",
+						},
+					},
+				},
+			})
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		By("List pods with labels test=test")
+		v, err := value.NewValue(`
+resource: {
+apiVersion: "v1"
+kind: "Pod"
+}
+filter: {
+namespace: "default"
+matchingLabels: {
+test: "test"
+}
+}
+cluster: ""
+`, nil, "")
+		Expect(err).ToNot(HaveOccurred())
+		wfCtx, err := newWorkflowContextForTest()
+		Expect(err).ToNot(HaveOccurred())
+		err = p.List(wfCtx, v, nil)
+		Expect(err).ToNot(HaveOccurred())
+		result, err := v.LookupValue("list")
+		Expect(err).ToNot(HaveOccurred())
+		expected := &metav1.PartialObjectMetadataList{}
+		err = result.UnmarshalTo(expected)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(expected.Items)).Should(Equal(3))
+
+		By("List pods with labels index=test-1")
+		v, err = value.NewValue(`
+resource: {
+apiVersion: "v1"
+kind: "Pod"
+}
+filter: {
+matchingLabels: {
+index: "test-1"
+}
+}
+cluster: ""
+`, nil, "")
+		Expect(err).ToNot(HaveOccurred())
+		err = p.List(wfCtx, v, nil)
+		Expect(err).ToNot(HaveOccurred())
+		result, err = v.LookupValue("list")
+		Expect(err).ToNot(HaveOccurred())
+		expected = &metav1.PartialObjectMetadataList{}
+		err = result.UnmarshalTo(expected)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(expected.Items)).Should(Equal(1))
+	})
+
+	It("delete", func() {
+		p := &provider{
+			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+				return nil
+			},
+			delete: func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
+				if err := k8sClient.Delete(ctx, manifest); err != nil {
+					return err
+				}
+				return nil
+			},
+			cli: k8sClient,
+		}
+
+		ctx := context.Background()
+		err := k8sClient.Create(ctx, &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "default",
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "test",
+						Image: "busybox",
+					},
+				},
+			},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		err = k8sClient.Get(ctx, types.NamespacedName{
+			Name:      "test",
+			Namespace: "default",
+		}, &corev1.Pod{})
+		Expect(err).ToNot(HaveOccurred())
+
+		v, err := value.NewValue(`
+value: {
+apiVersion: "v1"
+kind: "Pod"
+metadata: {
+name: "test"
+namespace: "default"
+}
+}
+cluster: ""
+`, nil, "")
+		Expect(err).ToNot(HaveOccurred())
+		wfCtx, err := newWorkflowContextForTest()
+		Expect(err).ToNot(HaveOccurred())
+		err = p.Delete(wfCtx, v, nil)
+		Expect(err).ToNot(HaveOccurred())
+		err = k8sClient.Get(ctx, types.NamespacedName{
+			Name:      "test",
+			Namespace: "default",
+		}, &corev1.Pod{})
+		Expect(err).To(HaveOccurred())
+		Expect(errors.IsNotFound(err)).Should(Equal(true))
 	})
 
 	It("test error case", func() {

@@ -18,6 +18,7 @@ package healthscope
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -38,17 +39,16 @@ import (
 
 	commonapis "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	af "github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha1/envbinding"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 )
 
 const (
@@ -461,60 +461,18 @@ func (r *Reconciler) patchHealthStatusToApplications(ctx context.Context, appHea
 	return nil
 }
 
-func (r *Reconciler) getEnvBinding(ctx context.Context, appName string, ns string) (*v1alpha1.EnvBinding, *v1beta1.Application, error) {
-	app := new(v1beta1.Application)
-	appKey := client.ObjectKey{Name: appName, Namespace: ns}
-	if err := r.client.Get(ctx, appKey, app); err != nil {
-		return nil, nil, err
-	}
-
-	var envBindingName string
-	for _, policy := range app.Spec.Policies {
-		if policy.Type == "env-binding" {
-			envBindingName = policy.Name
-			break
-		}
-	}
-	if len(envBindingName) == 0 {
-		return nil, app, nil
-	}
-
-	envBinding := new(v1alpha1.EnvBinding)
-	envBindingKey := client.ObjectKey{Name: envBindingName, Namespace: ns}
-	if err := r.client.Get(ctx, envBindingKey, envBinding); err != nil {
-		return nil, nil, err
-	}
-
-	if envBinding.Status.Phase != v1alpha1.EnvBindingFinished {
-		return nil, nil, errors.Errorf("policy env-binding was not ready")
-	}
-	return envBinding, app, nil
-}
-
 func (r *Reconciler) createAppfile(ctx context.Context, appName, ns, envName string) (*af.Appfile, error) {
 	appParser := af.NewApplicationParser(r.client, r.dm, r.pd)
 	if len(envName) != 0 {
-		envBinding, baseApp, err := r.getEnvBinding(ctx, appName, ns)
+		app := &v1beta1.Application{}
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: appName}, app); err != nil {
+			return nil, err
+		}
+		patchedApp, err := envbinding.PatchApplicationByEnvBindingEnv(app, "", envName)
 		if err != nil {
 			return nil, err
 		}
-		var targetEnvConfig *v1alpha1.EnvConfig
-		for i := range envBinding.Spec.Envs {
-			envConfig := envBinding.Spec.Envs[i]
-			if envConfig.Name == envName {
-				targetEnvConfig = &envConfig
-				break
-			}
-		}
-		if targetEnvConfig == nil {
-			return nil, errors.Errorf("policy env-binding doesn't contains env %s", envName)
-		}
-
-		envBindApp := envbinding.NewEnvBindApp(baseApp, targetEnvConfig)
-		if err = envBindApp.GenerateConfiguredApplication(); err != nil {
-			return nil, err
-		}
-		return appParser.GenerateAppFile(ctx, envBindApp.PatchedApp)
+		return appParser.GenerateAppFile(ctx, patchedApp)
 	}
 
 	app := &v1beta1.Application{}
@@ -570,20 +528,31 @@ func constructAppCompStatus(appC *AppHealthCondition, hsRef corev1.ObjectReferen
 func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.AppReference, ns string) []WorkloadReference {
 	wlRefs := make([]WorkloadReference, 0)
 
-	envBinding, application, err := r.getEnvBinding(ctx, appRef.AppName, ns)
-	if err != nil {
-		klog.ErrorS(err, "Failed to get envBinding")
+	application := &v1beta1.Application{}
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: appRef.AppName}, application); err != nil {
+		klog.ErrorS(err, "Failed to get application")
 		return wlRefs
 	}
 
-	var decisions []v1alpha1.ClusterDecision
-	decisionsMap := make(map[string]string)
-	if envBinding == nil {
-		decisions = make([]v1alpha1.ClusterDecision, 1)
-	} else {
-		decisions = envBinding.Status.ClusterDecisions
-		for _, decision := range decisions {
-			decisionsMap[decision.Cluster] = decision.Env
+	// ugly implementation, should be reworked in future
+	decisionsMap := map[string]string{}
+	var decisions []struct {
+		Cluster string
+		Env     string
+	}
+	policyStatus, err := envbinding.GetEnvBindingPolicyStatus(application, "")
+	if err == nil && policyStatus != nil {
+		for _, env := range policyStatus.Envs {
+			for _, placement := range env.Placements {
+				decisionsMap[placement.Cluster] = env.Env
+				decisions = append(decisions, struct {
+					Cluster string
+					Env     string
+				}{
+					Cluster: placement.Cluster,
+					Env:     env.Env,
+				})
+			}
 		}
 	}
 
@@ -613,12 +582,34 @@ func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.App
 				}, o); err != nil {
 					continue
 				}
-				if labels := o.GetLabels(); labels != nil && labels[oam.WorkloadTypeLabel] != "" {
-					wlRefs = append(wlRefs, WorkloadReference{
-						ObjectReference: rs.ObjectReference,
-						clusterName:     rs.Cluster,
-						envName:         decisionsMap[rs.Cluster],
-					})
+
+				if labels := o.GetLabels(); labels != nil {
+					if labels[oam.WorkloadTypeLabel] != "" {
+						wlRefs = append(wlRefs, WorkloadReference{
+							ObjectReference: rs.ObjectReference,
+							clusterName:     rs.Cluster,
+							envName:         decisionsMap[rs.Cluster],
+						})
+					} else if labels[oam.TraitTypeLabel] != "" && labels[oam.LabelManageWorkloadTrait] == "true" {
+						// this means this trait is a manage-Workload trait, get workload GVK and name for trait's annotation
+						objectRef := corev1.ObjectReference{}
+						err := json.Unmarshal([]byte(o.GetAnnotations()[oam.AnnotationWorkloadGVK]), &objectRef)
+						if err != nil {
+							// don't break whole check process due to this error
+							continue
+						}
+						if o.GetAnnotations() != nil && len(o.GetAnnotations()[oam.AnnotationWorkloadName]) != 0 {
+							objectRef.Name = o.GetAnnotations()[oam.AnnotationWorkloadName]
+						} else {
+							// use component name as default
+							objectRef.Name = labels[oam.LabelAppComponent]
+						}
+						wlRefs = append(wlRefs, WorkloadReference{
+							ObjectReference: objectRef,
+							clusterName:     rs.Cluster,
+							envName:         decisionsMap[rs.Cluster],
+						})
+					}
 				}
 			}
 		}

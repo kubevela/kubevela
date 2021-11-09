@@ -5,7 +5,7 @@ metadata:
     addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
     addons.oam.dev/name: terraform/provider-alibaba
   name: terraform-provider-alibaba
-  namespace: default
+  namespace: vela-system
 spec:
   components:
     - name: alibaba-account-creds
@@ -13,7 +13,7 @@ spec:
         apiVersion: v1
         kind: Secret
         metadata:
-          name: alibaba-provider-secret
+          name: alibaba-account-creds
           namespace: vela-system
         type: Opaque
         stringData:

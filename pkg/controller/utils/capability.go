@@ -61,6 +61,10 @@ const (
 	TerraformTupleTypePrefix  string = "tuple("
 	TerraformMapTypePrefix    string = "map("
 	TerraformObjectTypePrefix string = "object("
+
+	typeTraitDefinition        = "trait"
+	typeComponentDefinition    = "component"
+	typeWorkflowStepDefinition = "workflowstep"
 )
 
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
@@ -245,7 +249,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -263,7 +267,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeComponentDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -326,7 +330,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -344,7 +348,76 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeTraitDefinition, jsonSchema, ownerReference)
+	if err != nil {
+		return cmName, err
+	}
+	return cmName, nil
+}
+
+// CapabilityStepDefinition is the Capability struct for WorkflowStepDefinition
+type CapabilityStepDefinition struct {
+	Name           string                         `json:"name"`
+	StepDefinition v1beta1.WorkflowStepDefinition `json:"stepDefinition"`
+
+	CapabilityBaseDefinition
+}
+
+// NewCapabilityStepDef will create a CapabilityStepDefinition
+func NewCapabilityStepDef(stepdefinition *v1beta1.WorkflowStepDefinition) CapabilityStepDefinition {
+	var def CapabilityStepDefinition
+	def.Name = stepdefinition.Name
+	def.StepDefinition = *stepdefinition.DeepCopy()
+	return def
+}
+
+// GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
+func (def *CapabilityStepDefinition) GetOpenAPISchema(pd *packages.PackageDiscover, name string) ([]byte, error) {
+	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.StepDefinition.Spec.Schematic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
+	}
+	return getOpenAPISchema(capability, pd)
+}
+
+// StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
+func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *packages.PackageDiscover, namespace, name string, revName string) (string, error) {
+	var jsonSchema []byte
+	var err error
+
+	jsonSchema, err = def.GetOpenAPISchema(pd, name)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
+	}
+
+	stepDefinition := def.StepDefinition
+	ownerReference := []metav1.OwnerReference{{
+		APIVersion:         stepDefinition.APIVersion,
+		Kind:               stepDefinition.Kind,
+		Name:               stepDefinition.Name,
+		UID:                stepDefinition.GetUID(),
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}}
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, jsonSchema, ownerReference)
+	if err != nil {
+		return cmName, err
+	}
+
+	// Create a configmap to store parameter for each definitionRevision
+	defRev := new(v1beta1.DefinitionRevision)
+	if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revName}, defRev); err != nil {
+		return "", err
+	}
+	ownerReference = []metav1.OwnerReference{{
+		APIVersion:         defRev.APIVersion,
+		Kind:               defRev.Kind,
+		Name:               defRev.Name,
+		UID:                defRev.GetUID(),
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}}
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -357,8 +430,8 @@ type CapabilityBaseDefinition struct {
 
 // CreateOrUpdateConfigMap creates ConfigMap to store OpenAPI v3 schema or or updates data in ConfigMap
 func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace,
-	definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
-	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, definitionName)
+	definitionName, definitionType string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
+	cmName := fmt.Sprintf("%s-%s%s", definitionType, types.CapabilityConfigMapNamePrefix, definitionName)
 	var cm v1.ConfigMap
 	var data = map[string]string{
 		types.OpenapiV3JSONSchema: string(jsonSchema),
@@ -399,7 +472,7 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 	return cmName, nil
 }
 
-// getDefinition is the main function for GetDefinition API
+// getOpenAPISchema is the main function for GetDefinition API
 func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
 	openAPISchema, err := generateOpenAPISchemaFromCapabilityParameter(capability, pd)
 	if err != nil {

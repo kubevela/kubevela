@@ -7,6 +7,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
+	github.com/agiledragon/gomonkey/v2 v2.3.0
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
@@ -33,9 +34,10 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
-	github.com/oam-dev/cluster-gateway v1.1.2
+	github.com/oam-dev/cluster-gateway v1.1.6
+	github.com/oam-dev/cluster-register v1.0.1
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.2.1
+	github.com/oam-dev/terraform-controller v0.2.5
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
@@ -46,7 +48,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.6.8
+	github.com/tidwall/gjson v1.9.3
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.mongodb.org/mongo-driver v1.5.1
@@ -54,6 +56,8 @@ require (
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
 	golang.org/x/tools v0.1.6 // indirect
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
+	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.6.1
@@ -80,5 +84,6 @@ require (
 
 replace (
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
-	github.com/wercker/stern => github.com/oam-dev/stern v1.13.0-alpha
+	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24
 )

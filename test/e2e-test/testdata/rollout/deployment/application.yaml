@@ -12,3 +12,5 @@ spec:
         - type: rollout
           properties:
             targetSize: 2
+            firstBatchReplicas: 1
+            secondBatchReplicas: 1

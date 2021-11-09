@@ -1,12 +1,9 @@
 /*
 Copyright 2021 The KubeVela Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -37,7 +35,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var _ = Describe("Test MultiClustet Rollout", func() {
+var _ = Describe("Test MultiCluster Rollout", func() {
 	Context("Test Runtime Cluster Rollout", func() {
 		var namespace string
 		var hubCtx context.Context
@@ -55,7 +53,7 @@ var _ = Describe("Test MultiClustet Rollout", func() {
 		AfterEach(func() {
 			cleanUpNamespace(hubCtx, workerCtx, namespace)
 			ns := v1.Namespace{}
-			Eventually(func() error { return k8sClient.Get(hubCtx, types.NamespacedName{Name: namespace}, &ns) }, 300*time.Second, 300*time.Millisecond).Should(util.NotFoundMatcher{})
+			Eventually(func() error { return k8sClient.Get(hubCtx, types.NamespacedName{Name: namespace}, &ns) }, 300*time.Second).Should(util.NotFoundMatcher{})
 		})
 
 		verifySucceed := func(componentRevision string) {
@@ -98,7 +96,7 @@ var _ = Describe("Test MultiClustet Rollout", func() {
 					return fmt.Errorf("source deploy still exist")
 				}
 				return nil
-			}, time.Second*360, 300*time.Millisecond).Should(BeNil())
+			}, time.Second*360).Should(BeNil())
 		}
 
 		It("Test Rollout whole feature in runtime cluster ", func() {
@@ -122,7 +120,7 @@ var _ = Describe("Test MultiClustet Rollout", func() {
 					return err
 				}
 				return nil
-			}, 500*time.Millisecond, 30*time.Second).Should(BeNil())
+			}, 30*time.Second).Should(BeNil())
 			verifySucceed(componentName + "-v2")
 
 			By("revert to v1, should guarantee compRev v1 still exist")
@@ -140,8 +138,73 @@ var _ = Describe("Test MultiClustet Rollout", func() {
 					return err
 				}
 				return nil
-			}, 500*time.Millisecond, 30*time.Second).Should(BeNil())
+			}, 30*time.Second).Should(BeNil())
 			verifySucceed(componentName + "-v1")
+		})
+
+		It("Test Rollout with health check policy, guarantee health scope controller work ", func() {
+			app := &v1beta1.Application{}
+			appYaml, err := ioutil.ReadFile("./testdata/app/multi-cluster-health-policy.yaml")
+			Expect(err).Should(Succeed())
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			err = k8sClient.Create(hubCtx, app)
+			Expect(err).Should(Succeed())
+			verifySucceed(componentName + "-v1")
+			Eventually(func() error {
+				checkApp := v1beta1.Application{}
+				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, &checkApp); err != nil {
+					return err
+				}
+				if len(checkApp.Status.Services) == 0 {
+					return fmt.Errorf("app status service haven't write back")
+				}
+				compStatus := checkApp.Status.Services[0]
+				if compStatus.Env != "staging" {
+					return fmt.Errorf("comp status env miss-match")
+				}
+				if !compStatus.Healthy {
+					return fmt.Errorf("comp status not healthy")
+				}
+				if !strings.Contains(compStatus.Message, "Ready:2/2") {
+					return fmt.Errorf("comp status workload check don't work")
+				}
+				return nil
+			}, 30*time.Second).Should(BeNil())
+			By("update application to v2")
+			checkApp := &v1beta1.Application{}
+			Eventually(func() error {
+				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp); err != nil {
+					return err
+				}
+				checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image": "stefanprodan/podinfo:5.0.2"}`)
+				if err := k8sClient.Update(hubCtx, checkApp); err != nil {
+					return err
+				}
+				return nil
+			}, 30*time.Second).Should(BeNil())
+			verifySucceed(componentName + "-v2")
+			Eventually(func() error {
+				// Note: KubeVela will only check the workload of the target revision
+				checkApp := v1beta1.Application{}
+				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: app.Name}, &checkApp); err != nil {
+					return err
+				}
+				if len(checkApp.Status.Services) == 0 {
+					return fmt.Errorf("app status service haven't write back")
+				}
+				compStatus := checkApp.Status.Services[0]
+				if compStatus.Env != "staging" {
+					return fmt.Errorf("comp status env miss-match")
+				}
+				if !compStatus.Healthy {
+					return fmt.Errorf("comp status not healthy")
+				}
+				if !strings.Contains(compStatus.Message, "Ready:2/2") {
+					return fmt.Errorf("comp status workload check don't work")
+				}
+				return nil
+			}, 60*time.Second).Should(BeNil())
 		})
 	})
 })

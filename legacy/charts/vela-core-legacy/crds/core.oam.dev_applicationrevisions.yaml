@@ -622,6 +622,23 @@ spec:
                         description: The generation observed by the application controller.
                         format: int64
                         type: integer
+                      policy:
+                        description: PolicyStatus records the status of policy
+                        items:
+                          description: PolicyStatus records the status of policy
+                          properties:
+                            name:
+                              type: string
+                            status:
+                              type: object
+                              
+                            type:
+                              type: string
+                          required:
+                          - name
+                          - type
+                          type: object
+                        type: array
                       resourceTracker:
                         description: ResourceTracker record the status of the ResourceTracker
                         properties:
@@ -966,15 +983,30 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                          finished:
+                            type: boolean
                           mode:
                             description: WorkflowMode describes the mode of workflow
+                            type: string
+                          startTime:
+                            format: date-time
                             type: string
                           steps:
                             items:
                               description: WorkflowStepStatus record the status of
                                 a workflow step
                               properties:
+                                firstExecuteTime:
+                                  description: FirstExecuteTime is the first time
+                                    this step execution.
+                                  format: date-time
+                                  type: string
                                 id:
+                                  type: string
+                                lastExecuteTime:
+                                  description: LastExecuteTime is the last time this
+                                    step execution.
+                                  format: date-time
                                   type: string
                                 message:
                                   description: A human readable message indicating
@@ -1043,6 +1075,7 @@ spec:
                           terminated:
                             type: boolean
                         required:
+                        - finished
                         - mode
                         - suspend
                         - terminated
@@ -1231,6 +1264,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
@@ -1635,6 +1672,10 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
                                     to Provider
@@ -1935,6 +1976,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
@@ -2750,6 +2795,23 @@ spec:
                         description: The generation observed by the application controller.
                         format: int64
                         type: integer
+                      policy:
+                        description: PolicyStatus records the status of policy
+                        items:
+                          description: PolicyStatus records the status of policy
+                          properties:
+                            name:
+                              type: string
+                            status:
+                              type: object
+                              
+                            type:
+                              type: string
+                          required:
+                          - name
+                          - type
+                          type: object
+                        type: array
                       resourceTracker:
                         description: ResourceTracker record the status of the ResourceTracker
                         properties:
@@ -3094,15 +3156,30 @@ spec:
                                 description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                                 type: string
                             type: object
+                          finished:
+                            type: boolean
                           mode:
                             description: WorkflowMode describes the mode of workflow
+                            type: string
+                          startTime:
+                            format: date-time
                             type: string
                           steps:
                             items:
                               description: WorkflowStepStatus record the status of
                                 a workflow step
                               properties:
+                                firstExecuteTime:
+                                  description: FirstExecuteTime is the first time
+                                    this step execution.
+                                  format: date-time
+                                  type: string
                                 id:
+                                  type: string
+                                lastExecuteTime:
+                                  description: LastExecuteTime is the last time this
+                                    step execution.
+                                  format: date-time
                                   type: string
                                 message:
                                   description: A human readable message indicating
@@ -3171,6 +3248,7 @@ spec:
                           terminated:
                             type: boolean
                         required:
+                        - finished
                         - mode
                         - suspend
                         - terminated
@@ -3359,6 +3437,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
@@ -3655,6 +3737,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
@@ -4041,6 +4127,10 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
                                     to Provider
@@ -4305,6 +4395,10 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference
                                     to Provider
@@ -4371,6 +4465,10 @@ spec:
                             - type
                             type: object
                           type: array
+                        configMapRef:
+                          description: ConfigMapRef refer to a ConfigMap which contains
+                            OpenAPI V3 JSON schema of Component parameters.
+                          type: string
                         latestRevision:
                           description: LatestRevision of the component definition
                           properties:
@@ -4584,6 +4682,10 @@ spec:
                               properties:
                                 configuration:
                                   description: Configuration is Terraform Configuration
+                                  type: string
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
                                   type: string
                                 providerRef:
                                   description: ProviderReference specifies the reference

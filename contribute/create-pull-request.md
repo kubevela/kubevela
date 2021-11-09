@@ -141,7 +141,7 @@ We still encourage contributors to write informative commit messages, as they be
 
 We use the pull request title when we generate change logs for releases. As such, we strive to make the title as informative as possible.
 
-Make sure that the title for your pull request uses the same format as the subject line in the commit message.
+Make sure that the title for your pull request uses the same format as the subject line in the commit message. If the format is not followed, we will add a label `title-needs-formatting` on the pull request.
 
 ### Pass all the CI checks
 

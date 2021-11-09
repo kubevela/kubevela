@@ -40,9 +40,9 @@ data:
                 namespace: vela-system
               source: Secret
             provider: aws
-            region: '[[ index .Args "AWS_REGION" ]]'
+            region: '[[ index .Args "AWS_DEFAULT_REGION" ]]'
         type: raw
-        status: {}
+    status: {}
 kind: ConfigMap
 metadata:
   annotations:

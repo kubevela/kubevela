@@ -18,9 +18,12 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -29,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -62,29 +66,37 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 	}
 
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
+		status := w.app.Status.Workflow
+		if status != nil && !status.Finished {
+			status.Terminated = true
+			return common.WorkflowStateTerminated, nil
+		}
 		w.app.Status.Workflow = &common.WorkflowStatus{
 			AppRevision: revAndSpecHash,
 			Mode:        common.WorkflowModeStep,
+			StartTime:   metav1.NewTime(time.Now()),
 		}
 		if w.dagMode {
 			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
 		}
-
 		// clean recorded resources info.
 		w.app.Status.Services = nil
 		w.app.Status.AppliedResources = nil
 	}
 
 	wfStatus := w.app.Status.Workflow
-	allTasksDone := w.allDone(taskRunners)
+	if wfStatus.Finished {
+		return common.WorkflowStateFinished, nil
+	}
 	if wfStatus.Terminated {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
 		return common.WorkflowStateSuspended, nil
 	}
+	allTasksDone := w.allDone(taskRunners)
 	if allTasksDone {
-		return common.WorkflowStateFinished, nil
+		return common.WorkflowStateSucceeded, nil
 	}
 
 	var (
@@ -112,9 +124,18 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 		return common.WorkflowStateSuspended, nil
 	}
 	if w.allDone(taskRunners) {
-		return common.WorkflowStateFinished, nil
+		return common.WorkflowStateSucceeded, nil
 	}
 	return common.WorkflowStateExecuting, nil
+}
+
+// Trace record the workflow execute history.
+func (w *workflow) Trace() error {
+	data, err := json.Marshal(w.app)
+	if err != nil {
+		return err
+	}
+	return recorder.With(w.cli, w.app).Save("", data).Limit(10).Error()
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -144,7 +165,7 @@ func (w *workflow) makeContext(appName string) (wfCtx wfContext.Context, err err
 		return
 	}
 
-	wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, appName)
+	wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, appName, w.app.GetUID())
 
 	if err != nil {
 		err = errors.WithMessage(err, "new context")
@@ -249,15 +270,15 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 
 		e.updateStepStatus(status)
 
+		if err := wfCtx.Commit(); err != nil {
+			return errors.WithMessage(err, "commit workflow context")
+		}
+
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
 			if e.isDag() {
 				continue
 			}
 			return nil
-		}
-
-		if err := wfCtx.Commit(); err != nil {
-			return errors.WithMessage(err, "commit workflow context")
 		}
 
 		e.finishStep(operation)
@@ -285,15 +306,21 @@ func (e *engine) finishStep(operation *wfTypes.Operation) {
 }
 
 func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
-	var conditionUpdated bool
+	var (
+		conditionUpdated bool
+		now              = metav1.NewTime(time.Now())
+	)
+	status.LastExecuteTime = now
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == status.Name {
+			status.FirstExecuteTime = e.status.Steps[i].FirstExecuteTime
 			e.status.Steps[i] = status
 			conditionUpdated = true
 			break
 		}
 	}
 	if !conditionUpdated {
+		status.FirstExecuteTime = now
 		e.status.Steps = append(e.status.Steps, status)
 	}
 }
@@ -303,6 +330,16 @@ func (e *engine) needStop() bool {
 }
 
 func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {
-	specHash, err := utils.ComputeSpecHash(app.Spec)
-	return fmt.Sprintf("%s:%s", rev, specHash), err
+	version := ""
+	if annos := app.Annotations; annos != nil {
+		version = annos[wfTypes.AnnotationPublishVersion]
+	}
+	if version == "" {
+		specHash, err := utils.ComputeSpecHash(app.Spec)
+		if err != nil {
+			return "", err
+		}
+		version = fmt.Sprintf("%s:%s", rev, specHash)
+	}
+	return version, nil
 }

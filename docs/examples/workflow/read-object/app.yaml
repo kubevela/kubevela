@@ -23,6 +23,8 @@ spec:
         apiVersion: v1
         kind: ConfigMap
         name: my-cm-name
+        # for multi cluster
+        # cluster: my-cluster
     - name: apply
       type: apply-component
       inputs:

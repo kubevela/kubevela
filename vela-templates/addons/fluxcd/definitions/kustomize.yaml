@@ -50,6 +50,14 @@ spec:
         			  if parameter.git.branch != _|_ {
         				  ref: branch: parameter.git.branch
         			  }
+                if parameter.git.provider != _|_ {
+                  if parameter.git.provider == "GitHub" {
+                    gitImplementation: "go-git"
+                  }
+                  if parameter.git.provider == "AzureDevOps" {
+                    gitImplementation: "libgit2"
+                  }
+                }
         			  _secret
         			  _sourceCommonArgs
         		  }
@@ -204,6 +212,8 @@ spec:
         	git?: {
         		// +usage=The Git reference to checkout and monitor for changes, defaults to master branch
         		branch: string
+            // +usage=Determines which git client library to use. Defaults to GitHub, it will pick go-git. AzureDevOps will pick libgit2.
+            provider?: *"GitHub" | "AzureDevOps"
         	}
         	oss?: {
         		// +usage=The bucket's name, required if repoType is oss

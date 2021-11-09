@@ -21,6 +21,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,9 +41,13 @@ const (
 // Dispatcher is a client for apply resources.
 type Dispatcher func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error
 
+// Deleter is a client for delete resources.
+type Deleter func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error
+
 type provider struct {
-	apply Dispatcher
-	cli   client.Client
+	apply  Dispatcher
+	delete Deleter
+	cli    client.Client
 }
 
 // Apply create or update CR in cluster.
@@ -113,14 +118,80 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	return v.FillObject(obj.Object, "value")
 }
 
+// List lists CRs from cluster.
+func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	r, err := v.LookupValue("resource")
+	if err != nil {
+		return err
+	}
+	resource := &metav1.TypeMeta{}
+	if err := r.UnmarshalTo(resource); err != nil {
+		return err
+	}
+	list := &unstructured.UnstructuredList{Object: map[string]interface{}{
+		"kind":       resource.Kind,
+		"apiVersion": resource.APIVersion,
+	}}
+
+	type filters struct {
+		Namespace      string            `json:"namespace"`
+		MatchingLabels map[string]string `json:"matchingLabels"`
+	}
+	filterValue, err := v.LookupValue("filter")
+	if err != nil {
+		return err
+	}
+	filter := &filters{}
+	if err := filterValue.UnmarshalTo(filter); err != nil {
+		return err
+	}
+	cluster, err := v.GetString("cluster")
+	if err != nil {
+		return err
+	}
+	listOpts := []client.ListOption{
+		client.InNamespace(filter.Namespace),
+		client.MatchingLabels(filter.MatchingLabels),
+	}
+	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if err := h.cli.List(readCtx, list, listOpts...); err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	return v.FillObject(list, "list")
+}
+
+// Delete deletes CR from cluster.
+func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("value")
+	if err != nil {
+		return err
+	}
+	obj := new(unstructured.Unstructured)
+	if err := val.UnmarshalTo(obj); err != nil {
+		return err
+	}
+	cluster, err := v.GetString("cluster")
+	if err != nil {
+		return err
+	}
+	deleteCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if err := h.delete(deleteCtx, cluster, common.WorkflowResourceCreator, obj); err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	return nil
+}
+
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client, apply Dispatcher) {
+func Install(p providers.Providers, cli client.Client, apply Dispatcher, deleter Deleter) {
 	prd := &provider{
-		apply: apply,
-		cli:   cli,
+		apply:  apply,
+		delete: deleter,
+		cli:    cli,
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
-		"apply": prd.Apply,
-		"read":  prd.Read,
+		"apply":  prd.Apply,
+		"read":   prd.Read,
+		"list":   prd.List,
+		"delete": prd.Delete,
 	})
 }

@@ -18,6 +18,10 @@ package rollout
 
 import (
 	"context"
+	"encoding/json"
+	"math"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/pkg/errors"
 
@@ -34,6 +38,8 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -108,6 +114,33 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if err := h.assembleWorkload(ctx); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	if rollout.Status.RollingState == v1alpha1.LocatingTargetAppState {
+		if rollout.GetAnnotations() == nil || rollout.GetAnnotations()[oam.AnnotationWorkloadName] != h.targetWorkload.GetName() {
+			// this is a update operation, the target workload will change so modify annotation
+			gvk := map[string]string{"apiVersion": h.targetWorkload.GetAPIVersion(), "kind": h.targetWorkload.GetKind()}
+			gvkValue, _ := json.Marshal(gvk)
+			rollout.SetAnnotations(oamutil.MergeMapOverrideWithDst(rollout.GetAnnotations(),
+				map[string]string{oam.AnnotationWorkloadName: h.targetWorkload.GetName(), oam.AnnotationWorkloadGVK: string(gvkValue)}))
+			klog.InfoS("rollout controller set targetWorkload ", h.targetWorkload.GetName(),
+				"in annotation in rollout namespace: ", rollout.Namespace, " name", rollout.Name, "gvk", gvkValue)
+			// exit current reconcile before create target workload, this reconcile don't update status just modify annotation
+			// next round reconcile will create workload and pass `LocatingTargetAppState` phase
+			return ctrl.Result{}, h.Update(ctx, rollout)
+		}
+
+		// this is a scale operation, if user don't fill rolloutBatches, fill it with default value
+		if len(h.sourceRevName) == 0 && len(rollout.Spec.RolloutPlan.RolloutBatches) == 0 {
+			// logic reach here means cannot get an error, so ignore it
+			replicas, _ := getWorkloadReplicasNum(*h.targetWorkload)
+			rollout.Spec.RolloutPlan.RolloutBatches = []v1alpha1.RolloutBatch{{
+				Replicas: intstr.FromInt(int(math.Abs(float64(*rollout.Spec.RolloutPlan.TargetSize - replicas))))},
+			}
+			klog.InfoS("rollout controller set default rollout  batches ", h.rollout.GetName(),
+				" namespace: ", rollout.Namespace, "targetSize", rollout.Spec.RolloutPlan.TargetSize)
+			return ctrl.Result{}, h.Update(ctx, rollout)
+		}
 	}
 
 	switch rollout.Status.RollingState {

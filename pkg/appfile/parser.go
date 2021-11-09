@@ -146,6 +146,7 @@ func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfi
 		RelatedScopeDefinitions:     make(map[string]*v1beta1.ScopeDefinition),
 
 		parser: p,
+		app:    app,
 	}
 	for k, v := range app.Annotations {
 		file.AppAnnotations[k] = v

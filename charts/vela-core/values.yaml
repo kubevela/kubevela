@@ -73,7 +73,7 @@ admissionWebhooks:
     enabled: true
     image:
       repository: oamdev/kube-webhook-certgen
-      tag: v2.2
+      tag: v2.3
       pullPolicy: IfNotPresent
     affinity: {}
     tolerations: []
