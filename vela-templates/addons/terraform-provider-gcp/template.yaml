@@ -1,0 +1,50 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  annotations:
+    addons.oam.dev/description: Kubernetes Terraform Controller for GCP
+    addons.oam.dev/name: terraform/provider-gcp
+  name: terraform-provider-gcp
+  namespace: vela-system
+spec:
+  components:
+    - name: gcp-account-creds
+      properties:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: gcp-account-creds
+          namespace: vela-system
+        type: Opaque
+        stringData:
+          credentials: |
+            gcpCredentialsJSON: [[ index .Args "GOOGLE_CREDENTIALS" ]]
+            gcpProject: [[ index .Args "GOOGLE_PROJECT" ]]
+      type: raw
+    - name: gcp
+      type: raw
+      properties:
+        apiVersion: terraform.core.oam.dev/v1beta1
+        kind: Provider
+        metadata:
+          name: gcp
+          namespace: default
+        spec:
+          provider: gcp
+          region: '[[ index .Args "GCP_REGION" ]]'
+          credentials:
+            source: Secret
+            secretRef:
+              namespace: vela-system
+              name: gcp-account-creds
+              key: credentials
+{{ range .ResourceFiles }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
+{{ range .DefinitionFiles }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}

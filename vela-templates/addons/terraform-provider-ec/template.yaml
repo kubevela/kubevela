@@ -1,0 +1,48 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  annotations:
+    addons.oam.dev/description: Kubernetes Terraform Controller for EC
+    addons.oam.dev/name: terraform/provider-ec
+  name: terraform-provider-ec
+  namespace: vela-system
+spec:
+  components:
+    - name: ec-account-creds
+      properties:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: ec-account-creds
+          namespace: vela-system
+        type: Opaque
+        stringData:
+          credentials: |
+            ecApiKey: [[ index .Args "EC_API_KEY" ]]
+      type: raw
+    - name: ec
+      type: raw
+      properties:
+        apiVersion: terraform.core.oam.dev/v1beta1
+        kind: Provider
+        metadata:
+          name: ec
+          namespace: default
+        spec:
+          provider: ec
+          credentials:
+            source: Secret
+            secretRef:
+              namespace: vela-system
+              name: ec-account-creds
+              key: credentials
+{{ range .ResourceFiles }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
+{{ range .DefinitionFiles }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}

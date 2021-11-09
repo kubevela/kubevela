@@ -1,0 +1,52 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  annotations:
+    addons.oam.dev/description: Kubernetes Terraform Controller for VSPHERE
+    addons.oam.dev/name: terraform/provider-vsphere
+  name: terraform-provider-vsphere
+  namespace: vela-system
+spec:
+  components:
+    - name: vsphere-account-creds
+      properties:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: vsphere-account-creds
+          namespace: vela-system
+        type: Opaque
+        stringData:
+          credentials: |
+            vSphereUser: [[ index .Args "VSPHERE_USER" ]]
+            vSpherePassword: [[ index .Args "VSPHERE_PASSWORD" ]]
+            vSphereServer: [[ index .Args "VSPHERE_SERVER" ]]
+            vSphereAllowUnverifiedSSL: [[ index .Args "VSPHERE_ALLOW_UNVERIFIED_SSL" ]]
+      type: raw
+    - name: gcp
+      type: raw
+      properties:
+        apiVersion: terraform.core.oam.dev/v1beta1
+        kind: Provider
+        metadata:
+          name: vsphere
+          namespace: default
+        spec:
+          provider: vsphere
+          region: '[[ index .Args "VSPHERE_REGION" ]]'
+          credentials:
+            source: Secret
+            secretRef:
+              namespace: vela-system
+              name: vsphere-account-creds
+              key: credentials
+{{ range .ResourceFiles }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
+{{ range .DefinitionFiles }}
+    - name: {{ .Name }}
+      type: raw
+      properties:
+{{ .Content | indent 8 }} {{ end }}
