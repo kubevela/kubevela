@@ -32,7 +32,7 @@ func NewMemoryCache(data interface{}, cacheDuration time.Duration) *MemoryCache 
 
 // IsExpired whether the cache data expires
 func (m *MemoryCache) IsExpired() bool {
-	return time.Now().Before(m.startTime.Add(m.cacheDuration))
+	return time.Now().After(m.startTime.Add(m.cacheDuration))
 }
 
 // GetData get cache data
