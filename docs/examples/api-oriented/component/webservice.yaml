@@ -9,8 +9,9 @@ spec:
       properties:
         image: crccheck/hello-world
         ports:
-         - 8000
-         - 8001
+          - port: 8000
+          - port: 8001
+            protocol: UDP
       traits:
         - type: ingress-1-20
           properties:

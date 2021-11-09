@@ -30,15 +30,16 @@ template: {
 					containers: [{
 						name:  context.name
 						image: parameter.image
-						if parameter["ports"] == _|_ {
+						if parameter["port"] != _|_ && parameter["ports"] == _|_ {
 							ports: [{
-								containerPort: 80
+								containerPort: parameter.port
 							}]
 						}
 						if parameter["ports"] != _|_ {
 							ports: [ for v in parameter.ports {
 								{
-									containerPort: v
+									containerPort: v.port
+									protocol: v.protocol
 								}}]
 						}
 
@@ -137,14 +138,22 @@ template: {
 		image: string
 
 		// +usage=Specify image pull policy for your service
-		imagePullPolicy?: string
+		imagePullPolicy?: "Always" | "Never" | "IfNotPresent"
 
 		// +usage=Specify image pull secrets for your service
 		imagePullSecrets?: [...string]
 
-		// +usage=Which ports do you want customer traffic sent to, defaults to 80
+	  // +usage=Deprecated field, please use ports instead
 		// +short=p
-		ports?: [...int]
+		port?: int
+
+		// +usage=Which ports do you want customer traffic sent to, defaults to 80
+		ports?: [...{
+			// +usage=Number of port to expose on the pod's IP address
+			port: int
+			// +usage=Protocol for port. Must be UDP, TCP, or SCTP
+			protocol: *"TCP" | "UDP" | "SCTP"
+		}]
 
 		// +ignore
 		// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods

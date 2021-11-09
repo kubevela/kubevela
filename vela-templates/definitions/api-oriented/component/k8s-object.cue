@@ -6,6 +6,16 @@
 	attributes: workload: type: "autodetects.core.oam.dev"
 }
 template: {
-	output: parameter
-	parameter: {}
+	output: parameter.objects[0]
+
+	outputs: {
+		for i, v in parameter.objects {
+			if i > 0 {
+				"objects-\(i)": v
+			}
+		}
+	}
+	parameter: {
+		objects: [...{}]
+	}
 }

@@ -108,7 +108,7 @@ template: {
 		image: string
 
 		// +usage=Specify image pull policy for your service
-		imagePullPolicy?: string
+		imagePullPolicy?: "Always" | "Never" | "IfNotPresent"
 
 		// +usage=Specify image pull secrets for your service
 		imagePullSecrets?: [...string]
