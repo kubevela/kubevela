@@ -134,14 +134,7 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
-		if overrideNamespace != "" {
-			oldNamespace := h.app.Namespace
-			h.app.Namespace = overrideNamespace
-			defer func() {
-				h.app.Namespace = oldNamespace
-			}()
-		}
+		ctx := contextWithComponentRevisionNamespace(multicluster.ContextWithClusterName(context.Background(), clusterName), overrideNamespace)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {

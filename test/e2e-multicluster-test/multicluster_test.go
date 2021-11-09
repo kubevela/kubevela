@@ -228,6 +228,10 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &v13.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(2))
+				// check component revision
+				compRevs := &v13.ControllerRevisionList{}
+				g.Expect(k8sClient.List(workerCtx, compRevs, client.InNamespace(prodNamespace))).Should(Succeed())
+				g.Expect(len(compRevs.Items)).Should(Equal(2))
 			}, time.Minute).Should(Succeed())
 			Expect(hubDeployName).Should(Equal("data-worker"))
 			// delete application
@@ -242,6 +246,10 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &v13.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
+				// check component revision
+				compRevs := &v13.ControllerRevisionList{}
+				g.Expect(k8sClient.List(workerCtx, compRevs, client.InNamespace(prodNamespace))).Should(Succeed())
+				g.Expect(len(compRevs.Items)).Should(Equal(0))
 			}, time.Minute).Should(Succeed())
 		})
 
@@ -316,6 +324,19 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(1))
 				g.Expect(int(*deploys.Items[0].Spec.Replicas)).Should(Equal(2))
+			}, time.Minute).Should(Succeed())
+			// delete application
+			By("delete application")
+			Expect(k8sClient.Delete(hubCtx, app)).Should(Succeed())
+			By("wait application resource delete")
+			Eventually(func(g Gomega) {
+				// check deployments in clusters
+				deploys := &v13.DeploymentList{}
+				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(0))
+				deploys = &v13.DeploymentList{}
+				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
+				g.Expect(len(deploys.Items)).Should(Equal(0))
 			}, time.Minute).Should(Succeed())
 		})
 	})

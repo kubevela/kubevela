@@ -51,6 +51,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
+type contextKey string
+
 const (
 	// ConfigMapKeyComponents is the key in ConfigMap Data field for containing data of components
 	ConfigMapKeyComponents = "components"
@@ -62,7 +64,20 @@ const (
 	ManifestKeyTraits = "Traits"
 	// ManifestKeyScopes is the key in Component Manifest for containing scope cr reference.
 	ManifestKeyScopes = "Scopes"
+	// ComponentRevisionNamespaceContextKey is the key in context that defines the override namespace of component revision
+	ComponentRevisionNamespaceContextKey = contextKey("component-revision-namespace")
 )
+
+func contextWithComponentRevisionNamespace(ctx context.Context, ns string) context.Context {
+	return context.WithValue(ctx, ComponentRevisionNamespaceContextKey, ns)
+}
+
+func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
+	if ns, ok := ctx.Value(ComponentRevisionNamespaceContextKey).(string); ok && ns != "" {
+		return ns
+	}
+	return h.app.Namespace
+}
 
 func (h *AppHandler) createResourcesConfigMap(ctx context.Context,
 	appRev *v1beta1.ApplicationRevision,
@@ -440,7 +455,7 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 	revisionName := comp.ExternalRevision
 	cr := &appsv1.ControllerRevision{}
 
-	if err := h.r.Client.Get(ctx, client.ObjectKey{Namespace: h.app.Namespace, Name: revisionName}, cr); err != nil {
+	if err := h.r.Client.Get(ctx, client.ObjectKey{Namespace: h.getComponentRevisionNamespace(ctx), Name: revisionName}, cr); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to get controllerRevision:%s", revisionName)
 		}
@@ -489,7 +504,7 @@ func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context,
 	crList := &appsv1.ControllerRevisionList{}
 	listOpts := []client.ListOption{client.MatchingLabels{
 		oam.LabelControllerRevisionComponent: comp.Name,
-	}, client.InNamespace(h.app.Namespace)}
+	}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 	if err := h.r.List(ctx, crList, listOpts...); err != nil {
 		return err
 	}
@@ -618,7 +633,7 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 	cr := &appsv1.ControllerRevision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cm.RevisionName,
-			Namespace: h.app.Namespace,
+			Namespace: h.getComponentRevisionNamespace(ctx),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: v1beta1.SchemeGroupVersion.String(),
@@ -878,7 +893,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 		crList := &appsv1.ControllerRevisionList{}
 		listOpts := []client.ListOption{client.MatchingLabels{
 			oam.LabelControllerRevisionComponent: curComp.Name,
-		}, client.InNamespace(h.app.Namespace)}
+		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 		_ctx := multicluster.ContextWithClusterName(ctx, curComp.Cluster)
 		if err := h.r.List(_ctx, crList, listOpts...); err != nil {
 			return err
@@ -914,7 +929,7 @@ func cleanUpRollOutComponentRevision(ctx context.Context, h *AppHandler) error {
 	compRevisionInUse := map[string]map[string]struct{}{}
 	for appRevName := range appRevInUse {
 		appRev := &v1beta1.ApplicationRevision{}
-		if err := h.r.Get(ctx, client.ObjectKey{Name: appRevName, Namespace: h.app.Namespace}, appRev); err != nil {
+		if err := h.r.Get(ctx, client.ObjectKey{Name: appRevName, Namespace: h.getComponentRevisionNamespace(ctx)}, appRev); err != nil {
 			return err
 		}
 		af, err := h.parser.GenerateAppFileFromRevision(appRev)
@@ -944,7 +959,7 @@ func cleanUpRollOutComponentRevision(ctx context.Context, h *AppHandler) error {
 		crList := &appsv1.ControllerRevisionList{}
 		listOpts := []client.ListOption{client.MatchingLabels{
 			oam.LabelControllerRevisionComponent: curComp.Name,
-		}, client.InNamespace(h.app.Namespace)}
+		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 		if err := h.r.List(ctx, crList, listOpts...); err != nil {
 			return err
 		}
