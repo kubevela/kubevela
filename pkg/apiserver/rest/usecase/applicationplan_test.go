@@ -346,6 +346,36 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test CreateApplicationEnvBindingPlan function", func() {
+		req := v1.CreateApplicationPlanRequest{
+			Name:        "not-have-env-bind",
+			Namespace:   "test-app-namespace",
+			Description: "this is a test app",
+			Icon:        "",
+			Labels:      map[string]string{"test": "true"},
+		}
+		_, err := appUsecase.CreateApplicationPlan(context.TODO(), req)
+		Expect(err).Should(BeNil())
+		appModel4, err := appUsecase.GetApplicationPlan(context.TODO(), "not-have-env-bind")
+		Expect(err).Should(BeNil())
+		By("test create first env")
+		env4, err := appUsecase.CreateApplicationEnvBindingPlan(context.TODO(), appModel4, v1.CreateApplicationEnvPlanRequest{
+			EnvBind: v1.EnvBind{
+				Name:        "prod2",
+				Alias:       "生产环境",
+				Description: "这是一个用户某客户的生产环境",
+				ClusterSelector: v1.ClusterSelector{
+					Name: "prob",
+				},
+			},
+		})
+		Expect(err).Should(BeNil())
+		Expect(env4).ShouldNot(BeNil())
+
+		appModelNew, err := appUsecase.GetApplicationPlan(context.TODO(), "not-have-env-bind")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(appModelNew.EnvBinds), 1)).Should(BeEmpty())
+
+		By("test create not first env")
 		appModel, err := appUsecase.GetApplicationPlan(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
@@ -362,7 +392,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(env).ShouldNot(BeNil())
 
-		appModelNew, err := appUsecase.GetApplicationPlan(context.TODO(), "test-app-sadasd")
+		appModelNew, err = appUsecase.GetApplicationPlan(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(appModelNew.EnvBinds), 4)).Should(BeEmpty())
 

@@ -1013,27 +1013,36 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBindingPlan(ctx context.Con
 			return nil, bcode.ErrApplicationEnvExist
 		}
 	}
-	app.EnvBinds = append(app.EnvBinds, createModelEnvBind(envReq.EnvBind))
 	envBinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, bcode.ErrApplicationNotEnv) {
+			return nil, err
+		}
 	}
-	envBinding.Envs = append(envBinding.Envs, createEnvBind(envReq.EnvBind))
-	properties, err := model.NewJSONStructByStruct(envBinding)
-	if err != nil {
-		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
-		return nil, bcode.ErrInvalidProperties
-	}
-	policy := &model.ApplicationPolicyPlan{
-		AppPrimaryKey: app.PrimaryKey(),
-		Name:          EnvBindPolicyDefaultName,
-	}
-	if err := c.ds.Get(ctx, policy); err != nil {
-		return nil, err
-	}
-	policy.Properties = properties
-	if err := c.ds.Put(ctx, policy); err != nil {
-		return nil, err
+	if envBinding == nil {
+		_, err := c.createApplictionPlanEnvBindingPolicy(ctx, app, []*apisv1.EnvBind{&envReq.EnvBind})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		app.EnvBinds = append(app.EnvBinds, createModelEnvBind(envReq.EnvBind))
+		envBinding.Envs = append(envBinding.Envs, createEnvBind(envReq.EnvBind))
+		properties, err := model.NewJSONStructByStruct(envBinding)
+		if err != nil {
+			log.Logger.Errorf("new env binding properties failure,%s", err.Error())
+			return nil, bcode.ErrInvalidProperties
+		}
+		policy := &model.ApplicationPolicyPlan{
+			AppPrimaryKey: app.PrimaryKey(),
+			Name:          EnvBindPolicyDefaultName,
+		}
+		if err := c.ds.Get(ctx, policy); err != nil {
+			return nil, err
+		}
+		policy.Properties = properties
+		if err := c.ds.Put(ctx, policy); err != nil {
+			return nil, err
+		}
 	}
 	if err := c.ds.Put(ctx, app); err != nil {
 		return nil, err
