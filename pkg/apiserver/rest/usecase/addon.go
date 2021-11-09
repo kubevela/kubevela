@@ -144,6 +144,13 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	}
 }
 
+// getCacheKeyWithDetailFLag will get right cache key for given registry and detailed, to split different
+func getCacheKeyWithDetailFLag(registry string, detailed bool) string {
+	if detailed {
+		return registry + "detailed"
+	}
+	return registry
+}
 func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error) {
 	var addons []*apis.DetailAddonResponse
 	rs, err := u.ListAddonRegistries(ctx)
@@ -157,15 +164,15 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 		}
 
 		var gitAddons []*apis.DetailAddonResponse
-		if u.isRegistryCacheUpToDate(registry) {
-			gitAddons = u.getRegistryCache(registry)
+		if u.isRegistryCacheUpToDate(getCacheKeyWithDetailFLag(registry, detailed)) {
+			gitAddons = u.getRegistryCache(getCacheKeyWithDetailFLag(registry, detailed))
 		} else {
 			gitAddons, err = getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
 			if err != nil {
 				log.Logger.Errorf("fail to get addons from registry %s", r.Name)
 				continue
 			}
-			u.putRegistryCache(registry, gitAddons)
+			u.putRegistryCache(getCacheKeyWithDetailFLag(registry, detailed), gitAddons)
 		}
 
 		addons = mergeAddons(addons, gitAddons)
