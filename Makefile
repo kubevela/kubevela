@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 # Vela version
 VELA_VERSION ?= master
 # Repo info

@@ -165,7 +165,7 @@ func (w *workflow) makeContext(appName string) (wfCtx wfContext.Context, err err
 		return
 	}
 
-	wfCtx, err = wfContext.NewEmptyContext(w.cli, w.app.Namespace, appName)
+	wfCtx, err = wfContext.NewContext(w.cli, w.app.Namespace, appName, w.app.GetUID())
 
 	if err != nil {
 		err = errors.WithMessage(err, "new context")

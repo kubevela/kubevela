@@ -510,6 +510,7 @@ func (c *applicationUsecaseImpl) GetApplicationPlanEnvBindingPolicy(ctx context.
 	return &envBindingSpec, nil
 }
 
+// nolint
 func (c *applicationUsecaseImpl) createApplictionPlanEnvBindingPolicy(ctx context.Context, app *model.ApplicationPlan, envbinds apisv1.EnvBindList) (*model.ApplicationPolicyPlan, error) {
 	policy := &model.ApplicationPolicyPlan{
 		AppPrimaryKey: app.PrimaryKey(),

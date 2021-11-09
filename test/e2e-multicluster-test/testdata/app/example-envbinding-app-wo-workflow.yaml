@@ -1,0 +1,38 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-app
+  namespace: TEST_NAMESPACE # to be replaced
+spec:
+  components:
+    - name: hello-world-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: scaler
+          properties:
+            replicas: 2
+  policies:
+    - name: example-multi-env-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: test
+            placement: # selecting the cluster to deploy to
+              clusterSelector:
+                name: local
+
+          - name: staging
+            placement: # selecting the cluster to deploy to
+              clusterSelector:
+                name: cluster-worker
+            patch:
+              components:
+                - name: hello-world-server
+                  type: webservice
+                  traits:
+                    - type: scaler
+                      disable: true
+

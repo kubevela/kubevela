@@ -2,19 +2,21 @@ package usecase
 
 import (
 	"context"
-	"cuelang.org/go/cue"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/getkin/kin-openapi/openapi3"
-	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"net/url"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"cuelang.org/go/cue"
+	"github.com/getkin/kin-openapi/openapi3"
+
+	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
@@ -372,7 +374,9 @@ func renderCUETemplate(elem apis.AddonElementFile, parameters string, args map[s
 		return nil, err
 	}
 	b, err := cueyaml.Encode(compContent.CueValue())
-
+	if err != nil {
+		return nil, err
+	}
 	comp := common2.ApplicationComponent{
 		Name: strings.Join(append(elem.Path, elem.Name), "-"),
 	}

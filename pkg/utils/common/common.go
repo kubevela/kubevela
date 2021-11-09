@@ -34,6 +34,7 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -44,7 +45,9 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/flowcontrol"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,6 +55,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
@@ -73,7 +78,9 @@ func init() {
 	_ = kruise.AddToScheme(Scheme)
 	_ = terraformv1beta1.AddToScheme(Scheme)
 	_ = ocmclusterv1alpha1.Install(Scheme)
+	_ = ocmclusterv1.Install(Scheme)
 	_ = ocmworkv1.Install(Scheme)
+	_ = clustergatewayapi.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -83,8 +90,10 @@ func InitBaseRestConfig() (Args, error) {
 	if err != nil && os.Getenv("IGNORE_KUBE_CONFIG") != "true" {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
+	} else if err != nil {
+		return Args{}, err
 	}
-
+	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
 	return Args{
 		Config: restConf,
 		Schema: Scheme,
@@ -236,7 +245,80 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 	return nil
 }
 
-// AskToChooseOneService will ask users to select one service of the application if more than one exidi
+// ClusterObject2Map convert ClusterObjectReference to a readable map
+func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
+	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | Component: %s | Kind: %s"
+	objs := make(map[string]string, len(refs))
+	for _, r := range refs {
+		if r.Cluster == "" {
+			r.Cluster = "local"
+		}
+		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Name, r.Kind)
+	}
+	return objs
+}
+
+// ResourceLocation indicates the resource location
+type ResourceLocation struct {
+	Cluster   string
+	Namespace string
+}
+
+func filterWorkload(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
+	var filteredOR []common.ClusterObjectReference
+	loggableWorkload := map[string]bool{
+		"Deployment":  true,
+		"StatefulSet": true,
+		"CloneSet":    true,
+		"Job":         true,
+	}
+	for _, r := range resources {
+		if _, ok := loggableWorkload[r.Kind]; ok {
+			filteredOR = append(filteredOR, r)
+		}
+	}
+	return filteredOR
+}
+
+// AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
+// resources is a map for component to applied resources
+// return the selected ClusterObjectReference
+func AskToChooseOneEnvResource(app *v1beta1.Application) (*common.ClusterObjectReference, error) {
+	resources := app.Status.AppliedResources
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("no resources in the application deployed yet")
+	}
+	resources = filterWorkload(resources)
+	// filter locations
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("no supported workload resources detected in deployed resources")
+	}
+	if len(resources) == 1 {
+		return &resources[0], nil
+	}
+	opMap := ClusterObject2Map(resources)
+	var ops []string
+	for _, r := range opMap {
+		ops = append(ops, r)
+	}
+	prompt := &survey.Select{
+		Message: fmt.Sprintf("You have %d deployed resources in your app. Please choose one:", len(ops)),
+		Options: ops,
+	}
+	var selectedRsc string
+	err := survey.AskOne(prompt, &selectedRsc)
+	if err != nil {
+		return nil, fmt.Errorf("choosing resource err %w", err)
+	}
+	for k, resource := range ops {
+		if selectedRsc == resource {
+			return &resources[k], nil
+		}
+	}
+	return nil, fmt.Errorf("choosing resource err %w", err)
+}
+
+// AskToChooseOneService will ask users to select one service of the application if more than one
 func AskToChooseOneService(svcNames []string) (string, error) {
 	if len(svcNames) == 0 {
 		return "", fmt.Errorf("no service exist in the application")
@@ -252,6 +334,26 @@ func AskToChooseOneService(svcNames []string) (string, error) {
 	err := survey.AskOne(prompt, &svcName)
 	if err != nil {
 		return "", fmt.Errorf("choosing service err %w", err)
+	}
+	return svcName, nil
+}
+
+// AskToChooseOnePods will ask users to select one pods of the resource if more than one
+func AskToChooseOnePods(podNames []string) (string, error) {
+	if len(podNames) == 0 {
+		return "", fmt.Errorf("no service exist in the application")
+	}
+	if len(podNames) == 1 {
+		return podNames[0], nil
+	}
+	prompt := &survey.Select{
+		Message: "You have multiple pods in the specified resource. Please choose one: ",
+		Options: podNames,
+	}
+	var svcName string
+	err := survey.AskOne(prompt, &svcName)
+	if err != nil {
+		return "", fmt.Errorf("choosing pod err %w", err)
 	}
 	return svcName, nil
 }

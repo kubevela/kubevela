@@ -100,6 +100,8 @@ const (
 	ErrUpdateComponentDefinition = "cannot update ComponentDefinition %s: %v"
 	// ErrUpdateTraitDefinition is the error while update TraitDefinition
 	ErrUpdateTraitDefinition = "cannot update TraitDefinition %s: %v"
+	// ErrUpdateStepDefinition is the error while update WorkflowStepDefinition
+	ErrUpdateStepDefinition = "cannot update WorkflowStepDefinition %s: %v"
 	// ErrUpdatePolicyDefinition is the error while update PolicyDefinition
 	ErrUpdatePolicyDefinition = "cannot update PolicyDefinition %s: %v"
 	// ErrUpdateWorkflowStepDefinition is the error while update WorkflowStepDefinition

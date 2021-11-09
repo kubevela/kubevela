@@ -77,7 +77,7 @@ func (v *ViewHandler) QueryView(ctx context.Context, query Query) (*value.Value,
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, v.namespace)
 	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, v.cli, v.dispatch)
+	kube.Install(handlerProviders, v.cli, v.dispatch, v.delete)
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, v.pd, v.cli, v.dm)
 	genTask, err := taskDiscover.GetTaskGenerator(ctx, v.workflowStep.Type)
 	if err != nil {
@@ -113,6 +113,10 @@ func (v *ViewHandler) dispatch(ctx context.Context, cluster string, owner common
 		}
 	}
 	return nil
+}
+
+func (v *ViewHandler) delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
+	return v.cli.Delete(ctx, manifest)
 }
 
 // QueryParameterKey query parameter key

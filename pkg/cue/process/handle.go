@@ -41,6 +41,7 @@ type Context interface {
 	SetParameters(params map[string]interface{})
 	PushData(key string, data interface{})
 	GetCtx() context.Context
+	SetCtx(context.Context)
 }
 
 // Auxiliary are objects rendered by definition template.
@@ -197,7 +198,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if len(ctx.auxiliaries) > 0 {
 		var auxLines []string
 		for _, auxiliary := range ctx.auxiliaries {
-			auxLines = append(auxLines, fmt.Sprintf("%s: %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
+			auxLines = append(auxLines, fmt.Sprintf("\"%s\": %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
 		}
 		if len(auxLines) > 0 {
 			buff += fmt.Sprintf(model.OutputsFieldName+": {%s}\n", strings.Join(auxLines, "\n"))
@@ -290,6 +291,13 @@ func (ctx *templateContext) GetCtx() context.Context {
 		return ctx.ctx
 	}
 	return context.TODO()
+}
+
+func (ctx *templateContext) SetCtx(newContext context.Context) {
+	if ctx.ctx != nil {
+		return
+	}
+	ctx.ctx = newContext
 }
 
 func structMarshal(v string) string {

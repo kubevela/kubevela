@@ -37,7 +37,8 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
-	github.com/oam-dev/cluster-gateway v1.1.2
+	github.com/oam-dev/cluster-gateway v1.1.6
+	github.com/oam-dev/cluster-register v1.0.1
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.2.5
 	github.com/olekukonko/tablewriter v0.0.5
@@ -86,5 +87,6 @@ require (
 
 replace (
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
-	github.com/wercker/stern => github.com/oam-dev/stern v1.13.0-alpha
+	github.com/wercker/stern => github.com/oam-dev/stern v1.13.1
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24
 )

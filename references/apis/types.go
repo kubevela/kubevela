@@ -96,8 +96,9 @@ type CapabilityMeta struct {
 	CapabilityCenterName string `json:"capabilityCenterName,omitempty"`
 }
 
-// CapabilityCenterMeta used for dashboard restful API server
-type CapabilityCenterMeta struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+// RegistryConfig is used to store registry config in file
+type RegistryConfig struct {
+	Name  string `json:"name"`
+	URL   string `json:"url"`
+	Token string `json:"token"`
 }
