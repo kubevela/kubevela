@@ -44,6 +44,12 @@ jobs:
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Login Alibaba Cloud ACR
+        uses: aliyun/acr-login@v1
+        with:
+          login-server: https://kubevela-registry.cn-hangzhou.cr.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}@aliyun-inner.com
+          password: ${{ secrets.ACR_PASSWORD }}
       - uses: docker/setup-qemu-action@v1
       - uses: docker/setup-buildx-action@v1
         with:
@@ -62,8 +68,9 @@ jobs:
             GITVERSION=git-${{ steps.vars.outputs.git_revision }}
             VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: |-
-            ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
         name: Build & Pushing runtime rollout
         with:
@@ -78,8 +85,9 @@ jobs:
             GITVERSION=git-${{ steps.vars.outputs.git_revision }}
             VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: |-
-            ghcr.io/${{ github.repository }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:
@@ -115,7 +123,7 @@ jobs:
           releases-only: true
         id: latest_tag
       - name: Tag helm chart image
-        run:  |
+        run: |
           latest_repo_tag=${{ steps.latest_tag.outputs.tag }}
           sub="."
           major="$(cut -d"$sub" -f1 <<<"$latest_repo_tag")"
@@ -179,6 +187,6 @@ jobs:
       - name: sync capabilities bucket to local
         run: ./ossutil --config-file .ossutilconfig sync oss://$CAPABILITY_BUCKET $CAPABILITY_DIR
       - name: rsync all capabilites
-        run:  rsync vela-templates/registry/auto-gen/* $CAPABILITY_DIR
+        run: rsync vela-templates/registry/auto-gen/* $CAPABILITY_DIR
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync $CAPABILITY_DIR oss://$CAPABILITY_BUCKET -f
