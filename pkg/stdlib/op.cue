@@ -107,6 +107,12 @@ import (
 
 #ApplyEnvBindApp: multicluster.#ApplyEnvBindApp
 
+#LoadPolicies: oam.#LoadPolicies
+
+#MakePlacementDecisions: multicluster.#MakePlacementDecisions
+
+#PatchApplication: multicluster.#PatchApplication
+
 #HTTPGet: http.#Do & {method: "GET"}
 
 #HTTPPost: http.#Do & {method: "POST"}

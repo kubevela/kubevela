@@ -167,6 +167,30 @@ func TestLoadComponent(t *testing.T) {
 	}
 }
 `)
+	overrideApp := `app: {
+	apiVersion: "core.oam.dev/v1beta1"
+	kind:       "Application"
+	metadata: {
+		name:      "test"
+		namespace: "default"
+	}
+	spec: {
+		components: [{
+			name: "c2"
+			type: "web"
+			properties: {
+				image: "busybox"
+			}
+		}]
+	}
+}
+`
+	overrideValue, err := value.NewValue(overrideApp, nil, "")
+	r.NoError(err)
+	err = p.LoadComponent(nil, overrideValue, nil)
+	r.NoError(err)
+	_, err = overrideValue.LookupValue("value", "c2")
+	r.NoError(err)
 }
 
 var testHealthy bool

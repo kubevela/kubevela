@@ -18,6 +18,7 @@ package oam
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 
@@ -139,7 +140,21 @@ func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, s
 
 // LoadComponent load component describe info in application.
 func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	for _, comp := range p.app.Spec.Components {
+	app := &v1beta1.Application{}
+	// if specify `app`, use specified application otherwise use default application fron provider
+	appSettings, err := v.LookupValue("app")
+	if err != nil {
+		if strings.Contains(err.Error(), "not exist") {
+			app = p.app
+		} else {
+			return err
+		}
+	} else {
+		if err := appSettings.UnmarshalTo(app); err != nil {
+			return err
+		}
+	}
+	for _, comp := range app.Spec.Components {
 		comp.Inputs = nil
 		comp.Outputs = nil
 		jt, err := json.Marshal(comp)
