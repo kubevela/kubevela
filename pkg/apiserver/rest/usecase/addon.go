@@ -66,9 +66,10 @@ const (
 
 // AddonUsecase addon usecase
 type AddonUsecase interface {
-	GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error)
+	GetAddonRegistry(ctx context.Context, name string) (*model.AddonRegistry, error)
 	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	DeleteAddonRegistry(ctx context.Context, name string) error
+	UpdateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
@@ -208,7 +209,7 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 	}, nil
 }
 
-func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error) {
+func (u *addonUsecaseImpl) GetAddonRegistry(ctx context.Context, name string) (*model.AddonRegistry, error) {
 	var r = model.AddonRegistry{
 		Name: name,
 	}
@@ -217,6 +218,26 @@ func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name strin
 		return nil, err
 	}
 	return &r, nil
+}
+
+func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
+	var r = model.AddonRegistry{
+		Name: req.Name,
+	}
+	err := u.addonRegistryDS.Get(ctx, &r)
+	if err != nil {
+		return nil, bcode.ErrAddonRegistryNotExist
+	}
+	newRegistry := addonRegistryModelFromCreateAddonRegistryRequest(req)
+	err = u.addonRegistryDS.Put(ctx, newRegistry)
+	if err != nil {
+		return nil, err
+	}
+
+	return &apis.AddonRegistryMeta{
+		Name: newRegistry.Name,
+		Git:  newRegistry.Git,
+	}, nil
 }
 
 func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
