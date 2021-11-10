@@ -22,6 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorCtx "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
@@ -42,6 +43,7 @@ type TaskRunOptions struct {
 	Data          *value.Value
 	PreStartHooks []TaskPreStartHook
 	PostStopHooks []TaskPostStopHook
+	GetTracer     func(id string, step v1beta1.WorkflowStep) monitorCtx.Context
 	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
 }
 
