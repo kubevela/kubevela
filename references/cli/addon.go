@@ -24,6 +24,10 @@ import (
 	"text/template"
 	"time"
 
+	yaml2 "k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
 	"github.com/Masterminds/sprig"
@@ -31,20 +35,15 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -53,6 +52,9 @@ import (
 const (
 	// DescAnnotation records the description of addon
 	DescAnnotation = "addons.oam.dev/description"
+
+	// DependsOnWorkFlowStepName is workflow step name which is used to check dependsOn app
+	DependsOnWorkFlowStepName = "depends-on-app"
 )
 
 var statusUninstalled = "uninstalled"
@@ -333,25 +335,10 @@ type Addon struct {
 	data        string
 	// Args is map for renderInitializer
 	Args        map[string]string
-	application *unstructured.Unstructured
-	gvk         *schema.GroupVersionKind
+	application *v1beta1.Application
 }
 
-func (a *Addon) getGVK() (*schema.GroupVersionKind, error) {
-	if a.gvk == nil {
-		if a.application == nil {
-			_, err := a.renderApplication()
-			if err != nil {
-				return nil, err
-			}
-		}
-		gvk := schema.FromAPIVersionAndKind(a.application.GetAPIVersion(), a.application.GetKind())
-		a.gvk = &gvk
-	}
-	return a.gvk, nil
-}
-
-func (a *Addon) renderApplication() (*unstructured.Unstructured, error) {
+func (a *Addon) renderApplication() (*v1beta1.Application, error) {
 	if a.Args == nil {
 		a.Args = map[string]string{}
 	}
@@ -364,14 +351,10 @@ func (a *Addon) renderApplication() (*unstructured.Unstructured, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "application template render fail")
 	}
-	dec := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	obj := &unstructured.Unstructured{}
-	_, gvk, err := dec.Decode(buf.Bytes(), nil, obj)
+	err = yaml2.NewYAMLOrJSONDecoder(&buf, buf.Len()).Decode(&a.application)
 	if err != nil {
 		return nil, err
 	}
-	a.application = obj
-	a.gvk = gvk
 	return a.application, nil
 }
 
@@ -381,6 +364,10 @@ func (a *Addon) enable() error {
 	obj, err := a.renderApplication()
 	if err != nil {
 		return err
+	}
+	err = a.installDependsOn()
+	if err != nil {
+		return errors.Wrap(err, "Error occurs when install dependent addon")
 	}
 	err = applicator.Apply(ctx, obj)
 	if err != nil {
@@ -393,7 +380,7 @@ func (a *Addon) enable() error {
 	return nil
 }
 
-func waitApplicationRunning(obj *unstructured.Unstructured) error {
+func waitApplicationRunning(obj *v1beta1.Application) error {
 	ctx := context.Background()
 	period := 20 * time.Second
 	timeout := 10 * time.Minute
@@ -412,40 +399,12 @@ func waitApplicationRunning(obj *unstructured.Unstructured) error {
 	})
 }
 func (a *Addon) disable() error {
-	dynamicClient, err := dynamic.NewForConfig(clientArgs.Config)
-	if err != nil {
-		return err
-	}
-	mapper, err := discoverymapper.New(clientArgs.Config)
-	if err != nil {
-		return err
-	}
 	obj, err := a.renderApplication()
 	if err != nil {
 		return err
 	}
-	gvk, err := a.getGVK()
-	if err != nil {
-		return err
-	}
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return err
-	}
-	var resourceREST dynamic.ResourceInterface
-	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-		// namespaced resources should specify the namespace
-		resourceREST = dynamicClient.Resource(mapping.Resource).Namespace(obj.GetNamespace())
-	} else {
-		// for cluster-wide resources
-		resourceREST = dynamicClient.Resource(mapping.Resource)
-	}
-	deletePolicy := metav1.DeletePropagationForeground
-	deleteOptions := metav1.DeleteOptions{
-		PropagationPolicy: &deletePolicy,
-	}
 	fmt.Println("Deleting all resources...")
-	err = resourceREST.Delete(context.TODO(), obj.GetName(), deleteOptions)
+	err = clt.Delete(context.TODO(), obj, client.PropagationPolicy(metav1.DeletePropagationForeground))
 	if err != nil {
 		return err
 	}
@@ -466,6 +425,34 @@ func (a *Addon) getStatus() string {
 
 func (a *Addon) setArgs(args map[string]string) {
 	a.Args = args
+}
+
+func (a *Addon) installDependsOn() error {
+	repo, err := NewAddonRepo()
+	if err != nil {
+		return err
+	}
+	for _, step := range a.application.Spec.Workflow.Steps {
+		if step.Type == DependsOnWorkFlowStepName {
+			props, err := util.RawExtension2Map(step.Properties)
+			if err != nil {
+				return err
+			}
+			dependsOnAddonName, _ := props["name"].(string)
+			fmt.Printf("Installing dependent addon: %s\n", dependsOnAddonName)
+			addon, err := repo.getAddon(dependsOnAddonName)
+			if err != nil {
+				return err
+			}
+			if addon.getStatus() != statusInstalled {
+				err = addon.enable()
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy
