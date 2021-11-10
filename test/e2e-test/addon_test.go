@@ -88,6 +88,11 @@ var _ = Describe("Addon tests", func() {
 	It("Addons are successfully created", func() {
 		By("Install Addon Terraform")
 		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform").Output()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			fmt.Println("exit code error:", string(ee.Stderr))
+
+		}
 		Expect(err).Should(BeNil())
 		Expect(string(output)).Should(ContainSubstring("Successfully enable addon:"))
 
