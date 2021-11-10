@@ -1,0 +1,31 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: network-app
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        ports:
+          - port: 8000
+      traits:
+        - type: network
+          properties:
+            ingress:
+              domain: testsvc.example.com
+              http:
+                "/": 8000
+            expose:
+              ports:
+                - 8001
+            hostAliases:
+              - ip: 127.0.0.1
+                hostnames:
+                  - localname
+                  - locals
+              - ip: 127.0.0.2
+                hostnames:
+                  - test1
+                  - test2
