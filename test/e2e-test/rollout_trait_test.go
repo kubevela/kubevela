@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -105,6 +106,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 		By("check rollout status have succeed")
 		Eventually(func() error {
 			rolloutKey := types.NamespacedName{Namespace: namespaceName, Name: componentName}
+			rollout = v1alpha1.Rollout{}
 			if err := k8sClient.Get(ctx, rolloutKey, &rollout); err != nil {
 				return err
 			}
@@ -150,7 +152,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			}
 			deployKey = types.NamespacedName{Namespace: namespaceName, Name: rollout.Status.LastSourceRevision}
 			if err := k8sClient.Get(ctx, deployKey, &sourceDeploy); err == nil || !apierrors.IsNotFound(err) {
-				return fmt.Errorf("source deploy still exist")
+				return fmt.Errorf("source deploy still exist namespace %s deployName %s", namespaceName, rollout.Status.LastSourceRevision)
 			}
 			return nil
 		}, time.Second*60, 300*time.Millisecond).Should(BeNil())
@@ -321,7 +323,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 	})
 
-	It("rollout scale up adnd down without rollout batches", func() {
+	It("rollout scale up and down without rollout batches", func() {
 		By("first scale operation")
 		Expect(common.ReadYamlToObject("testdata/rollout/deployment/application.yaml", &app)).Should(BeNil())
 		app.Namespace = namespaceName
@@ -408,6 +410,43 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			return nil
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 		verifySuccess("express-server-v2")
+	})
+
+	It("Delete a component with rollout trait from an application should delete this workload", func() {
+		By("first scale operation")
+		Expect(common.ReadYamlToObject("testdata/rollout/deployment/multi_comp_app.yaml", &app)).Should(BeNil())
+		app.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+		verifySuccess("express-server-v1")
+		componentName = "express-server-another"
+		verifySuccess("express-server-another-v1")
+		By("delete a component")
+		Eventually(func() error {
+			checkApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: app.Name}, checkApp); err != nil {
+				return err
+			}
+			checkApp.Spec.Components = []common2.ApplicationComponent{checkApp.Spec.Components[0]}
+			if err := k8sClient.Update(ctx, checkApp); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		By("check deployment have been gc")
+		Eventually(func() error {
+			checkApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: app.Name}, checkApp); err != nil {
+				return err
+			}
+			if len(checkApp.Spec.Components) != 1 || checkApp.Spec.Components[0].Name != "express-server" {
+				return fmt.Errorf("app hasn't update yet")
+			}
+			deploy := v1.Deployment{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: "express-server-another-v1"}, &deploy); err == nil || !apierrors.IsNotFound(err) {
+				return fmt.Errorf("another deployment haven't been delete")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 	})
 })
 

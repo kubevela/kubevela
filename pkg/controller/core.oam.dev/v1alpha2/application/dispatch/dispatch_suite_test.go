@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	. "github.com/onsi/ginkgo"
@@ -419,7 +421,9 @@ var _ = Describe("Test handleSkipGC func", func() {
 	})
 
 	It("Test GC skip func ", func() {
-		handler := GCHandler{c: k8sClient}
+		handler := GCHandler{c: k8sClient, appRev: v1beta1.ApplicationRevision{Spec: v1beta1.ApplicationRevisionSpec{
+			Application: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "mywebservice"}}}},
+		}}}
 		wlName := "test-workload"
 		resourceTracker := v1beta1.ResourceTracker{
 			ObjectMeta: metav1.ObjectMeta{
@@ -430,6 +434,7 @@ var _ = Describe("Test handleSkipGC func", func() {
 		skipWorkload := &appsv1.Deployment{TypeMeta: metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"}}
 		skipWorkload.SetNamespace(namespaceName)
 		skipWorkload.SetName(wlName)
+		skipWorkload.SetLabels(map[string]string{oam.LabelAppComponent: "mywebservice"})
 		skipWorkload.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(
 			&resourceTracker, v1beta1.ResourceTrackerKindVersionKind),
 			metav1.OwnerReference{UID: "app-uid", Name: "test-app", APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ApplicationKind}})
