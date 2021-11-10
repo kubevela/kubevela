@@ -410,9 +410,9 @@ func waitApplicationRunning(obj *v1beta1.Application) error {
 	start := time.Now()
 	ctx := context.Background()
 	var app v1beta1.Application
-	spiner := newTrackingSpinnerWithDelay("Waiting addon running ...", 5*time.Second)
-	spiner.Start()
-	defer spiner.Stop()
+	spinner := newTrackingSpinnerWithDelay("Waiting addon running ...", 1*time.Second)
+	spinner.Start()
+	defer spinner.Stop()
 
 	for {
 		err := clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &app)
@@ -424,9 +424,8 @@ func waitApplicationRunning(obj *v1beta1.Application) error {
 			return nil
 		}
 		timeConsumed := int(time.Since(start).Seconds())
-		applySpinnerNewSuffix(spiner, fmt.Sprintf("Waiting addon application running. Is is now in phase: %s (timeout %d/%d seconds)...",
+		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. Is is now in phase: %s (timeout %d/%d seconds)...",
 			phase, timeConsumed, int(timeout.Seconds())))
-		fmt.Printf("Application %s is in phase:%s...\n", obj.GetName(), phase)
 		time.Sleep(trackInterval)
 	}
 }
