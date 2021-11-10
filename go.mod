@@ -44,6 +44,7 @@ require (
 	github.com/opencontainers/runc v1.0.0-rc95 // indirect
 	github.com/openkruise/kruise-api v0.9.0
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
@@ -52,8 +53,6 @@ require (
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.mongodb.org/mongo-driver v1.5.1
-	go.opentelemetry.io/otel v1.1.0 // indirect
-	go.opentelemetry.io/otel/exporters/jaeger v1.1.0 // indirect
 	go.uber.org/zap v1.18.1
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
