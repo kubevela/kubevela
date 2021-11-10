@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -117,6 +118,7 @@ func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Comma
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
 	cmd.Flags().BoolVar(&o.routeTrait, "route", false, "forward ports from route trait service")
+	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
 	return cmd
 }
 
@@ -126,12 +128,18 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	o.Cmd = cmd
 	o.Args = argsIn
 
-	env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
+	namespace, err := cmd.Flags().GetString(FlagNamespace)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
 	}
-	o.Env = env
-	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
+	if namespace == "" {
+		env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
+		if err != nil {
+			return err
+		}
+		namespace = env.Namespace
+	}
+	app, err := appfile.LoadApplication(namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}
