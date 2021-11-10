@@ -70,6 +70,15 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AddonRegistryMeta{}))
 
+	ws.Route(ws.PUT("/{name}").To(s.updateAddonRegistry).
+		Doc("update an addon registry").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdateAddonRegistryRequest{}).
+		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
+		Returns(200, "", apis.AddonRegistryMeta{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.AddonRegistryMeta{}))
+
 	return ws
 }
 
@@ -100,7 +109,7 @@ func (s *addonRegistryWebService) createAddonRegistry(req *restful.Request, res 
 }
 
 func (s *addonRegistryWebService) deleteAddonRegistry(req *restful.Request, res *restful.Response) {
-	r, err := s.addonUsecase.GetAddonRegistryModel(req.Request.Context(), req.PathParameter("name"))
+	r, err := s.addonUsecase.GetAddonRegistry(req.Request.Context(), req.PathParameter("name"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -124,6 +133,31 @@ func (s *addonRegistryWebService) listAddonRegistry(req *restful.Request, res *r
 		return
 	}
 	if err := res.WriteEntity(apis.ListAddonRegistryResponse{Registrys: registrys}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (s *addonRegistryWebService) updateAddonRegistry(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var updateReq apis.UpdateAddonRegistryRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the usecase layer code
+	meta, err := s.addonUsecase.UpdateAddonRegistry(req.Request.Context(), req.PathParameter("name"), updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(meta); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

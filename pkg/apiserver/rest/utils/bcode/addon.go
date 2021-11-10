@@ -33,6 +33,9 @@ var (
 	// ErrAddonRegistryRateLimit addon registry is rate limited by Github
 	ErrAddonRegistryRateLimit = NewBcode(400, 50004, "Exceed Github rate limit")
 
+	// ErrAddonRegistryNotExist addon registry doesn't exist
+	ErrAddonRegistryNotExist = NewBcode(400, 50006, "addon registry doesn't exist")
+
 	// ErrAddonRender fail to render addon application
 	ErrAddonRender = NewBcode(500, 50010, "addon render fail")
 

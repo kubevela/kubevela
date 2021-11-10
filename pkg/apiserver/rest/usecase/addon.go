@@ -66,9 +66,10 @@ const (
 
 // AddonUsecase addon usecase
 type AddonUsecase interface {
-	GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error)
+	GetAddonRegistry(ctx context.Context, name string) (*model.AddonRegistry, error)
 	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	DeleteAddonRegistry(ctx context.Context, name string) error
+	UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
@@ -143,6 +144,13 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	}
 }
 
+// getCacheKeyWithDetailFLag will get right cache key for given registry and detailed, to split different
+func getCacheKeyWithDetailFLag(registry string, detailed bool) string {
+	if detailed {
+		return registry + "detailed"
+	}
+	return registry
+}
 func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error) {
 	var addons []*apis.DetailAddonResponse
 	rs, err := u.ListAddonRegistries(ctx)
@@ -156,15 +164,15 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 		}
 
 		var gitAddons []*apis.DetailAddonResponse
-		if u.isRegistryCacheUpToDate(registry) {
-			gitAddons = u.getRegistryCache(registry)
+		if u.isRegistryCacheUpToDate(getCacheKeyWithDetailFLag(registry, detailed)) {
+			gitAddons = u.getRegistryCache(getCacheKeyWithDetailFLag(registry, detailed))
 		} else {
 			gitAddons, err = getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
 			if err != nil {
 				log.Logger.Errorf("fail to get addons from registry %s", r.Name)
 				continue
 			}
-			u.putRegistryCache(registry, gitAddons)
+			u.putRegistryCache(getCacheKeyWithDetailFLag(registry, detailed), gitAddons)
 		}
 
 		addons = mergeAddons(addons, gitAddons)
@@ -208,7 +216,7 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 	}, nil
 }
 
-func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name string) (*model.AddonRegistry, error) {
+func (u *addonUsecaseImpl) GetAddonRegistry(ctx context.Context, name string) (*model.AddonRegistry, error) {
 	var r = model.AddonRegistry{
 		Name: name,
 	}
@@ -217,6 +225,26 @@ func (u *addonUsecaseImpl) GetAddonRegistryModel(ctx context.Context, name strin
 		return nil, err
 	}
 	return &r, nil
+}
+
+func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
+	var r = model.AddonRegistry{
+		Name: name,
+	}
+	err := u.addonRegistryDS.Get(ctx, &r)
+	if err != nil {
+		return nil, bcode.ErrAddonRegistryNotExist
+	}
+	r.Git = req.Git
+	err = u.addonRegistryDS.Put(ctx, &r)
+	if err != nil {
+		return nil, err
+	}
+
+	return &apis.AddonRegistryMeta{
+		Name: r.Name,
+		Git:  r.Git,
+	}, nil
 }
 
 func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
