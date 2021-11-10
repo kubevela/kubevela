@@ -98,7 +98,7 @@ var _ = Describe("Addon tests", func() {
 
 		By("Apply an application with Terraform Component")
 		var terraformApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/app/app_terraform_oss.yam", &terraformApp)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/app/app_terraform_oss.yaml", &terraformApp)).Should(BeNil())
 		terraformApp.Namespace = namespaceName
 		Eventually(func() error {
 			return k8sClient.Create(ctx, terraformApp.DeepCopy())
