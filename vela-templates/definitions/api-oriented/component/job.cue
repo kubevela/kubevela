@@ -148,6 +148,13 @@ template: {
 					// +usage=The key of the secret to select from. Must be a valid secret key
 					key: string
 				}
+				// +usage=Selects a key of a config map in the pod's namespace
+				configMapKeyRef: {
+					// +usage=The name of the config map in the pod's namespace to select from
+					name: string
+					// +usage=The key of the config map to select from. Must be a valid secret key
+					key: string
+				}
 			}
 		}]
 
