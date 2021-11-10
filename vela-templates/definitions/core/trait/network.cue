@@ -108,7 +108,7 @@ template: {
 					]
 				}
 			}
-			
+
 			// the ingress API matches K8s v1.20+
 			ingress: {
 				apiVersion: "networking.k8s.io/v1"

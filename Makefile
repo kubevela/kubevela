@@ -112,7 +112,7 @@ fmt: goimports installcue
 	go fmt ./...
 	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w $$(go list -f {{.Dir}} ./...)
 	$(CUE) fmt ./vela-templates/definitions/internal/*
-	$(CUE) fmt ./vela-templates/definitions/api-oriented/*
+	$(CUE) fmt ./vela-templates/definitions/core/*
 	$(CUE) fmt ./vela-templates/definitions/registry/*
 	$(CUE) fmt ./pkg/stdlib/pkgs/*
 	$(CUE) fmt ./pkg/stdlib/op.cue
