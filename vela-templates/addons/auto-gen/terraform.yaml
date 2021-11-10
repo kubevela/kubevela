@@ -170,6 +170,52 @@ spec:
             apiVersion: terraform.core.oam.dev/v1beta1
             kind: Configuration
     type: raw
+  - name: alibaba-vpc
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            VPC
+        labels:
+          type: terraform
+        name: alibaba-vpc
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/vpc
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-vswitch
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            VSwitch
+        labels:
+          type: terraform
+        name: alibaba-vswitch
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/vswitch
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
   - name: aws-s3
     properties:
       apiVersion: core.oam.dev/v1alpha2
