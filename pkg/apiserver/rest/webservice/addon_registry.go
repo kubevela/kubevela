@@ -73,7 +73,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.PUT("/{name}").To(s.updateAddonRegistry).
 		Doc("update an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(apis.CreateAddonRegistryRequest{}).
+		Reads(apis.UpdateAddonRegistryRequest{}).
 		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
 		Returns(200, "", apis.AddonRegistryMeta{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -140,17 +140,17 @@ func (s *addonRegistryWebService) listAddonRegistry(req *restful.Request, res *r
 
 func (s *addonRegistryWebService) updateAddonRegistry(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
-	var createReq apis.CreateAddonRegistryRequest
-	if err := req.ReadEntity(&createReq); err != nil {
+	var updateReq apis.UpdateAddonRegistryRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := validate.Struct(&createReq); err != nil {
+	if err := validate.Struct(&updateReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 	// Call the usecase layer code
-	meta, err := s.addonUsecase.UpdateAddonRegistry(req.Request.Context(), req.PathParameter("name"), createReq)
+	meta, err := s.addonUsecase.UpdateAddonRegistry(req.Request.Context(), req.PathParameter("name"), updateReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

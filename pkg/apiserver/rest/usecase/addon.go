@@ -69,7 +69,7 @@ type AddonUsecase interface {
 	GetAddonRegistry(ctx context.Context, name string) (*model.AddonRegistry, error)
 	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	DeleteAddonRegistry(ctx context.Context, name string) error
-	UpdateAddonRegistry(ctx context.Context, name string, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
+	UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
@@ -227,7 +227,7 @@ func (u *addonUsecaseImpl) GetAddonRegistry(ctx context.Context, name string) (*
 	return &r, nil
 }
 
-func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
+func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
 	var r = model.AddonRegistry{
 		Name: name,
 	}
@@ -235,19 +235,15 @@ func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, 
 	if err != nil {
 		return nil, bcode.ErrAddonRegistryNotExist
 	}
-	newRegistry := addonRegistryModelFromCreateAddonRegistryRequest(req)
-	err = u.addonRegistryDS.Delete(ctx, &r)
-	if err != nil {
-		return nil, err
-	}
-	err = u.addonRegistryDS.Add(ctx, newRegistry)
+	r.Git = req.Git
+	err = u.addonRegistryDS.Put(ctx, &r)
 	if err != nil {
 		return nil, err
 	}
 
 	return &apis.AddonRegistryMeta{
-		Name: newRegistry.Name,
-		Git:  newRegistry.Git,
+		Name: r.Name,
+		Git:  r.Git,
 	}, nil
 }
 

@@ -59,6 +59,10 @@ type CreateAddonRegistryRequest struct {
 	Git  *model.GitAddonSource `json:"git,omitempty" validate:"required"`
 }
 
+type UpdateAddonRegistryRequest struct {
+	Git *model.GitAddonSource `json:"git,omitempty" validate:"required"`
+}
+
 // AddonRegistryMeta defines the format for a single addon registry
 type AddonRegistryMeta struct {
 	Name string                `json:"name" validate:"required"`
