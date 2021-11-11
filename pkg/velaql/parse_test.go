@@ -26,7 +26,7 @@ import (
 func TestParseVelaQL(t *testing.T) {
 	testcases := []struct {
 		ql    string
-		query Query
+		query QueryView
 		err   error
 	}{{
 		ql:  `view{test=,test1=hello}.output`,
@@ -39,21 +39,21 @@ func TestParseVelaQL(t *testing.T) {
 		err: errors.New("fail to parse the velaQL"),
 	}, {
 		ql: `view{test=1,app="name"}`,
-		query: Query{
+		query: QueryView{
 			View:   "view",
 			Export: "status",
 		},
 		err: nil,
 	}, {
 		ql: `view{test=1,app="name"}.Export`,
-		query: Query{
+		query: QueryView{
 			View:   "view",
 			Export: "Export",
 		},
 		err: nil,
 	}, {
 		ql: `view{test=true}.output.value.spec`,
-		query: Query{
+		query: QueryView{
 			View:   "view",
 			Export: "output.value.spec",
 		},

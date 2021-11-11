@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -39,13 +40,18 @@ const (
 )
 
 // Loader load task definition template.
-type Loader struct {
+type Loader interface {
+	LoadTaskTemplate(ctx context.Context, name string) (string, error)
+}
+
+// WorkflowStepLoader load workflowStep task definition template.
+type WorkflowStepLoader struct {
 	client client.Client
 	dm     discoverymapper.DiscoveryMapper
 }
 
 // LoadTaskTemplate gets the workflowStep definition.
-func (loader *Loader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
+func (loader *WorkflowStepLoader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
 	files, err := templateFS.ReadDir(templateDir)
 	if err != nil {
 		return "", err
@@ -71,10 +77,34 @@ func (loader *Loader) LoadTaskTemplate(ctx context.Context, name string) (string
 	return "", errors.New("custom workflowStep only support cue")
 }
 
-// NewTemplateLoader create a task template loader.
-func NewTemplateLoader(client client.Client, dm discoverymapper.DiscoveryMapper) *Loader {
-	return &Loader{
+// NewWorkflowStepTemplateLoader create a task template loader.
+func NewWorkflowStepTemplateLoader(client client.Client, dm discoverymapper.DiscoveryMapper) Loader {
+	return &WorkflowStepLoader{
 		client: client,
 		dm:     dm,
+	}
+}
+
+// ViewLoader load view task definition template.
+type ViewLoader struct {
+	client    client.Client
+	namespace string
+}
+
+// LoadTaskTemplate gets the workflowStep definition.
+func (loader *ViewLoader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
+	cm := new(corev1.ConfigMap)
+	cmKey := client.ObjectKey{Name: name, Namespace: loader.namespace}
+	if err := loader.client.Get(ctx, cmKey, cm); err != nil {
+		return "", errors.Wrapf(err, "fail to get view template %v from configMap", cmKey)
+	}
+	return cm.Data["template"], nil
+}
+
+// NewViewTemplateLoader create a view task template loader.
+func NewViewTemplateLoader(client client.Client, namespace string) Loader {
+	return &ViewLoader{
+		client:    client,
+		namespace: namespace,
 	}
 }

@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: component-pod-view
+  namespace: vela-system
+data:
+  template: |
+    import (
+      "vela/ql"
+      "vela/op"
+      "list"
+    )
+
+    parameter: {
+      name:          string
+      namespace:     string
+      componentName: string
+    }
+
+    application: ql.#ListResourcesInApp & {
+      app: {
+        name:      parameter.name
+        namespace: parameter.namespace
+        components: [parameter.componentName]
+      }
+    }
+
+    app:       application.list[0]
+    resources: app.components[0].resources
+
+    podsMap: op.#Steps & {
+      for i, resource in resources {
+        "\(i)": ql.#CollectPods & {
+          value:   resource.object
+          cluster: resource.cluster
+        }
+      }
+    }
+
+    podsWithCluster: {for i, pods in podsMap {
+      "\(i)": [
+        for podObj in pods.list {
+          cluster: pods.cluster
+          obj:     podObj
+        },
+      ]
+    }}
+
+    flatPods: list.FlattenN([ for pods in podsWithCluster {
+      pods
+    }], 1)
+
+    podStatus: op.#Steps & {
+      for i, pod in flatPods {
+        "\(i)": op.#Steps & {
+          name: pod.obj.metadata.name
+          containers: {for container in pod.obj.status.containerStatuses {
+            "\(container.name)": {
+              image: container.image
+              state: container.state
+            }
+          }}
+          events: ql.#SearchEvents & {
+            value:   pod.obj
+            cluster: pod.cluster
+          }
+          metrics: ql.#Read & {
+            cluster: pod.cluster
+            value: {
+              apiVersion: "metrics.k8s.io/v1beta1"
+              kind:       "PodMetrics"
+              metadata: {
+                name:      pod.obj.metadata.name
+                namespace: pod.obj.metadata.namespace
+              }
+            }
+          }
+        }
+      }
+    }
+
+    status: {
+      podList: [ for podInfo in podStatus {
+        name: podInfo.name
+        containers: [ for containerName, container in podInfo.containers {
+          name:  containerName
+          image: container.image
+          state: container.state
+          if podInfo.metrics.err == _|_ {
+            usage: {for containerUsage in podInfo.metrics.value.containers {
+              if containerUsage.name == containerName {
+                cpu:    containerUsage.usage.cpu
+                memory: containerUsage.usage.memory
+              }
+            }}
+          }
+        }]
+        events: [ for event in podInfo.events.list {
+          type:           event.type
+          reason:         event.reason
+          message:        event.message
+          firstTimestamp: event.firstTimestamp
+        }]
+      }]
+    }
+
+

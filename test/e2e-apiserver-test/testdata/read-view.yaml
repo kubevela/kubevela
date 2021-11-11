@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: read-object
+  name: read-view
   namespace: vela-system
 data:
   template: |
@@ -39,9 +39,7 @@ data:
             }
         }
     }
-    objStatus: {
-      output.value.status
-    }
+
     parameter: {
         // +usage=Specify the apiVersion of the object, defaults to core.oam.dev/v1beta1
         apiVersion?: string

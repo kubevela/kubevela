@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -43,8 +42,8 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var viewHandler *ViewHandler
 var pod corev1.Pod
-var readView v1beta1.WorkflowStepDefinition
-var applyView v1beta1.WorkflowStepDefinition
+var readView corev1.ConfigMap
+var applyView corev1.ConfigMap
 
 var _ = BeforeSuite(func(done Done) {
 	rand.Seed(time.Now().UnixNano())
