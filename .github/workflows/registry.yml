@@ -60,6 +60,7 @@ jobs:
 
       - name: PUSH
         run: |
+          docker build -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }} .
           docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
