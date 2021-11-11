@@ -5,7 +5,7 @@ on:
       - master
     tags:
       - "v*"
-  workflow_dispatch: { }
+  workflow_dispatch: {}
 
 env:
   BUCKET: ${{ secrets.OSS_BUCKET }}
@@ -15,32 +15,6 @@ env:
   ARTIFACT_HUB_REPOSITORY_ID: ${{ secrets.ARTIFACT_HUB_REPOSITORY_ID }}
 
 jobs:
-  poc:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: Get the version
-        id: get_version
-        run: |
-          VERSION=v0.9.9-poc
-          echo ::set-output name=VERSION::${VERSION}
-      - name: Get git revision
-        id: vars
-        shell: bash
-        run: |
-          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
-      - name: Login Alibaba Cloud ACR
-        uses: docker/login-action@v1
-        with:
-          registry: kubevela-registry.cn-hangzhou.cr.aliyuncs.com
-          username: ${{ secrets.ACR_USERNAME }}@aliyun-inner.com
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: PUSH
-        run: |
-          docker build -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }} .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
-
   publish-images:
     runs-on: ubuntu-latest
     steps:
@@ -55,11 +29,37 @@ jobs:
         shell: bash
         run: |
           echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
-
+      - name: Login docker.io
+        uses: docker/login-action@v1
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Login Alibaba Cloud ACR
-        run: |
-          echo ${{ secrets.ACR_PASSWORD }} | docker login -u ${{ secrets.ACR_USERNAME }}@aliyun-inner.com kubevela-registry.cn-hangzhou.cr.aliyuncs.com --password-stdin
-          cat /home/runner/.docker/config.json
+        uses: docker/login-action@v1
+        with:
+          registry: kubevela-registry.cn-hangzhou.cr.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}@aliyun-inner.com
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/setup-qemu-action@v1
+      - uses: docker/setup-buildx-action@v1
+        with:
+          driver-opts: image=moby/buildkit:master
+      - uses: docker/build-push-action@v2
+        name: Build & Pushing
+        with:
+          context: .
+          file: Dockerfile
+          labels: |-
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
+            VERSION=${{ steps.get_version.outputs.VERSION }}
+          tags: |-
+            docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
       - name: PUSH
         run: |
