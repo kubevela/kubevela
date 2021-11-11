@@ -54,21 +54,10 @@ jobs:
       - uses: docker/setup-buildx-action@v1
         with:
           driver-opts: image=moby/buildkit:master
-      - uses: docker/build-push-action@v2
-        name: Build & Pushing for ACR
-        with:
-          context: .
-          file: Dockerfile
-          labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
-            VERSION=${{ steps.get_version.outputs.VERSION }}
-          tags: |-
-            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
+      - name: Build & Pushing for ACR
+        run: |
+          docker build -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }} .
+          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
       - uses: docker/build-push-action@v2
         name: Build & Pushing for Dockerhub and GHCR
@@ -85,25 +74,12 @@ jobs:
             VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: |-
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
-
+      - name: Build & Pushing runtime rollout for Dockerhub and GHCR
+        run: |
+          docker build -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }} .
+          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
         name: Build & Pushing runtime rollout for ACR
-        with:
-          context: .
-          file: runtime/rollout/Dockerfile
-          labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
-            VERSION=${{ steps.get_version.outputs.VERSION }}
-          tags: |-
-            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-      - uses: docker/build-push-action@v2
-        name: Build & Pushing runtime rollout for Dockerhub and GHCR
         with:
           context: .
           file: runtime/rollout/Dockerfile
@@ -117,7 +93,6 @@ jobs:
             VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: |-
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:
