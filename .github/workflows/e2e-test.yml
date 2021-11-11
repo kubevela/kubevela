@@ -83,7 +83,7 @@ jobs:
       - name: Run api e2e tests
         run: make e2e-api-test
 
-      - name Run addons e2e tests
+      - name: Run addons e2e tests
         run: make e2e-addon-test
 
       - name: Run e2e tests
