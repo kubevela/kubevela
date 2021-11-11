@@ -16,6 +16,7 @@ package metrics
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 var (
@@ -29,7 +30,7 @@ var (
 )
 
 func init() {
-	if err := prometheus.Register(StepDurationSummary); err != nil {
+	if err := metrics.Registry.Register(StepDurationSummary); err != nil {
 		klog.Error(err)
 	}
 }
