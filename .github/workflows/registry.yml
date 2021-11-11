@@ -59,6 +59,7 @@ jobs:
             GITVERSION=git-${{ steps.vars.outputs.git_revision }}
             VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: |-
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
       - name: PUSH
