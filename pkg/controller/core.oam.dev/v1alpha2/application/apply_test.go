@@ -25,8 +25,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
-	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -36,14 +34,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	velatypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -160,64 +155,6 @@ var _ = Describe("Test Application apply", func() {
 		applabel, exist := apprev.Labels["app.oam.dev/name"]
 		Expect(exist).Should(BeTrue())
 		Expect(strings.Compare(applabel, app.Name) == 0).Should(BeTrue())
-	})
-})
-
-var _ = Describe("Test statusAggregate", func() {
-	It("the component is Terraform type", func() {
-		var (
-			ctx           = context.TODO()
-			componentName = "sample-oss"
-			ns            = "default"
-			h             = &AppHandler{r: reconciler, app: &v1beta1.Application{
-				TypeMeta:   metav1.TypeMeta{},
-				ObjectMeta: metav1.ObjectMeta{Namespace: ns},
-			}}
-			appFile = &appfile.Appfile{
-				Workloads: []*appfile.Workload{
-					{
-						Name: componentName,
-						FullTemplate: &appfile.Template{
-							Reference: common.WorkloadTypeDescriptor{
-								Definition: common.WorkloadGVK{APIVersion: "v1", Kind: "A1"},
-							},
-						},
-						CapabilityCategory: velatypes.TerraformCategory,
-					},
-				},
-			}
-		)
-
-		By("aggregate status")
-		statuses, healthy, err := h.aggregateHealthStatus(appFile)
-		Expect(statuses).Should(BeNil())
-		Expect(healthy).Should(Equal(false))
-		Expect(err).Should(HaveOccurred())
-
-		By("create Terraform configuration")
-		configuration := terraformapi.Configuration{
-			TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
-			ObjectMeta: metav1.ObjectMeta{Name: componentName, Namespace: ns},
-		}
-		k8sClient.Create(ctx, &configuration)
-
-		By("aggregate status again")
-		statuses, healthy, err = h.aggregateHealthStatus(appFile)
-		Expect(len(statuses)).Should(Equal(1))
-		Expect(healthy).Should(Equal(false))
-		Expect(err).Should(BeNil())
-
-		By("set status for Terraform configuration")
-		var gotConfiguration terraformapi.Configuration
-		k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: componentName}, &gotConfiguration)
-		gotConfiguration.Status.Apply.State = terraformtypes.Available
-		k8sClient.Status().Update(ctx, &gotConfiguration)
-
-		By("aggregate status one more time")
-		statuses, healthy, err = h.aggregateHealthStatus(appFile)
-		Expect(len(statuses)).Should(Equal(1))
-		Expect(healthy).Should(Equal(true))
-		Expect(err).Should(BeNil())
 	})
 })
 
