@@ -32,7 +32,7 @@ jobs:
 
       - name: Login Alibaba Cloud ACR
         run: |
-          echo ${{ secrets.ACR_PASSWORD }} | docker login -u ${{ secrets.ACR_USERNAME }}@aliyun-inner.com acr.kubevela.net --password-stdin
+          echo ${{ secrets.ACR_PASSWORD }} | docker login -u ${{ secrets.ACR_USERNAME }}@aliyun-inner.com kubevela-registry.cn-hangzhou.cr.aliyuncs.com --password-stdin
           cat /home/runner/.docker/config.json
 
       - name: PUSH
