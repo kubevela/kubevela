@@ -36,6 +36,7 @@ jobs:
       - name: Login Alibaba Cloud ACR
         run: |
           docker login -u ${{ secrets.ACR_USERNAME }}@aliyun-inner.com acr.kubevela.net --password-stdin=${{ secrets.ACR_PASSWORD }}
+          cat /home/runner/.docker/config.json
 
       - uses: docker/setup-qemu-action@v1
       - uses: docker/setup-buildx-action@v1
