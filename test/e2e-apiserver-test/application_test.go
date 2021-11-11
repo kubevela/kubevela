@@ -36,7 +36,7 @@ import (
 var _ = Describe("Test application rest api", func() {
 	It("Test create app", func() {
 		defer GinkgoRecover()
-		var req = apisv1.CreateApplicationPlanRequest{
+		var req = apisv1.CreateApplicationRequest{
 			Name:        "test-app-sadasd",
 			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
@@ -54,7 +54,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var appBase apisv1.ApplicationPlanBase
+		var appBase apisv1.ApplicationBase
 		err = json.NewDecoder(res.Body).Decode(&appBase)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(appBase.Name, req.Name)).Should(BeEmpty())
@@ -78,7 +78,7 @@ var _ = Describe("Test application rest api", func() {
 		defer GinkgoRecover()
 		bs, err := ioutil.ReadFile("./testdata/example-app.yaml")
 		Expect(err).Should(Succeed())
-		var req = apisv1.CreateApplicationPlanRequest{
+		var req = apisv1.CreateApplicationRequest{
 			Name:        "test-app-sadasd",
 			Namespace:   "test-app-namespace",
 			Description: "this is a test app",
@@ -94,7 +94,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var appBase apisv1.ApplicationPlanBase
+		var appBase apisv1.ApplicationBase
 		err = json.NewDecoder(res.Body).Decode(&appBase)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(appBase.Name, req.Name)).Should(BeEmpty())
@@ -111,10 +111,10 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var components apisv1.ComponentPlanListResponse
+		var components apisv1.ComponentListResponse
 		err = json.NewDecoder(res.Body).Decode(&components)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(len(components.ComponentPlans), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(components.Components), 2)).Should(BeEmpty())
 	})
 
 	It("Test list policies", func() {
@@ -153,7 +153,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var detail apisv1.DetailApplicationPlanResponse
+		var detail apisv1.DetailApplicationResponse
 		err = json.NewDecoder(res.Body).Decode(&detail)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(len(detail.Policies), 1)).Should(BeEmpty())
@@ -188,7 +188,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test create component", func() {
 		defer GinkgoRecover()
-		var req = apisv1.CreateComponentPlanRequest{
+		var req = apisv1.CreateComponentRequest{
 			Name:          "test2",
 			Description:   "this is a test2 component",
 			Labels:        map[string]string{},
@@ -204,7 +204,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var response apisv1.ComponentPlanBase
+		var response apisv1.ComponentBase
 		err = json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.ComponentType, "worker")).Should(BeEmpty())
@@ -218,7 +218,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var response apisv1.DetailComponentPlanResponse
+		var response apisv1.DetailComponentResponse
 		err = json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(len(response.DependsOn), 1)).Should(BeEmpty())

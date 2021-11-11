@@ -30,7 +30,7 @@ import (
 var _ = Describe("Test new entity function", func() {
 
 	It("Test new application entity", func() {
-		var app model.ApplicationPlan
+		var app model.Application
 		new, err := NewEntity(&app)
 		Expect(err).To(BeNil())
 		json.Unmarshal([]byte(`{"name":"demo"}`), new)
@@ -40,7 +40,7 @@ var _ = Describe("Test new entity function", func() {
 	})
 
 	It("Test new multiple application entity", func() {
-		var app model.ApplicationPlan
+		var app model.Application
 		var list []Entity
 		var n = 3
 		for n > 0 {

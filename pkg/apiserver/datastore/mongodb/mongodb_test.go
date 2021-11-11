@@ -56,22 +56,22 @@ var _ = BeforeSuite(func(done Done) {
 var _ = Describe("Test mongodb datastore driver", func() {
 
 	It("Test add funtion", func() {
-		err := mongodbDriver.Add(context.TODO(), &model.ApplicationPlan{Name: "kubevela-app", Description: "default"})
+		err := mongodbDriver.Add(context.TODO(), &model.Application{Name: "kubevela-app", Description: "default"})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Test batch add funtion", func() {
 		var datas = []datastore.Entity{
-			&model.ApplicationPlan{Name: "kubevela-app-2", Description: "this is demo 2"},
-			&model.ApplicationPlan{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
-			&model.ApplicationPlan{Namespace: "test-namespace2", Name: "kubevela-app-4", Description: "this is demo 4"},
+			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
+			&model.Application{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
+			&model.Application{Namespace: "test-namespace2", Name: "kubevela-app-4", Description: "this is demo 4"},
 		}
 		err := mongodbDriver.BatchAdd(context.TODO(), datas)
 		Expect(err).ToNot(HaveOccurred())
 
 		var datas2 = []datastore.Entity{
-			&model.ApplicationPlan{Namespace: "test-namespace", Name: "can-delete", Description: "this is demo can-delete"},
-			&model.ApplicationPlan{Name: "kubevela-app-2", Description: "this is demo 2"},
+			&model.Application{Namespace: "test-namespace", Name: "can-delete", Description: "this is demo can-delete"},
+			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 		}
 		err = mongodbDriver.BatchAdd(context.TODO(), datas2)
 		equal := cmp.Diff(strings.Contains(err.Error(), "save components occur error"), true)
@@ -79,7 +79,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 	})
 
 	It("Test get funtion", func() {
-		app := &model.ApplicationPlan{Name: "kubevela-app"}
+		app := &model.Application{Name: "kubevela-app"}
 		err := mongodbDriver.Get(context.TODO(), app)
 		Expect(err).Should(BeNil())
 		diff := cmp.Diff(app.Description, "default")
@@ -87,11 +87,11 @@ var _ = Describe("Test mongodb datastore driver", func() {
 	})
 
 	It("Test put funtion", func() {
-		err := mongodbDriver.Put(context.TODO(), &model.ApplicationPlan{Name: "kubevela-app", Description: "this is demo"})
+		err := mongodbDriver.Put(context.TODO(), &model.Application{Name: "kubevela-app", Description: "this is demo"})
 		Expect(err).ToNot(HaveOccurred())
 	})
 	It("Test list funtion", func() {
-		var app model.ApplicationPlan
+		var app model.Application
 		list, err := mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{Page: -1})
 		Expect(err).ShouldNot(HaveOccurred())
 		diff := cmp.Diff(len(list), 4)
@@ -120,7 +120,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 	})
 
 	It("Test count function", func() {
-		var app model.ApplicationPlan
+		var app model.Application
 		count, err := mongodbDriver.Count(context.TODO(), &app)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(4)))
@@ -132,7 +132,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 	})
 
 	It("Test isExist funtion", func() {
-		var app model.ApplicationPlan
+		var app model.Application
 		app.Name = "kubevela-app-3"
 		exist, err := mongodbDriver.IsExist(context.TODO(), &app)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -147,7 +147,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 	})
 
 	It("Test delete funtion", func() {
-		var app model.ApplicationPlan
+		var app model.Application
 		app.Name = "kubevela-app"
 		err := mongodbDriver.Delete(context.TODO(), &app)
 		Expect(err).ShouldNot(HaveOccurred())

@@ -27,40 +27,40 @@ import (
 var _ = Describe("Test validate function", func() {
 	It("Test check name validate ", func() {
 		Expect(cmp.Diff(nameRegexp.MatchString("///Asd asda "), false)).Should(BeEmpty())
-		var app0 = apisv1.CreateApplicationPlanRequest{
+		var app0 = apisv1.CreateApplicationRequest{
 			Name:      "a",
 			Namespace: "namespace",
 		}
 		err := validate.Struct(&app0)
 		Expect(err).ShouldNot(BeNil())
-		var app1 = apisv1.CreateApplicationPlanRequest{
+		var app1 = apisv1.CreateApplicationRequest{
 			Name:      "Asdasd",
 			Namespace: "namespace",
 		}
 		err = validate.Struct(&app1)
 		Expect(err).ShouldNot(BeNil())
-		var app2 = apisv1.CreateApplicationPlanRequest{
+		var app2 = apisv1.CreateApplicationRequest{
 			Name:      "asdasd asdasd ++",
 			Namespace: "namespace",
 		}
 		err = validate.Struct(&app2)
 		Expect(err).ShouldNot(BeNil())
 
-		var app3 = apisv1.CreateApplicationPlanRequest{
+		var app3 = apisv1.CreateApplicationRequest{
 			Name:      "asdasd",
 			Namespace: "namespace",
 		}
 		err = validate.Struct(&app3)
 		Expect(err).Should(BeNil())
 
-		var app4 = apisv1.CreateApplicationPlanRequest{
+		var app4 = apisv1.CreateApplicationRequest{
 			Name:      "asdasd-asdasd",
 			Namespace: "namespace",
 		}
 		err = validate.Struct(&app4)
 		Expect(err).Should(BeNil())
 
-		var component = apisv1.CreateComponentPlanRequest{
+		var component = apisv1.CreateComponentRequest{
 			Name:          "asdasd-asdasd",
 			ComponentType: "alibaba-ack",
 		}
