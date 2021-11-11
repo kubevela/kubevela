@@ -5,7 +5,7 @@ on:
       - master
     tags:
       - "v*"
-  workflow_dispatch: {}
+  workflow_dispatch: { }
 
 env:
   BUCKET: ${{ secrets.OSS_BUCKET }}
@@ -58,10 +58,9 @@ jobs:
           tags: |-
             kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
-        - name: PUSH
-          run: |
-            docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
-
+      - name: PUSH
+        run: |
+          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:
