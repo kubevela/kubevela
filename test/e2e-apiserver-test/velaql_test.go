@@ -131,7 +131,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
 
 		queryRes, err := http.Get(
-			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "component-pod-view", appName, namespace, component1Name, "status"),
+			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"),
 		)
 		Expect(err).Should(BeNil())
 		Expect(queryRes.StatusCode).Should(Equal(200))
@@ -145,7 +145,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes1, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "component-pod-view", appName, namespace, component2Name, "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
 			)
 			if err != nil {
 				return err
@@ -208,7 +208,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "component-pod-view", appName, namespace, component2Name, "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
 			)
 			if err != nil {
 				return err
