@@ -428,7 +428,7 @@ func (a *Addon) setArgs(args map[string]string) {
 }
 
 func (a *Addon) installDependsOn() error {
-	if a.application.Spec.Workflow.Steps == nil {
+	if a.application.Spec.Workflow == nil || a.application.Spec.Workflow.Steps == nil {
 		return nil
 	}
 	repo, err := NewAddonRepo()
