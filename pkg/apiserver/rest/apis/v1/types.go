@@ -34,6 +34,8 @@ var (
 	CtxKeyApplication = "application"
 	// CtxKeyWorkflow request context key of workflow
 	CtxKeyWorkflow = "workflow"
+	// CtxKeyDeliveryTarget request context key of workflow
+	CtxKeyDeliveryTarget = "delivery-target"
 	// CtxKeyApplicationEnvBinding request context key of env binding
 	CtxKeyApplicationEnvBinding = "envbinding-policy"
 )
@@ -672,8 +674,8 @@ type ApplicationTrait struct {
 	Properties *model.JSONStruct `json:"properties"`
 }
 
-// CreateDeliveryTarget  create delivery target request body
-type CreateDeliveryTarget struct {
+// CreateDeliveryTargetRequest  create delivery target request body
+type CreateDeliveryTargetRequest struct {
 	Name        string            `json:"name" validate:"checkname"`
 	Namespace   string            `json:"namespace"  validate:"checkname"`
 	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
@@ -683,7 +685,7 @@ type CreateDeliveryTarget struct {
 }
 
 // UpdateDeliveryTarget only support full quantity update
-type UpdateDeliveryTarget struct {
+type UpdateDeliveryTargetRequest struct {
 	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string            `json:"description,omitempty" optional:"true"`
 	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
@@ -702,6 +704,29 @@ type CloudTarget struct {
 	Region                string `json:"region" validate:"required"`
 	Zone                  string `json:"zone" optional:"true"`
 	VpcID                 string `json:"vpcID" optional:"true"`
+}
+
+// DetailDeliveryTargetResponse detail deliveryTarget response
+type DetailDeliveryTargetResponse struct {
+	DeliveryTargetBase
+}
+
+// ListDeliveryTargetBaseResponse list application workflows
+type ListDeliveryTargetResponse struct {
+	DeliveryTargets []DeliveryTargetBase `json:"deliveryTargets"`
+	Total           int64                `json:"total"`
+}
+
+// DeliveryTargetBase deliveryTarget base model
+type DeliveryTargetBase struct {
+	Name        string            `json:"name" validate:"checkname"`
+	Namespace   string            `json:"namespace"  validate:"checkname"`
+	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description string            `json:"description,omitempty" optional:"true"`
+	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
+	Cloud       *CloudTarget      `json:"cloud,omitempty"`
+	CreateTime  time.Time         `json:"createTime"`
+	UpdateTime  time.Time         `json:"updateTime"`
 }
 
 // ApplicationRevisionBase application revision base spec
