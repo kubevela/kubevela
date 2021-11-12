@@ -306,15 +306,15 @@ type GatewayRule struct {
 
 // CreateApplicationRequest create application  request body
 type CreateApplicationRequest struct {
-	Name        string                 `json:"name" validate:"checkname"`
-	Alias       string                 `json:"alias" validate:"checkalias" optional:"true"`
-	Namespace   string                 `json:"namespace" validate:"checkname"`
-	Description string                 `json:"description" optional:"true"`
-	Icon        string                 `json:"icon"`
-	Labels      map[string]string      `json:"labels,omitempty"`
-	EnvBinding  []*EnvBinding          `json:"envBinding,omitempty"`
-	YamlConfig  string                 `json:"yamlConfig,omitempty"`
-	Component   CreateComponentRequest `json:"component"`
+	Name        string                  `json:"name" validate:"checkname"`
+	Alias       string                  `json:"alias" validate:"checkalias" optional:"true"`
+	Namespace   string                  `json:"namespace" validate:"checkname"`
+	Description string                  `json:"description" optional:"true"`
+	Icon        string                  `json:"icon"`
+	Labels      map[string]string       `json:"labels,omitempty"`
+	EnvBinding  []*EnvBinding           `json:"envBinding,omitempty"`
+	YamlConfig  string                  `json:"yamlConfig,omitempty"`
+	Component   *CreateComponentRequest `json:"component"`
 }
 
 // UpdateApplicationRequest update application  base config

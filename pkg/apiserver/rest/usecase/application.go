@@ -258,10 +258,11 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 			return nil, err
 		}
 	}
-
-	_, err = c.AddComponent(ctx, &application, req.Component)
-	if err != nil {
-		return nil, err
+	if req.Component != nil {
+		_, err = c.AddComponent(ctx, &application, *req.Component)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// add application to db.
 	if err := c.ds.Add(ctx, &application); err != nil {
