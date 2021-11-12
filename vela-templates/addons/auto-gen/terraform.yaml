@@ -45,6 +45,29 @@ spec:
             apiVersion: terraform.core.oam.dev/v1beta1
             kind: Configuration
     type: raw
+  - name: alibaba-ask
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            Serverless Kubernetes (ASK)
+        labels:
+          type: terraform
+        name: alibaba-ask
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/cs/serverless-kubernetes
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
   - name: alibaba-eip
     properties:
       apiVersion: core.oam.dev/v1alpha2
