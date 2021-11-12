@@ -48,7 +48,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applicationplans", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -66,7 +66,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test delete app", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd", nil)
+		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/test-app-sadasd", nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		res, err := http.DefaultClient.Do(req)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -88,7 +88,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applicationplans", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -105,7 +105,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test list components", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/componentplans")
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -119,7 +119,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test list policies", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/policies")
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -133,7 +133,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test get workflow", func() {
 		// defer GinkgoRecover()
-		// res, err := http.Get("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/policies")
+		// res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies")
 		// Expect(err).ShouldNot(HaveOccurred())
 		// Expect(res).ShouldNot(BeNil())
 		// Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -147,7 +147,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test detail application", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd")
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -168,7 +168,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/deploy", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/deploy", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -198,7 +198,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/componentplans", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -212,7 +212,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test detail component", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/componentplans/test2")
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components/test2")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -233,7 +233,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/policies", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 400)).Should(BeEmpty())
@@ -245,7 +245,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte2, err := json.Marshal(req2)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err = http.Post("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/policies", "application/json", bytes.NewBuffer(bodyByte2))
+		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies", "application/json", bytes.NewBuffer(bodyByte2))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -260,7 +260,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test detail application policy", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/policies/test2")
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies/test2")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
@@ -280,7 +280,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte2, err := json.Marshal(req2)
 		Expect(err).ShouldNot(HaveOccurred())
-		req, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/policies/test2", bytes.NewBuffer(bodyByte2))
+		req, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies/test2", bytes.NewBuffer(bodyByte2))
 		Expect(err).ShouldNot(HaveOccurred())
 		req.Header.Set("Content-Type", "application/json")
 		res, err := http.DefaultClient.Do(req)
@@ -298,7 +298,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test delete application policy", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applicationplans/test-app-sadasd/policies/test2", nil)
+		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies/test2", nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		res, err := http.DefaultClient.Do(req)
 		Expect(err).ShouldNot(HaveOccurred())

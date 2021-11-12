@@ -651,7 +651,6 @@ type CreateApplicationEnvRequest struct {
 
 // CreateApplicationTrait create application triat  req
 type CreateApplicationTrait struct {
-	Name        string `json:"name" validate:"checkname"`
 	Type        string `json:"type" validate:"checkname"`
 	Alias       string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string `json:"description,omitempty" optional:"true"`

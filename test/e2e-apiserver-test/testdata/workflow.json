@@ -1,14 +1,15 @@
 {
-    "appName": "appplanName",
+    "appName": "appName",
     "name": "workflowName",
     "alias": "workflowAlias",
-    "description": "workflow plan description",
+    "description": "workflow description",
     "enable": true,
     "default": true,
     "steps": [
-        { "name": "deploy-test",
-           "type": "deploy2env",
-            "properties":""
+        {
+            "name": "deploy-test",
+            "type": "deploy2env",
+            "properties": ""
         }
     ]
 }
