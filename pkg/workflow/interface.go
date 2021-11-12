@@ -16,10 +16,9 @@ limitations under the License.
 package workflow
 
 import (
-	"context"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 

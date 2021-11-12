@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"strings"
 
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+
 	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 
 	"cuelang.org/go/cue"
@@ -148,16 +150,28 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			return false
 		}
 		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+			if options.GetTracer == nil {
+				options.GetTracer = func(id string, step v1beta1.WorkflowStep) monitorContext.Context {
+					return monitorContext.NewTraceContext(context.Background(), "")
+				}
+			}
+			tracer := options.GetTracer(exec.wfStatus.ID, wfStep).AddTag("step_name", wfStep.Name, "step_type", wfStep.Type)
+			defer func() {
+				tracer.Commit(string(exec.status().Phase))
+			}()
+
 			if t.runOptionsProcess != nil {
 				t.runOptionsProcess(options)
 			}
 			paramsValue, err := ctx.MakeParameter(params)
 			if err != nil {
+				tracer.Error(err, "make parameter")
 				return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
 			}
 
 			for _, hook := range options.PreStartHooks {
 				if err := hook(ctx, paramsValue, wfStep); err != nil {
+					tracer.Error(err, "do preStartHook")
 					return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "do preStartHook")
 				}
 			}
@@ -176,13 +190,19 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				paramFile = fmt.Sprintf(model.ParameterFieldName+": {%s}\n", ps)
 			}
 
-			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), genOpt.ID)
+			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID)
 			if err != nil {
 				exec.err(err, StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
 			}
 
+			exec.tracer = tracer
+			if isDebugMode(taskv) {
+				exec.printStep("workflowStepStart", "workflow", "", taskv)
+				defer exec.printStep("workflowStepEnd", "workflow", "", taskv)
+			}
 			if err := exec.doSteps(ctx, taskv); err != nil {
+				tracer.Error(err, "do steps")
 				exec.err(err, StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
 			}
@@ -221,6 +241,8 @@ type executor struct {
 	suspend    bool
 	terminated bool
 	wait       bool
+
+	tracer monitorContext.Context
 }
 
 // Suspend let workflow pause.
@@ -264,8 +286,17 @@ func (exec *executor) status() common.WorkflowStepStatus {
 	return exec.wfStatus
 }
 
+func (exec *executor) printStep(phase string, provider string, do string, v *value.Value) {
+	msg, _ := v.String()
+	exec.tracer.Info("cue eval: "+msg, "phase", phase, "provider", provider, "do", do)
+}
+
 // Handle process task-step value by provider and do.
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
+	if isDebugMode(v) {
+		exec.printStep("stepStart", provider, do, v)
+		defer exec.printStep("stepEnd", provider, do, v)
+	}
 	h, exist := exec.handlers.GetHandler(provider, do)
 	if !exist {
 		return errors.Errorf("handler not found")
@@ -334,6 +365,11 @@ func isStepList(fieldName string) bool {
 		return true
 	}
 	return strings.HasPrefix(fieldName, "#up_")
+}
+
+func isDebugMode(v *value.Value) bool {
+	debug, _ := v.CueValue().LookupDef("#debug").Bool()
+	return debug
 }
 
 func opTpy(v *value.Value) string {
