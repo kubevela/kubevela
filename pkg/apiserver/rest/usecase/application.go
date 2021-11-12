@@ -49,11 +49,11 @@ import (
 type PolicyType string
 
 const (
-	// EnvBindPolicy Multiple environment distribution policy
-	EnvBindPolicy PolicyType = "env-binding"
+	// EnvBindingPolicy Multiple environment distribution policy
+	EnvBindingPolicy PolicyType = "env-binding"
 
-	// EnvBindPolicyDefaultName default policy name
-	EnvBindPolicyDefaultName string = "env-bindings"
+	// EnvBindingPolicyDefaultName default policy name
+	EnvBindingPolicyDefaultName string = "env-bindings"
 )
 
 // ApplicationUsecase application usecase
@@ -76,8 +76,8 @@ type ApplicationUsecase interface {
 	DeletePolicy(ctx context.Context, app *model.Application, policyName string) error
 	UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policy apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error)
 	GetApplicationEnvBindingPolicy(ctx context.Context, app *model.Application) (*v1alpha1.EnvBindingSpec, error)
-	UpdateApplicationEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvRequest) (*apisv1.EnvBind, error)
-	CreateApplicationEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBind, error)
+	UpdateApplicationEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvRequest) (*apisv1.EnvBinding, error)
+	CreateApplicationEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error)
 	DeleteApplicationEnvBinding(ctx context.Context, app *model.Application, envName string) error
 	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTrait) (*apisv1.ApplicationTrait, error)
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string) error
@@ -124,7 +124,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 				strings.Contains(appBase.Description, listOptions.Query)) {
 			continue
 		}
-		if listOptions.Cluster != "" && !appBase.EnvBind.ContainCluster(listOptions.Cluster) {
+		if listOptions.TargetName != "" && !appBase.EnvBinding.ContainTarget(listOptions.TargetName) {
 			continue
 		}
 		list = append(list, appBase)
@@ -244,7 +244,6 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 				Name:        application.Name,
 				Description: "Created automatically.",
 				Steps:       steps,
-				Enable:      true,
 				Default:     true,
 			})
 			if err != nil {
@@ -254,12 +253,17 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 	}
 
 	// build-in create env binding policy
-	if len(req.EnvBind) > 0 {
-		if _, err := c.createApplictionEnvBindingPolicy(ctx, &application, req.EnvBind); err != nil {
+	if len(req.EnvBinding) > 0 {
+		if _, err := c.createApplictionEnvBindingPolicy(ctx, &application, req.EnvBinding); err != nil {
 			return nil, err
 		}
 	}
-
+	if req.Component != nil {
+		_, err = c.AddComponent(ctx, &application, *req.Component)
+		if err != nil {
+			return nil, err
+		}
+	}
 	// add application to db.
 	if err := c.ds.Add(ctx, &application); err != nil {
 		if errors.Is(err, datastore.ErrRecordExist) {
@@ -431,7 +435,7 @@ func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app 
 			Type:          policy.Type,
 			Properties:    properties,
 		}
-		if policy.Type != string(EnvBindPolicy) {
+		if policy.Type != string(EnvBindingPolicy) {
 			policyModels = append(policyModels, appPolicy)
 		} else {
 			envbindingPolicy = appPolicy
@@ -439,27 +443,21 @@ func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app 
 	}
 	// If multiple configurations are configured, enable only the last one.
 	if envbindingPolicy != nil {
-		envbindingPolicy.Name = EnvBindPolicyDefaultName
+		envbindingPolicy.Name = EnvBindingPolicyDefaultName
 		policyModels = append(policyModels, envbindingPolicy)
 		var envBindingSpec v1alpha1.EnvBindingSpec
 		if err := json.Unmarshal([]byte(envbindingPolicy.Properties.JSON()), &envBindingSpec); err != nil {
 			return fmt.Errorf("unmarshal env binding policy failure %w", err)
 		}
 		for _, env := range envBindingSpec.Envs {
-			envBind := &model.EnvBind{
+			envBind := &model.EnvBinding{
 				Name:        env.Name,
 				Description: "",
 			}
 			if env.Selector != nil {
 				envBind.ComponentSelector = (*model.ComponentSelector)(env.Selector)
 			}
-			if env.Placement.ClusterSelector != nil {
-				envBind.ClusterSelector.Name = env.Placement.ClusterSelector.Name
-			}
-			if env.Placement.NamespaceSelector != nil {
-				envBind.ClusterSelector.Namespace = env.Placement.NamespaceSelector.Name
-			}
-			app.EnvBinds = append(app.EnvBinds, envBind)
+			app.EnvBinding = append(app.EnvBinding, envBind)
 		}
 	}
 	return c.ds.BatchAdd(ctx, policyModels)
@@ -483,8 +481,8 @@ func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, ap
 func (c *applicationUsecaseImpl) GetApplicationEnvBindingPolicy(ctx context.Context, app *model.Application) (*v1alpha1.EnvBindingSpec, error) {
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
-		Type:          string(EnvBindPolicy),
-		Name:          EnvBindPolicyDefaultName,
+		Type:          string(EnvBindingPolicy),
+		Name:          EnvBindingPolicyDefaultName,
 	}
 	err := c.ds.Get(ctx, &policy)
 	if err != nil {
@@ -501,18 +499,19 @@ func (c *applicationUsecaseImpl) GetApplicationEnvBindingPolicy(ctx context.Cont
 }
 
 // nolint
-func (c *applicationUsecaseImpl) createApplictionEnvBindingPolicy(ctx context.Context, app *model.Application, envbinds apisv1.EnvBindList) (*model.ApplicationPolicy, error) {
+func (c *applicationUsecaseImpl) createApplictionEnvBindingPolicy(ctx context.Context, app *model.Application, envbinds apisv1.EnvBindingList) (*model.ApplicationPolicy, error) {
 	policy := &model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
-		Name:          EnvBindPolicyDefaultName,
+		Name:          EnvBindingPolicyDefaultName,
 		Description:   "build-in create",
-		Type:          string(EnvBindPolicy),
+		Type:          string(EnvBindingPolicy),
 		Creator:       "",
 	}
 	var envBindingSpec v1alpha1.EnvBindingSpec
 	for _, envBind := range envbinds {
+		// TODO: check delivery target
 		envBindingSpec.Envs = append(envBindingSpec.Envs, createEnvBind(*envBind))
-		app.EnvBinds = append(app.EnvBinds, createModelEnvBind(*envBind))
+		app.EnvBinding = append(app.EnvBinding, createModelEnvBind(*envBind))
 	}
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
 	if err != nil {
@@ -556,28 +555,28 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	configByte, _ := yaml.Marshal(oamApp)
 	// step2: check and create deploy event
 	if !req.Force {
-		var lastEvent = model.DeployEvent{
+		var lastVersion = model.ApplicationRevision{
 			AppPrimaryKey: app.PrimaryKey(),
 		}
-		list, err := c.ds.List(ctx, &lastEvent, &datastore.ListOptions{PageSize: 1, Page: 1})
+		list, err := c.ds.List(ctx, &lastVersion, &datastore.ListOptions{PageSize: 1, Page: 1})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
-			log.Logger.Errorf("query last app event failure %s", err.Error())
+			log.Logger.Errorf("query app latest revision failure %s", err.Error())
 			return nil, bcode.ErrDeployEventConflict
 		}
-		if len(list) > 0 && list[0].(*model.DeployEvent).Status != model.DeployEventComplete {
+		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.DeployEventComplete {
 			return nil, bcode.ErrDeployEventConflict
 		}
 	}
 
-	var deployEvent = &model.DeployEvent{
+	var deployEvent = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
 		ApplyAppConfig: string(configByte),
 		Status:         model.DeployEventInit,
 		// TODO: Get user information from ctx and assign a value.
 		DeployUser:   "",
-		Commit:       req.Commit,
-		SourceType:   req.SourceType,
+		Note:         req.Note,
+		TriggerType:  req.TriggerType,
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 	}
 
@@ -611,12 +610,14 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 
 	// step5: update deploy event status
 	return &apisv1.ApplicationDeployResponse{
-		Version:    deployEvent.Version,
-		Status:     deployEvent.Status,
-		Reason:     deployEvent.Reason,
-		DeployUser: deployEvent.DeployUser,
-		Commit:     deployEvent.Commit,
-		SourceType: deployEvent.SourceType,
+		ApplicationRevisionBase: apisv1.ApplicationRevisionBase{
+			Version:     deployEvent.Version,
+			Status:      deployEvent.Status,
+			Reason:      deployEvent.Reason,
+			DeployUser:  deployEvent.DeployUser,
+			Note:        deployEvent.Note,
+			TriggerType: deployEvent.TriggerType,
+		},
 	}, nil
 }
 
@@ -737,17 +738,17 @@ func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *a
 		Icon:        app.Icon,
 		Labels:      app.Labels,
 	}
-	for _, envBind := range app.EnvBinds {
-		apiEnvBind := &apisv1.EnvBind{
-			Name:            envBind.Name,
-			Alias:           envBind.Alias,
-			Description:     envBind.Description,
-			ClusterSelector: apisv1.ClusterSelector(envBind.ClusterSelector),
+	for _, envBind := range app.EnvBinding {
+		apiEnvBind := &apisv1.EnvBinding{
+			Name:        envBind.Name,
+			Alias:       envBind.Alias,
+			Description: envBind.Description,
+			TargetNames: envBind.TargetNames,
 		}
 		if envBind.ComponentSelector != nil {
 			apiEnvBind.ComponentSelector = (*apisv1.ComponentSelector)(envBind.ComponentSelector)
 		}
-		appBase.EnvBind = append(appBase.EnvBind, apiEnvBind)
+		appBase.EnvBinding = append(appBase.EnvBinding, apiEnvBind)
 	}
 	// TODO: get and render app status
 	return appBase
@@ -923,7 +924,7 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
 	ctx context.Context,
 	app *model.Application,
 	envName string,
-	envUpdate apisv1.PutApplicationEnvRequest) (*apisv1.EnvBind, error) {
+	envUpdate apisv1.PutApplicationEnvRequest) (*apisv1.EnvBinding, error) {
 	// update env-binding policy
 	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
 	if err != nil {
@@ -947,7 +948,7 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
 	}
 	policy := &model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
-		Name:          EnvBindPolicyDefaultName,
+		Name:          EnvBindingPolicyDefaultName,
 	}
 	if err := c.ds.Get(ctx, policy); err != nil {
 		return nil, err
@@ -956,40 +957,37 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
 	if err := c.ds.Put(ctx, policy); err != nil {
 		return nil, err
 	}
-	var envBind model.EnvBind
+	var envBind model.EnvBinding
 	// update env-binding base
-	for i, env := range app.EnvBinds {
+	for i, env := range app.EnvBinding {
 		if env.Name == envName {
 			if envUpdate.Description != nil {
-				app.EnvBinds[i].Description = *envUpdate.Description
+				app.EnvBinding[i].Description = *envUpdate.Description
 			}
 			if envUpdate.Alias != nil {
-				app.EnvBinds[i].Alias = *envUpdate.Alias
+				app.EnvBinding[i].Alias = *envUpdate.Alias
 			}
-			if envUpdate.ClusterSelector != nil {
-				app.EnvBinds[i].ClusterSelector = model.ClusterSelector{
-					Name:      envUpdate.ClusterSelector.Name,
-					Namespace: envUpdate.ClusterSelector.Namespace,
-				}
+			if envUpdate.TargetNames != nil {
+				app.EnvBinding[i].TargetNames = *envUpdate.TargetNames
 			}
 			if envUpdate.ComponentSelector == nil {
-				app.EnvBinds[i].ComponentSelector = nil
+				app.EnvBinding[i].ComponentSelector = nil
 			} else {
-				app.EnvBinds[i].ComponentSelector = &model.ComponentSelector{
+				app.EnvBinding[i].ComponentSelector = &model.ComponentSelector{
 					Components: envUpdate.ComponentSelector.Components,
 				}
 			}
-			envBind = *app.EnvBinds[i]
+			envBind = *app.EnvBinding[i]
 		}
 	}
 	if err := c.ds.Put(ctx, app); err != nil {
 		return nil, err
 	}
-	re := &apisv1.EnvBind{
-		Name:            envBind.Name,
-		Alias:           envBind.Alias,
-		Description:     envBind.Description,
-		ClusterSelector: apisv1.ClusterSelector(envBind.ClusterSelector),
+	re := &apisv1.EnvBinding{
+		Name:        envBind.Name,
+		Alias:       envBind.Alias,
+		Description: envBind.Description,
+		TargetNames: envBind.TargetNames,
 	}
 	if envBind.ComponentSelector != nil {
 		re.ComponentSelector = (*apisv1.ComponentSelector)(envBind.ComponentSelector)
@@ -998,8 +996,8 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
 }
 
 // CreateApplicationEnvBinding create application env
-func (c *applicationUsecaseImpl) CreateApplicationEnvBinding(ctx context.Context, app *model.Application, envReq apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBind, error) {
-	for _, env := range app.EnvBinds {
+func (c *applicationUsecaseImpl) CreateApplicationEnvBinding(ctx context.Context, app *model.Application, envReq apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error) {
+	for _, env := range app.EnvBinding {
 		if env.Name == envReq.Name {
 			return nil, bcode.ErrApplicationEnvExist
 		}
@@ -1011,13 +1009,13 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBinding(ctx context.Context
 		}
 	}
 	if envBinding == nil {
-		_, err := c.createApplictionEnvBindingPolicy(ctx, app, []*apisv1.EnvBind{&envReq.EnvBind})
+		_, err := c.createApplictionEnvBindingPolicy(ctx, app, []*apisv1.EnvBinding{&envReq.EnvBinding})
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		app.EnvBinds = append(app.EnvBinds, createModelEnvBind(envReq.EnvBind))
-		envBinding.Envs = append(envBinding.Envs, createEnvBind(envReq.EnvBind))
+		app.EnvBinding = append(app.EnvBinding, createModelEnvBind(envReq.EnvBinding))
+		envBinding.Envs = append(envBinding.Envs, createEnvBind(envReq.EnvBinding))
 		properties, err := model.NewJSONStructByStruct(envBinding)
 		if err != nil {
 			log.Logger.Errorf("new env binding properties failure,%s", err.Error())
@@ -1025,7 +1023,7 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBinding(ctx context.Context
 		}
 		policy := &model.ApplicationPolicy{
 			AppPrimaryKey: app.PrimaryKey(),
-			Name:          EnvBindPolicyDefaultName,
+			Name:          EnvBindingPolicyDefaultName,
 		}
 		if err := c.ds.Get(ctx, policy); err != nil {
 			return nil, err
@@ -1038,15 +1036,15 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBinding(ctx context.Context
 	if err := c.ds.Put(ctx, app); err != nil {
 		return nil, err
 	}
-	return &envReq.EnvBind, nil
+	return &envReq.EnvBinding, nil
 }
 
 // DeleteApplicationEnvBinding delete application env binding
 func (c *applicationUsecaseImpl) DeleteApplicationEnvBinding(ctx context.Context, app *model.Application, envName string) error {
 
-	for i, envBind := range app.EnvBinds {
+	for i, envBind := range app.EnvBinding {
 		if envBind.Name == envName {
-			app.EnvBinds = append(app.EnvBinds[0:i], app.EnvBinds[i+1:]...)
+			app.EnvBinding = append(app.EnvBinding[0:i], app.EnvBinding[i+1:]...)
 		}
 	}
 	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
@@ -1065,7 +1063,7 @@ func (c *applicationUsecaseImpl) DeleteApplicationEnvBinding(ctx context.Context
 	}
 	policy := &model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
-		Name:          EnvBindPolicyDefaultName,
+		Name:          EnvBindingPolicyDefaultName,
 	}
 	if err := c.ds.Get(ctx, policy); err != nil {
 		return err
@@ -1092,17 +1090,8 @@ func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app
 	return nil, nil
 }
 
-func createEnvBind(envBind apisv1.EnvBind) v1alpha1.EnvConfig {
-	placement := v1alpha1.EnvPlacement{
-		ClusterSelector: &common.ClusterSelector{
-			Name: envBind.ClusterSelector.Name,
-		},
-	}
-	if envBind.ClusterSelector.Namespace != "" {
-		placement.NamespaceSelector = &v1alpha1.NamespaceSelector{
-			Name: envBind.ClusterSelector.Namespace,
-		}
-	}
+func createEnvBind(envBind apisv1.EnvBinding) v1alpha1.EnvConfig {
+	placement := v1alpha1.EnvPlacement{}
 	var componentSelector *v1alpha1.EnvSelector
 	if envBind.ComponentSelector != nil {
 		componentSelector = &v1alpha1.EnvSelector{
@@ -1116,12 +1105,12 @@ func createEnvBind(envBind apisv1.EnvBind) v1alpha1.EnvConfig {
 	}
 }
 
-func createModelEnvBind(envBind apisv1.EnvBind) *model.EnvBind {
-	re := model.EnvBind{
-		Name:            envBind.Name,
-		Description:     envBind.Description,
-		Alias:           envBind.Alias,
-		ClusterSelector: model.ClusterSelector(envBind.ClusterSelector),
+func createModelEnvBind(envBind apisv1.EnvBinding) *model.EnvBinding {
+	re := model.EnvBinding{
+		Name:        envBind.Name,
+		Description: envBind.Description,
+		Alias:       envBind.Alias,
+		//ClusterSelector: model.ClusterSelector(envBind.ClusterSelector),
 	}
 	if envBind.ComponentSelector != nil {
 		re.ComponentSelector = (*model.ComponentSelector)(envBind.ComponentSelector)

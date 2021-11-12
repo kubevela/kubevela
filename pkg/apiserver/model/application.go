@@ -23,7 +23,7 @@ import (
 )
 
 func init() {
-	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &DeployEvent{})
+	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{})
 }
 
 // Application application delivery model
@@ -35,7 +35,7 @@ type Application struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	EnvBinds    []*EnvBind        `json:"envBinds,omitempty"`
+	EnvBinding  []*EnvBinding     `json:"envBinding,omitempty"`
 }
 
 // TableName return custom table name
@@ -60,13 +60,14 @@ func (a *Application) Index() map[string]string {
 	return index
 }
 
-// EnvBind application env bind
-type EnvBind struct {
+// EnvBinding application env binding
+type EnvBinding struct {
 	Name              string             `json:"name"`
 	Alias             string             `json:"alias"`
 	Description       string             `json:"description,omitempty"`
-	ClusterSelector   ClusterSelector    `json:"clusterSelector"`
+	TargetNames       []string           `json:"targetNames"`
 	ComponentSelector *ComponentSelector `json:"componentSelector"`
+	//TODO: componentPatchs
 }
 
 // ClusterSelector cluster selector
@@ -187,8 +188,8 @@ var DeployEventComplete = "complete"
 // DeployEventFail event status failure
 var DeployEventFail = "failure"
 
-// DeployEvent record each application deployment event.
-type DeployEvent struct {
+// ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
+type ApplicationRevision struct {
 	Model
 	AppPrimaryKey string `json:"appPrimaryKey"`
 	Version       string `json:"version"`
@@ -203,26 +204,26 @@ type DeployEvent struct {
 	DeployUser string `json:"deployUser"`
 
 	// Information that users can note.
-	Commit string `json:"commit"`
-	// SourceType the event trigger source, Web or API
-	SourceType string `json:"sourceType"`
+	Note string `json:"note"`
+	// TriggerType the event trigger source, Web or API
+	TriggerType string `json:"triggerType"`
 
 	// WorkflowName deploy controller by workflow
 	WorkflowName string `json:"workflowName"`
 }
 
 // TableName return custom table name
-func (a *DeployEvent) TableName() string {
+func (a *ApplicationRevision) TableName() string {
 	return tableNamePrefix + "deploy_event"
 }
 
 // PrimaryKey return custom primary key
-func (a *DeployEvent) PrimaryKey() string {
+func (a *ApplicationRevision) PrimaryKey() string {
 	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Version)
 }
 
 // Index return custom index
-func (a *DeployEvent) Index() map[string]string {
+func (a *ApplicationRevision) Index() map[string]string {
 	index := make(map[string]string)
 	if a.Version != "" {
 		index["version"] = a.Version
@@ -236,8 +237,8 @@ func (a *DeployEvent) Index() map[string]string {
 	if a.Status != "" {
 		index["status"] = a.Status
 	}
-	if a.SourceType != "" {
-		index["sourceType"] = a.SourceType
+	if a.TriggerType != "" {
+		index["triggerType"] = a.TriggerType
 	}
 	return index
 }

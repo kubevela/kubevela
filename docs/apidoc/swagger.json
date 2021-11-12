@@ -82,6 +82,50 @@
 			}
 		},
 		"/api/v1/addon_registries/{name}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon_registry"
+				],
+				"summary": "update an addon registry",
+				"operationId": "updateAddonRegistry",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateAddonRegistryRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "identifier of the addon registry",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AddonRegistryMeta"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
 			"delete": {
 				"consumes": [
 					"application/xml",
@@ -346,14 +390,14 @@
 					},
 					{
 						"type": "string",
-						"description": "Namespace-based search",
+						"description": "The namespace of the managed cluster",
 						"name": "namespace",
 						"in": "query"
 					},
 					{
 						"type": "string",
-						"description": "Cluster-based search",
-						"name": "cluster",
+						"description": "Name of the application delivery target",
+						"name": "target",
 						"in": "query"
 					}
 				],
@@ -725,7 +769,7 @@
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.EnvBind"
+							"$ref": "#/definitions/v1.EnvBinding"
 						}
 					},
 					"400": {
@@ -778,7 +822,7 @@
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.EnvBind"
+							"$ref": "#/definitions/v1.EnvBinding"
 						}
 					},
 					"400": {
@@ -1605,9 +1649,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"component",
 							"trait",
-							"workflowstep"
+							"workflowstep",
+							"component"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -2276,9 +2320,9 @@
 			"required": [
 				"batchRollingState",
 				"currentBatch",
+				"upgradedReadyReplicas",
 				"rollingState",
 				"upgradedReplicas",
-				"upgradedReadyReplicas",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -3276,10 +3320,10 @@
 				"description": {
 					"type": "string"
 				},
-				"envBind": {
+				"envBinding": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.EnvBind"
+						"$ref": "#/definitions/v1.EnvBinding"
 					}
 				},
 				"gatewayRule": {
@@ -3315,18 +3359,18 @@
 		"v1.ApplicationDeployRequest": {
 			"required": [
 				"workflowName",
-				"commit",
-				"sourceType",
+				"note",
+				"triggerType",
 				"force"
 			],
 			"properties": {
-				"commit": {
-					"type": "string"
-				},
 				"force": {
 					"type": "boolean"
 				},
-				"sourceType": {
+				"note": {
+					"type": "string"
+				},
+				"triggerType": {
 					"type": "string"
 				},
 				"workflowName": {
@@ -3336,27 +3380,27 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"version",
-				"status",
 				"reason",
 				"deployUser",
-				"commit",
-				"sourceType"
+				"note",
+				"triggerType",
+				"version",
+				"status"
 			],
 			"properties": {
-				"commit": {
+				"deployUser": {
 					"type": "string"
 				},
-				"deployUser": {
+				"note": {
 					"type": "string"
 				},
 				"reason": {
 					"type": "string"
 				},
-				"sourceType": {
+				"status": {
 					"type": "string"
 				},
-				"status": {
+				"triggerType": {
 					"type": "string"
 				},
 				"version": {
@@ -3416,6 +3460,36 @@
 				},
 				"status": {
 					"$ref": "#/definitions/common.AppStatus"
+				}
+			}
+		},
+		"v1.ApplicationRevisionBase": {
+			"required": [
+				"version",
+				"status",
+				"reason",
+				"deployUser",
+				"note",
+				"triggerType"
+			],
+			"properties": {
+				"deployUser": {
+					"type": "string"
+				},
+				"note": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"triggerType": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
 				}
 			}
 		},
@@ -3578,19 +3652,6 @@
 				}
 			}
 		},
-		"v1.ClusterSelector": {
-			"required": [
-				"name"
-			],
-			"properties": {
-				"name": {
-					"type": "string"
-				},
-				"namespace": {
-					"type": "string"
-				}
-			}
-		},
 		"v1.ComponentBase": {
 			"required": [
 				"name",
@@ -3732,15 +3793,12 @@
 		},
 		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"clusterSelector",
-				"name"
+				"name",
+				"targetNames"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
-				},
-				"clusterSelector": {
-					"$ref": "#/definitions/v1.ClusterSelector"
 				},
 				"componentSelector": {
 					"$ref": "#/definitions/v1.ComponentSelector"
@@ -3750,6 +3808,12 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -3757,19 +3821,23 @@
 			"required": [
 				"name",
 				"namespace",
-				"icon"
+				"icon",
+				"component"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
 				},
+				"component": {
+					"$ref": "#/definitions/v1.CreateComponentRequest"
+				},
 				"description": {
 					"type": "string"
 				},
-				"envBind": {
+				"envBinding": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.EnvBind"
+						"$ref": "#/definitions/v1.EnvBinding"
 					}
 				},
 				"icon": {
@@ -3812,7 +3880,6 @@
 		},
 		"v1.CreateApplicationTrait": {
 			"required": [
-				"name",
 				"type",
 				"properties"
 			],
@@ -3821,9 +3888,6 @@
 					"type": "string"
 				},
 				"description": {
-					"type": "string"
-				},
-				"name": {
 					"type": "string"
 				},
 				"properties": {
@@ -3941,12 +4005,6 @@
 				"description": {
 					"type": "string"
 				},
-				"envNames": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
 				"icon": {
 					"type": "string"
 				},
@@ -4010,7 +4068,6 @@
 			"required": [
 				"appName",
 				"name",
-				"enable",
 				"default"
 			],
 			"properties": {
@@ -4025,9 +4082,6 @@
 				},
 				"description": {
 					"type": "string"
-				},
-				"enable": {
-					"type": "boolean"
 				},
 				"name": {
 					"type": "string"
@@ -4142,15 +4196,15 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"alias",
+				"createTime",
+				"gatewayRule",
 				"name",
 				"namespace",
+				"description",
 				"updateTime",
 				"icon",
 				"status",
-				"gatewayRule",
-				"alias",
-				"description",
-				"createTime",
 				"policies",
 				"status",
 				"resourceInfo",
@@ -4167,10 +4221,10 @@
 				"description": {
 					"type": "string"
 				},
-				"envBind": {
+				"envBinding": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.EnvBind"
+						"$ref": "#/definitions/v1.EnvBinding"
 					}
 				},
 				"gatewayRule": {
@@ -4220,20 +4274,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
+				"updateTime",
+				"alias",
+				"description",
+				"icon",
 				"provider",
 				"apiServerURL",
 				"kubeConfigSecret",
-				"alias",
 				"status",
-				"dashboardURL",
-				"createTime",
-				"updateTime",
 				"labels",
 				"reason",
+				"dashboardURL",
+				"createTime",
+				"name",
 				"kubeConfig",
-				"description",
-				"icon",
 				"resourceInfo"
 			],
 			"properties": {
@@ -4292,12 +4346,12 @@
 		"v1.DetailComponentResponse": {
 			"required": [
 				"updateTime",
-				"type",
-				"creator",
-				"createTime",
 				"appPrimaryKey",
-				"alias",
-				"name"
+				"type",
+				"createTime",
+				"name",
+				"creator",
+				"alias"
 			],
 			"properties": {
 				"alias": {
@@ -4392,13 +4446,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -4434,13 +4488,10 @@
 				"terminated",
 				"deployTime",
 				"deployUser",
-				"commit",
-				"sourceType"
+				"note",
+				"triggerType"
 			],
 			"properties": {
-				"commit": {
-					"type": "string"
-				},
 				"deployTime": {
 					"type": "string",
 					"format": "date-time"
@@ -4454,7 +4505,7 @@
 				"namespace": {
 					"type": "string"
 				},
-				"sourceType": {
+				"note": {
 					"type": "string"
 				},
 				"startTime": {
@@ -4472,18 +4523,21 @@
 				},
 				"terminated": {
 					"type": "boolean"
+				},
+				"triggerType": {
+					"type": "string"
 				}
 			}
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"description",
-				"enable",
-				"default",
 				"createTime",
 				"updateTime",
 				"name",
 				"alias",
+				"description",
+				"enable",
+				"default",
 				"workflowRecord"
 			],
 			"properties": {
@@ -4548,17 +4602,14 @@
 				}
 			}
 		},
-		"v1.EnvBind": {
+		"v1.EnvBinding": {
 			"required": [
 				"name",
-				"clusterSelector"
+				"targetNames"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
-				},
-				"clusterSelector": {
-					"$ref": "#/definitions/v1.ClusterSelector"
 				},
 				"componentSelector": {
 					"$ref": "#/definitions/v1.ComponentSelector"
@@ -4568,6 +4619,12 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -4823,10 +4880,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
+				"updateTime",
 				"name",
 				"description",
-				"createTime",
-				"updateTime"
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5057,18 +5114,24 @@
 			}
 		},
 		"v1.PutApplicationEnvRequest": {
+			"required": [
+				"targetNames"
+			],
 			"properties": {
 				"alias": {
 					"type": "string"
-				},
-				"clusterSelector": {
-					"$ref": "#/definitions/v1.ClusterSelector"
 				},
 				"componentSelector": {
 					"$ref": "#/definitions/v1.ComponentSelector"
 				},
 				"description": {
 					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -5082,6 +5145,13 @@
 				"kind": {
 					"description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
 					"type": "string"
+				}
+			}
+		},
+		"v1.UpdateAddonRegistryRequest": {
+			"properties": {
+				"git": {
+					"$ref": "#/definitions/model.GitAddonSource"
 				}
 			}
 		},

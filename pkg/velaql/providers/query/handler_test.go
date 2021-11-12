@@ -462,7 +462,7 @@ var _ = Describe("Test Query Provider", func() {
 			}).GroupVersionKind())
 
 			deployJson, err := json.Marshal(unstructuredDeploy)
-
+			Expect(err).Should(BeNil())
 			opt := fmt.Sprintf(`value: %s
 cluster: ""`, deployJson)
 			v, err := value.NewValue(opt, nil, "")
@@ -541,6 +541,7 @@ cluster: "test"`
 		Expect(h).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))
 		h, ok = p.GetHandler("query", "searchEvents")
+		Expect(ok).Should(Equal(true))
 		Expect(h).ShouldNot(BeNil())
 	})
 })

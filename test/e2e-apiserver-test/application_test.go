@@ -42,9 +42,7 @@ var _ = Describe("Test application rest api", func() {
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
-			EnvBind: []*apisv1.EnvBind{{Name: "dev-env", ClusterSelector: apisv1.ClusterSelector{
-				Name: "dev-cluster",
-			}}},
+			EnvBinding:  []*apisv1.EnvBinding{{Name: "dev-env", TargetNames: []string{"test-target"}}},
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -61,7 +59,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Namespace, req.Namespace)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
-		Expect(cmp.Diff(appBase.EnvBind[0].Name, "dev-env")).Should(BeEmpty())
+		Expect(cmp.Diff(appBase.EnvBinding[0].Name, "dev-env")).Should(BeEmpty())
 	})
 
 	It("Test delete app", func() {
@@ -162,9 +160,9 @@ var _ = Describe("Test application rest api", func() {
 	It("Test deploy application", func() {
 		defer GinkgoRecover()
 		var req = apisv1.ApplicationDeployRequest{
-			Commit:     "test apply",
-			SourceType: "web",
-			Force:      false,
+			Note:        "test apply",
+			TriggerType: "web",
+			Force:       false,
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
