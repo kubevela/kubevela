@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: provision-cloud-resource-sample
+spec:
+  components:
+    - name: sample-oss
+      type: alibaba-oss
+      properties:
+        bucket: vela-website-0911
+        acl: private
+        writeConnectionSecretToRef:
+          name: oss-conn
