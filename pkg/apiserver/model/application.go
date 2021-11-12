@@ -23,11 +23,11 @@ import (
 )
 
 func init() {
-	RegistModel(&ApplicationComponentPlan{}, &ApplicationPolicyPlan{}, &ApplicationPlan{}, &DeployEvent{})
+	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &DeployEvent{})
 }
 
-// ApplicationPlan application delivery plan model
-type ApplicationPlan struct {
+// Application application delivery model
+type Application struct {
 	Model
 	Name        string            `json:"name"`
 	Alias       string            `json:"alias"`
@@ -39,17 +39,17 @@ type ApplicationPlan struct {
 }
 
 // TableName return custom table name
-func (a *ApplicationPlan) TableName() string {
+func (a *Application) TableName() string {
 	return tableNamePrefix + "application"
 }
 
 // PrimaryKey return custom primary key
-func (a *ApplicationPlan) PrimaryKey() string {
+func (a *Application) PrimaryKey() string {
 	return a.Name
 }
 
 // Index return custom index
-func (a *ApplicationPlan) Index() map[string]string {
+func (a *Application) Index() map[string]string {
 	index := make(map[string]string)
 	if a.Name != "" {
 		index["name"] = a.Name
@@ -81,8 +81,8 @@ type ComponentSelector struct {
 	Components []string `json:"components"`
 }
 
-// ApplicationComponentPlan component database model
-type ApplicationComponentPlan struct {
+// ApplicationComponent component database model
+type ApplicationComponent struct {
 	Model
 	AppPrimaryKey string            `json:"appPrimaryKey"`
 	Description   string            `json:"description,omitempty"`
@@ -100,24 +100,24 @@ type ApplicationComponentPlan struct {
 	Inputs           common.StepInputs  `json:"inputs,omitempty"`
 	Outputs          common.StepOutputs `json:"outputs,omitempty"`
 	// Traits define the trait of one component, the type must be array to keep the order.
-	Traits []ApplicationTraitPlan `json:"traits,omitempty"`
-	// scopes in ApplicationComponentPlan defines the component-level scopes
+	Traits []ApplicationTrait `json:"traits,omitempty"`
+	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
 }
 
 // TableName return custom table name
-func (a *ApplicationComponentPlan) TableName() string {
+func (a *ApplicationComponent) TableName() string {
 	return tableNamePrefix + "application_component"
 }
 
 // PrimaryKey return custom primary key
-func (a *ApplicationComponentPlan) PrimaryKey() string {
+func (a *ApplicationComponent) PrimaryKey() string {
 	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Name)
 }
 
 // Index return custom index
-func (a *ApplicationComponentPlan) Index() map[string]string {
+func (a *ApplicationComponent) Index() map[string]string {
 	index := make(map[string]string)
 	if a.Name != "" {
 		index["name"] = a.Name
@@ -131,8 +131,8 @@ func (a *ApplicationComponentPlan) Index() map[string]string {
 	return index
 }
 
-// ApplicationPolicyPlan app policy
-type ApplicationPolicyPlan struct {
+// ApplicationPolicy app policy
+type ApplicationPolicy struct {
 	Model
 	AppPrimaryKey string      `json:"appPrimaryKey"`
 	Name          string      `json:"name"`
@@ -143,17 +143,17 @@ type ApplicationPolicyPlan struct {
 }
 
 // TableName return custom table name
-func (a *ApplicationPolicyPlan) TableName() string {
+func (a *ApplicationPolicy) TableName() string {
 	return tableNamePrefix + "application_policy"
 }
 
 // PrimaryKey return custom primary key
-func (a *ApplicationPolicyPlan) PrimaryKey() string {
+func (a *ApplicationPolicy) PrimaryKey() string {
 	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Name)
 }
 
 // Index return custom index
-func (a *ApplicationPolicyPlan) Index() map[string]string {
+func (a *ApplicationPolicy) Index() map[string]string {
 	index := make(map[string]string)
 	if a.Name != "" {
 		index["name"] = a.Name
@@ -167,10 +167,12 @@ func (a *ApplicationPolicyPlan) Index() map[string]string {
 	return index
 }
 
-// ApplicationTraitPlan application trait
-type ApplicationTraitPlan struct {
-	Type       string      `json:"type"`
-	Properties *JSONStruct `json:"properties,omitempty"`
+// ApplicationTrait application trait
+type ApplicationTrait struct {
+	Alias       string      `json:"alias"`
+	Description string      `json:"description"`
+	Type        string      `json:"type"`
+	Properties  *JSONStruct `json:"properties,omitempty"`
 }
 
 // DeployEventInit event status init

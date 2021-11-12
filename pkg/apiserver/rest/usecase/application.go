@@ -58,27 +58,30 @@ const (
 
 // ApplicationUsecase application usecase
 type ApplicationUsecase interface {
-	ListApplicationPlans(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error)
-	GetApplicationPlan(ctx context.Context, appName string) (*model.ApplicationPlan, error)
-	DetailApplicationPlan(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error)
-	PublishApplicationTemplate(ctx context.Context, app *model.ApplicationPlan) (*apisv1.ApplicationTemplateBase, error)
-	CreateApplicationPlan(context.Context, apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error)
-	UpdateApplicationPlan(context.Context, *model.ApplicationPlan, apisv1.UpdateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error)
-	DeleteApplicationPlan(ctx context.Context, app *model.ApplicationPlan) error
-	Deploy(ctx context.Context, app *model.ApplicationPlan, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error)
-	ListComponents(ctx context.Context, app *model.ApplicationPlan, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentPlanBase, error)
-	AddComponent(ctx context.Context, app *model.ApplicationPlan, com apisv1.CreateComponentPlanRequest) (*apisv1.ComponentPlanBase, error)
-	DetailComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) (*apisv1.DetailComponentPlanResponse, error)
-	DeleteComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) error
-	ListPolicies(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.PolicyBase, error)
-	AddPolicy(ctx context.Context, app *model.ApplicationPlan, policy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error)
-	DetailPolicy(ctx context.Context, app *model.ApplicationPlan, policyName string) (*apisv1.DetailPolicyResponse, error)
-	DeletePolicy(ctx context.Context, app *model.ApplicationPlan, policyName string) error
-	UpdatePolicy(ctx context.Context, app *model.ApplicationPlan, policyName string, policy apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error)
-	GetApplicationPlanEnvBindingPolicy(ctx context.Context, app *model.ApplicationPlan) (*v1alpha1.EnvBindingSpec, error)
-	UpdateApplicationEnvBindingPlan(ctx context.Context, app *model.ApplicationPlan, envName string, diff apisv1.PutApplicationPlanEnvRequest) (*apisv1.EnvBind, error)
-	CreateApplicationEnvBindingPlan(ctx context.Context, app *model.ApplicationPlan, env apisv1.CreateApplicationEnvPlanRequest) (*apisv1.EnvBind, error)
-	DeleteApplicationEnvBindingPlan(ctx context.Context, app *model.ApplicationPlan, envName string) error
+	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error)
+	GetApplication(ctx context.Context, appName string) (*model.Application, error)
+	DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error)
+	PublishApplicationTemplate(ctx context.Context, app *model.Application) (*apisv1.ApplicationTemplateBase, error)
+	CreateApplication(context.Context, apisv1.CreateApplicationRequest) (*apisv1.ApplicationBase, error)
+	UpdateApplication(context.Context, *model.Application, apisv1.UpdateApplicationRequest) (*apisv1.ApplicationBase, error)
+	DeleteApplication(ctx context.Context, app *model.Application) error
+	Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error)
+	ListComponents(ctx context.Context, app *model.Application, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentBase, error)
+	AddComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error)
+	DetailComponent(ctx context.Context, app *model.Application, componentName string) (*apisv1.DetailComponentResponse, error)
+	DeleteComponent(ctx context.Context, app *model.Application, componentName string) error
+	ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error)
+	AddPolicy(ctx context.Context, app *model.Application, policy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error)
+	DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error)
+	DeletePolicy(ctx context.Context, app *model.Application, policyName string) error
+	UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policy apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error)
+	GetApplicationEnvBindingPolicy(ctx context.Context, app *model.Application) (*v1alpha1.EnvBindingSpec, error)
+	UpdateApplicationEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvRequest) (*apisv1.EnvBind, error)
+	CreateApplicationEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBind, error)
+	DeleteApplicationEnvBinding(ctx context.Context, app *model.Application, envName string) error
+	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTrait) (*apisv1.ApplicationTrait, error)
+	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string) error
+	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string, req apisv1.UpdateApplicationTrait) (*apisv1.ApplicationTrait, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -102,9 +105,9 @@ func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUseca
 	}
 }
 
-// ListApplicationPlans list applications
-func (c *applicationUsecaseImpl) ListApplicationPlans(ctx context.Context, listOptions apisv1.ListApplicatioPlanOptions) ([]*apisv1.ApplicationPlanBase, error) {
-	var app = model.ApplicationPlan{}
+// ListApplications list applications
+func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error) {
+	var app = model.Application{}
 	if listOptions.Namespace != "" {
 		app.Namespace = listOptions.Namespace
 	}
@@ -112,9 +115,9 @@ func (c *applicationUsecaseImpl) ListApplicationPlans(ctx context.Context, listO
 	if err != nil {
 		return nil, err
 	}
-	var list []*apisv1.ApplicationPlanBase
+	var list []*apisv1.ApplicationBase
 	for _, entity := range entitys {
-		appBase := c.converAppModelToBase(entity.(*model.ApplicationPlan))
+		appBase := c.converAppModelToBase(entity.(*model.Application))
 		if listOptions.Query != "" &&
 			!(strings.Contains(appBase.Alias, listOptions.Query) ||
 				strings.Contains(appBase.Name, listOptions.Query) ||
@@ -132,9 +135,9 @@ func (c *applicationUsecaseImpl) ListApplicationPlans(ctx context.Context, listO
 	return list, nil
 }
 
-// GetApplicationPlan get application model
-func (c *applicationUsecaseImpl) GetApplicationPlan(ctx context.Context, appName string) (*model.ApplicationPlan, error) {
-	var app = model.ApplicationPlan{
+// GetApplication get application model
+func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName string) (*model.Application, error) {
+	var app = model.Application{
 		Name: appName,
 	}
 	if err := c.ds.Get(ctx, &app); err != nil {
@@ -146,8 +149,8 @@ func (c *applicationUsecaseImpl) GetApplicationPlan(ctx context.Context, appName
 	return &app, nil
 }
 
-// DetailApplicationPlan detail application plan info
-func (c *applicationUsecaseImpl) DetailApplicationPlan(ctx context.Context, app *model.ApplicationPlan) (*apisv1.DetailApplicationPlanResponse, error) {
+// DetailApplication detail application  info
+func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error) {
 	base := c.converAppModelToBase(app)
 	policys, err := c.queryApplicationPolicys(ctx, app)
 	if err != nil {
@@ -161,9 +164,9 @@ func (c *applicationUsecaseImpl) DetailApplicationPlan(ctx context.Context, app 
 	for _, p := range policys {
 		policyNames = append(policyNames, p.Name)
 	}
-	var detail = &apisv1.DetailApplicationPlanResponse{
-		ApplicationPlanBase: *base,
-		Policies:            policyNames,
+	var detail = &apisv1.DetailApplicationResponse{
+		ApplicationBase: *base,
+		Policies:        policyNames,
 		ResourceInfo: apisv1.ApplicationResourceInfo{
 			ComponentNum: len(components),
 		},
@@ -173,14 +176,14 @@ func (c *applicationUsecaseImpl) DetailApplicationPlan(ctx context.Context, app 
 }
 
 // PublishApplicationTemplate publish app template
-func (c *applicationUsecaseImpl) PublishApplicationTemplate(ctx context.Context, app *model.ApplicationPlan) (*apisv1.ApplicationTemplateBase, error) {
+func (c *applicationUsecaseImpl) PublishApplicationTemplate(ctx context.Context, app *model.Application) (*apisv1.ApplicationTemplateBase, error) {
 	//TODO:
 	return nil, nil
 }
 
-// CreateApplicationPlan create application
-func (c *applicationUsecaseImpl) CreateApplicationPlan(ctx context.Context, req apisv1.CreateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error) {
-	application := model.ApplicationPlan{
+// CreateApplication create application
+func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apisv1.CreateApplicationRequest) (*apisv1.ApplicationBase, error) {
+	application := model.Application{
 		Name:        req.Name,
 		Alias:       req.Alias,
 		Description: req.Description,
@@ -197,8 +200,6 @@ func (c *applicationUsecaseImpl) CreateApplicationPlan(ctx context.Context, req 
 	if exit {
 		return nil, bcode.ErrApplicationExist
 	}
-	// check can deploy
-	var canDeploy bool
 	if req.YamlConfig != "" {
 		var oamApp v1beta1.Application
 		if err := yaml.Unmarshal([]byte(req.YamlConfig), &oamApp); err != nil {
@@ -238,7 +239,7 @@ func (c *applicationUsecaseImpl) CreateApplicationPlan(ctx context.Context, req 
 					Outputs:    step.Outputs,
 				})
 			}
-			_, err := c.workflowUsecase.CreateWorkflow(ctx, &application, apisv1.CreateWorkflowPlanRequest{
+			_, err := c.workflowUsecase.CreateWorkflow(ctx, &application, apisv1.CreateWorkflowRequest{
 				AppName:     application.PrimaryKey(),
 				Name:        application.Name,
 				Description: "Created automatically.",
@@ -250,13 +251,11 @@ func (c *applicationUsecaseImpl) CreateApplicationPlan(ctx context.Context, req 
 				return nil, err
 			}
 		}
-		// you can deploy only if the application contains components
-		canDeploy = len(oamApp.Spec.Components) > 0
 	}
 
 	// build-in create env binding policy
 	if len(req.EnvBind) > 0 {
-		if _, err := c.createApplictionPlanEnvBindingPolicy(ctx, &application, req.EnvBind); err != nil {
+		if _, err := c.createApplictionEnvBindingPolicy(ctx, &application, req.EnvBind); err != nil {
 			return nil, err
 		}
 	}
@@ -270,19 +269,10 @@ func (c *applicationUsecaseImpl) CreateApplicationPlan(ctx context.Context, req 
 	}
 	// render app base info.
 	base := c.converAppModelToBase(&application)
-	// deploy to cluster if need.
-	if req.Deploy && canDeploy {
-		if _, err := c.Deploy(ctx, &application, apisv1.ApplicationDeployRequest{
-			Commit:     "init create auto deploy",
-			SourceType: "web",
-		}); err != nil {
-			return nil, err
-		}
-	}
 	return base, nil
 }
 
-func (c *applicationUsecaseImpl) UpdateApplicationPlan(ctx context.Context, app *model.ApplicationPlan, req apisv1.UpdateApplicationPlanRequest) (*apisv1.ApplicationPlanBase, error) {
+func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *model.Application, req apisv1.UpdateApplicationRequest) (*apisv1.ApplicationBase, error) {
 	app.Alias = req.Alias
 	app.Description = req.Description
 	app.Labels = req.Labels
@@ -293,18 +283,18 @@ func (c *applicationUsecaseImpl) UpdateApplicationPlan(ctx context.Context, app 
 	return c.converAppModelToBase(app), nil
 }
 
-func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, app *model.ApplicationPlan, components []common.ApplicationComponent) error {
+func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, app *model.Application, components []common.ApplicationComponent) error {
 	var componentModels []datastore.Entity
 	for _, component := range components {
 		// TODO: Check whether the component type is supported.
-		var traits []model.ApplicationTraitPlan
+		var traits []model.ApplicationTrait
 		for _, trait := range component.Traits {
 			properties, err := model.NewJSONStruct(trait.Properties)
 			if err != nil {
 				log.Logger.Errorf("parse trait properties failire %w", err)
 				return bcode.ErrInvalidProperties
 			}
-			traits = append(traits, model.ApplicationTraitPlan{
+			traits = append(traits, model.ApplicationTrait{
 				Type:       trait.Type,
 				Properties: properties,
 			})
@@ -314,7 +304,7 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 			log.Logger.Errorf("parse component properties failire %w", err)
 			return bcode.ErrInvalidProperties
 		}
-		componentModel := model.ApplicationComponentPlan{
+		componentModel := model.ApplicationComponent{
 			AppPrimaryKey:    app.PrimaryKey(),
 			Name:             component.Name,
 			Type:             component.Type,
@@ -332,8 +322,8 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 	return c.ds.BatchAdd(ctx, componentModels)
 }
 
-func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.ApplicationPlan, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentPlanBase, error) {
-	var component = model.ApplicationComponentPlan{
+func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.Application, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentBase, error) {
+	var component = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
 	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{})
@@ -343,9 +333,9 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 	envComponents := map[string]bool{}
 	componentSelectorDefine := false
 	if op.EnvName != "" {
-		envbinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
+		envbinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
 		if err != nil && !errors.Is(err, bcode.ErrApplicationNotEnv) {
-			log.Logger.Errorf("query app plan env binding policy config failure %s", err.Error())
+			log.Logger.Errorf("query app  env binding policy config failure %s", err.Error())
 		}
 		if envbinding != nil {
 			for _, env := range envbinding.Envs {
@@ -359,9 +349,9 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 		}
 	}
 
-	var list []*apisv1.ComponentPlanBase
+	var list []*apisv1.ComponentBase
 	for _, component := range components {
-		pm := component.(*model.ApplicationComponentPlan)
+		pm := component.(*model.ApplicationComponent)
 		if !componentSelectorDefine || envComponents[pm.Name] {
 			list = append(list, c.converComponentModelToBase(pm))
 		}
@@ -371,8 +361,8 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 
 // DetailComponent detail app component
 // TODO: Add status data about the component.
-func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model.ApplicationPlan, policyName string) (*apisv1.DetailComponentPlanResponse, error) {
-	var component = model.ApplicationComponentPlan{
+func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailComponentResponse, error) {
+	var component = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
 	}
@@ -380,13 +370,13 @@ func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model
 	if err != nil {
 		return nil, err
 	}
-	return &apisv1.DetailComponentPlanResponse{
-		ApplicationComponentPlan: component,
+	return &apisv1.DetailComponentResponse{
+		ApplicationComponent: component,
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.ApplicationComponentPlan) *apisv1.ComponentPlanBase {
-	return &apisv1.ComponentPlanBase{
+func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.ApplicationComponent) *apisv1.ComponentBase {
+	return &apisv1.ComponentBase{
 		Name:          m.Name,
 		Alias:         m.Alias,
 		Description:   m.Description,
@@ -401,7 +391,7 @@ func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.Application
 }
 
 // ListPolicies list application policies
-func (c *applicationUsecaseImpl) ListPolicies(ctx context.Context, app *model.ApplicationPlan) ([]*apisv1.PolicyBase, error) {
+func (c *applicationUsecaseImpl) ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error) {
 	policies, err := c.queryApplicationPolicys(ctx, app)
 	if err != nil {
 		return nil, err
@@ -413,7 +403,7 @@ func (c *applicationUsecaseImpl) ListPolicies(ctx context.Context, app *model.Ap
 	return list, nil
 }
 
-func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.ApplicationPolicyPlan) *apisv1.PolicyBase {
+func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.ApplicationPolicy) *apisv1.PolicyBase {
 	pb := &apisv1.PolicyBase{
 		Name:        policy.Name,
 		Type:        policy.Type,
@@ -426,25 +416,25 @@ func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.Applicati
 	return pb
 }
 
-func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app *model.ApplicationPlan, policys []v1beta1.AppPolicy) error {
+func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app *model.Application, policys []v1beta1.AppPolicy) error {
 	var policyModels []datastore.Entity
-	var envbindingPolicy *model.ApplicationPolicyPlan
+	var envbindingPolicy *model.ApplicationPolicy
 	for _, policy := range policys {
 		properties, err := model.NewJSONStruct(policy.Properties)
 		if err != nil {
 			log.Logger.Errorf("parse trait properties failire %w", err)
 			return bcode.ErrInvalidProperties
 		}
-		appPolicyPlan := &model.ApplicationPolicyPlan{
+		appPolicy := &model.ApplicationPolicy{
 			AppPrimaryKey: app.PrimaryKey(),
 			Name:          policy.Name,
 			Type:          policy.Type,
 			Properties:    properties,
 		}
 		if policy.Type != string(EnvBindPolicy) {
-			policyModels = append(policyModels, appPolicyPlan)
+			policyModels = append(policyModels, appPolicy)
 		} else {
-			envbindingPolicy = appPolicyPlan
+			envbindingPolicy = appPolicy
 		}
 	}
 	// If multiple configurations are configured, enable only the last one.
@@ -475,8 +465,8 @@ func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app 
 	return c.ds.BatchAdd(ctx, policyModels)
 }
 
-func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, app *model.ApplicationPlan) (list []*model.ApplicationPolicyPlan, err error) {
-	var policy = model.ApplicationPolicyPlan{
+func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, app *model.Application) (list []*model.ApplicationPolicy, err error) {
+	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
 	policys, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
@@ -484,14 +474,14 @@ func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, ap
 		return nil, err
 	}
 	for _, policy := range policys {
-		pm := policy.(*model.ApplicationPolicyPlan)
+		pm := policy.(*model.ApplicationPolicy)
 		list = append(list, pm)
 	}
 	return
 }
 
-func (c *applicationUsecaseImpl) GetApplicationPlanEnvBindingPolicy(ctx context.Context, app *model.ApplicationPlan) (*v1alpha1.EnvBindingSpec, error) {
-	var policy = model.ApplicationPolicyPlan{
+func (c *applicationUsecaseImpl) GetApplicationEnvBindingPolicy(ctx context.Context, app *model.Application) (*v1alpha1.EnvBindingSpec, error) {
+	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Type:          string(EnvBindPolicy),
 		Name:          EnvBindPolicyDefaultName,
@@ -511,8 +501,8 @@ func (c *applicationUsecaseImpl) GetApplicationPlanEnvBindingPolicy(ctx context.
 }
 
 // nolint
-func (c *applicationUsecaseImpl) createApplictionPlanEnvBindingPolicy(ctx context.Context, app *model.ApplicationPlan, envbinds apisv1.EnvBindList) (*model.ApplicationPolicyPlan, error) {
-	policy := &model.ApplicationPolicyPlan{
+func (c *applicationUsecaseImpl) createApplictionEnvBindingPolicy(ctx context.Context, app *model.Application, envbinds apisv1.EnvBindList) (*model.ApplicationPolicy, error) {
+	policy := &model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          EnvBindPolicyDefaultName,
 		Description:   "build-in create",
@@ -539,8 +529,8 @@ func (c *applicationUsecaseImpl) createApplictionPlanEnvBindingPolicy(ctx contex
 
 // DetailPolicy detail app policy
 // TODO: Add status data about the policy.
-func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.ApplicationPlan, policyName string) (*apisv1.DetailPolicyResponse, error) {
-	var policy = model.ApplicationPolicyPlan{
+func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error) {
+	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
 	}
@@ -556,7 +546,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 // Deploy deploy app to cluster
 // means to render oam application config and apply to cluster.
 // An event record is generated for each deploy.
-func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.ApplicationPlan, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
+func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
 	// step1: Render oam application
 	version := utils.GenerateVersion("")
 	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, version)
@@ -630,7 +620,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMoel *model.ApplicationPlan, reqWorkflowName, version string) (*v1beta1.Application, error) {
+func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMoel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -645,7 +635,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			},
 		},
 	}
-	var component = model.ApplicationComponentPlan{
+	var component = model.ApplicationComponent{
 		AppPrimaryKey: appMoel.PrimaryKey(),
 	}
 	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{})
@@ -656,7 +646,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		return nil, bcode.ErrNoComponent
 	}
 
-	var policy = model.ApplicationPolicyPlan{
+	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: appMoel.PrimaryKey(),
 	}
 	policies, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
@@ -665,7 +655,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 
 	for _, entity := range components {
-		component := entity.(*model.ApplicationComponentPlan)
+		component := entity.(*model.ApplicationComponent)
 		var traits []common.ApplicationTrait
 		for _, trait := range component.Traits {
 			aTrait := common.ApplicationTrait{
@@ -689,7 +679,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 
 	for _, entity := range policies {
-		policy := entity.(*model.ApplicationPolicyPlan)
+		policy := entity.(*model.ApplicationPolicy)
 		apolicy := v1beta1.AppPolicy{
 			Name: policy.Name,
 			Type: policy.Type,
@@ -700,9 +690,9 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		app.Spec.Policies = append(app.Spec.Policies, apolicy)
 	}
 
-	// Priority 1 uses the requested workflow as release plan.
-	// Priority 2 uses the default workflow as release plan.
-	var workflow *model.WorkflowPlan
+	// Priority 1 uses the requested workflow as release .
+	// Priority 2 uses the default workflow as release .
+	var workflow *model.Workflow
 	if reqWorkflowName != "" {
 		workflow, err = c.workflowUsecase.GetWorkflow(ctx, reqWorkflowName)
 		if err != nil {
@@ -736,8 +726,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	return app, nil
 }
 
-func (c *applicationUsecaseImpl) converAppModelToBase(app *model.ApplicationPlan) *apisv1.ApplicationPlanBase {
-	appBase := &apisv1.ApplicationPlanBase{
+func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *apisv1.ApplicationBase {
+	appBase := &apisv1.ApplicationBase{
 		Name:        app.Name,
 		Alias:       app.Alias,
 		Namespace:   app.Namespace,
@@ -763,8 +753,8 @@ func (c *applicationUsecaseImpl) converAppModelToBase(app *model.ApplicationPlan
 	return appBase
 }
 
-// DeleteApplicationPlan delete application plan
-func (c *applicationUsecaseImpl) DeleteApplicationPlan(ctx context.Context, app *model.ApplicationPlan) error {
+// DeleteApplication delete application
+func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *model.Application) error {
 	// TODO: check app can be deleted
 
 	// query all components to deleted
@@ -783,14 +773,14 @@ func (c *applicationUsecaseImpl) DeleteApplicationPlan(ctx context.Context, app 
 	}
 
 	for _, component := range components {
-		err := c.ds.Delete(ctx, &model.ApplicationComponentPlan{AppPrimaryKey: app.PrimaryKey(), Name: component.Name})
+		err := c.ds.Delete(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey(), Name: component.Name})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("delete component %s in app %s failure %s", component.Name, app.Name, err.Error())
 		}
 	}
 
 	for _, policy := range policies {
-		err := c.ds.Delete(ctx, &model.ApplicationPolicyPlan{AppPrimaryKey: app.PrimaryKey(), Name: policy.Name})
+		err := c.ds.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: app.PrimaryKey(), Name: policy.Name})
 		if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("delete policy %s in app %s failure %s", policy.Name, app.Name, err.Error())
 		}
@@ -799,8 +789,8 @@ func (c *applicationUsecaseImpl) DeleteApplicationPlan(ctx context.Context, app 
 	return c.ds.Delete(ctx, app)
 }
 
-func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.ApplicationPlan, com apisv1.CreateComponentPlanRequest) (*apisv1.ComponentPlanBase, error) {
-	componentModel := model.ApplicationComponentPlan{
+func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error) {
+	componentModel := model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
 		Description:   com.Description,
 		Labels:        com.Labels,
@@ -824,7 +814,7 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("add component for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
-	return &apisv1.ComponentPlanBase{
+	return &apisv1.ComponentBase{
 		Name:          componentModel.Name,
 		Description:   componentModel.Description,
 		Labels:        componentModel.Labels,
@@ -837,8 +827,8 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model.ApplicationPlan, componentName string) error {
-	var component = model.ApplicationComponentPlan{
+func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model.Application, componentName string) error {
+	var component = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          componentName,
 	}
@@ -852,8 +842,8 @@ func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model
 	return nil
 }
 
-func (c *applicationUsecaseImpl) AddPolicy(ctx context.Context, app *model.ApplicationPlan, createpolicy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error) {
-	policyModel := model.ApplicationPolicyPlan{
+func (c *applicationUsecaseImpl) AddPolicy(ctx context.Context, app *model.Application, createpolicy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error) {
+	policyModel := model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Description:   createpolicy.Description,
 		// TODO: Get user information from ctx and assign a value.
@@ -884,8 +874,8 @@ func (c *applicationUsecaseImpl) AddPolicy(ctx context.Context, app *model.Appli
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) DeletePolicy(ctx context.Context, app *model.ApplicationPlan, policyName string) error {
-	var policy = model.ApplicationPolicyPlan{
+func (c *applicationUsecaseImpl) DeletePolicy(ctx context.Context, app *model.Application, policyName string) error {
+	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
 	}
@@ -899,8 +889,8 @@ func (c *applicationUsecaseImpl) DeletePolicy(ctx context.Context, app *model.Ap
 	return nil
 }
 
-func (c *applicationUsecaseImpl) UpdatePolicy(ctx context.Context, app *model.ApplicationPlan, policyName string, policyUpdate apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error) {
-	var policy = model.ApplicationPolicyPlan{
+func (c *applicationUsecaseImpl) UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policyUpdate apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error) {
+	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
 	}
@@ -928,14 +918,14 @@ func (c *applicationUsecaseImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 	}, nil
 }
 
-// UpdateApplicationEnvBindingPlan update application env binding diff
-func (c *applicationUsecaseImpl) UpdateApplicationEnvBindingPlan(
+// UpdateApplicationEnvBinding update application env binding diff
+func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
 	ctx context.Context,
-	app *model.ApplicationPlan,
+	app *model.Application,
 	envName string,
-	envUpdate apisv1.PutApplicationPlanEnvRequest) (*apisv1.EnvBind, error) {
+	envUpdate apisv1.PutApplicationEnvRequest) (*apisv1.EnvBind, error) {
 	// update env-binding policy
-	envBinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
+	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
 	if err != nil {
 		return nil, err
 	}
@@ -955,7 +945,7 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBindingPlan(
 		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
 		return nil, bcode.ErrInvalidProperties
 	}
-	policy := &model.ApplicationPolicyPlan{
+	policy := &model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          EnvBindPolicyDefaultName,
 	}
@@ -1007,21 +997,21 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBindingPlan(
 	return re, nil
 }
 
-// CreateApplicationEnvBindingPlan create application env plan
-func (c *applicationUsecaseImpl) CreateApplicationEnvBindingPlan(ctx context.Context, app *model.ApplicationPlan, envReq apisv1.CreateApplicationEnvPlanRequest) (*apisv1.EnvBind, error) {
+// CreateApplicationEnvBinding create application env
+func (c *applicationUsecaseImpl) CreateApplicationEnvBinding(ctx context.Context, app *model.Application, envReq apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBind, error) {
 	for _, env := range app.EnvBinds {
 		if env.Name == envReq.Name {
 			return nil, bcode.ErrApplicationEnvExist
 		}
 	}
-	envBinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
+	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
 	if err != nil {
 		if !errors.Is(err, bcode.ErrApplicationNotEnv) {
 			return nil, err
 		}
 	}
 	if envBinding == nil {
-		_, err := c.createApplictionPlanEnvBindingPolicy(ctx, app, []*apisv1.EnvBind{&envReq.EnvBind})
+		_, err := c.createApplictionEnvBindingPolicy(ctx, app, []*apisv1.EnvBind{&envReq.EnvBind})
 		if err != nil {
 			return nil, err
 		}
@@ -1033,7 +1023,7 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBindingPlan(ctx context.Con
 			log.Logger.Errorf("new env binding properties failure,%s", err.Error())
 			return nil, bcode.ErrInvalidProperties
 		}
-		policy := &model.ApplicationPolicyPlan{
+		policy := &model.ApplicationPolicy{
 			AppPrimaryKey: app.PrimaryKey(),
 			Name:          EnvBindPolicyDefaultName,
 		}
@@ -1051,15 +1041,15 @@ func (c *applicationUsecaseImpl) CreateApplicationEnvBindingPlan(ctx context.Con
 	return &envReq.EnvBind, nil
 }
 
-// DeleteApplicationEnvBindingPlan delete application env binding plan
-func (c *applicationUsecaseImpl) DeleteApplicationEnvBindingPlan(ctx context.Context, app *model.ApplicationPlan, envName string) error {
+// DeleteApplicationEnvBinding delete application env binding
+func (c *applicationUsecaseImpl) DeleteApplicationEnvBinding(ctx context.Context, app *model.Application, envName string) error {
 
 	for i, envBind := range app.EnvBinds {
 		if envBind.Name == envName {
 			app.EnvBinds = append(app.EnvBinds[0:i], app.EnvBinds[i+1:]...)
 		}
 	}
-	envBinding, err := c.GetApplicationPlanEnvBindingPolicy(ctx, app)
+	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -1073,7 +1063,7 @@ func (c *applicationUsecaseImpl) DeleteApplicationEnvBindingPlan(ctx context.Con
 		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
 		return bcode.ErrInvalidProperties
 	}
-	policy := &model.ApplicationPolicyPlan{
+	policy := &model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          EnvBindPolicyDefaultName,
 	}
@@ -1088,6 +1078,18 @@ func (c *applicationUsecaseImpl) DeleteApplicationEnvBindingPlan(ctx context.Con
 		return err
 	}
 	return nil
+}
+
+func (c *applicationUsecaseImpl) CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTrait) (*apisv1.ApplicationTrait, error) {
+	return nil, nil
+}
+
+func (c *applicationUsecaseImpl) DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string) error {
+	return nil
+}
+
+func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string, req apisv1.UpdateApplicationTrait) (*apisv1.ApplicationTrait, error) {
+	return nil, nil
 }
 
 func createEnvBind(envBind apisv1.EnvBind) v1alpha1.EnvConfig {

@@ -322,7 +322,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans": {
+		"/api/v1/applications": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -333,10 +333,10 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "list all application plans",
-				"operationId": "listApplicationPlans",
+				"summary": "list all applications",
+				"operationId": "listApplications",
 				"parameters": [
 					{
 						"type": "string",
@@ -360,7 +360,7 @@
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.ListApplicationPlanResponse"
+							"$ref": "#/definitions/v1.ListApplicationResponse"
 						}
 					},
 					"400": {
@@ -380,24 +380,24 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "create one application plan",
-				"operationId": "createApplicationPlan",
+				"summary": "create one application ",
+				"operationId": "createApplication",
 				"parameters": [
 					{
 						"name": "body",
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.CreateApplicationPlanRequest"
+							"$ref": "#/definitions/v1.CreateApplicationRequest"
 						}
 					}
 				],
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.ApplicationPlanBase"
+							"$ref": "#/definitions/v1.ApplicationBase"
 						}
 					},
 					"400": {
@@ -408,7 +408,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}": {
+		"/api/v1/applications/{name}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -419,14 +419,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "detail one application plan",
-				"operationId": "detailApplicationPlan",
+				"summary": "detail one application ",
+				"operationId": "detailApplication",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -435,7 +435,7 @@
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.DetailApplicationPlanResponse"
+							"$ref": "#/definitions/v1.DetailApplicationResponse"
 						}
 					},
 					"400": {
@@ -455,14 +455,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "update one application plan",
-				"operationId": "updateApplicationPlan",
+				"summary": "update one application ",
+				"operationId": "updateApplication",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -472,14 +472,14 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.UpdateApplicationPlanRequest"
+							"$ref": "#/definitions/v1.UpdateApplicationRequest"
 						}
 					}
 				],
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.ApplicationPlanBase"
+							"$ref": "#/definitions/v1.ApplicationBase"
 						}
 					},
 					"400": {
@@ -499,14 +499,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "delete one application",
-				"operationId": "deleteApplicationPlan",
+				"operationId": "deleteApplication",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -526,7 +526,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/componentplans": {
+		"/api/v1/applications/{name}/components": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -537,14 +537,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "gets the componentplan topology of the application",
+				"summary": "gets the list of application components",
 				"operationId": "listApplicationComponents",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -559,7 +559,7 @@
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.ComponentPlanListResponse"
+							"$ref": "#/definitions/v1.ComponentListResponse"
 						}
 					},
 					"400": {
@@ -579,14 +579,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "create component plan for application plan",
+				"summary": "create component  for application ",
 				"operationId": "createComponent",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -596,14 +596,14 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.CreateComponentPlanRequest"
+							"$ref": "#/definitions/v1.CreateComponentRequest"
 						}
 					}
 				],
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.ComponentPlanBase"
+							"$ref": "#/definitions/v1.ComponentBase"
 						}
 					},
 					"400": {
@@ -614,7 +614,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/componentplans/{componentName}": {
+		"/api/v1/applications/{name}/components/{componentName}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -625,14 +625,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "detail component plan for application plan",
+				"summary": "detail component  for application ",
 				"operationId": "detailComponent",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -641,7 +641,7 @@
 				"responses": {
 					"200": {
 						"schema": {
-							"$ref": "#/definitions/v1.DetailComponentPlanResponse"
+							"$ref": "#/definitions/v1.DetailComponentResponse"
 						}
 					},
 					"400": {
@@ -652,7 +652,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/deploy": {
+		"/api/v1/applications/{name}/deploy": {
 			"post": {
 				"consumes": [
 					"application/xml",
@@ -663,14 +663,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "deploy or upgrade the application",
 				"operationId": "deployApplication",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -690,7 +690,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/envs": {
+		"/api/v1/applications/{name}/envs": {
 			"post": {
 				"consumes": [
 					"application/xml",
@@ -701,14 +701,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "creating an application environment plan",
+				"summary": "creating an application environment ",
 				"operationId": "createApplicationEnv",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -718,7 +718,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.CreateApplicationEnvPlanRequest"
+							"$ref": "#/definitions/v1.CreateApplicationEnvRequest"
 						}
 					}
 				],
@@ -736,7 +736,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/envs/{envName}": {
+		"/api/v1/applications/{name}/envs/{envName}": {
 			"put": {
 				"consumes": [
 					"application/xml",
@@ -747,21 +747,21 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "set application plan differences in the specified environment",
+				"summary": "set application  differences in the specified environment",
 				"operationId": "updateApplicationEnvBinding",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
 					},
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "envName",
 						"in": "path",
 						"required": true
@@ -771,7 +771,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.PutApplicationPlanEnvRequest"
+							"$ref": "#/definitions/v1.PutApplicationEnvRequest"
 						}
 					}
 				],
@@ -798,21 +798,21 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
-				"summary": "delete an application environment plan",
+				"summary": "delete an application environment ",
 				"operationId": "deleteApplicationEnv",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
 					},
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "envName",
 						"in": "path",
 						"required": true
@@ -832,7 +832,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/policies": {
+		"/api/v1/applications/{name}/policies": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -843,14 +843,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "list policy for application",
 				"operationId": "listApplicationPolicies",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -879,7 +879,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "create policy for application",
 				"operationId": "createApplicationPolicy",
@@ -914,7 +914,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/policies/{policyName}": {
+		"/api/v1/applications/{name}/policies/{policyName}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -925,7 +925,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "detail policy for application",
 				"operationId": "detailApplicationPolicy",
@@ -968,7 +968,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "update policy for application",
 				"operationId": "updateApplicationPolicy",
@@ -1019,7 +1019,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "detail policy for application",
 				"operationId": "deleteApplicationPolicy",
@@ -1053,7 +1053,7 @@
 				}
 			}
 		},
-		"/api/v1/applicationplans/{name}/template": {
+		"/api/v1/applications/{name}/template": {
 			"post": {
 				"consumes": [
 					"application/xml",
@@ -1064,14 +1064,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"applicationplan"
+					"application"
 				],
 				"summary": "create one application template",
 				"operationId": "publishApplicationTemplate",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application plan",
+						"description": "identifier of the application ",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -1605,9 +1605,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"component",
 							"trait",
-							"workflowstep",
-							"component"
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -1795,7 +1795,7 @@
 				}
 			}
 		},
-		"/api/v1/workflowplans": {
+		"/api/v1/workflows": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -1806,7 +1806,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"workflowplan"
+					"workflow"
 				],
 				"summary": "list application workflow",
 				"operationId": "listApplicationWorkflows",
@@ -1847,7 +1847,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"workflowplan"
+					"workflow"
 				],
 				"summary": "create application workflow",
 				"operationId": "createApplicationWorkflow",
@@ -1857,7 +1857,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.CreateWorkflowPlanRequest"
+							"$ref": "#/definitions/v1.CreateWorkflowRequest"
 						}
 					}
 				],
@@ -1880,7 +1880,7 @@
 				}
 			}
 		},
-		"/api/v1/workflowplans/{name}": {
+		"/api/v1/workflows/{name}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -1891,7 +1891,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"workflowplan"
+					"workflow"
 				],
 				"summary": "detail application workflow",
 				"operationId": "detailWorkflow",
@@ -1926,7 +1926,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"workflowplan"
+					"workflow"
 				],
 				"summary": "update application workflow config",
 				"operationId": "updateWorkflow",
@@ -1943,7 +1943,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.UpdateWorkflowPlanRequest"
+							"$ref": "#/definitions/v1.UpdateWorkflowRequest"
 						}
 					}
 				],
@@ -1969,7 +1969,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"workflowplan"
+					"workflow"
 				],
 				"summary": "deletet workflow",
 				"operationId": "deleteWorkflow",
@@ -1995,7 +1995,7 @@
 				}
 			}
 		},
-		"/api/v1/workflowplans/{name}/records": {
+		"/api/v1/workflows/{name}/records": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -2006,7 +2006,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"workflowplan"
+					"workflow"
 				],
 				"summary": "query application workflow execution record",
 				"operationId": "listWorkflowRecords",
@@ -2046,7 +2046,7 @@
 				}
 			}
 		},
-		"/api/v1/workflowplans/{name}/records/{record}": {
+		"/api/v1/workflows/{name}/records/{record}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -2057,7 +2057,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"workflowplan"
+					"workflow"
 				],
 				"summary": "query application workflow execution record detail",
 				"operationId": "detailWorkflowRecord",
@@ -2274,11 +2274,11 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"rollingState",
+				"batchRollingState",
 				"currentBatch",
+				"rollingState",
 				"upgradedReplicas",
 				"upgradedReadyReplicas",
-				"batchRollingState",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -2354,6 +2354,12 @@
 				"observedGeneration": {
 					"type": "integer",
 					"format": "int64"
+				},
+				"policy": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.PolicyStatus"
+					}
 				},
 				"resourceTracker": {
 					"$ref": "#/definitions/v1.ObjectReference"
@@ -2525,6 +2531,23 @@
 				},
 				"uid": {
 					"description": "UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids",
+					"type": "string"
+				}
+			}
+		},
+		"common.PolicyStatus": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"type": {
 					"type": "string"
 				}
 			}
@@ -2743,10 +2766,10 @@
 				"type": "string"
 			}
 		},
-		"model.ApplicationComponentPlan": {
+		"model.ApplicationComponent": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -2815,7 +2838,7 @@
 				"traits": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/model.ApplicationTraitPlan"
+						"$ref": "#/definitions/model.ApplicationTrait"
 					}
 				},
 				"type": {
@@ -2827,11 +2850,19 @@
 				}
 			}
 		},
-		"model.ApplicationTraitPlan": {
+		"model.ApplicationTrait": {
 			"required": [
+				"alias",
+				"description",
 				"type"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
 				"properties": {
 					"$ref": "#/definitions/model.JSONStruct"
 				},
@@ -3222,59 +3253,7 @@
 				}
 			}
 		},
-		"v1.ApplicationDeployRequest": {
-			"required": [
-				"workflowName",
-				"commit",
-				"sourceType",
-				"force"
-			],
-			"properties": {
-				"commit": {
-					"type": "string"
-				},
-				"force": {
-					"type": "boolean"
-				},
-				"sourceType": {
-					"type": "string"
-				},
-				"workflowName": {
-					"type": "string"
-				}
-			}
-		},
-		"v1.ApplicationDeployResponse": {
-			"required": [
-				"version",
-				"status",
-				"reason",
-				"deployUser",
-				"commit",
-				"sourceType"
-			],
-			"properties": {
-				"commit": {
-					"type": "string"
-				},
-				"deployUser": {
-					"type": "string"
-				},
-				"reason": {
-					"type": "string"
-				},
-				"sourceType": {
-					"type": "string"
-				},
-				"status": {
-					"type": "string"
-				},
-				"version": {
-					"type": "string"
-				}
-			}
-		},
-		"v1.ApplicationPlanBase": {
+		"v1.ApplicationBase": {
 			"required": [
 				"name",
 				"alias",
@@ -3330,6 +3309,58 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.ApplicationDeployRequest": {
+			"required": [
+				"workflowName",
+				"commit",
+				"sourceType",
+				"force"
+			],
+			"properties": {
+				"commit": {
+					"type": "string"
+				},
+				"force": {
+					"type": "boolean"
+				},
+				"sourceType": {
+					"type": "string"
+				},
+				"workflowName": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ApplicationDeployResponse": {
+			"required": [
+				"version",
+				"status",
+				"reason",
+				"deployUser",
+				"commit",
+				"sourceType"
+			],
+			"properties": {
+				"commit": {
+					"type": "string"
+				},
+				"deployUser": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"sourceType": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
 				}
 			}
 		},
@@ -3560,7 +3591,7 @@
 				}
 			}
 		},
-		"v1.ComponentPlanBase": {
+		"v1.ComponentBase": {
 			"required": [
 				"name",
 				"alias",
@@ -3622,15 +3653,15 @@
 				}
 			}
 		},
-		"v1.ComponentPlanListResponse": {
+		"v1.ComponentListResponse": {
 			"required": [
-				"componentplans"
+				"components"
 			],
 			"properties": {
-				"componentplans": {
+				"components": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.ComponentPlanBase"
+						"$ref": "#/definitions/v1.ComponentBase"
 					}
 				}
 			}
@@ -3699,10 +3730,10 @@
 				}
 			}
 		},
-		"v1.CreateApplicationEnvPlanRequest": {
+		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"name",
-				"clusterSelector"
+				"clusterSelector",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -3722,7 +3753,7 @@
 				}
 			}
 		},
-		"v1.CreateApplicationPlanRequest": {
+		"v1.CreateApplicationRequest": {
 			"required": [
 				"name",
 				"namespace",
@@ -3731,9 +3762,6 @@
 			"properties": {
 				"alias": {
 					"type": "string"
-				},
-				"deploy": {
-					"type": "boolean"
 				},
 				"description": {
 					"type": "string"
@@ -3778,6 +3806,30 @@
 					"type": "string"
 				},
 				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateApplicationTrait": {
+			"required": [
+				"name",
+				"type",
+				"properties"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				},
+				"type": {
 					"type": "string"
 				}
 			}
@@ -3868,7 +3920,7 @@
 				}
 			}
 		},
-		"v1.CreateComponentPlanRequest": {
+		"v1.CreateComponentRequest": {
 			"required": [
 				"name",
 				"componentType"
@@ -3909,6 +3961,12 @@
 				},
 				"properties": {
 					"type": "string"
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.CreateApplicationTrait"
+					}
 				}
 			}
 		},
@@ -3948,7 +4006,7 @@
 				}
 			}
 		},
-		"v1.CreateWorkflowPlanRequest": {
+		"v1.CreateWorkflowRequest": {
 			"required": [
 				"appName",
 				"name",
@@ -4006,6 +4064,8 @@
 				"version",
 				"description",
 				"icon",
+				"schema",
+				"uiSchema",
 				"definitions",
 				"parameters",
 				"cue_templates",
@@ -4051,10 +4111,19 @@
 				"parameters": {
 					"type": "string"
 				},
+				"schema": {
+					"type": "string"
+				},
 				"tags": {
 					"type": "array",
 					"items": {
 						"type": "string"
+					}
+				},
+				"uiSchema": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
 					}
 				},
 				"url": {
@@ -4071,17 +4140,17 @@
 				}
 			}
 		},
-		"v1.DetailApplicationPlanResponse": {
+		"v1.DetailApplicationResponse": {
 			"required": [
-				"alias",
-				"namespace",
-				"gatewayRule",
 				"name",
-				"description",
-				"createTime",
+				"namespace",
 				"updateTime",
 				"icon",
 				"status",
+				"gatewayRule",
+				"alias",
+				"description",
+				"createTime",
 				"policies",
 				"status",
 				"resourceInfo",
@@ -4151,20 +4220,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"alias",
+				"name",
+				"provider",
+				"apiServerURL",
 				"kubeConfigSecret",
+				"alias",
+				"status",
+				"dashboardURL",
 				"createTime",
+				"updateTime",
+				"labels",
+				"reason",
+				"kubeConfig",
 				"description",
 				"icon",
-				"labels",
-				"provider",
-				"kubeConfig",
-				"updateTime",
-				"name",
-				"status",
-				"reason",
-				"apiServerURL",
-				"dashboardURL",
 				"resourceInfo"
 			],
 			"properties": {
@@ -4220,15 +4289,15 @@
 				}
 			}
 		},
-		"v1.DetailComponentPlanResponse": {
+		"v1.DetailComponentResponse": {
 			"required": [
-				"name",
-				"type",
-				"appPrimaryKey",
-				"creator",
 				"updateTime",
+				"type",
+				"creator",
 				"createTime",
-				"alias"
+				"appPrimaryKey",
+				"alias",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -4292,7 +4361,7 @@
 				"traits": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/model.ApplicationTraitPlan"
+						"$ref": "#/definitions/model.ApplicationTrait"
 					}
 				},
 				"type": {
@@ -4323,13 +4392,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"updateTime",
-				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime"
+				"createTime",
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"createTime": {
@@ -4357,58 +4426,12 @@
 				}
 			}
 		},
-		"v1.DetailWorkflowPlanResponse": {
-			"required": [
-				"updateTime",
-				"name",
-				"alias",
-				"description",
-				"enable",
-				"default",
-				"createTime",
-				"workflowRecord"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"default": {
-					"type": "boolean"
-				},
-				"description": {
-					"type": "string"
-				},
-				"enable": {
-					"type": "boolean"
-				},
-				"name": {
-					"type": "string"
-				},
-				"steps": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.WorkflowStep"
-					}
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"workflowRecord": {
-					"$ref": "#/definitions/v1.WorkflowRecord"
-				}
-			}
-		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"name",
 				"namespace",
 				"suspend",
 				"terminated",
-				"name",
 				"deployTime",
 				"deployUser",
 				"commit",
@@ -4449,6 +4472,52 @@
 				},
 				"terminated": {
 					"type": "boolean"
+				}
+			}
+		},
+		"v1.DetailWorkflowResponse": {
+			"required": [
+				"description",
+				"enable",
+				"default",
+				"createTime",
+				"updateTime",
+				"name",
+				"alias",
+				"workflowRecord"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"default": {
+					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"enable": {
+					"type": "boolean"
+				},
+				"name": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowStep"
+					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"workflowRecord": {
+					"$ref": "#/definitions/v1.WorkflowRecord"
 				}
 			}
 		},
@@ -4555,19 +4624,6 @@
 				}
 			}
 		},
-		"v1.ListApplicationPlanResponse": {
-			"required": [
-				"applicationplans"
-			],
-			"properties": {
-				"applicationplans": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.ApplicationPlanBase"
-					}
-				}
-			}
-		},
 		"v1.ListApplicationPolicy": {
 			"required": [
 				"policies"
@@ -4577,6 +4633,19 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/v1.PolicyBase"
+					}
+				}
+			}
+		},
+		"v1.ListApplicationResponse": {
+			"required": [
+				"applications"
+			],
+			"properties": {
+				"applications": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ApplicationBase"
 					}
 				}
 			}
@@ -4664,19 +4733,6 @@
 				}
 			}
 		},
-		"v1.ListWorkflowPlanResponse": {
-			"required": [
-				"workflowplans"
-			],
-			"properties": {
-				"workflowplans": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.WorkflowPlanBase"
-					}
-				}
-			}
-		},
 		"v1.ListWorkflowRecordsResponse": {
 			"required": [
 				"records",
@@ -4692,6 +4748,19 @@
 				"total": {
 					"type": "integer",
 					"format": "int64"
+				}
+			}
+		},
+		"v1.ListWorkflowResponse": {
+			"required": [
+				"workflows"
+			],
+			"properties": {
+				"workflows": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowBase"
+					}
 				}
 			}
 		},
@@ -4987,7 +5056,7 @@
 				}
 			}
 		},
-		"v1.PutApplicationPlanEnvRequest": {
+		"v1.PutApplicationEnvRequest": {
 			"properties": {
 				"alias": {
 					"type": "string"
@@ -5016,7 +5085,7 @@
 				}
 			}
 		},
-		"v1.UpdateApplicationPlanRequest": {
+		"v1.UpdateApplicationRequest": {
 			"properties": {
 				"alias": {
 					"type": "string"
@@ -5053,7 +5122,7 @@
 				}
 			}
 		},
-		"v1.UpdateWorkflowPlanRequest": {
+		"v1.UpdateWorkflowRequest": {
 			"required": [
 				"enable",
 				"default"
@@ -5082,7 +5151,7 @@
 		"v1.VelaQLViewResponse": {
 			"type": "object"
 		},
-		"v1.WorkflowPlanBase": {
+		"v1.WorkflowBase": {
 			"required": [
 				"name",
 				"alias",
