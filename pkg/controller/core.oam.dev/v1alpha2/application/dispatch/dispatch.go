@@ -43,7 +43,7 @@ func NewAppManifestsDispatcher(c client.Client, appRev *v1beta1.ApplicationRevis
 		c:          c,
 		applicator: apply.NewAPIApplicator(c),
 		appRev:     appRev,
-		gcHandler:  NewGCHandler(c, appRev.Namespace),
+		gcHandler:  NewGCHandler(c, appRev.Namespace, *appRev),
 	}
 }
 

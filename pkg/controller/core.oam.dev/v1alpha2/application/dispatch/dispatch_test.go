@@ -22,6 +22,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestSetOAMOwner(t *testing.T) {
@@ -105,5 +108,33 @@ func TestSetOAMOwner(t *testing.T) {
 	for name, ti := range tests {
 		setOrOverrideOAMControllerOwner(ti.OO, ti.CO)
 		assert.Equal(t, ti.ExpOwner, ti.OO.GetOwnerReferences(), name)
+	}
+}
+
+func TestCheckComponentDeleted(t *testing.T) {
+	wl_1 := unstructured.Unstructured{}
+	wl_1.SetLabels(map[string]string{oam.LabelAppComponent: "comp-1"})
+
+	wl_2 := unstructured.Unstructured{}
+
+	wl_3 := unstructured.Unstructured{}
+	wl_3.SetLabels(map[string]string{oam.LabelAppComponent: "comp-3"})
+
+	components := []common.ApplicationComponent{{Name: "comp-1"}}
+
+	testCase := map[string]struct {
+		u   unstructured.Unstructured
+		res bool
+	}{
+		"exsit comp":       {wl_1, false},
+		"no label deleted": {wl_2, true},
+		"not exsit comp":   {wl_3, true},
+	}
+
+	for caseName, s := range testCase {
+		b := checkResourceRelatedCompDeleted(s.u, components)
+		if b != s.res {
+			t.Errorf("check comp deleted func meet error: %s want %v got %v", caseName, s.res, b)
+		}
 	}
 }
