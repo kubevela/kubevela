@@ -45,11 +45,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const version = process.env.VERSION
-            var label string
+            let label = "backport release-" + version
             if (version.includes("release")) {
-              label = "backport version"
-            } else {
-              label = "backport release-" + version
+              label = "backport " + version
             }
             // Add our backport label.
             github.issues.addLabels({
