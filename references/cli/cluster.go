@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/references/a/preimport"
@@ -200,8 +201,12 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 				return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
 			}
 			var credentialType v1alpha12.CredentialType
+			endpoint, err := utils.ParseAPIServerEndpoint(cluster.Server)
+			if err != nil {
+				return errors.Wrapf(err, "failed to parse apiserver endpoint")
+			}
 			data := map[string][]byte{
-				"endpoint": []byte(cluster.Server),
+				"endpoint": []byte(endpoint),
 				"ca.crt":   cluster.CertificateAuthorityData,
 			}
 			if len(authInfo.Token) > 0 {
@@ -230,7 +235,7 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 				_ = c.Client.Delete(context.Background(), secret)
 				return errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
 			}
-			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, cluster.Server)
+			cmd.Printf("Successfully add cluster %s, endpoint: %s.\n", clusterName, endpoint)
 			return nil
 		},
 	}
