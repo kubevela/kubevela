@@ -79,9 +79,9 @@ type ApplicationUsecase interface {
 	UpdateApplicationEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvRequest) (*apisv1.EnvBinding, error)
 	CreateApplicationEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error)
 	DeleteApplicationEnvBinding(ctx context.Context, app *model.Application, envName string) error
-	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTrait) (*apisv1.ApplicationTrait, error)
-	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string) error
-	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string, req apisv1.UpdateApplicationTrait) (*apisv1.ApplicationTrait, error)
+	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
+	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
+	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -365,10 +365,10 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 
 // DetailComponent detail app component
 // TODO: Add status data about the component.
-func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailComponentResponse, error) {
+func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model.Application, compName string) (*apisv1.DetailComponentResponse, error) {
 	var component = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
-		Name:          policyName,
+		Name:          compName,
 	}
 	err := c.ds.Get(ctx, &component)
 	if err != nil {
@@ -1078,16 +1078,76 @@ func (c *applicationUsecaseImpl) DeleteApplicationEnvBinding(ctx context.Context
 	return nil
 }
 
-func (c *applicationUsecaseImpl) CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTrait) (*apisv1.ApplicationTrait, error) {
-	return nil, nil
+func (c *applicationUsecaseImpl) CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error) {
+	var comp = model.ApplicationComponent{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          component.Name,
+	}
+	if err := c.ds.Get(ctx, &comp); err != nil {
+		return nil, err
+	}
+	for _, trait := range comp.Traits {
+		if trait.Type == req.Type {
+			return nil, bcode.ErrTraitAlreadyExist
+		}
+	}
+	properties, err := model.NewJSONStructByString(req.Properties)
+	if err != nil {
+		log.Logger.Errorf("new trait failure,%s", err.Error())
+		return nil, bcode.ErrInvalidProperties
+	}
+	trait := model.ApplicationTrait{Type: req.Type, Properties: properties}
+	comp.Traits = append(comp.Traits, trait)
+	if err := c.ds.Put(ctx, &comp); err != nil {
+		return nil, err
+	}
+	return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties}, nil
 }
 
-func (c *applicationUsecaseImpl) DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string) error {
-	return nil
+func (c *applicationUsecaseImpl) DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error {
+	var comp = model.ApplicationComponent{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          component.Name,
+	}
+	if err := c.ds.Get(ctx, &comp); err != nil {
+		return err
+	}
+	for i, trait := range comp.Traits {
+		if trait.Type == traitType {
+			comp.Traits = append(comp.Traits[:i], comp.Traits[i+1:]...)
+			if err := c.ds.Put(ctx, &comp); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+	return bcode.ErrTraitNotExist
 }
 
-func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traiName string, req apisv1.UpdateApplicationTrait) (*apisv1.ApplicationTrait, error) {
-	return nil, nil
+func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error) {
+	var comp = model.ApplicationComponent{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          component.Name,
+	}
+	if err := c.ds.Get(ctx, &comp); err != nil {
+		return nil, err
+	}
+	for i, trait := range comp.Traits {
+		if trait.Type == traitType {
+			properties, err := model.NewJSONStructByString(req.Properties)
+			if err != nil {
+				log.Logger.Errorf("update trait failure,%s", err.Error())
+				return nil, bcode.ErrInvalidProperties
+			}
+			trait.Properties = properties
+			comp.Traits[i] = trait
+			if err := c.ds.Put(ctx, &comp); err != nil {
+				return nil, err
+			}
+			return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties}, nil
+		}
+	}
+	return nil, bcode.ErrTraitNotExist
 }
 
 func createEnvBind(envBind apisv1.EnvBinding) v1alpha1.EnvConfig {

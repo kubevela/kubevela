@@ -60,3 +60,9 @@ var ErrApplicationNotEnv = NewBcode(404, 10013, "application not set env binding
 
 // ErrApplicationEnvExist application env is exist
 var ErrApplicationEnvExist = NewBcode(400, 10014, "application env is exist")
+
+// ErrTraitNotExist  trait is not exist
+var ErrTraitNotExist = NewBcode(400, 10015, "trait is not exist")
+
+// ErrTraitAlreadyExist  trait is already exist
+var ErrTraitAlreadyExist = NewBcode(400, 10016, "trait is already exist")
