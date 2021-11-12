@@ -174,6 +174,11 @@ e2e-test:
 	ginkgo -v  --skip="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
 
+e2e-addon-test:
+	cp bin/vela /tmp/
+	ginkgo -v ./test/e2e-addon-test
+	@$(OK) tests pass
+
 e2e-rollout-test:
 	ginkgo -v  --focus="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
