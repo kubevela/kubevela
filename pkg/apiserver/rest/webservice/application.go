@@ -53,8 +53,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Doc("list all applications").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
-		Param(ws.QueryParameter("namespace", "Namespace-based search").DataType("string")).
-		Param(ws.QueryParameter("cluster", "Cluster-based search").DataType("string")).
+		Param(ws.QueryParameter("namespace", "The namespace of the managed cluster").DataType("string")).
+		Param(ws.QueryParameter("target", "Name of the application delivery target").DataType("string")).
 		Returns(200, "", apis.ListApplicationResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListApplicationResponse{}))
@@ -103,9 +103,9 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
 		Reads(apis.PutApplicationEnvRequest{}).
-		Returns(200, "", apis.EnvBind{}).
+		Returns(200, "", apis.EnvBinding{}).
 		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.EnvBind{}))
+		Writes(apis.EnvBinding{}))
 
 	ws.Route(ws.POST("/{name}/envs").To(c.createApplicationEnv).
 		Doc("creating an application environment ").
@@ -113,7 +113,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateApplicationEnvRequest{}).
-		Returns(200, "", apis.EnvBind{}).
+		Returns(200, "", apis.EnvBinding{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
@@ -283,9 +283,9 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
 	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{
-		Namespace: req.QueryParameter("namespace"),
-		Cluster:   req.QueryParameter("cluster"),
-		Query:     req.QueryParameter("query"),
+		Namespace:  req.QueryParameter("namespace"),
+		TargetName: req.QueryParameter("target"),
+		Query:      req.QueryParameter("query"),
 	})
 	if err != nil {
 		bcode.ReturnError(req, res, err)

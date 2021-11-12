@@ -34,7 +34,6 @@ type Workflow struct {
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`
 	Description string `json:"description"`
-	Enable      bool   `json:"enable"`
 	// Workflow used by the default
 	Default       bool           `json:"default"`
 	AppPrimaryKey string         `json:"appPrimaryKey"`
@@ -74,7 +73,6 @@ func (w *Workflow) Index() map[string]string {
 		index["appPrimaryKey"] = w.AppPrimaryKey
 	}
 	index["default"] = strconv.FormatBool(w.Default)
-	index["enable"] = strconv.FormatBool(w.Enable)
 	return index
 }
 

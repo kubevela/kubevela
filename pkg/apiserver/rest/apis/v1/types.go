@@ -59,6 +59,7 @@ type CreateAddonRegistryRequest struct {
 	Git  *model.GitAddonSource `json:"git,omitempty" validate:"required"`
 }
 
+// UpdateAddonRegistryRequest update addon registry request body
 type UpdateAddonRegistryRequest struct {
 	Git *model.GitAddonSource `json:"git,omitempty" validate:"required"`
 }
@@ -246,9 +247,9 @@ type ClusterBase struct {
 
 // ListApplicatioOptions list application  query options
 type ListApplicatioOptions struct {
-	Namespace string `json:"namespace"`
-	Cluster   string `json:"cluster"`
-	Query     string `json:"query"`
+	Namespace  string `json:"namespace"`
+	TargetName string `json:"targetName"`
+	Query      string `json:"query"`
 }
 
 // ListApplicationResponse list applications by query params
@@ -256,13 +257,13 @@ type ListApplicationResponse struct {
 	Applications []*ApplicationBase `json:"applications"`
 }
 
-// EnvBindList env bind list
-type EnvBindList []*EnvBind
+// EnvBindingList env binding list
+type EnvBindingList []*EnvBinding
 
-// ContainCluster contain cluster name
-func (e EnvBindList) ContainCluster(name string) bool {
+// ContainTarget contain cluster name
+func (e EnvBindingList) ContainTarget(name string) bool {
 	for _, eb := range e {
-		if eb.ClusterSelector.Name == name {
+		if utils.StringsContain(eb.TargetNames, name) {
 			return true
 		}
 	}
@@ -280,7 +281,7 @@ type ApplicationBase struct {
 	Icon            string            `json:"icon"`
 	Labels          map[string]string `json:"labels,omitempty"`
 	Status          string            `json:"status"`
-	EnvBind         EnvBindList       `json:"envBind,omitempty"`
+	EnvBinding      EnvBindingList    `json:"envBinding,omitempty"`
 	GatewayRuleList []GatewayRule     `json:"gatewayRule"`
 }
 
@@ -305,14 +306,15 @@ type GatewayRule struct {
 
 // CreateApplicationRequest create application  request body
 type CreateApplicationRequest struct {
-	Name        string            `json:"name" validate:"checkname"`
-	Alias       string            `json:"alias" validate:"checkalias" optional:"true"`
-	Namespace   string            `json:"namespace" validate:"checkname"`
-	Description string            `json:"description" optional:"true"`
-	Icon        string            `json:"icon"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	EnvBind     []*EnvBind        `json:"envBind,omitempty"`
-	YamlConfig  string            `json:"yamlConfig,omitempty"`
+	Name        string                 `json:"name" validate:"checkname"`
+	Alias       string                 `json:"alias" validate:"checkalias" optional:"true"`
+	Namespace   string                 `json:"namespace" validate:"checkname"`
+	Description string                 `json:"description" optional:"true"`
+	Icon        string                 `json:"icon"`
+	Labels      map[string]string      `json:"labels,omitempty"`
+	EnvBinding  []*EnvBinding          `json:"envBinding,omitempty"`
+	YamlConfig  string                 `json:"yamlConfig,omitempty"`
+	Component   CreateComponentRequest `json:"component"`
 }
 
 // UpdateApplicationRequest update application  base config
@@ -323,12 +325,12 @@ type UpdateApplicationRequest struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 }
 
-// EnvBind application env bind
-type EnvBind struct {
+// EnvBinding application env binding
+type EnvBinding struct {
 	Name              string             `json:"name" validate:"checkname"`
 	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
 	Description       string             `json:"description,omitempty" optional:"true"`
-	ClusterSelector   ClusterSelector    `json:"clusterSelector"`
+	TargetNames       []string           `json:"targetNames"`
 	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
 }
 
@@ -395,7 +397,6 @@ type CreateComponentRequest struct {
 	Icon          string                    `json:"icon" optional:"true"`
 	Labels        map[string]string         `json:"labels,omitempty"`
 	ComponentType string                    `json:"componentType" validate:"checkname"`
-	EnvNames      []string                  `json:"envNames,omitempty" optional:"true"`
 	Properties    string                    `json:"properties,omitempty"`
 	DependsOn     []string                  `json:"dependsOn" optional:"true"`
 	Traits        []*CreateApplicationTrait `json:"traits,omitempty" optional:"true"`
@@ -540,7 +541,6 @@ type CreateWorkflowRequest struct {
 	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
 	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
-	Enable      bool           `json:"enable"`
 	Default     bool           `json:"default"`
 }
 
@@ -645,12 +645,12 @@ type PutApplicationEnvRequest struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector,omitempty"`
 	Alias             *string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description       *string            `json:"description,omitempty" optional:"true"`
-	ClusterSelector   *ClusterSelector   `json:"clusterSelector,omitempty"`
+	TargetNames       []string           `json:"targetNames"`
 }
 
 // CreateApplicationEnvRequest new application env
 type CreateApplicationEnvRequest struct {
-	EnvBind
+	EnvBinding
 }
 
 // CreateApplicationTrait create application triat  req
@@ -676,4 +676,36 @@ type ApplicationTrait struct {
 	Description string `json:"description,omitempty"`
 	// Properties json data
 	Properties *model.JSONStruct `json:"properties"`
+}
+
+// CreateDeliveryTarget  create delivery target request body
+type CreateDeliveryTarget struct {
+	Name        string            `json:"name" validate:"checkname"`
+	Namespace   string            `json:"namespace"  validate:"checkname"`
+	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description string            `json:"description,omitempty" optional:"true"`
+	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
+	Cloud       *CloudTarget      `json:"cloud,omitempty"`
+}
+
+// UpdateDeliveryTarget only support full quantity update
+type UpdateDeliveryTarget struct {
+	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description string            `json:"description,omitempty" optional:"true"`
+	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
+	Cloud       *CloudTarget      `json:"cloud,omitempty"`
+}
+
+// KubernetesTarget kubernetes delivery target
+type KubernetesTarget struct {
+	ClusterName string `json:"clusterName" validate:"checkname"`
+	Namespace   string `json:"namespace" optional:"true"`
+}
+
+// CloudTarget cloud target
+type CloudTarget struct {
+	TerraformProviderName string `json:"providerName" validate:"required"`
+	Region                string `json:"region" validate:"required"`
+	Zone                  string `json:"zone" optional:"true"`
+	VpcID                 string `json:"vpcID" optional:"true"`
 }

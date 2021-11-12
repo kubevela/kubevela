@@ -35,7 +35,7 @@ type Application struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	EnvBinds    []*EnvBind        `json:"envBinds,omitempty"`
+	EnvBinding  []*EnvBinding     `json:"envBinding,omitempty"`
 }
 
 // TableName return custom table name
@@ -60,13 +60,14 @@ func (a *Application) Index() map[string]string {
 	return index
 }
 
-// EnvBind application env bind
-type EnvBind struct {
+// EnvBinding application env binding
+type EnvBinding struct {
 	Name              string             `json:"name"`
 	Alias             string             `json:"alias"`
 	Description       string             `json:"description,omitempty"`
-	ClusterSelector   ClusterSelector    `json:"clusterSelector"`
+	TargetNames       []string           `json:"targetNames"`
 	ComponentSelector *ComponentSelector `json:"componentSelector"`
+	//TODO: componentPatchs
 }
 
 // ClusterSelector cluster selector
