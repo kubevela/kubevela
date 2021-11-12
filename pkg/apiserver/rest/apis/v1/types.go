@@ -639,7 +639,7 @@ type PutApplicationEnvRequest struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector,omitempty"`
 	Alias             *string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description       *string            `json:"description,omitempty" optional:"true"`
-	TargetNames       []string           `json:"targetNames"`
+	TargetNames       *[]string          `json:"targetNames"`
 }
 
 // CreateApplicationEnvRequest new application env

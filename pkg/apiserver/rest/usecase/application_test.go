@@ -333,7 +333,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 	})
 
-	It("Test CreateApplicationEnvBindinging function", func() {
+	It("Test CreateApplicationEnvBinding function", func() {
 		req := v1.CreateApplicationRequest{
 			Name:        "not-have-env-bind",
 			Namespace:   "test-app-namespace",
@@ -385,7 +385,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(len(spec.Envs), 4)).Should(BeEmpty())
 	})
 
-	It("Test CreateApplicationEnvBindinging function", func() {
+	It("Test UpdateApplicationEnvBinding function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())

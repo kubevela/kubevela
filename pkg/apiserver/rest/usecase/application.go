@@ -967,6 +967,9 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
 			if envUpdate.Alias != nil {
 				app.EnvBinding[i].Alias = *envUpdate.Alias
 			}
+			if envUpdate.TargetNames != nil {
+				app.EnvBinding[i].TargetNames = *envUpdate.TargetNames
+			}
 			if envUpdate.ComponentSelector == nil {
 				app.EnvBinding[i].ComponentSelector = nil
 			} else {
@@ -1088,28 +1091,18 @@ func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app
 }
 
 func createEnvBind(envBind apisv1.EnvBinding) v1alpha1.EnvConfig {
-	// placement := v1alpha1.EnvPlacement{
-	// 	ClusterSelector: &common.ClusterSelector{
-	// 		Name: envBind.ClusterSelector.Name,
-	// 	},
-	// }
-	// if envBind.ClusterSelector.Namespace != "" {
-	// 	placement.NamespaceSelector = &v1alpha1.NamespaceSelector{
-	// 		Name: envBind.ClusterSelector.Namespace,
-	// 	}
-	// }
-	// var componentSelector *v1alpha1.EnvSelector
-	// if envBind.ComponentSelector != nil {
-	// 	componentSelector = &v1alpha1.EnvSelector{
-	// 		Components: envBind.ComponentSelector.Components,
-	// 	}
-	// }
-	// return v1alpha1.EnvConfig{
-	// 	Name:      envBind.Name,
-	// 	Placement: placement,
-	// 	Selector:  componentSelector,
-	// }
-	return v1alpha1.EnvConfig{}
+	placement := v1alpha1.EnvPlacement{}
+	var componentSelector *v1alpha1.EnvSelector
+	if envBind.ComponentSelector != nil {
+		componentSelector = &v1alpha1.EnvSelector{
+			Components: envBind.ComponentSelector.Components,
+		}
+	}
+	return v1alpha1.EnvConfig{
+		Name:      envBind.Name,
+		Placement: placement,
+		Selector:  componentSelector,
+	}
 }
 
 func createModelEnvBind(envBind apisv1.EnvBinding) *model.EnvBinding {
