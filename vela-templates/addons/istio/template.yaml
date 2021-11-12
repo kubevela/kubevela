@@ -4,7 +4,7 @@ metadata:
   annotations:
     addons.oam.dev/description: "istio Controller is a Kubernetes Controller for manage traffic."
   name: istio
-  namespace: istio-system
+  namespace: vela-system
 spec:
   workflow:
     steps:
