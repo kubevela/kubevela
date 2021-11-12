@@ -73,6 +73,7 @@ func (v *velaQLUsecaseImpl) QueryView(ctx context.Context, velaQL string) (*apis
 
 	queryValue, err := velaql.NewViewHandler(v.kubeClient, v.dm, v.pd).QueryView(ctx, query)
 	if err != nil {
+		log.Logger.Errorf("fail to query the view %s", err.Error())
 		return nil, bcode.ErrViewQuery
 	}
 

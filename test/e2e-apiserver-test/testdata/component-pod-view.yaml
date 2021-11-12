@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: component-pod-view
+  name: test-component-pod-view
   namespace: vela-system
 data:
   template: |

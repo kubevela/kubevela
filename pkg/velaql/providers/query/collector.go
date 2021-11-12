@@ -94,7 +94,7 @@ func (c *Collector) CollectLatestResourceFromApp() ([]AppResources, error) {
 	}
 	compResList := c.extractComponentResourceWithOption(comps)
 	if len(compResList) == 0 {
-		return nil, nil
+		return nil, errors.Errorf("fail to find resources created by %v", c.opt.Components)
 	}
 
 	return []AppResources{{
@@ -144,6 +144,9 @@ func (c *Collector) CollectHistoryResourceFromApp() ([]AppResources, error) {
 			})
 		}
 	}
+	if len(appResList) == 0 {
+		return nil, errors.Errorf("fail to find resources created by %v", c.opt.Components)
+	}
 	return appResList, nil
 }
 
@@ -153,6 +156,9 @@ func (c *Collector) extractComponentResourceWithOption(comps map[string][]Resour
 	// if not specify component, return all components resource created by app
 	if len(c.opt.Components) == 0 {
 		for name, resource := range comps {
+			if len(resource) == 0 {
+				continue
+			}
 			result = append(result, Component{
 				Name:      name,
 				Resources: resource,
