@@ -36,7 +36,7 @@ var _ = Describe("Test delivery target usecase functions", func() {
 	})
 	It("Test CreateDeliveryTarget function", func() {
 		req := apisv1.CreateDeliveryTargetRequest{
-			Name:        "test-deliveryTarget-1",
+			Name:        "test-delivery-target",
 			Namespace:   "test-namespace",
 			Alias:       "test-alias",
 			Description: "this is a deliveryTarget",
@@ -50,10 +50,10 @@ var _ = Describe("Test delivery target usecase functions", func() {
 	})
 
 	It("Test GetDeliveryTarget function", func() {
-		deliveryTarget, err := deliveryTargetUsecase.GetDeliveryTarget(context.TODO(), "test-deliveryTarget-1")
+		deliveryTarget, err := deliveryTargetUsecase.GetDeliveryTarget(context.TODO(), "test-delivery-target")
 		Expect(err).Should(BeNil())
 		Expect(deliveryTarget).ShouldNot(BeNil())
-		Expect(cmp.Diff(deliveryTarget.Name, "test-deliveryTarget-1")).Should(BeEmpty())
+		Expect(cmp.Diff(deliveryTarget.Name, "test-delivery-target")).Should(BeEmpty())
 	})
 
 	It("Test ListDeliveryTargets function", func() {
@@ -64,13 +64,13 @@ var _ = Describe("Test delivery target usecase functions", func() {
 	It("Test DetailDeliveryTarget function", func() {
 		detail, err := deliveryTargetUsecase.DetailDeliveryTarget(context.TODO(),
 			&model.DeliveryTarget{
-				Name:        "test-deliveryTarget-1",
+				Name:        "test-delivery-target",
 				Namespace:   "test-namespace",
 				Alias:       "test-alias",
 				Description: "this is a deliveryTarget",
 				Kubernetes:  &model.KubernetesTarget{ClusterName: "cluster-dev", Namespace: "dev"},
 				Cloud:       &model.CloudTarget{TerraformProviderName: "provider", Region: "us-1"}})
 		Expect(err).Should(BeNil())
-		Expect(detail.Name).Should(Equal("test-deliveryTarget-1"))
+		Expect(detail.Name).Should(Equal("test-delivery-target"))
 	})
 })

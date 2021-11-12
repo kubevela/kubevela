@@ -16,7 +16,7 @@ limitations under the License.
 
 package bcode
 
-// ErrApplicationExist deliveryTarget is exist
+// ErrDeliveryTargetExist deliveryTarget is exist
 var ErrDeliveryTargetExist = NewBcode(400, 20006, "deliveryTarget is exist")
 
 // ErrDeliveryTargetNotExist deliveryTarget is not exist
