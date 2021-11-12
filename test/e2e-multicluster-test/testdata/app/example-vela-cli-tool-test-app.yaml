@@ -1,0 +1,28 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: cli-test-app
+  namespace: TEST_NAMESPACE
+spec:
+  components:
+    - name: exec-podinfo
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+  policies:
+    - name: env-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: test
+            placement:
+              clusterSelector:
+                name: cluster-worker
+  workflow:
+    steps:
+      - name: deploy-test
+        type: deploy2env
+        properties:
+          policy: env-policy
+          env: test

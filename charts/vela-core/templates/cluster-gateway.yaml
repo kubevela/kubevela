@@ -107,6 +107,64 @@ spec:
 {{ end }}
 ---
 {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-cluster-gateway-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+{{- end }}
+---
+{{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-cluster-gateway-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+---
+{{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-cluster-gateway-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+{{- end }}
+---
+{{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -142,7 +200,7 @@ spec:
           - --key-name=apiserver.key
           - --cert-name=apiserver.crt
       restartPolicy: OnFailure
-      serviceAccountName: {{ template "kubevela.fullname" . }}-admission
+      serviceAccountName: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
       securityContext:
         runAsGroup: 2000
         runAsNonRoot: true
