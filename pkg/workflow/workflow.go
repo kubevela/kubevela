@@ -17,7 +17,6 @@ limitations under the License.
 package workflow
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -27,6 +26,8 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -52,16 +53,18 @@ func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.Workfl
 }
 
 // ExecuteSteps process workflow step in order.
-func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.ApplicationRevision, taskRunners []wfTypes.TaskRunner) (common.WorkflowState, error) {
+func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.ApplicationRevision, taskRunners []wfTypes.TaskRunner) (common.WorkflowState, error) {
 	revAndSpecHash, err := computeAppRevisionHash(appRev.Name, w.app)
 	if err != nil {
 		return common.WorkflowStateExecuting, err
 	}
+	ctx.AddTag("workflow_version", revAndSpecHash)
 	if len(taskRunners) == 0 {
 		return common.WorkflowStateFinished, nil
 	}
 
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
+		ctx.Info("Restart Workflow")
 		w.app.Status.Workflow = &common.WorkflowStatus{
 			AppRevision: revAndSpecHash,
 			Mode:        common.WorkflowModeStep,
@@ -87,22 +90,22 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 		return common.WorkflowStateFinished, nil
 	}
 
-	var (
-		wfCtx wfContext.Context
-	)
-
-	wfCtx, err = w.makeContext(w.app.Name)
+	wfCtx, err := w.makeContext(w.app.Name)
 	if err != nil {
+		ctx.Error(err, "make context")
 		return common.WorkflowStateExecuting, err
 	}
 
 	e := &engine{
-		status:  wfStatus,
-		dagMode: w.dagMode,
+		status:     wfStatus,
+		dagMode:    w.dagMode,
+		monitorCtx: ctx,
+		app:        w.app,
 	}
 
 	err = e.run(wfCtx, taskRunners)
 	if err != nil {
+		ctx.Error(err, "run steps")
 		return common.WorkflowStateExecuting, err
 	}
 	if wfStatus.Terminated {
@@ -242,7 +245,13 @@ func (e *engine) todoByIndex(taskRunners []wfTypes.TaskRunner) []wfTypes.TaskRun
 
 func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
 	for _, runner := range taskRunners {
-		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{})
+		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{
+			GetTracer: func(id string, stepStatus oamcore.WorkflowStep) monitorContext.Context {
+				return e.monitorCtx.Fork(id, monitorContext.DurationMetric(func(v float64) {
+					metrics.StepDurationSummary.WithLabelValues(e.app.Namespace+"/"+e.app.Name, e.status.AppRevision, stepStatus.Name, stepStatus.Type).Observe(v)
+				}))
+			},
+		})
 		if err != nil {
 			return err
 		}
@@ -269,8 +278,10 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 }
 
 type engine struct {
-	dagMode bool
-	status  *common.WorkflowStatus
+	dagMode    bool
+	status     *common.WorkflowStatus
+	monitorCtx monitorContext.Context
+	app        *oamcore.Application
 }
 
 func (e *engine) isDag() bool {
