@@ -28,6 +28,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -38,8 +39,8 @@ type GarbageCollector interface {
 }
 
 // NewGCHandler create a GCHandler
-func NewGCHandler(c client.Client, ns string) *GCHandler {
-	return &GCHandler{c, ns, nil, nil}
+func NewGCHandler(c client.Client, ns string, appRev v1beta1.ApplicationRevision) *GCHandler {
+	return &GCHandler{c, ns, nil, nil, appRev}
 }
 
 // GCHandler implement GarbageCollector interface
@@ -49,6 +50,8 @@ type GCHandler struct {
 
 	oldRT *v1beta1.ResourceTracker
 	newRT *v1beta1.ResourceTracker
+
+	appRev v1beta1.ApplicationRevision
 }
 
 // GarbageCollect delete the old resources that are no longer in the new resource tracker
@@ -137,6 +140,10 @@ func (h *GCHandler) handleResourceSkipGC(ctx context.Context, u *unstructured.Un
 	if _, exist := res.GetAnnotations()[oam.AnnotationSkipGC]; !exist {
 		return false, nil
 	}
+	// if the component have been deleted don't skipGC
+	if checkResourceRelatedCompDeleted(*res, h.appRev.Spec.Application.Spec.Components) {
+		return false, nil
+	}
 	var owners []metav1.OwnerReference
 	for _, ownerReference := range res.GetOwnerReferences() {
 		if ownerReference.UID == oldRt.GetUID() {
@@ -151,4 +158,15 @@ func (h *GCHandler) handleResourceSkipGC(ctx context.Context, u *unstructured.Un
 	}
 	klog.InfoS("succeed to handle a skipGC res kind ", res.GetKind(), "namespace", res.GetNamespace(), "name", res.GetName())
 	return true, nil
+}
+
+func checkResourceRelatedCompDeleted(res unstructured.Unstructured, comps []common.ApplicationComponent) bool {
+	compName := res.GetLabels()[oam.LabelAppComponent]
+	deleted := true
+	for _, comp := range comps {
+		if compName == comp.Name {
+			deleted = false
+		}
+	}
+	return deleted
 }
