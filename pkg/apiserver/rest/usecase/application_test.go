@@ -417,8 +417,8 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
 		res, err := appUsecase.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{
-			Commit:     "unit test deploy",
-			SourceType: "api",
+			Note:        "unit test deploy",
+			TriggerType: "api",
 		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(res.Status, model.DeployEventRunning)).Should(BeEmpty())

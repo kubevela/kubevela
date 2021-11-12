@@ -600,9 +600,9 @@ type DetailWorkflowRecordResponse struct {
 	WorkflowRecord
 	DeployTime time.Time `json:"deployTime"`
 	DeployUser string    `json:"deployUser"`
-	Commit     string    `json:"commit"`
-	// SourceType the event trigger source, Web or API
-	SourceType string `json:"sourceType"`
+	Note       string    `json:"note"`
+	// TriggerType the event trigger source, Web or API
+	TriggerType string `json:"triggerType"`
 }
 
 // WorkflowRecord workflow record
@@ -619,22 +619,16 @@ type WorkflowRecord struct {
 type ApplicationDeployRequest struct {
 	WorkflowName string `json:"workflowName"`
 	// User note message, optional
-	Commit string `json:"commit"`
-	// SourceType the event trigger source, Web or API
-	SourceType string `json:"sourceType" validate:"oneof=web api"`
+	Note string `json:"note"`
+	// TriggerType the event trigger source, Web or API
+	TriggerType string `json:"triggerType" validate:"oneof=web api"`
 	// Force set to True to ignore unfinished events.
 	Force bool `json:"force"`
 }
 
-// ApplicationDeployResponse deploy response
+// ApplicationDeployResponse application deploy response body
 type ApplicationDeployResponse struct {
-	Version    string `json:"version"`
-	Status     string `json:"status"`
-	Reason     string `json:"reason"`
-	DeployUser string `json:"deployUser"`
-	Commit     string `json:"commit"`
-	// SourceType the event trigger source, Web or API
-	SourceType string `json:"sourceType"`
+	ApplicationRevisionBase
 }
 
 // VelaQLViewResponse query response
@@ -708,4 +702,15 @@ type CloudTarget struct {
 	Region                string `json:"region" validate:"required"`
 	Zone                  string `json:"zone" optional:"true"`
 	VpcID                 string `json:"vpcID" optional:"true"`
+}
+
+// ApplicationRevisionBase application revision base spec
+type ApplicationRevisionBase struct {
+	Version    string `json:"version"`
+	Status     string `json:"status"`
+	Reason     string `json:"reason"`
+	DeployUser string `json:"deployUser"`
+	Note       string `json:"note"`
+	// SourceType the event trigger source, Web or API
+	TriggerType string `json:"triggerType"`
 }

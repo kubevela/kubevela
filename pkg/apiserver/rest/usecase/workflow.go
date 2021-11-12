@@ -243,21 +243,21 @@ func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflow
 	}
 
 	version := strings.TrimPrefix(recordName, fmt.Sprintf("%s-", record.AppPrimaryKey))
-	var deployEvent = model.DeployEvent{
+	var revision = model.ApplicationRevision{
 		AppPrimaryKey: record.AppPrimaryKey,
 		Version:       version,
 	}
-	err = w.ds.Get(ctx, &deployEvent)
+	err = w.ds.Get(ctx, &revision)
 	if err != nil {
 		return nil, err
 	}
 
 	return &apisv1.DetailWorkflowRecordResponse{
 		WorkflowRecord: *convertFromRecordModel(&record),
-		DeployTime:     deployEvent.CreateTime,
-		DeployUser:     deployEvent.DeployUser,
-		Commit:         deployEvent.Commit,
-		SourceType:     deployEvent.SourceType,
+		DeployTime:     revision.CreateTime,
+		DeployUser:     revision.DeployUser,
+		Note:           revision.Note,
+		TriggerType:    revision.TriggerType,
 	}, nil
 }
 

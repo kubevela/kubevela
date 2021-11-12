@@ -160,9 +160,9 @@ var _ = Describe("Test application rest api", func() {
 	It("Test deploy application", func() {
 		defer GinkgoRecover()
 		var req = apisv1.ApplicationDeployRequest{
-			Commit:     "test apply",
-			SourceType: "web",
-			Force:      false,
+			Note:        "test apply",
+			TriggerType: "web",
+			Force:       false,
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())

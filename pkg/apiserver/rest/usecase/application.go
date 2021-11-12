@@ -554,28 +554,28 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	configByte, _ := yaml.Marshal(oamApp)
 	// step2: check and create deploy event
 	if !req.Force {
-		var lastEvent = model.DeployEvent{
+		var lastVersion = model.ApplicationRevision{
 			AppPrimaryKey: app.PrimaryKey(),
 		}
-		list, err := c.ds.List(ctx, &lastEvent, &datastore.ListOptions{PageSize: 1, Page: 1})
+		list, err := c.ds.List(ctx, &lastVersion, &datastore.ListOptions{PageSize: 1, Page: 1})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
-			log.Logger.Errorf("query last app event failure %s", err.Error())
+			log.Logger.Errorf("query app latest revision failure %s", err.Error())
 			return nil, bcode.ErrDeployEventConflict
 		}
-		if len(list) > 0 && list[0].(*model.DeployEvent).Status != model.DeployEventComplete {
+		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.DeployEventComplete {
 			return nil, bcode.ErrDeployEventConflict
 		}
 	}
 
-	var deployEvent = &model.DeployEvent{
+	var deployEvent = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
 		ApplyAppConfig: string(configByte),
 		Status:         model.DeployEventInit,
 		// TODO: Get user information from ctx and assign a value.
 		DeployUser:   "",
-		Commit:       req.Commit,
-		SourceType:   req.SourceType,
+		Note:         req.Note,
+		TriggerType:  req.TriggerType,
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 	}
 
@@ -609,12 +609,14 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 
 	// step5: update deploy event status
 	return &apisv1.ApplicationDeployResponse{
-		Version:    deployEvent.Version,
-		Status:     deployEvent.Status,
-		Reason:     deployEvent.Reason,
-		DeployUser: deployEvent.DeployUser,
-		Commit:     deployEvent.Commit,
-		SourceType: deployEvent.SourceType,
+		ApplicationRevisionBase: apisv1.ApplicationRevisionBase{
+			Version:     deployEvent.Version,
+			Status:      deployEvent.Status,
+			Reason:      deployEvent.Reason,
+			DeployUser:  deployEvent.DeployUser,
+			Note:        deployEvent.Note,
+			TriggerType: deployEvent.TriggerType,
+		},
 	}, nil
 }
 
