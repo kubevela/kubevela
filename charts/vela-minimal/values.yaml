@@ -6,7 +6,7 @@ replicaCount: 1
 # Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
 
-disableCaps: "manualscalertrait,containerizedwokrload,envbinding"
+disableCaps: "containerizedwokrload,envbinding"
 image:
   repository: oamdev/vela-core
   tag: latest
