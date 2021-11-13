@@ -275,8 +275,6 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		cd2        corev1beta1.ComponentDefinition
 		component1 string
 		component2 string
-		trait1     string
-		trait2     string
 	)
 	BeforeEach(func() {
 		c = common.Args{
@@ -289,8 +287,6 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		defaultNS = types.DefaultKubeVelaNS
 		component1 = "cd1"
 		component2 = "cd2"
-		trait1 = "td1"
-		trait2 = "td2"
 
 		By("create namespace")
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))

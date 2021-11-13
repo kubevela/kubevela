@@ -52,7 +52,6 @@ var _ = Describe("test generate revision ", func() {
 	cd := v1beta1.ComponentDefinition{}
 	webCompDef := v1beta1.ComponentDefinition{}
 	wd := v1beta1.WorkloadDefinition{}
-	td := v1beta1.TraitDefinition{}
 	sd := v1beta1.ScopeDefinition{}
 	rolloutTd := v1beta1.TraitDefinition{}
 	var handler AppHandler
@@ -73,11 +72,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(json.Unmarshal(componentDefJson, &cd)).Should(BeNil())
 		cd.ResourceVersion = ""
 		Expect(k8sClient.Create(ctx, &cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		traitDefJson, _ := yaml.YAMLToJSON([]byte(traitDefYaml))
-		Expect(json.Unmarshal(traitDefJson, &td)).Should(BeNil())
-		td.ResourceVersion = ""
-		Expect(k8sClient.Create(ctx, &td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		scopeDefJson, _ := yaml.YAMLToJSON([]byte(scopeDefYaml))
 		Expect(json.Unmarshal(scopeDefJson, &sd)).Should(BeNil())
@@ -121,14 +115,6 @@ var _ = Describe("test generate revision ", func() {
 						Properties: &runtime.RawExtension{
 							Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 						},
-						Traits: []common.ApplicationTrait{
-							{
-								Type: td.Name,
-								Properties: &runtime.RawExtension{
-									Raw: []byte(`{"replicas": 5}`),
-								},
-							},
-						},
 					},
 				},
 			},
@@ -150,7 +136,6 @@ var _ = Describe("test generate revision ", func() {
 		appRevision1.Spec.Application = app
 		appRevision1.Spec.ComponentDefinitions[cd.Name] = cd
 		appRevision1.Spec.WorkloadDefinitions[wd.Name] = wd
-		appRevision1.Spec.TraitDefinitions[td.Name] = td
 		appRevision1.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd
 		appRevision1.Spec.ScopeDefinitions[sd.Name] = sd
 
@@ -196,22 +181,11 @@ var _ = Describe("test generate revision ", func() {
 		// add an annotation to workload Definition
 		wd.SetAnnotations(map[string]string{oam.AnnotationAppRollout: "true"})
 		appRevision2.Spec.WorkloadDefinitions[wd.Name] = wd
-		// add status to td
-		td.SetConditions(v1alpha1.NewPositiveCondition("Test"))
-		appRevision2.Spec.TraitDefinitions[td.Name] = td
 		// change the cd meta
 		cd.ClusterName = "testCluster"
 		appRevision2.Spec.ComponentDefinitions[cd.Name] = cd
 
 		verifyEqual()
-	})
-
-	It("Test app revisions with different trait spec should produce different hash and not equal", func() {
-		// change td spec
-		td.Spec.AppliesToWorkloads = append(td.Spec.AppliesToWorkloads, "allWorkload")
-		appRevision2.Spec.TraitDefinitions[td.Name] = td
-
-		verifyNotEqual()
 	})
 
 	It("Test app revisions with different application spec should produce different hash and not equal", func() {
