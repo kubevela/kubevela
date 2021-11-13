@@ -348,7 +348,6 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 	return r.Client.Status().Patch(ctx, app, client.Merge)
 }
 
-
 // appWillRollout judge whether the application will be released by rollout.
 // If it's true, application controller will only create or update application revision but not emit any other K8s
 // resources into the cluster. Rollout controller will do real release works.
