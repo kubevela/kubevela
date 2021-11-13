@@ -90,24 +90,19 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("Prepare capability definitions")
 	myingressYAML := readDataFromFile("./testdata/td-myingress.yaml")
-	myscalerYAML := readDataFromFile("./testdata/td-myscaler.yaml")
 	myworkerYAML := readDataFromFile("./testdata/cd-myworker.yaml")
 
 	myworkerDef, err := oamutil.UnMarshalStringToComponentDefinition(myworkerYAML)
 	Expect(err).Should(BeNil())
 	myingressDef, err := oamutil.UnMarshalStringToTraitDefinition(myingressYAML)
 	Expect(err).Should(BeNil())
-	myscalerDef, err := oamutil.UnMarshalStringToTraitDefinition(myscalerYAML)
-	Expect(err).Should(BeNil())
 
 	cdMyWorker, err := oamutil.Object2Unstructured(myworkerDef)
 	Expect(err).Should(BeNil())
 	tdMyIngress, err := oamutil.Object2Unstructured(myingressDef)
 	Expect(err).Should(BeNil())
-	tdMyScaler, err := oamutil.Object2Unstructured(myscalerDef)
-	Expect(err).Should(BeNil())
 
-	dryrunOpt = NewDryRunOption(k8sClient, dm, pd, []oam.Object{cdMyWorker, tdMyIngress, tdMyScaler})
+	dryrunOpt = NewDryRunOption(k8sClient, dm, pd, []oam.Object{cdMyWorker, tdMyIngress})
 	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, dm, pd)}
 
 	close(done)

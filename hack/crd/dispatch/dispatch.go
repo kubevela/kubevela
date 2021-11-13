@@ -25,8 +25,7 @@ import (
 )
 
 var (
-	common = map[string]bool{"workloaddefinitions": true, "traitdefinitions": true, "scopedefinitions": true, "healthscopes": true,
-		"manualscalertraits": true}
+	common = map[string]bool{"workloaddefinitions": true, "traitdefinitions": true, "scopedefinitions": true, "healthscopes": true}
 	oldCRD = map[string]bool{"components": true, "applicationconfigurations": true}
 	// when controller need to run in runtime cluster, just add them in this map, key=crdName, value=subPath
 	runtimeCRD = map[string]string{"rollouts": "rollout"}

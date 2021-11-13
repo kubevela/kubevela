@@ -150,8 +150,6 @@ var _ = Describe("test GetCapabilityByName", func() {
 		cd2        corev1beta1.ComponentDefinition
 		cd3        corev1beta1.ComponentDefinition
 		cd4        corev1beta1.ComponentDefinition
-		td1        corev1beta1.TraitDefinition
-		td2        corev1beta1.TraitDefinition
 		td3        corev1beta1.TraitDefinition
 		component1 string
 		component2 string
@@ -210,18 +208,8 @@ var _ = Describe("test GetCapabilityByName", func() {
 		Expect(k8sClient.Create(ctx, &cd4)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create TraitDefinition")
-		data, _ = os.ReadFile("testdata/manualscalars.yaml")
-		yaml.Unmarshal(data, &td1)
-		yaml.Unmarshal(data, &td2)
 		data3, _ := os.ReadFile("testdata/svcTraitDef.yaml")
 		yaml.Unmarshal(data3, &td3)
-		td1.Namespace = ns
-		td1.Name = trait1
-		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		td2.Namespace = defaultNS
-		td2.Name = trait2
-		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		td3.Namespace = ns
 		td3.Name = trait3
@@ -285,8 +273,6 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		defaultNS  string
 		cd1        corev1beta1.ComponentDefinition
 		cd2        corev1beta1.ComponentDefinition
-		td1        corev1beta1.TraitDefinition
-		td2        corev1beta1.TraitDefinition
 		component1 string
 		component2 string
 		trait1     string
@@ -321,18 +307,6 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		cd2.Namespace = defaultNS
 		cd2.Name = component2
 		Expect(k8sClient.Create(ctx, &cd2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		By("create TraitDefinition")
-		data, _ = os.ReadFile("testdata/manualscalars.yaml")
-		yaml.Unmarshal(data, &td1)
-		yaml.Unmarshal(data, &td2)
-		td1.Namespace = ns
-		td1.Name = trait1
-		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		td2.Namespace = defaultNS
-		td2.Name = trait2
-		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	})
 
