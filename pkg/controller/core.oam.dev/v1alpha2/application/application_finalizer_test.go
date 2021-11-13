@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -55,9 +54,6 @@ var _ = Describe("Test application controller finalizer logic", func() {
 	badCD := &v1beta1.ComponentDefinition{}
 	badCDJson, _ := yaml.YAMLToJSON([]byte(badCompDefYaml))
 
-	td := &v1beta1.TraitDefinition{}
-	tdDefJson, _ := yaml.YAMLToJSON([]byte(crossNsTdYaml))
-
 	BeforeEach(func() {
 		ns := v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -69,9 +65,6 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		Expect(json.Unmarshal(cDDefJson, cd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		Expect(json.Unmarshal(tdDefJson, td)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 		Expect(json.Unmarshal(ncdDefJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, ncd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
@@ -82,7 +75,6 @@ var _ = Describe("Test application controller finalizer logic", func() {
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
 		Expect(k8sClient.DeleteAllOf(ctx, &appsv1.Deployment{}, client.InNamespace(namespace)))
-		Expect(k8sClient.DeleteAllOf(ctx, &v1alpha2.ManualScalerTrait{}, client.InNamespace(namespace)))
 		Expect(k8sClient.DeleteAllOf(ctx, &appsv1.ControllerRevision{}, client.InNamespace(namespace)))
 	})
 
@@ -350,38 +342,6 @@ spec:
           image: string
 
           cmd?: [...string]
-      }
-`
-
-	crossNsTdYaml = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: cross-scaler
-  namespace: vela-system
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-        metadata: {
-            namespace: "cross-namespace"
-        }
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
       }
 `
 

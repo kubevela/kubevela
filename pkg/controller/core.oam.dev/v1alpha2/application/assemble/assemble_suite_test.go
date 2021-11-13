@@ -57,9 +57,6 @@ var _ = Describe("Test Assemble Options", func() {
 		            domain: localhost
 		            http:
 		              "/": 8000
-		        - type: manualscaler
-		          properties:
-		            replicas: 3
 		*/
 		Expect(err).Should(BeNil())
 		err = yaml.Unmarshal(b, appRev)

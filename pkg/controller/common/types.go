@@ -23,8 +23,6 @@ const (
 	DisableAllCaps = "all"
 	// DisableNoneCaps disable none of capabilities
 	DisableNoneCaps = ""
-	// ManualScalerTraitControllerName is the controller name of manual scaler trait
-	ManualScalerTraitControllerName = "manualscalertrait"
 	// HealthScopeControllerName is the controller name of healthScope controller
 	HealthScopeControllerName = "healthscope"
 	// RolloutControllerName is the controller name of rollout controller

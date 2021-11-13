@@ -547,24 +547,6 @@ var _ = Describe("Component revision", func() {
 		},
 	}
 
-	TraitDefinition := v1alpha2.TraitDefinition{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: apiVersion,
-			Kind:       "TraitDefinition",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "manualscalertraits2.core.oam.dev",
-			Namespace: "vela-system",
-		},
-		Spec: v1alpha2.TraitDefinitionSpec{
-			RevisionEnabled: true,
-			Reference: commontypes.DefinitionReference{
-				Name: "manualscalertraits.core.oam.dev",
-			},
-			WorkloadRefPath: "spec.workloadRef",
-		},
-	}
-
 	appConfig := v1alpha2.ApplicationConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: apiVersion,
@@ -580,17 +562,6 @@ var _ = Describe("Component revision", func() {
 
 	workloadObjKey := client.ObjectKey{Name: componentName, Namespace: namespace}
 	appConfigObjKey := client.ObjectKey{Name: appConfigName, Namespace: namespace}
-
-	trait := v1alpha2.ManualScalerTrait{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: apiVersion,
-			Kind:       "ManualScalerTrait",
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: appConfigName, Namespace: namespace},
-		Spec: v1alpha2.ManualScalerTraitSpec{
-			ReplicaCount: 2,
-		},
-	}
 
 	Context("Attach a revision-enable trait the first time, workload should not be recreated", func() {
 		It("should create Component and ApplicationConfiguration", func() {
@@ -614,10 +585,8 @@ var _ = Describe("Component revision", func() {
 				time.Second*15, time.Millisecond*500).Should(BeNil())
 
 			By("apply new ApplicationConfiguration with a revision enabled trait")
-			Expect(k8sClient.Create(ctx, &TraitDefinition)).Should(Succeed())
 			Expect(k8sClient.Get(ctx, appConfigObjKey, &appConfig)).Should(Succeed())
 			updatedAppConfig := appConfig.DeepCopy()
-			updatedAppConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: trait.DeepCopyObject()}}}
 			updatedAppConfig.SetResourceVersion("")
 			Expect(k8sClient.Patch(ctx, updatedAppConfig, client.Merge)).Should(Succeed())
 
@@ -636,6 +605,5 @@ var _ = Describe("Component revision", func() {
 	AfterEach(func() {
 		k8sClient.Delete(ctx, &appConfig)
 		k8sClient.Delete(ctx, &component)
-		k8sClient.Delete(ctx, &TraitDefinition)
 	})
 })

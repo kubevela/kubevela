@@ -91,27 +91,6 @@ var expectedExceptApp = &Appfile{
       	cmd?: [...string]
       }`,
 			},
-			Traits: []*Trait{
-				{
-					Name: "scaler",
-					Params: map[string]interface{}{
-						"replicas": float64(10),
-					},
-					Template: `
-      outputs:scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
-				},
-			},
 		},
 	},
 	WorkflowSteps: []v1beta1.WorkflowStep{
@@ -121,33 +100,6 @@ var expectedExceptApp = &Appfile{
 		},
 	},
 }
-
-const traitDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }`
 
 const componenetDefinition = `
 apiVersion: core.oam.dev/v1beta1
@@ -260,12 +212,6 @@ var _ = Describe("Test application parser", func() {
 						return err
 					}
 					*o = *wd
-				case *v1beta1.TraitDefinition:
-					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
-					if err != nil {
-						return err
-					}
-					*o = *td
 				}
 				return nil
 			},
@@ -380,28 +326,6 @@ var _ = Describe("Test appFile parser", func() {
       	cmd?: [...string]
       }`,
 					},
-					Traits: []*Trait{
-						{
-							Name: "scaler",
-							Params: map[string]interface{}{
-								"replicas": float64(10),
-							},
-							engine: definition.NewTraitAbstractEngine("scaler", pd),
-							Template: `
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
-						},
-					},
 				},
 			},
 		}
@@ -451,27 +375,6 @@ var _ = Describe("Test appFile parser", func() {
 		expectCompManifest := &types.ComponentManifest{
 			Name:             "myweb",
 			StandardWorkload: expectWorkload,
-			Traits: []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"apiVersion": "core.oam.dev/v1alpha2",
-						"kind":       "ManualScalerTrait",
-						"metadata": map[string]interface{}{
-							"name":      "myweb-scaler-5c7695d6c7",
-							"namespace": "default",
-							"labels": map[string]interface{}{
-								"app.oam.dev/component":    "myweb",
-								"app.oam.dev/appRevision":  "test-v1",
-								"app.oam.dev/name":         "test",
-								"trait.oam.dev/type":       "scaler",
-								"trait.oam.dev/resource":   "scaler",
-								"app.oam.dev/resourceType": "TRAIT",
-							},
-						},
-						"spec": map[string]interface{}{"replicaCount": int64(10)},
-					},
-				},
-			},
 			Scopes: []*corev1.ObjectReference{
 				{
 					APIVersion: "core.oam.dev/v1alpha2",

@@ -18,7 +18,6 @@ package controllers_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -55,8 +54,6 @@ import (
 
 var k8sClient client.Client
 var scheme = runtime.NewScheme()
-var manualscalertrait v1alpha2.TraitDefinition
-var extendedmanualscalertrait v1alpha2.TraitDefinition
 var roleName = "oam-example-com"
 var roleBindingName = "oam-role-binding"
 var crd crdv1.CustomResourceDefinition
@@ -106,52 +103,6 @@ var _ = BeforeSuite(func(done Done) {
 		Fail("setup failed")
 	}
 	By("Finished setting up test environment")
-
-	// Create manual scaler trait definition
-	manualscalertrait = v1alpha2.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "manualscalertraits.core.oam.dev",
-			Namespace: "vela-system",
-			Labels:    map[string]string{"trait": "manualscalertrait"},
-		},
-		Spec: v1alpha2.TraitDefinitionSpec{
-			WorkloadRefPath: "spec.workloadRef",
-			Reference: commontypes.DefinitionReference{
-				Name: "manualscalertraits.core.oam.dev",
-			},
-		},
-	}
-	// For some reason, traitDefinition is created as a Cluster scope object
-	Expect(k8sClient.Create(context.Background(), manualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// for oam spec v0.2 e2e-test
-	manualscalertrait.Namespace = "oam-runtime-system"
-	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// Create manual scaler trait definition with spec.extension field
-	definitionExtension := DefinitionExtension{
-		Alias: "ManualScaler",
-	}
-	in := new(runtime.RawExtension)
-	in.Raw, _ = json.Marshal(definitionExtension)
-
-	extendedmanualscalertrait = v1alpha2.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "manualscalertraits-extended.core.oam.dev",
-			Namespace: "vela-system",
-			Labels:    map[string]string{"trait": "manualscalertrait"},
-		},
-		Spec: v1alpha2.TraitDefinitionSpec{
-			WorkloadRefPath: "spec.workloadRef",
-			Reference: commontypes.DefinitionReference{
-				Name: "manualscalertraits-extended.core.oam.dev",
-			},
-			Extension: in,
-		},
-	}
-	Expect(k8sClient.Create(context.Background(), extendedmanualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// for oam spec v0.2 e2e-test
-	extendedmanualscalertrait.Namespace = "oam-runtime-system"
-	Expect(k8sClient.Create(context.Background(), &extendedmanualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created extended manualscalertraits.core.oam.dev")
 
 	// create workload definition for 'deployments'
 	wdDeploy := v1alpha2.WorkloadDefinition{

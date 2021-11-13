@@ -83,59 +83,6 @@ metadata: {
 	r.Equal(act.Phase, "")
 }
 
-func TestRenderComponent(t *testing.T) {
-	r := require.New(t)
-	p := &provider{
-		render: func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-			return &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"apiVersion": "apps/v1",
-						"kind":       "Deployment",
-					},
-				}, []*unstructured.Unstructured{
-					{
-						Object: map[string]interface{}{
-							"apiVersion": "core.oam.dev/v1alpha2",
-							"kind":       "ManualScalerTrait",
-							"metadata": map[string]interface{}{
-								"labels": map[string]interface{}{
-									"trait.oam.dev/resource": "scaler",
-								},
-							},
-							"spec": map[string]interface{}{"replicaCount": int64(10)},
-						},
-					},
-				}, nil
-		},
-	}
-	v, err := value.NewValue(`value: {}`, nil, "")
-	r.NoError(err)
-	err = p.RenderComponent(nil, v, nil)
-	r.NoError(err)
-	s, err := v.String()
-	r.NoError(err)
-	r.Equal(s, `value: {}
-output: {
-	apiVersion: "apps/v1"
-	kind:       "Deployment"
-}
-outputs: {
-	scaler: {
-		apiVersion: "core.oam.dev/v1alpha2"
-		kind:       "ManualScalerTrait"
-		metadata: {
-			labels: {
-				"trait.oam.dev/resource": "scaler"
-			}
-		}
-		spec: {
-			replicaCount: 10
-		}
-	}
-}
-`)
-}
-
 func TestLoadComponent(t *testing.T) {
 	r := require.New(t)
 	p := &provider{

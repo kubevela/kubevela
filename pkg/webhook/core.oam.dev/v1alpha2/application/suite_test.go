@@ -127,11 +127,6 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
 	Expect(k8sClient.Create(ctx, wd)).Should(BeNil())
 
-	td := &v1beta1.TraitDefinition{}
-	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
-	Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
-	Expect(k8sClient.Create(ctx, td)).Should(BeNil())
-
 	close(done)
 }, 60)
 
@@ -195,32 +190,4 @@ spec:
 
       	cmd?: [...string]
       }`
-	tDDefYaml = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
-  namespace: vela-system
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`
 )

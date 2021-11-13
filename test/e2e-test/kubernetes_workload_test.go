@@ -168,22 +168,6 @@ var _ = Describe("Test kubernetes native workloads", func() {
 			},
 			time.Second*5, time.Millisecond*100).Should(BeNil())
 
-		// Create a manualscaler trait CR
-		var replica int32 = 5
-		mts := v1alpha2.ManualScalerTrait{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      "sample-manualscaler-trait",
-				Labels:    label,
-			},
-			Spec: v1alpha2.ManualScalerTraitSpec{
-				ReplicaCount: replica,
-			},
-		}
-		// reflect trait gvk from scheme
-		gvks, _, _ = scheme.ObjectKinds(&mts)
-		mts.APIVersion = gvks[0].GroupVersion().String()
-		mts.Kind = gvks[0].Kind
 		// Create application configuration
 		imageName := "wordpress:php7.2"
 		appConfig := v1alpha2.ApplicationConfiguration{
@@ -200,13 +184,6 @@ var _ = Describe("Test kubernetes native workloads", func() {
 							{
 								Name:  "image",
 								Value: intstr.IntOrString{StrVal: imageName, Type: intstr.String},
-							},
-						},
-						Traits: []v1alpha2.ComponentTrait{
-							{
-								Trait: runtime.RawExtension{
-									Object: &mts,
-								},
 							},
 						},
 					},
@@ -231,14 +208,5 @@ var _ = Describe("Test kubernetes native workloads", func() {
 
 		By("Verify that the parameter substitute works")
 		Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageName))
-
-		By("Verify deployment scaled according to the manualScaler trait")
-		Eventually(
-			func() int32 {
-				k8sClient.Get(ctx, objectKey, deploy)
-				return deploy.Status.Replicas
-			},
-			time.Second*60, time.Second*5).Should(BeEquivalentTo(replica))
-		Expect(*deploy.Spec.Replicas).Should(BeEquivalentTo(replica))
 	})
 })
