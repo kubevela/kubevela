@@ -14,7 +14,6 @@ Server-side KubeVela(We call it `vela-core` for convenience) now includes follow
 | Control Plane Object | `components.core.oam.dev` | Yes | OAM Runtime |
 | Workload Type | `containerizedworklaods.core.oam.dev` | Yes | OAM Runtime |
 | Scope | `healthscope.core.oam.dev` | Yes | OAM Runtime |
-| Trait | `manualscalertraits.core.oam.dev` | Yes | OAM Runtime |
 | Control Plane Object | `scopedefinitions.core.oam.dev` | No | OAM Runtime |
 | Control Plane Object | `traitdefinitions.core.oam.dev` | No | OAM Runtime |
 | Control Plane Object | `workloaddefinitions.core.oam.dev` | No | OAM Runtime |

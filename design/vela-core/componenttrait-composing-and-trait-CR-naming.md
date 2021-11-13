@@ -3,7 +3,7 @@
 * Owner: Jianbo Sun (@wonderflow), Zhou Zheng Xi (@zzxwill)
 * Reviewers: KubeVela/Crossplane Maintainers
 * Status: Draft
-
+* Notice: Manual scaler is deprecated. See this [issue](https://github.com/oam-dev/kubevela/issues/2262) to get more information.
 ## Background
 
 Now definition name is no longer coupled with CRD name, it's align to capability name  in KubeVela,
