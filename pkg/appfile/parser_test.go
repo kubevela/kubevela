@@ -93,27 +93,6 @@ var expectedExceptApp = &Appfile{
       	cmd?: [...string]
       }`,
 			},
-			Traits: []*Trait{
-				{
-					Name: "scaler",
-					Params: map[string]interface{}{
-						"replicas": float64(10),
-					},
-					Template: `
-      outputs:scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
-				},
-			},
 		},
 	},
 	WorkflowSteps: []workflowv1alpha1.WorkflowStep{
@@ -125,33 +104,6 @@ var expectedExceptApp = &Appfile{
 		},
 	},
 }
-
-const traitDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }`
 
 const componenetDefinition = `
 apiVersion: core.oam.dev/v1beta1
@@ -304,12 +256,6 @@ var _ = Describe("Test application parser", func() {
 						return err
 					}
 					*o = *wd
-				case *v1beta1.TraitDefinition:
-					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
-					if err != nil {
-						return err
-					}
-					*o = *td
 				case *v1beta1.PolicyDefinition:
 					ppd, err := util.UnMarshalStringToPolicyDefinition(policyDefinition)
 					if err != nil {
@@ -437,28 +383,6 @@ var _ = Describe("Test appFile parser", func() {
       
       	cmd?: [...string]
       }`,
-					},
-					Traits: []*Trait{
-						{
-							Name: "scaler",
-							Params: map[string]interface{}{
-								"replicas": float64(10),
-							},
-							engine: definition.NewTraitAbstractEngine("scaler", pd),
-							Template: `
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
-						},
 					},
 				},
 			},
@@ -669,12 +593,6 @@ patch: spec: replicas: parameter.replicas
 						return err
 					}
 					*o = *wd
-				case *v1beta1.TraitDefinition:
-					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
-					if err != nil {
-						return err
-					}
-					*o = *td
 				case *v1beta1.WorkflowStepDefinition:
 					*o = wsd
 				case *v1beta1.ApplicationRevision:

@@ -54,7 +54,6 @@ import (
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	stdv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -198,34 +197,6 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 	appWithTrait.Spec.Components[0].Name = "myweb3"
-	expectScalerTrait := func(compName, appName, appNs, traitName, traitNamespace string) unstructured.Unstructured {
-		return unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "core.oam.dev/v1alpha2",
-			"kind":       "ManualScalerTrait",
-			"metadata": map[string]interface{}{
-				"annotations": map[string]interface{}{"oam.dev/kubevela-version": "UNKNOWN"},
-				"labels": map[string]interface{}{
-					"trait.oam.dev/type":       "scaler",
-					"app.oam.dev/component":    compName,
-					"app.oam.dev/name":         appName,
-					"app.oam.dev/namespace":    appNs,
-					"app.oam.dev/appRevision":  appName + "-v1",
-					"app.oam.dev/resourceType": "TRAIT",
-					"trait.oam.dev/resource":   "scaler",
-				},
-				"name":      traitName,
-				"namespace": traitNamespace,
-			},
-			"spec": map[string]interface{}{
-				"replicaCount": int64(2),
-				"workloadRef": map[string]interface{}{
-					"apiVersion": "apps/v1",
-					"kind":       "Deployment",
-					"name":       compName,
-				},
-			},
-		}}
-	}
 
 	appWithTraitAndScope := appWithTrait.DeepCopy()
 	appWithTraitAndScope.SetName("app-with-trait-and-scope")
@@ -468,13 +439,9 @@ var _ = Describe("Test Application Controller", func() {
 	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
 
 	importTd := &v1alpha2.TraitDefinition{}
-	importHubCpuScaler := &v1beta1.TraitDefinition{}
 
 	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
-
-	td := &v1beta1.TraitDefinition{}
-	tDDefJson, _ := yaml.YAMLToJSON([]byte(traitDefYaml))
 
 	sd := &v1beta1.ScopeDefinition{}
 	sdDefJson, _ := yaml.YAMLToJSON([]byte(scopeDefYaml))
@@ -500,21 +467,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(json.Unmarshal(importTdJson, importTd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importTd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		traitList := []string{"gateway", "storage", "env", "affinity"}
-		for _, trait := range traitList {
-			installDefinition(ctx, "../../../../charts/vela-core/templates/defwithtemplate", trait)
-		}
-
-		installDefinition(ctx, "./application/testdata/definitions", "panic")
-
-		hubCpuScalerJson, hubCpuScalerErr := yaml.YAMLToJSON([]byte(hubCpuScalerYaml))
-		Expect(hubCpuScalerErr).ShouldNot(HaveOccurred())
-		Expect(json.Unmarshal(hubCpuScalerJson, importHubCpuScaler)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, importHubCpuScaler.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(sdDefJson, sd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, sd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -690,8 +642,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(cmp.Diff(gotDeploy, expDeployment)).Should(BeEmpty())
 
 		Expect(len(comp.Traits) > 0).Should(BeTrue())
-		gotTrait := comp.Traits[0]
-		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb3", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -792,10 +742,6 @@ var _ = Describe("Test Application Controller", func() {
 		}}
 		Expect(cmp.Diff(expectServiceTrait, *gotTrait)).Should(BeEmpty())
 
-		By("Check the second trait should be scaler")
-		gotTrait = comp.Traits[1]
-		Expect(cmp.Diff(expectScalerTrait("myweb-composed-3", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()), *gotTrait)).Should(BeEmpty())
-
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
@@ -850,8 +796,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
 		Expect(len(comp.Traits) > 0).Should(BeTrue())
-		gotTrait := comp.Traits[0]
-		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb4", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
 
 		Expect(len(comp.Scopes) > 0).Should(BeTrue())
 		gotScope := comp.Scopes[0]
@@ -921,8 +865,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp1 := comps[0]
 		Expect(len(comp1.Traits) > 0).Should(BeTrue())
-		gotTrait := comp1.Traits[0]
-		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb5", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
 
 		Expect(len(comp1.Scopes) > 0).Should(BeTrue())
 		Expect(*comp1.Scopes[0]).Should(Equal(corev1.ObjectReference{
@@ -1019,8 +961,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		By("change trait definition with http task")
 		ntd, otd := &v1beta1.TraitDefinition{}, &v1beta1.TraitDefinition{}
-		tDDefJson, _ := yaml.YAMLToJSON([]byte(tdDefYamlWithHttp))
-		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ntd.Name, Namespace: ntd.Namespace}, otd)).Should(BeNil())
 		ntd.ResourceVersion = otd.ResourceVersion
 		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -1059,10 +999,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(len(comps) > 0).Should(BeTrue())
 		comp := comps[0]
 		Expect(len(comp.Traits) > 0).Should(BeTrue())
-		gotTrait := comp.Traits[0]
-		expTrait := expectScalerTrait(appWithTrait.Spec.Components[0].Name, appWithTrait.Name, appWithTrait.Namespace, gotTrait.GetName(), gotTrait.GetNamespace())
-		expTrait.Object["spec"].(map[string]interface{})["token"] = "test-token"
-		Expect(cmp.Diff(*gotTrait, expTrait)).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -1076,8 +1012,6 @@ var _ = Describe("Test Application Controller", func() {
 		ncd.ResourceVersion = ocd.ResourceVersion
 		Expect(k8sClient.Update(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		ntd, otd := &v1beta1.TraitDefinition{}, &v1beta1.TraitDefinition{}
-		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthYaml))
-		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ntd.Name, Namespace: ntd.Namespace}, otd)).Should(BeNil())
 		ntd.ResourceVersion = otd.ResourceVersion
 		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -1101,19 +1035,6 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Labels[oam.LabelAppComponent] = compName
 		expDeployment.Labels["app.oam.dev/resourceType"] = "WORKLOAD"
 		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
-		expTrait := expectScalerTrait(compName, app.Name, app.Namespace, app.Name, app.Namespace)
-		expTrait.SetLabels(map[string]string{
-			oam.LabelAppName:         app.Name,
-			"trait.oam.dev/type":     "scaler",
-			"app.oam.dev/component":  "myweb-health",
-			"trait.oam.dev/resource": "scaler",
-		})
-		(expTrait.Object["spec"].(map[string]interface{}))["workloadRef"] = map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Deployment",
-			"name":       app.Name,
-		}
-		Expect(k8sClient.Create(ctx, &expTrait)).Should(BeNil())
 
 		By("enrich the status of deployment and scaler trait")
 		expDeployment.Status.Replicas = 1
@@ -1124,20 +1045,6 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 			Name:      app.Name,
 		}, got)).Should(BeNil())
-		expTrait.Object["status"] = condition.ConditionedStatus{
-			Conditions: []condition.Condition{{
-				Status:             corev1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-			}},
-		}
-		Expect(k8sClient.Status().Update(ctx, &expTrait)).Should(BeNil())
-		tGot := &unstructured.Unstructured{}
-		tGot.SetAPIVersion("core.oam.dev/v1alpha2")
-		tGot.SetKind("ManualScalerTrait")
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      app.Name,
-		}, tGot)).Should(BeNil())
 
 		By("apply appfile")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
@@ -5285,109 +5192,6 @@ spec:
         	// +usage=Commands to run in the container
         	cmd?: [...string]
         }
-`
-	traitDefYaml = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
-  namespace: vela-system
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-
-`
-	tdDefYamlWithHttp = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
-  namespace: vela-system
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-          replicaCount: parameter.replicas
-          token: processing.output.token
-      	}
-      }
-      parameter: {
-      	//+short=r
-        replicas: *1 | int
-        serviceURL: *"http://127.0.0.1:8090/api/v1/token?val=test-token" | string
-      }
-      processing: {
-        output: {
-          token ?: string
-        }
-        http: {
-          method: *"GET" | string
-          url: parameter.serviceURL
-          request: {
-              body ?: bytes
-              header: {}
-              trailer: {}
-          }
-        }
-      }
-`
-	tDDefWithHealthYaml = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
-  namespace: vela-system
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    healthPolicy: |
-      isHealth: context.output.status.conditions[0].status == "True"
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
 `
 
 	tDDefWithHealthStatusYaml = `apiVersion: core.oam.dev/v1beta1

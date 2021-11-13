@@ -18,7 +18,6 @@ package controllers_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -58,7 +57,6 @@ import (
 
 var k8sClient client.Client
 var scheme = runtime.NewScheme()
-var manualscalertrait v1alpha2.TraitDefinition
 var roleName = "oam-example-com"
 var roleBindingName = "oam-role-binding"
 
@@ -111,34 +109,6 @@ var _ = BeforeSuite(func(done Done) {
 		Fail("setup failed")
 	}
 	By("Finished setting up test environment")
-
-	detectAPIVersion()
-
-	// Create manual scaler trait definition
-	manualscalertrait = v1alpha2.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "manualscalertraits.core.oam.dev",
-			Namespace: "vela-system",
-			Labels:    map[string]string{"trait": "manualscalertrait"},
-		},
-		Spec: v1alpha2.TraitDefinitionSpec{
-			WorkloadRefPath: "spec.workloadRef",
-			Reference: commontypes.DefinitionReference{
-				Name: "manualscalertraits.core.oam.dev",
-			},
-		},
-	}
-	// For some reason, traitDefinition is created as a Cluster scope object
-	Expect(k8sClient.Create(context.Background(), manualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// Create manual scaler trait definition with spec.extension field
-	definitionExtension := DefinitionExtension{
-		Alias: "ManualScaler",
-	}
-	in := new(runtime.RawExtension)
-	in.Raw, _ = json.Marshal(definitionExtension)
-
-	By("Created extended manualscalertraits.core.oam.dev")
 
 	// create workload definition for 'deployments'
 	wdDeploy := v1alpha2.WorkloadDefinition{
