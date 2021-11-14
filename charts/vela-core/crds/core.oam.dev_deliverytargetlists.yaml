@@ -1,0 +1,121 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  name: deliverytargetlists.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    kind: DeliveryTargetList
+    listKind: DeliveryTargetListList
+    plural: deliverytargetlists
+    singular: deliverytargetlist
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DeliveryTargetList contains a list of DeliveryTarget
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          items:
+            items:
+              description: DeliveryTarget is the Schema for application delivery target
+                (cluster, namespace)
+              properties:
+                apiVersion:
+                  description: 'APIVersion defines the versioned schema of this representation
+                    of an object. Servers should convert recognized schemas to the
+                    latest internal value, and may reject unrecognized values. More
+                    info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+                  type: string
+                kind:
+                  description: 'Kind is a string value representing the REST resource
+                    this object represents. Servers may infer this from the endpoint
+                    the client submits requests to. Cannot be updated. In CamelCase.
+                    More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                  type: string
+                metadata:
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    finalizers:
+                      items:
+                        type: string
+                      type: array
+                    labels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  type: object
+                spec:
+                  description: DeliveryTargetSpec defines the spec of delivery target
+                  properties:
+                    cloud_resource:
+                      description: DeliveryTargetCloudResource defines the spec of
+                        cloud resource delivery target
+                      properties:
+                        provider:
+                          type: string
+                        region:
+                          type: string
+                        vpc:
+                          type: string
+                        zone:
+                          type: string
+                      required:
+                      - provider
+                      - region
+                      type: object
+                    kubernetes:
+                      description: DeliveryTargetKubernetes defines the spec of kubernetes
+                        delivery target
+                      properties:
+                        cluster:
+                          description: Cluster the name of the target cluster, empty
+                            or local indicates that the cluster is the managing cluster
+                          type: string
+                        namespace:
+                          description: Namespace the name of the target namespace,
+                            if empty, it is reserved to inherit the namespace that
+                            application uses
+                          type: string
+                      type: object
+                  type: object
+                status:
+                  description: DeliveryTargetStatus defines the observed state of
+                    delivery target
+                  type: object
+              type: object
+            type: array
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+        required:
+        - items
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

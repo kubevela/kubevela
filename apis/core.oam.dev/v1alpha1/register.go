@@ -17,6 +17,8 @@
 package v1alpha1
 
 import (
+	"reflect"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
@@ -35,5 +37,14 @@ var (
 	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
 )
 
+// DeliveryTarget type metadata
+var (
+	DeliveryTargetKind            = reflect.TypeOf(&DeliveryTarget{}).Name()
+	DeliveryTargetGroupKind       = schema.GroupKind{Group: Group, Kind: DeliveryTargetKind}.String()
+	DeliveryTargetKindAPIVersion  = DeliveryTargetKind + "." + SchemeGroupVersion.String()
+	DeliveryTargetKindVersionKind = SchemeGroupVersion.WithKind(DeliveryTargetKind)
+)
+
 func init() {
+	SchemeBuilder.Register(&DeliveryTarget{}, &DeliveryTargetList{})
 }
