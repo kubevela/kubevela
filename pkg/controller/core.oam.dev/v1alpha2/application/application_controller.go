@@ -23,7 +23,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -195,11 +194,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		switch workflowState {
 		case common.WorkflowStateSuspended:
 			logCtx.Info("Workflow return state=Suspend")
-			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationWorkflowSuspending)
+			return ctrl.Result{}, r.patchStatus(logCtx, app, common.ApplicationWorkflowSuspending)
 		case common.WorkflowStateTerminated:
-			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationWorkflowTerminated)
+			return ctrl.Result{}, r.patchStatus(logCtx, app, common.ApplicationWorkflowTerminated)
 		case common.WorkflowStateExecuting:
-			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatusWithRetryOnConflict(ctx, app, common.ApplicationRunningWorkflow)
+			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatus(ctx, app, common.ApplicationRunningWorkflow)
 		case common.WorkflowStateFinished:
 			wfStatus := app.Status.Workflow
 			if wfStatus != nil {
@@ -213,7 +212,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				if err != nil {
 					logCtx.Error(err, "Failed to gc after workflow")
 					r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
-					return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("GCAfterWorkflow", err), common.ApplicationRunningWorkflow)
+					return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("GCAfterWorkflow", err), common.ApplicationRunningWorkflow)
 				}
 				app.Status.ResourceTracker = ref
 			}
@@ -227,7 +226,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			logCtx.Error(err, "Failed to render components")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
 		}
 
 		assemble.HandleCheckManageWorkloadTrait(*handler.currentAppRev, comps)
@@ -235,7 +234,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := handler.HandleComponentsRevision(logCtx, comps); err != nil {
 			logCtx.Error(err, "Failed to handle components revision")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
 		}
 		klog.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
 	}
@@ -335,49 +334,18 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 	return false, nil
 }
 
-func (r *Reconciler) _endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase, retry bool) (ctrl.Result, error) {
+func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
 	app.SetConditions(condition)
-	handler := r.patchStatus
-	if retry {
-		handler = r.patchStatusWithRetryOnConflict
-	}
-	if err := handler(ctx, app, phase); err != nil {
+	if err := r.patchStatus(ctx, app, phase); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update application status")
 	}
 	return ctrl.Result{}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
-}
-
-func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
-	return r._endWithNegativeCondition(ctx, app, condition, phase, false)
-}
-
-// Note: Only operations that must override the status should use this function, it should only focus on workflow operations by now.
-func (r *Reconciler) endWithNegativeConditionWithRetry(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
-	return r._endWithNegativeCondition(ctx, app, condition, phase, true)
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
 	return r.Client.Status().Patch(ctx, app, client.Merge)
-}
-
-// Note: Only operations that must override the status should use this function, it should only focus on workflow operations by now.
-func (r *Reconciler) patchStatusWithRetryOnConflict(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
-	app.Status.Phase = phase
-	updateObservedGeneration(app)
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		status := app.Status.DeepCopy()
-		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
-			return errors.WithMessage(err, "failed to get application while patching status")
-		}
-		app.Status = *status
-		err := r.Client.Status().Patch(ctx, app, client.Merge)
-		if err != nil {
-			return errors.WithMessage(err, "failed to re-patch status")
-		}
-		return nil
-	})
 }
 
 // appWillRollout judge whether the application will be released by rollout.
