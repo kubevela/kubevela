@@ -38,7 +38,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -279,7 +278,7 @@ func standardWorkloadPodCollector(cli client.Client, obj *unstructured.Unstructu
 
 	pods := make([]*unstructured.Unstructured, len(podList.Items))
 	for i := range podList.Items {
-		pod, err := util.Object2Unstructured(podList.Items[i])
+		pod, err := oamutil.Object2Unstructured(podList.Items[i])
 		if err != nil {
 			return nil, err
 		}
@@ -326,7 +325,7 @@ func cronJobPodCollector(cli client.Client, obj *unstructured.Unstructured, clus
 
 		items := make([]*unstructured.Unstructured, len(podList.Items))
 		for i := range podList.Items {
-			pod, err := util.Object2Unstructured(podList.Items[i])
+			pod, err := oamutil.Object2Unstructured(podList.Items[i])
 			if err != nil {
 				return nil, err
 			}

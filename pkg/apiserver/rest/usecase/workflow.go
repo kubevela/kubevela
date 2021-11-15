@@ -89,7 +89,6 @@ func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.App
 	var workflow = model.Workflow{
 		Steps:         steps,
 		Name:          req.Name,
-		Enable:        req.Enable,
 		Description:   req.Description,
 		Default:       req.Default,
 		AppPrimaryKey: app.PrimaryKey(),
@@ -120,7 +119,6 @@ func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 	workflow.Description = req.Description
 	// It is allowed to set multiple workflows as default, and only one takes effect.
 	workflow.Default = req.Default
-	workflow.Enable = req.Enable
 	if err := w.ds.Put(ctx, workflow); err != nil {
 		return nil, err
 	}
@@ -147,7 +145,6 @@ func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *mode
 		WorkflowBase: apisv1.WorkflowBase{
 			Name:        workflow.Name,
 			Description: workflow.Description,
-			Enable:      workflow.Enable,
 			Default:     workflow.Default,
 			CreateTime:  workflow.CreateTime,
 			UpdateTime:  workflow.UpdateTime,
@@ -172,9 +169,6 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 	var workflow = model.Workflow{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
-	if enable != nil {
-		workflow.Enable = *enable
-	}
 	workflows, err := w.ds.List(ctx, &workflow, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -185,7 +179,6 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 		list = append(list, &apisv1.WorkflowBase{
 			Name:        wm.Name,
 			Description: wm.Description,
-			Enable:      wm.Enable,
 			Default:     wm.Default,
 			CreateTime:  wm.CreateTime,
 			UpdateTime:  wm.UpdateTime,
@@ -250,21 +243,21 @@ func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflow
 	}
 
 	version := strings.TrimPrefix(recordName, fmt.Sprintf("%s-", record.AppPrimaryKey))
-	var deployEvent = model.DeployEvent{
+	var revision = model.ApplicationRevision{
 		AppPrimaryKey: record.AppPrimaryKey,
 		Version:       version,
 	}
-	err = w.ds.Get(ctx, &deployEvent)
+	err = w.ds.Get(ctx, &revision)
 	if err != nil {
 		return nil, err
 	}
 
 	return &apisv1.DetailWorkflowRecordResponse{
 		WorkflowRecord: *convertFromRecordModel(&record),
-		DeployTime:     deployEvent.CreateTime,
-		DeployUser:     deployEvent.DeployUser,
-		Commit:         deployEvent.Commit,
-		SourceType:     deployEvent.SourceType,
+		DeployTime:     revision.CreateTime,
+		DeployUser:     revision.DeployUser,
+		Note:           revision.Note,
+		TriggerType:    revision.TriggerType,
 	}, nil
 }
 
