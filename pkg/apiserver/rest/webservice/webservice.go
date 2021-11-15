@@ -66,6 +66,7 @@ func Init(ds datastore.DataStore) {
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
 	addonUsecase := usecase.NewAddonUsecase(ds)
+	deliveryTargetUsecase := usecase.NewDeliveryTargetUsecase(ds)
 	RegistWebService(NewClusterWebService(clusterUsecase))
 	RegistWebService(NewApplicationWebService(applicationUsecase))
 	RegistWebService(NewNamespaceWebService(namespaceUsecase))
@@ -75,5 +76,6 @@ func Init(ds datastore.DataStore) {
 	RegistWebService(NewOAMApplication(oamApplicationUsecase))
 	RegistWebService(&policyDefinitionWebservice{})
 	RegistWebService(NewWorkflowWebService(workflowUsecase, applicationUsecase))
+	RegistWebService(NewDeliveryTargetWebService(deliveryTargetUsecase))
 	RegistWebService(NewVelaQLWebService(velaQLUsecase))
 }
