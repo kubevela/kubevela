@@ -14,7 +14,6 @@ import (
 
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
@@ -317,10 +316,11 @@ func genAddonAPISchema(addonRes *types.Addon) error {
 	if err != nil {
 		return err
 	}
-	schema := &openapi3.Schema{}
-	if err := schema.UnmarshalJSON(data); err != nil {
+	schema, err := utils2.ConvertOpenAPISchema2SwaggerObject(data)
+	if err != nil {
 		return err
 	}
+	utils2.FixOpenAPISchema("",schema)
 	addonRes.APISchema = schema
 	return nil
 }
