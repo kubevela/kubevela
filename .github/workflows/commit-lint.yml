@@ -1,13 +1,19 @@
-name: Lint Commit Messages
-on: [push, pull_request]
+name: PR Title Checker
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - labeled
+      - unlabeled
 
 jobs:
-  commitlint:
+  check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: thehanimo/pr-title-checker@v1.3.1
         with:
-          fetch-depth: 0
-      - uses: wagoid/commitlint-github-action@v4
-        with:
-          helpURL: https://github.com/oam-dev/kubevela/blob/master/contribute/create-pull-request.md#commit-message-format
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          pass_on_octokit_error: true
+          configuration_path: ".github/pr-title-checker-config.json"
