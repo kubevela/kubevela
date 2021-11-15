@@ -17,7 +17,9 @@ limitations under the License.
 package bcode
 
 import (
-	"github.com/google/go-github/v32/github"
+	"github.com/pkg/errors"
+
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 )
 
 var (
@@ -49,17 +51,19 @@ var (
 	ErrGetAddonApplication = NewBcode(500, 50013, "fail to get addon application")
 )
 
-// IsGithubRateLimit check if error is github rate limit
-func IsGithubRateLimit(err error) bool {
-	// nolint
-	_, ok := err.(*github.RateLimitError)
-	return ok
+// isGithubRateLimit check if error is github rate limit
+func isGithubRateLimit(err error) bool {
+	return errors.Is(err, pkgaddon.ErrRateLimit)
 }
 
 // WrapGithubRateLimitErr wraps error if it is github rate limit
 func WrapGithubRateLimitErr(err error) error {
-	if IsGithubRateLimit(err) {
+	if isGithubRateLimit(err) {
 		return ErrAddonRegistryRateLimit
 	}
 	return err
+}
+
+func NewBcodeWrapErr(httpCode, businessCode int32, err error, message string) error {
+	return NewBcode(httpCode, businessCode, errors.Wrap(err, message).Error())
 }

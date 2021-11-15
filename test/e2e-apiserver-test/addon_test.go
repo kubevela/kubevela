@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/addon"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -17,7 +19,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
@@ -41,7 +42,7 @@ func get(path string) *http.Response {
 var _ = Describe("Test addon rest api", func() {
 	createReq := apis.CreateAddonRegistryRequest{
 		Name: "test-addon-registry-1",
-		Git: &model.GitAddonSource{
+		Git: &addon.GitAddonSource{
 			URL:   "https://github.com/oam-dev/catalog",
 			Path:  "addons/",
 			Token: os.Getenv("GITHUB_TOKEN"),
