@@ -356,7 +356,6 @@ var _ = Describe("Test application usecase function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		res, err := appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress", v1.UpdateApplicationTraitRequest{
-			Type:       "Ingress",
 			Properties: `{"domain":"www.test1.com"}`,
 		})
 		Expect(err).Should(BeNil())
@@ -372,7 +371,6 @@ var _ = Describe("Test application usecase function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
 		_, err = appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress-1-20", v1.UpdateApplicationTraitRequest{
-			Type:       "Ingress-1-20",
 			Properties: `{"domain":"www.test1.com"}`,
 		})
 		Expect(err).ShouldNot(BeNil())

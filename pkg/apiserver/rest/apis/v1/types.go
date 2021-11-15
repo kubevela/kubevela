@@ -657,7 +657,6 @@ type CreateApplicationTraitRequest struct {
 
 // UpdateApplicationTraitRequest update application trait req
 type UpdateApplicationTraitRequest struct {
-	Type        string `json:"type" validate:"checkname"`
 	Alias       string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string `json:"description,omitempty" optional:"true"`
 	Properties  string `json:"properties"`
