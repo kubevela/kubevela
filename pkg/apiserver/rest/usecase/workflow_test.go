@@ -137,17 +137,15 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		By("create one deploy event to test sync workflow record")
-		var deployEvent = &model.DeployEvent{
+		var deployEvent = &model.ApplicationRevision{
 			AppPrimaryKey: "test",
 			Version:       "1234",
 			Status:        model.DeployEventInit,
 			DeployUser:    "test-user",
-			Commit:        "test-commit",
-			SourceType:    "API",
 			WorkflowName:  "test-workflow-name",
 		}
 
-		err = workflowUsecase.createTestDeployEvent(context.TODO(), deployEvent)
+		err = workflowUsecase.createTestApplicationRevision(context.TODO(), deployEvent)
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.SyncWorkflowRecord(ctx)
