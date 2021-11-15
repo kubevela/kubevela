@@ -119,11 +119,6 @@ data:
             name: fluxcd
             namespace: vela-system
           type: depends-on-app
-        - name: checking-depends-on
-          properties:
-            name: observability-asset
-            namespace: vela-system
-          type: depends-on-app
         - name: apply-resources
           type: apply-remaining
     status:

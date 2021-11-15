@@ -13,11 +13,6 @@ spec:
         properties:
           name: fluxcd
           namespace: vela-system
-      - name: checking-depends-on
-        type: depends-on-app
-        properties:
-          name: observability-asset
-          namespace: vela-system
       - name: apply-resources
         type: apply-remaining
   components:
