@@ -19,17 +19,14 @@ package types
 import (
 	"encoding/json"
 
+	"cuelang.org/go/cue"
 	"github.com/getkin/kin-openapi/openapi3"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
-
+	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
-	"cuelang.org/go/cue"
-	"github.com/spf13/pflag"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 )
 
 // Source record the source of Capability
