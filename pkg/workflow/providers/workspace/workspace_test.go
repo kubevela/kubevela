@@ -17,6 +17,7 @@ limitations under the License.
 package workspace
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -25,17 +26,19 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
 func TestProvider_Load(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
+	tracer := monitorContext.NewTraceContext(context.Background(), "")
 	p := &provider{}
 	v, err := value.NewValue(`
 component: "server"
 `, nil, "")
 	assert.NilError(t, err)
-	err = p.Load(wfCtx, v, &mockAction{})
+	err = p.Load(wfCtx, tracer, v, &mockAction{})
 	assert.NilError(t, err)
 	v, err = v.LookupValue("value")
 	assert.NilError(t, err)
@@ -46,7 +49,7 @@ component: "server"
 	// check Get Components
 	v, err = value.NewValue(`{}`, nil, "")
 	assert.NilError(t, err)
-	err = p.Load(wfCtx, v, &mockAction{})
+	err = p.Load(wfCtx, tracer, v, &mockAction{})
 	assert.NilError(t, err)
 	v, err = v.LookupValue("value", "server")
 	assert.NilError(t, err)
@@ -63,13 +66,14 @@ component: "server"
 	for _, tCase := range errTestCases {
 		errv, err := value.NewValue(tCase, nil, "")
 		assert.NilError(t, err)
-		err = p.Load(wfCtx, errv, &mockAction{})
+		err = p.Load(wfCtx, tracer, errv, &mockAction{})
 		assert.Equal(t, err != nil, true)
 	}
 }
 
 func TestProvider_Export(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
+	tracer := monitorContext.NewTraceContext(context.Background(), "")
 	p := &provider{}
 	v, err := value.NewValue(`
 value: {
@@ -81,7 +85,7 @@ value: {
 component: "server"
 `, nil, "")
 	assert.NilError(t, err)
-	err = p.Export(wfCtx, v, &mockAction{})
+	err = p.Export(wfCtx, tracer, v, &mockAction{})
 	assert.NilError(t, err)
 	component, err := wfCtx.GetComponent("server")
 	assert.NilError(t, err)
@@ -126,13 +130,14 @@ component: "server"
 	for _, tCase := range errCases {
 		v, err = value.NewValue(tCase, nil, "")
 		assert.NilError(t, err)
-		err = p.Export(wfCtx, v, &mockAction{})
+		err = p.Export(wfCtx, tracer, v, &mockAction{})
 		assert.Equal(t, err != nil, true)
 	}
 }
 
 func TestProvider_DoVar(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
+	tracer := monitorContext.NewTraceContext(context.Background(), "")
 	p := &provider{}
 
 	v, err := value.NewValue(`
@@ -141,7 +146,7 @@ path: "clusterIP"
 value: "1.1.1.1"
 `, nil, "")
 	assert.NilError(t, err)
-	err = p.DoVar(wfCtx, v, &mockAction{})
+	err = p.DoVar(wfCtx, tracer, v, &mockAction{})
 	assert.NilError(t, err)
 	varV, err := wfCtx.GetVar("clusterIP")
 	assert.NilError(t, err)
@@ -154,7 +159,7 @@ method: "Get"
 path: "clusterIP"
 `, nil, "")
 	assert.NilError(t, err)
-	err = p.DoVar(wfCtx, v, &mockAction{})
+	err = p.DoVar(wfCtx, tracer, v, &mockAction{})
 	assert.NilError(t, err)
 	varV, err = v.LookupValue("value")
 	assert.NilError(t, err)
@@ -176,20 +181,21 @@ path: "ClusterIP"
 	for _, tCase := range errCases {
 		v, err = value.NewValue(tCase, nil, "")
 		assert.NilError(t, err)
-		err = p.DoVar(wfCtx, v, &mockAction{})
+		err = p.DoVar(wfCtx, tracer, v, &mockAction{})
 		assert.Equal(t, err != nil, true)
 	}
 }
 
 func TestProvider_Wait(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
+	tracer := monitorContext.NewTraceContext(context.Background(), "")
 	p := &provider{}
 	act := &mockAction{}
 	v, err := value.NewValue(`
 continue: 100!=100
 `, nil, "")
 	assert.NilError(t, err)
-	err = p.Wait(wfCtx, v, act)
+	err = p.Wait(wfCtx, tracer, v, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.wait, true)
 
@@ -198,7 +204,7 @@ continue: 100!=100
 continue: 100==100
 `, nil, "")
 	assert.NilError(t, err)
-	err = p.Wait(wfCtx, v, act)
+	err = p.Wait(wfCtx, tracer, v, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.wait, false)
 
@@ -207,23 +213,24 @@ continue: 100==100
 continue: bool
 `, nil, "")
 	assert.NilError(t, err)
-	err = p.Wait(wfCtx, v, act)
+	err = p.Wait(wfCtx, tracer, v, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.wait, true)
 
 	act = &mockAction{}
 	v, err = value.NewValue(``, nil, "")
 	assert.NilError(t, err)
-	err = p.Wait(wfCtx, v, act)
+	err = p.Wait(wfCtx, tracer, v, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.wait, true)
 }
 
 func TestProvider_Break(t *testing.T) {
 	wfCtx := newWorkflowContextForTest(t)
+	tracer := monitorContext.NewTraceContext(context.Background(), "")
 	p := &provider{}
 	act := &mockAction{}
-	err := p.Break(wfCtx, nil, act)
+	err := p.Break(wfCtx, tracer, nil, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.terminate, true)
 }

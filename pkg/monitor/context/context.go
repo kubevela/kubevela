@@ -43,6 +43,7 @@ type Context interface {
 type Logger interface {
 	InfoDepth(depth int, msg string, keysAndValues ...interface{})
 	Info(msg string, keysAndValues ...interface{})
+	Warning(args ...interface{})
 	Error(err error, msg string, keysAndValues ...interface{})
 	ErrorDepth(depth int, err error, msg string, keysAndValues ...interface{})
 	Printf(format string, args ...interface{})
@@ -99,6 +100,10 @@ func (t *traceContext) getTagsWith(keysAndValues ...interface{}) []interface{} {
 // Info logs a non-error message with the given key/value pairs as context.
 func (t *traceContext) Info(msg string, keysAndValues ...interface{}) {
 	klog.InfoSDepth(1, msg, t.getTagsWith(keysAndValues...)...)
+}
+
+func (t *traceContext) Warning(args ...interface{}) {
+	klog.WarningDepth(1, args...)
 }
 
 // GetContext get raw context.

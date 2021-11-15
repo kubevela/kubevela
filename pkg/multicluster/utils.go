@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -56,8 +57,10 @@ var (
 )
 
 // ContextWithClusterName create context with multi-cluster by cluster name
-func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
-	return context.WithValue(ctx, ClusterContextKey, clusterName)
+func ContextWithClusterName(ctx monitorContext.Context, clusterName string) monitorContext.Context {
+	newCtx := context.WithValue(ctx, ClusterContextKey, clusterName)
+	ctx.SetContext(newCtx)
+	return ctx
 }
 
 // SetClusterName set cluster name for object

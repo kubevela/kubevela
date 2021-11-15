@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -35,12 +36,13 @@ type provider struct {
 }
 
 // Load get component from context.
-func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Load(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	componentName, _ := v.Field("component")
 	if !componentName.Exists() {
 		componets := ctx.GetComponents()
 		for name, c := range componets {
-			if err := fillComponent(v, c, "value", name); err != nil {
+			if err := fillComponent(tracer, v, c, "value", name); err != nil {
+				tracer.Error(err, "fill component", name)
 				return err
 			}
 		}
@@ -48,17 +50,20 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 	}
 	name, err := componentName.String()
 	if err != nil {
+		tracer.Error(err, "get component name", name)
 		return err
 	}
 	component, err := ctx.GetComponent(name)
 	if err != nil {
+		tracer.Error(err, "get component", name)
 		return err
 	}
-	return fillComponent(v, component, "value")
+	return fillComponent(tracer, v, component, "value")
 }
 
-func fillComponent(v *value.Value, component *wfContext.ComponentManifest, paths ...string) error {
+func fillComponent(tracer monitorContext.Context, v *value.Value, component *wfContext.ComponentManifest, paths ...string) error {
 	if err := v.FillRaw(component.Workload.String(), append(paths, "workload")...); err != nil {
+		tracer.Error(err, "fill workload", component.Workload.String())
 		return err
 	}
 	if len(component.Auxiliaries) > 0 {
@@ -67,6 +72,7 @@ func fillComponent(v *value.Value, component *wfContext.ComponentManifest, paths
 			auxiliaries = append(auxiliaries, "{"+aux.String()+"}")
 		}
 		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), append(paths, "auxiliaries")...); err != nil {
+			tracer.Error(err, "fill auxiliaries", strings.Join(auxiliaries, ","))
 			return err
 		}
 	}
@@ -74,7 +80,7 @@ func fillComponent(v *value.Value, component *wfContext.ComponentManifest, paths
 }
 
 // DoVar get & put variable from context.
-func (h *provider) DoVar(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) DoVar(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	methodV, err := v.Field("method")
 	if err != nil {
 		return err
@@ -115,7 +121,7 @@ func (h *provider) DoVar(ctx wfContext.Context, v *value.Value, act types.Action
 }
 
 // Export put data into context.
-func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Export(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
@@ -134,7 +140,7 @@ func (h *provider) Export(ctx wfContext.Context, v *value.Value, act types.Actio
 }
 
 // Wait let workflow wait.
-func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Wait(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 
 	cv := v.CueValue()
 	if cv.Exists() {
@@ -152,7 +158,7 @@ func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action)
 }
 
 // Break let workflow terminate.
-func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Break(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	act.Terminate("")
 	return nil
 }

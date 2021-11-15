@@ -17,7 +17,6 @@ limitations under the License.
 package assemble
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -29,11 +28,11 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 )
 
 // WorkloadOptionFn implement interface WorkloadOption
@@ -48,13 +47,13 @@ func (fn WorkloadOptionFn) ApplyToWorkload(wl *unstructured.Unstructured,
 // DiscoveryHelmBasedWorkload only works for Helm-based component. It computes a qualifiedFullName for the workload and
 // try to get it from K8s cluster.
 // If not found, block down-streaming process until Helm creates the workload successfully.
-func DiscoveryHelmBasedWorkload(ctx context.Context, c client.Reader) WorkloadOption {
+func DiscoveryHelmBasedWorkload(ctx monitorContext.Context, c client.Reader) WorkloadOption {
 	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, compDef *v1beta1.ComponentDefinition, resources []*unstructured.Unstructured) error {
 		return discoverHelmModuleWorkload(ctx, c, assembledWorkload, compDef, resources)
 	})
 }
 
-func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledWorkload *unstructured.Unstructured,
+func discoverHelmModuleWorkload(ctx monitorContext.Context, c client.Reader, assembledWorkload *unstructured.Unstructured,
 	_ *v1beta1.ComponentDefinition, helmResources []*unstructured.Unstructured) error {
 	if len(helmResources) == 0 {
 		return nil
@@ -107,7 +106,7 @@ func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledW
 		annots["meta.helm.sh/release-namespace"] != ns ||
 		labels["app.kubernetes.io/managed-by"] != "Helm" {
 		err := fmt.Errorf("the workload is found but not match with helm info(meta.helm.sh/release-name: %s, meta.helm.sh/namespace: %s, app.kubernetes.io/managed-by: Helm)", rlsName, ns)
-		klog.ErrorS(err, "Found a name-matched workload but not managed by Helm", "name", qualifiedWorkloadName,
+		ctx.Error(err, "Found a name-matched workload but not managed by Helm", "name", qualifiedWorkloadName,
 			"annotations", annots, "labels", labels)
 		return err
 	}
@@ -118,7 +117,7 @@ func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, assembledW
 // PrepareWorkloadForRollout prepare the workload before it is emit to the k8s. The current approach is to mark it
 // as disabled so that it's spec won't take effect immediately. The rollout controller can take over the resources
 // and enable it on its own since app controller here won't override their change
-func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
+func PrepareWorkloadForRollout(ctx monitorContext.Context, rolloutComp string) WorkloadOption {
 	return WorkloadOptionFn(func(assembledWorkload *unstructured.Unstructured, _ *v1beta1.ComponentDefinition, _ []*unstructured.Unstructured) error {
 
 		compName := assembledWorkload.GetLabels()[oam.LabelAppComponent]
@@ -143,7 +142,7 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 				if err != nil {
 					return err
 				}
-				klog.InfoS("we render a CloneSet assembledWorkload.paused on the first time",
+				ctx.Info("we render a CloneSet assembledWorkload.paused on the first time",
 					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 				return nil
 			case reflect.TypeOf(kruisev1alpha1.StatefulSet{}).Name():
@@ -151,7 +150,7 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 				if err != nil {
 					return err
 				}
-				klog.InfoS("we render an advanced statefulset assembledWorkload.paused on the first time",
+				ctx.Info("we render an advanced statefulset assembledWorkload.paused on the first time",
 					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 				return nil
 			}
@@ -163,7 +162,7 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 				if err := pv.SetBool(deploymentDisablePath, true); err != nil {
 					return err
 				}
-				klog.InfoS("we render a deployment assembledWorkload.paused on the first time",
+				ctx.Info("we render a deployment assembledWorkload.paused on the first time",
 					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 				return nil
 			case reflect.TypeOf(appsv1.StatefulSet{}).Name():
@@ -172,7 +171,7 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 			}
 		}
 
-		klog.InfoS("we encountered an unknown resource, we don't know how to prepare it",
+		ctx.Info("we encountered an unknown resource, we don't know how to prepare it",
 			"GVK", assembledWorkload.GroupVersionKind().String(), "instance name", assembledWorkload.GetName())
 		return fmt.Errorf("we do not know how to prepare `%s` as it has an unknown type %s", assembledWorkload.GetName(),
 			assembledWorkload.GroupVersionKind().String())

@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -56,10 +57,10 @@ type handler struct {
 
 // assembleWorkload help to assemble worklad info, because rollout don't know AppRevision we cannot use assemble func directly.
 // but we do same thing with it in the func
-func (h *handler) assembleWorkload(ctx context.Context) error {
+func (h *handler) assembleWorkload(ctx monitorContext.Context) error {
 	workloadOptions := []assemble.WorkloadOption{
 		applicationrollout.RolloutWorkloadName(h.compName),
-		assemble.PrepareWorkloadForRollout(h.compName),
+		assemble.PrepareWorkloadForRollout(ctx, h.compName),
 		applicationrollout.HandleReplicas(ctx, h.compName, h.Client)}
 
 	for _, workloadOption := range workloadOptions {

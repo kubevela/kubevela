@@ -42,6 +42,7 @@ import (
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -244,17 +245,18 @@ var _ = Describe("test generate revision ", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
 		annoKey1 := "testKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -306,7 +308,7 @@ var _ = Describe("test generate revision ", func() {
 		lastRevision := curApp.Status.LatestRevision.Name
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
@@ -358,11 +360,11 @@ var _ = Describe("test generate revision ", func() {
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		handler.app = &app
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -415,11 +417,11 @@ var _ = Describe("test generate revision ", func() {
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		handler.app = &app
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -472,16 +474,17 @@ var _ = Describe("test generate revision ", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
 		// mark the app as rollout
 		app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 		curApp := &v1beta1.Application{}
 		Eventually(
 			func() error {
@@ -514,10 +517,10 @@ var _ = Describe("test generate revision ", func() {
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -556,10 +559,10 @@ var _ = Describe("test generate revision ", func() {
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
 		handler.app = &app
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -594,6 +597,7 @@ var _ = Describe("test generate revision ", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
 		labelKey1 := "labelKey1"
 		app.SetLabels(map[string]string{labelKey1: "true"})
 		annoKey1 := "annoKey1"
@@ -602,10 +606,10 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -633,7 +637,7 @@ var _ = Describe("test generate revision ", func() {
 		labelKey2 := "labelKey2"
 		app.SetLabels(map[string]string{labelKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
 		Eventually(
@@ -665,15 +669,16 @@ var _ = Describe("test generate revision ", func() {
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -709,11 +714,11 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		comps, err = generatedAppfile.GenerateComponentManifests()
 		Expect(err).Should(Succeed())
-		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(logCtx, generatedAppfile)).Should(Succeed())
 		Expect(handler.HandleComponentsRevision(ctx, comps)).Should(Succeed())
 		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
 		Expect(handler.ProduceArtifacts(context.Background(), comps, nil)).Should(Succeed())
-		Expect(handler.UpdateAppLatestRevisionStatus(ctx)).Should(Succeed())
+		Expect(handler.UpdateAppLatestRevisionStatus(logCtx)).Should(Succeed())
 
 		Expect(comps[0].RevisionName).Should(Equal(externalRevisionName2))
 		Expect(comps[0].RevisionHash).Should(Equal(gotCR.Labels[oam.LabelComponentRevisionHash]))

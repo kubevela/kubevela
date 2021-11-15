@@ -201,7 +201,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				exec.printStep("workflowStepStart", "workflow", "", taskv)
 				defer exec.printStep("workflowStepEnd", "workflow", "", taskv)
 			}
-			if err := exec.doSteps(ctx, taskv); err != nil {
+			if err := exec.doSteps(ctx, tracer, taskv); err != nil {
 				tracer.Error(err, "do steps")
 				exec.err(err, StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
@@ -292,7 +292,7 @@ func (exec *executor) printStep(phase string, provider string, do string, v *val
 }
 
 // Handle process task-step value by provider and do.
-func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
+func (exec *executor) Handle(ctx wfContext.Context, logCtx monitorContext.Context, provider string, do string, v *value.Value) error {
 	if isDebugMode(v) {
 		exec.printStep("stepStart", provider, do, v)
 		defer exec.printStep("stepEnd", provider, do, v)
@@ -301,14 +301,15 @@ func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, 
 	if !exist {
 		return errors.Errorf("handler not found")
 	}
-	return h(ctx, v, exec)
+	return h(ctx, logCtx, v, exec)
 }
 
-func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
+func (exec *executor) doSteps(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value) error {
 	do := opTpy(v)
 	if do != "" && do != "steps" {
 		provider := opProvider(v)
-		if err := exec.Handle(ctx, provider, do, v); err != nil {
+		if err := exec.Handle(ctx, tracer, provider, do, v); err != nil {
+			tracer.Error(err, "run step(provider=%s,do=%s)", provider, do)
 			return errors.WithMessagef(err, "run step(provider=%s,do=%s)", provider, do)
 		}
 		return nil
@@ -319,6 +320,7 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 			if err != nil {
 				errInfo = "value is _|_"
 			}
+			tracer.Error(err, "(bottom kind)", errInfo)
 			return true, errors.New(errInfo + "(bottom kind)")
 		}
 		if retErr := in.CueValue().Err(); retErr != nil {
@@ -326,6 +328,7 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 			if err == nil {
 				retErr = errors.WithMessage(retErr, errInfo)
 			}
+			tracer.Error(err, "ret error", errInfo)
 			return false, retErr
 		}
 
@@ -335,7 +338,7 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 				if do == "" {
 					return false, nil
 				}
-				return false, exec.doSteps(ctx, item)
+				return false, exec.doSteps(ctx, tracer, item)
 			})
 		}
 		do := opTpy(in)
@@ -343,12 +346,13 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 			return false, nil
 		}
 		if do == "steps" {
-			if err := exec.doSteps(ctx, in); err != nil {
+			if err := exec.doSteps(ctx, tracer, in); err != nil {
 				return false, err
 			}
 		} else {
 			provider := opProvider(in)
-			if err := exec.Handle(ctx, provider, do, in); err != nil {
+			if err := exec.Handle(ctx, tracer, provider, do, in); err != nil {
+				tracer.Error(err, "run step(provider=%s,do=%s)", provider, do)
 				return false, errors.WithMessagef(err, "run step(provider=%s,do=%s)", provider, do)
 			}
 		}

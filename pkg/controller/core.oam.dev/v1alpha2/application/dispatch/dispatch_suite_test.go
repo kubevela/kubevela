@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -101,6 +102,7 @@ var _ = AfterSuite(func() {
 var _ = Describe("Test AppManifestsDispatcher", func() {
 	var (
 		ctx                                             = context.Background()
+		logCtx                                          = monitorContext.NewTraceContext(ctx, "")
 		namespace                                       string
 		deploy1, deploy2, deploy3, svc1, svc2, pv1, pv2 *unstructured.Unstructured
 		appRev1, appRev2, appRev3                       *v1beta1.ApplicationRevision
@@ -210,7 +212,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 		It("Test dispatch manifests", func() {
 			By("Dispatch application revision 1")
 			dp := NewAppManifestsDispatcher(k8sClient, appRev1)
-			rt, err := dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			rt, err := dp.Dispatch(logCtx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			By("Verify resources are applied successfully")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -237,7 +239,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 		It("Test use resource tracker from the same revision as the one being dispatched", func() {
 			By("Dispatch application revision 1")
 			dp := NewAppManifestsDispatcher(k8sClient, appRev1)
-			rtForAppV1, err := dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			rtForAppV1, err := dp.Dispatch(logCtx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			By("Verify resources are applied successfully")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -246,7 +248,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 
 			By("Dispatch application revision 1 again with v1 as latest RT")
 			dp = NewAppManifestsDispatcher(k8sClient, appRev1).EndAndGC(rtForAppV1)
-			_, err = dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			_, err = dp.Dispatch(logCtx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			By("Verify resources still exist")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -258,7 +260,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			// real scenario case: upgrade v1 => v2 and GC
 			By("Dispatch application revision 1")
 			dp := NewAppManifestsDispatcher(k8sClient, appRev1)
-			rtForAppV1, err := dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			rtForAppV1, err := dp.Dispatch(logCtx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			By("Verify resources are applied successfully")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -267,7 +269,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 
 			By("Dispatch application revision 2 with v1 as latest RT")
 			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2).EndAndGC(rtForAppV1)
-			_, err = dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc2, pv2})
+			_, err = dp2.Dispatch(logCtx, []*unstructured.Unstructured{deploy2, svc2, pv2})
 			Expect(err).Should(BeNil())
 			By("Verify v2 resources are applied successfully")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName2, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -290,7 +292,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			// real scenario case: upgrade v1 => v2 (error occurs) => v3
 			By("Dispatch application revision 1")
 			dp := NewAppManifestsDispatcher(k8sClient, appRev1)
-			rtForAppV1, err := dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			rtForAppV1, err := dp.Dispatch(logCtx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			By("Verify resources are applied successfully")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -302,7 +304,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			By("Prepare a bad resource in order to fail the applying")
 			badRsrc := &unstructured.Unstructured{}
 			badRsrc.SetName("bad")
-			_, err = dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc2, pv2, badRsrc})
+			_, err = dp2.Dispatch(logCtx, []*unstructured.Unstructured{deploy2, svc2, pv2, badRsrc})
 			By("Verify dispatch failed")
 			Expect(err).ShouldNot(BeNil())
 
@@ -325,7 +327,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			// because dispatching v2 failed, app controller still uses v1 as latest revision
 			By("Dispatch application revision 3 with v1 as latest RT")
 			dp3 := NewAppManifestsDispatcher(k8sClient, appRev3).EndAndGC(rtForAppV1)
-			_, err = dp3.Dispatch(ctx, []*unstructured.Unstructured{deploy3, deploy2})
+			_, err = dp3.Dispatch(logCtx, []*unstructured.Unstructured{deploy3, deploy2})
 			Expect(err).Should(BeNil())
 
 			By("Verify v1 resources are deleted (GC works)")
@@ -352,7 +354,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			// and v2 has same resouces as v1, e.g., a trait
 			By("Dispatch application revision 1")
 			dp := NewAppManifestsDispatcher(k8sClient, appRev1)
-			rtForAppV1, err := dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			rtForAppV1, err := dp.Dispatch(logCtx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			getSvc1 := &corev1.Service{}
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: svcName1, Namespace: namespace}, getSvc1)).Should(Succeed())
@@ -362,7 +364,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 
 			By("Dispatch application revision 2 with v1 as latest RT")
 			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2).EndAndGC(rtForAppV1)
-			rtForAppV2, err := dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc1, pv2}) // manifests have 'svc1'
+			rtForAppV2, err := dp2.Dispatch(logCtx, []*unstructured.Unstructured{deploy2, svc1, pv2}) // manifests have 'svc1'
 			Expect(err).Should(BeNil())
 
 			By("Verify v1 resources, expect svc1, are deleted (GC works)")
@@ -382,7 +384,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			// real scenario case: template v2 while rollout v1 => v2
 			By("Dispatch application revision 1")
 			dp := NewAppManifestsDispatcher(k8sClient, appRev1)
-			rtForAppV1, err := dp.Dispatch(ctx, []*unstructured.Unstructured{deploy1, svc1, pv1})
+			rtForAppV1, err := dp.Dispatch(logCtx, []*unstructured.Unstructured{deploy1, svc1, pv1})
 			Expect(err).Should(BeNil())
 			By("Verify resources are applied successfully")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName1, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -393,7 +395,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 			dp2 := NewAppManifestsDispatcher(k8sClient, appRev2)
 			By("Ask dispatcher to skip GC")
 			dp2 = dp2.StartAndSkipGC(rtForAppV1)
-			_, err = dp2.Dispatch(ctx, []*unstructured.Unstructured{deploy2, svc2, pv2})
+			_, err = dp2.Dispatch(logCtx, []*unstructured.Unstructured{deploy2, svc2, pv2})
 			Expect(err).Should(BeNil())
 			By("Verify v2 resources are applied successfully")
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName2, Namespace: namespace}, &appsv1.Deployment{})).Should(Succeed())
@@ -415,6 +417,7 @@ var _ = Describe("Test AppManifestsDispatcher", func() {
 var _ = Describe("Test handleSkipGC func", func() {
 	var namespaceName string
 	ctx := context.Background()
+	logCtx := monitorContext.NewTraceContext(ctx, "")
 	BeforeEach(func() {
 		namespaceName = fmt.Sprintf("%s-%s", "dispatch-gc-skip-test", strconv.FormatInt(rand.Int63(), 16))
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceName}}))
@@ -450,7 +453,7 @@ var _ = Describe("Test handleSkipGC func", func() {
 		u, err := util.Object2Unstructured(skipWorkload)
 		Expect(err).Should(BeNil())
 		Expect(k8sClient.Create(ctx, skipWorkload)).Should(BeNil())
-		skipGC, err := handler.handleResourceSkipGC(ctx, u, &resourceTracker)
+		skipGC, err := handler.handleResourceSkipGC(logCtx, u, &resourceTracker)
 		Expect(err).Should(BeNil())
 		Expect(skipGC).Should(BeTrue())
 
@@ -464,7 +467,7 @@ var _ = Describe("Test handleSkipGC func", func() {
 		handler := GCHandler{c: &test.MockClient{
 			MockGet: test.NewMockGetFn(fmt.Errorf("this isn't a not found error")),
 		}}
-		isSkip, err := handler.handleResourceSkipGC(ctx, &unstructured.Unstructured{}, &v1beta1.ResourceTracker{})
+		isSkip, err := handler.handleResourceSkipGC(logCtx, &unstructured.Unstructured{}, &v1beta1.ResourceTracker{})
 		Expect(err).ShouldNot(BeNil())
 		Expect(isSkip).Should(BeEquivalentTo(false))
 	})

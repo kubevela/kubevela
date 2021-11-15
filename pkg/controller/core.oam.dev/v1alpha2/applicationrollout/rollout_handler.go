@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	appUtil "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
 )
@@ -69,7 +70,7 @@ type rolloutHandler struct {
 // prepareWorkloads call assemble func to prepare workload of every component
 // please be aware that this func isn't generated final resources emitted to k8s.
 // it just help for the phase determiningCommonComponent
-func (h *rolloutHandler) prepareWorkloads(ctx context.Context) error {
+func (h *rolloutHandler) prepareWorkloads(ctx monitorContext.Context) error {
 	var err error
 	h.targetAppRevision = new(v1beta1.ApplicationRevision)
 	if err := h.Get(ctx, types.NamespacedName{Namespace: h.appRollout.Namespace, Name: h.targetRevName}, h.targetAppRevision); err != nil {
@@ -79,11 +80,11 @@ func (h *rolloutHandler) prepareWorkloads(ctx context.Context) error {
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision, h.parser).
 		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
-		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent))
+		WithWorkloadOption(assemble.PrepareWorkloadForRollout(ctx, h.needRollComponent))
 
-	h.targetWorkloads, _, _, err = targetAssemble.GroupAssembledManifests()
+	h.targetWorkloads, _, _, err = targetAssemble.GroupAssembledManifests(ctx)
 	if err != nil {
-		klog.Error("appRollout targetAppRevision failed to assemble target workload", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
+		ctx.Error(err, "appRollout targetAppRevision failed to assemble target workload", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
 		return err
 	}
 
@@ -94,11 +95,11 @@ func (h *rolloutHandler) prepareWorkloads(ctx context.Context) error {
 		}
 		// construct a assemble manifest for sourceAppRevision
 		sourceAssemble := assemble.NewAppManifests(h.sourceAppRevision, h.parser).
-			WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).
+			WithWorkloadOption(assemble.PrepareWorkloadForRollout(ctx, h.needRollComponent)).
 			WithWorkloadOption(RolloutWorkloadName(h.needRollComponent))
-		h.sourceWorkloads, _, _, err = sourceAssemble.GroupAssembledManifests()
+		h.sourceWorkloads, _, _, err = sourceAssemble.GroupAssembledManifests(ctx)
 		if err != nil {
-			klog.Error("appRollout sourceAppRevision failed to assemble workloads", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
+			ctx.Error(err, "appRollout sourceAppRevision failed to assemble workloads", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
 			return err
 		}
 	}
@@ -129,18 +130,18 @@ func (h *rolloutHandler) determineRolloutComponent() error {
 }
 
 // fetch source and target workload
-func (h *rolloutHandler) fetchSourceAndTargetWorkload(ctx context.Context) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
+func (h *rolloutHandler) fetchSourceAndTargetWorkload(ctx monitorContext.Context) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
 	var sourceWorkload, targetWorkload *unstructured.Unstructured
 	var err error
 	if len(h.sourceRevName) == 0 {
-		klog.Info("source app fields not filled, this is a scale operation")
+		ctx.Info("source app fields not filled, this is a scale operation")
 	} else if sourceWorkload, err = h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent]); err != nil {
-		klog.Errorf("specified sourceRevName but cannot fetch source workload %s: %v",
-			h.appRollout.Spec.SourceAppRevisionName, err)
+		ctx.Error(err, "specified sourceRevName but cannot fetch source workload %s: %v",
+			h.appRollout.Spec.SourceAppRevisionName)
 		return nil, nil, err
 	}
 	if targetWorkload, err = h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent]); err != nil {
-		klog.Errorf("cannot fetch target workload %s: %v", h.appRollout.Spec.TargetAppRevisionName, err)
+		ctx.Error(err, "cannot fetch target workload %s: %v", h.appRollout.Spec.TargetAppRevisionName)
 		return nil, nil, err
 	}
 	return sourceWorkload, targetWorkload, nil
@@ -156,8 +157,8 @@ func (h *rolloutHandler) extractWorkload(ctx context.Context, workload unstructu
 }
 
 // if in middle of previous rollout, continue use previous source and target appRevision as this round rollout
-func (h *rolloutHandler) handleRolloutModified() {
-	klog.InfoS("rollout target changed, restart the rollout", "new source", h.appRollout.Spec.SourceAppRevisionName,
+func (h *rolloutHandler) handleRolloutModified(ctx monitorContext.Context) {
+	ctx.Info("rollout target changed, restart the rollout", "new source", h.appRollout.Spec.SourceAppRevisionName,
 		"new target", h.appRollout.Spec.TargetAppRevisionName)
 	h.record.Event(h.appRollout, event.Normal("Rollout Restarted",
 		"rollout target changed, restart the rollout", "new source", h.appRollout.Spec.SourceAppRevisionName,
@@ -183,7 +184,7 @@ func (h *rolloutHandler) handleRolloutModified() {
 }
 
 // templateTargetManifest call dispatch to template target app revision's manifests to k8s
-func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
+func (h *rolloutHandler) templateTargetManifest(ctx monitorContext.Context) error {
 	var rt *v1beta1.ResourceTracker
 	// if sourceAppRevision is not nil, we should upgrade existing resources which are also needed by target app
 	// revision
@@ -191,8 +192,8 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 		rt = new(v1beta1.ResourceTracker)
 		err := h.Get(ctx, types.NamespacedName{Name: dispatch.ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
 		if err != nil {
-			klog.Errorf("specified sourceAppRevisionName %s but cannot fetch the sourceResourceTracker %v",
-				h.appRollout.Spec.SourceAppRevisionName, err)
+			ctx.Error(err, "specified sourceAppRevisionName %s but cannot fetch the sourceResourceTracker %v",
+				h.appRollout.Spec.SourceAppRevisionName)
 			return err
 		}
 	}
@@ -201,7 +202,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	dispatcher := dispatch.NewAppManifestsDispatcher(h.Client, h.targetAppRevision).StartAndSkipGC(rt)
 	_, err := dispatcher.Dispatch(ctx, h.targetManifests)
 	if err != nil {
-		klog.Errorf("dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
+		ctx.Error(err, "dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName)
 		return err
 	}
 
@@ -228,7 +229,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 }
 
 // handle rollout succeed work left
-func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
+func (h *rolloutHandler) finalizeRollingSucceeded(ctx monitorContext.Context) error {
 	// yield controller owner back to resourceTracker
 	workload, err := h.extractWorkload(ctx, *h.targetWorkloads[h.needRollComponent])
 	if err != nil {
@@ -266,7 +267,7 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 // this func handle two case
 // 1. handle 1.0.x lagacy workload, their owner is appcontext so let resourceTracker take over it
 // 2. disable resourceTracker controller owner
-func (h *rolloutHandler) handleSourceWorkload(ctx context.Context) error {
+func (h *rolloutHandler) handleSourceWorkload(ctx monitorContext.Context) error {
 	workload, err := h.extractWorkload(ctx, *h.sourceWorkloads[h.needRollComponent])
 	if err != nil {
 		return err
@@ -281,7 +282,7 @@ func (h *rolloutHandler) handleSourceWorkload(ctx context.Context) error {
 	}
 	// logic here is  compatibility code for 1.0.X lagacy workload, their ownerReference is appcontext, so remove it
 	if len(wantOwner) == 0 {
-		klog.InfoS("meet a lagacy workload, should let resourceTracker take over it")
+		ctx.Info("meet a lagacy workload, should let resourceTracker take over it")
 		rtName := dispatch.ConstructResourceTrackerName(h.sourceRevName, h.appRollout.Namespace)
 		rt := v1beta1.ResourceTracker{}
 		if err := h.Get(ctx, types.NamespacedName{Name: rtName}, &rt); err != nil {
@@ -316,7 +317,7 @@ func (h *rolloutHandler) handleSourceWorkload(ctx context.Context) error {
 // please notice that we shouldn't modify the replicas of workload if the workload already exist in k8s.
 // so we use HandleReplicas as assemble option
 // And this phase must call after determine component phase.
-func (h *rolloutHandler) assembleManifest(ctx context.Context) error {
+func (h *rolloutHandler) assembleManifest(ctx monitorContext.Context) error {
 	if h.appRollout.Status.RollingState != v1alpha1.LocatingTargetAppState {
 		return nil
 	}
@@ -324,12 +325,12 @@ func (h *rolloutHandler) assembleManifest(ctx context.Context) error {
 	// construct a assemble manifest for targetAppRevision
 	targetAssemble := assemble.NewAppManifests(h.targetAppRevision, h.parser).
 		WithWorkloadOption(RolloutWorkloadName(h.needRollComponent)).
-		WithWorkloadOption(assemble.PrepareWorkloadForRollout(h.needRollComponent)).WithWorkloadOption(HandleReplicas(ctx, h.needRollComponent, h.Client))
+		WithWorkloadOption(assemble.PrepareWorkloadForRollout(ctx, h.needRollComponent)).WithWorkloadOption(HandleReplicas(ctx, h.needRollComponent, h.Client))
 
 	// in template phase, we should use targetManifests including target workloads/traits to
-	h.targetManifests, err = targetAssemble.AssembledManifests()
+	h.targetManifests, err = targetAssemble.AssembledManifests(ctx)
 	if err != nil {
-		klog.Error("appRollout targetAppRevision failed to assemble manifest", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
+		ctx.Error(err, "appRollout targetAppRevision failed to assemble manifest", "appRollout", klog.KRef(h.appRollout.Namespace, h.appRollout.Name))
 		return err
 	}
 	// we never need generate source manifest, cause we needn't template source ever.

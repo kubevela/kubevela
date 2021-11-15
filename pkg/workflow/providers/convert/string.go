@@ -18,6 +18,7 @@ package convert
 
 import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -32,7 +33,7 @@ type provider struct {
 }
 
 // String convert byte to string
-func (h *provider) String(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) String(tracer wfContext.Context, logtracer monitorContext.Context, v *value.Value, act types.Action) error {
 	b, err := v.LookupValue("bt")
 	if err != nil {
 		return err

@@ -164,13 +164,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if err := handler.HandleBuiltInPolicies(builtInPolicies); err != nil {
-		klog.Error(err, "[Handle BuiltIn Policies]")
+		logCtx.Error(err, "[Handle BuiltIn Policies]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HandleBuiltInPolicies", err), common.ApplicationPolicyGenerating)
 	}
 
 	if len(externalPolicies) > 0 {
-		if err := handler.Dispatch(ctx, "", common.PolicyResourceCreator, externalPolicies...); err != nil {
+		if err := handler.Dispatch(logCtx, "", common.PolicyResourceCreator, externalPolicies...); err != nil {
 			logCtx.Error(err, "[Handle ApplyPolicyResources]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("ApplyPolices", err), common.ApplicationPolicyGenerating)
@@ -217,9 +217,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logCtx.Info("Workflow return state=Succeeded")
 			wfStatus := app.Status.Workflow
 			if wfStatus != nil {
-				ref, err := handler.DispatchAndGC(ctx)
+				ref, err := handler.DispatchAndGC(logCtx)
 				if err == nil {
-					err = multicluster.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, r.Client, app, func(c context.Context) error {
+					err = multicluster.GarbageCollectionForOutdatedResourcesInSubClusters(logCtx, r.Client, app, func(c monitorContext.Context) error {
 						_, e := handler.DispatchAndGC(c)
 						return e
 					})
@@ -260,7 +260,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
 		}
-		klog.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
+		logCtx.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
 	}
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if handler.app.Spec.RolloutPlan != nil {
@@ -292,7 +292,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	if err := garbageCollection(ctx, handler); err != nil {
+	if err := garbageCollection(logCtx, handler); err != nil {
 		logCtx.Error(err, "Failed to run garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)

@@ -48,7 +48,7 @@ func TestConvertString(t *testing.T) {
 			v, err := value.NewValue(tc.from, nil, "")
 			r.NoError(err)
 			prd := &provider{}
-			err = prd.String(nil, v, nil)
+			err = prd.String(nil, nil, v, nil)
 			if tc.expectedErr != nil {
 				r.Equal(tc.expectedErr.Error(), err.Error())
 				return

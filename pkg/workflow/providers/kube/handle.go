@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -38,7 +39,7 @@ const (
 )
 
 // Dispatcher is a client for apply resources.
-type Dispatcher func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error
+type Dispatcher func(ctx monitorContext.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error
 
 // Deleter is a client for delete resources.
 type Deleter func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error
@@ -50,7 +51,7 @@ type provider struct {
 }
 
 // Apply create or update CR in cluster.
-func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Apply(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
@@ -84,7 +85,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if err != nil {
 		return err
 	}
-	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	deployCtx := multicluster.ContextWithClusterName(tracer, cluster)
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 }
 
 // Read get CR from cluster.
-func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Read(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
@@ -110,7 +111,7 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err != nil {
 		return err
 	}
-	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	readCtx := multicluster.ContextWithClusterName(tracer, cluster)
 	if err := h.cli.Get(readCtx, key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -118,7 +119,7 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 }
 
 // List lists CRs from cluster.
-func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) List(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	r, err := v.LookupValue("resource")
 	if err != nil {
 		return err
@@ -152,7 +153,7 @@ func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action)
 		client.InNamespace(filter.Namespace),
 		client.MatchingLabels(filter.MatchingLabels),
 	}
-	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	readCtx := multicluster.ContextWithClusterName(tracer, cluster)
 	if err := h.cli.List(readCtx, list, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -160,7 +161,7 @@ func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action)
 }
 
 // Delete deletes CR from cluster.
-func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Delete(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
@@ -173,7 +174,7 @@ func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Actio
 	if err != nil {
 		return err
 	}
-	deleteCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	deleteCtx := multicluster.ContextWithClusterName(tracer, cluster)
 	if err := h.delete(deleteCtx, cluster, common.WorkflowResourceCreator, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}

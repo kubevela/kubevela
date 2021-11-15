@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -97,9 +98,9 @@ func (am *AppManifests) WithComponentManifests(componentManifests []*types.Compo
 // If it contains more than one component, the resources are well-orderred and also grouped.
 // For example, if app = comp1 (wl1 + trait1 + trait2) + comp2 (wl2 + trait3 +trait4),
 // the result is [wl1, trait1, trait2, wl2, trait3, trait4]
-func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, error) {
+func (am *AppManifests) AssembledManifests(ctx monitorContext.Context) ([]*unstructured.Unstructured, error) {
 	if !am.finalized {
-		am.assemble()
+		am.assemble(ctx)
 	}
 	if am.err != nil {
 		return nil, am.err
@@ -117,7 +118,7 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 		if !skipApplyWorkload {
 			r = append(r, wl.DeepCopy())
 		} else {
-			klog.InfoS("assemble meet a managedByTrait workload, so skip apply it",
+			ctx.Info("assemble meet a managedByTrait workload, so skip apply it",
 				"namespace", am.AppRevision.Namespace, "appRev", am.AppRevision.Name)
 		}
 	}
@@ -125,9 +126,9 @@ func (am *AppManifests) AssembledManifests() ([]*unstructured.Unstructured, erro
 }
 
 // ReferencedScopes do assemble and return workload reference and referenced scopes
-func (am *AppManifests) ReferencedScopes() (map[corev1.ObjectReference][]corev1.ObjectReference, error) {
+func (am *AppManifests) ReferencedScopes(ctx monitorContext.Context) (map[corev1.ObjectReference][]corev1.ObjectReference, error) {
 	if !am.finalized {
-		am.assemble()
+		am.assemble(ctx)
 	}
 	if am.err != nil {
 		return nil, am.err
@@ -141,12 +142,12 @@ func (am *AppManifests) ReferencedScopes() (map[corev1.ObjectReference][]corev1.
 }
 
 // GroupAssembledManifests do assemble and return all resources grouped by components
-func (am *AppManifests) GroupAssembledManifests() (
+func (am *AppManifests) GroupAssembledManifests(ctx monitorContext.Context) (
 	map[string]*unstructured.Unstructured,
 	map[string][]*unstructured.Unstructured,
 	map[corev1.ObjectReference][]corev1.ObjectReference, error) {
 	if !am.finalized {
-		am.assemble()
+		am.assemble(ctx)
 	}
 	if am.err != nil {
 		return nil, nil, nil, am.err
@@ -177,26 +178,26 @@ func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
 	return wl == nil || (len(wl.GetAPIVersion()) == 0 && len(wl.GetKind()) == 0)
 }
 
-func (am *AppManifests) assemble() {
+func (am *AppManifests) assemble(ctx monitorContext.Context) {
 	if err := am.complete(); err != nil {
-		am.finalizeAssemble(err)
+		am.finalizeAssemble(ctx, err)
 		return
 	}
 
-	klog.InfoS("Assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
+	ctx.Info("Assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
 	if err := am.validate(); err != nil {
-		am.finalizeAssemble(err)
+		am.finalizeAssemble(ctx, err)
 		return
 	}
 	for _, comp := range am.componentManifests {
-		klog.InfoS("Assemble manifests for component", "name", comp.Name)
-		wl, traits, err := PrepareBeforeApply(comp, am.AppRevision, am.WorkloadOptions)
+		ctx.Info("Assemble manifests for component", "name", comp.Name)
+		wl, traits, err := PrepareBeforeApply(ctx, comp, am.AppRevision, am.WorkloadOptions)
 		if err != nil {
-			am.finalizeAssemble(err)
+			am.finalizeAssemble(ctx, err)
 			return
 		}
 		if wl == nil {
-			klog.Warningf("component without specify workloadDef can not attach traits currently")
+			ctx.Warning("component without specify workloadDef can not attach traits currently")
 			continue
 		}
 
@@ -212,11 +213,11 @@ func (am *AppManifests) assemble() {
 			am.referencedScopes[workloadRef][i] = *scope
 		}
 	}
-	am.finalizeAssemble(nil)
+	am.finalizeAssemble(ctx, nil)
 }
 
 // PrepareBeforeApply will prepare for some necessary info before apply
-func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, workloadOpt []WorkloadOption) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func PrepareBeforeApply(ctx monitorContext.Context, comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, workloadOpt []WorkloadOption) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	if checkAutoDetectComponent(comp.StandardWorkload) {
 		return nil, nil, nil
 	}
@@ -226,7 +227,7 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 		oam.LabelAppComponentRevision: compRevisionName,
 		oam.LabelAppRevisionHash:      appRev.Labels[oam.LabelAppRevisionHash],
 	}
-	wl, err := assembleWorkload(compName, comp.StandardWorkload, additionalLabel, comp.PackagedWorkloadResources, appRev, workloadOpt)
+	wl, err := assembleWorkload(ctx, compName, comp.StandardWorkload, additionalLabel, comp.PackagedWorkloadResources, appRev, workloadOpt)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -268,13 +269,13 @@ func (am *AppManifests) complete() error {
 	return nil
 }
 
-func (am *AppManifests) finalizeAssemble(err error) {
+func (am *AppManifests) finalizeAssemble(ctx monitorContext.Context, err error) {
 	am.finalized = true
 	if err == nil {
-		klog.InfoS("Successfully assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName(), "namespace", am.appNamespace)
+		ctx.Info("Successfully assemble manifests for application", "name", am.appName, "revision", am.AppRevision.GetName(), "namespace", am.appNamespace)
 		return
 	}
-	klog.ErrorS(err, "Failed assembling manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
+	ctx.Error(err, "Failed assembling manifests for application", "name", am.appName, "revision", am.AppRevision.GetName())
 	am.err = errors.WithMessagef(err, "cannot assemble resources' manifests for application %q", am.appName)
 }
 
@@ -293,7 +294,7 @@ func (am *AppManifests) validate() error {
 	return nil
 }
 
-func assembleWorkload(compName string, wl *unstructured.Unstructured,
+func assembleWorkload(ctx monitorContext.Context, compName string, wl *unstructured.Unstructured,
 	labels map[string]string, resources []*unstructured.Unstructured, appRev *v1beta1.ApplicationRevision, wop []WorkloadOption) (*unstructured.Unstructured, error) {
 	// use component name as workload name if workload name is not specified
 	// don't override the name set in render phase if exist
@@ -310,12 +311,12 @@ func assembleWorkload(compName string, wl *unstructured.Unstructured,
 	}
 	for _, wo := range wop {
 		if err := wo.ApplyToWorkload(wl, compDefinition.DeepCopy(), copyPackagedResources); err != nil {
-			klog.ErrorS(err, "Failed applying a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
+			ctx.Error(err, "Failed applying a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
 			return nil, errors.Wrapf(err, "cannot apply workload option for component %q", compName)
 		}
-		klog.InfoS("Successfully apply a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
+		ctx.Info("Successfully apply a workload option", "workload", klog.KObj(wl), "name", wl.GetName())
 	}
-	klog.InfoS("Successfully assemble a workload", "workload", klog.KObj(wl), "APIVersion", wl.GetAPIVersion(), "Kind", wl.GetKind())
+	ctx.Info("Successfully assemble a workload", "workload", klog.KObj(wl), "APIVersion", wl.GetAPIVersion(), "Kind", wl.GetKind())
 	return wl, nil
 }
 

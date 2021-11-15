@@ -104,7 +104,7 @@ func TestReadPlacementDecisions(t *testing.T) {
 				Status: &runtime.RawExtension{Raw: bs},
 			}}
 		}
-		err = p.ReadPlacementDecisions(nil, v, act)
+		err = p.ReadPlacementDecisions(nil, nil, v, act)
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {
@@ -294,7 +294,7 @@ func TestMakePlacementDecisions(t *testing.T) {
 				Status: &runtime.RawExtension{Raw: bs},
 			}}
 		}
-		err = p.MakePlacementDecisions(nil, v, act)
+		err = p.MakePlacementDecisions(nil, nil, v, act)
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {
@@ -444,7 +444,7 @@ func TestPatchApplication(t *testing.T) {
 		v, err := value.NewValue("", nil, "")
 		r.NoError(err)
 		r.NoError(v.FillObject(testCase.InputVal, "inputs"))
-		err = p.PatchApplication(nil, v, act)
+		err = p.PatchApplication(nil, nil, v, act)
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {

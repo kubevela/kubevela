@@ -30,6 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -37,10 +38,12 @@ var _ = Describe("Test Application workflow generator", func() {
 	var namespaceName string
 	var ns corev1.Namespace
 	var ctx context.Context
+	var logCtx monitorContext.Context
 
 	BeforeEach(func() {
 		namespaceName = "generate-test-" + strconv.Itoa(time.Now().Second()) + "-" + strconv.Itoa(time.Now().Nanosecond())
 		ctx = context.WithValue(context.TODO(), util.AppDefinitionNamespace, namespaceName)
+		logCtx = monitorContext.NewTraceContext(ctx, "")
 		ns = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespaceName,
@@ -117,7 +120,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			parser: appParser,
 		}
 
-		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
+		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -161,7 +164,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			parser: appParser,
 		}
 
-		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
+		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -235,7 +238,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			parser: appParser,
 		}
 
-		renderFunc := handler.renderComponentFunc(appParser, apprev, af)
+		renderFunc := handler.renderComponentFunc(logCtx, appParser, apprev, af)
 		comp := common.ApplicationComponent{
 			Name:       "myweb1",
 			Type:       "worker",

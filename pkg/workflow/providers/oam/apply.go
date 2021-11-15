@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -51,8 +52,8 @@ type provider struct {
 	app    *v1beta1.Application
 }
 
-// RenderComponent render component
-func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+// RenderComponent render component.
+func (p *provider) RenderComponent(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, err := lookUpValues(v)
 	if err != nil {
 		return err
@@ -81,7 +82,7 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 }
 
 // ApplyComponent apply component.
-func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) ApplyComponent(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, err := lookUpValues(v)
 	if err != nil {
 		return err
@@ -139,7 +140,7 @@ func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, s
 }
 
 // LoadComponent load component describe info in application.
-func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadComponent(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	app := &v1beta1.Application{}
 	// if specify `app`, use specified application otherwise use default application fron provider
 	appSettings, err := v.LookupValue("app")
@@ -195,7 +196,7 @@ func (p *provider) LoadComponentInOrder(ctx wfContext.Context, v *value.Value, a
 }
 
 // LoadPolicies load policy describe info in application.
-func (p *provider) LoadPolicies(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadPolicies(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	for _, po := range p.app.Spec.Policies {
 		if err := v.FillObject(po, "value", po.Name); err != nil {
 			return err

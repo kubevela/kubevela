@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -124,6 +125,8 @@ func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Comma
 
 // Init will initialize
 func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, argsIn []string) error {
+	logCtx := monitorContext.NewTraceContext(ctx, "init vela port forward")
+	defer logCtx.Commit("init vela port forward")
 	o.Ctx = ctx
 	o.Cmd = cmd
 	o.Args = argsIn
@@ -158,7 +161,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.targetResource = targetResource
-	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
+	o.Ctx = multicluster.ContextWithClusterName(logCtx, targetResource.Cluster)
 	o.VelaC.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	o.VelaC.Client, err = client.New(o.VelaC.Config, client.Options{Scheme: common.Scheme})
 	if err != nil {

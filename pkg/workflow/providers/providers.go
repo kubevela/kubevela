@@ -20,12 +20,13 @@ import (
 	"sync"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // Handler is provider's processing method.
-type Handler func(ctx wfContext.Context, v *value.Value, act types.Action) error
+type Handler func(ctx wfContext.Context, logCtx monitorContext.Context, v *value.Value, act types.Action) error
 
 // Providers is provider discover interface.
 type Providers interface {

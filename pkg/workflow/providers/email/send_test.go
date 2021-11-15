@@ -132,7 +132,7 @@ stepID: "send-fail"
 			v, err := value.NewValue(tc.from, nil, "")
 			r.NoError(err)
 			prd := &provider{}
-			err = prd.Send(nil, v, act)
+			err = prd.Send(nil, nil, v, act)
 			if tc.expectedErr != nil {
 				r.Equal(tc.expectedErr.Error(), err.Error())
 				return
@@ -142,7 +142,7 @@ stepID: "send-fail"
 
 			// mock reconcile
 			time.Sleep(time.Second)
-			err = prd.Send(nil, v, act)
+			err = prd.Send(nil, nil, v, act)
 			if tc.errMsg != "" {
 				r.Equal(fmt.Errorf("failed to send email: %s", tc.errMsg), err)
 				return

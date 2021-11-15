@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -157,7 +158,12 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	ctx, cancel := common.NewReconcileContext(ctx)
 	defer cancel()
-	klog.InfoS("Reconcile healthScope", "healthScope", klog.KRef(req.Namespace, req.Name))
+
+	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("healthscope", req.String(), "controller", "healthscope")
+	logCtx.Info("Reconcile health scope")
+	defer logCtx.Commit("Reconcile health scope")
+
+	logCtx.Info("Reconcile healthScope", "healthScope", klog.KRef(req.Namespace, req.Name))
 
 	hs := &v1alpha2.HealthScope{}
 	if err := r.client.Get(ctx, req.NamespacedName, hs); err != nil {
@@ -175,9 +181,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	start := time.Now()
 
-	klog.InfoS("healthScope", "uid", hs.GetUID(), "version", hs.GetResourceVersion())
+	logCtx.Info("healthScope", "uid", hs.GetUID(), "version", hs.GetResourceVersion())
 
-	scopeCondition, appConditions := r.GetScopeHealthStatus(ctx, hs)
+	scopeCondition, appConditions := r.GetScopeHealthStatus(logCtx, hs)
 	klog.V(common.LogDebug).InfoS("Successfully ran health check", "scope", hs.Name)
 	r.record.Event(hs, event.Normal(reasonHealthCheck, "Successfully ran health check"))
 
@@ -197,8 +203,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 }
 
 // GetScopeHealthStatus get the status of the healthscope based on workload resources.
-func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1alpha2.HealthScope) (ScopeHealthCondition, []*AppHealthCondition) {
-	klog.InfoS("Get scope health status", "name", healthScope.GetName())
+func (r *Reconciler) GetScopeHealthStatus(ctx monitorContext.Context, healthScope *v1alpha2.HealthScope) (ScopeHealthCondition, []*AppHealthCondition) {
+	ctx.Info("Get scope health status", "name", healthScope.GetName())
 	scopeCondition := ScopeHealthCondition{
 		HealthStatus: StatusHealthy, // if no workload referenced, scope is healthy by default
 	}
@@ -226,6 +232,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 	}
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	ctx.SetContext(ctxWithTimeout)
 
 	appfiles, appInfos := r.CollectAppfilesAndAppNames(ctx, wlRefs, healthScope.GetNamespace())
 
@@ -352,7 +359,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 }
 
 // CollectAppfilesAndAppNames retrieve appfiles and app names for CUEBasedHealthCheck
-func (r *Reconciler) CollectAppfilesAndAppNames(ctx context.Context, refs []WorkloadReference, ns string) (map[WorkloadReference]*af.Appfile, map[WorkloadReference]AppInfo) {
+func (r *Reconciler) CollectAppfilesAndAppNames(ctx monitorContext.Context, refs []WorkloadReference, ns string) (map[WorkloadReference]*af.Appfile, map[WorkloadReference]AppInfo) {
 	appfiles := map[WorkloadReference]*af.Appfile{}
 	appNames := map[WorkloadReference]AppInfo{}
 
@@ -540,12 +547,12 @@ func constructAppCompStatus(appC *AppHealthCondition, hsRef corev1.ObjectReferen
 	return r
 }
 
-func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.AppReference, ns string) []WorkloadReference {
+func (r *Reconciler) createWorkloadRefs(ctx monitorContext.Context, appRef v1alpha2.AppReference, ns string) []WorkloadReference {
 	wlRefs := make([]WorkloadReference, 0)
 
 	application := &v1beta1.Application{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: appRef.AppName}, application); err != nil {
-		klog.ErrorS(err, "Failed to get application")
+		ctx.Error(err, "Failed to get application")
 		return wlRefs
 	}
 

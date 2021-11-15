@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 
@@ -69,8 +70,10 @@ const (
 	ComponentRevisionNamespaceContextKey = contextKey("component-revision-namespace")
 )
 
-func contextWithComponentRevisionNamespace(ctx context.Context, ns string) context.Context {
-	return context.WithValue(ctx, ComponentRevisionNamespaceContextKey, ns)
+func contextWithComponentRevisionNamespace(ctx monitorContext.Context, ns string) monitorContext.Context {
+	newCtx := context.WithValue(ctx, ComponentRevisionNamespaceContextKey, ns)
+	ctx.SetContext(newCtx)
+	return ctx
 }
 
 func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
@@ -141,8 +144,8 @@ func SprintComponentManifest(cm *types.ComponentManifest) string {
 
 // PrepareCurrentAppRevision will generate a pure revision without metadata and rendered result
 // the generated revision will be compare with the last revision to see if there's any difference.
-func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.Appfile) error {
-	appRev, appRevisionHash, err := h.gatherRevisionSpec(af)
+func (h *AppHandler) PrepareCurrentAppRevision(ctx monitorContext.Context, af *appfile.Appfile) error {
+	appRev, appRevisionHash, err := h.gatherRevisionSpec(ctx, af)
 	if err != nil {
 		return err
 	}
@@ -170,7 +173,7 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 
 // gatherRevisionSpec will gather all revision spec without metadata and rendered result.
 // the gathered Revision spec will be enough to calculate the hash and compare with the old revision
-func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
+func (h *AppHandler) gatherRevisionSpec(ctx monitorContext.Context, af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
@@ -239,20 +242,20 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
-		klog.ErrorS(err, "Failed to compute hash of appRevision for application", "application", klog.KObj(h.app))
+		ctx.Error(err, "Failed to compute hash of appRevision for application", "application", klog.KObj(h.app))
 		return appRev, "", errors.Wrapf(err, "failed to compute app revision hash")
 	}
 	return appRev, appRevisionHash, nil
 }
 
-func (h *AppHandler) getLatestAppRevision(ctx context.Context) error {
+func (h *AppHandler) getLatestAppRevision(ctx monitorContext.Context) error {
 	if h.app.Status.LatestRevision == nil || len(h.app.Status.LatestRevision.Name) == 0 {
 		return nil
 	}
 	latestRevName := h.app.Status.LatestRevision.Name
 	latestAppRev := &v1beta1.ApplicationRevision{}
 	if err := h.r.Get(ctx, client.ObjectKey{Name: latestRevName, Namespace: h.app.Namespace}, latestAppRev); err != nil {
-		klog.ErrorS(err, "Failed to get latest app revision", "appRevisionName", latestRevName)
+		ctx.Error(err, "Failed to get latest app revision", "appRevisionName", latestRevName)
 		return errors.Wrapf(err, "fail to get latest app revision %s", latestRevName)
 	}
 	h.latestAppRev = latestAppRev
@@ -354,7 +357,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 }
 
 // currentAppRevIsNew check application revision already exist or not
-func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error) {
+func (h *AppHandler) currentAppRevIsNew(ctx monitorContext.Context) (bool, bool, error) {
 	// the last revision doesn't exist.
 	if h.app.Status.LatestRevision == nil {
 		return true, true, nil
@@ -372,7 +375,7 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		oam.LabelAppName: h.app.Name,
 	}, client.InNamespace(h.app.Namespace)}
 	if err := h.r.Client.List(ctx, revisionList, listOpts...); err != nil {
-		klog.ErrorS(err, "Failed to list app revision", "appName", h.app.Name)
+		ctx.Error(err, "Failed to list app revision", "appName", h.app.Name)
 		return false, false, errors.Wrap(err, "failed to list app revision")
 	}
 
@@ -699,7 +702,7 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 
 // UpdateAppLatestRevisionStatus only call to update app's latest revision status after applying manifests successfully
 // otherwise it will override previous revision which is used during applying to do GC jobs
-func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
+func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx monitorContext.Context) error {
 	if !h.isNewRevision {
 		// skip update if app revision is not changed
 		return nil
@@ -712,17 +715,17 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 		RevisionHash: h.currentRevHash,
 	}
 	if err := h.r.patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
-		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
+		ctx.Info("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err
 	}
-	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+	ctx.Info("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
 	return nil
 }
 
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
-func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
+func cleanUpApplicationRevision(ctx monitorContext.Context, h *AppHandler) error {
 	listOpts := []client.ListOption{
 		client.InNamespace(h.app.Namespace),
 		client.MatchingLabels{oam.LabelAppName: h.app.Name},
@@ -740,7 +743,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	if needKill <= 0 {
 		return nil
 	}
-	klog.InfoS("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
+	ctx.Info("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
 		"total", len(appRevisionList.Items), "using", len(appRevisionInUse), "kill", needKill)
 	sortedRevision := appRevisionList.Items
 	sort.Sort(historiesByRevision(sortedRevision))
@@ -840,14 +843,14 @@ func (h historiesByRevision) Less(i, j int) bool {
 	return ir < ij
 }
 
-func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
+func cleanUpComponentRevision(ctx monitorContext.Context, h *AppHandler) error {
 	if appWillRollout(h.app) {
 		return cleanUpRollOutComponentRevision(ctx, h)
 	}
 	return cleanUpWorkflowComponentRevision(ctx, h)
 }
 
-func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
+func cleanUpWorkflowComponentRevision(ctx monitorContext.Context, h *AppHandler) error {
 	// collect component revision in use
 	compRevisionInUse := map[string]map[string]struct{}{}
 	for _, resource := range h.app.Status.AppliedResources {
@@ -900,7 +903,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 	return nil
 }
 
-func cleanUpRollOutComponentRevision(ctx context.Context, h *AppHandler) error {
+func cleanUpRollOutComponentRevision(ctx monitorContext.Context, h *AppHandler) error {
 	appRevInUse, err := gatherUsingAppRevision(ctx, h)
 	if err != nil {
 		return err

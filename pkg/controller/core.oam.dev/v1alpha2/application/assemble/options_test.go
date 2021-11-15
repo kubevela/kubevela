@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -59,6 +60,7 @@ var _ = Describe("Test WorkloadOption", func() {
 	Context("test PrepareWorkloadForRollout WorkloadOption", func() {
 		It("test rollout OpenKruise CloneSet", func() {
 			By("Use openkruise CloneSet as workload")
+			ctx := monitorContext.NewTraceContext(context.Background(), "")
 			cs := &unstructured.Unstructured{}
 			cs.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.CloneSet{}).Name()))
 			cs.SetLabels(map[string]string{oam.LabelAppComponent: compName})
@@ -67,9 +69,9 @@ var _ = Describe("Test WorkloadOption", func() {
 				StandardWorkload: cs,
 			}
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(compName))
+			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(ctx, compName))
 			ao.componentManifests = []*types.ComponentManifest{&comp}
-			workloads, _, _, err := ao.GroupAssembledManifests()
+			workloads, _, _, err := ao.GroupAssembledManifests(ctx)
 			Expect(err).Should(BeNil())
 			Expect(len(workloads)).Should(Equal(1))
 
@@ -84,6 +86,7 @@ var _ = Describe("Test WorkloadOption", func() {
 
 		It("test rollout OpenKruise StatefulSet", func() {
 			By("Use openkruise CloneSet as workload")
+			ctx := monitorContext.NewTraceContext(context.Background(), "")
 			sts := &unstructured.Unstructured{}
 			sts.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.StatefulSet{}).Name()))
 			sts.SetLabels(map[string]string{oam.LabelAppComponent: compName})
@@ -92,9 +95,9 @@ var _ = Describe("Test WorkloadOption", func() {
 				StandardWorkload: sts,
 			}
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(compName))
+			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(ctx, compName))
 			ao.componentManifests = []*types.ComponentManifest{&comp}
-			workloads, _, _, err := ao.GroupAssembledManifests()
+			workloads, _, _, err := ao.GroupAssembledManifests(ctx)
 			Expect(err).Should(BeNil())
 			Expect(len(workloads)).Should(Equal(1))
 
@@ -110,8 +113,9 @@ var _ = Describe("Test WorkloadOption", func() {
 
 		It("test rollout Deployment", func() {
 			By("Add PrepareWorkloadForRollout WorkloadOption")
-			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(compName))
-			workloads, _, _, err := ao.GroupAssembledManifests()
+			ctx := monitorContext.NewTraceContext(context.Background(), "")
+			ao := NewAppManifests(appRev, appParser).WithWorkloadOption(PrepareWorkloadForRollout(ctx, compName))
+			workloads, _, _, err := ao.GroupAssembledManifests(ctx)
 			Expect(err).Should(BeNil())
 			Expect(len(workloads)).Should(Equal(1))
 
@@ -170,7 +174,8 @@ var _ = Describe("Test WorkloadOption", func() {
 			assembledWorkload.SetAPIVersion("apps/v1")
 			assembledWorkload.SetKind("Deployment")
 			assembledWorkload.SetNamespace(ns)
-			err := discoverHelmModuleWorkload(context.Background(), tc.c, assembledWorkload, nil, []*unstructured.Unstructured{tc.helm})
+			ctx := monitorContext.NewTraceContext(context.Background(), "")
+			err := discoverHelmModuleWorkload(ctx, tc.c, assembledWorkload, nil, []*unstructured.Unstructured{tc.helm})
 
 			By("Verify error")
 			diff := cmp.Diff(tc.wantErr, err, test.EquateErrors())

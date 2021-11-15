@@ -90,7 +90,7 @@ request:{
 		v, err := value.NewValue(tCase.request, nil, "")
 		assert.NilError(t, err, tName)
 		prd := &provider{}
-		err = prd.Do(nil, v, nil)
+		err = prd.Do(nil, nil, v, nil)
 		assert.NilError(t, err, tName)
 		body, err := v.LookupValue("response", "body")
 		assert.NilError(t, err, tName)

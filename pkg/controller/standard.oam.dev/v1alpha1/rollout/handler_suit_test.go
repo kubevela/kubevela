@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -46,6 +47,7 @@ import (
 var _ = Describe("Test rollout related handler func", func() {
 	namespace := "rollout-test-namespace"
 	ctx := context.Background()
+	logCtx := monitorContext.NewTraceContext(ctx, "")
 
 	BeforeEach(func() {
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
@@ -92,7 +94,7 @@ var _ = Describe("Test rollout related handler func", func() {
 		Expect(srcLabel[oam.LabelAppRevision]).Should(BeEquivalentTo(appRevName))
 		Expect(srcLabel[oam.LabelAppComponentRevision]).Should(BeEquivalentTo("comp-test-v1"))
 
-		Expect(h.assembleWorkload(ctx)).Should(BeNil())
+		Expect(h.assembleWorkload(logCtx)).Should(BeNil())
 		Expect(h.targetWorkload.GetName()).Should(BeEquivalentTo("comp-test-v2"))
 		Expect(h.sourceWorkload.GetName()).Should(BeEquivalentTo("comp-test-v1"))
 		pv := fieldpath.Pave(h.targetWorkload.UnstructuredContent())
@@ -227,7 +229,7 @@ var _ = Describe("Test rollout related handler func", func() {
 				},
 				rollout: rollout,
 			}
-			done, _, _ := h.handleFinalizer(ctx, rollout)
+			done, _, _ := h.handleFinalizer(logCtx, rollout)
 			Expect(done).Should(BeTrue())
 			Expect(len(rollout.Finalizers)).Should(BeEquivalentTo(0))
 		})
@@ -254,7 +256,7 @@ var _ = Describe("Test rollout related handler func", func() {
 				},
 				rollout: rollout,
 			}
-			done, _, _ := h.handleFinalizer(ctx, rollout)
+			done, _, _ := h.handleFinalizer(logCtx, rollout)
 			Expect(done).Should(BeFalse())
 			Expect(len(rollout.Finalizers)).Should(BeEquivalentTo(1))
 			Expect(rollout.Status.RollingState).Should(BeEquivalentTo(v1alpha1.RolloutDeletingState))

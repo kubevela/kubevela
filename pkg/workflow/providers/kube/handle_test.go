@@ -45,6 +45,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
@@ -98,7 +99,7 @@ var _ = AfterSuite(func() {
 var _ = Describe("Test Workflow Provider Kube", func() {
 	It("apply and read", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx monitorContext.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -125,7 +126,7 @@ value:{
 cluster: ""
 `, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Apply(ctx, v, nil)
+		err = p.Apply(ctx, nil, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		workload, err := component.Workload.Unstructured()
 		Expect(err).ToNot(HaveOccurred())
@@ -144,7 +145,7 @@ metadata: name: "app"
 cluster: ""
 `, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Read(ctx, v, nil)
+		err = p.Read(ctx, nil, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("value")
 		Expect(err).ToNot(HaveOccurred())
@@ -160,7 +161,7 @@ cluster: ""
 	})
 	It("patch & apply", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx monitorContext.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -183,7 +184,7 @@ value: {%s}
 cluster: ""
 patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Apply(ctx, v, nil)
+		err = p.Apply(ctx, nil, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		workload, err := component.Workload.Unstructured()
@@ -198,7 +199,7 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 
 	It("list", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx monitorContext.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				return nil
 			},
 			cli: k8sClient,
@@ -244,7 +245,7 @@ cluster: ""
 		Expect(err).ToNot(HaveOccurred())
 		wfCtx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
-		err = p.List(wfCtx, v, nil)
+		err = p.List(wfCtx, nil, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("list")
 		Expect(err).ToNot(HaveOccurred())
@@ -267,7 +268,7 @@ index: "test-1"
 cluster: ""
 `, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.List(wfCtx, v, nil)
+		err = p.List(wfCtx, nil, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err = v.LookupValue("list")
 		Expect(err).ToNot(HaveOccurred())
@@ -279,7 +280,7 @@ cluster: ""
 
 	It("delete", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx monitorContext.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				return nil
 			},
 			delete: func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
@@ -327,7 +328,7 @@ cluster: ""
 		Expect(err).ToNot(HaveOccurred())
 		wfCtx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Delete(wfCtx, v, nil)
+		err = p.Delete(wfCtx, nil, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = k8sClient.Get(ctx, types.NamespacedName{
 			Name:      "test",
@@ -339,7 +340,7 @@ cluster: ""
 
 	It("test error case", func() {
 		p := &provider{
-			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+			apply: func(ctx monitorContext.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 				for _, obj := range manifests {
 					if err := k8sClient.Create(ctx, obj); err != nil {
 						if errors.IsAlreadyExists(err) {
@@ -362,7 +363,7 @@ value: {
   spec: close({kind: 12})	
 }`, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Apply(ctx, v, nil)
+		err = p.Apply(ctx, nil, v, nil)
 		Expect(err).To(HaveOccurred())
 
 		v, _ = value.NewValue(`
@@ -372,7 +373,7 @@ value: {
 }
 patch: _|_
 `, nil, "")
-		err = p.Apply(ctx, v, nil)
+		err = p.Apply(ctx, nil, v, nil)
 		Expect(err).To(HaveOccurred())
 
 		v, err = value.NewValue(`
@@ -387,7 +388,7 @@ value: {
 cluster: "test"
 `, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Read(ctx, v, nil)
+		err = p.Read(ctx, nil, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		errV, err := v.Field("err")
 		Expect(err).ToNot(HaveOccurred())
@@ -404,9 +405,9 @@ val: {
 }
 `, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Read(ctx, v, nil)
+		err = p.Read(ctx, nil, v, nil)
 		Expect(err).To(HaveOccurred())
-		err = p.Apply(ctx, v, nil)
+		err = p.Apply(ctx, nil, v, nil)
 		Expect(err).To(HaveOccurred())
 	})
 

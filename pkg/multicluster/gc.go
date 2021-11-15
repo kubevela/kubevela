@@ -17,14 +17,13 @@
 package multicluster
 
 import (
-	"context"
-
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
@@ -65,7 +64,7 @@ func getAppliedClusters(ctx context.Context, c client.Client, app *v1beta1.Appli
 }
 
 // GarbageCollectionForOutdatedResourcesInSubClusters run garbage collection in sub clusters and remove outdated ResourceTrackers with their associated resources
-func GarbageCollectionForOutdatedResourcesInSubClusters(ctx context.Context, c client.Client, app *v1beta1.Application, gcHandler func(context.Context) error) error {
+func GarbageCollectionForOutdatedResourcesInSubClusters(ctx monitorContext.Context, c client.Client, app *v1beta1.Application, gcHandler func(context.Context) error) error {
 	var errs errors2.ErrorList
 	for _, clusterName := range getAppliedClusters(ctx, c, app) {
 		if err := gcHandler(ContextWithClusterName(ctx, clusterName)); err != nil {

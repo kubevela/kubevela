@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -44,7 +45,7 @@ import (
 
 // GenerateApplicationSteps generate application steps.
 // nolint:gocyclo
-func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
+func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
 	af *appfile.Appfile,
@@ -52,7 +53,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, h.r.Client, h.Dispatch, h.Delete)
 	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
-		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
+		ctx, appParser, appRev, af), h.renderComponentFunc(ctx, appParser, appRev, af))
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
@@ -124,21 +125,21 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 	return errors.Errorf("component %s not found", o.Component)
 }
 
-func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
+func (h *AppHandler) renderComponentFunc(c monitorContext.Context, appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
+		ctx := multicluster.ContextWithClusterName(c, clusterName)
 
 		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
+		return renderComponentsAndTraits(c, h.r.Client, manifest, appRev, overrideNamespace)
 	}
 }
 
-func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
+func (h *AppHandler) applyComponentFunc(c monitorContext.Context, appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		ctx := contextWithComponentRevisionNamespace(multicluster.ContextWithClusterName(context.Background(), clusterName), overrideNamespace)
+		ctx := contextWithComponentRevisionNamespace(multicluster.ContextWithClusterName(c, clusterName), overrideNamespace)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -151,7 +152,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		}
 		wl.Ctx.SetCtx(ctx)
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(c, h.r.Client, manifest, appRev, overrideNamespace)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -204,8 +205,8 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
-func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), client)})
+func renderComponentsAndTraits(ctx monitorContext.Context, client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(ctx, manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(ctx, client)})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
 	}

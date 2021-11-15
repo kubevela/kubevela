@@ -40,7 +40,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -174,6 +174,7 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 
 var _ = Describe("Test GetScopeHealthStatus", func() {
 	ctx := context.Background()
+	logCtx := monitorContext.NewTraceContext(ctx, "")
 	mockMgr := &mock.Manager{
 		Client: &test.MockClient{},
 	}
@@ -263,7 +264,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			}
 			reconciler.client = mockClient
 			hs.Spec.WorkloadReferences = tc.hsWorkloadRefs
-			result, _ := reconciler.GetScopeHealthStatus(ctx, &hs)
+			result, _ := reconciler.GetScopeHealthStatus(logCtx, &hs)
 			Expect(result).ShouldNot(BeNil())
 			Expect(result).Should(Equal(tc.wantScopeCondition))
 		}
@@ -339,7 +340,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 			}
 			reconciler.client = mockClient
 			hs.Spec.WorkloadReferences = tc.hsWorkloadRefs
-			result, _ := reconciler.GetScopeHealthStatus(ctx, &hs)
+			result, _ := reconciler.GetScopeHealthStatus(logCtx, &hs)
 			Expect(result).ShouldNot(BeNil())
 			Expect(result).Should(Equal(tc.wantScopeCondition))
 		}

@@ -17,6 +17,7 @@ limitations under the License.
 package assemble
 
 import (
+	"context"
 	"os"
 
 	. "github.com/onsi/ginkgo"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -35,6 +37,7 @@ var _ = Describe("Test Assemble Options", func() {
 		var (
 			compName  = "test-comp"
 			namespace = "default"
+			ctx       = monitorContext.NewTraceContext(context.Background(), "")
 		)
 
 		appRev := &v1beta1.ApplicationRevision{}
@@ -66,11 +69,11 @@ var _ = Describe("Test Assemble Options", func() {
 		Expect(err).Should(BeNil())
 
 		ao := NewAppManifests(appRev, appParser)
-		workloads, traits, _, err := ao.GroupAssembledManifests()
+		workloads, traits, _, err := ao.GroupAssembledManifests(ctx)
 		Expect(err).Should(BeNil())
 
 		By("Verify amount of result resources")
-		allResources, err := ao.AssembledManifests()
+		allResources, err := ao.AssembledManifests(ctx)
 		Expect(err).Should(BeNil())
 		Expect(len(allResources)).Should(Equal(4))
 
@@ -129,7 +132,7 @@ var _ = Describe("Test Assemble Options", func() {
 		Expect(wlRef).Should(Equal(wantWorkloadRef))
 
 		By("Verify referenced scopes")
-		scopes, err := ao.ReferencedScopes()
+		scopes, err := ao.ReferencedScopes(ctx)
 		Expect(err).Should(BeNil())
 		wlTypedRef := corev1.ObjectReference{
 			APIVersion: "apps/v1",
@@ -150,6 +153,7 @@ var _ = Describe("Test Assemble Options", func() {
 		var (
 			compName     = "frontend"
 			workloadName = "test-workload"
+			ctx          = monitorContext.NewTraceContext(context.Background(), "")
 		)
 		appRev := &v1beta1.ApplicationRevision{}
 		b, err := os.ReadFile("./testdata/filter_annotations.yaml")
@@ -185,7 +189,7 @@ var _ = Describe("Test Assemble Options", func() {
 		*/
 
 		ao := NewAppManifests(appRev, appParser)
-		workloads, _, _, err := ao.GroupAssembledManifests()
+		workloads, _, _, err := ao.GroupAssembledManifests(ctx)
 		Expect(err).Should(BeNil())
 
 		By("verify labels specified should be filtered")

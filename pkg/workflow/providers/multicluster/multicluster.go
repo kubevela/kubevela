@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -43,7 +44,7 @@ type provider struct {
 	app *v1beta1.Application
 }
 
-func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	policy, err := v.GetString("inputs", "policyName")
 	if err != nil {
 		return err
@@ -62,7 +63,7 @@ func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value,
 	return v.FillObject(map[string]interface{}{}, "outputs")
 }
 
-func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) MakePlacementDecisions(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	policy, err := v.GetString("inputs", "policyName")
 	if err != nil {
 		return err
@@ -121,7 +122,7 @@ func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value,
 	return v.FillObject(map[string]interface{}{"decisions": decisions}, "outputs")
 }
 
-func (p *provider) PatchApplication(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) PatchApplication(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	env, err := v.GetString("inputs", "envName")
 	if err != nil {
 		return err

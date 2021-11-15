@@ -38,7 +38,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	rolloutplan "github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -64,16 +64,21 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	rollout := new(v1alpha1.Rollout)
 	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
+
+	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("rollout", req.String(), "controller", "rollout")
+	logCtx.Info("Reconcile rollout")
+	defer logCtx.Commit("Reconcile rollout")
+
 	if err := r.Get(ctx, req.NamespacedName, rollout); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	doneReconcile, res, retErr := r.handleFinalizer(ctx, rollout)
+	doneReconcile, res, retErr := r.handleFinalizer(logCtx, rollout)
 	if doneReconcile {
 		return res, retErr
 	}
 
-	klog.InfoS("start rollout reconcile", "rollout",
+	logCtx.Info("start rollout reconcile", "rollout",
 		klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
 
 	if len(rollout.Status.RollingState) == 0 {
@@ -112,7 +117,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// set base info to workload
 	h.setWorkloadBaseInfo()
 
-	if err := h.assembleWorkload(ctx); err != nil {
+	if err := h.assembleWorkload(logCtx); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -123,7 +128,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			gvkValue, _ := json.Marshal(gvk)
 			rollout.SetAnnotations(oamutil.MergeMapOverrideWithDst(rollout.GetAnnotations(),
 				map[string]string{oam.AnnotationWorkloadName: h.targetWorkload.GetName(), oam.AnnotationWorkloadGVK: string(gvkValue)}))
-			klog.InfoS("rollout controller set targetWorkload ", h.targetWorkload.GetName(),
+			logCtx.Info("rollout controller set targetWorkload ", h.targetWorkload.GetName(),
 				"in annotation in rollout namespace: ", rollout.Namespace, " name", rollout.Name, "gvk", gvkValue)
 			// exit current reconcile before create target workload, this reconcile don't update status just modify annotation
 			// next round reconcile will create workload and pass `LocatingTargetAppState` phase
@@ -137,7 +142,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			rollout.Spec.RolloutPlan.RolloutBatches = []v1alpha1.RolloutBatch{{
 				Replicas: intstr.FromInt(int(math.Abs(float64(*rollout.Spec.RolloutPlan.TargetSize - replicas))))},
 			}
-			klog.InfoS("rollout controller set default rollout  batches ", h.rollout.GetName(),
+			logCtx.Info("rollout controller set default rollout  batches ", h.rollout.GetName(),
 				" namespace: ", rollout.Namespace, "targetSize", rollout.Spec.RolloutPlan.TargetSize)
 			return ctrl.Result{}, h.Update(ctx, rollout)
 		}
@@ -150,7 +155,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 		if removed {
-			klog.InfoS(" the target workload is gone, no need do anything", "rollout",
+			logCtx.Info(" the target workload is gone, no need do anything", "rollout",
 				klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
 			rollout.Status.StateTransition(v1alpha1.RollingFinalizedEvent)
 			// update the appRollout status
@@ -161,7 +166,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 		rollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
-		klog.InfoS("finished  rollout apply targetWorkload, passed LocatingTargetApp phase", "rollout",
+		logCtx.Info("finished  rollout apply targetWorkload, passed LocatingTargetApp phase", "rollout",
 			klog.KRef(rollout.Namespace, rollout.Name), "rolling state", rollout.Status.RollingState)
 		return ctrl.Result{}, r.updateStatus(ctx, rollout)
 	default:
@@ -189,13 +194,13 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := h.handleFinalizeSucceed(ctx); err != nil {
 			return reconcile.Result{}, err
 		}
-		klog.InfoS("rollout succeeded, record the source and target  revision", "source", rollout.Spec.SourceRevisionName,
+		logCtx.Info("rollout succeeded, record the source and target  revision", "source", rollout.Spec.SourceRevisionName,
 			"target", rollout.Spec.TargetRevisionName)
 	} else if rolloutStatus.RollingState == v1alpha1.RolloutFailedState {
 		if err := h.handleFinalizeFailed(ctx); err != nil {
 			return reconcile.Result{}, err
 		}
-		klog.InfoS("rollout failed, record the source and target app revision", "source", rollout.Spec.SourceRevisionName,
+		logCtx.Info("rollout failed, record the source and target app revision", "source", rollout.Spec.SourceRevisionName,
 			"target", rollout.Spec.TargetRevisionName)
 	}
 	return result, r.updateStatus(ctx, rollout)
@@ -230,27 +235,27 @@ func (r *reconciler) updateStatus(ctx context.Context, rollout *v1alpha1.Rollout
 }
 
 // handle adding and handle finalizer logic, it turns if we should continue to reconcile
-func (r *reconciler) handleFinalizer(ctx context.Context, rollout *v1alpha1.Rollout) (bool, reconcile.Result, error) {
+func (r *reconciler) handleFinalizer(ctx monitorContext.Context, rollout *v1alpha1.Rollout) (bool, reconcile.Result, error) {
 	if rollout.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(&rollout.ObjectMeta, rolloutFinalizer) {
 			meta.AddFinalizer(&rollout.ObjectMeta, rolloutFinalizer)
-			klog.InfoS("Register new app rollout finalizers", "rollout", rollout.Name,
+			ctx.Info("Register new app rollout finalizers", "rollout", rollout.Name,
 				"finalizers", rollout.ObjectMeta.Finalizers)
 			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, rollout), errUpdateRollout)
 		}
 	} else if meta.FinalizerExists(&rollout.ObjectMeta, rolloutFinalizer) {
 		if rollout.Status.RollingState == v1alpha1.RolloutSucceedState {
-			klog.InfoS("Safe to delete the succeeded rollout", "rollout", rollout.Name)
+			ctx.Info("Safe to delete the succeeded rollout", "rollout", rollout.Name)
 			meta.RemoveFinalizer(&rollout.ObjectMeta, rolloutFinalizer)
 			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, rollout), errUpdateRollout)
 		}
 		if rollout.Status.RollingState == v1alpha1.RolloutFailedState {
-			klog.InfoS("delete the rollout in failed state", "rollout", rollout.Name)
+			ctx.Info("delete the rollout in failed state", "rollout", rollout.Name)
 			meta.RemoveFinalizer(&rollout.ObjectMeta, rolloutFinalizer)
 			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, rollout), errUpdateRollout)
 		}
 		// still need to finalize
-		klog.Info("perform clean up", "app rollout", rollout.Name)
+		ctx.Info("perform clean up", "app rollout", rollout.Name)
 		r.record.Event(rollout, event.Normal("Rollout ", "rollout target deleted, release the resources"))
 		rollout.Status.StateTransition(v1alpha1.RollingDeletedEvent)
 	}

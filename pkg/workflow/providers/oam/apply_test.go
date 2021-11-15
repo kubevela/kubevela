@@ -19,13 +19,11 @@ package oam
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -40,10 +38,10 @@ func TestParser(t *testing.T) {
 	act := &mock.Action{}
 	v, err := value.NewValue("", nil, "")
 	r.NoError(err)
-	err = p.ApplyComponent(nil, v, act)
+	err = p.ApplyComponent(nil, nil, v, act)
 	r.Equal(err.Error(), "var(path=value) not exist")
 	v.FillObject(map[string]interface{}{}, "value")
-	err = p.ApplyComponent(nil, v, act)
+	err = p.ApplyComponent(nil, nil, v, act)
 	r.NoError(err)
 	output, err := v.LookupValue("output")
 	r.NoError(err)
@@ -110,7 +108,7 @@ func TestRenderComponent(t *testing.T) {
 	}
 	v, err := value.NewValue(`value: {}`, nil, "")
 	r.NoError(err)
-	err = p.RenderComponent(nil, v, nil)
+	err = p.RenderComponent(nil, nil, v, nil)
 	r.NoError(err)
 	s, err := v.String()
 	r.NoError(err)
@@ -153,7 +151,7 @@ func TestLoadComponent(t *testing.T) {
 	}
 	v, err := value.NewValue(``, nil, "")
 	r.NoError(err)
-	err = p.LoadComponent(nil, v, nil)
+	err = p.LoadComponent(nil, nil, v, nil)
 	r.NoError(err)
 	s, err := v.String()
 	r.NoError(err)
@@ -187,7 +185,7 @@ func TestLoadComponent(t *testing.T) {
 `
 	overrideValue, err := value.NewValue(overrideApp, nil, "")
 	r.NoError(err)
-	err = p.LoadComponent(nil, overrideValue, nil)
+	err = p.LoadComponent(nil, nil, overrideValue, nil)
 	r.NoError(err)
 	_, err = overrideValue.LookupValue("value", "c2")
 	r.NoError(err)

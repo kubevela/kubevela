@@ -22,6 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/builtin"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -36,7 +37,7 @@ type provider struct {
 }
 
 // Do process http request.
-func (h *provider) Do(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Do(tracer wfContext.Context, logtracer monitorContext.Context, v *value.Value, act types.Action) error {
 	ret, err := builtin.RunTaskByKey("http", cue.Value{}, &registry.Meta{
 		Obj: v.CueValue(),
 	})

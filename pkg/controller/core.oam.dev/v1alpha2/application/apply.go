@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -60,7 +61,7 @@ type AppHandler struct {
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx monitorContext.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 	h.initDispatcher()
 	_, err := h.dispatcher.Dispatch(ctx, manifests)
 	if err == nil {
@@ -188,7 +189,7 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 }
 
 // DispatchAndGC apply manifests and do GC.
-func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
+func (h *AppHandler) DispatchAndGC(ctx monitorContext.Context, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
 	h.initDispatcher()
 	tracker, err := h.dispatcher.EndAndGC(h.latestTracker).Dispatch(ctx, manifests)
 	if err != nil {
@@ -303,12 +304,12 @@ func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {
 	return references
 }
 
-type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
+type garbageCollectFunc func(ctx monitorContext.Context, h *AppHandler) error
 
 // execute garbage collection functions, including:
 // - clean up legacy app revisions
 // - clean up legacy component revisions
-func garbageCollection(ctx context.Context, h *AppHandler) error {
+func garbageCollection(ctx monitorContext.Context, h *AppHandler) error {
 	collectFuncs := []garbageCollectFunc{
 		garbageCollectFunc(cleanUpApplicationRevision),
 		garbageCollectFunc(cleanUpComponentRevision),
@@ -321,7 +322,7 @@ func garbageCollection(ctx context.Context, h *AppHandler) error {
 	return nil
 }
 
-func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error) {
+func (h *AppHandler) handleRollout(ctx monitorContext.Context) (reconcile.Result, error) {
 	var comps []string
 	for _, component := range h.app.Spec.Components {
 		comps = append(comps, component.Name)

@@ -23,6 +23,7 @@ import (
 	"gopkg.in/gomail.v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -52,7 +53,7 @@ type content struct {
 var emailRoutine sync.Map
 
 // Send sends email
-func (h *provider) Send(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Send(tracer wfContext.Context, logtracer monitorContext.Context, v *value.Value, act types.Action) error {
 	stepID, err := v.LookupValue("stepID")
 	if err != nil {
 		return err
