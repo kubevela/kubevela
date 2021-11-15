@@ -160,7 +160,7 @@ e2e-setup:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
 	bin/vela addon enable fluxcd
-	bin/vela addon enable terraform
+	bin/vela addon enable terraform-alibaba
 	ginkgo version
 	ginkgo -v -r e2e/setup
 
