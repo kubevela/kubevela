@@ -27,8 +27,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"k8s.io/utils/pointer"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var cfg *rest.Config

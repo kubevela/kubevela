@@ -16,19 +16,14 @@ limitations under the License.
 
 package model
 
+import "github.com/oam-dev/kubevela/pkg/addon"
+
 // AddonRegistry defines the data model of a AddonRegistry
 type AddonRegistry struct {
 	Model
 	Name string `json:"name"`
 
-	Git *GitAddonSource `json:"git,omitempty"`
-}
-
-// GitAddonSource defines the information about the Git as addon source
-type GitAddonSource struct {
-	URL   string `json:"url,omitempty" validate:"required"`
-	Path  string `json:"path,omitempty"`
-	Token string `json:"token,omitempty"`
+	Git *addon.GitAddonSource `json:"git,omitempty"`
 }
 
 // TableName return custom table name

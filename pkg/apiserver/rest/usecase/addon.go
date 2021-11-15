@@ -2,35 +2,19 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"net/url"
-	"path"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"cuelang.org/go/cue"
-	"github.com/getkin/kin-openapi/openapi3"
-
-	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
-	cueyaml "cuelang.org/go/encoding/yaml"
-	"github.com/google/go-github/v32/github"
-	"golang.org/x/oauth2"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -38,30 +22,7 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils"
-	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-)
-
-const (
-	// AddonReadmeFileName is the addon readme file name
-	AddonReadmeFileName string = "readme.md"
-
-	// AddonMetadataFileName is the addon meatadata.yaml file name
-	AddonMetadataFileName string = "metadata.yaml"
-
-	// AddonTemplateFileName is the addon template.yaml dir name
-	AddonTemplateFileName string = "template.yaml"
-
-	// AddonResourcesDirName is the addon resources/ dir name
-	AddonResourcesDirName string = "resources"
-
-	// AddonDefinitionsDirName is the addon definitions/ dir name
-	AddonDefinitionsDirName string = "definitions"
 )
 
 // AddonUsecase addon usecase
@@ -76,6 +37,16 @@ type AddonUsecase interface {
 	GetAddon(ctx context.Context, name string, registry string, detailed bool) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
+}
+
+// AddonImpl2AddonRes convert types.Addon to the type apiserver need
+func AddonImpl2AddonRes(impl *types.Addon) *apis.DetailAddonResponse {
+	return &apis.DetailAddonResponse{
+		AddonMeta: impl.AddonMeta,
+		APISchema: impl.APISchema,
+		UISchema:  impl.UISchema,
+		Detail:    impl.Detail,
+	}
 }
 
 // NewAddonUsecase returns a addon usecase
@@ -118,7 +89,7 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	var app v1beta1.Application
 	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      AddonName2AppName(name),
+		Name:      pkgaddon.Convert2AppName(name),
 	}, &app)
 	if err != nil {
 		if errors2.IsNotFound(err) {
@@ -151,8 +122,13 @@ func getCacheKeyWithDetailFLag(registry string, detailed bool) string {
 	}
 	return registry
 }
+
 func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error) {
-	var addons []*apis.DetailAddonResponse
+	if u.isRegistryCacheUpToDate(getCacheKeyWithDetailFLag(registry, detailed)) {
+		return u.getRegistryCache(getCacheKeyWithDetailFLag(registry, detailed)), nil
+	}
+	var addons []*types.Addon
+	var listAddons []*types.Addon
 	rs, err := u.ListAddonRegistries(ctx)
 	if err != nil {
 		return nil, err
@@ -162,24 +138,16 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 		if registry != "" && r.Name != registry {
 			continue
 		}
-
-		var gitAddons []*apis.DetailAddonResponse
-		if u.isRegistryCacheUpToDate(getCacheKeyWithDetailFLag(registry, detailed)) {
-			gitAddons = u.getRegistryCache(getCacheKeyWithDetailFLag(registry, detailed))
-		} else {
-			gitAddons, err = getAddonsFromGit(r.Git.URL, r.Git.Path, r.Git.Token, detailed)
-			if err != nil {
-				log.Logger.Errorf("fail to get addons from registry %s", r.Name)
-				continue
-			}
-			u.putRegistryCache(getCacheKeyWithDetailFLag(registry, detailed), gitAddons)
+		listAddons, err = pkgaddon.ListAddons(detailed, r.Git)
+		if err != nil {
+			log.Logger.Errorf("fail to get addons from registry %s", r.Name)
+			continue
 		}
-
-		addons = mergeAddons(addons, gitAddons)
+		addons = mergeAddons(addons, listAddons)
 	}
 
 	if query != "" {
-		var filtered []*apis.DetailAddonResponse
+		var filtered []*types.Addon
 		for i, addon := range addons {
 			if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
 				filtered = append(filtered, addons[i])
@@ -192,7 +160,12 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 		return addons[i].Name < addons[j].Name
 	})
 
-	return addons, nil
+	var addonRes []*apis.DetailAddonResponse
+	for _, a := range addons {
+		addonRes = append(addonRes, AddonImpl2AddonRes(a))
+	}
+	u.putRegistryCache(getCacheKeyWithDetailFLag(registry, detailed), addonRes)
+	return addonRes, nil
 }
 
 func (u *addonUsecaseImpl) DeleteAddonRegistry(ctx context.Context, name string) error {
@@ -264,70 +237,35 @@ func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 	return list, nil
 }
 
-func renderApplication(addon *apis.DetailAddonResponse, args *apis.EnableAddonRequest) (*v1beta1.Application, error) {
-	if args == nil {
-		args = &apis.EnableAddonRequest{Args: map[string]string{}}
-	}
-	app := addon.AppTemplate
-	if app == nil {
-		app = &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      AddonName2AppName(addon.Name),
-				Namespace: types.DefaultKubeVelaNS,
-				Labels: map[string]string{
-					oam.LabelAddonName: addon.Name,
-				},
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common2.ApplicationComponent{},
-			},
-		}
-	}
-	app.Name = AddonName2AppName(addon.Name)
-	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
-
-	for _, tmpl := range addon.YAMLTemplates {
-		comp, err := renderRawComponent(tmpl)
-		if err != nil {
-			return nil, err
-		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
-	}
-	for _, tmpl := range addon.CUETemplates {
-		comp, err := renderCUETemplate(tmpl, addon.Parameters, args.Args)
-		if err != nil {
-			log.Logger.Errorf("failed to render CUE template: %v", err)
-			return nil, bcode.ErrAddonRender
-		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
-	}
-	for _, def := range addon.Definitions {
-		comp, err := renderRawComponent(def)
-		if err != nil {
-			return nil, err
-		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
-	}
-
-	return app, nil
-}
-
 func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
-	addon, err := u.GetAddon(ctx, name, "", true)
+	registries, err := u.ListAddonRegistries(ctx)
 	if err != nil {
 		return err
 	}
-	app, err := renderApplication(addon, &args)
-	if err != nil {
-		return err
+	for _, r := range registries {
+		addon, err := pkgaddon.GetAddon(name, r.Git)
+
+		if err != nil && err == bcode.ErrAddonNotExist {
+			continue
+		} else if err != nil {
+			return bcode.WrapGithubRateLimitErr(err)
+		}
+
+		// render default ui schema
+		addon.UISchema = renderDefaultUISchema(addon.APISchema)
+
+		app, err := pkgaddon.RenderApplication(addon, args.Args)
+		if err != nil {
+			return err
+		}
+		err = u.kubeClient.Create(ctx, app)
+		if err != nil {
+			log.Logger.Errorf("apply application fail: %s", err.Error())
+			return bcode.ErrAddonApply
+		}
+		return nil
 	}
-	err = u.kubeClient.Create(ctx, app)
-	if err != nil {
-		log.Logger.Errorf("apply application fail: %s", err.Error())
-		return bcode.ErrAddonApply
-	}
-	return nil
+	return bcode.ErrAddonNotExist
 }
 
 func (u *addonUsecaseImpl) getRegistryCache(name string) []*apis.DetailAddonResponse {
@@ -350,7 +288,7 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 	app := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      AddonName2AppName(name),
+			Name:      pkgaddon.Convert2AppName(name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 	}
@@ -362,59 +300,6 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 	return nil
 }
 
-// renderRawComponent will return a component in raw type from string
-func renderRawComponent(elem apis.AddonElementFile) (*common2.ApplicationComponent, error) {
-	baseRawComponent := common2.ApplicationComponent{
-		Type: "raw",
-		Name: strings.Join(append(elem.Path, elem.Name), "-"),
-	}
-	obj := &unstructured.Unstructured{}
-	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	_, _, err := dec.Decode([]byte(elem.Data), nil, obj)
-	if err != nil {
-		return nil, err
-	}
-	baseRawComponent.Properties = util.Object2RawExtension(obj)
-	return &baseRawComponent, nil
-}
-
-// renderCUETemplate will return a component from cue template
-func renderCUETemplate(elem apis.AddonElementFile, parameters string, args map[string]string) (*common2.ApplicationComponent, error) {
-	bt, err := json.Marshal(args)
-	if err != nil {
-		return nil, err
-	}
-	var paramFile = cuemodel.ParameterFieldName + ": {}"
-	if string(bt) != "null" {
-		paramFile = fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
-	}
-	param := fmt.Sprintf("%s\n%s", paramFile, parameters)
-	v, err := value.NewValue(param, nil, "")
-	if err != nil {
-		return nil, err
-	}
-	out, err := v.LookupByScript(fmt.Sprintf("{%s}", elem.Data))
-	if err != nil {
-		return nil, err
-	}
-	compContent, err := out.LookupValue("output")
-	if err != nil {
-		return nil, err
-	}
-	b, err := cueyaml.Encode(compContent.CueValue())
-	if err != nil {
-		return nil, err
-	}
-	comp := common2.ApplicationComponent{
-		Name: strings.Join(append(elem.Path, elem.Name), "-"),
-	}
-	err = yaml.Unmarshal(b, &comp)
-	if err != nil {
-		return nil, err
-	}
-
-	return &comp, err
-}
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {
 	return &model.AddonRegistry{
 		Name: req.Name,
@@ -422,7 +307,7 @@ func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegist
 	}
 }
 
-func mergeAddons(a1, a2 []*apis.DetailAddonResponse) []*apis.DetailAddonResponse {
+func mergeAddons(a1, a2 []*types.Addon) []*types.Addon {
 	for _, item := range a2 {
 		if hasAddon(a1, item.Name) {
 			continue
@@ -432,7 +317,7 @@ func mergeAddons(a1, a2 []*apis.DetailAddonResponse) []*apis.DetailAddonResponse
 	return a1
 }
 
-func hasAddon(addons []*apis.DetailAddonResponse, name string) bool {
+func hasAddon(addons []*types.Addon, name string) bool {
 	for _, addon := range addons {
 		if addon.Name == name {
 			return true
@@ -441,288 +326,10 @@ func hasAddon(addons []*apis.DetailAddonResponse, name string) bool {
 	return false
 }
 
-type gitHelper struct {
-	Client *github.Client
-	Meta   *utils.Content
-}
-
-func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*apis.DetailAddonResponse, error) {
-	var addons []*apis.DetailAddonResponse
-
-	gith, err := createGitHelper(baseURL, dir, token)
-	if err != nil {
-		return nil, err
-	}
-	dirs, err := readRepo(gith)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, subItems := range dirs {
-		if subItems.GetType() != "dir" {
-			continue
-		}
-		addonRes := &apis.DetailAddonResponse{}
-		_, files, _, err := gith.Client.Repositories.GetContents(context.Background(), gith.Meta.Owner, gith.Meta.Repo, subItems.GetPath(), nil)
-		if err != nil {
-			if bcode.IsGithubRateLimit(err) {
-				return nil, bcode.ErrAddonRegistryRateLimit
-			}
-			log.Logger.Errorf("failed to read dir %s: %v", subItems.GetPath(), err)
-			continue
-		}
-		for _, file := range files {
-			var err error
-
-			switch strings.ToLower(file.GetName()) {
-			case AddonReadmeFileName:
-				if !detailed {
-					break
-				}
-				err = readReadme(addonRes, gith, file)
-			case AddonMetadataFileName:
-				err = readMetadata(addonRes, gith, file)
-				addonRes.Name = addonutil.TransAddonName(addonRes.Name)
-			case AddonDefinitionsDirName:
-				if !detailed {
-					break
-				}
-				err = readDefinitions(addonRes, gith, file)
-			case AddonResourcesDirName:
-				if !detailed {
-					break
-				}
-				err = readResources(addonRes, gith, file)
-			case AddonTemplateFileName:
-				if !detailed {
-					break
-				}
-				err = readTemplate(addonRes, gith, file)
-			}
-
-			if err != nil {
-				if bcode.IsGithubRateLimit(err) {
-					return nil, bcode.ErrAddonRegistryRateLimit
-				}
-				log.Logger.Errorf("failed to read file %s: %v", file.GetPath(), err)
-				continue
-			}
-		}
-
-		if detailed && addonRes.Parameters != "" {
-			err = genAddonAPISchema(addonRes)
-			if err != nil {
-				continue
-			}
-			// render default ui schema
-			addonRes.UISchema = renderDefaultUISchema(addonRes.APISchema)
-		}
-		addons = append(addons, addonRes)
-	}
-	return addons, nil
-}
-
-func genAddonAPISchema(addonRes *apis.DetailAddonResponse) error {
-	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
-	if err != nil {
-		return err
-	}
-	var r cue.Runtime
-	cueInst, err := r.Compile("-", param)
-	if err != nil {
-		return err
-	}
-	data, err := common.GenOpenAPI(cueInst)
-	if err != nil {
-		log.Logger.Errorf("fail to generate openAPI json schema for addon: %s, err: %s", addonRes.Name, err)
-		return err
-	}
-	schema := &openapi3.Schema{}
-	if err := schema.UnmarshalJSON(data); err != nil {
-		log.Logger.Errorf("fail to unmarshal openAPI json schema for addon %s, err: %s", addonRes.Name, err)
-		return err
-	}
-	addonRes.APISchema = schema
-	return nil
-}
-
-func cutPathUntil(path []string, end string) ([]string, error) {
-	for i, d := range path {
-		if d == end {
-			return path[i:], nil
-		}
-	}
-	return nil, errors.New("cut path fail, target directory name not found")
-}
-
-func readTemplate(addon *apis.DetailAddonResponse, h *gitHelper, file *github.RepositoryContent) error {
-	content, _, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *file.Path, nil)
-	if err != nil {
-		return err
-	}
-	data, err := content.GetContent()
-	if err != nil {
-		return err
-	}
-	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	addon.AppTemplate = &v1beta1.Application{}
-	_, _, err = dec.Decode([]byte(data), nil, addon.AppTemplate)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func readResources(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.RepositoryContent) error {
-	dirPath := strings.Split(dir.GetPath(), "/")
-	dirPath, err := cutPathUntil(dirPath, AddonResourcesDirName)
-	if err != nil {
-		return err
-	}
-
-	_, files, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *dir.Path, nil)
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		switch file.GetType() {
-		case "file":
-			content, _, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *file.Path, nil)
-			if err != nil {
-				return err
-			}
-			b, err := content.GetContent()
-			if err != nil {
-				return err
-			}
-
-			if file.GetName() == "parameter.cue" {
-				addon.Parameters = b
-				break
-			}
-			switch filepath.Ext(file.GetName()) {
-			case ".cue":
-				addon.CUETemplates = append(addon.CUETemplates, apis.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
-			default:
-				addon.YAMLTemplates = append(addon.YAMLTemplates, apis.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
-			}
-		case "dir":
-			err = readResources(addon, h, file)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func readDefinitions(addon *apis.DetailAddonResponse, h *gitHelper, dir *github.RepositoryContent) error {
-	dirPath := strings.Split(dir.GetPath(), "/")
-	dirPath, err := cutPathUntil(dirPath, AddonDefinitionsDirName)
-	if err != nil {
-		return err
-	}
-
-	_, files, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *dir.Path, nil)
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		switch file.GetType() {
-		case "file":
-			content, _, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *file.Path, nil)
-			if err != nil {
-				return err
-			}
-			b, err := content.GetContent()
-			if err != nil {
-				return err
-			}
-			addon.Definitions = append(addon.Definitions, apis.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
-		case "dir":
-			err = readDefinitions(addon, h, file)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func readMetadata(addon *apis.DetailAddonResponse, h *gitHelper, file *github.RepositoryContent) error {
-	content, _, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *file.Path, nil)
-	if err != nil {
-		return err
-	}
-	b, err := content.GetContent()
-	if err != nil {
-		return err
-	}
-	return yaml.Unmarshal([]byte(b), &addon.AddonMeta)
-}
-
-func readReadme(addon *apis.DetailAddonResponse, h *gitHelper, file *github.RepositoryContent) error {
-	content, _, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, *file.Path, nil)
-	if err != nil {
-		return err
-	}
-	addon.Detail, err = content.GetContent()
-	return err
-}
-
-func createGitHelper(baseURL, dir, token string) (*gitHelper, error) {
-	var ts oauth2.TokenSource
-	if token != "" {
-		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	}
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 10
-	cli := github.NewClient(tc)
-
-	baseURL = strings.TrimSuffix(baseURL, ".git")
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		log.Logger.Errorf("parsing %s failed: %v", baseURL, err)
-		return nil, bcode.ErrAddonRegistryInvalid
-	}
-	u.Path = path.Join(u.Path, dir)
-	_, gitmeta, err := utils.Parse(u.String())
-	if err != nil {
-		log.Logger.Errorf("parsing %s failed: %v", u.String(), err)
-		return nil, bcode.ErrAddonRegistryInvalid
-	}
-
-	return &gitHelper{
-		Client: cli,
-		Meta:   gitmeta,
-	}, nil
-}
-
-func readRepo(h *gitHelper) ([]*github.RepositoryContent, error) {
-	_, dirs, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, h.Meta.Path, nil)
-	if err != nil {
-		log.Logger.Errorf("readRepo fail: %v", err)
-		return nil, bcode.WrapGithubRateLimitErr(err)
-	}
-	return dirs, nil
-}
-
 // ConvertAddonRegistryModel2AddonRegistryMeta will convert from model to AddonRegistryMeta
 func ConvertAddonRegistryModel2AddonRegistryMeta(r *model.AddonRegistry) *apis.AddonRegistryMeta {
 	return &apis.AddonRegistryMeta{
 		Name: r.Name,
 		Git:  r.Git,
 	}
-}
-
-const addonAppPrefix = "addon-"
-
-// AddonName2AppName -
-func AddonName2AppName(name string) string {
-	return addonAppPrefix + name
-}
-
-// AppName2addonName -
-func AppName2addonName(name string) string {
-	return strings.TrimPrefix(name, addonAppPrefix)
 }
