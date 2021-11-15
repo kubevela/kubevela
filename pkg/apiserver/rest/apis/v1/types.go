@@ -359,15 +359,15 @@ type ComponentListResponse struct {
 
 // CreateComponentRequest create component  request model
 type CreateComponentRequest struct {
-	Name          string                    `json:"name" validate:"checkname"`
-	Alias         string                    `json:"alias" validate:"checkalias" optional:"true"`
-	Description   string                    `json:"description" optional:"true"`
-	Icon          string                    `json:"icon" optional:"true"`
-	Labels        map[string]string         `json:"labels,omitempty"`
-	ComponentType string                    `json:"componentType" validate:"checkname"`
-	Properties    string                    `json:"properties,omitempty"`
-	DependsOn     []string                  `json:"dependsOn" optional:"true"`
-	Traits        []*CreateApplicationTrait `json:"traits,omitempty" optional:"true"`
+	Name          string                           `json:"name" validate:"checkname"`
+	Alias         string                           `json:"alias" validate:"checkalias" optional:"true"`
+	Description   string                           `json:"description" optional:"true"`
+	Icon          string                           `json:"icon" optional:"true"`
+	Labels        map[string]string                `json:"labels,omitempty"`
+	ComponentType string                           `json:"componentType" validate:"checkname"`
+	Properties    string                           `json:"properties,omitempty"`
+	DependsOn     []string                         `json:"dependsOn" optional:"true"`
+	Traits        []*CreateApplicationTraitRequest `json:"traits,omitempty" optional:"true"`
 }
 
 // DetailComponentResponse detail component  model
@@ -615,19 +615,19 @@ type CreateApplicationEnvRequest struct {
 	EnvBinding
 }
 
-// CreateApplicationTrait create application triat  req
-type CreateApplicationTrait struct {
+// CreateApplicationTraitRequest create application triat  req
+type CreateApplicationTraitRequest struct {
 	Type        string `json:"type" validate:"checkname"`
 	Alias       string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string `json:"description,omitempty" optional:"true"`
 	Properties  string `json:"properties"`
 }
 
-// UpdateApplicationTrait update application trait req
-type UpdateApplicationTrait struct {
-	Alias       *string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Description *string `json:"description,omitempty" optional:"true"`
-	Properties  *string `json:"properties"`
+// UpdateApplicationTraitRequest update application trait req
+type UpdateApplicationTraitRequest struct {
+	Alias       string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description string `json:"description,omitempty" optional:"true"`
+	Properties  string `json:"properties"`
 }
 
 // ApplicationTrait application trait

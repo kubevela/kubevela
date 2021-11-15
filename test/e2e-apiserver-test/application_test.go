@@ -222,6 +222,59 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(len(response.DependsOn), 1)).Should(BeEmpty())
 	})
 
+	It("Test add trait", func() {
+		defer GinkgoRecover()
+		var req = apisv1.CreateApplicationTraitRequest{
+			Type:       "ingress",
+			Properties: `{"domain": "www.test.com"}`,
+		}
+		bodyByte, err := json.Marshal(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components/test2/traits", "application/json", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.ApplicationTrait
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(response.Properties.JSON(), `{"domain":"www.test.com"}`)).Should(BeEmpty())
+	})
+
+	It("Test update trait", func() {
+		defer GinkgoRecover()
+		var req2 = apisv1.CreateApplicationTraitRequest{
+			Type:       "ingress",
+			Properties: `{"domain": "www.test1.com"}`,
+		}
+		bodyByte, err := json.Marshal(req2)
+		Expect(err).ShouldNot(HaveOccurred())
+		req, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components/test2/traits/ingress", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(res.Body).ShouldNot(BeNil())
+		defer res.Body.Close()
+		var response apisv1.ApplicationTrait
+		err = json.NewDecoder(res.Body).Decode(&response)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(response.Properties.JSON(), `{"domain":"www.test1.com"}`)).Should(BeEmpty())
+	})
+
+	It("Test delete trait", func() {
+		defer GinkgoRecover()
+		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/components/test2/traits/ingress", nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.DefaultClient.Do(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+	})
+
 	It("Test create application policy", func() {
 		defer GinkgoRecover()
 		var req = apisv1.CreatePolicyRequest{

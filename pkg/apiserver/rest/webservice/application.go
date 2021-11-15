@@ -225,6 +225,40 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.DetailPolicyResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailPolicyResponse{}))
+
+	ws.Route(ws.POST("/{name}/components/{compName}/traits").To(c.addApplicationTrait).
+		Doc("add trait for a component").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreateApplicationTraitRequest{}).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationTrait{}))
+
+	ws.Route(ws.PUT("/{name}/components/{compName}/traits/{traitType}").To(c.updateApplicationTrait).
+		Doc("update trait from a component").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
+		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdateApplicationTraitRequest{}).
+		Returns(200, "", apis.ApplicationTrait{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationTrait{}))
+
+	ws.Route(ws.DELETE("/{name}/components/{compName}/traits/{traitType}").To(c.deleteApplicationTrait).
+		Doc("delete trait from a component").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
+		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ApplicationTrait{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
 	return ws
 }
 
@@ -568,6 +602,66 @@ func (c *applicationWebService) createApplicationEnv(req *restful.Request, res *
 func (c *applicationWebService) deleteApplicationEnv(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	err := c.applicationUsecase.DeleteApplicationEnvBinding(req.Request.Context(), app, req.PathParameter("envName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) addApplicationTrait(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	var createReq apis.CreateApplicationTraitRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	trait, err := c.applicationUsecase.CreateApplicationTrait(req.Request.Context(), app,
+		&model.ApplicationComponent{Name: req.PathParameter("compName")}, createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(trait); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) updateApplicationTrait(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	var updateReq apis.UpdateApplicationTraitRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	trait, err := c.applicationUsecase.UpdateApplicationTrait(req.Request.Context(), app,
+		&model.ApplicationComponent{Name: req.PathParameter("compName")}, req.PathParameter("traitType"), updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(trait); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) deleteApplicationTrait(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	err := c.applicationUsecase.DeleteApplicationTrait(req.Request.Context(), app,
+		&model.ApplicationComponent{Name: req.PathParameter("compName")}, req.PathParameter("traitType"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
