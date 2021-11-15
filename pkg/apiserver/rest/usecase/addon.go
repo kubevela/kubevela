@@ -40,16 +40,6 @@ type AddonUsecase interface {
 	DisableAddon(ctx context.Context, name string) error
 }
 
-// Method is how we access addon information
-type Method string
-
-var (
-	// Get will get detailed information
-	Get Method = "get"
-	// List will get
-	List Method = "list"
-)
-
 // AddonImpl2AddonRes convert types.Addon to the type apiserver need
 func AddonImpl2AddonRes(impl *types.Addon) *apis.DetailAddonResponse {
 	return &apis.DetailAddonResponse{
