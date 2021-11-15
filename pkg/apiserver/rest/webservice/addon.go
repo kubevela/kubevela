@@ -120,7 +120,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
-	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name, "", true)
+	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name, "")
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

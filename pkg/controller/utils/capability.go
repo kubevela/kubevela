@@ -482,7 +482,7 @@ func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover)
 	if err != nil {
 		return nil, err
 	}
-	fixOpenAPISchema("", schema)
+	FixOpenAPISchema("", schema)
 
 	parameter, err := schema.MarshalJSON()
 	if err != nil {
@@ -558,18 +558,18 @@ func PrepareParameterCue(capabilityName, capabilityTemplate string) (string, err
 	return template, nil
 }
 
-// fixOpenAPISchema fixes tainted `description` filed, missing of title `field`.
-func fixOpenAPISchema(name string, schema *openapi3.Schema) {
+// FixOpenAPISchema fixes tainted `description` filed, missing of title `field`.
+func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 	t := schema.Type
 	switch t {
 	case "object":
 		for k, v := range schema.Properties {
 			s := v.Value
-			fixOpenAPISchema(k, s)
+			FixOpenAPISchema(k, s)
 		}
 	case "array":
 		if schema.Items != nil {
-			fixOpenAPISchema("", schema.Items.Value)
+			FixOpenAPISchema("", schema.Items.Value)
 		}
 	}
 	if name != "" {

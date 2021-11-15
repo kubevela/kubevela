@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -34,10 +35,20 @@ type AddonUsecase interface {
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(name string) (*apis.AddonStatusResponse, error)
-	GetAddon(ctx context.Context, name string, registry string, detailed bool) (*apis.DetailAddonResponse, error)
+	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
 }
+
+// Method is how we access addon information
+type Method string
+
+var (
+	// Get will get detailed information
+	Get Method = "get"
+	// List will get
+	List Method = "list"
+)
 
 // AddonImpl2AddonRes convert types.Addon to the type apiserver need
 func AddonImpl2AddonRes(impl *types.Addon) *apis.DetailAddonResponse {
@@ -70,16 +81,26 @@ type addonUsecaseImpl struct {
 	apply              apply.Applicator
 }
 
-// GetAddon will get addon information, if detailed is not set, addon's componennt and internal definition won't be returned
-func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string, detailed bool) (*apis.DetailAddonResponse, error) {
-	addons, err := u.ListAddons(ctx, detailed, registry, "")
-	if err != nil {
-		return nil, err
-	}
-
-	for _, addon := range addons {
-		if addon.Name == name {
-			return addon, nil
+// GetAddon will get addon information
+func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
+	var addons []*types.Addon
+	cacheKey := getCacheKeyWithListOptions(registry, true, "")
+	if u.isRegistryCacheUpToDate(cacheKey) {
+		addons = u.getRegistryCache(cacheKey)
+		for _, a := range addons {
+			if a.Name == name {
+				return AddonImpl2AddonRes(a), nil
+			}
+		}
+	} else {
+		addonDetails, err := u.ListAddons(ctx, true, registry, "")
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range addonDetails {
+			if a.Name == name {
+				return a, nil
+			}
 		}
 	}
 	return nil, bcode.ErrAddonNotExist
@@ -115,56 +136,66 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	}
 }
 
-// getCacheKeyWithDetailFLag will get right cache key for given registry and detailed, to split different
-func getCacheKeyWithDetailFLag(registry string, detailed bool) string {
+// getCacheKeyWithListOptions will get right cache key for given method registry and detailed, to split different
+func getCacheKeyWithListOptions(registry string, detailed bool, query string) string {
+	var d string
 	if detailed {
-		return registry + "detailed"
+		d = "detailed"
 	}
-	return registry
+	return fmt.Sprintf("%s/%s/%s", registry, d, query)
 }
 
 func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error) {
-	if u.isRegistryCacheUpToDate(getCacheKeyWithDetailFLag(registry, detailed)) {
-		return u.getRegistryCache(getCacheKeyWithDetailFLag(registry, detailed)), nil
-	}
 	var addons []*types.Addon
 	var listAddons []*types.Addon
-	rs, err := u.ListAddonRegistries(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, r := range rs {
-		if registry != "" && r.Name != registry {
-			continue
-		}
-		listAddons, err = pkgaddon.ListAddons(detailed, r.Git)
+	cacheKey := getCacheKeyWithListOptions(registry, detailed, query)
+	if u.isRegistryCacheUpToDate(cacheKey) {
+		addons = u.getRegistryCache(cacheKey)
+	} else {
+		rs, err := u.ListAddonRegistries(ctx)
 		if err != nil {
-			log.Logger.Errorf("fail to get addons from registry %s", r.Name)
-			continue
+			return nil, err
 		}
-		addons = mergeAddons(addons, listAddons)
-	}
 
-	if query != "" {
-		var filtered []*types.Addon
-		for i, addon := range addons {
-			if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
-				filtered = append(filtered, addons[i])
+		for _, r := range rs {
+			if registry != "" && r.Name != registry {
+				continue
+			}
+			listAddons, err = pkgaddon.ListAddons(detailed, r.Git)
+			if err != nil {
+				log.Logger.Errorf("fail to get addons from registry %s", r.Name)
+				continue
+			}
+			addons = mergeAddons(addons, listAddons)
+		}
+
+		if query != "" {
+			var filtered []*types.Addon
+			for i, addon := range addons {
+				if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
+					filtered = append(filtered, addons[i])
+				}
+			}
+			addons = filtered
+		}
+		sort.Slice(addons, func(i, j int) bool {
+			return addons[i].Name < addons[j].Name
+		})
+
+		if detailed {
+			for _, addon := range addons {
+				// render default ui schema
+				addon.UISchema = renderDefaultUISchema(addon.APISchema)
 			}
 		}
-		addons = filtered
-	}
 
-	sort.Slice(addons, func(i, j int) bool {
-		return addons[i].Name < addons[j].Name
-	})
+		u.putRegistryCache(cacheKey, addons)
+	}
 
 	var addonRes []*apis.DetailAddonResponse
 	for _, a := range addons {
 		addonRes = append(addonRes, AddonImpl2AddonRes(a))
 	}
-	u.putRegistryCache(getCacheKeyWithDetailFLag(registry, detailed), addonRes)
 	return addonRes, nil
 }
 
@@ -268,11 +299,11 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 	return bcode.ErrAddonNotExist
 }
 
-func (u *addonUsecaseImpl) getRegistryCache(name string) []*apis.DetailAddonResponse {
-	return u.addonRegistryCache[name].GetData().([]*apis.DetailAddonResponse)
+func (u *addonUsecaseImpl) getRegistryCache(name string) []*types.Addon {
+	return u.addonRegistryCache[name].GetData().([]*types.Addon)
 }
 
-func (u *addonUsecaseImpl) putRegistryCache(name string, addons []*apis.DetailAddonResponse) {
+func (u *addonUsecaseImpl) putRegistryCache(name string, addons []*types.Addon) {
 	u.addonRegistryCache[name] = restutils.NewMemoryCache(addons, time.Minute*3)
 }
 

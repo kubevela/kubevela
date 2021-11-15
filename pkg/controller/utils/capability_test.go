@@ -216,7 +216,7 @@ func TestFixOpenAPISchema(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, tc.inputFile))
 			schema := swagger.Components.Schemas[model.ParameterFieldName].Value
-			fixOpenAPISchema("", schema)
+			FixOpenAPISchema("", schema)
 			fixedSchema, _ := schema.MarshalJSON()
 			expectedSchema, _ := os.ReadFile(filepath.Join(TestDir, tc.fixedFile))
 			assert.Equal(t, string(fixedSchema), string(expectedSchema))
