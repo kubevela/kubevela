@@ -17,9 +17,6 @@ spec:
               domain: testsvc.example.com
               http:
                 "/": 8000
-            expose:
-              ports:
-                - 8001
             hostAliases:
               - ip: 127.0.0.1
                 hostnames:

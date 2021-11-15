@@ -538,21 +538,22 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			if fi.IsDir() {
 				inputFilenames = []string{}
 				outputFilenames = []string{}
-				dir, err := os.ReadDir(args[0])
-				if err != nil {
-					return errors.Wrapf(err, "failed to read directory %s", args[0])
-				}
-				for _, file := range dir {
-					filename := file.Name()
-					if !strings.HasSuffix(filename, ".cue") {
-						continue
+				err := filepath.Walk(args[0], func(path string, info os.FileInfo, err error) error {
+					filename := filepath.Base(path)
+					fileSuffix := filepath.Ext(path)
+					if fileSuffix != ".cue" {
+						return nil
 					}
-					inputFilenames = append(inputFilenames, filepath.Join(args[0], filename))
+					inputFilenames = append(inputFilenames, path)
 					if output != "" {
 						outputFilenames = append(outputFilenames, filepath.Join(output, strings.ReplaceAll(filename, ".cue", ".yaml")))
 					} else {
 						outputFilenames = append(outputFilenames, "")
 					}
+					return nil
+				})
+				if err != nil {
+					return errors.Wrapf(err, "failed to read directory %s", args[0])
 				}
 			}
 			for i, inputFilename := range inputFilenames {

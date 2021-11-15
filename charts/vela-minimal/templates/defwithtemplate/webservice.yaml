@@ -18,21 +18,38 @@ spec:
         		selector: matchLabels: "app.oam.dev/component": context.name
 
         		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        				if parameter.addRevisionLabel {
-        					"app.oam.dev/appRevision": context.appRevision
+        			metadata: {
+        				labels: {
+        					if parameter.labels != _|_ {
+        						parameter.labels
+        					}
+        					if parameter.addRevisionLabel {
+        						"app.oam.dev/appRevision": context.appRevision
+        					}
+        					"app.oam.dev/component": context.name
+        					"app.oam.dev/revision":  context.revision
         				}
-        				"app.oam.dev/revision": context.revision
+        				if parameter.annotations != _|_ {
+        					annotations: parameter.annotations
+        				}
         			}
 
         			spec: {
         				containers: [{
         					name:  context.name
         					image: parameter.image
-        					ports: [{
-        						containerPort: parameter.port
-        					}]
+        					if parameter["port"] != _|_ && parameter["ports"] == _|_ {
+        						ports: [{
+        							containerPort: parameter.port
+        						}]
+        					}
+        					if parameter["ports"] != _|_ {
+        						ports: [ for v in parameter.ports {
+        							{
+        								containerPort: v.port
+        								protocol:      v.protocol
+        							}}]
+        					}
 
         					if parameter["imagePullPolicy"] != _|_ {
         						imagePullPolicy: parameter.imagePullPolicy
@@ -82,6 +99,11 @@ spec:
 
         				}]
 
+        				if parameter["hostAliases"] != _|_ {
+        					// +patchKey=ip
+        					hostAliases: parameter.hostAliases
+        				}
+
         				if parameter["imagePullSecrets"] != _|_ {
         					imagePullSecrets: [ for v in parameter.imagePullSecrets {
         						name: v
@@ -123,20 +145,61 @@ spec:
         		}
         	}
         }
+        outputs: {
+        	if parameter.expose != _|_ {
+        		webserviceExpose: {
+        			apiVersion: "v1"
+        			kind:       "Service"
+        			metadata: name: context.name
+        			spec: {
+        				selector: "app.oam.dev/component": context.name
+        				ports: [
+        					for p in parameter.expose.ports {
+        						port:       p
+        						targetPort: p
+        					},
+        				]
+        				type: parameter.expose.type
+        			}
+        		}
+        	}
+        }
         parameter: {
+        	// +usage=Specify the labels in the workload
+        	labels?: {...}
+
+        	// +usage=Specify the annotations in the workload
+        	annotations?: {...}
+
         	// +usage=Which image would you like to use for your service
         	// +short=i
         	image: string
 
         	// +usage=Specify image pull policy for your service
-        	imagePullPolicy?: string
+        	imagePullPolicy?: "Always" | "Never" | "IfNotPresent"
 
         	// +usage=Specify image pull secrets for your service
         	imagePullSecrets?: [...string]
 
-        	// +usage=Which port do you want customer traffic sent to
+        	// +usage=Deprecated field, please use ports instead
         	// +short=p
-        	port: *80 | int
+        	port?: int
+
+        	// +usage=Which ports do you want customer traffic sent to, defaults to 80
+        	ports?: [...{
+        		// +usage=Number of port to expose on the pod's IP address
+        		port: int
+        		// +usage=Protocol for port. Must be UDP, TCP, or SCTP
+        		protocol: *"TCP" | "UDP" | "SCTP"
+        	}]
+
+        	// +usage=Specify the ports you want to expose
+        	expose?: {
+        		// +usage=Specify the exposion ports
+        		ports: [...int]
+        		// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer", "ExternalName"
+        		type: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
+        	}
 
         	// +ignore
         	// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods
@@ -158,6 +221,13 @@ spec:
         				// +usage=The name of the secret in the pod's namespace to select from
         				name: string
         				// +usage=The key of the secret to select from. Must be a valid secret key
+        				key: string
+        			}
+        			// +usage=Selects a key of a config map in the pod's namespace
+        			configMapKeyRef: {
+        				// +usage=The name of the config map in the pod's namespace to select from
+        				name: string
+        				// +usage=The key of the config map to select from. Must be a valid secret key
         				key: string
         			}
         		}
@@ -247,7 +317,24 @@ spec:
 
         	// +usage=Number of consecutive failures required to determine the container is not alive (liveness probe) or not ready (readiness probe).
         	failureThreshold: *3 | int
+
+        	// +usage=Specify the hostAliases to add
+        	hostAliases: [...{
+        		ip: string
+        		hostnames: [...string]
+        	}]
         }
+  status:
+    customStatus: |-
+      	import "strconv"
+
+      	if context.output.status.readyReplicas != _|_ {
+      		message: "ReadyReplicas: " + strconv.FormatInt(context.output.status.readyReplicas, 10)
+      	}
+      	if context.output.status.readyReplicas == _|_ {
+      		message: ""
+      	}
+    healthPolicy: "\tisHealth: context.output.status.replicas == context.output.status.readyReplicas"
   workload:
     definition:
       apiVersion: apps/v1

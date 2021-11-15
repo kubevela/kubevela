@@ -10,13 +10,17 @@ spec:
         labels:
           test-label: test-value
         image: crccheck/hello-world
+        expose:
+          ports:
+            - 8001
         ports:
           - port: 8000
           - port: 8001
             protocol: UDP
       traits:
-        - type: ingress-1-20
+        - type: network
           properties:
-            domain: testsvc.example.com
-            http:
-              "/": 8000
+            ingress:
+              domain: testsvc.example.com
+              http:
+                "/": 8001    

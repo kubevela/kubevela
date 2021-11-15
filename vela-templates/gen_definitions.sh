@@ -14,6 +14,7 @@ HEAD_PROMPT="${LIGHTGRAY}[${0}]${NC} "
 SCRIPT_DIR=$(dirname "$0")
 pushd "$SCRIPT_DIR" &> /dev/null
 
+DEPRECATED_DEFINITION_DIR="definitions/deprecated"
 INTERNAL_DEFINITION_DIR="definitions/internal"
 REGISTRY_DEFINITION_DIR="definitions/registry"
 INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
@@ -43,11 +44,15 @@ else
 fi
 
 function render {
-  inputDir=$1
-  outputDir=$2
+  deprecatedDir=$1
+  internalDir=$2
+  outputDir=$3
   rm "$outputDir"/* 2>/dev/null || true
   mkdir -p "$outputDir"
-  $VELA_CMD def render "$inputDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$inputDir/{{INPUT_FILENAME}}"
+  if [ -d "$deprecatedDir" ]; then
+    $VELA_CMD def render "$deprecatedDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$deprecatedDir/{{INPUT_FILENAME}}"
+  fi
+  $VELA_CMD def render "$internalDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$internalDir/{{INPUT_FILENAME}}"
   retVal=$?
   if [ $retVal -ne 0 ]; then
     echo -ne "${RED}Failed. Exit code: ${retVal}.${NC}\n"
@@ -66,12 +71,12 @@ function renderMinimal {
 }
 
 echo -e "${HEAD_PROMPT}Start generating definitions at ${LIGHTGRAY}${SCRIPT_DIR}${NC} ..."
-echo -ne "${HEAD_PROMPT}${YELLOW}(0/2) Generating internal definitions from ${LIGHTGRAY}${INTERNAL_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
+echo -ne "${HEAD_PROMPT}${YELLOW}(0/2) Generating internal definitions from ${LIGHTGRAY}${INTERNAL_DEFINITION_DIR}${YELLOW} and ${LIGHTGRAY}${DEPRECATED_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
 export AS_HELM_CHART=true
-render $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
+render $DEPRECATED_DEFINITION_DIR $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
 renderMinimal $INTERNAL_TEMPLATE_DIR $MINIMAL_TEMPLATE_DIR
 echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${YELLOW}(1/2) Generating registry definitions from ${LIGHTGRAY}${REGISTRY_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${REGISTRY_TEMPLATE_DIR}${YELLOW} ... "
 export AS_HELM_CHART=system
-render $REGISTRY_DEFINITION_DIR $REGISTRY_TEMPLATE_DIR
+render "" $REGISTRY_DEFINITION_DIR $REGISTRY_TEMPLATE_DIR
 echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${GREEN}(2/2) All done.${NC}\n"
 popd &> /dev/null
