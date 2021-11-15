@@ -1097,6 +1097,44 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/status": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "get application status",
+				"operationId": "getApplicationStatus",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationStatusResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}/template": {
 			"post": {
 				"consumes": [
@@ -1649,9 +1687,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"component",
 							"trait",
-							"workflowstep",
-							"component"
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -1707,6 +1745,191 @@
 						"description": "query the definition type",
 						"name": "type",
 						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/deliveryTargets": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "list deliveryTarget",
+				"operationId": "listDeliveryTargets",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "create deliveryTarget",
+				"operationId": "createDeliveryTarget",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateDeliveryTargetRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"400": {
+						"description": "create failure",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/deliveryTargets/{name}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "detail deliveryTarget",
+				"operationId": "detailDeliveryTarget",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the deliveryTarget.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "update application DeliveryTarget config",
+				"operationId": "updateDeliveryTarget",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the deliveryTarget",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateDeliveryTargetRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "deletet DeliveryTarget",
+				"operationId": "deleteDeliveryTarget",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the deliveryTarget",
+						"name": "name",
+						"in": "path",
+						"required": true
 					}
 				],
 				"responses": {
@@ -3079,6 +3302,23 @@
 			}
 		},
 		"types.Parameter.default": {},
+		"utils.GroupOption": {
+			"required": [
+				"label",
+				"keys"
+			],
+			"properties": {
+				"keys": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"label": {
+					"type": "string"
+				}
+			}
+		},
 		"utils.Option": {
 			"required": [
 				"label",
@@ -3122,7 +3362,7 @@
 				"subParameterGroupOption": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/utils.UIParameter.subParameterGroupOption"
+						"$ref": "#/definitions/utils.GroupOption"
 					}
 				},
 				"subParameters": {
@@ -3305,9 +3545,7 @@
 				"description",
 				"createTime",
 				"updateTime",
-				"icon",
-				"status",
-				"gatewayRule"
+				"icon"
 			],
 			"properties": {
 				"alias": {
@@ -3326,12 +3564,6 @@
 						"$ref": "#/definitions/v1.EnvBinding"
 					}
 				},
-				"gatewayRule": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.GatewayRule"
-					}
-				},
 				"icon": {
 					"type": "string"
 				},
@@ -3345,9 +3577,6 @@
 					"type": "string"
 				},
 				"namespace": {
-					"type": "string"
-				},
-				"status": {
 					"type": "string"
 				},
 				"updateTime": {
@@ -3380,12 +3609,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"reason",
 				"deployUser",
 				"note",
 				"triggerType",
 				"version",
-				"status"
+				"status",
+				"reason"
 			],
 			"properties": {
 				"deployUser": {
@@ -3493,6 +3722,16 @@
 				}
 			}
 		},
+		"v1.ApplicationStatusResponse": {
+			"required": [
+				"status"
+			],
+			"properties": {
+				"status": {
+					"$ref": "#/definitions/common.AppStatus"
+				}
+			}
+		},
 		"v1.ApplicationTemplateBase": {
 			"required": [
 				"templateName",
@@ -3543,6 +3782,26 @@
 					"format": "date-time"
 				},
 				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CloudTarget": {
+			"required": [
+				"providerName",
+				"region"
+			],
+			"properties": {
+				"providerName": {
+					"type": "string"
+				},
+				"region": {
+					"type": "string"
+				},
+				"vpcID": {
+					"type": "string"
+				},
+				"zone": {
 					"type": "string"
 				}
 			}
@@ -4028,6 +4287,32 @@
 				}
 			}
 		},
+		"v1.CreateDeliveryTargetRequest": {
+			"required": [
+				"name",
+				"namespace"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cloud": {
+					"$ref": "#/definitions/v1.CloudTarget"
+				},
+				"description": {
+					"type": "string"
+				},
+				"kubernetes": {
+					"$ref": "#/definitions/v1.KubernetesTarget"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.CreateNamespaceRequest": {
 			"required": [
 				"name",
@@ -4109,6 +4394,42 @@
 				},
 				"name": {
 					"type": "string"
+				}
+			}
+		},
+		"v1.DeliveryTargetBase": {
+			"required": [
+				"name",
+				"namespace",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cloud": {
+					"$ref": "#/definitions/v1.CloudTarget"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"kubernetes": {
+					"$ref": "#/definitions/v1.KubernetesTarget"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},
@@ -4196,15 +4517,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"alias",
-				"createTime",
-				"gatewayRule",
 				"name",
-				"namespace",
 				"description",
-				"updateTime",
 				"icon",
-				"status",
+				"alias",
+				"namespace",
+				"createTime",
+				"updateTime",
 				"policies",
 				"status",
 				"resourceInfo",
@@ -4225,12 +4544,6 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/v1.EnvBinding"
-					}
-				},
-				"gatewayRule": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.GatewayRule"
 					}
 				},
 				"icon": {
@@ -4274,19 +4587,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"updateTime",
-				"alias",
-				"description",
 				"icon",
-				"provider",
-				"apiServerURL",
-				"kubeConfigSecret",
 				"status",
+				"kubeConfigSecret",
+				"createTime",
+				"alias",
+				"provider",
+				"updateTime",
 				"labels",
 				"reason",
 				"dashboardURL",
-				"createTime",
 				"name",
+				"description",
+				"apiServerURL",
 				"kubeConfig",
 				"resourceInfo"
 			],
@@ -4345,13 +4658,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"updateTime",
+				"creator",
 				"appPrimaryKey",
-				"type",
+				"alias",
 				"createTime",
 				"name",
-				"creator",
-				"alias"
+				"updateTime",
+				"type"
 			],
 			"properties": {
 				"alias": {
@@ -4444,15 +4757,51 @@
 				}
 			}
 		},
+		"v1.DetailDeliveryTargetResponse": {
+			"required": [
+				"createTime",
+				"updateTime",
+				"name",
+				"namespace"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cloud": {
+					"$ref": "#/definitions/v1.CloudTarget"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"kubernetes": {
+					"$ref": "#/definitions/v1.KubernetesTarget"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"name",
-				"type",
-				"description",
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name",
+				"type",
+				"description"
 			],
 			"properties": {
 				"createTime": {
@@ -4482,10 +4831,10 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"terminated",
 				"name",
 				"namespace",
 				"suspend",
-				"terminated",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -4531,13 +4880,13 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"createTime",
 				"updateTime",
 				"name",
 				"alias",
 				"description",
 				"enable",
 				"default",
+				"createTime",
 				"workflowRecord"
 			],
 			"properties": {
@@ -4628,29 +4977,15 @@
 				}
 			}
 		},
-		"v1.GatewayRule": {
+		"v1.KubernetesTarget": {
 			"required": [
-				"ruleType",
-				"address",
-				"protocol",
-				"componentName",
-				"componentPort"
+				"clusterName"
 			],
 			"properties": {
-				"address": {
+				"clusterName": {
 					"type": "string"
 				},
-				"componentName": {
-					"type": "string"
-				},
-				"componentPort": {
-					"type": "integer",
-					"format": "int32"
-				},
-				"protocol": {
-					"type": "string"
-				},
-				"ruleType": {
+				"namespace": {
 					"type": "string"
 				}
 			}
@@ -4761,6 +5096,24 @@
 					"items": {
 						"$ref": "#/definitions/v1.DefinitionBase"
 					}
+				}
+			}
+		},
+		"v1.ListDeliveryTargetResponse": {
+			"required": [
+				"deliveryTargets",
+				"total"
+			],
+			"properties": {
+				"deliveryTargets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.DeliveryTargetBase"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -4880,10 +5233,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
-				"updateTime",
 				"name",
 				"description",
-				"createTime"
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5171,6 +5524,22 @@
 					"additionalProperties": {
 						"type": "string"
 					}
+				}
+			}
+		},
+		"v1.UpdateDeliveryTargetRequest": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cloud": {
+					"$ref": "#/definitions/v1.CloudTarget"
+				},
+				"description": {
+					"type": "string"
+				},
+				"kubernetes": {
+					"$ref": "#/definitions/v1.KubernetesTarget"
 				}
 			}
 		},
