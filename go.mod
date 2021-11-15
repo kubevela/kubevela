@@ -37,7 +37,7 @@ require (
 	github.com/oam-dev/cluster-gateway v1.1.6
 	github.com/oam-dev/cluster-register v1.0.1
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.2.5
+	github.com/oam-dev/terraform-controller v0.2.8
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
@@ -85,7 +85,6 @@ require (
 
 replace (
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
-	github.com/oam-dev/terraform-controller => /Users/zhouzhengxi/Programming/golang/src/github.com/oam-dev/terraform-controller
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24
 )
