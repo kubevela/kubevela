@@ -8,18 +8,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/addon"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/oam-dev/kubevela/pkg/addon"
+	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-
-	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
 const baseURL = "http://127.0.0.1:8000"
@@ -86,9 +84,9 @@ var _ = Describe("Test addon rest api", func() {
 			},
 		}
 		args := common.Args{}
-		client, err := args.GetClient()
+		k8sClient, err := args.GetClient()
 		Expect(err).Should(BeNil())
-		Expect(client.Create(context.Background(), &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(context.Background(), &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		defer GinkgoRecover()
 		req := apis.EnableAddonRequest{

@@ -11,7 +11,7 @@ data:
 
     parameter: {
       type:      string
-      namespace: string
+      namespace: *"" | string
       cluster:   *"" | string
     }
 
@@ -32,6 +32,10 @@ data:
         apiVersion: "storage.k8s.io/v1"
         kind:       "StorageClass"
       }
+      "ns": {
+        apiVersion: "v1"
+        kind:       "Namespace"
+      }
     }
 
     List: ql.#List & {
@@ -41,7 +45,6 @@ data:
       }
       cluster: parameter.cluster
     }
-
 
     status: {
       if List.err == _|_ {

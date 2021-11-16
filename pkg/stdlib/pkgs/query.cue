@@ -5,6 +5,7 @@
 		name:      string
 		namespace: string
 		components?: [...string]
+		cluster?:            string
 		enableHistoryQuery?: bool
 	}
 	...

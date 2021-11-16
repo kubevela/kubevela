@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/oam-dev/kubevela/pkg/workflow/types"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -41,22 +42,22 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// Collector collect resource created by application
-type Collector struct {
+// AppCollector collect resource created by application
+type AppCollector struct {
 	k8sClient client.Client
 	opt       Option
 }
 
-// NewCollector create a collector
-func NewCollector(cli client.Client, opt Option) *Collector {
-	return &Collector{
+// NewAppCollector create a app collector
+func NewAppCollector(cli client.Client, opt Option) *AppCollector {
+	return &AppCollector{
 		k8sClient: cli,
 		opt:       opt,
 	}
 }
 
 // CollectResourceFromApp collect resources created by application
-func (c *Collector) CollectResourceFromApp() ([]AppResources, error) {
+func (c *AppCollector) CollectResourceFromApp() ([]AppResources, error) {
 	if c.opt.EnableHistoryQuery {
 		return c.CollectHistoryResourceFromApp()
 	}
@@ -64,7 +65,7 @@ func (c *Collector) CollectResourceFromApp() ([]AppResources, error) {
 }
 
 // CollectLatestResourceFromApp collect resources created by latest application
-func (c *Collector) CollectLatestResourceFromApp() ([]AppResources, error) {
+func (c *AppCollector) CollectLatestResourceFromApp() ([]AppResources, error) {
 	ctx := context.Background()
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: c.opt.Name, Namespace: c.opt.Namespace}
@@ -76,9 +77,14 @@ func (c *Collector) CollectLatestResourceFromApp() ([]AppResources, error) {
 	if app.Status.LatestRevision != nil {
 		revision = app.Status.LatestRevision.Revision
 	}
+	publishVersion := app.GetAnnotations()[types.AnnotationPublishVersion]
+
 	appRevName := fmt.Sprintf("%s-v%d", app.Name, revision)
 	comps := make(map[string][]Resource, len(app.Spec.Components))
 	for _, rsrcRef := range app.Status.AppliedResources {
+		if c.opt.Cluster != "" && c.opt.Cluster != rsrcRef.Cluster {
+			continue
+		}
 		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, rsrcRef.ObjectReference, rsrcRef.Cluster, appRevName)
 		if err != nil {
 			return nil, err
@@ -97,14 +103,15 @@ func (c *Collector) CollectLatestResourceFromApp() ([]AppResources, error) {
 	}
 
 	return []AppResources{{
-		Revision:   revision,
-		Metadata:   app.ObjectMeta,
-		Components: compResList,
+		Revision:       revision,
+		Metadata:       app.ObjectMeta,
+		Components:     compResList,
+		PublishVersion: publishVersion,
 	}}, nil
 }
 
 // CollectHistoryResourceFromApp collect history resources created by application
-func (c *Collector) CollectHistoryResourceFromApp() ([]AppResources, error) {
+func (c *AppCollector) CollectHistoryResourceFromApp() ([]AppResources, error) {
 	var appResList []AppResources
 	rts, err := listResourceTrackers(c.k8sClient, c.opt.Name, c.opt.Namespace)
 	if err != nil {
@@ -149,7 +156,7 @@ func (c *Collector) CollectHistoryResourceFromApp() ([]AppResources, error) {
 	return appResList, nil
 }
 
-func (c *Collector) extractComponentResourceWithOption(comps map[string][]Resource) []Component {
+func (c *AppCollector) extractComponentResourceWithOption(comps map[string][]Resource) []Component {
 	var result []Component
 
 	// if not specify component, return all components resource created by app
@@ -243,14 +250,12 @@ func NewPodCollector(gvk schema.GroupVersionKind) PodCollector {
 			return standardWorkloadPodCollector
 		}
 	}
-
-	collector, ok := podCollectorMap[gvk]
-	if !ok {
-		return func(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-			return nil, nil
-		}
+	if collector, ok := podCollectorMap[gvk]; ok {
+		return collector
 	}
-	return collector
+	return func(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
+		return nil, nil
+	}
 }
 
 // standardWorkloadPodCollector collect pods created by standard workload
@@ -310,8 +315,8 @@ func cronJobPodCollector(cli client.Client, obj *unstructured.Unstructured, clus
 			}
 		}
 	}
-
 	var pods []*unstructured.Unstructured
+	podGVK := corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Pod{}).Name())
 	for _, job := range jobs {
 		labels := job.Spec.Selector.MatchLabels
 		listOpts := []client.ListOption{
@@ -329,14 +334,74 @@ func cronJobPodCollector(cli client.Client, obj *unstructured.Unstructured, clus
 			if err != nil {
 				return nil, err
 			}
-			pod.SetGroupVersionKind(
-				corev1.SchemeGroupVersion.WithKind(
-					reflect.TypeOf(corev1.Pod{}).Name(),
-				),
-			)
+			pod.SetGroupVersionKind(podGVK)
 			items[i] = pod
 		}
 		pods = append(pods, items...)
+	}
+	return pods, nil
+}
+
+// HelmReleaseCollector HelmRelease resources collector
+type HelmReleaseCollector struct {
+	matchLabels  map[string]string
+	workloadsGVK []schema.GroupVersionKind
+	cli          client.Client
+}
+
+// NewHelmReleaseCollector create a HelmRelease collector
+func NewHelmReleaseCollector(cli client.Client, hr *unstructured.Unstructured) *HelmReleaseCollector {
+	return &HelmReleaseCollector{
+		// matchLabels for resources created by HelmRelease refer to
+		// https://github.com/fluxcd/helm-controller/blob/main/internal/runner/post_renderer_origin_labels.go#L31
+		matchLabels: map[string]string{
+			"helm.toolkit.fluxcd.io/name":      hr.GetName(),
+			"helm.toolkit.fluxcd.io/namespace": hr.GetNamespace(),
+		},
+		workloadsGVK: []schema.GroupVersionKind{
+			appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name()),
+		},
+		cli: cli,
+	}
+}
+
+// CollectWorkloads collect workloads of HelmRelease
+func (c *HelmReleaseCollector) CollectWorkloads(cluster string) ([]*unstructured.Unstructured, error) {
+	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	listOptions := []client.ListOption{
+		client.MatchingLabels(c.matchLabels),
+	}
+	var workloads []*unstructured.Unstructured
+	for _, workloadGVK := range c.workloadsGVK {
+		unstructuredObjList := &unstructured.UnstructuredList{}
+		unstructuredObjList.SetGroupVersionKind(workloadGVK)
+		if err := c.cli.List(ctx, unstructuredObjList, listOptions...); err != nil {
+			return nil, err
+		}
+		items := unstructuredObjList.Items
+		for i := range items {
+			items[i].SetGroupVersionKind(workloadGVK)
+			workloads = append(workloads, &items[i])
+		}
+	}
+	return workloads, nil
+}
+
+// helmReleasePodCollector collect pods created by helmRelease
+func helmReleasePodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
+	hc := NewHelmReleaseCollector(cli, obj)
+	workloads, err := hc.CollectWorkloads(cluster)
+	if err != nil {
+		return nil, err
+	}
+	var pods []*unstructured.Unstructured
+	for _, workload := range workloads {
+		collector := NewPodCollector(workload.GroupVersionKind())
+		podList, err := collector(cli, workload, cluster)
+		if err != nil {
+			return nil, err
+		}
+		pods = append(pods, podList...)
 	}
 	return pods, nil
 }

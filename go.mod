@@ -23,6 +23,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.0.0-rc2
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/fatih/color v1.12.0
+	github.com/fluxcd/helm-controller/api v0.12.1
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.34.0
@@ -67,7 +68,7 @@ require (
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
 	k8s.io/api v0.22.1
-	k8s.io/apiextensions-apiserver v0.21.3
+	k8s.io/apiextensions-apiserver v0.22.1
 	k8s.io/apimachinery v0.22.1
 	k8s.io/cli-runtime v0.21.0
 	k8s.io/client-go v0.22.1

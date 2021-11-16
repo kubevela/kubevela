@@ -19,6 +19,7 @@ package query
 import (
 	stdctx "context"
 
+	fluxcdv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,9 +43,10 @@ type provider struct {
 
 // AppResources represent resources created by app
 type AppResources struct {
-	Revision   int64             `json:"revision"`
-	Metadata   metav1.ObjectMeta `json:"metadata"`
-	Components []Component       `json:"components"`
+	Revision       int64             `json:"revision"`
+	PublishVersion string            `json:"publishVersion"`
+	Metadata       metav1.ObjectMeta `json:"metadata"`
+	Components     []Component       `json:"components"`
 }
 
 // Component group resources rendered by ApplicationComponent
@@ -64,6 +66,7 @@ type Option struct {
 	Name               string   `json:"name"`
 	Namespace          string   `json:"namespace"`
 	Components         []string `json:"components,omitempty"`
+	Cluster            string   `json:"cluster,omitempty"`
 	EnableHistoryQuery bool     `json:"enableHistoryQuery,omitempty"`
 }
 
@@ -77,7 +80,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	if err = val.UnmarshalTo(&opt); err != nil {
 		return err
 	}
-	collector := NewCollector(h.cli, opt)
+	collector := NewAppCollector(h.cli, opt)
 	appResList, err := collector.CollectResourceFromApp()
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
@@ -94,14 +97,22 @@ func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.
 	if err != nil {
 		return err
 	}
-
 	obj := new(unstructured.Unstructured)
 	if err = val.UnmarshalTo(obj); err != nil {
 		return err
 	}
 
-	collector := NewPodCollector(obj.GroupVersionKind())
-	pods, err := collector(h.cli, obj, cluster)
+	var pods []*unstructured.Unstructured
+	var collector PodCollector
+
+	switch obj.GroupVersionKind() {
+	case fluxcdv2beta1.GroupVersion.WithKind(fluxcdv2beta1.HelmReleaseKind):
+		collector = helmReleasePodCollector
+	default:
+		collector = NewPodCollector(obj.GroupVersionKind())
+	}
+
+	pods, err = collector(h.cli, obj, cluster)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
