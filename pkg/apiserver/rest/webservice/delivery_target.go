@@ -37,10 +37,12 @@ func NewDeliveryTargetWebService(deliveryTargetUsecase usecase.DeliveryTargetUse
 	}
 }
 
+// DeliveryTargetWebService delivery target web service
 type DeliveryTargetWebService struct {
 	deliveryTargetUsecase usecase.DeliveryTargetUsecase
 }
 
+// GetWebService get web service
 func (dt *DeliveryTargetWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/deliveryTargets").

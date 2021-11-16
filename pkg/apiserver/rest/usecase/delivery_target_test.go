@@ -40,8 +40,8 @@ var _ = Describe("Test delivery target usecase functions", func() {
 			Namespace:   "test-namespace",
 			Alias:       "test-alias",
 			Description: "this is a deliveryTarget",
-			Kubernetes:  &apisv1.KubernetesTarget{ClusterName: "cluster-dev", Namespace: "dev"},
-			Cloud:       &apisv1.CloudTarget{TerraformProviderName: "provider", Region: "us-1"},
+			Cluster:     &apisv1.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},
+			Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"},
 		}
 		base, err := deliveryTargetUsecase.CreateDeliveryTarget(context.TODO(), req)
 		Expect(err).Should(BeNil())
@@ -68,8 +68,8 @@ var _ = Describe("Test delivery target usecase functions", func() {
 				Namespace:   "test-namespace",
 				Alias:       "test-alias",
 				Description: "this is a deliveryTarget",
-				Kubernetes:  &model.KubernetesTarget{ClusterName: "cluster-dev", Namespace: "dev"},
-				Cloud:       &model.CloudTarget{TerraformProviderName: "provider", Region: "us-1"}})
+				Cluster:     &model.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},
+				Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"}})
 		Expect(err).Should(BeNil())
 		Expect(detail.Name).Should(Equal("test-delivery-target"))
 	})

@@ -240,36 +240,21 @@ func (e EnvBindingList) ContainTarget(name string) bool {
 
 // ApplicationBase application base model
 type ApplicationBase struct {
-	Name            string            `json:"name"`
-	Alias           string            `json:"alias"`
-	Namespace       string            `json:"namespace"`
-	Description     string            `json:"description"`
-	CreateTime      time.Time         `json:"createTime"`
-	UpdateTime      time.Time         `json:"updateTime"`
-	Icon            string            `json:"icon"`
-	Labels          map[string]string `json:"labels,omitempty"`
-	Status          string            `json:"status"`
-	EnvBinding      EnvBindingList    `json:"envBinding,omitempty"`
-	GatewayRuleList []GatewayRule     `json:"gatewayRule"`
+	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
+	Namespace   string            `json:"namespace"`
+	Description string            `json:"description"`
+	CreateTime  time.Time         `json:"createTime"`
+	UpdateTime  time.Time         `json:"updateTime"`
+	Icon        string            `json:"icon"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	EnvBinding  EnvBindingList    `json:"envBinding,omitempty"`
 }
 
-// RuleType gateway rule type
-type RuleType string
-
-const (
-	// HTTPRule Layer 7 HTTP policy.
-	HTTPRule RuleType = "http"
-	// StreamRule Layer 4 policy, such as TCP and UDP
-	StreamRule RuleType = "stream"
-)
-
-// GatewayRule application gateway rule
-type GatewayRule struct {
-	RuleType      RuleType `json:"ruleType"`
-	Address       string   `json:"address"`
-	Protocol      string   `json:"protocol"`
-	ComponentName string   `json:"componentName"`
-	ComponentPort int32    `json:"componentPort"`
+// ApplicationStatusResponse application status response body
+type ApplicationStatusResponse struct {
+	EnvName string            `json:"envName"`
+	Status  *common.AppStatus `json:"status"`
 }
 
 // CreateApplicationRequest create application  request body
@@ -370,7 +355,7 @@ type CreateComponentRequest struct {
 	Traits        []*CreateApplicationTraitRequest `json:"traits,omitempty" optional:"true"`
 }
 
-// DetailComponentResponse detail component  model
+// DetailComponentResponse detail component response body
 type DetailComponentResponse struct {
 	model.ApplicationComponent
 }
@@ -642,34 +627,26 @@ type ApplicationTrait struct {
 
 // CreateDeliveryTargetRequest  create delivery target request body
 type CreateDeliveryTargetRequest struct {
-	Name        string            `json:"name" validate:"checkname"`
-	Namespace   string            `json:"namespace"  validate:"checkname"`
-	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Description string            `json:"description,omitempty" optional:"true"`
-	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
-	Cloud       *CloudTarget      `json:"cloud,omitempty"`
+	Name        string                 `json:"name" validate:"checkname"`
+	Namespace   string                 `json:"namespace"  validate:"checkname"`
+	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description string                 `json:"description,omitempty" optional:"true"`
+	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
-// UpdateDeliveryTarget only support full quantity update
+// UpdateDeliveryTargetRequest only support full quantity update
 type UpdateDeliveryTargetRequest struct {
-	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Description string            `json:"description,omitempty" optional:"true"`
-	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
-	Cloud       *CloudTarget      `json:"cloud,omitempty"`
+	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description string                 `json:"description,omitempty" optional:"true"`
+	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
-// KubernetesTarget kubernetes delivery target
-type KubernetesTarget struct {
+// ClusterTarget kubernetes delivery target
+type ClusterTarget struct {
 	ClusterName string `json:"clusterName" validate:"checkname"`
 	Namespace   string `json:"namespace" optional:"true"`
-}
-
-// CloudTarget cloud target
-type CloudTarget struct {
-	TerraformProviderName string `json:"providerName" validate:"required"`
-	Region                string `json:"region" validate:"required"`
-	Zone                  string `json:"zone" optional:"true"`
-	VpcID                 string `json:"vpcID" optional:"true"`
 }
 
 // DetailDeliveryTargetResponse detail deliveryTarget response
@@ -677,7 +654,7 @@ type DetailDeliveryTargetResponse struct {
 	DeliveryTargetBase
 }
 
-// ListDeliveryTargetBaseResponse list application workflows
+// ListDeliveryTargetResponse list delivery target response body
 type ListDeliveryTargetResponse struct {
 	DeliveryTargets []DeliveryTargetBase `json:"deliveryTargets"`
 	Total           int64                `json:"total"`
@@ -685,14 +662,14 @@ type ListDeliveryTargetResponse struct {
 
 // DeliveryTargetBase deliveryTarget base model
 type DeliveryTargetBase struct {
-	Name        string            `json:"name" validate:"checkname"`
-	Namespace   string            `json:"namespace"  validate:"checkname"`
-	Alias       string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Description string            `json:"description,omitempty" optional:"true"`
-	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
-	Cloud       *CloudTarget      `json:"cloud,omitempty"`
-	CreateTime  time.Time         `json:"createTime"`
-	UpdateTime  time.Time         `json:"updateTime"`
+	Name        string                 `json:"name" validate:"checkname"`
+	Namespace   string                 `json:"namespace"  validate:"checkname"`
+	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description string                 `json:"description,omitempty" optional:"true"`
+	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Variable    map[string]interface{} `json:"variable,omitempty"`
+	CreateTime  time.Time              `json:"createTime"`
+	UpdateTime  time.Time              `json:"updateTime"`
 }
 
 // ApplicationRevisionBase application revision base spec

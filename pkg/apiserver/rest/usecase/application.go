@@ -60,6 +60,7 @@ const (
 type ApplicationUsecase interface {
 	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error)
 	GetApplication(ctx context.Context, appName string) (*model.Application, error)
+	GetApplicationStatus(ctx context.Context, app *model.Application, envName string) (*common.AppStatus, error)
 	DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error)
 	PublishApplicationTemplate(ctx context.Context, app *model.Application) (*apisv1.ApplicationTemplateBase, error)
 	CreateApplication(context.Context, apisv1.CreateApplicationRequest) (*apisv1.ApplicationBase, error)
@@ -173,6 +174,19 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 		WorkflowStatus: []apisv1.WorkflowStepStatus{},
 	}
 	return detail, nil
+}
+
+// GetApplicationStatus get application status from controller cluster
+func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmodel *model.Application, envName string) (*common.AppStatus, error) {
+	var app v1beta1.Application
+	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: converAppName(appmodel, envName)}, &app)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &app.Status, nil
 }
 
 // PublishApplicationTemplate publish app template
@@ -561,18 +575,18 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		list, err := c.ds.List(ctx, &lastVersion, &datastore.ListOptions{PageSize: 1, Page: 1})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("query app latest revision failure %s", err.Error())
-			return nil, bcode.ErrDeployEventConflict
+			return nil, bcode.ErrDeployConflict
 		}
-		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.DeployEventComplete {
-			return nil, bcode.ErrDeployEventConflict
+		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.RevisionStatusComplete {
+			return nil, bcode.ErrDeployConflict
 		}
 	}
 
-	var deployEvent = &model.ApplicationRevision{
+	var appRevision = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
 		ApplyAppConfig: string(configByte),
-		Status:         model.DeployEventInit,
+		Status:         model.RevisionStatusInit,
 		// TODO: Get user information from ctx and assign a value.
 		DeployUser:   "",
 		Note:         req.Note,
@@ -580,7 +594,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 	}
 
-	if err := c.ds.Add(ctx, deployEvent); err != nil {
+	if err := c.ds.Add(ctx, appRevision); err != nil {
 		return nil, err
 	}
 	// step3: check and create namespace
@@ -595,28 +609,28 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	// step4: apply to controller cluster
 	err = c.apply.Apply(ctx, oamApp)
 	if err != nil {
-		deployEvent.Status = model.DeployEventFail
-		deployEvent.Reason = err.Error()
-		if err := c.ds.Put(ctx, deployEvent); err != nil {
+		appRevision.Status = model.RevisionStatusFail
+		appRevision.Reason = err.Error()
+		if err := c.ds.Put(ctx, appRevision); err != nil {
 			log.Logger.Warnf("update deploy event failure %s", err.Error())
 		}
 		log.Logger.Errorf("deploy app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, bcode.ErrDeployApplyFail
 	}
-	deployEvent.Status = model.DeployEventRunning
-	if err := c.ds.Put(ctx, deployEvent); err != nil {
+	appRevision.Status = model.RevisionStatusRunning
+	if err := c.ds.Put(ctx, appRevision); err != nil {
 		log.Logger.Warnf("update deploy event failure %s", err.Error())
 	}
 
 	// step5: update deploy event status
 	return &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: apisv1.ApplicationRevisionBase{
-			Version:     deployEvent.Version,
-			Status:      deployEvent.Status,
-			Reason:      deployEvent.Reason,
-			DeployUser:  deployEvent.DeployUser,
-			Note:        deployEvent.Note,
-			TriggerType: deployEvent.TriggerType,
+			Version:     appRevision.Version,
+			Status:      appRevision.Status,
+			Reason:      appRevision.Reason,
+			DeployUser:  appRevision.DeployUser,
+			Note:        appRevision.Note,
+			TriggerType: appRevision.TriggerType,
 		},
 	}, nil
 }
@@ -667,7 +681,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			}
 			traits = append(traits, aTrait)
 		}
-		app.Spec.Components = append(app.Spec.Components, common.ApplicationComponent{
+		bc := common.ApplicationComponent{
 			Name:             component.Name,
 			Type:             component.Type,
 			ExternalRevision: component.ExternalRevision,
@@ -676,7 +690,12 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			Outputs:          component.Outputs,
 			Traits:           traits,
 			Scopes:           component.Scopes,
-		})
+			Properties:       component.Properties.RawExtension(),
+		}
+		if component.Properties != nil {
+			bc.Properties = component.Properties.RawExtension()
+		}
+		app.Spec.Components = append(app.Spec.Components, bc)
 	}
 
 	for _, entity := range policies {
@@ -750,7 +769,6 @@ func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *a
 		}
 		appBase.EnvBinding = append(appBase.EnvBinding, apiEnvBind)
 	}
-	// TODO: get and render app status
 	return appBase
 }
 
@@ -939,6 +957,7 @@ func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
 					Components: envUpdate.ComponentSelector.Components,
 				}
 			}
+
 		}
 	}
 	properties, err := model.NewJSONStructByStruct(envBinding)
@@ -1170,10 +1189,14 @@ func createModelEnvBind(envBind apisv1.EnvBinding) *model.EnvBinding {
 		Name:        envBind.Name,
 		Description: envBind.Description,
 		Alias:       envBind.Alias,
-		//ClusterSelector: model.ClusterSelector(envBind.ClusterSelector),
+		TargetNames: envBind.TargetNames,
 	}
 	if envBind.ComponentSelector != nil {
 		re.ComponentSelector = (*model.ComponentSelector)(envBind.ComponentSelector)
 	}
 	return &re
+}
+
+func converAppName(app *model.Application, envName string) string {
+	return fmt.Sprintf("%s-%s", app.Name, envName)
 }

@@ -176,17 +176,17 @@ type ApplicationTrait struct {
 	Properties  *JSONStruct `json:"properties,omitempty"`
 }
 
-// DeployEventInit event status init
-var DeployEventInit = "init"
+// RevisionStatusInit event status init
+var RevisionStatusInit = "init"
 
-// DeployEventRunning event status running
-var DeployEventRunning = "running"
+// RevisionStatusRunning event status running
+var RevisionStatusRunning = "running"
 
-// DeployEventComplete event status complete
-var DeployEventComplete = "complete"
+// RevisionStatusComplete event status complete
+var RevisionStatusComplete = "complete"
 
-// DeployEventFail event status failure
-var DeployEventFail = "failure"
+// RevisionStatusFail event status failure
+var RevisionStatusFail = "failure"
 
 // ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
 type ApplicationRevision struct {
@@ -214,7 +214,7 @@ type ApplicationRevision struct {
 
 // TableName return custom table name
 func (a *ApplicationRevision) TableName() string {
-	return tableNamePrefix + "deploy_event"
+	return tableNamePrefix + "application_revision"
 }
 
 // PrimaryKey return custom primary key
@@ -230,6 +230,9 @@ func (a *ApplicationRevision) Index() map[string]string {
 	}
 	if a.AppPrimaryKey != "" {
 		index["appPrimaryKey"] = a.AppPrimaryKey
+	}
+	if a.WorkflowName != "" {
+		index["workflowName"] = a.WorkflowName
 	}
 	if a.DeployUser != "" {
 		index["deployUser"] = a.DeployUser

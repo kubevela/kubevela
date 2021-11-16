@@ -320,7 +320,7 @@ func genAddonAPISchema(addonRes *types.Addon) error {
 	if err != nil {
 		return err
 	}
-	utils2.FixOpenAPISchema("",schema)
+	utils2.FixOpenAPISchema("", schema)
 	addonRes.APISchema = schema
 	return nil
 }

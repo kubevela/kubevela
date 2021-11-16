@@ -28,8 +28,8 @@ var ErrApplicationExist = NewBcode(400, 10002, "application name is exist")
 // ErrInvalidProperties properties(trait or component or others) is invalid
 var ErrInvalidProperties = NewBcode(400, 10003, "properties is invalid")
 
-// ErrDeployEventConflict Occurs when a new event is triggered before the last deployment event has completed.
-var ErrDeployEventConflict = NewBcode(400, 10004, "application deploy event conflict")
+// ErrDeployConflict Occurs when a new event is triggered before the last deployment event has completed.
+var ErrDeployConflict = NewBcode(400, 10004, "application deploy conflict")
 
 // ErrDeployApplyFail Failed to update an application to the control cluster.
 var ErrDeployApplyFail = NewBcode(500, 10005, "application deploy apply failure")

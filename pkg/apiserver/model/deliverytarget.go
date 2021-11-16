@@ -24,12 +24,12 @@ func init() {
 // It includes kubernetes clusters or cloud service providers
 type DeliveryTarget struct {
 	Model
-	Name        string            `json:"name"`
-	Namespace   string            `json:"namespace"`
-	Alias       string            `json:"alias,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Kubernetes  *KubernetesTarget `json:"kubernetes,omitempty"`
-	Cloud       *CloudTarget      `json:"cloud,omitempty"`
+	Name        string                 `json:"name"`
+	Namespace   string                 `json:"namespace"`
+	Alias       string                 `json:"alias,omitempty"`
+	Description string                 `json:"description,omitempty"`
+	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
 // TableName return custom table name
@@ -54,16 +54,8 @@ func (d *DeliveryTarget) Index() map[string]string {
 	return index
 }
 
-// KubernetesTarget kubernetes delivery target
-type KubernetesTarget struct {
+// ClusterTarget kubernetes delivery target
+type ClusterTarget struct {
 	ClusterName string `json:"clusterName" validate:"checkname"`
 	Namespace   string `json:"namespace" optional:"true"`
-}
-
-// CloudTarget cloud target
-type CloudTarget struct {
-	TerraformProviderName string `json:"providerName" validate:"required"`
-	Region                string `json:"region" validate:"required"`
-	Zone                  string `json:"zone" optional:"true"`
-	VpcID                 string `json:"vpcID" optional:"true"`
 }
