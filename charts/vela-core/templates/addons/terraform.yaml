@@ -23,7 +23,7 @@ data:
           chart: terraform-controller
           repoType: helm
           url: https://charts.kubevela.net/addons
-          version: 0.2.6
+          version: 0.2.8
         type: helm
       - name: alibaba-ack
         properties:

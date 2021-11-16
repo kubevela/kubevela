@@ -1232,6 +1232,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -1639,6 +1645,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -1944,6 +1956,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -3372,6 +3390,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -3672,6 +3696,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4061,6 +4091,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4329,6 +4365,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
@@ -4617,6 +4659,12 @@ spec:
                                 configuration:
                                   description: Configuration is Terraform Configuration
                                   type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
                                 path:
                                   description: Path is the sub-directory of remote
                                     git repository. It's valid when remote is set
