@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: runtime-app
+  namespace: default
+spec:
+  components:
+    - name: default-webservice
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+
+  workflow:
+    steps:
+      # by default, this step will deploy this application to all runtime clusters
+      - name: deploy-all
+        type: deploy2runtime
+        # uncomment the following part to deploy this application only to selected clusters
+        # properties:
+        #   clusters: ["cluster-a", "cluster-b"]

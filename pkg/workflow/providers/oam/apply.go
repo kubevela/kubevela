@@ -51,7 +51,7 @@ type provider struct {
 	app    *v1beta1.Application
 }
 
-// ApplyComponent apply component.
+// RenderComponent render component
 func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	comp, patcher, clusterName, overrideNamespace, err := lookUpValues(v)
 	if err != nil {
