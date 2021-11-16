@@ -68,35 +68,64 @@
 	...
 }
 
-#ApplyEnvBindApp: {
-	#do: "steps"
-
-	env:       string
-	policy:    string
-	app:       string
-	namespace: string
+#LoadEnvBindingEnv: #Steps & {
+	inputs: {
+		env:    string
+		policy: string
+	}
 
 	loadPolicies: oam.#LoadPolicies @step(1)
-	loadPolicy:   loadPolicies.value["\(policy)"]
+	policy_:      string
+	if inputs.policy == "" {
+		envBindingPolicies: [ for k, v in loadPolicies.value if v.type == "env-binding" {k}]
+		policy_: envBindingPolicies[0]
+	}
+	if inputs.policy != "" {
+		policy_: inputs.policy
+	}
+
+	loadPolicy: loadPolicies.value["\(policy_)"]
 	envMap: {
 		for ev in loadPolicy.properties.envs {
 			"\(ev.name)": ev
 		}
 		...
 	}
-	envConfig: envMap["\(env)"]
+	envConfig_: envMap["\(inputs.env)"]
 
-	placementDecisions: multicluster.#MakePlacementDecisions & {
+	outputs: {
+		policy:    policy_
+		envConfig: envConfig_
+	}
+}
+
+#PrepareEnvBinding: #Steps & {
+	inputs: {
+		env:    string
+		policy: string
+	}
+	env_:    inputs.env
+	policy_: inputs.policy
+
+	loadEnv: #LoadEnvBindingEnv & {
 		inputs: {
-			policyName: policy
-			envName:    env
+			env:    env_
+			policy: policy_
+		}
+	}          @step(1)
+	envConfig: loadEnv.outputs.envConfig
+
+	placementDecisions: #MakePlacementDecisions & {
+		inputs: {
+			policyName: loadEnv.outputs.policy
+			envName:    env_
 			placement:  envConfig.placement
 		}
 	} @step(2)
 
-	patchedApp: multicluster.#PatchApplication & {
+	patchedApp: #PatchApplication & {
 		inputs: {
-			envName: env
+			envName: env_
 			if envConfig.selector != _|_ {
 				selector: envConfig.selector
 			}
@@ -106,10 +135,32 @@
 		}
 	} @step(3)
 
-	components: patchedApp.outputs.spec.components
-	apply:      #Steps & {
-		for decision in placementDecisions.outputs.decisions {
-			for key, comp in components {
+	outputs: {
+		components: patchedApp.outputs.spec.components
+		decisions:  placementDecisions.outputs.decisions
+	}
+}
+
+#ApplyEnvBindApp: {
+	#do: "steps"
+
+	env:       string
+	policy:    string
+	app:       string
+	namespace: string
+
+	env_:    env
+	policy_: policy
+	prepare: #PrepareEnvBinding & {
+		inputs: {
+			env:    env_
+			policy: policy_
+		}
+	} @step(1)
+
+	apply: #Steps & {
+		for decision in prepare.outputs.decisions {
+			for key, comp in prepare.outputs.components {
 				"\(decision.cluster)-\(decision.namespace)-\(key)": #ApplyComponent & {
 					value: comp
 					if decision.cluster != _|_ {
@@ -118,7 +169,7 @@
 					if decision.namespace != _|_ {
 						namespace: decision.namespace
 					}
-				} @step(4)
+				} @step(2)
 			}
 		}
 	}

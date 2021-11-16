@@ -107,6 +107,10 @@ import (
 
 #ApplyEnvBindApp: multicluster.#ApplyEnvBindApp
 
+#DeployCloudResource: terraform.#DeployCloudResource
+
+#BindCloudResource: terraform.#BindCloudResource
+
 #LoadPolicies: oam.#LoadPolicies
 
 #MakePlacementDecisions: multicluster.#MakePlacementDecisions

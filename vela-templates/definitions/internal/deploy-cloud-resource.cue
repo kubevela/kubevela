@@ -2,19 +2,20 @@ import (
 	"vela/op"
 )
 
-"deploy2env": {
+"deploy-cloud-resource": {
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
-	description: "Deploy env binding component to target env"
+	description: "Deploy cloud resource and bind secret to clusters"
 }
 template: {
-	app: op.#ApplyEnvBindApp & {
+	app: op.#DeployCloudResource & {
 		env:    parameter.env
 		policy: parameter.policy
-		app:    context.name
 		// context.namespace indicates the namespace of the app
 		namespace: context.namespace
+		// context.namespace indicates the name of the app
+		name: context.name
 	}
 
 	parameter: {
