@@ -34,7 +34,7 @@ type DeliveryTargetUsecase interface {
 	DeleteDeliveryTarget(ctx context.Context, deliveryTargetName string) error
 	CreateDeliveryTarget(ctx context.Context, req apisv1.CreateDeliveryTargetRequest) (*apisv1.DetailDeliveryTargetResponse, error)
 	UpdateDeliveryTarget(ctx context.Context, deliveryTarget *model.DeliveryTarget, req apisv1.UpdateDeliveryTargetRequest) (*apisv1.DetailDeliveryTargetResponse, error)
-	ListDeliveryTargets(ctx context.Context, page, pageSize int) (*apisv1.ListDeliveryTargetResponse, error)
+	ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error)
 }
 
 // NewDeliveryTargetUsecase new DeliveryTarget usecase
@@ -46,8 +46,11 @@ type deliveryTargetUsecaseImpl struct {
 	ds datastore.DataStore
 }
 
-func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, page, pageSize int) (*apisv1.ListDeliveryTargetResponse, error) {
+func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error) {
 	deliveryTarget := model.DeliveryTarget{}
+	if namespace != "" {
+		deliveryTarget.Namespace = namespace
+	}
 	deliveryTargets, err := dt.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{Page: page, PageSize: pageSize})
 	if err != nil {
 		return nil, err

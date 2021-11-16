@@ -57,7 +57,7 @@ var _ = Describe("Test delivery target usecase functions", func() {
 	})
 
 	It("Test ListDeliveryTargets function", func() {
-		_, err := deliveryTargetUsecase.ListDeliveryTargets(context.TODO(), 1, 1)
+		_, err := deliveryTargetUsecase.ListDeliveryTargets(context.TODO(), 1, 1, "")
 		Expect(err).Should(BeNil())
 	})
 
