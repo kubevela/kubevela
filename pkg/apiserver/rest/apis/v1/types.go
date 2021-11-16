@@ -631,7 +631,7 @@ type CreateDeliveryTargetRequest struct {
 	Namespace   string                 `json:"namespace"  validate:"checkname"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
-	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
@@ -639,7 +639,7 @@ type CreateDeliveryTargetRequest struct {
 type UpdateDeliveryTargetRequest struct {
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
-	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
@@ -666,7 +666,7 @@ type DeliveryTargetBase struct {
 	Namespace   string                 `json:"namespace"  validate:"checkname"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
-	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 	CreateTime  time.Time              `json:"createTime"`
 	UpdateTime  time.Time              `json:"updateTime"`

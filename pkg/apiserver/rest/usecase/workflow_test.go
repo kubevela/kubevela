@@ -140,7 +140,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		var deployEvent = &model.ApplicationRevision{
 			AppPrimaryKey: "test",
 			Version:       "1234",
-			Status:        model.DeployEventInit,
+			Status:        model.RevisionStatusInit,
 			DeployUser:    "test-user",
 			WorkflowName:  "test-workflow-name",
 		}
@@ -161,7 +161,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		By("check the deploy event")
 		err = workflowUsecase.ds.Get(ctx, deployEvent)
 		Expect(err).Should(BeNil())
-		Expect(deployEvent.Status).Should(Equal(model.DeployEventComplete))
+		Expect(deployEvent.Status).Should(Equal(model.RevisionStatusComplete))
 	})
 })
 

@@ -1945,6 +1945,26 @@
 				],
 				"summary": "list deliveryTarget",
 				"operationId": "listDeliveryTargets",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Query the delivery target belonging to a namespace",
+						"name": "namesapce",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page for paging",
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "PageSize for paging",
+						"name": "pageSize",
+						"in": "query"
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "OK",
@@ -3758,12 +3778,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"reason",
 				"deployUser",
 				"note",
 				"triggerType",
 				"version",
-				"status"
+				"status",
+				"reason"
 			],
 			"properties": {
 				"deployUser": {
@@ -4466,11 +4486,11 @@
 				"alias": {
 					"type": "string"
 				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
 				"description": {
 					"type": "string"
-				},
-				"kubernetes": {
-					"$ref": "#/definitions/v1.ClusterTarget"
 				},
 				"name": {
 					"type": "string"
@@ -4578,15 +4598,15 @@
 				"alias": {
 					"type": "string"
 				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
-				},
-				"kubernetes": {
-					"$ref": "#/definitions/v1.ClusterTarget"
 				},
 				"name": {
 					"type": "string"
@@ -4659,13 +4679,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
-				"alias",
-				"description",
 				"icon",
-				"namespace",
+				"description",
 				"createTime",
 				"updateTime",
+				"name",
+				"alias",
+				"namespace",
 				"policies",
 				"status",
 				"resourceInfo",
@@ -4729,20 +4749,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"labels",
-				"apiServerURL",
-				"reason",
-				"dashboardURL",
-				"description",
-				"status",
-				"alias",
-				"provider",
 				"kubeConfigSecret",
-				"createTime",
-				"name",
-				"kubeConfig",
-				"updateTime",
+				"description",
 				"icon",
+				"provider",
+				"dashboardURL",
+				"labels",
+				"status",
+				"apiServerURL",
+				"kubeConfig",
+				"createTime",
+				"updateTime",
+				"alias",
+				"reason",
+				"name",
 				"resourceInfo"
 			],
 			"properties": {
@@ -4802,11 +4822,11 @@
 			"required": [
 				"createTime",
 				"name",
-				"appPrimaryKey",
-				"updateTime",
-				"creator",
 				"alias",
-				"type"
+				"type",
+				"creator",
+				"updateTime",
+				"appPrimaryKey"
 			],
 			"properties": {
 				"alias": {
@@ -4910,15 +4930,15 @@
 				"alias": {
 					"type": "string"
 				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
-				},
-				"kubernetes": {
-					"$ref": "#/definitions/v1.ClusterTarget"
 				},
 				"name": {
 					"type": "string"
@@ -4937,13 +4957,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime"
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5022,13 +5042,13 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+				"default",
+				"createTime",
 				"updateTime",
 				"name",
 				"alias",
 				"description",
 				"enable",
-				"default",
-				"createTime",
 				"workflowRecord"
 			],
 			"properties": {
@@ -5329,10 +5349,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"name",
-				"description"
+				"description",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5510,11 +5530,11 @@
 				"alias": {
 					"type": "string"
 				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
 				"description": {
 					"type": "string"
-				},
-				"kubernetes": {
-					"$ref": "#/definitions/v1.ClusterTarget"
 				},
 				"variable": {
 					"type": "object"

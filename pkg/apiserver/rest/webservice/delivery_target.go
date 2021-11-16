@@ -55,7 +55,9 @@ func (dt *DeliveryTargetWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(dt.listDeliveryTargets).
 		Doc("list deliveryTarget").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("namesapce", "Query the delivery target belonging to a namespace").DataType("string")).
+		Param(ws.QueryParameter("namesapce", "Query the delivery target belonging to a namespace").DataType("string")).
+		Param(ws.QueryParameter("page", "Page for paging").DataType("integer")).
+		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("integer")).
 		Returns(200, "", apis.ListDeliveryTargetResponse{}).
 		Writes(apis.ListDeliveryTargetResponse{}).Do(returns200, returns500))
 
