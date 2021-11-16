@@ -25,6 +25,28 @@ data:
           url: https://charts.kubevela.net/addons
           version: 0.2.5
         type: helm
+      - name: alibaba-redis
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+                Redis
+            labels:
+              type: terraform
+            name: alibaba-redis
+            namespace: vela-system
+          spec:
+            schematic:
+              terraform:
+                configuration: https://github.com/kubevela-contrib/terraform-modules/alibaba/redis
+                type: remote
+            workload:
+              definition:
+                apiVersion: terraform.core.oam.dev/v1beta1
+                kind: Configuration
+        type: raw
       - name: alibaba-ack
         properties:
           apiVersion: core.oam.dev/v1beta1
