@@ -341,9 +341,9 @@ func (w *workflowUsecaseImpl) updateRecordApplicationRevisionStatus(ctx context.
 		return err
 	}
 	if terminated {
-		applicationRevision.Status = model.DeployEventTerminated
+		applicationRevision.Status = model.RevisionStatusTerminated
 	} else {
-		applicationRevision.Status = model.DeployEventComplete
+		applicationRevision.Status = model.RevisionStatusComplete
 	}
 
 	if err := w.ds.Put(ctx, applicationRevision); err != nil {
