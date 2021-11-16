@@ -113,6 +113,7 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 			cli: k8sClient,
 		}
 		ctx, err := newWorkflowContextForTest()
+		logCtx := monitorContext.NewTraceContext(context.Background(), "")
 		Expect(err).ToNot(HaveOccurred())
 
 		component, err := ctx.GetComponent("server")
@@ -145,7 +146,7 @@ metadata: name: "app"
 cluster: ""
 `, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Read(ctx, nil, v, nil)
+		err = p.Read(ctx, logCtx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("value")
 		Expect(err).ToNot(HaveOccurred())
@@ -176,6 +177,7 @@ cluster: ""
 		}
 		ctx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
+		logCtx := monitorContext.NewTraceContext(context.Background(), "")
 
 		component, err := ctx.GetComponent("server")
 		Expect(err).ToNot(HaveOccurred())
@@ -184,7 +186,7 @@ value: {%s}
 cluster: ""
 patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Apply(ctx, nil, v, nil)
+		err = p.Apply(ctx, logCtx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		workload, err := component.Workload.Unstructured()
@@ -206,6 +208,7 @@ patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
 		}
 
 		ctx := context.Background()
+		logCtx := monitorContext.NewTraceContext(ctx, "")
 		for i := 2; i >= 0; i-- {
 			err := k8sClient.Create(ctx, &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -245,7 +248,7 @@ cluster: ""
 		Expect(err).ToNot(HaveOccurred())
 		wfCtx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
-		err = p.List(wfCtx, nil, v, nil)
+		err = p.List(wfCtx, logCtx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err := v.LookupValue("list")
 		Expect(err).ToNot(HaveOccurred())
@@ -293,6 +296,7 @@ cluster: ""
 		}
 
 		ctx := context.Background()
+		logCtx := monitorContext.NewTraceContext(ctx, "")
 		err := k8sClient.Create(ctx, &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
@@ -328,7 +332,7 @@ cluster: ""
 		Expect(err).ToNot(HaveOccurred())
 		wfCtx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Delete(wfCtx, nil, v, nil)
+		err = p.Delete(wfCtx, logCtx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		err = k8sClient.Get(ctx, types.NamespacedName{
 			Name:      "test",
@@ -355,6 +359,7 @@ cluster: ""
 		}
 		ctx, err := newWorkflowContextForTest()
 		Expect(err).ToNot(HaveOccurred())
+		logCtx := monitorContext.NewTraceContext(context.Background(), "")
 
 		v, err := value.NewValue(`
 value: {
@@ -363,7 +368,7 @@ value: {
   spec: close({kind: 12})	
 }`, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Apply(ctx, nil, v, nil)
+		err = p.Apply(ctx, logCtx, v, nil)
 		Expect(err).To(HaveOccurred())
 
 		v, _ = value.NewValue(`
