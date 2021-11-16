@@ -28,7 +28,7 @@ type DeliveryTarget struct {
 	Namespace   string                 `json:"namespace"`
 	Alias       string                 `json:"alias,omitempty"`
 	Description string                 `json:"description,omitempty"`
-	Cluster     *ClusterTarget         `json:"kubernetes,omitempty"`
+	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
