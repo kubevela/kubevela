@@ -20,15 +20,23 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 )
 
@@ -43,6 +51,15 @@ type Config struct {
 
 	// Datastore config
 	Datastore datastore.Config
+
+	// LeaderConfig for leader election
+	LeaderConfig leaderConfig
+}
+
+type leaderConfig struct {
+	ID       string
+	LockName string
+	Duration time.Duration
 }
 
 // APIServer interface for call api server
@@ -85,7 +102,70 @@ func New(cfg Config) (a APIServer, err error) {
 
 func (s *restServer) Run(ctx context.Context) error {
 	s.RegisterServices()
+
+	l, err := s.setupLeaderElection()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		leaderelection.RunOrDie(ctx, *l)
+	}()
+
 	return s.startHTTP(ctx)
+}
+
+func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig, error) {
+	restCfg := ctrl.GetConfigOrDie()
+
+	rl, err := resourcelock.NewFromKubeconfig(resourcelock.LeasesResourceLock, types.DefaultKubeVelaNS, s.cfg.LeaderConfig.LockName, resourcelock.ResourceLockConfig{
+		Identity: s.cfg.LeaderConfig.ID,
+	}, restCfg, time.Second*10)
+	if err != nil {
+		klog.ErrorS(err, "Unable to setup the resource lock")
+		return nil, err
+	}
+
+	return &leaderelection.LeaderElectionConfig{
+		Lock:          rl,
+		LeaseDuration: time.Second * 15,
+		RenewDeadline: time.Second * 10,
+		RetryPeriod:   time.Second * 2,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				s.runLeader(ctx, s.cfg.LeaderConfig.Duration)
+			},
+			OnStoppedLeading: func() {
+				klog.Infof("leader lost: %s", s.cfg.LeaderConfig.ID)
+				os.Exit(0)
+			},
+			OnNewLeader: func(identity string) {
+				if identity == s.cfg.LeaderConfig.ID {
+					return
+				}
+				klog.Infof("new leader elected: %s", identity)
+			},
+		},
+		ReleaseOnCancel: true,
+	}, nil
+}
+
+func (s restServer) runLeader(ctx context.Context, duration time.Duration) {
+	w := usecase.NewWorkflowUsecase(s.dataStore)
+
+	t := time.NewTicker(duration)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-t.C:
+			if err := w.SyncWorkflowRecord(ctx); err != nil {
+				klog.ErrorS(err, "syncWorkflowRecordError")
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // RegisterServices register web service

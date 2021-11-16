@@ -23,7 +23,12 @@ import (
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -31,6 +36,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
+)
+
+const (
+	labelControllerRevisionSync = "apiserver.oam.dev/cr-sync"
 )
 
 // WorkflowUsecase workflow manage api
@@ -44,15 +54,24 @@ type WorkflowUsecase interface {
 	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
 	DetailWorkflowRecord(ctx context.Context, workflowName, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
+	SyncWorkflowRecord(ctx context.Context) error
 }
 
 // NewWorkflowUsecase new workflow usecase
 func NewWorkflowUsecase(ds datastore.DataStore) WorkflowUsecase {
-	return &workflowUsecaseImpl{ds: ds}
+	kubecli, err := clients.GetKubeClient()
+	if err != nil {
+		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
+	}
+	return &workflowUsecaseImpl{
+		ds:         ds,
+		kubeClient: kubecli,
+	}
 }
 
 type workflowUsecaseImpl struct {
-	ds datastore.DataStore
+	ds         datastore.DataStore
+	kubeClient client.Client
 }
 
 // DeleteWorkflow delete application workflow
@@ -261,11 +280,80 @@ func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflow
 	}, nil
 }
 
-func (w *workflowUsecaseImpl) createWorkflowRecord(ctx context.Context, revision *appsv1.ControllerRevision) error {
-	app, err := util.RawExtension2Application(revision.Data)
+func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
+	crList := &appsv1.ControllerRevisionList{}
+	matchLabels := metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      labelControllerRevisionSync,
+				Operator: metav1.LabelSelectorOpDoesNotExist,
+			},
+			{
+				Key:      recorder.LabelRecordVersion,
+				Operator: metav1.LabelSelectorOpExists,
+			},
+		},
+	}
+	selector, err := metav1.LabelSelectorAsSelector(&matchLabels)
 	if err != nil {
 		return err
 	}
+	if err := w.kubeClient.List(ctx, crList, &client.ListOptions{
+		LabelSelector: selector,
+	}); err != nil {
+		return err
+	}
+
+	for i, cr := range crList.Items {
+		app, err := util.RawExtension2Application(cr.Data)
+		if err != nil {
+			klog.ErrorS(err, "failed to get app data", "controller revision name", cr.Name)
+			continue
+		}
+
+		if err := w.createWorkflowRecord(ctx, app, strings.TrimPrefix(cr.Name, "record-")); err != nil && !errors.Is(err, datastore.ErrRecordExist) {
+			klog.ErrorS(err, "failed to create workflow record", "controller revision name", cr.Name)
+			continue
+		}
+
+		err = w.updateRecordApplicationRevisionStatus(ctx, app.Name, strings.TrimPrefix(cr.Name, fmt.Sprintf("record-%s-", app.Name)), app.Status.Workflow.Terminated)
+		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
+			klog.ErrorS(err, "failed to update deploy event status", "controller revision name", cr.Name)
+			continue
+		}
+
+		crList.Items[i].Labels[labelControllerRevisionSync] = "true"
+		if err := w.kubeClient.Update(ctx, &crList.Items[i]); err != nil {
+			klog.ErrorS(err, "failed to update annotation", "controller revision name", cr.Name)
+			continue
+		}
+	}
+
+	return nil
+}
+
+func (w *workflowUsecaseImpl) updateRecordApplicationRevisionStatus(ctx context.Context, appPrimaryKey, version string, terminated bool) error {
+	var applicationRevision = &model.ApplicationRevision{
+		AppPrimaryKey: appPrimaryKey,
+		Version:       version,
+	}
+	if err := w.ds.Get(ctx, applicationRevision); err != nil {
+		return err
+	}
+	if terminated {
+		applicationRevision.Status = model.DeployEventTerminated
+	} else {
+		applicationRevision.Status = model.DeployEventComplete
+	}
+
+	if err := w.ds.Put(ctx, applicationRevision); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *workflowUsecaseImpl) createWorkflowRecord(ctx context.Context, app *v1beta1.Application, revisionName string) error {
 	if app.Annotations == nil || app.Annotations[oam.AnnotationWorkflowName] == "" {
 		return fmt.Errorf("missing workflow name")
 	}
@@ -274,8 +362,8 @@ func (w *workflowUsecaseImpl) createWorkflowRecord(ctx context.Context, revision
 	return w.ds.Add(ctx, &model.WorkflowRecord{
 		WorkflowPrimaryKey: app.Annotations[oam.AnnotationWorkflowName],
 		AppPrimaryKey:      app.Name,
-		Name:               strings.TrimPrefix(revision.Name, "record-"),
-		Namespace:          revision.Namespace,
+		Name:               strings.TrimPrefix(revisionName, "record-"),
+		Namespace:          app.Namespace,
 		StartTime:          status.StartTime.Time,
 		Suspend:            status.Suspend,
 		Terminated:         status.Terminated,

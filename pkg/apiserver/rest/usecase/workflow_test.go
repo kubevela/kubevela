@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,6 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
@@ -37,7 +40,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		workflowUsecase *workflowUsecaseImpl
 	)
 	BeforeEach(func() {
-		workflowUsecase = &workflowUsecaseImpl{ds: ds}
+		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient}
 	})
 	It("Test CreateWorkflow function", func() {
 		req := apisv1.CreateWorkflowRequest{
@@ -75,16 +78,11 @@ var _ = Describe("Test workflow usecase functions", func() {
 		By("create some controller revisions to test list workflow records")
 		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
 		Expect(err).Should(BeNil())
+		app := &v1beta1.Application{}
+		err = json.Unmarshal(raw, app)
+		Expect(err).Should(BeNil())
 		for i := 0; i < 3; i++ {
-			err := workflowUsecase.createWorkflowRecord(context.TODO(), &appsv1.ControllerRevision{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("record-test-%v", i),
-					Namespace: "default",
-				},
-				Data: runtime.RawExtension{
-					Raw: raw,
-				},
-			})
+			err := workflowUsecase.createWorkflowRecord(context.TODO(), app, fmt.Sprintf("record-test-%v", i))
 			Expect(err).Should(BeNil())
 		}
 
@@ -97,15 +95,10 @@ var _ = Describe("Test workflow usecase functions", func() {
 		By("create one controller revision to test detail workflow record")
 		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
 		Expect(err).Should(BeNil())
-		err = workflowUsecase.createWorkflowRecord(context.TODO(), &appsv1.ControllerRevision{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "record-test-123",
-				Namespace: "default",
-			},
-			Data: runtime.RawExtension{
-				Raw: raw,
-			},
-		})
+		app := &v1beta1.Application{}
+		err = json.Unmarshal(raw, app)
+		Expect(err).Should(BeNil())
+		err = workflowUsecase.createWorkflowRecord(context.TODO(), app, "record-test-123")
 		Expect(err).Should(BeNil())
 
 		var deployEvent = &model.ApplicationRevision{
@@ -125,6 +118,50 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(detail.WorkflowRecord.Name).Should(Equal("test-123"))
 		Expect(detail.DeployUser).Should(Equal("test-user"))
+	})
+
+	It("Test SyncWorkflowRecord function", func() {
+		By("create one controller revision to test sync workflow record")
+		ctx := context.Background()
+		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
+		Expect(err).Should(BeNil())
+		cr := &appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "record-test-1234",
+				Namespace: "default",
+				Labels:    map[string]string{"vela.io/wf-revision": "1234"},
+			},
+			Data: runtime.RawExtension{Raw: raw},
+		}
+		err = workflowUsecase.kubeClient.Create(ctx, cr)
+		Expect(err).Should(BeNil())
+
+		By("create one deploy event to test sync workflow record")
+		var deployEvent = &model.ApplicationRevision{
+			AppPrimaryKey: "test",
+			Version:       "1234",
+			Status:        model.DeployEventInit,
+			DeployUser:    "test-user",
+			WorkflowName:  "test-workflow-name",
+		}
+
+		err = workflowUsecase.createTestApplicationRevision(context.TODO(), deployEvent)
+		Expect(err).Should(BeNil())
+
+		err = workflowUsecase.SyncWorkflowRecord(ctx)
+		Expect(err).Should(BeNil())
+
+		By("check the record")
+		app := &v1beta1.Application{}
+		err = json.Unmarshal(raw, app)
+		Expect(err).Should(BeNil())
+		err = workflowUsecase.createWorkflowRecord(context.TODO(), app, "test-1234")
+		Expect(err).Should(Equal(datastore.ErrRecordExist))
+
+		By("check the deploy event")
+		err = workflowUsecase.ds.Get(ctx, deployEvent)
+		Expect(err).Should(BeNil())
+		Expect(deployEvent.Status).Should(Equal(model.DeployEventComplete))
 	})
 })
 
