@@ -84,6 +84,8 @@ type ApplicationUsecase interface {
 	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
+	ListRevisions(ctx context.Context, appName string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
+	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -1169,6 +1171,53 @@ func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app
 		}
 	}
 	return nil, bcode.ErrTraitNotExist
+}
+
+func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName string, page, pageSize int) (*apisv1.ListRevisionsResponse, error) {
+	var revision = model.ApplicationRevision{
+		AppPrimaryKey: appName,
+	}
+	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{Page: page, PageSize: pageSize})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &apisv1.ListRevisionsResponse{
+		Revisions: []apisv1.ApplicationRevisionBase{},
+	}
+	for _, raw := range revisions {
+		r, ok := raw.(*model.ApplicationRevision)
+		if ok {
+			resp.Revisions = append(resp.Revisions, apisv1.ApplicationRevisionBase{
+				Version:     r.Version,
+				Status:      r.Status,
+				Reason:      r.Reason,
+				DeployUser:  r.DeployUser,
+				Note:        r.Note,
+				TriggerType: r.TriggerType,
+			})
+		}
+	}
+	count, err := c.ds.Count(ctx, &revision)
+	if err != nil {
+		return nil, err
+	}
+	resp.Total = count
+
+	return resp, nil
+}
+
+func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error) {
+	var revision = model.ApplicationRevision{
+		AppPrimaryKey: appName,
+		Version:       revisionName,
+	}
+	if err := c.ds.Get(ctx, &revision); err != nil {
+		return nil, err
+	}
+	return &apisv1.DetailRevisionResponse{
+		ApplicationRevision: revision,
+	}, nil
 }
 
 func createEnvBind(envBind apisv1.EnvBinding) v1alpha1.EnvConfig {

@@ -684,3 +684,14 @@ type ApplicationRevisionBase struct {
 	// SourceType the event trigger source, Web or API
 	TriggerType string `json:"triggerType"`
 }
+
+// ListRevisionsResponse list application revisions
+type ListRevisionsResponse struct {
+	Revisions []ApplicationRevisionBase `json:"revisions"`
+	Total     int64                     `json:"total"`
+}
+
+// DetailRevisionResponse get application revision detail
+type DetailRevisionResponse struct {
+	model.ApplicationRevision
+}

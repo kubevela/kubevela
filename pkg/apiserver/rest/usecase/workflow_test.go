@@ -170,6 +170,7 @@ kind: Application
 metadata:
   annotations:
     app.oam.dev/workflowName: test-workflow-name
+    app.oam.dev/deployVersion: "1234"
   name: test
   namespace: default
 spec:

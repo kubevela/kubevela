@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -269,6 +270,27 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.ApplicationTrait{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{name}/revisions").To(c.listApplicationRevisions).
+		Doc("list revisions for application").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("page", "Query the page number.").DataType("integer")).
+		Param(ws.PathParameter("pageSize", "Query the page size number.").DataType("integer")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListRevisionsResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ListRevisionsResponse{}))
+
+	ws.Route(ws.GET("/{name}/revisions/{revision}").To(c.detailApplicationRevision).
+		Doc("detail revision for application").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("revision", "identifier of the application revision").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.DetailRevisionResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailRevisionResponse{}))
 	return ws
 }
 
@@ -691,6 +713,36 @@ func (c *applicationWebService) getApplicationStatus(req *restful.Request, res *
 	}
 
 	if err := res.WriteEntity(apis.ApplicationStatusResponse{Status: status}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) listApplicationRevisions(req *restful.Request, res *restful.Response) {
+	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	revisions, err := c.applicationUsecase.ListRevisions(req.Request.Context(), req.PathParameter("name"), page, pageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(revisions); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) detailApplicationRevision(req *restful.Request, res *restful.Response) {
+	detail, err := c.applicationUsecase.DetailRevision(req.Request.Context(), req.PathParameter("name"), req.PathParameter("revision"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(detail); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
