@@ -215,6 +215,52 @@ spec:
             apiVersion: terraform.core.oam.dev/v1beta1
             kind: Configuration
     type: raw
+  - name: alibaba-sls-project
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            SLS Project
+        labels:
+          type: terraform
+        name: alibaba-sls-project
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/sls/project
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-sls-store
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            SLS Store
+        labels:
+          type: terraform
+        name: alibaba-sls-store
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/sls/store
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
   - name: alibaba-vpc
     properties:
       apiVersion: core.oam.dev/v1beta1
