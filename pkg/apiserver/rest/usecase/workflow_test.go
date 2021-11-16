@@ -111,7 +111,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		var deployEvent = &model.ApplicationRevision{
 			AppPrimaryKey: "test",
 			Version:       "123",
-			Status:        model.DeployEventInit,
+			Status:        model.RevisionStatusInit,
 			DeployUser:    "test-user",
 			Note:          "test-commit",
 			TriggerType:   "API",

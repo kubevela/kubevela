@@ -266,7 +266,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 	for _, r := range registries {
 		addon, err := pkgaddon.GetAddon(name, r.Git)
 
-		if err != nil && err == bcode.ErrAddonNotExist {
+		if err != nil && errors.Is(err, bcode.ErrAddonNotExist) {
 			continue
 		} else if err != nil {
 			return bcode.WrapGithubRateLimitErr(err)

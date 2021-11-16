@@ -34,7 +34,7 @@ type DeliveryTargetUsecase interface {
 	DeleteDeliveryTarget(ctx context.Context, deliveryTargetName string) error
 	CreateDeliveryTarget(ctx context.Context, req apisv1.CreateDeliveryTargetRequest) (*apisv1.DetailDeliveryTargetResponse, error)
 	UpdateDeliveryTarget(ctx context.Context, deliveryTarget *model.DeliveryTarget, req apisv1.UpdateDeliveryTargetRequest) (*apisv1.DetailDeliveryTargetResponse, error)
-	ListDeliveryTargets(ctx context.Context, page, pageSize int) (*apisv1.ListDeliveryTargetResponse, error)
+	ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error)
 }
 
 // NewDeliveryTargetUsecase new DeliveryTarget usecase
@@ -46,8 +46,11 @@ type deliveryTargetUsecaseImpl struct {
 	ds datastore.DataStore
 }
 
-func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, page, pageSize int) (*apisv1.ListDeliveryTargetResponse, error) {
+func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error) {
 	deliveryTarget := model.DeliveryTarget{}
+	if namespace != "" {
+		deliveryTarget.Namespace = namespace
+	}
 	deliveryTargets, err := dt.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{Page: page, PageSize: pageSize})
 	if err != nil {
 		return nil, err
@@ -72,9 +75,9 @@ func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, pa
 }
 
 // DeleteDeliveryTarget delete application DeliveryTarget
-func (dt *deliveryTargetUsecaseImpl) DeleteDeliveryTarget(ctx context.Context, DeliveryTargetName string) error {
+func (dt *deliveryTargetUsecaseImpl) DeleteDeliveryTarget(ctx context.Context, deliveryTargetName string) error {
 	deliveryTarget := &model.DeliveryTarget{
-		Name: DeliveryTargetName,
+		Name: deliveryTargetName,
 	}
 	if err := dt.ds.Delete(ctx, deliveryTarget); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -131,8 +134,8 @@ func (dt *deliveryTargetUsecaseImpl) GetDeliveryTarget(ctx context.Context, deli
 func convertUpdateReqToDeliveryTargetModel(deliveryTarget *model.DeliveryTarget, req apisv1.UpdateDeliveryTargetRequest) *model.DeliveryTarget {
 	deliveryTarget.Alias = req.Alias
 	deliveryTarget.Description = req.Description
-	deliveryTarget.Kubernetes = (*model.KubernetesTarget)(req.Kubernetes)
-	deliveryTarget.Cloud = (*model.CloudTarget)(req.Cloud)
+	deliveryTarget.Cluster = (*model.ClusterTarget)(req.Cluster)
+	deliveryTarget.Variable = req.Variable
 	return deliveryTarget
 }
 
@@ -142,8 +145,8 @@ func convertCreateReqToDeliveryTargetModel(req apisv1.CreateDeliveryTargetReques
 		Namespace:   req.Namespace,
 		Alias:       req.Alias,
 		Description: req.Description,
-		Kubernetes:  (*model.KubernetesTarget)(req.Kubernetes),
-		Cloud:       (*model.CloudTarget)(req.Cloud),
+		Cluster:     (*model.ClusterTarget)(req.Cluster),
+		Variable:    req.Variable,
 	}
 	return deliveryTarget
 }
@@ -154,8 +157,8 @@ func convertFromDeliveryTargetModel(deliveryTarget *model.DeliveryTarget) *apisv
 		Namespace:   deliveryTarget.Namespace,
 		Alias:       deliveryTarget.Alias,
 		Description: deliveryTarget.Description,
-		Kubernetes:  (*apisv1.KubernetesTarget)(deliveryTarget.Kubernetes),
-		Cloud:       (*apisv1.CloudTarget)(deliveryTarget.Cloud),
+		Cluster:     (*apisv1.ClusterTarget)(deliveryTarget.Cluster),
+		Variable:    deliveryTarget.Variable,
 		CreateTime:  deliveryTarget.CreateTime,
 		UpdateTime:  deliveryTarget.UpdateTime,
 	}

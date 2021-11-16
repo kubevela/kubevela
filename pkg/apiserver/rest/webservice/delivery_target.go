@@ -37,10 +37,12 @@ func NewDeliveryTargetWebService(deliveryTargetUsecase usecase.DeliveryTargetUse
 	}
 }
 
+// DeliveryTargetWebService delivery target web service
 type DeliveryTargetWebService struct {
 	deliveryTargetUsecase usecase.DeliveryTargetUsecase
 }
 
+// GetWebService get web service
 func (dt *DeliveryTargetWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/deliveryTargets").
@@ -53,6 +55,7 @@ func (dt *DeliveryTargetWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(dt.listDeliveryTargets).
 		Doc("list deliveryTarget").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("namesapce", "Query the delivery target belonging to a namespace").DataType("string")).
 		Returns(200, "", apis.ListDeliveryTargetResponse{}).
 		Writes(apis.ListDeliveryTargetResponse{}).Do(returns200, returns500))
 
@@ -181,7 +184,7 @@ func (dt *DeliveryTargetWebService) listDeliveryTargets(req *restful.Request, re
 		return
 	}
 
-	deliveryTargets, err := dt.deliveryTargetUsecase.ListDeliveryTargets(req.Request.Context(), page, pageSize)
+	deliveryTargets, err := dt.deliveryTargetUsecase.ListDeliveryTargets(req.Request.Context(), page, pageSize, req.QueryParameter("namespace"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

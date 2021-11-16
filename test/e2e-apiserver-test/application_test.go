@@ -175,7 +175,7 @@ var _ = Describe("Test application rest api", func() {
 		var response apisv1.ApplicationDeployResponse
 		err = json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(response.Status, model.DeployEventRunning)).Should(BeEmpty())
+		Expect(cmp.Diff(response.Status, model.RevisionStatusRunning)).Should(BeEmpty())
 
 		var oam v1beta1.Application
 		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: "test-app-sadasd", Namespace: "test-app-namespace"}, &oam)

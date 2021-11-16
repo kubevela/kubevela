@@ -64,6 +64,7 @@ func WrapGithubRateLimitErr(err error) error {
 	return err
 }
 
+// NewBcodeWrapErr new bcode error
 func NewBcodeWrapErr(httpCode, businessCode int32, err error, message string) error {
 	return NewBcode(httpCode, businessCode, errors.Wrap(err, message).Error())
 }

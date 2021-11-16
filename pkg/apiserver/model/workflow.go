@@ -37,6 +37,7 @@ type Workflow struct {
 	// Workflow used by the default
 	Default       bool           `json:"default"`
 	AppPrimaryKey string         `json:"appPrimaryKey"`
+	EnvName       string         `json:"envName"`
 	Steps         []WorkflowStep `json:"steps,omitempty"`
 }
 
@@ -71,6 +72,9 @@ func (w *Workflow) Index() map[string]string {
 	}
 	if w.AppPrimaryKey != "" {
 		index["appPrimaryKey"] = w.AppPrimaryKey
+	}
+	if w.EnvName != "" {
+		index["envName"] = w.EnvName
 	}
 	index["default"] = strconv.FormatBool(w.Default)
 	return index

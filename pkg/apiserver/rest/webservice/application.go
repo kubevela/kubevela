@@ -107,6 +107,16 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EnvBinding{}))
 
+	ws.Route(ws.GET("/{name}/envs/{envName}/status").To(c.getApplicationStatus).
+		Doc("get application status").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
+		Returns(200, "", apis.ApplicationStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationStatusResponse{}))
+
 	ws.Route(ws.POST("/{name}/envs").To(c.createApplicationEnv).
 		Doc("creating an application environment ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -123,7 +133,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Filter(c.appCheckFilter).
 		Filter(c.envCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
 		Returns(200, "", apis.EmptyResponse{}).
 		Returns(404, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
@@ -667,6 +677,20 @@ func (c *applicationWebService) deleteApplicationTrait(req *restful.Request, res
 		return
 	}
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) getApplicationStatus(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	status, err := c.applicationUsecase.GetApplicationStatus(req.Request.Context(), app, req.PathParameter("envName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	if err := res.WriteEntity(apis.ApplicationStatusResponse{Status: status}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

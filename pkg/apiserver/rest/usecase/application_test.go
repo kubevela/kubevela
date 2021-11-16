@@ -483,7 +483,7 @@ var _ = Describe("Test application usecase function", func() {
 			TriggerType: "api",
 		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(res.Status, model.DeployEventRunning)).Should(BeEmpty())
+		Expect(cmp.Diff(res.Status, model.RevisionStatusRunning)).Should(BeEmpty())
 
 		var oam v1beta1.Application
 		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: appModel.Name, Namespace: appModel.Namespace}, &oam)
