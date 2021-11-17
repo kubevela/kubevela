@@ -95,6 +95,13 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
+	ws.Route(ws.GET("/{name}/args").To(s.argsAddon).
+		Doc("query addon enable arguments").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.AddonArgsResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Param(ws.PathParameter("name", "addon name to query arguments").DataType("string").Required(true)).
+		Writes(apis.AddonArgsResponse{}))
 	return ws
 }
 
@@ -175,6 +182,20 @@ func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Respons
 	}
 
 	err = res.WriteEntity(*status)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (s *addonWebService) argsAddon(req *restful.Request, res *restful.Response) {
+	name := req.PathParameter("name")
+	argsRes, err := s.addonUsecase.ArgsAddon(req.Request.Context(), name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(*argsRes)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

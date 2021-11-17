@@ -113,6 +113,10 @@ type EnablingProgress struct {
 	TotalComponents   int `json:"total_components"`
 }
 
+type AddonArgsResponse struct {
+	Args map[string]string `json:"args"`
+}
+
 // AccessKeyRequest request parameters to access cloud provider
 type AccessKeyRequest struct {
 	AccessKeyID     string `json:"accessKeyID"`

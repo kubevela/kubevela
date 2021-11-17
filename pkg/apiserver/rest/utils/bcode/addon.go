@@ -49,6 +49,12 @@ var (
 
 	// ErrGetAddonApplication fail to get addon application
 	ErrGetAddonApplication = NewBcode(500, 50013, "fail to get addon application")
+
+	// ErrAddonIsEnabled means addon has been enabled
+	ErrAddonIsEnabled = NewBcode(500, 50014, "fail to get addon application")
+
+	// ErrAddonSecretApply means fail to apply addon argument secret
+	ErrAddonSecretApply=NewBcode(500,50015,"fail to apply addon argument secret")
 )
 
 // isGithubRateLimit check if error is github rate limit

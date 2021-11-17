@@ -38,6 +38,7 @@ type AddonUsecase interface {
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
+	ArgsAddon(ctx context.Context, name string) (*apis.AddonArgsResponse, error)
 }
 
 // AddonImpl2AddonRes convert types.Addon to the type apiserver need
@@ -272,18 +273,28 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			return bcode.WrapGithubRateLimitErr(err)
 		}
 
-		// render default ui schema
-		addon.UISchema = renderDefaultUISchema(addon.APISchema)
-
 		app, err := pkgaddon.RenderApplication(addon, args.Args)
 		if err != nil {
-			return err
+			return bcode.ErrAddonRender
 		}
+
+		err = u.kubeClient.Get(ctx, client.ObjectKey{Namespace: app.GetNamespace(), Name: app.GetName()}, app)
+		if err == nil {
+			return bcode.ErrAddonIsEnabled
+		}
+
 		err = u.kubeClient.Create(ctx, app)
 		if err != nil {
-			log.Logger.Errorf("apply application fail: %s", err.Error())
+			log.Logger.Errorf("create application fail: %s", err.Error())
 			return bcode.ErrAddonApply
 		}
+
+		sec := pkgaddon.RenderArgsSecret(addon, args.Args)
+		err = u.apply.Apply(ctx, sec)
+		if err != nil {
+			return bcode.ErrAddonSecretApply
+		}
+
 		return nil
 	}
 	return bcode.ErrAddonNotExist
@@ -319,6 +330,10 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 		return err
 	}
 	return nil
+}
+
+func (u *addonUsecaseImpl) ArgsAddon(ctx context.Context, name string) (*apis.AddonArgsResponse, error) {
+	panic("implement me")
 }
 
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {
