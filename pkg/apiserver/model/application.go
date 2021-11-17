@@ -61,16 +61,6 @@ func (a *Application) Index() map[string]string {
 	return index
 }
 
-// EnvBinding application env binding
-type EnvBinding struct {
-	Name              string             `json:"name"`
-	Alias             string             `json:"alias"`
-	Description       string             `json:"description,omitempty"`
-	TargetNames       []string           `json:"targetNames"`
-	ComponentSelector *ComponentSelector `json:"componentSelector"`
-	//TODO: componentPatchs
-}
-
 // ClusterSelector cluster selector
 type ClusterSelector struct {
 	Name string `json:"name"`

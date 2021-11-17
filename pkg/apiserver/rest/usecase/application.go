@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,10 +79,6 @@ type ApplicationUsecase interface {
 	DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error)
 	DeletePolicy(ctx context.Context, app *model.Application, policyName string) error
 	UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policy apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error)
-	GetApplicationEnvBindingPolicy(ctx context.Context, app *model.Application) (*v1alpha1.EnvBindingSpec, error)
-	UpdateApplicationEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvRequest) (*apisv1.EnvBinding, error)
-	CreateApplicationEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error)
-	DeleteApplicationEnvBinding(ctx context.Context, app *model.Application, envName string) error
 	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
@@ -89,23 +87,27 @@ type ApplicationUsecase interface {
 }
 
 type applicationUsecaseImpl struct {
-	ds              datastore.DataStore
-	kubeClient      client.Client
-	apply           apply.Applicator
-	workflowUsecase WorkflowUsecase
+	ds                    datastore.DataStore
+	kubeClient            client.Client
+	apply                 apply.Applicator
+	workflowUsecase       WorkflowUsecase
+	envBindingUsecase     EnvBindingUsecase
+	deliveryTargetUsecase DeliveryTargetUsecase
 }
 
 // NewApplicationUsecase new application usecase
-func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase) ApplicationUsecase {
+func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase, envBindingUsecase EnvBindingUsecase, deliveryTargetUsecase DeliveryTargetUsecase) ApplicationUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
 	}
 	return &applicationUsecaseImpl{
-		ds:              ds,
-		workflowUsecase: workflowUsecase,
-		kubeClient:      kubecli,
-		apply:           apply.NewAPIApplicator(kubecli),
+		ds:                    ds,
+		workflowUsecase:       workflowUsecase,
+		envBindingUsecase:     envBindingUsecase,
+		deliveryTargetUsecase: deliveryTargetUsecase,
+		kubeClient:            kubecli,
+		apply:                 apply.NewAPIApplicator(kubecli),
 	}
 }
 
@@ -236,45 +238,22 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 			}
 		}
 		if oamApp.Spec.Workflow != nil && len(oamApp.Spec.Workflow.Steps) > 0 {
-			var steps []apisv1.WorkflowStep
-			for _, step := range oamApp.Spec.Workflow.Steps {
-				var propertyStr string
-				if step.Properties != nil {
-					properties, err := model.NewJSONStruct(step.Properties)
-					if err != nil {
-						log.Logger.Errorf("workflow %s step %s properties is invalid %s", application.Name, step.Name, err.Error())
-						continue
-					}
-					propertyStr = properties.JSON()
-				}
-				steps = append(steps, apisv1.WorkflowStep{
-					Name:       step.Name,
-					Type:       step.Type,
-					DependsOn:  step.DependsOn,
-					Properties: propertyStr,
-					Inputs:     step.Inputs,
-					Outputs:    step.Outputs,
-				})
-			}
-			_, err := c.workflowUsecase.CreateWorkflow(ctx, &application, apisv1.CreateWorkflowRequest{
-				AppName:     application.PrimaryKey(),
-				Name:        application.Name,
-				Description: "Created automatically.",
-				Steps:       steps,
-				Default:     true,
-			})
-			if err != nil {
+			if err := c.saveApplicationWorkflow(ctx, application, oamApp.Spec.Workflow.Steps, application.Name); err != nil {
+				log.Logger.Errorf("save applictaion polocies failure,%s", err.Error())
 				return nil, err
 			}
 		}
+		// TODO Waiting for Spec.EnvBinding support
 	}
 
-	// build-in create env binding policy
+	// build-in create env binding
 	if len(req.EnvBinding) > 0 {
-		if _, err := c.createApplictionEnvBindingPolicy(ctx, &application, req.EnvBinding); err != nil {
+		err := c.saveApplicationEnvBinding(ctx, application, req.EnvBinding)
+		if err != nil {
 			return nil, err
 		}
 	}
+
 	if req.Component != nil {
 		_, err = c.AddComponent(ctx, &application, *req.Component)
 		if err != nil {
@@ -291,6 +270,114 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 	// render app base info.
 	base := c.converAppModelToBase(&application)
 	return base, nil
+}
+
+func (c *applicationUsecaseImpl) createEnvPolicy(ctx context.Context, app *model.Application, env *apisv1.EnvBinding) (*model.ApplicationPolicy, error) {
+	policy := &model.ApplicationPolicy{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          genPolicyName(env),
+		Description:   "build-in create ",
+		Type:          string(EnvBindingPolicy),
+		Creator:       "",
+	}
+	var envBindingSpec v1alpha1.EnvBindingSpec
+	for _, targetName := range env.TargetNames {
+		target, err := c.deliveryTargetUsecase.GetDeliveryTarget(ctx, targetName)
+		if err != nil {
+			return nil, err
+		}
+		if target == nil {
+			return nil, bcode.ErrFoundEnvbindingDeliveryTarget
+		}
+		envBindingSpec.Envs = append(envBindingSpec.Envs, createTargetClusterEnv(env, target))
+	}
+	properties, err := model.NewJSONStructByStruct(envBindingSpec)
+
+	if err != nil {
+		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
+		return nil, bcode.ErrInvalidProperties
+	}
+	policy.Properties = properties
+	if err := c.ds.Add(ctx, policy); err != nil {
+		log.Logger.Errorf("save env binding policy failure,%s", err.Error())
+		return nil, err
+	}
+	return policy, nil
+}
+
+func (c *applicationUsecaseImpl) createEnvWorkflow(ctx context.Context, app model.Application, env *apisv1.EnvBinding) error {
+	var workSteps []v1beta1.WorkflowStep
+	for _, targetName := range env.TargetNames {
+		step := v1beta1.WorkflowStep{
+			Name: genPolicyEnvName(targetName),
+			Type: "deploy2env",
+			Properties: util.Object2RawExtension(map[string]string{
+				"policy": genPolicyName(env),
+				"env":    genPolicyEnvName(targetName),
+			}),
+		}
+		workSteps = append(workSteps, step)
+	}
+	return c.saveApplicationWorkflow(ctx, app, workSteps, genWorkflowName(app, env))
+}
+
+// TODO remove this when  Spec.EnvBinding support
+func (c *applicationUsecaseImpl) saveApplicationEnvBinding(ctx context.Context, app model.Application, envBindings []*apisv1.EnvBinding) error {
+	for _, envBinding := range envBindings {
+		//1.create env Binding
+		_, err := c.envBindingUsecase.CreateEnvBinding(ctx, &app, apisv1.CreateApplicationEnvRequest{EnvBinding: *envBinding})
+		if err != nil {
+			return err
+		}
+		//2.create env policy
+		//3.create env workflow
+		for _, env := range envBindings {
+			if _, err := c.createEnvPolicy(ctx, &app, env); err != nil {
+				return err
+			}
+			if err := c.createEnvWorkflow(ctx, app, env); err != nil {
+				return err
+			}
+			// patch to app
+			app.EnvBinding = append(app.EnvBinding, createModelEnvBind(*env))
+		}
+
+	}
+	return nil
+}
+
+func (c *applicationUsecaseImpl) saveApplicationWorkflow(ctx context.Context, application model.Application, workflowSteps []v1beta1.WorkflowStep, workflowName string) error {
+	var steps []apisv1.WorkflowStep
+	for _, step := range workflowSteps {
+		var propertyStr string
+		if step.Properties != nil {
+			properties, err := model.NewJSONStruct(step.Properties)
+			if err != nil {
+				log.Logger.Errorf("workflow %s step %s properties is invalid %s", application.Name, step.Name, err.Error())
+				continue
+			}
+			propertyStr = properties.JSON()
+		}
+		steps = append(steps, apisv1.WorkflowStep{
+			Name:       step.Name,
+			Type:       step.Type,
+			DependsOn:  step.DependsOn,
+			Properties: propertyStr,
+			Inputs:     step.Inputs,
+			Outputs:    step.Outputs,
+		})
+	}
+	_, err := c.workflowUsecase.CreateWorkflow(ctx, &application, apisv1.CreateWorkflowRequest{
+		AppName:     application.PrimaryKey(),
+		Name:        workflowName,
+		Description: "Created automatically.",
+		Steps:       steps,
+		Default:     true,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *model.Application, req apisv1.UpdateApplicationRequest) (*apisv1.ApplicationBase, error) {
@@ -354,15 +441,15 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 	envComponents := map[string]bool{}
 	componentSelectorDefine := false
 	if op.EnvName != "" {
-		envbinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
+		envbindings, err := c.envBindingUsecase.GetEnvBindings(ctx, app)
 		if err != nil && !errors.Is(err, bcode.ErrApplicationNotEnv) {
 			log.Logger.Errorf("query app  env binding policy config failure %s", err.Error())
 		}
-		if envbinding != nil {
-			for _, env := range envbinding.Envs {
-				if env.Selector != nil && env.Name == op.EnvName {
+		if len(envbindings) > 0 {
+			for _, env := range envbindings {
+				if env != nil && env.Name == op.EnvName {
 					componentSelectorDefine = true
-					for _, componentName := range env.Selector.Components {
+					for _, componentName := range env.ComponentSelector.Components {
 						envComponents[componentName] = true
 					}
 				}
@@ -493,54 +580,6 @@ func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, ap
 		list = append(list, pm)
 	}
 	return
-}
-
-func (c *applicationUsecaseImpl) GetApplicationEnvBindingPolicy(ctx context.Context, app *model.Application) (*v1alpha1.EnvBindingSpec, error) {
-	var policy = model.ApplicationPolicy{
-		AppPrimaryKey: app.PrimaryKey(),
-		Type:          string(EnvBindingPolicy),
-		Name:          EnvBindingPolicyDefaultName,
-	}
-	err := c.ds.Get(ctx, &policy)
-	if err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrApplicationNotEnv
-		}
-		return nil, err
-	}
-	var envBindingSpec v1alpha1.EnvBindingSpec
-	if err := json.Unmarshal([]byte(policy.Properties.JSON()), &envBindingSpec); err != nil {
-		return nil, err
-	}
-	return &envBindingSpec, nil
-}
-
-// nolint
-func (c *applicationUsecaseImpl) createApplictionEnvBindingPolicy(ctx context.Context, app *model.Application, envbinds apisv1.EnvBindingList) (*model.ApplicationPolicy, error) {
-	policy := &model.ApplicationPolicy{
-		AppPrimaryKey: app.PrimaryKey(),
-		Name:          EnvBindingPolicyDefaultName,
-		Description:   "build-in create",
-		Type:          string(EnvBindingPolicy),
-		Creator:       "",
-	}
-	var envBindingSpec v1alpha1.EnvBindingSpec
-	for _, envBind := range envbinds {
-		// TODO: check delivery target
-		envBindingSpec.Envs = append(envBindingSpec.Envs, createEnvBind(*envBind))
-		app.EnvBinding = append(app.EnvBinding, createModelEnvBind(*envBind))
-	}
-	properties, err := model.NewJSONStructByStruct(envBindingSpec)
-	if err != nil {
-		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
-		return nil, bcode.ErrInvalidProperties
-	}
-	policy.Properties = properties
-	if err := c.ds.Add(ctx, policy); err != nil {
-		log.Logger.Errorf("save env binding policy failure,%s", err.Error())
-		return nil, err
-	}
-	return policy, nil
 }
 
 // DetailPolicy detail app policy
@@ -747,6 +786,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			if step.Properties != nil {
 				wstep.Properties = step.Properties.RawExtension()
 			}
+			steps = append(steps, wstep)
 		}
 		app.Spec.Workflow = &v1beta1.Workflow{
 			Steps: steps,
@@ -795,6 +835,12 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 	if err != nil {
 		return err
 	}
+	// query all envBindings to deleted
+	envBindings, err := c.envBindingUsecase.GetEnvBindings(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	// delete workflow
 	if err := c.workflowUsecase.DeleteWorkflow(ctx, app.Name); err != nil && !errors.Is(err, bcode.ErrWorkflowNotExist) {
 		log.Logger.Errorf("delete workflow %s failure %s", app.Name, err.Error())
@@ -811,6 +857,13 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 		err := c.ds.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: app.PrimaryKey(), Name: policy.Name})
 		if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("delete policy %s in app %s failure %s", policy.Name, app.Name, err.Error())
+		}
+	}
+
+	for _, envBinding := range envBindings {
+		err := c.ds.Delete(ctx, &model.EnvBinding{AppPrimaryKey: app.PrimaryKey(), Name: envBinding.Name})
+		if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
+			log.Logger.Errorf("delete envbinding %s in app %s failure %s", envBinding.Name, app.Name, err.Error())
 		}
 	}
 
@@ -946,166 +999,6 @@ func (c *applicationUsecaseImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 	}, nil
 }
 
-// UpdateApplicationEnvBinding update application env binding diff
-func (c *applicationUsecaseImpl) UpdateApplicationEnvBinding(
-	ctx context.Context,
-	app *model.Application,
-	envName string,
-	envUpdate apisv1.PutApplicationEnvRequest) (*apisv1.EnvBinding, error) {
-	// update env-binding policy
-	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
-	if err != nil {
-		return nil, err
-	}
-	for i, env := range envBinding.Envs {
-		if env.Name == envName {
-			if envUpdate.ComponentSelector == nil {
-				envBinding.Envs[i].Selector = nil
-			} else {
-				envBinding.Envs[i].Selector = &v1alpha1.EnvSelector{
-					Components: envUpdate.ComponentSelector.Components,
-				}
-			}
-
-		}
-	}
-	properties, err := model.NewJSONStructByStruct(envBinding)
-	if err != nil {
-		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
-		return nil, bcode.ErrInvalidProperties
-	}
-	policy := &model.ApplicationPolicy{
-		AppPrimaryKey: app.PrimaryKey(),
-		Name:          EnvBindingPolicyDefaultName,
-	}
-	if err := c.ds.Get(ctx, policy); err != nil {
-		return nil, err
-	}
-	policy.Properties = properties
-	if err := c.ds.Put(ctx, policy); err != nil {
-		return nil, err
-	}
-	var envBind model.EnvBinding
-	// update env-binding base
-	for i, env := range app.EnvBinding {
-		if env.Name == envName {
-			if envUpdate.Description != nil {
-				app.EnvBinding[i].Description = *envUpdate.Description
-			}
-			if envUpdate.Alias != nil {
-				app.EnvBinding[i].Alias = *envUpdate.Alias
-			}
-			if envUpdate.TargetNames != nil {
-				app.EnvBinding[i].TargetNames = *envUpdate.TargetNames
-			}
-			if envUpdate.ComponentSelector == nil {
-				app.EnvBinding[i].ComponentSelector = nil
-			} else {
-				app.EnvBinding[i].ComponentSelector = &model.ComponentSelector{
-					Components: envUpdate.ComponentSelector.Components,
-				}
-			}
-			envBind = *app.EnvBinding[i]
-		}
-	}
-	if err := c.ds.Put(ctx, app); err != nil {
-		return nil, err
-	}
-	re := &apisv1.EnvBinding{
-		Name:        envBind.Name,
-		Alias:       envBind.Alias,
-		Description: envBind.Description,
-		TargetNames: envBind.TargetNames,
-	}
-	if envBind.ComponentSelector != nil {
-		re.ComponentSelector = (*apisv1.ComponentSelector)(envBind.ComponentSelector)
-	}
-	return re, nil
-}
-
-// CreateApplicationEnvBinding create application env
-func (c *applicationUsecaseImpl) CreateApplicationEnvBinding(ctx context.Context, app *model.Application, envReq apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error) {
-	for _, env := range app.EnvBinding {
-		if env.Name == envReq.Name {
-			return nil, bcode.ErrApplicationEnvExist
-		}
-	}
-	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
-	if err != nil {
-		if !errors.Is(err, bcode.ErrApplicationNotEnv) {
-			return nil, err
-		}
-	}
-	if envBinding == nil {
-		_, err := c.createApplictionEnvBindingPolicy(ctx, app, []*apisv1.EnvBinding{&envReq.EnvBinding})
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		app.EnvBinding = append(app.EnvBinding, createModelEnvBind(envReq.EnvBinding))
-		envBinding.Envs = append(envBinding.Envs, createEnvBind(envReq.EnvBinding))
-		properties, err := model.NewJSONStructByStruct(envBinding)
-		if err != nil {
-			log.Logger.Errorf("new env binding properties failure,%s", err.Error())
-			return nil, bcode.ErrInvalidProperties
-		}
-		policy := &model.ApplicationPolicy{
-			AppPrimaryKey: app.PrimaryKey(),
-			Name:          EnvBindingPolicyDefaultName,
-		}
-		if err := c.ds.Get(ctx, policy); err != nil {
-			return nil, err
-		}
-		policy.Properties = properties
-		if err := c.ds.Put(ctx, policy); err != nil {
-			return nil, err
-		}
-	}
-	if err := c.ds.Put(ctx, app); err != nil {
-		return nil, err
-	}
-	return &envReq.EnvBinding, nil
-}
-
-// DeleteApplicationEnvBinding delete application env binding
-func (c *applicationUsecaseImpl) DeleteApplicationEnvBinding(ctx context.Context, app *model.Application, envName string) error {
-
-	for i, envBind := range app.EnvBinding {
-		if envBind.Name == envName {
-			app.EnvBinding = append(app.EnvBinding[0:i], app.EnvBinding[i+1:]...)
-		}
-	}
-	envBinding, err := c.GetApplicationEnvBindingPolicy(ctx, app)
-	if err != nil {
-		return err
-	}
-	for i, envBind := range envBinding.Envs {
-		if envBind.Name == envName {
-			envBinding.Envs = append(envBinding.Envs[0:i], envBinding.Envs[i+1:]...)
-		}
-	}
-	properties, err := model.NewJSONStructByStruct(envBinding)
-	if err != nil {
-		log.Logger.Errorf("new env binding properties failure,%s", err.Error())
-		return bcode.ErrInvalidProperties
-	}
-	policy := &model.ApplicationPolicy{
-		AppPrimaryKey: app.PrimaryKey(),
-		Name:          EnvBindingPolicyDefaultName,
-	}
-	if err := c.ds.Get(ctx, policy); err != nil {
-		return err
-	}
-	policy.Properties = properties
-	if err := c.ds.Put(ctx, policy); err != nil {
-		return err
-	}
-	if err := c.ds.Put(ctx, app); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *applicationUsecaseImpl) CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error) {
 	var comp = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
@@ -1235,7 +1128,7 @@ func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, re
 	}, nil
 }
 
-func createEnvBind(envBind apisv1.EnvBinding) v1alpha1.EnvConfig {
+func createTargetClusterEnv(envBind *apisv1.EnvBinding, target *model.DeliveryTarget) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
 	var componentSelector *v1alpha1.EnvSelector
 	if envBind.ComponentSelector != nil {
@@ -1243,8 +1136,12 @@ func createEnvBind(envBind apisv1.EnvBinding) v1alpha1.EnvConfig {
 			Components: envBind.ComponentSelector.Components,
 		}
 	}
+	if target.Cluster != nil {
+		placement.ClusterSelector = &common.ClusterSelector{Name: target.Cluster.ClusterName}
+		placement.NamespaceSelector = &v1alpha1.NamespaceSelector{Name: target.Cluster.Namespace}
+	}
 	return v1alpha1.EnvConfig{
-		Name:      envBind.Name,
+		Name:      genPolicyEnvName(target.Name),
 		Placement: placement,
 		Selector:  componentSelector,
 	}
@@ -1265,4 +1162,18 @@ func createModelEnvBind(envBind apisv1.EnvBinding) *model.EnvBinding {
 
 func converAppName(app *model.Application, envName string) string {
 	return fmt.Sprintf("%s-%s", app.Name, envName)
+}
+
+//env-bindings-dev
+func genPolicyName(env *apisv1.EnvBinding) string {
+	return fmt.Sprintf("%s-%s", EnvBindingPolicyDefaultName, env.Name)
+}
+
+//workflows-dev
+func genWorkflowName(app model.Application, env *apisv1.EnvBinding) string {
+	return fmt.Sprintf("%s-%s", app.Name, env.Name)
+}
+
+func genPolicyEnvName(targetName string) string {
+	return targetName
 }

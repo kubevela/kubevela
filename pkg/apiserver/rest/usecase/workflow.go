@@ -187,6 +187,7 @@ func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName stri
 func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *model.Application, enable *bool) ([]*apisv1.WorkflowBase, error) {
 	var workflow = model.Workflow{
 		AppPrimaryKey: app.PrimaryKey(),
+		Default:       true,
 	}
 	workflows, err := w.ds.List(ctx, &workflow, &datastore.ListOptions{})
 	if err != nil {

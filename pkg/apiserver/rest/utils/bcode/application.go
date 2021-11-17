@@ -56,7 +56,7 @@ var ErrCreateNamespace = NewBcode(500, 10011, "auto create namespace failure")
 var ErrApplicationNotExist = NewBcode(404, 10012, "application name is not exist")
 
 // ErrApplicationNotEnv no env binding policy
-var ErrApplicationNotEnv = NewBcode(404, 10013, "application not set env binding policy")
+var ErrApplicationNotEnv = NewBcode(404, 10013, "application not set env binding")
 
 // ErrApplicationEnvExist application env is exist
 var ErrApplicationEnvExist = NewBcode(400, 10014, "application env is exist")
@@ -66,3 +66,9 @@ var ErrTraitNotExist = NewBcode(400, 10015, "trait is not exist")
 
 // ErrTraitAlreadyExist  trait is already exist
 var ErrTraitAlreadyExist = NewBcode(400, 10016, "trait is already exist")
+
+// ErrEnvbindingDeliveryTargetNotAllExist application envbinding deliveryTarget is not exist
+var ErrEnvbindingDeliveryTargetNotAllExist = NewBcode(400, 10017, "application envbinding deliveryTarget is not all exist")
+
+// ErrFoundEnvbindingDeliveryTarget found application envbinding deliveryTarget failure
+var ErrFoundEnvbindingDeliveryTarget = NewBcode(400, 10018, "found application envbinding deliveryTarget failure")

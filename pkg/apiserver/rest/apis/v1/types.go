@@ -287,6 +287,21 @@ type EnvBinding struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
 }
 
+// EnvBindingBase application env binding
+type EnvBindingBase struct {
+	Name              string             `json:"name" validate:"checkname"`
+	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description       string             `json:"description,omitempty" optional:"true"`
+	TargetNames       []string           `json:"targetNames"`
+	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
+	CreateTime        time.Time          `json:"createTime"`
+	UpdateTime        time.Time          `json:"updateTime"`
+}
+
+type DetailEnvBindingResponse struct {
+	EnvBindingBase
+}
+
 // ClusterSelector cluster selector
 type ClusterSelector struct {
 	Name string `json:"name" validate:"checkname"`

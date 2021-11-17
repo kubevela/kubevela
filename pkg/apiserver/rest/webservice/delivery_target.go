@@ -31,15 +31,18 @@ import (
 )
 
 // NewDeliveryTargetWebService new deliveryTarget webservice
-func NewDeliveryTargetWebService(deliveryTargetUsecase usecase.DeliveryTargetUsecase) WebService {
+func NewDeliveryTargetWebService(deliveryTargetUsecase usecase.DeliveryTargetUsecase,
+	applicationUsecase usecase.ApplicationUsecase) WebService {
 	return &DeliveryTargetWebService{
 		deliveryTargetUsecase: deliveryTargetUsecase,
+		applicationUsecase:    applicationUsecase,
 	}
 }
 
 // DeliveryTargetWebService delivery target web service
 type DeliveryTargetWebService struct {
 	deliveryTargetUsecase usecase.DeliveryTargetUsecase
+	applicationUsecase    usecase.ApplicationUsecase
 }
 
 // GetWebService get web service
@@ -169,7 +172,21 @@ func (dt *DeliveryTargetWebService) updateDeliveryTarget(req *restful.Request, r
 }
 
 func (dt *DeliveryTargetWebService) deleteDeliveryTarget(req *restful.Request, res *restful.Response) {
-	if err := dt.deliveryTargetUsecase.DeleteDeliveryTarget(req.Request.Context(), req.PathParameter("name")); err != nil {
+	deliveryTargetName := req.PathParameter("name")
+
+	applications, err := dt.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	for _, app := range applications {
+		if app.EnvBinding.ContainTarget(deliveryTargetName) {
+			bcode.ReturnError(req, res, bcode.ErrDeliveryTargetInUseCantDeleted)
+			return
+		}
+	}
+
+	if err := dt.deliveryTargetUsecase.DeleteDeliveryTarget(req.Request.Context(), deliveryTargetName); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
