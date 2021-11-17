@@ -499,7 +499,7 @@ func TestListClusters(t *testing.T) {
 	act := &mock.Action{}
 	v, err := value.NewValue("", nil, "")
 	r.NoError(err)
-	r.NoError(p.ListClusters(nil, v, act))
+	r.NoError(p.ListClusters(nil, nil, v, act))
 	outputs, err := v.LookupValue("outputs")
 	r.NoError(err)
 	obj := struct {

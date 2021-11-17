@@ -152,7 +152,7 @@ func (p *provider) PatchApplication(ctx wfContext.Context, tracer monitorContext
 	return v.FillObject(newApp, "outputs")
 }
 
-func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) ListClusters(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	secrets, err := multicluster.ListExistingClusterSecrets(context.Background(), p.Client)
 	if err != nil {
 		return err
