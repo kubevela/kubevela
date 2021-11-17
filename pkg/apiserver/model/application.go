@@ -18,6 +18,7 @@ package model
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
@@ -170,11 +171,12 @@ func (a *ApplicationPolicy) Index() map[string]string {
 
 // ApplicationTrait application trait
 type ApplicationTrait struct {
-	Model
 	Alias       string      `json:"alias"`
 	Description string      `json:"description"`
 	Type        string      `json:"type"`
 	Properties  *JSONStruct `json:"properties,omitempty"`
+	CreateTime  time.Time   `json:"createTime"`
+	UpdateTime  time.Time   `json:"updateTime"`
 }
 
 // RevisionStatusInit event status init
