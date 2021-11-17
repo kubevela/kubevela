@@ -275,8 +275,10 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Doc("list revisions for application").
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Param(ws.PathParameter("page", "Query the page number.").DataType("integer")).
-		Param(ws.PathParameter("pageSize", "Query the page size number.").DataType("integer")).
+		Param(ws.QueryParameter("envName", "query identifier of the env").DataType("string")).
+		Param(ws.QueryParameter("status", "query identifier of the status").DataType("string")).
+		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
+		Param(ws.QueryParameter("pageSize", "query the page size number").DataType("integer")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.ListRevisionsResponse{}).
 		Returns(400, "", bcode.Bcode{}).
@@ -725,7 +727,7 @@ func (c *applicationWebService) listApplicationRevisions(req *restful.Request, r
 		return
 	}
 
-	revisions, err := c.applicationUsecase.ListRevisions(req.Request.Context(), req.PathParameter("name"), page, pageSize)
+	revisions, err := c.applicationUsecase.ListRevisions(req.Request.Context(), req.PathParameter("name"), req.QueryParameter("envName"), req.QueryParameter("status"), page, pageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

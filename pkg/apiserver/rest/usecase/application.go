@@ -84,7 +84,7 @@ type ApplicationUsecase interface {
 	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
-	ListRevisions(ctx context.Context, appName string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
+	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 }
 
@@ -585,6 +585,11 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		}
 	}
 
+	workflow, err := c.workflowUsecase.GetWorkflow(ctx, oamApp.Annotations[oam.AnnotationWorkflowName])
+	if err != nil {
+		return nil, err
+	}
+
 	var appRevision = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
@@ -595,6 +600,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		Note:         req.Note,
 		TriggerType:  req.TriggerType,
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
+		EnvName:      workflow.EnvName,
 	}
 
 	if err := c.ds.Add(ctx, appRevision); err != nil {
@@ -638,23 +644,23 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMoel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
+func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appMoel.Name,
-			Namespace: appMoel.Namespace,
-			Labels:    appMoel.Labels,
+			Name:      appModel.Name,
+			Namespace: appModel.Namespace,
+			Labels:    appModel.Labels,
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion: version,
 			},
 		},
 	}
 	var component = model.ApplicationComponent{
-		AppPrimaryKey: appMoel.PrimaryKey(),
+		AppPrimaryKey: appModel.PrimaryKey(),
 	}
 	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{})
 	if err != nil {
@@ -665,7 +671,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 
 	var policy = model.ApplicationPolicy{
-		AppPrimaryKey: appMoel.PrimaryKey(),
+		AppPrimaryKey: appModel.PrimaryKey(),
 	}
 	policies, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
 	if err != nil {
@@ -722,7 +728,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			return nil, err
 		}
 	} else {
-		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appMoel)
+		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
 		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
 			return nil, err
 		}
@@ -1173,10 +1179,17 @@ func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app
 	return nil, bcode.ErrTraitNotExist
 }
 
-func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName string, page, pageSize int) (*apisv1.ListRevisionsResponse, error) {
+func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error) {
 	var revision = model.ApplicationRevision{
 		AppPrimaryKey: appName,
 	}
+	if envName != "" {
+		revision.EnvName = envName
+	}
+	if status != "" {
+		revision.Status = status
+	}
+
 	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{Page: page, PageSize: pageSize})
 	if err != nil {
 		return nil, err
@@ -1189,11 +1202,13 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName stri
 		r, ok := raw.(*model.ApplicationRevision)
 		if ok {
 			resp.Revisions = append(resp.Revisions, apisv1.ApplicationRevisionBase{
+				CreateTime:  r.CreateTime,
 				Version:     r.Version,
 				Status:      r.Status,
 				Reason:      r.Reason,
 				DeployUser:  r.DeployUser,
 				Note:        r.Note,
+				EnvName:     r.EnvName,
 				TriggerType: r.TriggerType,
 			})
 		}
