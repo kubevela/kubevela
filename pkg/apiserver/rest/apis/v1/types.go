@@ -623,6 +623,8 @@ type ApplicationTrait struct {
 	Description string `json:"description,omitempty"`
 	// Properties json data
 	Properties *model.JSONStruct `json:"properties"`
+	CreateTime time.Time         `json:"createTime"`
+	UpdateTime time.Time         `json:"updateTime"`
 }
 
 // CreateDeliveryTargetRequest  create delivery target request body
