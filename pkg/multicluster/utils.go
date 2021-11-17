@@ -170,3 +170,12 @@ func GetMulticlusterKubernetesClient() (client.Client, *rest.Config, error) {
 	k8sClient, err := Initialize(k8sConfig, false)
 	return k8sClient, k8sConfig, err
 }
+
+// ListExistingClusterSecrets list existing cluster secrets
+func ListExistingClusterSecrets(ctx context.Context, c client.Client) ([]v1.Secret, error) {
+	secrets := &v1.SecretList{}
+	if err := c.List(ctx, secrets, client.InNamespace(ClusterGatewaySecretNamespace), client.HasLabels{v1alpha1.LabelKeyClusterCredentialType}); err != nil {
+		return nil, errors2.Wrapf(err, "failed to list cluster secrets")
+	}
+	return secrets.Items, nil
+}

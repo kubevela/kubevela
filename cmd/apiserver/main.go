@@ -28,8 +28,8 @@ import (
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/go-openapi/spec"
-
 	"github.com/google/uuid"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
 	"github.com/oam-dev/kubevela/version"

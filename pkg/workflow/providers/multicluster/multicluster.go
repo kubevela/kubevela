@@ -17,6 +17,8 @@ limitations under the License.
 package multicluster
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -146,6 +148,18 @@ func (p *provider) PatchApplication(ctx wfContext.Context, v *value.Value, act w
 	return v.FillObject(newApp, "outputs")
 }
 
+func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	secrets, err := multicluster.ListExistingClusterSecrets(context.Background(), p.Client)
+	if err != nil {
+		return err
+	}
+	var clusters []string
+	for _, secret := range secrets {
+		clusters = append(clusters, secret.Name)
+	}
+	return v.FillObject(clusters, "outputs", "clusters")
+}
+
 // Install register handlers to provider discover.
 func Install(p providers.Providers, c client.Client, app *v1beta1.Application) {
 	prd := &provider{Client: c, app: app}
@@ -153,5 +167,6 @@ func Install(p providers.Providers, c client.Client, app *v1beta1.Application) {
 		"read-placement-decisions": prd.ReadPlacementDecisions,
 		"make-placement-decisions": prd.MakePlacementDecisions,
 		"patch-application":        prd.PatchApplication,
+		"list-clusters":            prd.ListClusters,
 	})
 }

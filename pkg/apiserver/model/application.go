@@ -191,7 +191,7 @@ var RevisionStatusComplete = "complete"
 // RevisionStatusFail event status failure
 var RevisionStatusFail = "failure"
 
-//  RevisionStatusTerminated event status terminated
+// RevisionStatusTerminated event status terminated
 var RevisionStatusTerminated = "terminated"
 
 // ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
