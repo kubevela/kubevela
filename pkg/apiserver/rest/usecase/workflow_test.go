@@ -202,7 +202,8 @@ status:
       phase: succeeded
       type: apply-component
     suspend: false
-    terminated: false`
+    terminated: false
+    finished: true`
 
 func (w *workflowUsecaseImpl) createTestApplicationRevision(ctx context.Context, deployEvent *model.ApplicationRevision) error {
 	if err := w.ds.Add(ctx, deployEvent); err != nil {

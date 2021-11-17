@@ -66,3 +66,6 @@ var ErrTraitNotExist = NewBcode(400, 10015, "trait is not exist")
 
 // ErrTraitAlreadyExist  trait is already exist
 var ErrTraitAlreadyExist = NewBcode(400, 10016, "trait is already exist")
+
+// ErrRevisionNotSuspended specified revision is not suspended
+var ErrRevisionNotSuspended = NewBcode(400, 10017, "application revision is not suspended")

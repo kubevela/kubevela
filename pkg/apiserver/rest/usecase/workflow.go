@@ -338,7 +338,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
-		err = w.updateRecordApplicationRevisionStatus(ctx, app.Name, revisionName, app.Status.Workflow.Terminated)
+		err = w.updateRecordApplicationRevisionStatus(ctx, app, revisionName)
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			klog.ErrorS(err, "failed to update deploy event status", "controller revision name", cr.Name)
 			continue
@@ -354,21 +354,30 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 	return nil
 }
 
-func (w *workflowUsecaseImpl) updateRecordApplicationRevisionStatus(ctx context.Context, appPrimaryKey, version string, terminated bool) error {
-	var applicationRevision = &model.ApplicationRevision{
-		AppPrimaryKey: appPrimaryKey,
+func (w *workflowUsecaseImpl) updateRecordApplicationRevisionStatus(ctx context.Context, app *v1beta1.Application, version string) error {
+	var revision = &model.ApplicationRevision{
+		AppPrimaryKey: app.Name,
 		Version:       version,
 	}
-	if err := w.ds.Get(ctx, applicationRevision); err != nil {
+	if err := w.ds.Get(ctx, revision); err != nil {
 		return err
 	}
-	if terminated {
-		applicationRevision.Status = model.RevisionStatusTerminated
-	} else {
-		applicationRevision.Status = model.RevisionStatusComplete
+
+	if app.Status.Workflow != nil {
+		status := app.Status.Workflow
+		revision.Status = model.RevisionStatusRunning
+		if status.Finished {
+			revision.Status = model.RevisionStatusComplete
+		}
+		if status.Suspend {
+			revision.Status = model.RevisionStatusSuspend
+		}
+		if status.Terminated {
+			revision.Status = model.RevisionStatusTerminated
+		}
 	}
 
-	if err := w.ds.Put(ctx, applicationRevision); err != nil {
+	if err := w.ds.Put(ctx, revision); err != nil {
 		return err
 	}
 

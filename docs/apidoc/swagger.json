@@ -1412,6 +1412,141 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/revisions/{revision}/resume": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "resume suspend application revision",
+				"operationId": "resumeApplicationRevision",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application revision",
+						"name": "revision",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailRevisionResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/revisions/{revision}/rollback/{rollback}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "rollback suspend application revision",
+				"operationId": "detailApplicationRevision",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application revision",
+						"name": "revision",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailRevisionResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/revisions/{revision}/terminate": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "terminate suspend application revision",
+				"operationId": "detailApplicationRevision",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application revision",
+						"name": "revision",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailRevisionResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}/template": {
 			"post": {
 				"consumes": [
@@ -1964,9 +2099,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"workflowstep",
 							"component",
-							"trait"
+							"trait",
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -2850,10 +2985,10 @@
 		"common.AppRolloutStatus": {
 			"required": [
 				"rollingState",
-				"batchRollingState",
 				"currentBatch",
 				"upgradedReplicas",
 				"upgradedReadyReplicas",
+				"batchRollingState",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -3484,11 +3619,17 @@
 			"required": [
 				"alias",
 				"description",
-				"type"
+				"type",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -3498,6 +3639,10 @@
 				},
 				"type": {
 					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},
@@ -3938,14 +4083,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"note",
+				"envName",
+				"triggerType",
 				"createTime",
 				"version",
 				"status",
 				"reason",
-				"deployUser",
-				"note",
-				"envName",
-				"triggerType"
+				"deployUser"
 			],
 			"properties": {
 				"createTime": {
@@ -4141,11 +4286,17 @@
 			"required": [
 				"name",
 				"type",
-				"properties"
+				"properties",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -4158,6 +4309,10 @@
 				},
 				"type": {
 					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},
@@ -4420,8 +4575,8 @@
 		},
 		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"targetNames",
-				"name"
+				"name",
+				"targetNames"
 			],
 			"properties": {
 				"alias": {
@@ -4803,10 +4958,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"description",
 				"icon",
 				"name",
 				"version",
+				"description",
 				"schema",
 				"uiSchema"
 			],
@@ -4857,13 +5012,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
-				"namespace",
-				"description",
-				"createTime",
-				"updateTime",
-				"icon",
 				"alias",
+				"namespace",
+				"createTime",
+				"icon",
+				"name",
+				"description",
+				"updateTime",
 				"policies",
 				"status",
 				"resourceInfo",
@@ -4927,20 +5082,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"createTime",
-				"alias",
-				"icon",
-				"status",
-				"reason",
-				"provider",
-				"dashboardURL",
 				"updateTime",
-				"name",
-				"labels",
-				"description",
+				"provider",
 				"apiServerURL",
+				"dashboardURL",
+				"createTime",
+				"name",
 				"kubeConfig",
 				"kubeConfigSecret",
+				"alias",
+				"description",
+				"status",
+				"icon",
+				"labels",
+				"reason",
 				"resourceInfo"
 			],
 			"properties": {
@@ -4998,13 +5153,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"creator",
-				"name",
-				"type",
 				"createTime",
+				"name",
+				"creator",
+				"alias",
 				"updateTime",
-				"alias"
+				"appPrimaryKey",
+				"type"
 			],
 			"properties": {
 				"alias": {
@@ -5099,10 +5254,10 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
 				"name",
-				"namespace",
-				"createTime"
+				"namespace"
 			],
 			"properties": {
 				"alias": {
@@ -5135,13 +5290,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"name",
 				"type",
 				"description",
 				"creator",
-				"properties"
+				"properties",
+				"createTime",
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"createTime": {
@@ -5171,17 +5326,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"triggerType",
 				"workflowName",
+				"envName",
 				"createTime",
 				"appPrimaryKey",
-				"reason",
-				"deployUser",
-				"note",
+				"status",
+				"triggerType",
 				"updateTime",
 				"version",
-				"status",
-				"envName"
+				"reason",
+				"deployUser",
+				"note"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5226,10 +5381,10 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"suspend",
 				"terminated",
 				"name",
 				"namespace",
-				"suspend",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -5600,10 +5755,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
-				"name",
-				"description",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name",
+				"description"
 			],
 			"properties": {
 				"createTime": {
