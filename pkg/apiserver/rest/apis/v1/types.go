@@ -676,11 +676,24 @@ type DeliveryTargetBase struct {
 
 // ApplicationRevisionBase application revision base spec
 type ApplicationRevisionBase struct {
-	Version    string `json:"version"`
-	Status     string `json:"status"`
-	Reason     string `json:"reason"`
-	DeployUser string `json:"deployUser"`
-	Note       string `json:"note"`
+	CreateTime time.Time `json:"createTime"`
+	Version    string    `json:"version"`
+	Status     string    `json:"status"`
+	Reason     string    `json:"reason"`
+	DeployUser string    `json:"deployUser"`
+	Note       string    `json:"note"`
+	EnvName    string    `json:"envName"`
 	// SourceType the event trigger source, Web or API
 	TriggerType string `json:"triggerType"`
+}
+
+// ListRevisionsResponse list application revisions
+type ListRevisionsResponse struct {
+	Revisions []ApplicationRevisionBase `json:"revisions"`
+	Total     int64                     `json:"total"`
+}
+
+// DetailRevisionResponse get application revision detail
+type DetailRevisionResponse struct {
+	model.ApplicationRevision
 }

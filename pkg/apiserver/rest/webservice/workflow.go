@@ -99,8 +99,8 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(w.workflowCheckFilter).
-		Param(ws.PathParameter("page", "Query the page number.").DataType("integer")).
-		Param(ws.PathParameter("pageSize", "Query the page size number.").DataType("integer")).
+		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
+		Param(ws.QueryParameter("pageSize", "query the page size number").DataType("integer")).
 		Returns(200, "", apis.ListWorkflowRecordsResponse{}).
 		Writes(apis.ListWorkflowRecordsResponse{}).Do(returns200, returns500))
 

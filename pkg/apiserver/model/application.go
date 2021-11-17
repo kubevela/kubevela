@@ -216,6 +216,8 @@ type ApplicationRevision struct {
 
 	// WorkflowName deploy controller by workflow
 	WorkflowName string `json:"workflowName"`
+	// EnvName is the env name of this application revision
+	EnvName string `json:"envName"`
 }
 
 // TableName return custom table name
@@ -248,6 +250,9 @@ func (a *ApplicationRevision) Index() map[string]string {
 	}
 	if a.TriggerType != "" {
 		index["triggerType"] = a.TriggerType
+	}
+	if a.EnvName != "" {
+		index["envName"] = a.EnvName
 	}
 	return index
 }

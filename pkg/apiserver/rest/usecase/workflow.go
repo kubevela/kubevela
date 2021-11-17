@@ -311,12 +311,27 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
+		if app.Annotations == nil {
+			klog.ErrorS(err, "empty application annotation", "controller revision name", cr.Name)
+			continue
+		}
+
+		if _, ok := app.Annotations[oam.AnnotationWorkflowName]; !ok {
+			klog.ErrorS(err, "missing application workflow name", "controller revision name", cr.Name)
+			continue
+		}
+		revisionName, ok := app.Annotations[oam.AnnotationDeployVersion]
+		if !ok {
+			klog.ErrorS(err, "failed to get application revision name", "controller revision name", cr.Name)
+			continue
+		}
+
 		if err := w.createWorkflowRecord(ctx, app, strings.TrimPrefix(cr.Name, "record-")); err != nil && !errors.Is(err, datastore.ErrRecordExist) {
 			klog.ErrorS(err, "failed to create workflow record", "controller revision name", cr.Name)
 			continue
 		}
 
-		err = w.updateRecordApplicationRevisionStatus(ctx, app.Name, strings.TrimPrefix(cr.Name, fmt.Sprintf("record-%s-", app.Name)), app.Status.Workflow.Terminated)
+		err = w.updateRecordApplicationRevisionStatus(ctx, app.Name, revisionName, app.Status.Workflow.Terminated)
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			klog.ErrorS(err, "failed to update deploy event status", "controller revision name", cr.Name)
 			continue
@@ -354,9 +369,6 @@ func (w *workflowUsecaseImpl) updateRecordApplicationRevisionStatus(ctx context.
 }
 
 func (w *workflowUsecaseImpl) createWorkflowRecord(ctx context.Context, app *v1beta1.Application, revisionName string) error {
-	if app.Annotations == nil || app.Annotations[oam.AnnotationWorkflowName] == "" {
-		return fmt.Errorf("missing workflow name")
-	}
 	status := app.Status.Workflow
 
 	return w.ds.Add(ctx, &model.WorkflowRecord{

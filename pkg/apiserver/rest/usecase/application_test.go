@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"strings"
 
@@ -515,5 +516,49 @@ var _ = Describe("Test application usecase function", func() {
 		policies, err := appUsecase.ListPolicies(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(policies), 0)).Should(BeEmpty())
+	})
+
+	It("Test ListRevisions function", func() {
+		for i := 0; i < 3; i++ {
+			appModel := &model.ApplicationRevision{
+				AppPrimaryKey: "test-app",
+				Version:       fmt.Sprintf("%d", i),
+				EnvName:       fmt.Sprintf("env-%d", i),
+				Status:        model.RevisionStatusRunning,
+			}
+			if i == 0 {
+				appModel.Status = model.RevisionStatusTerminated
+			}
+			err := workflowUsecase.createTestApplicationRevision(context.TODO(), appModel)
+			Expect(err).Should(BeNil())
+		}
+		revisions, err := appUsecase.ListRevisions(context.TODO(), "test-app", "", "", 0, 10)
+		Expect(err).Should(BeNil())
+		Expect(revisions.Total).Should(Equal(int64(3)))
+
+		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app", "env-0", "", 0, 10)
+		Expect(err).Should(BeNil())
+		Expect(revisions.Total).Should(Equal(int64(1)))
+
+		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app", "", "terminated", 0, 10)
+		Expect(err).Should(BeNil())
+		Expect(revisions.Total).Should(Equal(int64(1)))
+
+		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app", "env-1", "terminated", 0, 10)
+		Expect(err).Should(BeNil())
+		Expect(revisions.Total).Should(Equal(int64(0)))
+	})
+
+	It("Test DetailRevisions function", func() {
+		err := workflowUsecase.createTestApplicationRevision(context.TODO(), &model.ApplicationRevision{
+			AppPrimaryKey: "test-app",
+			Version:       "123",
+			DeployUser:    "test-user",
+		})
+		Expect(err).Should(BeNil())
+		revision, err := appUsecase.DetailRevision(context.TODO(), "test-app", "123")
+		Expect(err).Should(BeNil())
+		Expect(revision.Version).Should(Equal("123"))
+		Expect(revision.DeployUser).Should(Equal("test-user"))
 	})
 })
