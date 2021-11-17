@@ -35,11 +35,10 @@ type AddonUsecase interface {
 	UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
-	StatusAddon(name string) (*apis.AddonStatusResponse, error)
+	StatusAddon(ctx context.Context,name string) (*apis.AddonStatusResponse, error)
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
-	ArgsAddon(ctx context.Context, name string) (*apis.AddonArgsResponse, error)
 }
 
 // AddonImpl2AddonRes convert types.Addon to the type apiserver need
@@ -98,7 +97,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 	return nil, bcode.ErrAddonNotExist
 }
 
-func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, error) {
+func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
 	var app v1beta1.Application
 	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
@@ -115,11 +114,24 @@ func (u *addonUsecaseImpl) StatusAddon(name string) (*apis.AddonStatusResponse, 
 	}
 
 	switch app.Status.Phase {
-	case common2.ApplicationRunning, common2.ApplicationWorkflowFinished:
-		return &apis.AddonStatusResponse{
+	case common2.ApplicationRunning:
+		res := apis.AddonStatusResponse{
 			Phase:            apis.AddonPhaseEnabled,
 			EnablingProgress: nil,
-		}, nil
+		}
+		var sec v1.Secret
+		err := u.kubeClient.Get(ctx, client.ObjectKey{
+			Namespace: types.DefaultKubeVelaNS,
+			Name:      pkgaddon.Convert2SecName(name),
+		}, &sec)
+		if err != nil {
+			return nil, bcode.ErrAddonSecretGet
+		}
+		res.Args = make(map[string]string, len(sec.Data))
+		for k, v := range sec.Data {
+			res.Args[k] = string(v)
+		}
+		return &res, nil
 	default:
 		return &apis.AddonStatusResponse{
 			Phase:            apis.AddonPhaseEnabling,
@@ -331,18 +343,6 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 		return err
 	}
 	return nil
-}
-
-func (u *addonUsecaseImpl) ArgsAddon(ctx context.Context, name string) (*apis.AddonArgsResponse, error) {
-	var sec v1.Secret
-	err := u.kubeClient.Get(ctx, client.ObjectKey{
-		Namespace: types.DefaultKubeVelaNS,
-		Name:      pkgaddon.Convert2SecName(name),
-	}, &sec)
-	if err != nil {
-		return nil, bcode.ErrAddonSecretGet
-	}
-	return &apis.AddonArgsResponse{Args: sec.StringData}, nil
 }
 
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {
