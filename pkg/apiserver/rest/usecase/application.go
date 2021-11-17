@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1115,12 +1116,12 @@ func (c *applicationUsecaseImpl) CreateApplicationTrait(ctx context.Context, app
 		log.Logger.Errorf("new trait failure,%s", err.Error())
 		return nil, bcode.ErrInvalidProperties
 	}
-	trait := model.ApplicationTrait{Type: req.Type, Properties: properties}
+	trait := model.ApplicationTrait{Model: model.Model{CreateTime: time.Now()}, Type: req.Type, Properties: properties, Alias: req.Alias, Description: req.Description}
 	comp.Traits = append(comp.Traits, trait)
 	if err := c.ds.Put(ctx, &comp); err != nil {
 		return nil, err
 	}
-	return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties}, nil
+	return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties, Alias: req.Alias, Description: req.Description, CreateTime: trait.CreateTime}, nil
 }
 
 func (c *applicationUsecaseImpl) DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error {
@@ -1158,12 +1159,13 @@ func (c *applicationUsecaseImpl) UpdateApplicationTrait(ctx context.Context, app
 				log.Logger.Errorf("update trait failure,%s", err.Error())
 				return nil, bcode.ErrInvalidProperties
 			}
-			trait.Properties = properties
-			comp.Traits[i] = trait
+			updatedTrait := model.ApplicationTrait{Model: model.Model{CreateTime: trait.CreateTime, UpdateTime: time.Now()}, Properties: properties, Type: traitType, Alias: req.Alias, Description: req.Description}
+			comp.Traits[i] = updatedTrait
 			if err := c.ds.Put(ctx, &comp); err != nil {
 				return nil, err
 			}
-			return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties}, nil
+			return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties,
+				Alias: updatedTrait.Alias, Description: updatedTrait.Description, CreateTime: updatedTrait.CreateTime, UpdateTime: updatedTrait.UpdateTime}, nil
 		}
 	}
 	return nil, bcode.ErrTraitNotExist

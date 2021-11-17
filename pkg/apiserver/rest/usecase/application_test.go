@@ -329,9 +329,13 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test add application trait", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
+		alias := "alias"
+		description := "description"
 		res, err := appUsecase.CreateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, v1.CreateApplicationTraitRequest{
-			Type:       "Ingress",
-			Properties: `{"domain":"www.test.com"}`,
+			Type:        "Ingress",
+			Properties:  `{"domain":"www.test.com"}`,
+			Alias:       alias,
+			Description: description,
 		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(res.Type, "Ingress")).Should(BeEmpty())
@@ -340,6 +344,8 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(comp).ShouldNot(BeNil())
 		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
 		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test.com"}`))
+		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
+		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
 	})
 
 	It("Test add application a dup trait", func() {
@@ -355,8 +361,12 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test update application trait", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
+		alias := "newAlias"
+		description := "newDescription"
 		res, err := appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress", v1.UpdateApplicationTraitRequest{
-			Properties: `{"domain":"www.test1.com"}`,
+			Properties:  `{"domain":"www.test1.com"}`,
+			Alias:       alias,
+			Description: description,
 		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(res.Type, "Ingress")).Should(BeEmpty())
@@ -365,6 +375,8 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(comp).ShouldNot(BeNil())
 		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
 		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test1.com"}`))
+		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
+		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
 	})
 
 	It("Test update a not exist", func() {

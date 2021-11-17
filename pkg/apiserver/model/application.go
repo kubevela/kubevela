@@ -170,6 +170,7 @@ func (a *ApplicationPolicy) Index() map[string]string {
 
 // ApplicationTrait application trait
 type ApplicationTrait struct {
+	Model
 	Alias       string      `json:"alias"`
 	Description string      `json:"description"`
 	Type        string      `json:"type"`
