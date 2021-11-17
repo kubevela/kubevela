@@ -137,6 +137,49 @@
   label: ReadinessProbe检测
   sort: 13
   subParameters:
+  - description: How often, in seconds, to execute the probe.
+    jsonKey: periodSeconds
+    label: PeriodSeconds
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 10
+      required: true
+  - description: Minimum consecutive successes for the probe to be considered successful
+      after having failed.
+    jsonKey: successThreshold
+    label: SuccessThreshold
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
+    uiType: KV
+    validate: {}
+  - description: Number of seconds after which the probe times out.
+    jsonKey: timeoutSeconds
+    label: TimeoutSeconds
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
+      required: true
   - description: Instructions for assessing container health by executing a command.
       Either this attribute or the httpGet attribute or the tcpSocket attribute MUST
       be specified. This attribute is mutually exclusive with both the httpGet attribute
@@ -221,49 +264,6 @@
     uiType: Number
     validate:
       defaultValue: 0
-      required: true
-  - description: How often, in seconds, to execute the probe.
-    jsonKey: periodSeconds
-    label: PeriodSeconds
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 10
-      required: true
-  - description: Minimum consecutive successes for the probe to be considered successful
-      after having failed.
-    jsonKey: successThreshold
-    label: SuccessThreshold
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
-      required: true
-  - description: Instructions for assessing container health by probing a TCP socket.
-      Either this attribute or the exec attribute or the httpGet attribute MUST be
-      specified. This attribute is mutually exclusive with both the exec attribute
-      and the httpGet attribute.
-    jsonKey: tcpSocket
-    label: TcpSocket
-    sort: 100
-    subParameters:
-    - description: The TCP socket within the container that should be probed to assess
-        container health.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
-      validate:
-        required: true
-    uiType: KV
-    validate: {}
-  - description: Number of seconds after which the probe times out.
-    jsonKey: timeoutSeconds
-    label: TimeoutSeconds
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
       required: true
   uiType: Group
   validate: {}
@@ -272,49 +272,6 @@
   label: LivenessProbe检测
   sort: 15
   subParameters:
-  - description: How often, in seconds, to execute the probe.
-    jsonKey: periodSeconds
-    label: PeriodSeconds
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 10
-      required: true
-  - description: Minimum consecutive successes for the probe to be considered successful
-      after having failed.
-    jsonKey: successThreshold
-    label: SuccessThreshold
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
-      required: true
-  - description: Instructions for assessing container health by probing a TCP socket.
-      Either this attribute or the exec attribute or the httpGet attribute MUST be
-      specified. This attribute is mutually exclusive with both the exec attribute
-      and the httpGet attribute.
-    jsonKey: tcpSocket
-    label: TcpSocket
-    sort: 100
-    subParameters:
-    - description: The TCP socket within the container that should be probed to assess
-        container health.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
-      validate:
-        required: true
-    uiType: KV
-    validate: {}
-  - description: Number of seconds after which the probe times out.
-    jsonKey: timeoutSeconds
-    label: TimeoutSeconds
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
-      required: true
   - description: Instructions for assessing container health by executing a command.
       Either this attribute or the httpGet attribute or the tcpSocket attribute MUST
       be specified. This attribute is mutually exclusive with both the httpGet attribute
@@ -358,15 +315,15 @@
       sort: 100
       subParameters:
       - description: ""
-        jsonKey: value
-        label: Value
+        jsonKey: name
+        label: Name
         sort: 100
         uiType: Input
         validate:
           required: true
       - description: ""
-        jsonKey: name
-        label: Name
+        jsonKey: value
+        label: Value
         sort: 100
         uiType: Input
         validate:
@@ -399,6 +356,49 @@
     uiType: Number
     validate:
       defaultValue: 0
+      required: true
+  - description: How often, in seconds, to execute the probe.
+    jsonKey: periodSeconds
+    label: PeriodSeconds
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 10
+      required: true
+  - description: Minimum consecutive successes for the probe to be considered successful
+      after having failed.
+    jsonKey: successThreshold
+    label: SuccessThreshold
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
+    uiType: KV
+    validate: {}
+  - description: Number of seconds after which the probe times out.
+    jsonKey: timeoutSeconds
+    label: TimeoutSeconds
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
       required: true
   uiType: Group
   validate: {}
