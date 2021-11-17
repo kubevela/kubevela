@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"sort"
 	"strings"
 	"time"
@@ -333,7 +334,15 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 }
 
 func (u *addonUsecaseImpl) ArgsAddon(ctx context.Context, name string) (*apis.AddonArgsResponse, error) {
-	panic("implement me")
+	var sec v1.Secret
+	err := u.kubeClient.Get(ctx, client.ObjectKey{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      pkgaddon.Convert2SecName(name),
+	}, &sec)
+	if err != nil {
+		return nil, bcode.ErrAddonSecretGet
+	}
+	return &apis.AddonArgsResponse{Args: sec.StringData}, nil
 }
 
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {

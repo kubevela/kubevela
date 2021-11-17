@@ -452,18 +452,18 @@ func Convert2AddonName(name string) string {
 }
 
 func RenderArgsSecret(addon *types.Addon, args map[string]string) *v1.Secret {
-	sec:=v1.Secret{
+	sec := v1.Secret{
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      Convert2SecName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 		StringData: args,
 		Type:       v1.SecretTypeOpaque,
-
 	}
 	return &sec
 }
 
-func Convert2SecName(name string)string{
-	return addonSecPrefix+name
+func Convert2SecName(name string) string {
+	return addonSecPrefix + name
 }
