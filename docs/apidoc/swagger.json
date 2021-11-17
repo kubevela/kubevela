@@ -3077,6 +3077,9 @@
 				"batchRollingState",
 				"upgradedReplicas",
 				"upgradedReadyReplicas",
+				"rollingState",
+				"currentBatch",
+				"batchRollingState",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -5142,7 +5145,6 @@
 				"namespace",
 				"description",
 				"createTime",
-				"updateTime",
 				"icon",
 				"name",
 				"policies",
@@ -5930,10 +5932,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
-				"name",
 				"description",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"createTime": {
