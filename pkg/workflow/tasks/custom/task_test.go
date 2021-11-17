@@ -250,6 +250,7 @@ func TestSteps(t *testing.T) {
 	)
 
 	wfCtx := newWorkflowContextForTest(t)
+	logCtx := monitorContext.NewTraceContext(context.Background(), "")
 	r := require.New(t)
 	discover := providers.NewProviders()
 	discover.Register("test", map[string]providers.Handler{
@@ -368,7 +369,7 @@ apply: {
 		echo = ""
 		v, err := value.NewValue(tc.base, nil, "", value.TagFieldOrder)
 		r.NoError(err)
-		err = exec.doSteps(wfCtx, nil, v)
+		err = exec.doSteps(wfCtx, logCtx, v)
 		r.Equal(err != nil, tc.hasErr)
 		r.Equal(echo, tc.expected)
 	}
