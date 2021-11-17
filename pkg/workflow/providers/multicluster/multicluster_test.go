@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -476,4 +477,34 @@ func TestPatchApplication(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestListClusters(t *testing.T) {
+	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	clusterNames := []string{"cluster-a", "cluster-b"}
+	for _, secretName := range clusterNames {
+		secret := &v1.Secret{}
+		secret.Name = secretName
+		secret.Namespace = multicluster.ClusterGatewaySecretNamespace
+		secret.Labels = map[string]string{v1alpha12.LabelKeyClusterCredentialType: "X509"}
+		r.NoError(cli.Create(context.Background(), secret))
+	}
+	app := &v1beta1.Application{}
+	p := &provider{
+		Client: cli,
+		app:    app,
+	}
+	act := &mock.Action{}
+	v, err := value.NewValue("", nil, "")
+	r.NoError(err)
+	r.NoError(p.ListClusters(nil, v, act))
+	outputs, err := v.LookupValue("outputs")
+	r.NoError(err)
+	obj := struct {
+		Clusters []string `json:"clusters"`
+	}{}
+	r.NoError(outputs.UnmarshalTo(&obj))
+	r.Equal(clusterNames, obj.Clusters)
 }

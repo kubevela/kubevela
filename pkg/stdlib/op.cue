@@ -109,6 +109,8 @@ import (
 
 #LoadPolicies: oam.#LoadPolicies
 
+#ListClusters: multicluster.#ListClusters
+
 #MakePlacementDecisions: multicluster.#MakePlacementDecisions
 
 #PatchApplication: multicluster.#PatchApplication

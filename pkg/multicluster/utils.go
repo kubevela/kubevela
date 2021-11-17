@@ -157,3 +157,12 @@ func UpgradeExistingClusterSecret(ctx context.Context, c client.Client) error {
 	}
 	return nil
 }
+
+// ListExistingClusterSecrets list existing cluster secrets
+func ListExistingClusterSecrets(ctx context.Context, c client.Client) ([]v1.Secret, error) {
+	secrets := &v1.SecretList{}
+	if err := c.List(ctx, secrets, client.InNamespace(ClusterGatewaySecretNamespace), client.HasLabels{v1alpha1.LabelKeyClusterCredentialType}); err != nil {
+		return nil, errors2.Wrapf(err, "failed to list cluster secrets")
+	}
+	return secrets.Items, nil
+}
