@@ -92,38 +92,37 @@ func NewAppStatusCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
 			argsLength := len(args)
 			if argsLength == 0 {
 				ioStreams.Errorf("Hint: please specify an application")
 				os.Exit(1)
 			}
 			appName := args[0]
-			env, err := GetFlagEnvOrCurrent(cmd, c)
-			if err != nil {
-				ioStreams.Errorf("Error: failed to get Env: %s", err)
-				return err
-			}
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			return printAppStatus(ctx, newClient, ioStreams, appName, env, cmd, c)
+			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
 	}
 	cmd.Flags().StringP("svc", "s", "", "service name")
+	addNamespaceArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command, velaC common.Args) error {
-	app, err := appfile.LoadApplication(env.Namespace, appName, velaC)
+func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, cmd *cobra.Command, velaC common.Args) error {
+	app, err := appfile.LoadApplication(namespace, appName, velaC)
 	if err != nil {
 		return err
 	}
-	namespace := env.Namespace
 
 	cmd.Printf("About:\n\n")
 	table := newUITable()
@@ -133,7 +132,7 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	cmd.Printf("%s\n\n", table.String())
 
 	cmd.Printf("Services:\n\n")
-	return loopCheckStatus(c, ioStreams, appName, env)
+	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
 func loadRemoteApplication(c client.Client, ns string, name string) (*v1beta1.Application, error) {
@@ -154,8 +153,8 @@ func getComponentType(app *v1beta1.Application, name string) string {
 	return "webservice"
 }
 
-func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) error {
-	remoteApp, err := loadRemoteApplication(c, env.Namespace, appName)
+func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) error {
+	remoteApp, err := loadRemoteApplication(c, namespace, appName)
 	if err != nil {
 		return err
 	}
@@ -173,7 +172,7 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthstats), healthColor.Sprint(healthInfo))
 
 		// load it again after health check
-		remoteApp, err = loadRemoteApplication(c, env.Namespace, appName)
+		remoteApp, err = loadRemoteApplication(c, namespace, appName)
 		if err != nil {
 			return err
 		}
@@ -194,14 +193,14 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	return nil
 }
 
-func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) (CompStatus, error) {
+func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appName string, namespace string) (CompStatus, error) {
 	sDeploy := newTrackingSpinnerWithDelay("Checking Status ...", trackingInterval)
 	sDeploy.Start()
 	defer sDeploy.Stop()
 TrackDeployLoop:
 	for {
 		time.Sleep(trackingInterval)
-		deployStatus, failMsg, err := TrackDeployStatus(c, appName, env)
+		deployStatus, failMsg, err := TrackDeployStatus(c, appName, namespace)
 		if err != nil {
 			return compStatusUnknown, err
 		}
@@ -223,8 +222,8 @@ TrackDeployLoop:
 }
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
-func TrackDeployStatus(c common.Args, appName string, env *types.EnvMeta) (CompStatus, string, error) {
-	appObj, err := appfile.LoadApplication(env.Namespace, appName, c)
+func TrackDeployStatus(c common.Args, appName string, namespace string) (CompStatus, string, error) {
+	appObj, err := appfile.LoadApplication(namespace, appName, c)
 	if err != nil {
 		return compStatusUnknown, "", err
 	}

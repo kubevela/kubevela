@@ -38,17 +38,18 @@ func NewWorkloadsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Com
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetFlagEnvOrCurrent(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
-			return printWorkloadList(env.Namespace, c, ioStreams)
+			return printWorkloadList(namespace, c, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
+	addNamespaceArg(cmd)
 	return cmd
 }
 
