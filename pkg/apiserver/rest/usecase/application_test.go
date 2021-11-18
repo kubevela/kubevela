@@ -37,16 +37,22 @@ import (
 
 var _ = Describe("Test application usecase function", func() {
 	var (
-		appUsecase      *applicationUsecaseImpl
-		workflowUsecase *workflowUsecaseImpl
+		appUsecase            *applicationUsecaseImpl
+		workflowUsecase       *workflowUsecaseImpl
+		envBindingUsecase     *envBindingUsecaseImpl
+		deliveryTargetUsecase *deliveryTargetUsecaseImpl
 	)
 	BeforeEach(func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds}
+		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds}
 		appUsecase = &applicationUsecaseImpl{
-			ds:              ds,
-			workflowUsecase: workflowUsecase,
-			apply:           apply.NewAPIApplicator(k8sClient),
-			kubeClient:      k8sClient,
+			ds:                    ds,
+			workflowUsecase:       workflowUsecase,
+			apply:                 apply.NewAPIApplicator(k8sClient),
+			kubeClient:            k8sClient,
+			envBindingUsecase:     envBindingUsecase,
+			deliveryTargetUsecase: deliveryTargetUsecase,
 		}
 	})
 	It("Test CreateApplication function", func() {
