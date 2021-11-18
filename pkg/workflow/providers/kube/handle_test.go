@@ -127,7 +127,7 @@ value:{
 cluster: ""
 `, component.Workload.String()), nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Apply(ctx, nil, v, nil)
+		err = p.Apply(ctx, logCtx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		workload, err := component.Workload.Unstructured()
 		Expect(err).ToNot(HaveOccurred())
@@ -271,7 +271,7 @@ index: "test-1"
 cluster: ""
 `, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.List(wfCtx, nil, v, nil)
+		err = p.List(wfCtx, logCtx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		result, err = v.LookupValue("list")
 		Expect(err).ToNot(HaveOccurred())
@@ -378,7 +378,7 @@ value: {
 }
 patch: _|_
 `, nil, "")
-		err = p.Apply(ctx, nil, v, nil)
+		err = p.Apply(ctx, logCtx, v, nil)
 		Expect(err).To(HaveOccurred())
 
 		v, err = value.NewValue(`
@@ -393,7 +393,7 @@ value: {
 cluster: "test"
 `, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Read(ctx, nil, v, nil)
+		err = p.Read(ctx, logCtx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
 		errV, err := v.Field("err")
 		Expect(err).ToNot(HaveOccurred())
@@ -410,9 +410,9 @@ val: {
 }
 `, nil, "")
 		Expect(err).ToNot(HaveOccurred())
-		err = p.Read(ctx, nil, v, nil)
+		err = p.Read(ctx, logCtx, v, nil)
 		Expect(err).To(HaveOccurred())
-		err = p.Apply(ctx, nil, v, nil)
+		err = p.Apply(ctx, logCtx, v, nil)
 		Expect(err).To(HaveOccurred())
 	})
 
