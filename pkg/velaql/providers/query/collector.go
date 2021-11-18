@@ -77,7 +77,7 @@ func (c *AppCollector) CollectLatestResourceFromApp() ([]AppResources, error) {
 	if app.Status.LatestRevision != nil {
 		revision = app.Status.LatestRevision.Revision
 	}
-	publishVersion := app.GetAnnotations()[types.AnnotationPublishVersion]
+	publishVersion := app.GetAnnotations()[oam.AnnotationPublishVersion]
 
 	appRevName := fmt.Sprintf("%s-v%d", app.Name, revision)
 	comps := make(map[string][]Resource, len(app.Spec.Components))
