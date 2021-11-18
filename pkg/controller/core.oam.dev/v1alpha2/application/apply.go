@@ -52,6 +52,7 @@ type AppHandler struct {
 
 	services         []common.ApplicationComponentStatus
 	appliedResources []common.ClusterObjectReference
+	deletedResources []common.ClusterObjectReference
 	parser           *appfile.Parser
 }
 
@@ -74,7 +75,7 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.
 					APIVersion: mf.GetAPIVersion(),
 				},
 			}
-			h.addAppliedResource(ref)
+			h.addAppliedResource(false, ref)
 		}
 	}
 	return err
@@ -101,8 +102,17 @@ func (h *AppHandler) Delete(ctx context.Context, cluster string, owner common.Re
 
 // addAppliedResource recorde applied resource.
 // reconcile run at single threaded. So there is no need to consider to use locker.
-func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
+func (h *AppHandler) addAppliedResource(previous bool, refs ...common.ClusterObjectReference) {
 	for _, ref := range refs {
+		if previous {
+			for i, deleted := range h.deletedResources {
+				if isSameObjReference(deleted, ref) {
+					h.deletedResources = removeResources(h.deletedResources, i)
+					return
+				}
+			}
+		}
+
 		found := false
 		for _, current := range h.appliedResources {
 			if isSameObjReference(current, ref) {
@@ -117,13 +127,32 @@ func (h *AppHandler) addAppliedResource(refs ...common.ClusterObjectReference) {
 }
 
 func (h *AppHandler) deleteAppliedResource(ref common.ClusterObjectReference) {
-	resouces := []common.ClusterObjectReference{}
-	for _, current := range h.appliedResources {
-		if !isSameObjReference(current, ref) {
-			resouces = append(resouces, current)
+	delIndex := -1
+	for i, current := range h.appliedResources {
+		if isSameObjReference(current, ref) {
+			delIndex = i
 		}
 	}
-	h.appliedResources = resouces
+	if delIndex < 0 {
+		isDeleted := false
+		for _, deleted := range h.deletedResources {
+			if isSameObjReference(deleted, ref) {
+				isDeleted = true
+				break
+			}
+		}
+		if !isDeleted {
+			h.deletedResources = append(h.deletedResources, ref)
+		}
+	} else {
+		h.appliedResources = removeResources(h.appliedResources, delIndex)
+	}
+
+}
+
+func removeResources(elements []common.ClusterObjectReference, index int) []common.ClusterObjectReference {
+	elements[index] = elements[len(elements)-1]
+	return elements[:len(elements)-1]
 }
 
 func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {

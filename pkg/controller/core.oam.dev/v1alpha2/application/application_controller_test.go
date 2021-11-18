@@ -2077,6 +2077,51 @@ var _ = Describe("Test Application Controller", func() {
 				},
 			},
 		}))
+
+		checkApp.Spec.Components[0].Name = "myweb-1"
+		Expect(k8sClient.Update(context.Background(), checkApp)).Should(BeNil())
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.AppliedResources).Should(BeEquivalentTo([]common.ClusterObjectReference{
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "Deployment",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb-1",
+					APIVersion: "apps/v1",
+				},
+			},
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb-1game-config",
+					APIVersion: "v1",
+				},
+			},
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "Deployment",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb2",
+					APIVersion: "apps/v1",
+				},
+			},
+			{
+				Cluster: "",
+				Creator: common.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
+					Namespace:  "app-applied-resources",
+					Name:       "myweb2game-config",
+					APIVersion: "v1",
+				},
+			},
+		}))
 	})
 
 	It("app record execution state with controllerRevision", func() {
