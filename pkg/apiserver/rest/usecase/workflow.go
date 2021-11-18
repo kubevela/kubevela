@@ -248,7 +248,7 @@ func (w *workflowUsecaseImpl) ListWorkflowRecords(ctx context.Context, workflowN
 			resp.Records = append(resp.Records, *convertFromRecordModel(record))
 		}
 	}
-	count, err := w.ds.Count(ctx, &record)
+	count, err := w.ds.Count(ctx, &record, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -87,12 +87,12 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	Expect(err).Should(BeNil())
 	Expect(kubeStore).ToNot(BeNil())
 
-	It("Test add funtion", func() {
+	It("Test add function", func() {
 		err := kubeStore.Add(context.TODO(), &model.Application{Name: "kubevela-app", Description: "default"})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Test batch add funtion", func() {
+	It("Test batch add function", func() {
 		var datas = []datastore.Entity{
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 			&model.Application{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
@@ -110,7 +110,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(equal).To(BeEmpty())
 	})
 
-	It("Test get funtion", func() {
+	It("Test get function", func() {
 		app := &model.Application{Name: "kubevela-app"}
 		err := kubeStore.Get(context.TODO(), app)
 		Expect(err).Should(BeNil())
@@ -118,7 +118,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
-	It("Test put funtion", func() {
+	It("Test put function", func() {
 		err := kubeStore.Put(context.TODO(), &model.Application{Name: "kubevela-app", Description: "this is demo"})
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -165,16 +165,61 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
+	It("Test list clusters with sort and fuzzy query", func() {
+		clusters, err := kubeStore.List(context.TODO(), &model.Cluster{}, nil)
+		Expect(err).Should(Succeed())
+		for _, cluster := range clusters {
+			Expect(kubeStore.Delete(context.TODO(), cluster)).Should(Succeed())
+		}
+		for _, name := range []string{"first", "second", "third"} {
+			Expect(kubeStore.Add(context.TODO(), &model.Cluster{Name: name})).Should(Succeed())
+			time.Sleep(time.Millisecond * 100)
+		}
+		entities, err := kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderAscending}}})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(3))
+		for i, name := range []string{"first", "second", "third"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			Page:     2,
+			PageSize: 2,
+		})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(1))
+		for i, name := range []string{"first"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			FilterOptions: datastore.FilterOptions{
+				Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
+			},
+		})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(2))
+		for i, name := range []string{"third", "first"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+	})
+
 	It("Test count function", func() {
 		var app model.Application
-		count, err := kubeStore.Count(context.TODO(), &app)
+		count, err := kubeStore.Count(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(4)))
 
 		app.Namespace = "test-namespace"
-		count, err = kubeStore.Count(context.TODO(), &app)
+		count, err = kubeStore.Count(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(1)))
+
+		count, err = kubeStore.Count(context.TODO(), &model.Cluster{}, &datastore.FilterOptions{
+			Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
+		})
+		Expect(err).Should(Succeed())
+		Expect(count).Should(Equal(int64(2)))
 	})
 
 	It("Test isExist function", func() {
@@ -192,7 +237,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
-	It("Test delete funtion", func() {
+	It("Test delete function", func() {
 		var app model.Application
 		app.Name = "kubevela-app"
 		err := kubeStore.Delete(context.TODO(), &app)

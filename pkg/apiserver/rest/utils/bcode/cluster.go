@@ -57,3 +57,6 @@ var ErrBootstrapTerraformConfiguration = NewBcode(500, 40012, "failed to bootstr
 
 // ErrInvalidAccessKeyOrSecretKey access key or secret key is invalid
 var ErrInvalidAccessKeyOrSecretKey = NewBcode(400, 40013, "access key or secret key is invalid")
+
+// ErrClusterCreateNamespaceNoPermission cluster create namespace is forbidden
+var ErrClusterCreateNamespaceNoPermission = NewBcode(401, 40014, "no permission to create namespace in cluster")

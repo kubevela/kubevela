@@ -486,6 +486,7 @@ func Convert2AddonName(name string) string {
 	return strings.TrimPrefix(name, addonAppPrefix)
 }
 
+// RenderArgsSecret TODO add desc
 func RenderArgsSecret(addon *types.Addon, args map[string]string) *v1.Secret {
 	sec := v1.Secret{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
@@ -499,6 +500,7 @@ func RenderArgsSecret(addon *types.Addon, args map[string]string) *v1.Secret {
 	return &sec
 }
 
+// Convert2SecName TODO add desc
 func Convert2SecName(name string) string {
 	return addonSecPrefix + name
 }

@@ -86,10 +86,39 @@ func NewEntity(in Entity) (Entity, error) {
 	return new.Interface().(Entity), nil
 }
 
+// SortOrder is the order of sort
+type SortOrder int
+
+const (
+	// SortOrderAscending defines the order of ascending for sorting
+	SortOrderAscending = SortOrder(1)
+	// SortOrderDescending defines the order of descending for sorting
+	SortOrderDescending = SortOrder(-1)
+)
+
+// SortOption describes the sorting parameters for list
+type SortOption struct {
+	Key   string
+	Order SortOrder
+}
+
+// FuzzyQueryOption defines the fuzzy query search filter option
+type FuzzyQueryOption struct {
+	Key   string
+	Query string
+}
+
+// FilterOptions filter query returned items
+type FilterOptions struct {
+	Queries []FuzzyQueryOption
+}
+
 // ListOptions list api options
 type ListOptions struct {
+	FilterOptions
 	Page     int
 	PageSize int
+	SortBy   []SortOption
 }
 
 // DataStore datastore interface
@@ -113,7 +142,7 @@ type DataStore interface {
 	List(ctx context.Context, query Entity, options *ListOptions) ([]Entity, error)
 
 	// Count entities from database, TableName() can't return zero value.
-	Count(ctx context.Context, entity Entity) (int64, error)
+	Count(ctx context.Context, entity Entity, options *FilterOptions) (int64, error)
 
 	// IsExist Name() and TableName() can't return zero value.
 	IsExist(ctx context.Context, entity Entity) (bool, error)
