@@ -102,7 +102,8 @@ type DetailAddonResponse struct {
 
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
-	Phase AddonPhase `json:"phase"`
+	Phase AddonPhase        `json:"phase"`
+	Args  map[string]string `json:"args"`
 
 	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
 }
@@ -111,6 +112,10 @@ type AddonStatusResponse struct {
 type EnablingProgress struct {
 	EnabledComponents int `json:"enabled_components"`
 	TotalComponents   int `json:"total_components"`
+}
+
+type AddonArgsResponse struct {
+	Args map[string]string `json:"args"`
 }
 
 // AccessKeyRequest request parameters to access cloud provider
