@@ -170,7 +170,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
 	if !appWillRollout(app) {
-		handler.addAppliedResource(app.Status.AppliedResources...)
 		steps, err := handler.GenerateApplicationSteps(ctx, app, appParser, appFile, handler.currentAppRev)
 		if err != nil {
 			klog.Error(err, "[handle workflow]")
@@ -187,6 +186,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 
 		handler.addServiceStatus(false, app.Status.Services...)
+		handler.addAppliedResource(true, app.Status.AppliedResources...)
 		app.Status.AppliedResources = handler.appliedResources
 		app.Status.Services = handler.services
 		switch workflowState {
