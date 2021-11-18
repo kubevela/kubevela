@@ -50,5 +50,8 @@ func (e *EnvBinding) Index() map[string]string {
 	if e.Name != "" {
 		index["name"] = e.Name
 	}
+	if e.AppPrimaryKey != "" {
+		index["appPrimaryKey"] = e.AppPrimaryKey
+	}
 	return index
 }

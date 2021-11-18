@@ -245,7 +245,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 			}
 		}
 		if oamApp.Spec.Workflow != nil && len(oamApp.Spec.Workflow.Steps) > 0 {
-			if err := SaveApplicationWorkflow(c.workflowUsecase, ctx, &application, oamApp.Spec.Workflow.Steps, application.Name); err != nil {
+			if err := c.saveApplicationWorkflow(ctx, &application, oamApp.Spec.Workflow.Steps, application.Name); err != nil {
 				log.Logger.Errorf("save applictaion polocies failure,%s", err.Error())
 				return nil, err
 			}
@@ -299,6 +299,40 @@ func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
 	appPolicy.Properties = properties.RawExtension()
 	return appPolicy, nil
+}
+
+func (c *applicationUsecaseImpl) saveApplicationWorkflow(ctx context.Context, application *model.Application, workflowSteps []v1beta1.WorkflowStep, workflowName string) error {
+	var steps []apisv1.WorkflowStep
+	for _, step := range workflowSteps {
+		var propertyStr string
+		if step.Properties != nil {
+			properties, err := model.NewJSONStruct(step.Properties)
+			if err != nil {
+				log.Logger.Errorf("workflow %s step %s properties is invalid %s", application.Name, step.Name, err.Error())
+				continue
+			}
+			propertyStr = properties.JSON()
+		}
+		steps = append(steps, apisv1.WorkflowStep{
+			Name:       step.Name,
+			Type:       step.Type,
+			DependsOn:  step.DependsOn,
+			Properties: propertyStr,
+			Inputs:     step.Inputs,
+			Outputs:    step.Outputs,
+		})
+	}
+	_, err := c.workflowUsecase.CreateWorkflow(ctx, application, apisv1.CreateWorkflowRequest{
+		AppName:     application.PrimaryKey(),
+		Name:        workflowName,
+		Description: "Created automatically.",
+		Steps:       steps,
+		Default:     true,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *applicationUsecaseImpl) saveApplicationEnvBinding(ctx context.Context, app model.Application, envBindings []*apisv1.EnvBinding) error {
@@ -1062,40 +1096,6 @@ func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.Deliver
 		Placement: placement,
 		Selector:  componentSelector,
 	}
-}
-
-func SaveApplicationWorkflow(workflowUsecase WorkflowUsecase, ctx context.Context, application *model.Application, workflowSteps []v1beta1.WorkflowStep, workflowName string) error {
-	var steps []apisv1.WorkflowStep
-	for _, step := range workflowSteps {
-		var propertyStr string
-		if step.Properties != nil {
-			properties, err := model.NewJSONStruct(step.Properties)
-			if err != nil {
-				log.Logger.Errorf("workflow %s step %s properties is invalid %s", application.Name, step.Name, err.Error())
-				continue
-			}
-			propertyStr = properties.JSON()
-		}
-		steps = append(steps, apisv1.WorkflowStep{
-			Name:       step.Name,
-			Type:       step.Type,
-			DependsOn:  step.DependsOn,
-			Properties: propertyStr,
-			Inputs:     step.Inputs,
-			Outputs:    step.Outputs,
-		})
-	}
-	_, err := workflowUsecase.CreateWorkflow(ctx, application, apisv1.CreateWorkflowRequest{
-		AppName:     application.PrimaryKey(),
-		Name:        workflowName,
-		Description: "Created automatically.",
-		Steps:       steps,
-		Default:     true,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func converAppName(app *model.Application, envName string) string {

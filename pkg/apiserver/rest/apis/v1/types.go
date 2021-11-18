@@ -618,6 +618,11 @@ type PutApplicationEnvRequest struct {
 	TargetNames       []string           `json:"targetNames"`
 }
 
+// ListApplicationEnvBinding list app envBindings
+type ListApplicationEnvBinding struct {
+	EnvBindings []*EnvBindingBase `json:"envBindings"`
+}
+
 // CreateApplicationEnvRequest new application env
 type CreateApplicationEnvRequest struct {
 	EnvBinding

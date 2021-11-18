@@ -89,6 +89,16 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailApplicationResponse{}))
 
+	ws.Route(ws.GET("/{name}/envs/{envName}/status").To(c.getApplicationStatus).
+		Doc("get application status").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
+		Returns(200, "", apis.ApplicationStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationStatusResponse{}))
+
 	ws.Route(ws.PUT("/{name}").To(c.updateApplication).
 		Doc("update one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -253,6 +263,15 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.DetailRevisionResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailRevisionResponse{}))
+
+	ws.Route(ws.GET("/{name}/envs").To(c.listApplicationEnvs).
+		Doc("list policy for application").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListApplicationEnvBinding{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ListApplicationEnvBinding{}))
 
 	ws.Route(ws.POST("/{name}/envs").To(c.createApplicationEnv).
 		Doc("creating an application environment ").
@@ -676,6 +695,19 @@ func (c *applicationWebService) updateApplicationEnv(req *restful.Request, res *
 		return
 	}
 	if err := res.WriteEntity(diff); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) listApplicationEnvs(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	envBindings, err := c.envBindingUsecase.GetEnvBindings(req.Request.Context(), app)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.ListApplicationEnvBinding{EnvBindings: envBindings}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
