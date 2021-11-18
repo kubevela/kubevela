@@ -338,4 +338,11 @@ func TestDeleteAppliedResourceFunc(t *testing.T) {
 	if h.appliedResources[1].Name != "wl-1" || h.appliedResources[1].Kind != "StatefulSet" {
 		t.Errorf("resource missmatch")
 	}
+
+	preDelResc := common.ClusterObjectReference{ObjectReference: corev1.ObjectReference{Name: "wl-3", Kind: "StatefulSet"}, Cluster: "runtime-cluster"}
+	h.deleteAppliedResource(preDelResc)
+	h.addAppliedResource(true, preDelResc)
+	if len(h.appliedResources) != 2 {
+		t.Errorf("applied length error acctually %d", len(h.appliedResources))
+	}
 }
