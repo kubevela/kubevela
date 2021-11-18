@@ -25,6 +25,28 @@ data:
           url: https://charts.kubevela.net/addons
           version: 0.2.5
         type: helm
+      - name: alibaba-redis
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+                Redis
+            labels:
+              type: terraform
+            name: alibaba-redis
+            namespace: vela-system
+          spec:
+            schematic:
+              terraform:
+                configuration: https://github.com/kubevela-contrib/terraform-modules/alibaba/redis
+                type: remote
+            workload:
+              definition:
+                apiVersion: terraform.core.oam.dev/v1beta1
+                kind: Configuration
+        type: raw
       - name: alibaba-ack
         properties:
           apiVersion: core.oam.dev/v1beta1
@@ -42,6 +64,29 @@ data:
               terraform:
                 configuration: https://github.com/kubevela-contrib/terraform-modules.git
                 path: alibaba/cs/dedicated-kubernetes
+                type: remote
+            workload:
+              definition:
+                apiVersion: terraform.core.oam.dev/v1beta1
+                kind: Configuration
+        type: raw
+      - name: alibaba-ask
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+                Serverless Kubernetes (ASK)
+            labels:
+              type: terraform
+            name: alibaba-ask
+            namespace: vela-system
+          spec:
+            schematic:
+              terraform:
+                configuration: https://github.com/kubevela-contrib/terraform-modules.git
+                path: alibaba/cs/serverless-kubernetes
                 type: remote
             workload:
               definition:
@@ -168,6 +213,52 @@ data:
                     type        = bool
                     default     = true
                   }
+            workload:
+              definition:
+                apiVersion: terraform.core.oam.dev/v1beta1
+                kind: Configuration
+        type: raw
+      - name: alibaba-sls-project
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+                SLS Project
+            labels:
+              type: terraform
+            name: alibaba-sls-project
+            namespace: vela-system
+          spec:
+            schematic:
+              terraform:
+                configuration: https://github.com/kubevela-contrib/terraform-modules.git
+                path: alibaba/sls/project
+                type: remote
+            workload:
+              definition:
+                apiVersion: terraform.core.oam.dev/v1beta1
+                kind: Configuration
+        type: raw
+      - name: alibaba-sls-store
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: ComponentDefinition
+          metadata:
+            annotations:
+              definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+                SLS Store
+            labels:
+              type: terraform
+            name: alibaba-sls-store
+            namespace: vela-system
+          spec:
+            schematic:
+              terraform:
+                configuration: https://github.com/kubevela-contrib/terraform-modules.git
+                path: alibaba/sls/store
+                type: remote
             workload:
               definition:
                 apiVersion: terraform.core.oam.dev/v1beta1

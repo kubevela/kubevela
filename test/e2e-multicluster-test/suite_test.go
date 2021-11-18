@@ -75,14 +75,14 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	Eventually(func(g Gomega) {
 		apps := &v1beta1.ApplicationList{}
-		Expect(k8sClient.List(context.Background(), apps)).Should(Succeed())
+		g.Expect(k8sClient.List(context.Background(), apps)).Should(Succeed())
 		for _, app := range apps.Items {
-			Expect(k8sClient.Delete(context.Background(), app.DeepCopy())).Should(Succeed())
+			g.Expect(k8sClient.Delete(context.Background(), app.DeepCopy())).Should(Succeed())
 		}
-		Expect(len(apps.Items)).Should(Equal(0))
+		g.Expect(len(apps.Items)).Should(Equal(0))
 	}, 3*time.Minute).Should(Succeed())
 	Eventually(func(g Gomega) {
 		_, err := execCommand("cluster", "detach", WorkerClusterName)
-		Expect(err).Should(Succeed())
+		g.Expect(err).Should(Succeed())
 	}, time.Minute).Should(Succeed())
 })

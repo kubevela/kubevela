@@ -37,13 +37,14 @@ require (
 	github.com/oam-dev/cluster-gateway v1.1.6
 	github.com/oam-dev/cluster-register v1.0.1
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.2.5
+	github.com/oam-dev/terraform-controller v0.2.8
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
 	github.com/opencontainers/runc v1.0.0-rc95 // indirect
 	github.com/openkruise/kruise-api v0.9.0
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5

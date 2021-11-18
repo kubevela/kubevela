@@ -183,6 +183,11 @@ e2e-test:
 	ginkgo -v  --skip="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
 
+e2e-addon-test:
+	cp bin/vela /tmp/
+	ginkgo -v ./test/e2e-addon-test
+	@$(OK) tests pass
+
 e2e-rollout-test:
 	ginkgo -v  --focus="rollout related e2e-test." ./test/e2e-test
 	@$(OK) tests pass
@@ -279,16 +284,20 @@ HOSTARCH := amd64
 endif
 
 golangci:
-ifeq (, $(shell which golangci-lint))
+ifneq ($(shell which golangci-lint),)
+	@$(OK) golangci-lint is already installed
+GOLANGCILINT=$(shell which golangci-lint)
+else ifeq (, $(shell which $(GOBIN)/golangci-lint))
 	@{ \
 	set -e ;\
 	echo 'installing golangci-lint-$(GOLANGCILINT_VERSION)' ;\
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) $(GOLANGCILINT_VERSION) ;\
-	echo 'Install succeed' ;\
+	echo 'Successfully installed' ;\
 	}
 GOLANGCILINT=$(GOBIN)/golangci-lint
 else
-GOLANGCILINT=$(shell which golangci-lint)
+	@$(OK) golangci-lint is already installed
+GOLANGCILINT=$(GOBIN)/golangci-lint
 endif
 
 .PHONY: staticchecktool

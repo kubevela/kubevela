@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/references/a/preimport"
@@ -208,6 +209,11 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 
 			switch clusterManagementType {
 			case ClusterGateWayClusterManagement:
+				if endpoint, err := utils.ParseAPIServerEndpoint(cluster.Server); err == nil {
+					cluster.Server = endpoint
+				} else {
+					_, _ = cmd.OutOrStdout().Write([]byte("failed to parse server endpoint: " + err.Error()))
+				}
 				if err = registerClusterManagedByVela(c.Client, cluster, authInfo, clusterName); err != nil {
 					return err
 				}

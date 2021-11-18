@@ -30,8 +30,8 @@
 	#do:       "read-placement-decisions"
 
 	inputs: {
-		policy:  string
-		envName: string
+		policyName: string
+		envName:    string
 	}
 
 	outputs: {
@@ -121,5 +121,14 @@
 				} @step(4)
 			}
 		}
+	}
+}
+
+#ListClusters: {
+	#provider: "multicluster"
+	#do:       "list-clusters"
+
+	outputs: {
+		clusters: [...string]
 	}
 }

@@ -86,9 +86,12 @@ jobs:
           make e2e-setup-core
           make
           make setup-runtime-e2e-cluster
+          make vela-cli
 
       - name: Run e2e multicluster tests
-        run: make e2e-multicluster-test
+        run: |
+          export PATH=$(pwd)/bin:$PATH
+          make e2e-multicluster-test
 
       - name: Stop kubevela, get profile
         run: make end-e2e-core

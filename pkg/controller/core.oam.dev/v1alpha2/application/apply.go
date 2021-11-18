@@ -36,7 +36,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -232,24 +231,34 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 		}
 		appName  = appRev.Spec.Application.Name
 		isHealth = true
+		err      error
 	)
 
 	if wl.CapabilityCategory == types.TerraformCategory {
-		return nil, true, nil
+		ctx := context.Background()
+		var configuration terraformapi.Configuration
+		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
+		}
+		if configuration.Status.Apply.State != terraformtypes.Available {
+			status.Healthy = false
+		} else {
+			status.Healthy = true
+		}
+		status.Message = configuration.Status.Apply.Message
+	} else {
+		if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
+			isHealth = false
+			status.Healthy = false
+		}
+
+		status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
+		if err != nil {
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, wl.Name)
+		}
 	}
 
-	if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
-		isHealth = false
-		status.Healthy = false
-	}
 	var traitStatusList []common.ApplicationTraitStatus
-
-	var err error
-	status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
-	if err != nil {
-		return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, wl.Name)
-	}
-
 	for _, tr := range wl.Traits {
 		var traitStatus = common.ApplicationTraitStatus{
 			Type:    tr.Name,
@@ -270,95 +279,6 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 	status.Scopes = generateScopeReference(wl.Scopes)
 	h.addServiceStatus(true, status)
 	return &status, isHealth, nil
-}
-
-func (h *AppHandler) aggregateHealthStatus(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
-	var appStatus []common.ApplicationComponentStatus
-	var healthy = true
-	for _, wl := range appFile.Workloads {
-		var status = common.ApplicationComponentStatus{
-			Name:               wl.Name,
-			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
-			Healthy:            true,
-		}
-
-		var pCtx process.Context
-
-		switch wl.CapabilityCategory {
-		case types.TerraformCategory:
-			pCtx = appfile.NewBasicContext(appFile.Name, wl.Name, appFile.AppRevisionName, appFile.Namespace, wl.Params)
-			ctx := context.Background()
-			var configuration terraformapi.Configuration
-			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
-			}
-			if configuration.Status.Apply.State != terraformtypes.Available {
-				healthy = false
-				status.Healthy = false
-			} else {
-				status.Healthy = true
-			}
-			status.Message = configuration.Status.Apply.Message
-		default:
-			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.AppRevisionName)
-			if !h.isNewRevision && wl.CapabilityCategory != types.CUECategory {
-				templateStr, err := appfile.GenerateCUETemplate(wl)
-				if err != nil {
-					return nil, false, err
-				}
-				wl.FullTemplate.TemplateStr = templateStr
-			}
-
-			if err := wl.EvalContext(pCtx); err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
-			}
-			workloadHealth, err := wl.EvalHealth(pCtx, h.r.Client, h.app.Namespace)
-			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
-			}
-			if !workloadHealth {
-				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
-				status.Healthy = false
-				healthy = false
-			}
-
-			status.Message, err = wl.EvalStatus(pCtx, h.r.Client, h.app.Namespace)
-			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
-			}
-		}
-
-		var traitStatusList []common.ApplicationTraitStatus
-		for _, tr := range wl.Traits {
-			if err := tr.EvalContext(pCtx); err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appFile.Name, wl.Name, tr.Name)
-			}
-
-			var traitStatus = common.ApplicationTraitStatus{
-				Type:    tr.Name,
-				Healthy: true,
-			}
-			traitHealth, err := tr.EvalHealth(pCtx, h.r.Client, h.app.Namespace)
-			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, tr.Name)
-			}
-			if !traitHealth {
-				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
-				traitStatus.Healthy = false
-				healthy = false
-			}
-			traitStatus.Message, err = tr.EvalStatus(pCtx, h.r.Client, h.app.Namespace)
-			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, tr.Name)
-			}
-			traitStatusList = append(traitStatusList, traitStatus)
-		}
-
-		status.Traits = traitStatusList
-		status.Scopes = generateScopeReference(wl.Scopes)
-		appStatus = append(appStatus, status)
-	}
-	return appStatus, healthy, nil
 }
 
 func generateScopeReference(scopes []appfile.Scope) []corev1.ObjectReference {

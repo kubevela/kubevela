@@ -10,106 +10,13 @@ data:
       namespace: vela-system
     spec:
       components:
-      - name: ns-observability
-        properties:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: observability
-        type: raw
-      - name: import-grafana-dashboard-traitdef
-        properties:
-          apiVersion: core.oam.dev/v1beta1
-          kind: TraitDefinition
-          metadata:
-            annotations:
-              definition.oam.dev/description: Import dashboards to Grafana
-            name: import-grafana-dashboard
-            namespace: vela-system
-          spec:
-            schematic:
-              cue:
-                template: "outputs: registerdatasource: {\n\tapiVersion: \"grafana.extension.oam.dev/v1alpha1\"\n\tkind:
-                  \      \"ImportDashboard\"\n\tspec: {\n\t\tgrafana: {\n\t\t\tservice:
-                  \                  parameter.grafanaServiceName\n\t\t\tnamespace:                 parameter.grafanaServiceNamespace\n\t\t\tcredentialSecret:
-                  \         parameter.credentialSecret\n\t\t\tcredentialSecretNamespace:
-                  parameter.credentialSecretNamespace\n\t\t}\n\t\turls: parameter.urls\n\t}\n}\nparameter:
-                  {\n\tgrafanaServiceName:        string\n\tgrafanaServiceNamespace:   *\"default\"
-                  | string\n\tcredentialSecret:          string\n\tcredentialSecretNamespace:
-                  *\"default\" | string\n\turls: [...string]\n}\n"
-        type: raw
-      - name: pure-ingress-traitdef
-        properties:
-          apiVersion: core.oam.dev/v1beta1
-          kind: TraitDefinition
-          metadata:
-            annotations:
-              definition.oam.dev/description: Enable public web traffic for the component
-                without creating a Service.
-            name: pure-ingress
-            namespace: vela-system
-          spec:
-            schematic:
-              cue:
-                template: "\noutputs: ingress: {\n\tapiVersion: \"networking.k8s.io/v1beta1\"\n\tkind:
-                  \      \"Ingress\"\n\tmetadata:\n\t\tname: context.name\n\tspec: {\n\t\trules:
-                  [{\n\t\t\thost: parameter.domain\n\t\t\thttp: {\n\t\t\t\tpaths: [\n\t\t\t\t\tfor
-                  k, v in parameter.http {\n\t\t\t\t\t\tpath: k\n\t\t\t\t\t\tbackend:
-                  {\n\t\t\t\t\t\t\tserviceName: context.name\n\t\t\t\t\t\t\tservicePort:
-                  v\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t]\n\t\t\t}\n\t\t}]\n\t}\n}\n\nparameter:
-                  {\n\t// +usage=Specify the domain you want to expose\n\tdomain: string\n\n\t//
-                  +usage=Specify the mapping relationship between the http path and the
-                  workload port\n\thttp: [string]: int\n}\n"
-            status:
-              customStatus: |-
-                let igs = context.outputs.ingress.status.loadBalancer.ingress
-                if igs == _|_ {
-                  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
-                }
-                if len(igs) > 0 {
-                  if igs[0].ip != _|_ {
-                    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
-                  }
-                  if igs[0].ip == _|_ {
-                    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
-                  }
-                }
-              healthPolicy: |
-                isHealth: len(context.outputs.ingress.status.loadBalancer.ingress) > 0
-        type: raw
-      - name: register-grafana-datasource-traitdef
-        properties:
-          apiVersion: core.oam.dev/v1beta1
-          kind: TraitDefinition
-          metadata:
-            annotations:
-              definition.oam.dev/description: Add a datasource to Grafana
-            name: register-grafana-datasource
-            namespace: vela-system
-          spec:
-            schematic:
-              cue:
-                template: "outputs: registerdatasource: {\n\tapiVersion: \"grafana.extension.oam.dev/v1alpha1\"\n\tkind:
-                  \      \"DatasourceRegistration\"\n\tspec: {\n\t\tgrafana: {\n\t\t\tservice:
-                  \                  parameter.grafanaServiceName\n\t\t\tnamespace:                 parameter.grafanaServiceNamespace\n\t\t\tcredentialSecret:
-                  \         parameter.credentialSecret\n\t\t\tcredentialSecretNamespace:
-                  parameter.credentialSecretNamespace\n\t\t}\n\t\tdatasource: {\n\t\t\tname:
-                  \     parameter.name\n\t\t\ttype:      parameter.type\n\t\t\taccess:
-                  \   parameter.access\n\t\t\tservice:   parameter.service\n\t\t\tnamespace:
-                  parameter.namespace\n\t\t}\n\t}\n}\n\nparameter: {\n\tgrafanaServiceName:
-                  \       string\n\tgrafanaServiceNamespace:   *\"default\" | string\n\tcredentialSecret:
-                  \         string\n\tcredentialSecretNamespace: string\n\tname:                      string\n\ttype:
-                  \                     string\n\taccess:                    *\"proxy\"
-                  | string\n\tservice:                   string\n\tnamespace:                 *\"default\"
-                  | string\n}\n"
-        type: raw
       - name: grafana-registration
         properties:
           chart: ./chart
           git:
             branch: master
           repoType: git
-          targetNamespace: observability
+          targetNamespace: vela-system
           url: https://github.com/oam-dev/grafana-registration
           values:
             replicaCount: 1
@@ -119,7 +26,7 @@ data:
           chart: grafana
           releaseName: grafana
           repoType: helm
-          targetNamespace: observability
+          targetNamespace: vela-system
           url: https://charts.kubevela.net/addons
           version: 6.14.1
         traits:
@@ -130,9 +37,9 @@ data:
           type: pure-ingress
         - properties:
             credentialSecret: grafana
-            credentialSecretNamespace: observability
+            credentialSecretNamespace: vela-system
             grafanaServiceName: grafana
-            grafanaServiceNamespace: observability
+            grafanaServiceNamespace: vela-system
             urls:
             - https://charts.kubevela.net/addons/dashboards/kubevela_core_logging.json
             - https://charts.kubevela.net/addons/dashboards/kubevela_core_monitoring.json
@@ -145,18 +52,18 @@ data:
           chart: loki-stack
           releaseName: loki
           repoType: helm
-          targetNamespace: observability
+          targetNamespace: vela-system
           url: https://charts.kubevela.net/addons
           version: 2.4.1
         traits:
         - properties:
             access: proxy
             credentialSecret: grafana
-            credentialSecretNamespace: observability
+            credentialSecretNamespace: vela-system
             grafanaServiceName: grafana
-            grafanaServiceNamespace: observability
+            grafanaServiceNamespace: vela-system
             name: loki
-            namespace: observability
+            namespace: vela-system
             service: loki
             type: loki
           type: register-grafana-datasource
@@ -166,7 +73,7 @@ data:
           chart: prometheus
           releaseName: prometheus
           repoType: helm
-          targetNamespace: observability
+          targetNamespace: vela-system
           url: https://charts.kubevela.net/addons
           values:
             alertmanager:
@@ -184,11 +91,11 @@ data:
         - properties:
             access: proxy
             credentialSecret: grafana
-            credentialSecretNamespace: observability
+            credentialSecretNamespace: vela-system
             grafanaServiceName: grafana
-            grafanaServiceNamespace: observability
+            grafanaServiceNamespace: vela-system
             name: prometheus
-            namespace: observability
+            namespace: vela-system
             service: prometheus-server
             type: prometheus
           type: register-grafana-datasource
@@ -197,7 +104,7 @@ data:
         properties:
           chart: kube-state-metrics
           repoType: helm
-          targetNamespace: observability
+          targetNamespace: vela-system
           url: https://charts.kubevela.net/addons
           values:
             image:
@@ -212,22 +119,6 @@ data:
             name: fluxcd
             namespace: vela-system
           type: depends-on-app
-        - name: apply-ns
-          properties:
-            component: ns-observability
-          type: apply-component
-        - name: apply-trait-1
-          properties:
-            component: import-grafana-dashboard-traitdef
-          type: apply-component
-        - name: apply-trait-2
-          properties:
-            component: pure-ingress-traitdef
-          type: apply-component
-        - name: apply-trait-3
-          properties:
-            component: register-grafana-datasource-traitdef
-          type: apply-component
         - name: apply-resources
           type: apply-remaining
     status: {}

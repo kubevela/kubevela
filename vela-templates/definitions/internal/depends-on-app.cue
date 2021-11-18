@@ -21,9 +21,8 @@ template: {
 			}
 		}
 	}
-
 	load: op.#Steps & {
-		if dependsOn.err != _|_ && dependsOn.value == _|_ {
+		if dependsOn.err != _|_ {
 			configMap: op.#Read & {
 				value: {
 					apiVersion: "v1"
@@ -33,24 +32,22 @@ template: {
 						namespace: parameter.namespace
 					}
 				}
-			}
-			apply: op.#Apply & {
-				value: {
-					yaml.Unmarshal(configMap.value.data[parameter.name])
-				}
-			}
+			}         @step(1)
+			template: configMap.value.data["application"]
+			apply:    op.#Apply & {
+				value: yaml.Unmarshal(template)
+			}     @step(2)
 			wait: op.#ConditionalWait & {
-				continue: load.apply.value.status.status == "running"
-			}
+				continue: apply.value.status.status == "running"
+			} @step(3)
 		}
 
-		if dependsOn.value != _|_ {
+		if dependsOn.err == _|_ {
 			wait: op.#ConditionalWait & {
 				continue: dependsOn.value.status.status == "running"
 			}
 		}
 	}
-
 	parameter: {
 		// +usage=Specify the name of the dependent Application
 		name: string
