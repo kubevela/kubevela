@@ -144,7 +144,7 @@ var _ = Describe("Test application usecase function", func() {
 		}
 		appBase, err := appUsecase.CreateApplication(context.TODO(), req)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appBase.Name, "test-app-sadasd")).Should(BeEmpty())
+		Expect(cmp.Diff(appBase.Name, "test-app-sadasd4")).Should(BeEmpty())
 
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd4")
 		Expect(err).Should(BeNil())
@@ -205,7 +205,7 @@ var _ = Describe("Test application usecase function", func() {
 			EnvName: "test",
 		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(components), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(len(components), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(components[0].Name, "data-worker")).Should(BeEmpty())
 
 		components, err = appUsecase.ListComponents(context.TODO(), appModel, v1.ListApplicationComponentOptions{
