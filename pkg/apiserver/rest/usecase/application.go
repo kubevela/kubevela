@@ -29,7 +29,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -83,9 +82,6 @@ type ApplicationUsecase interface {
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
-	ResumeRevision(ctx context.Context, appModel *model.Application, revisionName string) (*apisv1.DetailRevisionResponse, error)
-	TerminateRevision(ctx context.Context, appModel *model.Application, revisionName string) (*apisv1.DetailRevisionResponse, error)
-	RollbackRevision(ctx context.Context, appModel *model.Application, revisionName, rollbackVersion string) (*apisv1.DetailRevisionResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -574,6 +570,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 // means to render oam application config and apply to cluster.
 // An event record is generated for each deploy.
 func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
+	// TODO: rollback to handle all the error case
 	// step1: Render oam application
 	version := utils.GenerateVersion("")
 	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, version)
@@ -604,6 +601,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	var appRevision = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
+		Name:           fmt.Sprintf("%s-%s", app.Name, version),
 		ApplyAppConfig: string(configByte),
 		Status:         model.RevisionStatusInit,
 		// TODO: Get user information from ctx and assign a value.
@@ -617,7 +615,11 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	if err := c.ds.Add(ctx, appRevision); err != nil {
 		return nil, err
 	}
-	// step3: check and create namespace
+	// step3: create workflow record
+	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, oamApp, appRevision.Name); err != nil {
+		return nil, err
+	}
+	// step4: check and create namespace
 	var namespace corev1.Namespace
 	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: oamApp.Namespace}, &namespace); apierrors.IsNotFound(err) {
 		namespace.Name = oamApp.Namespace
@@ -626,7 +628,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 			return nil, bcode.ErrCreateNamespace
 		}
 	}
-	// step4: apply to controller cluster
+	// step5: apply to controller cluster
 	err = c.apply.Apply(ctx, oamApp)
 	if err != nil {
 		appRevision.Status = model.RevisionStatusFail
@@ -642,7 +644,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		log.Logger.Warnf("update deploy event failure %s", err.Error())
 	}
 
-	// step5: update deploy event status
+	// step6: update deploy event status
 	return &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: apisv1.ApplicationRevisionBase{
 			Version:     appRevision.Version,
@@ -666,7 +668,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			Namespace: appModel.Namespace,
 			Labels:    appModel.Labels,
 			Annotations: map[string]string{
-				oam.AnnotationDeployVersion: version,
+				oam.AnnotationDeployVersion:  version,
+				oam.AnnotationPublishVersion: utils.GenerateVersion(reqWorkflowName),
 			},
 		},
 	}
@@ -1057,6 +1060,7 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 		if ok {
 			resp.Revisions = append(resp.Revisions, apisv1.ApplicationRevisionBase{
 				CreateTime:  r.CreateTime,
+				Name:        r.Name,
 				Version:     r.Version,
 				Status:      r.Status,
 				Reason:      r.Reason,
@@ -1079,7 +1083,7 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error) {
 	var revision = model.ApplicationRevision{
 		AppPrimaryKey: appName,
-		Version:       revisionName,
+		Name:          revisionName,
 	}
 	if err := c.ds.Get(ctx, &revision); err != nil {
 		return nil, err
@@ -1087,144 +1091,6 @@ func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, re
 	return &apisv1.DetailRevisionResponse{
 		ApplicationRevision: revision,
 	}, nil
-}
-
-func (c *applicationUsecaseImpl) ResumeRevision(ctx context.Context, appModel *model.Application, revisionName string) (*apisv1.DetailRevisionResponse, error) {
-	oamApp, err := c.checkRevisionSuspended(ctx, appModel)
-	if err != nil {
-		return nil, err
-	}
-
-	var revision = model.ApplicationRevision{
-		AppPrimaryKey: appModel.Name,
-		Version:       revisionName,
-	}
-	if err := c.ds.Get(ctx, &revision); err != nil {
-		return nil, err
-	}
-
-	oamApp.Status.Workflow.Suspend = false
-	if err := c.kubeClient.Update(ctx, oamApp); err != nil {
-		return nil, err
-	}
-	revision.Status = model.RevisionStatusRunning
-	if err := c.ds.Put(ctx, &revision); err != nil {
-		// if failed, let the sync goroutine update the revision status
-		return nil, err
-	}
-
-	return &apisv1.DetailRevisionResponse{
-		ApplicationRevision: revision,
-	}, nil
-}
-
-func (c *applicationUsecaseImpl) TerminateRevision(ctx context.Context, appModel *model.Application, revisionName string) (*apisv1.DetailRevisionResponse, error) {
-	oamApp, err := c.checkRevisionSuspended(ctx, appModel)
-	if err != nil {
-		return nil, err
-	}
-
-	var revision = model.ApplicationRevision{
-		AppPrimaryKey: appModel.Name,
-		Version:       revisionName,
-	}
-	if err := c.ds.Get(ctx, &revision); err != nil {
-		return nil, err
-	}
-
-	oamApp.Status.Workflow.Terminated = true
-	if err := c.kubeClient.Update(ctx, oamApp); err != nil {
-		return nil, err
-	}
-	revision.Status = model.RevisionStatusTerminated
-	if err := c.ds.Put(ctx, &revision); err != nil {
-		// if failed, let the sync goroutine update the revision status
-		return nil, err
-	}
-
-	return &apisv1.DetailRevisionResponse{
-		ApplicationRevision: revision,
-	}, nil
-}
-
-func (c *applicationUsecaseImpl) RollbackRevision(ctx context.Context, appModel *model.Application, revisionName, rollbackVersion string) (*apisv1.DetailRevisionResponse, error) {
-	oamApp, err := c.checkRevisionSuspended(ctx, appModel)
-	if err != nil {
-		return nil, err
-	}
-
-	var revision = model.ApplicationRevision{
-		AppPrimaryKey: appModel.Name,
-		Version:       revisionName,
-	}
-	if err := c.ds.Get(ctx, &revision); err != nil {
-		return nil, err
-	}
-	var rollbackRevision = model.ApplicationRevision{
-		AppPrimaryKey: appModel.Name,
-		Version:       rollbackVersion,
-	}
-	if err := c.ds.Get(ctx, &rollbackRevision); err != nil {
-		return nil, err
-	}
-
-	version := utils.GenerateVersion("")
-	rollBackApp := &v1beta1.Application{}
-	if err := yaml.Unmarshal([]byte(rollbackRevision.ApplyAppConfig), rollBackApp); err != nil {
-		return nil, err
-	}
-
-	// create a new revision
-	var newRevision = &model.ApplicationRevision{
-		AppPrimaryKey:  revision.AppPrimaryKey,
-		Version:        version,
-		ApplyAppConfig: rollbackRevision.ApplyAppConfig,
-		Status:         model.RevisionStatusInit,
-		// TODO: Get user information from ctx and assign a value.
-		DeployUser:   "",
-		WorkflowName: revision.WorkflowName,
-		EnvName:      revision.EnvName,
-	}
-	if err := c.ds.Add(ctx, newRevision); err != nil {
-		return nil, err
-	}
-
-	// replace the application spec
-	oamApp.Spec.Components = rollBackApp.Spec.Components
-	if oamApp.Annotations == nil {
-		oamApp.Annotations = make(map[string]string)
-	}
-	oamApp.Annotations[oam.AnnotationDeployVersion] = version
-	if err := c.kubeClient.Update(ctx, oamApp); err != nil {
-		// delete new revision
-		if err := c.ds.Delete(ctx, newRevision); err != nil {
-			klog.Error(err, "fail to delete new revision")
-		}
-		return nil, err
-	}
-
-	// update the old revision's status
-	revision.Status = model.RevisionStatusTerminated
-	if err := c.ds.Put(ctx, &revision); err != nil {
-		// if failed, let the sync goroutine update the old revision status
-		return nil, err
-	}
-
-	return &apisv1.DetailRevisionResponse{
-		ApplicationRevision: *newRevision,
-	}, nil
-}
-
-func (c *applicationUsecaseImpl) checkRevisionSuspended(ctx context.Context, appModel *model.Application) (*v1beta1.Application, error) {
-	oamApp := &v1beta1.Application{}
-	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: appModel.Name, Namespace: appModel.Namespace}, oamApp); err != nil {
-		return nil, err
-	}
-	if oamApp.Status.Workflow != nil && oamApp.Status.Workflow.Suspend != true {
-		return nil, bcode.ErrRevisionNotSuspended
-	}
-
-	return oamApp, nil
 }
 
 func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.DeliveryTarget) v1alpha1.EnvConfig {

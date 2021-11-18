@@ -83,15 +83,15 @@ func (w *Workflow) Index() map[string]string {
 // WorkflowRecord is the workflow record database model
 type WorkflowRecord struct {
 	Model
-	WorkflowPrimaryKey string `json:"workflowPrimaryKey"`
-	AppPrimaryKey      string `json:"appPrimaryKey"`
-	// name is `appName-version`, which is the same as the primary key of deploy event
-	Name       string                      `json:"name"`
-	Namespace  string                      `json:"namespace"`
-	StartTime  time.Time                   `json:"startTime,omitempty"`
-	Suspend    bool                        `json:"suspend"`
-	Terminated bool                        `json:"terminated"`
-	Steps      []common.WorkflowStepStatus `json:"steps,omitempty"`
+	WorkflowPrimaryKey string                      `json:"workflowPrimaryKey"`
+	AppPrimaryKey      string                      `json:"appPrimaryKey"`
+	RevisionPrimaryKey string                      `json:"revisionPrimaryKey"`
+	Name               string                      `json:"name"`
+	Namespace          string                      `json:"namespace"`
+	StartTime          time.Time                   `json:"startTime,omitempty"`
+	Finished           string                      `json:"finished"`
+	Steps              []common.WorkflowStepStatus `json:"steps,omitempty"`
+	Status             string                      `json:"status"`
 }
 
 // TableName return custom table name
@@ -110,8 +110,20 @@ func (w *WorkflowRecord) Index() map[string]string {
 	if w.Name != "" {
 		index["name"] = w.Name
 	}
+	if w.Namespace != "" {
+		index["namespace"] = w.Namespace
+	}
 	if w.WorkflowPrimaryKey != "" {
 		index["workflowPrimaryKey"] = w.WorkflowPrimaryKey
+	}
+	if w.AppPrimaryKey != "" {
+		index["appPrimaryKey"] = w.AppPrimaryKey
+	}
+	if w.RevisionPrimaryKey != "" {
+		index["revisionPrimaryKey"] = w.RevisionPrimaryKey
+	}
+	if w.Finished != "" {
+		index["finished"] = w.Finished
 	}
 	return index
 }

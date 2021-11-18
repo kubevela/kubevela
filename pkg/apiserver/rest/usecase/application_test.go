@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -436,6 +437,7 @@ var _ = Describe("Test application usecase function", func() {
 		for i := 0; i < 3; i++ {
 			appModel := &model.ApplicationRevision{
 				AppPrimaryKey: "test-app",
+				Name:          fmt.Sprintf("test-app-%d", i),
 				Version:       fmt.Sprintf("%d", i),
 				EnvName:       fmt.Sprintf("env-%d", i),
 				Status:        model.RevisionStatusRunning,
@@ -466,91 +468,28 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DetailRevision function", func() {
 		err := workflowUsecase.createTestApplicationRevision(context.TODO(), &model.ApplicationRevision{
 			AppPrimaryKey: "test-app",
+			Name:          "test-app-123",
 			Version:       "123",
 			DeployUser:    "test-user",
 		})
 		Expect(err).Should(BeNil())
-		revision, err := appUsecase.DetailRevision(context.TODO(), "test-app", "123")
+		revision, err := appUsecase.DetailRevision(context.TODO(), "test-app", "test-app-123")
 		Expect(err).Should(BeNil())
 		Expect(revision.Version).Should(Equal("123"))
 		Expect(revision.DeployUser).Should(Equal("test-user"))
 	})
-
-	It("Test ResumeRevision function", func() {
-		ctx := context.TODO()
-		err := workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
-			AppPrimaryKey: "resume-app",
-			Version:       "resume-1",
-			Status:        model.RevisionStatusSuspend,
-		})
-		Expect(err).Should(BeNil())
-
-		err = createTestSuspendApp(ctx, "resume-app", appUsecase.kubeClient)
-		Expect(err).Should(BeNil())
-
-		revision, err := appUsecase.ResumeRevision(ctx, &model.Application{
-			Name:      "resume-app",
-			Namespace: "default",
-		}, "resume-1")
-		Expect(err).Should(BeNil())
-		Expect(revision.Version).Should(Equal("resume-1"))
-		Expect(revision.Status).Should(Equal(model.RevisionStatusRunning))
-	})
-
-	It("Test TerminateRevision function", func() {
-		ctx := context.TODO()
-		err := workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
-			AppPrimaryKey: "terminate-app",
-			Version:       "terminate-1",
-			Status:        model.RevisionStatusSuspend,
-		})
-		Expect(err).Should(BeNil())
-
-		err = createTestSuspendApp(ctx, "terminate-app", appUsecase.kubeClient)
-		Expect(err).Should(BeNil())
-
-		revision, err := appUsecase.TerminateRevision(ctx, &model.Application{
-			Name:      "terminate-app",
-			Namespace: "default",
-		}, "terminate-1")
-		Expect(err).Should(BeNil())
-		Expect(revision.Version).Should(Equal("terminate-1"))
-		Expect(revision.Status).Should(Equal(model.RevisionStatusTerminated))
-	})
-
-	It("Test RollbackRevision function", func() {
-		ctx := context.TODO()
-		err := workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
-			AppPrimaryKey: "rollback-app",
-			Version:       "rollback-1",
-			Status:        model.RevisionStatusSuspend,
-		})
-		Expect(err).Should(BeNil())
-		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
-			AppPrimaryKey:  "rollback-app",
-			Version:        "rollback-0",
-			ApplyAppConfig: `{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"annotations":{"oam.dev/kubevela-version":"UNKNOWN"},"name":"first-vela-app","namespace":"default"},"spec":{"components":[{"name":"express-server","properties":{"image":"crccheck/hello-world","port":8000},"traits":[{"properties":{"domain":"testsvc.example.com","http":{"/":8000}},"type":"ingress-1-20"}],"type":"webservice"}]}}`,
-			Status:         model.RevisionStatusComplete,
-		})
-		Expect(err).Should(BeNil())
-
-		err = createTestSuspendApp(ctx, "rollback-app", appUsecase.kubeClient)
-		Expect(err).Should(BeNil())
-
-		revision, err := appUsecase.RollbackRevision(ctx, &model.Application{
-			Name:      "rollback-app",
-			Namespace: "default",
-		}, "rollback-1", "rollback-0")
-		Expect(err).Should(BeNil())
-		Expect(revision.Status).Should(Equal(model.RevisionStatusInit))
-	})
 })
 
-func createTestSuspendApp(ctx context.Context, appName string, kubeClient client.Client) error {
+func createTestSuspendApp(ctx context.Context, appName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
 	testapp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      appName,
 			Namespace: "default",
+			Annotations: map[string]string{
+				oam.AnnotationDeployVersion:  revisionVersion,
+				oam.AnnotationWorkflowName:   wfName,
+				oam.AnnotationPublishVersion: recordName,
+			},
 		},
 		Spec: v1beta1.ApplicationSpec{
 			Components: []common.ApplicationComponent{{
@@ -569,11 +508,11 @@ func createTestSuspendApp(ctx context.Context, appName string, kubeClient client
 	}
 
 	if err := kubeClient.Create(ctx, testapp); err != nil {
-		return err
+		return nil, err
 	}
 	if err := kubeClient.Status().Patch(ctx, testapp, client.Merge); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return testapp, nil
 }

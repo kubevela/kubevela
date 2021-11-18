@@ -597,12 +597,11 @@ type DetailWorkflowRecordResponse struct {
 
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
-	Name       string                      `json:"name"`
-	Namespace  string                      `json:"namespace"`
-	StartTime  time.Time                   `json:"startTime,omitempty"`
-	Suspend    bool                        `json:"suspend"`
-	Terminated bool                        `json:"terminated"`
-	Steps      []common.WorkflowStepStatus `json:"steps,omitempty"`
+	Name      string                      `json:"name"`
+	Namespace string                      `json:"namespace"`
+	StartTime time.Time                   `json:"startTime,omitempty"`
+	Status    string                      `json:"status"`
+	Steps     []common.WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // ApplicationDeployRequest the application deploy or update event request
@@ -719,6 +718,7 @@ type DeliveryTargetBase struct {
 // ApplicationRevisionBase application revision base spec
 type ApplicationRevisionBase struct {
 	CreateTime time.Time `json:"createTime"`
+	Name       string    `json:"name"`
 	Version    string    `json:"version"`
 	Status     string    `json:"status"`
 	Reason     string    `json:"reason"`
