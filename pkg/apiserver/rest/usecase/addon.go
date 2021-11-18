@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -292,7 +293,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 		}
 
 		for _, def := range defs {
-			// TODO: add ownerRef to Application
+			addOwner(def, app)
 			err = u.apply.Apply(ctx, def)
 			if err != nil {
 				log.Logger.Errorf("apply definition fail: %v", err)
@@ -309,6 +310,11 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 		return nil
 	}
 	return bcode.ErrAddonNotExist
+}
+
+func addOwner(child *unstructured.Unstructured, app *v1beta1.Application) {
+	child.SetOwnerReferences(append(child.GetOwnerReferences(),
+		*metav1.NewControllerRef(app, v1beta1.ApplicationKindVersionKind)))
 }
 
 func (u *addonUsecaseImpl) getRegistryCache(name string) []*types.Addon {
