@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
 
 	"sigs.k8s.io/yaml"
 
@@ -336,7 +337,7 @@ func cutPathUntil(path []string, end string) ([]string, error) {
 }
 
 // RenderApplication render a K8s application
-func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.Application, error) {
+func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.Application, []*unstructured.Unstructured, error) {
 	if args == nil {
 		args = map[string]string{}
 	}
@@ -362,26 +363,65 @@ func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.App
 	for _, tmpl := range addon.YAMLTemplates {
 		comp, err := renderRawComponent(tmpl)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
 	for _, tmpl := range addon.CUETemplates {
 		comp, err := renderCUETemplate(tmpl, addon.Parameters, args)
 		if err != nil {
-			return nil, ErrRenderCueTmpl
-		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
-	}
-	for _, def := range addon.Definitions {
-		comp, err := renderRawComponent(def)
-		if err != nil {
-			return nil, err
+			return nil, nil, ErrRenderCueTmpl
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
 
-	return app, nil
+	var defObjs []*unstructured.Unstructured
+
+	if isDeployToRuntimeOnly(addon) {
+		// Runtime cluster mode needs to deploy definitions to control plane k8s.
+		for _, def := range addon.Definitions {
+			obj, err := renderObject(def)
+			if err != nil {
+				return nil, nil, err
+			}
+			defObjs = append(defObjs, obj)
+		}
+		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps,
+			v1beta1.WorkflowStep{
+				Name: "deploy-all",
+				Type: "deploy2runtime",
+			})
+	} else {
+		for _, def := range addon.Definitions {
+			comp, err := renderRawComponent(def)
+			if err != nil {
+				return nil, nil, err
+			}
+			app.Spec.Components = append(app.Spec.Components, *comp)
+		}
+	}
+
+	return app, defObjs, nil
+}
+
+func isDeployToRuntimeOnly(addon *types.Addon) bool {
+	if addon.DeployTo == nil {
+		return false
+	}
+	if !addon.DeployTo.RuntimeCluster {
+		return false
+	}
+	return true
+}
+
+func renderObject(elem types.AddonElementFile) (*unstructured.Unstructured, error) {
+	obj := &unstructured.Unstructured{}
+	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	_, _, err := dec.Decode([]byte(elem.Data), nil, obj)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 // renderRawComponent will return a component in raw type from string
@@ -390,9 +430,7 @@ func renderRawComponent(elem types.AddonElementFile) (*common2.ApplicationCompon
 		Type: "raw",
 		Name: strings.Join(append(elem.Path, elem.Name), "-"),
 	}
-	obj := &unstructured.Unstructured{}
-	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	_, _, err := dec.Decode([]byte(elem.Data), nil, obj)
+	obj, err := renderObject(elem)
 	if err != nil {
 		return nil, err
 	}
