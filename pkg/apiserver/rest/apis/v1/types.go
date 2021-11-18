@@ -97,7 +97,16 @@ type DetailAddonResponse struct {
 	UISchema  []*utils.UIParameter `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
-	Detail string `json:"detail,omitempty"`
+	Detail      string `json:"detail,omitempty"`
+	Definitions []*AddonDefinition
+}
+
+// AddonDefinition is definition an addon can provide
+type AddonDefinition struct {
+	Name string `json:"name,omitempty"`
+	// can be component/trait...definition
+	DefType     string `json:"def_type,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // AddonStatusResponse defines the format of addon status response

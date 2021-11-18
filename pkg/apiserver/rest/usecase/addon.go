@@ -12,6 +12,7 @@ import (
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -26,6 +27,7 @@ import (
 	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/references/common"
 )
 
 // AddonUsecase addon usecase
@@ -43,13 +45,28 @@ type AddonUsecase interface {
 }
 
 // AddonImpl2AddonRes convert types.Addon to the type apiserver need
-func AddonImpl2AddonRes(impl *types.Addon) *apis.DetailAddonResponse {
-	return &apis.DetailAddonResponse{
-		AddonMeta: impl.AddonMeta,
-		APISchema: impl.APISchema,
-		UISchema:  impl.UISchema,
-		Detail:    impl.Detail,
+func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
+	var defs []*apis.AddonDefinition
+	for _, def := range impl.Definitions {
+		obj := &unstructured.Unstructured{}
+		dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+		_, _, err := dec.Decode([]byte(def.Data), nil, obj)
+		if err != nil {
+			return nil, errors.New(fmt.Sprintf("convert %s file content to definition fail", def.Name))
+		}
+		defs = append(defs, &apis.AddonDefinition{
+			obj.GetName(),
+			obj.GetKind(),
+			obj.GetAnnotations()[common.DefinitionDescriptionKey],
+		})
 	}
+	return &apis.DetailAddonResponse{
+		AddonMeta:   impl.AddonMeta,
+		APISchema:   impl.APISchema,
+		UISchema:    impl.UISchema,
+		Detail:      impl.Detail,
+		Definitions: defs,
+	}, nil
 }
 
 // NewAddonUsecase returns a addon usecase
@@ -186,11 +203,16 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, regist
 		u.putRegistryCache(cacheKey, addons)
 	}
 
-	var addonRes []*apis.DetailAddonResponse
+	var addonReses []*apis.DetailAddonResponse
 	for _, a := range addons {
-		addonRes = append(addonRes, AddonImpl2AddonRes(a))
+		addonRes, err := AddonImpl2AddonRes(a)
+		if err != nil {
+			log.Logger.Errorf("err while converting AddonImpl to DetailAddonResponse: %v", err)
+			continue
+		}
+		addonReses = append(addonReses, addonRes)
 	}
-	return addonRes, nil
+	return addonReses, nil
 }
 
 func (u *addonUsecaseImpl) DeleteAddonRegistry(ctx context.Context, name string) error {
