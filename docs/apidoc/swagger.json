@@ -1412,141 +1412,6 @@
 				}
 			}
 		},
-		"/api/v1/applications/{name}/revisions/{revision}/resume": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"application"
-				],
-				"summary": "resume suspend application revision",
-				"operationId": "resumeApplicationRevision",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the application",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the application revision",
-						"name": "revision",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.DetailRevisionResponse"
-						}
-					},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/applications/{name}/revisions/{revision}/rollback/{rollback}": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"application"
-				],
-				"summary": "rollback suspend application revision",
-				"operationId": "detailApplicationRevision",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the application",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the application revision",
-						"name": "revision",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.DetailRevisionResponse"
-						}
-					},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/applications/{name}/revisions/{revision}/terminate": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"application"
-				],
-				"summary": "terminate suspend application revision",
-				"operationId": "detailApplicationRevision",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the application",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the application revision",
-						"name": "revision",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.DetailRevisionResponse"
-						}
-					},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
 		"/api/v1/applications/{name}/template": {
 			"post": {
 				"consumes": [
@@ -2787,6 +2652,136 @@
 				}
 			}
 		},
+		"/api/v1/workflows/{name}/records/{record}/resume": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"workflow"
+				],
+				"summary": "resume suspend workflow record",
+				"operationId": "resumeWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the  workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/workflows/{name}/records/{record}/rollback/{rollback}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"workflow"
+				],
+				"summary": "rollback suspend application record",
+				"operationId": "rollbackWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the rollback revision name",
+						"name": "rollback",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/workflows/{name}/records/{record}/terminate": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"workflow"
+				],
+				"summary": "terminate suspend workflow record",
+				"operationId": "terminateWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/v1/namespaces/{namespace}/applications/{appname}": {
 			"get": {
 				"consumes": [
@@ -2984,11 +2979,11 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"rollingState",
+				"batchRollingState",
 				"currentBatch",
 				"upgradedReplicas",
+				"rollingState",
 				"upgradedReadyReplicas",
-				"batchRollingState",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -3565,6 +3560,7 @@
 				"createTime",
 				"updateTime",
 				"appPrimaryKey",
+				"name",
 				"version",
 				"status",
 				"reason",
@@ -3589,6 +3585,9 @@
 					"type": "string"
 				},
 				"envName": {
+					"type": "string"
+				},
+				"name": {
 					"type": "string"
 				},
 				"note": {
@@ -4083,14 +4082,15 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"status",
 				"note",
+				"createTime",
+				"name",
+				"deployUser",
 				"envName",
 				"triggerType",
-				"createTime",
 				"version",
-				"status",
-				"reason",
-				"deployUser"
+				"reason"
 			],
 			"properties": {
 				"createTime": {
@@ -4101,6 +4101,9 @@
 					"type": "string"
 				},
 				"envName": {
+					"type": "string"
+				},
+				"name": {
 					"type": "string"
 				},
 				"note": {
@@ -4178,6 +4181,7 @@
 		"v1.ApplicationRevisionBase": {
 			"required": [
 				"createTime",
+				"name",
 				"version",
 				"status",
 				"reason",
@@ -4195,6 +4199,9 @@
 					"type": "string"
 				},
 				"envName": {
+					"type": "string"
+				},
+				"name": {
 					"type": "string"
 				},
 				"note": {
@@ -4958,10 +4965,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"icon",
 				"name",
 				"version",
 				"description",
+				"icon",
 				"schema",
 				"uiSchema"
 			],
@@ -5012,13 +5019,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"icon",
 				"alias",
 				"namespace",
 				"createTime",
-				"icon",
+				"updateTime",
 				"name",
 				"description",
-				"updateTime",
 				"policies",
 				"status",
 				"resourceInfo",
@@ -5082,20 +5089,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"name",
+				"status",
+				"reason",
+				"kubeConfigSecret",
+				"createTime",
 				"updateTime",
+				"description",
+				"dashboardURL",
+				"labels",
 				"provider",
 				"apiServerURL",
-				"dashboardURL",
-				"createTime",
-				"name",
 				"kubeConfig",
-				"kubeConfigSecret",
 				"alias",
-				"description",
-				"status",
 				"icon",
-				"labels",
-				"reason",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5154,8 +5161,8 @@
 		"v1.DetailComponentResponse": {
 			"required": [
 				"createTime",
-				"name",
 				"creator",
+				"name",
 				"alias",
 				"updateTime",
 				"appPrimaryKey",
@@ -5254,10 +5261,10 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
-				"createTime",
 				"updateTime",
 				"name",
-				"namespace"
+				"namespace",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -5290,13 +5297,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"updateTime",
+				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime",
-				"updateTime",
-				"name"
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5326,17 +5333,18 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"workflowName",
-				"envName",
-				"createTime",
-				"appPrimaryKey",
+				"version",
 				"status",
+				"deployUser",
+				"note",
 				"triggerType",
 				"updateTime",
-				"version",
+				"name",
+				"workflowName",
+				"envName",
 				"reason",
-				"deployUser",
-				"note"
+				"createTime",
+				"appPrimaryKey"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5353,6 +5361,9 @@
 					"type": "string"
 				},
 				"envName": {
+					"type": "string"
+				},
+				"name": {
 					"type": "string"
 				},
 				"note": {
@@ -5381,10 +5392,9 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"suspend",
-				"terminated",
-				"name",
 				"namespace",
+				"status",
+				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -5411,17 +5421,14 @@
 					"type": "string",
 					"format": "date-time"
 				},
+				"status": {
+					"type": "string"
+				},
 				"steps": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/common.WorkflowStepStatus"
 					}
-				},
-				"suspend": {
-					"type": "boolean"
-				},
-				"terminated": {
-					"type": "boolean"
 				},
 				"triggerType": {
 					"type": "string"
@@ -5430,13 +5437,13 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"default",
-				"createTime",
 				"updateTime",
 				"name",
 				"alias",
 				"description",
 				"enable",
+				"default",
+				"createTime",
 				"workflowRecord"
 			],
 			"properties": {
@@ -5755,10 +5762,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"name",
-				"description"
+				"description",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -6034,8 +6041,7 @@
 			"required": [
 				"name",
 				"namespace",
-				"suspend",
-				"terminated"
+				"status"
 			],
 			"properties": {
 				"name": {
@@ -6048,17 +6054,14 @@
 					"type": "string",
 					"format": "date-time"
 				},
+				"status": {
+					"type": "string"
+				},
 				"steps": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/common.WorkflowStepStatus"
 					}
-				},
-				"suspend": {
-					"type": "boolean"
-				},
-				"terminated": {
-					"type": "boolean"
 				}
 			}
 		},
