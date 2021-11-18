@@ -408,10 +408,7 @@ func isDeployToRuntimeOnly(addon *types.Addon) bool {
 	if addon.DeployTo == nil {
 		return false
 	}
-	if !addon.DeployTo.RuntimeCluster {
-		return false
-	}
-	return true
+	return addon.DeployTo.RuntimeCluster
 }
 
 func renderObject(elem types.AddonElementFile) (*unstructured.Unstructured, error) {
