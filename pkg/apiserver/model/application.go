@@ -36,7 +36,6 @@ type Application struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	EnvBinding  []*EnvBinding     `json:"envBinding,omitempty"`
 }
 
 // TableName return custom table name

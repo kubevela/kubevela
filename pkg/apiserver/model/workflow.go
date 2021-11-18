@@ -17,7 +17,6 @@ limitations under the License.
 package model
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -76,7 +75,7 @@ func (w *Workflow) Index() map[string]string {
 	if w.EnvName != "" {
 		index["envName"] = w.EnvName
 	}
-	index["default"] = strconv.FormatBool(w.Default)
+	//index["default"] = strconv.FormatBool(w.Default)
 	return index
 }
 

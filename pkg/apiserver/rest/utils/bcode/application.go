@@ -66,9 +66,3 @@ var ErrTraitNotExist = NewBcode(400, 10015, "trait is not exist")
 
 // ErrTraitAlreadyExist  trait is already exist
 var ErrTraitAlreadyExist = NewBcode(400, 10016, "trait is already exist")
-
-// ErrEnvbindingDeliveryTargetNotAllExist application envbinding deliveryTarget is not exist
-var ErrEnvbindingDeliveryTargetNotAllExist = NewBcode(400, 10017, "application envbinding deliveryTarget is not all exist")
-
-// ErrFoundEnvbindingDeliveryTarget found application envbinding deliveryTarget failure
-var ErrFoundEnvbindingDeliveryTarget = NewBcode(400, 10018, "found application envbinding deliveryTarget failure")

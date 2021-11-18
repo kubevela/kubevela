@@ -110,6 +110,7 @@ func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.App
 		Name:          req.Name,
 		Description:   req.Description,
 		Default:       req.Default,
+		EnvName:       req.EnvName,
 		AppPrimaryKey: app.PrimaryKey(),
 	}
 	if err := w.ds.Add(ctx, &workflow); err != nil {
@@ -138,6 +139,7 @@ func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 	workflow.Description = req.Description
 	// It is allowed to set multiple workflows as default, and only one takes effect.
 	workflow.Default = req.Default
+	workflow.EnvName = req.EnvName
 	if err := w.ds.Put(ctx, workflow); err != nil {
 		return nil, err
 	}
@@ -165,6 +167,7 @@ func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *mode
 			Name:        workflow.Name,
 			Description: workflow.Description,
 			Default:     workflow.Default,
+			EnvName:     workflow.EnvName,
 			CreateTime:  workflow.CreateTime,
 			UpdateTime:  workflow.UpdateTime,
 		},
@@ -178,6 +181,9 @@ func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName stri
 		Name: workflowName,
 	}
 	if err := w.ds.Get(ctx, &workflow); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrWorkflowNotExist
+		}
 		return nil, err
 	}
 	return &workflow, nil
@@ -187,7 +193,6 @@ func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName stri
 func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *model.Application, enable *bool) ([]*apisv1.WorkflowBase, error) {
 	var workflow = model.Workflow{
 		AppPrimaryKey: app.PrimaryKey(),
-		Default:       true,
 	}
 	workflows, err := w.ds.List(ctx, &workflow, &datastore.ListOptions{})
 	if err != nil {
@@ -200,6 +205,7 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 			Name:        wm.Name,
 			Description: wm.Description,
 			Default:     wm.Default,
+			EnvName:     wm.EnvName,
 			CreateTime:  wm.CreateTime,
 			UpdateTime:  wm.UpdateTime,
 		})
