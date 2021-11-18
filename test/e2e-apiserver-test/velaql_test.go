@@ -228,6 +228,65 @@ var _ = Describe("Test velaQL rest api", func() {
 			return nil
 		}, 2*time.Minute, 3*time.Microsecond).Should(BeNil())
 	})
+
+	It("Test collect pod from helmRelease", func() {
+		appWithHelm := new(v1beta1.Application)
+		Expect(yaml.Unmarshal([]byte(podInfoApp), appWithHelm)).Should(BeNil())
+		req := apiv1.ApplicationRequest{
+			Components: appWithHelm.Spec.Components,
+		}
+		bodyByte, err := json.Marshal(req)
+		Expect(err).Should(BeNil())
+		res, err := http.Post(
+			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appWithHelm.Name),
+			"application/json",
+			bytes.NewBuffer(bodyByte),
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(res.StatusCode).Should(Equal(200))
+
+		newApp := new(v1beta1.Application)
+		Eventually(func() error {
+			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appWithHelm.Name, Namespace: namespace}, newApp); err != nil {
+				return err
+			}
+			if newApp.Status.Phase != common2.ApplicationRunning {
+				return errors.New("application is not ready")
+			}
+			return nil
+		}, 2*time.Minute, 1*time.Second).Should(BeNil())
+
+		Eventually(func() error {
+			queryRes, err := http.Get(
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
+			)
+			if err != nil {
+				return err
+			}
+			if queryRes.StatusCode != 200 {
+				return errors.Errorf("status code is %d", queryRes.StatusCode)
+			}
+			defer queryRes.Body.Close()
+
+			type queryResult struct {
+				PodList []interface{} `json:"podList,omitempty"`
+				Error   interface{}   `json:"error,omitempty"`
+			}
+			status := new(queryResult)
+			err = json.NewDecoder(queryRes.Body).Decode(status)
+			if err != nil {
+				return err
+			}
+			if status.Error != nil {
+				return errors.Errorf("error %v", status.Error)
+			}
+			if len(status.PodList) == 0 {
+				return errors.New("pod list is 0")
+			}
+			return nil
+		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+	})
 })
 
 var cronJobComponentDefinition = `
@@ -264,4 +323,20 @@ spec:
         }
   workload:
     type: autodetects.core.oam.dev
+`
+
+var podInfoApp = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo
+spec:
+  components:
+    - name: podinfo
+      type: helm
+      properties:
+        chart: podinfo
+        url: https://stefanprodan.github.io/podinfo
+        repoType: helm
+        version: 5.1.2
 `
