@@ -44,7 +44,7 @@ var _ = Describe("Test application usecase function", func() {
 	)
 	BeforeEach(func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds}
-		envBindingUsecase = &envBindingUsecaseImpl{ds: ds}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase}
 		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                    ds,
