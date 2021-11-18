@@ -168,7 +168,7 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
-	status, err := s.addonUsecase.StatusAddon(name)
+	status, err := s.addonUsecase.StatusAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

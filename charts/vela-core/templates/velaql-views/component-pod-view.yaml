@@ -8,13 +8,13 @@ data:
     import (
       "vela/ql"
       "vela/op"
-      "list"
     )
 
     parameter: {
       name:          string
       namespace:     string
       componentName: string
+      cluster:       *"" | string
     }
 
     appList: ql.#ListResourcesInApp & {
@@ -22,13 +22,15 @@ data:
         name:      parameter.name
         namespace: parameter.namespace
         components: [parameter.componentName]
+        cluster: parameter.cluster
       }
     }
 
     if appList.err == _|_ {
-      appRev:      appList.list[0].revision
-      resources:     appList.list[0].components[0].resources
-      collectedPods: op.#Steps & {
+      appRev:         appList.list[0].revision
+      appPublishVersion: appList.list[0].publishVersion
+      resources:      appList.list[0].components[0].resources
+      collectedPods:  op.#Steps & {
         for i, resource in resources {
           "\(i)": ql.#CollectPods & {
             value:   resource.object
@@ -36,29 +38,25 @@ data:
           }
         }
       }
-      
-      podsWithCluster: {for i, pods in collectedPods {
-        "\(i)": [
-          for podObj in pods.list {
-            cluster: pods.cluster
-            obj:     podObj
-          },
-        ]
-      }}
 
-      flatPods: list.FlattenN([ for pods in podsWithCluster {
-        pods
-      }], 1)
+      podsWithCluster: [ for pods in collectedPods for podObj in pods.list {
+        cluster: pods.cluster
+        obj:     podObj
+      }]
 
       status: {
-        podList: [ for pod in flatPods {
-          clusterName: pod.cluster
-          revision:    appRev
-          podName:     pod.obj.metadata.name
-          podIP:       pod.obj.status.podIP
-          status:      pod.obj.status.phase
-          hostIP:      pod.obj.status.hostIP
-          nodeName:    pod.obj.spec.nodeName
+        podList: [ for pod in podsWithCluster {
+          clusterName:    pod.cluster
+          revision:       appRev
+          publishVersion: appPublishVersion
+          podName:        pod.obj.metadata.name
+          status:         pod.obj.status.phase
+          // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+          if status != "Pending" && status != "Unknown" {
+            podIP:    pod.obj.status.podIP
+            hostIP:   pod.obj.status.hostIP
+            nodeName: pod.obj.spec.nodeName
+          }
         }]
       }
     }
@@ -68,3 +66,5 @@ data:
         error: appList.err
       }
     }
+
+
