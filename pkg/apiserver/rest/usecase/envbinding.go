@@ -41,7 +41,7 @@ type EnvBindingUsecase interface {
 	UpdateEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvRequest) (*apisv1.DetailEnvBindingResponse, error)
 	DeleteEnvBinding(ctx context.Context, app *model.Application, envName string) error
 	BatchDeleteEnvBinding(ctx context.Context, app *model.Application) error
-	DetailEnvBinding(ctx context.Context, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error)
+	DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error)
 }
 
 type envBindingUsecaseImpl struct {
@@ -68,7 +68,7 @@ func (e *envBindingUsecaseImpl) GetEnvBindings(ctx context.Context, app *model.A
 	var list []*apisv1.EnvBindingBase
 	for _, ebd := range envBindings {
 		eb := ebd.(*model.EnvBinding)
-		list = append(list, convertEnvbindingModelToBase(eb))
+		list = append(list, convertEnvbindingModelToBase(app, eb))
 	}
 	return list, nil
 }
@@ -81,7 +81,7 @@ func (e *envBindingUsecaseImpl) GetEnvBinding(ctx context.Context, app *model.Ap
 		}
 		return nil, err
 	}
-	return e.DetailEnvBinding(ctx, envBinding)
+	return e.DetailEnvBinding(ctx, app, envBinding)
 }
 
 func (e *envBindingUsecaseImpl) CheckAppEnvBindingsContainTarget(ctx context.Context, app *model.Application, targetName string) (bool, error) {
@@ -165,7 +165,7 @@ func (e *envBindingUsecaseImpl) UpdateEnvBinding(ctx context.Context, app *model
 	if err := e.ds.Put(ctx, envBindingModel); err != nil {
 		return nil, err
 	}
-	return e.DetailEnvBinding(ctx, envBindingModel)
+	return e.DetailEnvBinding(ctx, app, envBindingModel)
 }
 
 func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, app *model.Application, envName string) error {
@@ -242,9 +242,9 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 	return nil
 }
 
-func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error) {
+func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error) {
 	return &apisv1.DetailEnvBindingResponse{
-		EnvBindingBase: *convertEnvbindingModelToBase(envBinding),
+		EnvBindingBase: *convertEnvbindingModelToBase(app, envBinding),
 	}, nil
 }
 
@@ -259,7 +259,7 @@ func convertCreateReqToEnvBindingModel(app *model.Application, req apisv1.Create
 	return envBinding
 }
 
-func convertEnvbindingModelToBase(envBinding *model.EnvBinding) *apisv1.EnvBindingBase {
+func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvBinding) *apisv1.EnvBindingBase {
 	ebb := &apisv1.EnvBindingBase{
 		Name:              envBinding.Name,
 		Alias:             envBinding.Alias,
@@ -268,6 +268,7 @@ func convertEnvbindingModelToBase(envBinding *model.EnvBinding) *apisv1.EnvBindi
 		ComponentSelector: (*apisv1.ComponentSelector)(envBinding.ComponentSelector),
 		CreateTime:        envBinding.CreateTime,
 		UpdateTime:        envBinding.UpdateTime,
+		AppDeployName:     converAppName(app, envBinding.Name),
 	}
 	return ebb
 }

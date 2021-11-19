@@ -154,6 +154,8 @@ func convertCreateReqToDeliveryTargetModel(req apisv1.CreateDeliveryTargetReques
 }
 
 func convertFromDeliveryTargetModel(deliveryTarget *model.DeliveryTarget) *apisv1.DeliveryTargetBase {
+	var appNum int64 = 0
+	// TODO: query app num in target
 	return &apisv1.DeliveryTargetBase{
 		Name:        deliveryTarget.Name,
 		Namespace:   deliveryTarget.Namespace,
@@ -163,5 +165,6 @@ func convertFromDeliveryTargetModel(deliveryTarget *model.DeliveryTarget) *apisv
 		Variable:    deliveryTarget.Variable,
 		CreateTime:  deliveryTarget.CreateTime,
 		UpdateTime:  deliveryTarget.UpdateTime,
+		AppNum:      appNum,
 	}
 }

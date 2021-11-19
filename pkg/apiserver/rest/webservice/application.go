@@ -89,15 +89,23 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailApplicationResponse{}))
 
-	ws.Route(ws.GET("/{name}/envs/{envName}/status").To(c.getApplicationStatus).
-		Doc("get application status").
+	ws.Route(ws.PUT("/{name}").To(c.updateApplication).
+		Doc("update one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
-		Returns(200, "", apis.ApplicationStatusResponse{}).
+		Reads(apis.UpdateApplicationRequest{}).
+		Returns(200, "", apis.ApplicationBase{}).
 		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.ApplicationStatusResponse{}))
+		Writes(apis.ApplicationBase{}))
+	ws.Route(ws.GET("/{name}/statistics").To(c.applicationStatistics).
+		Doc("detail one application ").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.ApplicationStatisticsResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationStatisticsResponse{}))
 
 	ws.Route(ws.PUT("/{name}").To(c.updateApplication).
 		Doc("update one application ").
@@ -149,13 +157,24 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Writes(apis.ComponentBase{}))
 
 	ws.Route(ws.GET("/{name}/components/{componentName}").To(c.detailComponent).
-		Doc("detail component  for application ").
+		Doc("detail component for application ").
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.DetailComponentResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailComponentResponse{}))
+
+	ws.Route(ws.PUT("/{name}/components/{componentName}").To(c.updateComponent).
+		Doc("update component config").
+		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdateApplicationComponentRequest{}).
+		Returns(200, "", apis.ComponentBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ComponentBase{}))
 
 	ws.Route(ws.GET("/{name}/policies").To(c.listApplicationPolicies).
 		Doc("list policy for application").
@@ -210,6 +229,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/{name}/components/{compName}/traits").To(c.addApplicationTrait).
 		Doc("add trait for a component").
 		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -221,6 +241,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.PUT("/{name}/components/{compName}/traits/{traitType}").To(c.updateApplicationTrait).
 		Doc("update trait from a component").
 		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
@@ -233,6 +254,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.DELETE("/{name}/components/{compName}/traits/{traitType}").To(c.deleteApplicationTrait).
 		Doc("delete trait from a component").
 		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
@@ -305,6 +327,16 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.EmptyResponse{}).
 		Returns(404, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{name}/envs/{envName}/status").To(c.getApplicationStatus).
+		Doc("get application status").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
+		Returns(200, "", apis.ApplicationStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationStatusResponse{}))
 
 	return ws
 }
@@ -460,6 +492,30 @@ func (c *applicationWebService) detailComponent(req *restful.Request, res *restf
 		return
 	}
 	if err := res.WriteEntity(detail); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) updateComponent(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	component := req.Request.Context().Value(&apis.CtxKeyApplicationComponent).(*model.ApplicationComponent)
+	// Verify the validity of parameters
+	var updateReq apis.UpdateApplicationComponentRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	base, err := c.applicationUsecase.UpdateComponent(req.Request.Context(), app, component, updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -759,6 +815,17 @@ func (c *applicationWebService) appCheckFilter(req *restful.Request, res *restfu
 	chain.ProcessFilter(req, res)
 }
 
+func (c *applicationWebService) componentCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	component, err := c.applicationUsecase.GetApplicationComponent(req.Request.Context(), app, req.PathParameter("compName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyApplicationComponent, component))
+	chain.ProcessFilter(req, res)
+}
+
 func (c *applicationWebService) envCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	envBindings, err := c.envBindingUsecase.GetEnvBindings(req.Request.Context(), app)
@@ -774,4 +841,17 @@ func (c *applicationWebService) envCheckFilter(req *restful.Request, res *restfu
 		}
 	}
 	bcode.ReturnError(req, res, bcode.ErrApplicationNotEnv)
+}
+
+func (c *applicationWebService) applicationStatistics(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	detail, err := c.applicationUsecase.Statistics(req.Request.Context(), app)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(detail); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }

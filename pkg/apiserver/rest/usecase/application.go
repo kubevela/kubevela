@@ -68,10 +68,12 @@ type ApplicationUsecase interface {
 	UpdateApplication(context.Context, *model.Application, apisv1.UpdateApplicationRequest) (*apisv1.ApplicationBase, error)
 	DeleteApplication(ctx context.Context, app *model.Application) error
 	Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error)
+	GetApplicationComponent(ctx context.Context, app *model.Application, componentName string) (*model.ApplicationComponent, error)
 	ListComponents(ctx context.Context, app *model.Application, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentBase, error)
 	AddComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error)
 	DetailComponent(ctx context.Context, app *model.Application, componentName string) (*apisv1.DetailComponentResponse, error)
 	DeleteComponent(ctx context.Context, app *model.Application, componentName string) error
+	UpdateComponent(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.UpdateApplicationComponentRequest) (*apisv1.ComponentBase, error)
 	ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error)
 	AddPolicy(ctx context.Context, app *model.Application, policy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error)
 	DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error)
@@ -81,7 +83,8 @@ type ApplicationUsecase interface {
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
-	DetailRevision(ctx context.Context, appName, revisionVersion string) (*apisv1.DetailRevisionResponse, error)
+	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
+	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -163,7 +166,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 	if err != nil {
 		return nil, err
 	}
-	components, err := c.ListComponents(ctx, app, apisv1.ListApplicationComponentOptions{})
+	componentNum, err := c.ds.Count(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey()}, &datastore.FilterOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +187,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 		Policies:        policyNames,
 		EnvBindings:     envBindingNames,
 		ResourceInfo: apisv1.ApplicationResourceInfo{
-			ComponentNum: len(components),
+			ComponentNum: componentNum,
 		},
 		WorkflowStatus: []apisv1.WorkflowStepStatus{},
 	}
@@ -301,7 +304,7 @@ func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.
 	}
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
 	if err != nil {
-		return appPolicy, err
+		return appPolicy, bcode.ErrInvalidProperties
 	}
 	appPolicy.Properties = properties.RawExtension()
 	return appPolicy, nil
@@ -657,13 +660,32 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 }
 
 func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
+	// Priority 1 uses the requested workflow as release .
+	// Priority 2 uses the default workflow as release .
+	var workflow *model.Workflow
+	var err error
+	if reqWorkflowName != "" {
+		workflow, err = c.workflowUsecase.GetWorkflow(ctx, reqWorkflowName)
+		if err != nil {
+			return nil, err
+		}
+
+	} else {
+		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
+		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
+			return nil, err
+		}
+	}
+	if workflow == nil {
+		return nil, bcode.ErrWorkflowNoDefault
+	}
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appModel.Name,
+			Name:      converAppName(appModel, workflow.EnvName),
 			Namespace: appModel.Namespace,
 			Labels:    appModel.Labels,
 			Annotations: map[string]string{
@@ -732,48 +754,29 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		}
 		app.Spec.Policies = append(app.Spec.Policies, apolicy)
 	}
-
-	// Priority 1 uses the requested workflow as release .
-	// Priority 2 uses the default workflow as release .
-	var workflow *model.Workflow
-	if reqWorkflowName != "" {
-		workflow, err = c.workflowUsecase.GetWorkflow(ctx, reqWorkflowName)
+	if workflow.EnvName != "" {
+		envPolicy, err := c.genPolicyByEnv(ctx, appModel, workflow.EnvName)
 		if err != nil {
 			return nil, err
 		}
-		if workflow.EnvName != "" {
-			envPolicy, err := c.genPolicyByEnv(ctx, appModel, workflow.EnvName)
-			if err != nil {
-				return nil, err
-			}
-			app.Spec.Policies = append(app.Spec.Policies, envPolicy)
-		}
-
-	} else {
-		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
-		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
-			return nil, err
-		}
+		app.Spec.Policies = append(app.Spec.Policies, envPolicy)
 	}
-
-	if workflow != nil {
-		app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
-		var steps []v1beta1.WorkflowStep
-		for _, step := range workflow.Steps {
-			var wstep = v1beta1.WorkflowStep{
-				Name:    step.Name,
-				Type:    step.Type,
-				Inputs:  step.Inputs,
-				Outputs: step.Outputs,
-			}
-			if step.Properties != nil {
-				wstep.Properties = step.Properties.RawExtension()
-			}
-			steps = append(steps, wstep)
+	app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
+	var steps []v1beta1.WorkflowStep
+	for _, step := range workflow.Steps {
+		var wstep = v1beta1.WorkflowStep{
+			Name:    step.Name,
+			Type:    step.Type,
+			Inputs:  step.Inputs,
+			Outputs: step.Outputs,
 		}
-		app.Spec.Workflow = &v1beta1.Workflow{
-			Steps: steps,
+		if step.Properties != nil {
+			wstep.Properties = step.Properties.RawExtension()
 		}
+		steps = append(steps, wstep)
+	}
+	app.Spec.Workflow = &v1beta1.Workflow{
+		Steps: steps,
 	}
 
 	return app, nil
@@ -834,6 +837,50 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 	return c.ds.Delete(ctx, app)
 }
 
+func (c *applicationUsecaseImpl) GetApplicationComponent(ctx context.Context, app *model.Application, componentName string) (*model.ApplicationComponent, error) {
+	var component = model.ApplicationComponent{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          componentName,
+	}
+	err := c.ds.Get(ctx, &component)
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrApplicationComponetNotExist
+		}
+		return nil, err
+	}
+	return &component, nil
+}
+
+func (c *applicationUsecaseImpl) UpdateComponent(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.UpdateApplicationComponentRequest) (*apisv1.ComponentBase, error) {
+	if req.Alias != nil {
+		component.Alias = *req.Alias
+	}
+	if req.Description != nil {
+		component.Description = *req.Description
+	}
+	if req.DependsOn != nil {
+		component.DependsOn = *req.DependsOn
+	}
+	if req.Icon != nil {
+		component.Icon = *req.Icon
+	}
+	if req.Labels != nil {
+		component.Labels = *req.Labels
+	}
+	if req.Properties != nil {
+		properties, err := model.NewJSONStructByString(*req.Properties)
+		if err != nil {
+			return nil, bcode.ErrInvalidProperties
+		}
+		component.Properties = properties
+	}
+	if err := c.ds.Put(ctx, component); err != nil {
+		return nil, err
+	}
+	return converComponentModelToBase(component), nil
+}
+
 func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error) {
 	componentModel := model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
@@ -859,6 +906,13 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("add component for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
+	return converComponentModelToBase(&componentModel), nil
+}
+
+func converComponentModelToBase(componentModel *model.ApplicationComponent) *apisv1.ComponentBase {
+	if componentModel == nil {
+		return nil
+	}
 	return &apisv1.ComponentBase{
 		Name:          componentModel.Name,
 		Description:   componentModel.Description,
@@ -869,7 +923,7 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		Creator:       componentModel.Creator,
 		CreateTime:    componentModel.CreateTime,
 		UpdateTime:    componentModel.UpdateTime,
-	}, nil
+	}
 }
 
 func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model.Application, componentName string) error {
@@ -1093,6 +1147,29 @@ func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, re
 	}
 	return &apisv1.DetailRevisionResponse{
 		ApplicationRevision: revision,
+	}, nil
+}
+
+func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error) {
+	var targetMap = make(map[string]int)
+	envbinding, err := c.envBindingUsecase.GetEnvBindings(ctx, app)
+	if err != nil {
+		log.Logger.Errorf("query app envbinding failure %s", err.Error())
+	}
+	for _, env := range envbinding {
+		for _, target := range env.TargetNames {
+			targetMap[target]++
+		}
+	}
+	count, err := c.ds.Count(ctx, &model.ApplicationRevision{AppPrimaryKey: app.PrimaryKey()}, &datastore.FilterOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.ApplicationStatisticsResponse{
+		EnvNumber:            int64(len(envbinding)),
+		DeliveryTargetNumber: int64(len(targetMap)),
+		RevisonNumber:        count,
+		WorkflowNumber:       c.workflowUsecase.CountWorkflow(ctx, app),
 	}, nil
 }
 

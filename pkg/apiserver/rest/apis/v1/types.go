@@ -39,6 +39,8 @@ var (
 	CtxKeyDeliveryTarget = "delivery-target"
 	// CtxKeyApplicationEnvBinding request context key of env binding
 	CtxKeyApplicationEnvBinding = "envbinding-policy"
+	// CtxKeyApplicationComponent request context key of component
+	CtxKeyApplicationComponent = "component"
 )
 
 // AddonPhase defines the phase of an addon
@@ -283,6 +285,14 @@ type ApplicationStatusResponse struct {
 	Status  *common.AppStatus `json:"status"`
 }
 
+// ApplicationStatisticsResponse application statistics response body
+type ApplicationStatisticsResponse struct {
+	EnvNumber            int64 `json:"envNumber"`
+	DeliveryTargetNumber int64 `json:"deliveryTargetNumber"`
+	RevisonNumber        int64 `json:"revisonNumber"`
+	WorkflowNumber       int64 `json:"workflowNumber"`
+}
+
 // CreateApplicationRequest create application  request body
 type CreateApplicationRequest struct {
 	Name        string                  `json:"name" validate:"checkname"`
@@ -322,6 +332,7 @@ type EnvBindingBase struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
 	CreateTime        time.Time          `json:"createTime"`
 	UpdateTime        time.Time          `json:"updateTime"`
+	AppDeployName     string             `json:"appDeployName"`
 }
 
 // DetailEnvBindingResponse defines the response of env-binding details
@@ -360,7 +371,7 @@ type WorkflowStepStatus struct {
 
 // ApplicationResourceInfo application-level resource consumption statistics
 type ApplicationResourceInfo struct {
-	ComponentNum int `json:"componentNum"`
+	ComponentNum int64 `json:"componentNum"`
 	// Others, such as: Memory、CPU、GPU、Storage
 }
 
@@ -396,6 +407,16 @@ type CreateComponentRequest struct {
 	Properties    string                           `json:"properties,omitempty"`
 	DependsOn     []string                         `json:"dependsOn" optional:"true"`
 	Traits        []*CreateApplicationTraitRequest `json:"traits,omitempty" optional:"true"`
+}
+
+// UpdateApplicationComponentRequest update component request body
+type UpdateApplicationComponentRequest struct {
+	Alias       *string            `json:"alias" validate:"checkalias" optional:"true"`
+	Description *string            `json:"description" optional:"true"`
+	Icon        *string            `json:"icon" optional:"true"`
+	Labels      *map[string]string `json:"labels,omitempty"`
+	Properties  *string            `json:"properties,omitempty"`
+	DependsOn   *[]string          `json:"dependsOn" optional:"true"`
 }
 
 // DetailComponentResponse detail component response body
@@ -722,6 +743,7 @@ type DeliveryTargetBase struct {
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 	CreateTime  time.Time              `json:"createTime"`
 	UpdateTime  time.Time              `json:"updateTime"`
+	AppNum      int64                  `json:"appNum,omitempty"`
 }
 
 // ApplicationRevisionBase application revision base spec

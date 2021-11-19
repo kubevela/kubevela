@@ -62,6 +62,7 @@ type WorkflowUsecase interface {
 	ResumeRecord(ctx context.Context, appModel *model.Application, recordName string) error
 	TerminateRecord(ctx context.Context, appModel *model.Application, recordName string) error
 	RollbackRecord(ctx context.Context, appModel *model.Application, recordName, revisionName string) error
+	CountWorkflow(ctx context.Context, app *model.Application) int64
 }
 
 // NewWorkflowUsecase new workflow usecase
@@ -419,6 +420,13 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1b
 		StartTime:          time.Now().Time,
 		Status:             model.RevisionStatusInit,
 	})
+}
+func (w *workflowUsecaseImpl) CountWorkflow(ctx context.Context, app *model.Application) int64 {
+	count, err := w.ds.Count(ctx, &model.Workflow{AppPrimaryKey: app.PrimaryKey()}, &datastore.FilterOptions{})
+	if err != nil {
+		log.Logger.Errorf("count app %s workflow failure %s", app.PrimaryKey(), err.Error())
+	}
+	return count
 }
 
 func (w *workflowUsecaseImpl) ResumeRecord(ctx context.Context, appModel *model.Application, recordName string) error {
