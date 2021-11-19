@@ -212,7 +212,7 @@ type AddonMeta struct {
 	Icon         string             `json:"icon"`
 	URL          string             `json:"url,omitempty"`
 	Tags         []string           `json:"tags,omitempty"`
-	DeployTo     *AddonDeployTo     `json:"deploy_to,omitempty"`
+	DeployTo     *AddonDeployTo     `json:"deployTo,omitempty"`
 	Dependencies []*AddonDependency `json:"dependencies,omitempty"`
 }
 
