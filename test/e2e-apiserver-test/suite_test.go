@@ -60,7 +60,7 @@ var _ = BeforeSuite(func() {
 	}
 	cfg.LeaderConfig.ID = uuid.New().String()
 	cfg.LeaderConfig.LockName = "apiserver-lock"
-	cfg.LeaderConfig.Duration = time.Second * 5
+	cfg.LeaderConfig.Duration = time.Second * 10
 
 	server, err := arest.New(cfg)
 	Expect(err).ShouldNot(HaveOccurred())

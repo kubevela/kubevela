@@ -48,6 +48,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		req := apisv1.CreateWorkflowRequest{
 			Name:        "test-workflow-1",
 			Description: "this is a workflow",
+			EnvName:     "dev",
 		}
 		base, err := workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
 			Name: "test-app",
@@ -58,6 +59,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		req = apisv1.CreateWorkflowRequest{
 			Name:        "test-workflow-2",
 			Description: "this is test workflow",
+			EnvName:     "dev",
 			Default:     true,
 		}
 		base, err = workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{

@@ -99,6 +99,9 @@ func (w *workflowUsecaseImpl) DeleteWorkflow(ctx context.Context, workflowName s
 }
 
 func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+	if req.EnvName == "" {
+		return nil, bcode.ErrWorkflowNoEnv
+	}
 	var steps []model.WorkflowStep
 	for _, step := range req.Steps {
 		properties, err := model.NewJSONStructByString(step.Properties)

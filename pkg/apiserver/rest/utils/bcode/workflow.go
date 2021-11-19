@@ -27,3 +27,6 @@ var ErrWorkflowNoDefault = NewBcode(404, 20004, "application default workflow is
 
 // ErrMustQueryByApp you can only query the Workflow list based on applications.
 var ErrMustQueryByApp = NewBcode(404, 20005, "you can only query the Workflow list based on applications.")
+
+// ErrWorkflowNoEnv workflow have not env
+var ErrWorkflowNoEnv = NewBcode(400, 20006, "workflow must set env name")

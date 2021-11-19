@@ -158,14 +158,45 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test deploy application", func() {
 		defer GinkgoRecover()
-		var req = apisv1.ApplicationDeployRequest{
-			Note:        "test apply",
-			TriggerType: "web",
-			Force:       false,
+
+		// create target
+		var createTarget = apisv1.CreateDeliveryTargetRequest{
+			Name:      "dev",
+			Namespace: "default",
+			Cluster: &apisv1.ClusterTarget{
+				ClusterName: "local",
+				Namespace:   "default",
+			},
 		}
-		bodyByte, err := json.Marshal(req)
+		bodyByte, err := json.Marshal(createTarget)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/deploy", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/deliveryTargets", "application/json", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+
+		// create env
+		var createEnvReq = apisv1.CreateApplicationEnvRequest{
+			EnvBinding: apisv1.EnvBinding{
+				Name:        "dev",
+				TargetNames: []string{"dev"},
+			},
+		}
+		bodyByte, err = json.Marshal(createEnvReq)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/envs", "application/json", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+
+		// deploy app
+		var req = apisv1.ApplicationDeployRequest{
+			Note:         "test apply",
+			TriggerType:  "web",
+			WorkflowName: "dev",
+			Force:        false,
+		}
+		bodyByte, err = json.Marshal(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/deploy", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())

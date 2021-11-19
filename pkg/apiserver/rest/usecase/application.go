@@ -18,7 +18,6 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -249,13 +248,6 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 				return nil, err
 			}
 		}
-		if oamApp.Spec.Workflow != nil && len(oamApp.Spec.Workflow.Steps) > 0 {
-			if err := c.saveApplicationWorkflow(ctx, &application, oamApp.Spec.Workflow.Steps, application.Name); err != nil {
-				log.Logger.Errorf("save applictaion polocies failure,%s", err.Error())
-				return nil, err
-			}
-		}
-		// TODO Waiting for Spec.EnvBinding support
 	}
 
 	// build-in create env binding
@@ -497,7 +489,6 @@ func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.Applicati
 
 func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app *model.Application, policys []v1beta1.AppPolicy) error {
 	var policyModels []datastore.Entity
-	var envbindingPolicy *model.ApplicationPolicy
 	for _, policy := range policys {
 		properties, err := model.NewJSONStruct(policy.Properties)
 		if err != nil {
@@ -512,26 +503,6 @@ func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app 
 		}
 		if policy.Type != string(EnvBindingPolicy) {
 			policyModels = append(policyModels, appPolicy)
-		} else {
-			envbindingPolicy = appPolicy
-		}
-	}
-	// If multiple configurations are configured, enable only the last one.
-	if envbindingPolicy != nil {
-		envbindingPolicy.Name = EnvBindingPolicyDefaultName
-		policyModels = append(policyModels, envbindingPolicy)
-		var envBindingSpec v1alpha1.EnvBindingSpec
-		if err := json.Unmarshal([]byte(envbindingPolicy.Properties.JSON()), &envBindingSpec); err != nil {
-			return fmt.Errorf("unmarshal env binding policy failure %w", err)
-		}
-		for _, env := range envBindingSpec.Envs {
-			envBind := &model.EnvBinding{
-				Name:        env.Name,
-				Description: "",
-			}
-			if env.Selector != nil {
-				envBind.ComponentSelector = (*model.ComponentSelector)(env.Selector)
-			}
 		}
 	}
 	return c.ds.BatchAdd(ctx, policyModels)
