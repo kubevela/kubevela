@@ -111,7 +111,7 @@ func NewCommand() *cobra.Command {
 		NewCUEPackageCommand(commandArgs, ioStream),
 
 		// cluster
-		ClusterCommandGroup(commandArgs),
+		ClusterCommandGroup(commandArgs, ioStream),
 
 		// Helper
 		SystemCommandGroup(commandArgs, ioStream),

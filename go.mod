@@ -40,7 +40,7 @@ require (
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v1.1.6
-	github.com/oam-dev/cluster-register v1.0.1
+	github.com/oam-dev/cluster-register v1.0.3
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.2.10
 	github.com/olekukonko/tablewriter v0.0.5
