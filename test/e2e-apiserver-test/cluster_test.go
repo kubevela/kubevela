@@ -17,14 +17,17 @@ limitations under the License.
 package e2e_apiserver
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	util "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -68,11 +71,18 @@ var _ = Describe("Test cluster rest api", func() {
 			Expect(clusterResp.Status).Should(Equal("Healthy"))
 		})
 
-		It("Test get clusters", func() {
+		It("Test list clusters", func() {
 			resp, err := CreateRequest(http.MethodGet, "/clusters/?page=1&pageSize=5", nil)
 			clusterResp := &v1.ListClusterResponse{}
 			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
-			Expect(len(clusterResp.Clusters)).ShouldNot(Equal(0))
+			Expect(len(clusterResp.Clusters) >= 2).Should(BeTrue())
+			Expect(clusterResp.Clusters[0].Name).Should(Equal(multicluster.ClusterLocalName))
+			Expect(clusterResp.Clusters[1].Name).Should(Equal(clusterName))
+			resp, err = CreateRequest(http.MethodGet, "/clusters/?page=1&pageSize=5&query="+WorkerClusterName, nil)
+			clusterResp = &v1.ListClusterResponse{}
+			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
+			Expect(len(clusterResp.Clusters) >= 1).Should(BeTrue())
+			Expect(clusterResp.Clusters[0].Name).Should(Equal(clusterName))
 		})
 
 		It("Test modify cluster", func() {
@@ -86,6 +96,20 @@ var _ = Describe("Test cluster rest api", func() {
 			clusterResp := &v1.ClusterBase{}
 			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
 			Expect(clusterResp.Description).ShouldNot(Equal(""))
+		})
+
+		It("Test create ns in cluster", func() {
+			testNamespace := fmt.Sprintf("test-%d", time.Now().Unix())
+			resp, err := CreateRequest(http.MethodPost, "/clusters/"+clusterName+"/namespaces", v1.CreateClusterNamespaceRequest{Namespace: testNamespace})
+			Expect(err).Should(Succeed())
+			nsResp := &v1.CreateClusterNamespaceResponse{}
+			Expect(DecodeResponseBody(resp, err, nsResp)).Should(Succeed())
+			Expect(nsResp.Exists).Should(Equal(false))
+			resp, err = CreateRequest(http.MethodPost, "/clusters/"+clusterName+"/namespaces", v1.CreateClusterNamespaceRequest{Namespace: testNamespace})
+			Expect(err).Should(Succeed())
+			nsResp = &v1.CreateClusterNamespaceResponse{}
+			Expect(DecodeResponseBody(resp, err, nsResp)).Should(Succeed())
+			Expect(nsResp.Exists).Should(Equal(true))
 		})
 
 	})

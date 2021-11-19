@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/tidwall/gjson"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -220,6 +222,95 @@ func (m *kubeapi) Delete(ctx context.Context, entity datastore.Entity) error {
 	return nil
 }
 
+type bySortOptionConfigMap struct {
+	items   []corev1.ConfigMap
+	objects []map[string]interface{}
+	sortBy  []datastore.SortOption
+}
+
+func newBySortOptionConfigMap(items []corev1.ConfigMap, sortBy []datastore.SortOption) bySortOptionConfigMap {
+	s := bySortOptionConfigMap{
+		items:   items,
+		objects: make([]map[string]interface{}, len(items)),
+		sortBy:  sortBy,
+	}
+	for i, item := range items {
+		m := map[string]interface{}{}
+		data := item.BinaryData["data"]
+		for _, op := range sortBy {
+			res := gjson.Get(string(data), op.Key)
+			if res.Type == gjson.Number {
+				m[op.Key] = res.Num
+			} else {
+				m[op.Key] = res.Raw
+			}
+		}
+		s.objects[i] = m
+	}
+	return s
+}
+
+func (b bySortOptionConfigMap) Len() int {
+	return len(b.items)
+}
+
+func (b bySortOptionConfigMap) Swap(i, j int) {
+	b.items[i], b.items[j] = b.items[j], b.items[i]
+	b.objects[i], b.objects[j] = b.objects[j], b.objects[i]
+}
+
+func (b bySortOptionConfigMap) Less(i, j int) bool {
+	for _, op := range b.sortBy {
+		x := b.objects[i][op.Key]
+		y := b.objects[j][op.Key]
+		_x, xok := x.(float64)
+		_y, yok := y.(float64)
+		var lt, gt bool
+		if xok && yok {
+			lt, gt = _x < _y, _x > _y
+		}
+		if !xok && !yok {
+			lt, gt = x.(string) < y.(string), x.(string) > y.(string)
+		}
+		if xok != yok {
+			lt, gt = false, false
+		}
+		if !lt && !gt {
+			continue
+		}
+		if op.Order == datastore.SortOrderAscending {
+			return lt
+		}
+		return gt
+	}
+	return true
+}
+
+func _sortConfigMapBySortOptions(items []corev1.ConfigMap, sortOptions []datastore.SortOption) []corev1.ConfigMap {
+	so := newBySortOptionConfigMap(items, sortOptions)
+	sort.Sort(so)
+	return so.items
+}
+
+func _filterConfigMapByFuzzyQueryOptions(items []corev1.ConfigMap, queries []datastore.FuzzyQueryOption) []corev1.ConfigMap {
+	var _items []corev1.ConfigMap
+	for _, item := range items {
+		data := string(item.BinaryData["data"])
+		valid := true
+		for _, query := range queries {
+			res := gjson.Get(data, query.Key)
+			if res.Type != gjson.String || !strings.Contains(res.Str, query.Query) {
+				valid = false
+				break
+			}
+		}
+		if valid {
+			_items = append(_items, item)
+		}
+	}
+	return _items
+}
+
 // TableName() can't return zero value.
 func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datastore.ListOptions) ([]datastore.Entity, error) {
 	if entity.TableName() == "" {
@@ -241,17 +332,13 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 		LabelSelector: selector,
 		Namespace:     m.namespace,
 	}
-	var skip, limit int64
+	var skip, limit int
 	if op != nil && op.PageSize > 0 && op.Page > 0 {
-		skip = int64(op.PageSize * (op.Page - 1))
-		limit = int64(op.PageSize * op.Page)
+		skip = op.PageSize * (op.Page - 1)
+		limit = op.PageSize
 		if skip < 0 {
 			skip = 0
 		}
-		if limit < 0 {
-			limit = skip
-		}
-		options.Limit = limit
 	}
 	var configMaps corev1.ConfigMapList
 	if err := m.kubeclient.List(ctx, &configMaps, options); err != nil {
@@ -261,12 +348,22 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 		return nil, datastore.NewDBError(err)
 	}
 	items := configMaps.Items
+	if op != nil && len(op.Queries) > 0 {
+		items = _filterConfigMapByFuzzyQueryOptions(items, op.Queries)
+	}
+	if op != nil && len(op.SortBy) > 0 {
+		items = _sortConfigMapBySortOptions(items, op.SortBy)
+	}
 	if op != nil && op.PageSize > 0 && op.Page > 0 {
-		if len(configMaps.Items) > int(limit) {
-			items = configMaps.Items[skip:limit]
+		if skip >= len(items) {
+			items = []corev1.ConfigMap{}
 		} else {
-			items = configMaps.Items[skip:]
+			items = items[skip:]
 		}
+		if limit >= len(items) {
+			limit = len(items)
+		}
+		items = items[:limit]
 	}
 	var list []datastore.Entity
 	log.Logger.Debugf("query %s result count %d", selector, len(items))
@@ -284,7 +381,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 }
 
 // Count counts entities
-func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity) (int64, error) {
+func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOptions *datastore.FilterOptions) (int64, error) {
 	if entity.TableName() == "" {
 		return 0, datastore.ErrTableNameEmpty
 	}
@@ -312,6 +409,9 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity) (int64, er
 		}
 		return 0, datastore.NewDBError(err)
 	}
-
-	return int64(len(configMaps.Items)), nil
+	items := configMaps.Items
+	if filterOptions != nil && len(filterOptions.Queries) > 0 {
+		items = _filterConfigMapByFuzzyQueryOptions(configMaps.Items, filterOptions.Queries)
+	}
+	return int64(len(items)), nil
 }

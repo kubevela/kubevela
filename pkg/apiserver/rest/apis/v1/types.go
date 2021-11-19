@@ -114,6 +114,7 @@ type EnablingProgress struct {
 	TotalComponents   int `json:"total_components"`
 }
 
+// AddonArgsResponse defines the response of addon args
 type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
 }
@@ -174,6 +175,16 @@ type ClusterResourceInfo struct {
 	StorageClassList []string `json:"storageClassList,omitempty"`
 }
 
+// CreateClusterNamespaceRequest request parameter to create namespace in cluster
+type CreateClusterNamespaceRequest struct {
+	Namespace string `json:"namespace"`
+}
+
+// CreateClusterNamespaceResponse response parameter for created namespace in cluster
+type CreateClusterNamespaceResponse struct {
+	Exists bool `json:"exists"`
+}
+
 // DetailClusterResponse cluster detail information model
 type DetailClusterResponse struct {
 	model.Cluster
@@ -183,6 +194,7 @@ type DetailClusterResponse struct {
 // ListClusterResponse list cluster
 type ListClusterResponse struct {
 	Clusters []ClusterBase `json:"clusters"`
+	Total    int64         `json:"total"`
 }
 
 // ListCloudClusterResponse list cloud clusters
@@ -193,13 +205,14 @@ type ListCloudClusterResponse struct {
 
 // CreateCloudClusterResponse return values for cloud cluster create request
 type CreateCloudClusterResponse struct {
+	Name      string `json:"clusterName"`
 	ClusterID string `json:"clusterID"`
 	Status    string `json:"status"`
 }
 
 // ListCloudClusterCreationResponse return the cluster names of creation process of cloud clusters
 type ListCloudClusterCreationResponse struct {
-	Creations []string `json:"creations"`
+	Creations []CreateCloudClusterResponse `json:"creations"`
 }
 
 // ClusterBase cluster base model
@@ -302,6 +315,7 @@ type EnvBindingBase struct {
 	UpdateTime        time.Time          `json:"updateTime"`
 }
 
+// DetailEnvBindingResponse defines the response of env-binding details
 type DetailEnvBindingResponse struct {
 	EnvBindingBase
 }

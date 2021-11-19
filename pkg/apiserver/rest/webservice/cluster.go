@@ -89,6 +89,15 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
 
+	ws.Route(ws.POST("/{clusterName}/namespaces").To(c.createNamespace).
+		Doc("create namespace in cluster").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("clusterName", "name of the target cluster").DataType("string")).
+		Reads(apis.CreateClusterNamespaceRequest{}).
+		Returns(200, "", apis.CreateClusterNamespaceResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.CreateClusterNamespaceResponse{}))
+
 	ws.Route(ws.POST("/cloud-clusters/{provider}").To(c.listCloudClusters).
 		Doc("list cloud clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -250,6 +259,34 @@ func (c *ClusterWebService) deleteKubeCluster(req *restful.Request, res *restful
 
 	// Write back response data
 	if err := res.WriteEntity(clusterBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *ClusterWebService) createNamespace(req *restful.Request, res *restful.Response) {
+	clusterName := req.PathParameter("clusterName")
+
+	// Verify the validity of parameters
+	var createReq apis.CreateClusterNamespaceRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Call the usecase layer code
+	resp, err := c.clusterUsecase.CreateClusterNamespace(req.Request.Context(), clusterName, createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(resp); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

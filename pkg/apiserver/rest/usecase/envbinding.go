@@ -107,15 +107,14 @@ func (e *envBindingUsecaseImpl) CreateEnvBinding(ctx context.Context, app *model
 	}
 	if envBinding != nil {
 		return nil, bcode.ErrEnvBindingExist
-	} else {
-		envBindingModel := convertCreateReqToEnvBindingModel(app, envReq)
-		if err := e.ds.Add(ctx, &envBindingModel); err != nil {
-			return nil, err
-		}
-		err := e.createEnvWorkflow(ctx, app, &envBindingModel)
-		if err != nil {
-			return nil, err
-		}
+	}
+	envBindingModel := convertCreateReqToEnvBindingModel(app, envReq)
+	if err := e.ds.Add(ctx, &envBindingModel); err != nil {
+		return nil, err
+	}
+	err = e.createEnvWorkflow(ctx, app, &envBindingModel)
+	if err != nil {
+		return nil, err
 	}
 	return &envReq.EnvBinding, nil
 }
