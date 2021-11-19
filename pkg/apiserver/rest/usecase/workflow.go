@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 const (
@@ -72,12 +73,14 @@ func NewWorkflowUsecase(ds datastore.DataStore) WorkflowUsecase {
 	return &workflowUsecaseImpl{
 		ds:         ds,
 		kubeClient: kubecli,
+		apply:      apply.NewAPIApplicator(kubecli),
 	}
 }
 
 type workflowUsecaseImpl struct {
 	ds         datastore.DataStore
 	kubeClient client.Client
+	apply      apply.Applicator
 }
 
 // DeleteWorkflow delete application workflow
@@ -492,7 +495,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		return err
 	}
 
-	if err := w.kubeClient.Update(ctx, oamApp); err != nil {
+	if err := w.apply.Apply(ctx, oamApp); err != nil {
 		// rollback error case
 		if err := w.ds.Delete(ctx, &model.WorkflowRecord{Name: newRecordName}); err != nil {
 			klog.Error(err, "failed to delete record", newRecordName)
