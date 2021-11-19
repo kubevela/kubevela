@@ -35,25 +35,51 @@ spec:
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             - "--cert-dir={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}"
             {{ end }}
+            {{ if .Values.multicluster.clusterGateway.ocmIntegration.enabled }}
+            - "--ocm-integration=true"
+            {{ end }}
+            {{ if .Values.multicluster.clusterGateway.konnectivity.enabled }}
+            - --proxy-host={{ .Values.multicluster.clusterGateway.konnectivity.proxyServerHost }}
+            - --proxy-port={{ .Values.multicluster.clusterGateway.konnectivity.proxyServerPort }}
+            - --proxy-ca-cert=/etc/konnectivity-ca/ca.crt
+            - --proxy-cert=/etc/konnectivity/tls.crt
+            - --proxy-key=/etc/konnectivity/tls.key
+            {{ end }}
           image: {{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
           imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
           resources:
           {{- toYaml .Values.multicluster.clusterGateway.resources | nindent 12 }}
           ports:
             - containerPort: {{ .Values.multicluster.clusterGateway.port }}
-          {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
           volumeMounts:
+            {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             - mountPath: {{ .Values.multicluster.clusterGateway.secureTLS.certPath }}
               name: tls-cert-vol
               readOnly: true
-          {{- end }}
-      {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            {{- end }}
+            {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            - name: proxy-client
+              mountPath: "/etc/konnectivity/"
+              readOnly: true
+            - name: proxy-server-ca
+              mountPath: "/etc/konnectivity-ca/"
+              readOnly: true
+            {{ end }}
       volumes:
+        {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
         - name: tls-cert-vol
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls
-      {{ end }}
+        {{ end }}
+        {{ if .Values.multicluster.clusterGateway.konnectivity.enabled }}
+        - name: proxy-client
+          secret:
+            secretName: proxy-client
+        - name: proxy-server-ca
+          secret:
+            secretName: proxy-server-ca
+        {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
       {{- toYaml . | nindent 8 }}

@@ -131,3 +131,11 @@ multicluster:
     secureTLS:
       enabled: true
       certPath: /etc/k8s-cluster-gateway-certs
+    # enabling integration w/ OCM
+    ocmIntegration:
+      enabled: false
+    # using konnectivity traffic egress
+    konnectivity:
+      enabled: false
+      proxyServerHost: proxy-entrypoint.open-cluster-management-cluster-proxy
+      proxyServerPort: 8090
