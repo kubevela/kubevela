@@ -67,7 +67,7 @@ func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, pa
 			resp.DeliveryTargets = append(resp.DeliveryTargets, *convertFromDeliveryTargetModel(dt))
 		}
 	}
-	count, err := dt.ds.Count(ctx, &deliveryTarget)
+	count, err := dt.ds.Count(ctx, &deliveryTarget, nil)
 	if err != nil {
 		return nil, err
 	}

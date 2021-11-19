@@ -27,6 +27,7 @@ import (
 	"github.com/oam-dev/terraform-controller/api/types"
 	"github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
+	v12 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,6 +53,8 @@ type ClusterUsecase interface {
 	GetKubeCluster(context.Context, string) (*apis.DetailClusterResponse, error)
 	ModifyKubeCluster(context.Context, apis.CreateClusterRequest, string) (*apis.ClusterBase, error)
 	DeleteKubeCluster(context.Context, string) (*apis.ClusterBase, error)
+
+	CreateClusterNamespace(context.Context, string, apis.CreateClusterNamespaceRequest) (*apis.CreateClusterNamespaceResponse, error)
 
 	ListCloudClusters(context.Context, string, apis.AccessKeyRequest, int, int) (*apis.ListCloudClusterResponse, error)
 	ConnectCloudCluster(context.Context, string, apis.ConnectCloudClusterRequest) (*apis.ClusterBase, error)
@@ -135,15 +138,31 @@ func (c *clusterUsecaseImpl) preAddLocalCluster(ctx context.Context) error {
 				}
 				return err
 			}
+			return nil
 		}
 		return err
+	}
+	if localCluster.CreateTime.Before(model.LocalClusterCreatedTime) {
+		localCluster.CreateTime = model.LocalClusterCreatedTime
+		if err = c.ds.Put(ctx, localCluster); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string, page int, pageSize int) (*apis.ListClusterResponse, error) {
-	// TODO: Fuzzy query
-	clusters, err := c.ds.List(ctx, &model.Cluster{}, &datastore.ListOptions{Page: page, PageSize: pageSize})
+	var queries []datastore.FuzzyQueryOption
+	if query != "" {
+		queries = append(queries, datastore.FuzzyQueryOption{Key: "name", Query: query})
+	}
+	fo := datastore.FilterOptions{Queries: queries}
+	clusters, err := c.ds.List(ctx, &model.Cluster{}, &datastore.ListOptions{
+		Page:          page,
+		PageSize:      pageSize,
+		SortBy:        []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+		FilterOptions: fo,
+	})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to list cluster with query %s in data store", query)
 	}
@@ -156,6 +175,11 @@ func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string,
 			resp.Clusters = append(resp.Clusters, *newClusterBaseFromCluster(cluster))
 		}
 	}
+	total, err := c.ds.Count(ctx, &model.Cluster{}, &fo)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to count cluster with query %s in data store", query)
+	}
+	resp.Total = total
 	return resp, nil
 }
 
@@ -207,8 +231,11 @@ func (c *clusterUsecaseImpl) createKubeCluster(ctx context.Context, req apis.Cre
 		cluster.Provider = model.ProviderInfo{
 			Provider:    providerCluster.Provider,
 			ClusterName: providerCluster.Name,
-			ID:          providerCluster.ID,
+			ClusterID:   providerCluster.ID,
 			Zone:        providerCluster.Zone,
+			ZoneID:      providerCluster.ZoneID,
+			RegionID:    providerCluster.RegionID,
+			VpcID:       providerCluster.VpcID,
 			Labels:      providerCluster.Labels,
 		}
 		cluster.DashboardURL = providerCluster.DashBoardURL
@@ -352,6 +379,28 @@ func (c *clusterUsecaseImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 	return newClusterBaseFromCluster(cluster), nil
 }
 
+func (c *clusterUsecaseImpl) CreateClusterNamespace(ctx context.Context, clusterName string, req apis.CreateClusterNamespaceRequest) (*apis.CreateClusterNamespaceResponse, error) {
+	_, err := c.getClusterFromDataStore(ctx, clusterName)
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrClusterNotFoundInDataStore
+		}
+		return nil, errors.Wrapf(err, "failed to found cluster %s in data store", clusterName)
+	}
+	ns := &v12.Namespace{}
+	ns.Name = req.Namespace
+	if err = c.k8sClient.Create(multicluster.ContextWithClusterName(ctx, clusterName), ns); err != nil {
+		if kerrors.IsAlreadyExists(err) {
+			return &apis.CreateClusterNamespaceResponse{Exists: true}, nil
+		}
+		if kerrors.IsForbidden(err) {
+			return nil, bcode.ErrClusterCreateNamespaceNoPermission
+		}
+		return nil, errors.Wrapf(err, "failed to create namespace %s in cluster %s", req.Namespace, clusterName)
+	}
+	return &apis.CreateClusterNamespaceResponse{Exists: false}, nil
+}
+
 func (c *clusterUsecaseImpl) setClusterStatusAndResourceInfo(ctx context.Context, cluster *model.Cluster) apis.ClusterResourceInfo {
 	resourceInfo, err := c.getClusterResourceInfoFromK8s(ctx, cluster.Name)
 	if err != nil {
@@ -475,6 +524,25 @@ func (c *clusterUsecaseImpl) CreateCloudCluster(ctx context.Context, provider st
 	return c.GetCloudClusterCreationStatus(ctx, provider, req.Name)
 }
 
+func (c *clusterUsecaseImpl) convertTerraformConfigurationStateIntoCloudClusterCreationStatus(cfg v1beta1.Configuration) (status string, clusterID string, err error) {
+	status = string(cfg.Status.Apply.State)
+	if status == "" {
+		return "Initializing", "", nil
+	}
+	if cfg.DeletionTimestamp != nil {
+		return "Deleting", "", nil
+	}
+	if status == string(types.Available) {
+		cid, ok := cfg.Status.Apply.Outputs["CLUSTER_ID"]
+		if !ok {
+			status = "ClusterIDNotFound"
+			return status, "", bcode.ErrClusterIDNotFoundInTerraformConfiguration
+		}
+		return status, cid.Value, nil
+	}
+	return status, "", nil
+}
+
 func (c *clusterUsecaseImpl) getCloudClusterCreationStatus(ctx context.Context, provider string, cloudClusterName string) (*apis.CreateCloudClusterResponse, *v1beta1.Configuration, error) {
 	terraformConfigurationName := cloudprovider.GetCloudClusterFullName(provider, cloudClusterName)
 	cfg := &v1beta1.Configuration{
@@ -489,24 +557,11 @@ func (c *clusterUsecaseImpl) getCloudClusterCreationStatus(ctx context.Context, 
 		}
 		return nil, nil, err
 	}
-	status := string(cfg.Status.Apply.State)
-	if status == "" {
-		status = "Initializing"
+	status, clusterID, err := c.convertTerraformConfigurationStateIntoCloudClusterCreationStatus(*cfg)
+	if err != nil {
+		return nil, cfg, err
 	}
-	if cfg.DeletionTimestamp != nil {
-		status = "Deleting"
-	}
-	if status == string(types.Available) {
-		cid, ok := cfg.Status.Apply.Outputs["CLUSTER_ID"]
-		if !ok {
-			return nil, nil, bcode.ErrClusterIDNotFoundInTerraformConfiguration
-		}
-		return &apis.CreateCloudClusterResponse{
-			Status:    status,
-			ClusterID: cid.Value,
-		}, cfg, nil
-	}
-	return &apis.CreateCloudClusterResponse{Status: status}, cfg, nil
+	return &apis.CreateCloudClusterResponse{Name: cloudClusterName, Status: status, ClusterID: clusterID}, cfg, nil
 }
 
 func (c *clusterUsecaseImpl) GetCloudClusterCreationStatus(ctx context.Context, provider string, cloudClusterName string) (*apis.CreateCloudClusterResponse, error) {
@@ -519,11 +574,13 @@ func (c *clusterUsecaseImpl) ListCloudClusterCreation(ctx context.Context, provi
 	if err := c.k8sClient.List(ctx, &cfgs, client.HasLabels{cloudprovider.CloudClusterCreatorLabelKey}, client.InNamespace(util.GetRuntimeNamespace())); err != nil {
 		return nil, err
 	}
-	var creations []string
+	var creations []apis.CreateCloudClusterResponse
 	for _, cfg := range cfgs.Items {
 		prefix := "cloud-cluster-" + provider + "-"
 		if strings.HasPrefix(cfg.Name, prefix) {
-			creations = append(creations, strings.TrimPrefix(cfg.Name, prefix))
+			status, clusterID, _ := c.convertTerraformConfigurationStateIntoCloudClusterCreationStatus(cfg)
+			name := strings.TrimPrefix(cfg.Name, prefix)
+			creations = append(creations, apis.CreateCloudClusterResponse{Name: name, Status: status, ClusterID: clusterID})
 		}
 	}
 	return &apis.ListCloudClusterCreationResponse{Creations: creations}, nil

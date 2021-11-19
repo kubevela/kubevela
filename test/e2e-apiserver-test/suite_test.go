@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,13 +51,18 @@ var _ = BeforeSuite(func() {
 
 	ctx := context.Background()
 
-	server, err := arest.New(arest.Config{
+	cfg := arest.Config{
 		BindAddr: "127.0.0.1:8000",
 		Datastore: datastore.Config{
 			Type:     "kubeapi",
 			Database: "kubevela",
 		},
-	})
+	}
+	cfg.LeaderConfig.ID = uuid.New().String()
+	cfg.LeaderConfig.LockName = "apiserver-lock"
+	cfg.LeaderConfig.Duration = time.Second * 5
+
+	server, err := arest.New(cfg)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(server).ShouldNot(BeNil())
 	go func() {

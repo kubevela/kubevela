@@ -55,12 +55,12 @@ var _ = BeforeSuite(func(done Done) {
 
 var _ = Describe("Test mongodb datastore driver", func() {
 
-	It("Test add funtion", func() {
+	It("Test add function", func() {
 		err := mongodbDriver.Add(context.TODO(), &model.Application{Name: "kubevela-app", Description: "default"})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Test batch add funtion", func() {
+	It("Test batch add function", func() {
 		var datas = []datastore.Entity{
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 			&model.Application{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
@@ -78,7 +78,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		Expect(equal).To(BeEmpty())
 	})
 
-	It("Test get funtion", func() {
+	It("Test get function", func() {
 		app := &model.Application{Name: "kubevela-app"}
 		err := mongodbDriver.Get(context.TODO(), app)
 		Expect(err).Should(BeNil())
@@ -86,11 +86,11 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
-	It("Test put funtion", func() {
+	It("Test put function", func() {
 		err := mongodbDriver.Put(context.TODO(), &model.Application{Name: "kubevela-app", Description: "this is demo"})
 		Expect(err).ToNot(HaveOccurred())
 	})
-	It("Test list funtion", func() {
+	It("Test list function", func() {
 		var app model.Application
 		list, err := mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{Page: -1})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -119,19 +119,64 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
+	It("Test list clusters with sort and fuzzy query", func() {
+		clusters, err := mongodbDriver.List(context.TODO(), &model.Cluster{}, nil)
+		Expect(err).Should(Succeed())
+		for _, cluster := range clusters {
+			Expect(mongodbDriver.Delete(context.TODO(), cluster)).Should(Succeed())
+		}
+		for _, name := range []string{"first", "second", "third"} {
+			Expect(mongodbDriver.Add(context.TODO(), &model.Cluster{Name: name})).Should(Succeed())
+			time.Sleep(time.Millisecond * 100)
+		}
+		entities, err := mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderAscending}}})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(3))
+		for i, name := range []string{"first", "second", "third"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+		entities, err = mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			Page:     2,
+			PageSize: 2,
+		})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(1))
+		for i, name := range []string{"first"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+		entities, err = mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			FilterOptions: datastore.FilterOptions{
+				Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
+			},
+		})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(2))
+		for i, name := range []string{"third", "first"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+	})
+
 	It("Test count function", func() {
 		var app model.Application
-		count, err := mongodbDriver.Count(context.TODO(), &app)
+		count, err := mongodbDriver.Count(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(4)))
 
 		app.Namespace = "test-namespace"
-		count, err = mongodbDriver.Count(context.TODO(), &app)
+		count, err = mongodbDriver.Count(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(1)))
+
+		count, err = mongodbDriver.Count(context.TODO(), &model.Cluster{}, &datastore.FilterOptions{
+			Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
+		})
+		Expect(err).Should(Succeed())
+		Expect(count).Should(Equal(int64(2)))
 	})
 
-	It("Test isExist funtion", func() {
+	It("Test isExist function", func() {
 		var app model.Application
 		app.Name = "kubevela-app-3"
 		exist, err := mongodbDriver.IsExist(context.TODO(), &app)
@@ -146,7 +191,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		Expect(diff).Should(BeEmpty())
 	})
 
-	It("Test delete funtion", func() {
+	It("Test delete function", func() {
 		var app model.Application
 		app.Name = "kubevela-app"
 		err := mongodbDriver.Delete(context.TODO(), &app)

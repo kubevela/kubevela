@@ -164,6 +164,9 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 		return nil, err
 	}
 	components, err := c.ListComponents(ctx, app, apisv1.ListApplicationComponentOptions{})
+	if err != nil {
+		return nil, err
+	}
 	envBindings, err := c.envBindingUsecase.GetEnvBindings(ctx, app)
 	if err != nil {
 		return nil, err
@@ -297,6 +300,9 @@ func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.
 		envBindingSpec.Envs = append(envBindingSpec.Envs, createTargetClusterEnv(envBinding.EnvBindingBase, target))
 	}
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
+	if err != nil {
+		return appPolicy, err
+	}
 	appPolicy.Properties = properties.RawExtension()
 	return appPolicy, nil
 }
@@ -1057,7 +1063,7 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 			})
 		}
 	}
-	count, err := c.ds.Count(ctx, &revision)
+	count, err := c.ds.Count(ctx, &revision, nil)
 	if err != nil {
 		return nil, err
 	}
