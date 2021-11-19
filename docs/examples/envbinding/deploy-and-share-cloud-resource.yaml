@@ -55,8 +55,8 @@ spec:
         properties:
           env: hangzhou
       # 将给杭州区用的 RDS 共享给北京区
-      - name: bind-hangzhou-rds-to-beijing
-        type: bind-cloud-resource
+      - name: share-hangzhou-rds-to-beijing
+        type: share-cloud-resource
         properties:
           env: hangzhou
           placements:
@@ -67,8 +67,8 @@ spec:
         properties:
           env: hongkong
       # 将给香港区用的 RDS 共享给香港区其他项目用
-      - name: bind-hongkong-rds-to-other-namespace
-        type: bind-cloud-resource
+      - name: share-hongkong-rds-to-other-namespace
+        type: share-cloud-resource
         properties:
           env: hongkong
           placements:

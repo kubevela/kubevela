@@ -2,14 +2,14 @@ import (
 	"vela/op"
 )
 
-"bind-cloud-resource": {
+"share-cloud-resource": {
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
-	description: "Sync secrets created by terraform component to runtime clusters"
+	description: "Sync secrets created by terraform component to runtime clusters so that runtime clusters can share the created cloud resource."
 }
 template: {
-	app: op.#BindCloudResource & {
+	app: op.#ShareCloudResource & {
 		env:        parameter.env
 		policy:     parameter.policy
 		placements: parameter.placements

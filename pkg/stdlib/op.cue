@@ -109,7 +109,7 @@ import (
 
 #DeployCloudResource: terraform.#DeployCloudResource
 
-#BindCloudResource: terraform.#BindCloudResource
+#ShareCloudResource: terraform.#ShareCloudResource
 
 #LoadPolicies: oam.#LoadPolicies
 

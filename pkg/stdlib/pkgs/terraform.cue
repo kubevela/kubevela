@@ -226,7 +226,7 @@
 	} @step(2)
 }
 
-#BindCloudResource: {
+#ShareCloudResource: {
 	#do: "steps"
 
 	env:        string
