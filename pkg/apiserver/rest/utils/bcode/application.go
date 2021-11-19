@@ -56,7 +56,7 @@ var ErrCreateNamespace = NewBcode(500, 10011, "auto create namespace failure")
 var ErrApplicationNotExist = NewBcode(404, 10012, "application name is not exist")
 
 // ErrApplicationNotEnv no env binding policy
-var ErrApplicationNotEnv = NewBcode(404, 10013, "application not set env binding policy")
+var ErrApplicationNotEnv = NewBcode(404, 10013, "application not set env binding")
 
 // ErrApplicationEnvExist application env is exist
 var ErrApplicationEnvExist = NewBcode(400, 10014, "application env is exist")

@@ -59,7 +59,6 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Namespace, req.Namespace)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
-		Expect(cmp.Diff(appBase.EnvBinding[0].Name, "dev-env")).Should(BeEmpty())
 	})
 
 	It("Test delete app", func() {

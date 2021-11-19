@@ -253,7 +253,6 @@ type ApplicationBase struct {
 	UpdateTime  time.Time         `json:"updateTime"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	EnvBinding  EnvBindingList    `json:"envBinding,omitempty"`
 }
 
 // ApplicationStatusResponse application status response body
@@ -292,6 +291,21 @@ type EnvBinding struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
 }
 
+// EnvBindingBase application env binding
+type EnvBindingBase struct {
+	Name              string             `json:"name" validate:"checkname"`
+	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description       string             `json:"description,omitempty" optional:"true"`
+	TargetNames       []string           `json:"targetNames"`
+	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
+	CreateTime        time.Time          `json:"createTime"`
+	UpdateTime        time.Time          `json:"updateTime"`
+}
+
+type DetailEnvBindingResponse struct {
+	EnvBindingBase
+}
+
 // ClusterSelector cluster selector
 type ClusterSelector struct {
 	Name string `json:"name" validate:"checkname"`
@@ -308,6 +322,7 @@ type ComponentSelector struct {
 type DetailApplicationResponse struct {
 	ApplicationBase
 	Policies       []string                `json:"policies"`
+	EnvBindings    []string                `json:"envBindings"`
 	Status         string                  `json:"status"`
 	ResourceInfo   ApplicationResourceInfo `json:"resourceInfo"`
 	WorkflowStatus []WorkflowStepStatus    `json:"workflowStatus"`
@@ -500,6 +515,7 @@ type CreateWorkflowRequest struct {
 	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 	Default     bool           `json:"default"`
+	EnvName     string         `json:"envName"`
 }
 
 // UpdateWorkflowRequest update or create application workflow
@@ -509,6 +525,7 @@ type UpdateWorkflowRequest struct {
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 	Enable      bool           `json:"enable"`
 	Default     bool           `json:"default"`
+	EnvName     string         `json:"envName"`
 }
 
 // WorkflowStep workflow step config
@@ -543,6 +560,7 @@ type WorkflowBase struct {
 	Description string    `json:"description"`
 	Enable      bool      `json:"enable"`
 	Default     bool      `json:"default"`
+	EnvName     string    `json:"envName"`
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
 }
@@ -595,9 +613,14 @@ type VelaQLViewResponse map[string]interface{}
 // PutApplicationEnvRequest set diff request
 type PutApplicationEnvRequest struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector,omitempty"`
-	Alias             *string            `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Description       *string            `json:"description,omitempty" optional:"true"`
-	TargetNames       *[]string          `json:"targetNames"`
+	Alias             string             `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description       string             `json:"description,omitempty" optional:"true"`
+	TargetNames       []string           `json:"targetNames"`
+}
+
+// ListApplicationEnvBinding list app envBindings
+type ListApplicationEnvBinding struct {
+	EnvBindings []*EnvBindingBase `json:"envBindings"`
 }
 
 // CreateApplicationEnvRequest new application env

@@ -37,13 +37,15 @@ type DeliveryTargetUsecase interface {
 	ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error)
 }
 
-// NewDeliveryTargetUsecase new DeliveryTarget usecase
-func NewDeliveryTargetUsecase(ds datastore.DataStore) DeliveryTargetUsecase {
-	return &deliveryTargetUsecaseImpl{ds: ds}
-}
-
 type deliveryTargetUsecaseImpl struct {
 	ds datastore.DataStore
+}
+
+// NewDeliveryTargetUsecase new DeliveryTarget usecase
+func NewDeliveryTargetUsecase(ds datastore.DataStore) DeliveryTargetUsecase {
+	return &deliveryTargetUsecaseImpl{
+		ds: ds,
+	}
 }
 
 func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error) {
