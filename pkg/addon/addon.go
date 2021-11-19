@@ -53,6 +53,19 @@ const (
 	DefinitionsDirName string = "definitions"
 )
 
+type ListOptions struct {
+	GetDetail     bool
+	GetDefinition bool
+	GetResource   bool
+}
+
+var (
+	ListLevelOptions   = ListOptions{}
+	GetLevelOptions    = ListOptions{GetDetail: true, GetDefinition: true}
+	EnableLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetResource: true}
+)
+
+
 type gitHelper struct {
 	Client *github.Client
 	Meta   *utils.Content
