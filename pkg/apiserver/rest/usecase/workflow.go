@@ -53,7 +53,7 @@ type WorkflowUsecase interface {
 	GetApplicationDefaultWorkflow(ctx context.Context, app *model.Application) (*model.Workflow, error)
 	DeleteWorkflow(ctx context.Context, workflowName string) error
 	CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
-	CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application, revisionName string) error
+	CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application) error
 	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
 	DetailWorkflowRecord(ctx context.Context, workflowName, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
@@ -237,7 +237,9 @@ func (w *workflowUsecaseImpl) GetApplicationDefaultWorkflow(ctx context.Context,
 
 // ListWorkflowRecords list workflow record
 func (w *workflowUsecaseImpl) ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error) {
-	var record = model.WorkflowRecord{}
+	var record = model.WorkflowRecord{
+		WorkflowPrimaryKey: workflowName,
+	}
 	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{Page: page, PageSize: pageSize})
 	if err != nil {
 		return nil, err
@@ -274,7 +276,7 @@ func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflow
 
 	var revision = model.ApplicationRevision{
 		AppPrimaryKey: record.AppPrimaryKey,
-		Name:          record.RevisionPrimaryKey,
+		Version:       record.RevisionPrimaryKey,
 	}
 	err = w.ds.Get(ctx, &revision)
 	if err != nil {
@@ -357,7 +359,7 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 	}
 	var revision = &model.ApplicationRevision{
 		AppPrimaryKey: app.Name,
-		Name:          record.RevisionPrimaryKey,
+		Version:       record.RevisionPrimaryKey,
 	}
 	if err := w.ds.Get(ctx, revision); err != nil {
 		return err
@@ -393,7 +395,7 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 	return nil
 }
 
-func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application, revisionName string) error {
+func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application) error {
 	if app.Annotations == nil {
 		return fmt.Errorf("empty annotations in application")
 	}
@@ -403,11 +405,14 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1b
 	if app.Annotations[oam.AnnotationPublishVersion] == "" {
 		return fmt.Errorf("failed to get record version from application")
 	}
+	if app.Annotations[oam.AnnotationDeployVersion] == "" {
+		return fmt.Errorf("failed to get deploy version from application")
+	}
 
 	return w.ds.Add(ctx, &model.WorkflowRecord{
 		WorkflowPrimaryKey: app.Annotations[oam.AnnotationWorkflowName],
 		AppPrimaryKey:      app.Name,
-		RevisionPrimaryKey: revisionName,
+		RevisionPrimaryKey: app.Annotations[oam.AnnotationDeployVersion],
 		Name:               app.Annotations[oam.AnnotationPublishVersion],
 		Namespace:          app.Namespace,
 		Finished:           "false",
@@ -450,7 +455,8 @@ func (w *workflowUsecaseImpl) TerminateRecord(ctx context.Context, appModel *mod
 	return nil
 }
 
-func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *model.Application, recordName, revisionName string) error {
+func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *model.Application, recordName, revisionVersion string) error {
+	// TODO: if revisionVersion is empty, rollback to the last revision
 	oamApp, err := w.checkRecordSuspended(ctx, appModel)
 	if err != nil {
 		return err
@@ -463,25 +469,11 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 	if err := w.ds.Get(ctx, record); err != nil {
 		return err
 	}
-	var originalRevision = model.ApplicationRevision{
-		AppPrimaryKey: appModel.Name,
-		Name:          record.RevisionPrimaryKey,
-	}
-	if err := w.ds.Get(ctx, &originalRevision); err != nil {
-		return err
-	}
 	var rollbackRevision = model.ApplicationRevision{
 		AppPrimaryKey: appModel.Name,
-		Name:          revisionName,
+		Version:       revisionVersion,
 	}
 	if err := w.ds.Get(ctx, &rollbackRevision); err != nil {
-		return err
-	}
-
-	originalVersion := originalRevision.Version
-	// update the original revision's version
-	originalRevision.Version = rollbackRevision.Version
-	if err := w.ds.Put(ctx, &originalRevision); err != nil {
 		return err
 	}
 
@@ -495,11 +487,11 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		oamApp.Annotations = make(map[string]string)
 	}
 	newRecordName := utils.GenerateVersion(record.WorkflowPrimaryKey)
-	oamApp.Annotations[oam.AnnotationDeployVersion] = rollbackRevision.Version
+	oamApp.Annotations[oam.AnnotationDeployVersion] = revisionVersion
 	oamApp.Annotations[oam.AnnotationPublishVersion] = newRecordName
 
 	// create a new workflow record
-	if err := w.CreateWorkflowRecord(ctx, oamApp, revisionName); err != nil {
+	if err := w.CreateWorkflowRecord(ctx, oamApp); err != nil {
 		return err
 	}
 
@@ -507,10 +499,6 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		// rollback error case
 		if err := w.ds.Delete(ctx, &model.WorkflowRecord{Name: newRecordName}); err != nil {
 			klog.Error(err, "failed to delete record", newRecordName)
-		}
-		originalRevision.Version = originalVersion
-		if err := w.ds.Put(ctx, &originalRevision); err != nil {
-			klog.Error(err, "failed to revert revision version", originalRevision.Name)
 		}
 		return err
 	}

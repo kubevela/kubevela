@@ -190,7 +190,6 @@ var RevisionStatusSuspend = "suspend"
 type ApplicationRevision struct {
 	Model
 	AppPrimaryKey string `json:"appPrimaryKey"`
-	Name          string `json:"name"`
 	Version       string `json:"version"`
 	// ApplyAppConfig Stores the application configuration during the current deploy.
 	ApplyAppConfig string `json:"applyAppConfig,omitempty"`
@@ -220,15 +219,12 @@ func (a *ApplicationRevision) TableName() string {
 
 // PrimaryKey return custom primary key
 func (a *ApplicationRevision) PrimaryKey() string {
-	return a.Name
+	return a.Version
 }
 
 // Index return custom index
 func (a *ApplicationRevision) Index() map[string]string {
 	index := make(map[string]string)
-	if a.Name != "" {
-		index["name"] = a.Name
-	}
 	if a.Version != "" {
 		index["version"] = a.Version
 	}

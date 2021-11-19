@@ -437,7 +437,6 @@ var _ = Describe("Test application usecase function", func() {
 		for i := 0; i < 3; i++ {
 			appModel := &model.ApplicationRevision{
 				AppPrimaryKey: "test-app",
-				Name:          fmt.Sprintf("test-app-%d", i),
 				Version:       fmt.Sprintf("%d", i),
 				EnvName:       fmt.Sprintf("env-%d", i),
 				Status:        model.RevisionStatusRunning,
@@ -468,12 +467,11 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DetailRevision function", func() {
 		err := workflowUsecase.createTestApplicationRevision(context.TODO(), &model.ApplicationRevision{
 			AppPrimaryKey: "test-app",
-			Name:          "test-app-123",
 			Version:       "123",
 			DeployUser:    "test-user",
 		})
 		Expect(err).Should(BeNil())
-		revision, err := appUsecase.DetailRevision(context.TODO(), "test-app", "test-app-123")
+		revision, err := appUsecase.DetailRevision(context.TODO(), "test-app", "123")
 		Expect(err).Should(BeNil())
 		Expect(revision.Version).Should(Equal("123"))
 		Expect(revision.DeployUser).Should(Equal("test-user"))
@@ -495,7 +493,7 @@ func createTestSuspendApp(ctx context.Context, appName, revisionVersion, wfName,
 			Components: []common.ApplicationComponent{{
 				Name:       "test-component",
 				Type:       "worker",
-				Properties: &runtime.RawExtension{},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"test":"test"}`)},
 				Traits:     []common.ApplicationTrait{},
 				Scopes:     map[string]string{},
 			}},

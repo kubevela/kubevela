@@ -132,11 +132,11 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailWorkflowRecordResponse{}))
 
-	ws.Route(ws.GET("/{name}/records/{record}/rollback/{rollback}").To(w.rollbackWorkflowRecord).
+	ws.Route(ws.GET("/{name}/records/{record}/rollback").To(w.rollbackWorkflowRecord).
 		Doc("rollback suspend application record").
 		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
 		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
-		Param(ws.PathParameter("rollback", "identifier of the rollback revision name").DataType("string")).
+		Param(ws.QueryParameter("rollbackVersion", "identifier of the rollback revision").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(w.applicationCheckFilter).
 		Returns(200, "", nil).
@@ -329,7 +329,7 @@ func (w *workflowWebService) terminateWorkflowRecord(req *restful.Request, res *
 
 func (w *workflowWebService) rollbackWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := w.workflowUsecase.RollbackRecord(req.Request.Context(), app, req.PathParameter("record"), req.PathParameter("rollback"))
+	err := w.workflowUsecase.RollbackRecord(req.Request.Context(), app, req.PathParameter("record"), req.QueryParameter("rollbackVersion"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

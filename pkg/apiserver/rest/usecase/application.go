@@ -81,7 +81,7 @@ type ApplicationUsecase interface {
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
-	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
+	DetailRevision(ctx context.Context, appName, revisionVersion string) (*apisv1.DetailRevisionResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -601,7 +601,6 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	var appRevision = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
-		Name:           fmt.Sprintf("%s-%s", app.Name, version),
 		ApplyAppConfig: string(configByte),
 		Status:         model.RevisionStatusInit,
 		// TODO: Get user information from ctx and assign a value.
@@ -616,7 +615,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		return nil, err
 	}
 	// step3: create workflow record
-	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, oamApp, appRevision.Name); err != nil {
+	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, oamApp); err != nil {
 		return nil, err
 	}
 	// step4: check and create namespace
@@ -668,7 +667,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			Namespace: appModel.Namespace,
 			Labels:    appModel.Labels,
 			Annotations: map[string]string{
-				oam.AnnotationDeployVersion:  version,
+				oam.AnnotationDeployVersion: version,
+				// publish version is the identifier of workflow record
 				oam.AnnotationPublishVersion: utils.GenerateVersion(reqWorkflowName),
 			},
 		},
@@ -1060,7 +1060,6 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 		if ok {
 			resp.Revisions = append(resp.Revisions, apisv1.ApplicationRevisionBase{
 				CreateTime:  r.CreateTime,
-				Name:        r.Name,
 				Version:     r.Version,
 				Status:      r.Status,
 				Reason:      r.Reason,
@@ -1080,10 +1079,10 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 	return resp, nil
 }
 
-func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error) {
+func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, revisionVersion string) (*apisv1.DetailRevisionResponse, error) {
 	var revision = model.ApplicationRevision{
 		AppPrimaryKey: appName,
-		Name:          revisionName,
+		Version:       revisionVersion,
 	}
 	if err := c.ds.Get(ctx, &revision); err != nil {
 		return nil, err
