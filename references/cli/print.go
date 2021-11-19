@@ -58,10 +58,6 @@ func newTrackingSpinnerWithDelay(suffix string, interval time.Duration) *spinner
 		spinner.WithSuffix(suffixColor.Sprintf(" %s", suffix)))
 }
 
-func newTrackingSpinner(suffix string) *spinner.Spinner {
-	return newTrackingSpinnerWithDelay(suffix, 500*time.Millisecond)
-}
-
 func applySpinnerNewSuffix(s *spinner.Spinner, suffix string) {
 	suffixColor := color.New(color.Bold, color.FgGreen)
 	s.Suffix = suffixColor.Sprintf(" %s", suffix)
