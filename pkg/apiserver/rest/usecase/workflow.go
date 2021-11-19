@@ -371,9 +371,6 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		if status.Finished {
 			summaryStatus = model.RevisionStatusComplete
 		}
-		if status.Suspend {
-			summaryStatus = model.RevisionStatusSuspend
-		}
 		if status.Terminated {
 			summaryStatus = model.RevisionStatusTerminated
 		}

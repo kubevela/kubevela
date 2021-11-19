@@ -183,9 +183,6 @@ var RevisionStatusFail = "failure"
 // RevisionStatusTerminated event status terminated
 var RevisionStatusTerminated = "terminated"
 
-// RevisionStatusSuspend event status suspend
-var RevisionStatusSuspend = "suspend"
-
 // ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
 type ApplicationRevision struct {
 	Model

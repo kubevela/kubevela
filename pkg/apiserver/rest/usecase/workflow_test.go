@@ -228,7 +228,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			AppPrimaryKey: "resume-app",
 
 			Version: "revision-resume1",
-			Status:  model.RevisionStatusSuspend,
+			Status:  model.RevisionStatusRunning,
 		})
 		Expect(err).Should(BeNil())
 
@@ -254,7 +254,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
 			AppPrimaryKey: "terminate-app",
 			Version:       "revision-terminate1",
-			Status:        model.RevisionStatusSuspend,
+			Status:        model.RevisionStatusRunning,
 		})
 		Expect(err).Should(BeNil())
 
@@ -280,7 +280,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
 			AppPrimaryKey: "rollback-app",
 			Version:       "revision-rollback1",
-			Status:        model.RevisionStatusSuspend,
+			Status:        model.RevisionStatusRunning,
 		})
 		Expect(err).Should(BeNil())
 		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
