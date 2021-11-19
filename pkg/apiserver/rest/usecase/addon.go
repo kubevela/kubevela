@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"sort"
 	"strings"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -35,7 +36,7 @@ type AddonUsecase interface {
 	UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
 	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
-	StatusAddon(ctx context.Context,name string) (*apis.AddonStatusResponse, error)
+	StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error)
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
@@ -74,24 +75,13 @@ type addonUsecaseImpl struct {
 
 // GetAddon will get addon information
 func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
-	var addons []*types.Addon
-	cacheKey := getCacheKeyWithListOptions(registry, true, "")
-	if u.isRegistryCacheUpToDate(cacheKey) {
-		addons = u.getRegistryCache(cacheKey)
-		for _, a := range addons {
-			if a.Name == name {
-				return AddonImpl2AddonRes(a), nil
-			}
-		}
-	} else {
-		addonDetails, err := u.ListAddons(ctx, true, registry, "")
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range addonDetails {
-			if a.Name == name {
-				return a, nil
-			}
+	addonDetails, err := u.ListAddons(ctx, true, registry, "")
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range addonDetails {
+		if a.Name == name {
+			return a, nil
 		}
 	}
 	return nil, bcode.ErrAddonNotExist
@@ -286,7 +276,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			return bcode.WrapGithubRateLimitErr(err)
 		}
 
-		app, err := pkgaddon.RenderApplication(addon, args.Args)
+		app, defs, err := pkgaddon.RenderApplication(addon, args.Args)
 		if err != nil {
 			return bcode.ErrAddonRender
 		}
@@ -296,10 +286,19 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			return bcode.ErrAddonIsEnabled
 		}
 
-		err = u.kubeClient.Create(ctx, app)
+		err = u.apply.Apply(ctx, app)
 		if err != nil {
 			log.Logger.Errorf("create application fail: %s", err.Error())
 			return bcode.ErrAddonApply
+		}
+
+		for _, def := range defs {
+			addOwner(def, app)
+			err = u.apply.Apply(ctx, def)
+			if err != nil {
+				log.Logger.Errorf("apply definition fail: %v", err)
+				return bcode.ErrAddonApply
+			}
 		}
 
 		sec := pkgaddon.RenderArgsSecret(addon, args.Args)
@@ -311,6 +310,11 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 		return nil
 	}
 	return bcode.ErrAddonNotExist
+}
+
+func addOwner(child *unstructured.Unstructured, app *v1beta1.Application) {
+	child.SetOwnerReferences(append(child.GetOwnerReferences(),
+		*metav1.NewControllerRef(app, v1beta1.ApplicationKindVersionKind)))
 }
 
 func (u *addonUsecaseImpl) getRegistryCache(name string) []*types.Addon {
