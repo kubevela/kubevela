@@ -60,16 +60,9 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			namespace, err := cmd.Flags().GetString(FlagNamespace)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
-			}
-			if namespace == "" {
-				env, err := GetFlagEnvOrCurrent(cmd, c)
-				if err != nil {
-					return err
-				}
-				namespace = env.Namespace
 			}
 			app, err := appfile.LoadApplication(namespace, args[0], c)
 			if err != nil {
@@ -93,7 +86,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
+	addNamespaceArg(cmd)
 	return cmd
 }
 
@@ -108,16 +101,9 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			namespace, err := cmd.Flags().GetString(FlagNamespace)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
-			}
-			if namespace == "" {
-				env, err := GetFlagEnvOrCurrent(cmd, c)
-				if err != nil {
-					return err
-				}
-				namespace = env.Namespace
 			}
 			app, err := appfile.LoadApplication(namespace, args[0], c)
 			if err != nil {
@@ -151,7 +137,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
+	addNamespaceArg(cmd)
 	return cmd
 }
 
@@ -166,16 +152,9 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			namespace, err := cmd.Flags().GetString(FlagNamespace)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
-			}
-			if namespace == "" {
-				env, err := GetFlagEnvOrCurrent(cmd, c)
-				if err != nil {
-					return err
-				}
-				namespace = env.Namespace
 			}
 			app, err := appfile.LoadApplication(namespace, args[0], c)
 			if err != nil {
@@ -199,7 +178,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
+	addNamespaceArg(cmd)
 	return cmd
 }
 
@@ -214,16 +193,9 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if len(args) < 1 {
 				return fmt.Errorf("must specify application name")
 			}
-			namespace, err := cmd.Flags().GetString(FlagNamespace)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
-			}
-			if namespace == "" {
-				env, err := GetFlagEnvOrCurrent(cmd, c)
-				if err != nil {
-					return err
-				}
-				namespace = env.Namespace
 			}
 			app, err := appfile.LoadApplication(namespace, args[0], c)
 			if err != nil {
@@ -247,7 +219,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
+	addNamespaceArg(cmd)
 	return cmd
 }
 

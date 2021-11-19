@@ -132,7 +132,7 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
 
 	return cmd
 }

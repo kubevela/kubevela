@@ -132,7 +132,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 
 	for _, tcase := range testCases {
 		tcase.expectApp.Namespace = expectNs
-		o, _, err := tcase.appFile.BuildOAMApplication(&types.EnvMeta{Namespace: expectNs}, cmdutil.IOStreams{
+		o, _, err := tcase.appFile.BuildOAMApplication(expectNs, cmdutil.IOStreams{
 			In:  os.Stdin,
 			Out: os.Stdout,
 		}, tm, false)
@@ -378,7 +378,7 @@ outputs: ingress: {
 				}
 			}
 
-			application, objects, err := app.BuildOAMApplication(&types.EnvMeta{Namespace: "default"}, io, tm, false)
+			application, objects, err := app.BuildOAMApplication("default", io, tm, false)
 			if c.want.err != nil {
 				assert.Equal(t, c.want.err, err)
 				return

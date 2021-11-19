@@ -72,11 +72,11 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
-			buff, err := DryRunApplication(o, c, velaEnv.Namespace)
+			buff, err := DryRunApplication(o, c, namespace)
 			if err != nil {
 				return err
 			}
@@ -87,6 +87,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
+	addNamespaceArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

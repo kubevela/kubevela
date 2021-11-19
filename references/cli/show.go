@@ -74,14 +74,14 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			}
 			ctx := context.Background()
 			capabilityName := args[0]
-			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
 			if webSite {
-				return startReferenceDocsSite(ctx, velaEnv.Namespace, c, ioStreams, capabilityName)
+				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
 			}
-			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, velaEnv.Namespace)
+			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -89,6 +89,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	}
 
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, " start web doc site")
+	addNamespaceArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
