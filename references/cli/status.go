@@ -31,11 +31,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 // HealthStatus represents health status strings.
@@ -202,7 +200,7 @@ func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appNa
 TrackDeployLoop:
 	for {
 		time.Sleep(trackingInterval)
-		deployStatus, failMsg, err := TrackDeployStatus(c, appName, env)
+		deployStatus, failMsg, err := TrackDeployStatus(c, appName, namespace)
 		if err != nil {
 			return compStatusUnknown, err
 		}
@@ -224,8 +222,8 @@ TrackDeployLoop:
 }
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
-func TrackDeployStatus(c common.Args, appName string, env *types.EnvMeta) (CompStatus, string, error) {
-	appObj, err := appfile.LoadApplication(env.Namespace, appName, c)
+func TrackDeployStatus(c common.Args, appName string, namespace string) (CompStatus, string, error) {
+	appObj, err := appfile.LoadApplication(namespace, appName, c)
 	if err != nil {
 		return compStatusUnknown, "", err
 	}
