@@ -107,11 +107,13 @@ func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.App
 			return nil, bcode.ErrInvalidProperties
 		}
 		steps = append(steps, model.WorkflowStep{
-			Name:       step.Name,
-			Type:       step.Type,
-			Inputs:     step.Inputs,
-			Outputs:    step.Outputs,
-			Properties: properties,
+			Name:        step.Name,
+			Type:        step.Type,
+			Inputs:      step.Inputs,
+			Outputs:     step.Outputs,
+			Description: step.Description,
+			DependsOn:   step.DependsOn,
+			Properties:  properties,
 		})
 	}
 	// It is allowed to set multiple workflows as default, and only one takes effect.
@@ -156,32 +158,38 @@ func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 	return w.DetailWorkflow(ctx, workflow)
 }
 
-// DetailWorkflow detail workflow
-func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *model.Workflow) (*apisv1.DetailWorkflowResponse, error) {
+func converWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
 	var steps []apisv1.WorkflowStep
 	for _, step := range workflow.Steps {
 		apiStep := apisv1.WorkflowStep{
-			Name:       step.Name,
-			Type:       step.Type,
-			Inputs:     step.Inputs,
-			Outputs:    step.Outputs,
-			Properties: step.Properties.JSON(),
+			Name:        step.Name,
+			Type:        step.Type,
+			Description: step.Description,
+			Inputs:      step.Inputs,
+			Outputs:     step.Outputs,
+			Properties:  step.Properties.JSON(),
+			DependsOn:   step.DependsOn,
 		}
 		if step.Properties != nil {
 			apiStep.Properties = step.Properties.JSON()
 		}
 		steps = append(steps, apiStep)
 	}
+	return apisv1.WorkflowBase{
+		Name:        workflow.Name,
+		Description: workflow.Description,
+		Default:     workflow.Default,
+		EnvName:     workflow.EnvName,
+		CreateTime:  workflow.CreateTime,
+		UpdateTime:  workflow.UpdateTime,
+		Steps:       steps,
+	}
+}
+
+// DetailWorkflow detail workflow
+func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *model.Workflow) (*apisv1.DetailWorkflowResponse, error) {
 	return &apisv1.DetailWorkflowResponse{
-		WorkflowBase: apisv1.WorkflowBase{
-			Name:        workflow.Name,
-			Description: workflow.Description,
-			Default:     workflow.Default,
-			EnvName:     workflow.EnvName,
-			CreateTime:  workflow.CreateTime,
-			UpdateTime:  workflow.UpdateTime,
-		},
-		Steps: steps,
+		WorkflowBase: converWorkflowBase(workflow),
 	}, nil
 }
 
@@ -211,14 +219,8 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 	var list []*apisv1.WorkflowBase
 	for _, workflow := range workflows {
 		wm := workflow.(*model.Workflow)
-		list = append(list, &apisv1.WorkflowBase{
-			Name:        wm.Name,
-			Description: wm.Description,
-			Default:     wm.Default,
-			EnvName:     wm.EnvName,
-			CreateTime:  wm.CreateTime,
-			UpdateTime:  wm.UpdateTime,
-		})
+		base := converWorkflowBase(wm)
+		list = append(list, &base)
 	}
 	return list, nil
 }

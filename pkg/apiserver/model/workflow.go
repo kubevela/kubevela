@@ -51,6 +51,7 @@ type WorkflowStep struct {
 	OrderIndex  int                `json:"orderIndex"`
 	Inputs      common.StepInputs  `json:"inputs,omitempty"`
 	Outputs     common.StepOutputs `json:"outputs,omitempty"`
+	DependsOn   []string           `json:"dependsOn"`
 	Properties  *JSONStruct        `json:"properties,omitempty"`
 }
 

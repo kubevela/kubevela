@@ -287,10 +287,10 @@ type ApplicationStatusResponse struct {
 
 // ApplicationStatisticsResponse application statistics response body
 type ApplicationStatisticsResponse struct {
-	EnvNumber            int64 `json:"envNumber"`
-	DeliveryTargetNumber int64 `json:"deliveryTargetNumber"`
-	RevisonNumber        int64 `json:"revisonNumber"`
-	WorkflowNumber       int64 `json:"workflowNumber"`
+	EnvCount            int64 `json:"envCount"`
+	DeliveryTargetCount int64 `json:"deliveryTargetCount"`
+	RevisonCount        int64 `json:"revisonCount"`
+	WorkflowCount       int64 `json:"workflowCount"`
 }
 
 // CreateApplicationRequest create application  request body
@@ -355,11 +355,10 @@ type ComponentSelector struct {
 // DetailApplicationResponse application  detail
 type DetailApplicationResponse struct {
 	ApplicationBase
-	Policies       []string                `json:"policies"`
-	EnvBindings    []string                `json:"envBindings"`
-	Status         string                  `json:"status"`
-	ResourceInfo   ApplicationResourceInfo `json:"resourceInfo"`
-	WorkflowStatus []WorkflowStepStatus    `json:"workflowStatus"`
+	Policies     []string                `json:"policies"`
+	EnvBindings  []string                `json:"envBindings"`
+	Status       string                  `json:"status"`
+	ResourceInfo ApplicationResourceInfo `json:"resourceInfo"`
 }
 
 // WorkflowStepStatus workflow step status model
@@ -588,8 +587,6 @@ type WorkflowStep struct {
 // DetailWorkflowResponse detail workflow response
 type DetailWorkflowResponse struct {
 	WorkflowBase
-	Steps      []WorkflowStep  `json:"steps,omitempty"`
-	LastRecord *WorkflowRecord `json:"workflowRecord"`
 }
 
 // ListWorkflowResponse list application workflows
@@ -599,14 +596,15 @@ type ListWorkflowResponse struct {
 
 // WorkflowBase workflow base model
 type WorkflowBase struct {
-	Name        string    `json:"name"`
-	Alias       string    `json:"alias"`
-	Description string    `json:"description"`
-	Enable      bool      `json:"enable"`
-	Default     bool      `json:"default"`
-	EnvName     string    `json:"envName"`
-	CreateTime  time.Time `json:"createTime"`
-	UpdateTime  time.Time `json:"updateTime"`
+	Name        string         `json:"name"`
+	Alias       string         `json:"alias"`
+	Description string         `json:"description"`
+	Enable      bool           `json:"enable"`
+	Default     bool           `json:"default"`
+	EnvName     string         `json:"envName"`
+	CreateTime  time.Time      `json:"createTime"`
+	UpdateTime  time.Time      `json:"updateTime"`
+	Steps       []WorkflowStep `json:"steps,omitempty"`
 }
 
 // ListWorkflowRecordsResponse list workflow execution record

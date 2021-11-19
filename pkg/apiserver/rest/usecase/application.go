@@ -189,7 +189,6 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 		ResourceInfo: apisv1.ApplicationResourceInfo{
 			ComponentNum: componentNum,
 		},
-		WorkflowStatus: []apisv1.WorkflowStepStatus{},
 	}
 	return detail, nil
 }
@@ -1166,10 +1165,10 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 		return nil, err
 	}
 	return &apisv1.ApplicationStatisticsResponse{
-		EnvNumber:            int64(len(envbinding)),
-		DeliveryTargetNumber: int64(len(targetMap)),
-		RevisonNumber:        count,
-		WorkflowNumber:       c.workflowUsecase.CountWorkflow(ctx, app),
+		EnvCount:            int64(len(envbinding)),
+		DeliveryTargetCount: int64(len(targetMap)),
+		RevisonCount:        count,
+		WorkflowCount:       c.workflowUsecase.CountWorkflow(ctx, app),
 	}, nil
 }
 
