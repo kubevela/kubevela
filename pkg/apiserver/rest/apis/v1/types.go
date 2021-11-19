@@ -718,7 +718,6 @@ type DeliveryTargetBase struct {
 // ApplicationRevisionBase application revision base spec
 type ApplicationRevisionBase struct {
 	CreateTime time.Time `json:"createTime"`
-	Name       string    `json:"name"`
 	Version    string    `json:"version"`
 	Status     string    `json:"status"`
 	Reason     string    `json:"reason"`
