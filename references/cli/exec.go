@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
@@ -134,6 +135,7 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
 
 	return cmd
 }
@@ -143,12 +145,18 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.Cmd = c
 	o.Args = argsIn
 
-	env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
+	namespace, err := c.Flags().GetString(Namespace)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
 	}
-	o.Env = env
-	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
+	if namespace == "" {
+		env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
+		if err != nil {
+			return err
+		}
+		namespace = env.Namespace
+	}
+	app, err := appfile.LoadApplication(namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}
@@ -161,15 +169,24 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 
 	cf := genericclioptions.NewConfigFlags(true)
 	cf.Namespace = &targetResource.Namespace
+	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
+		cfg.Wrap(multicluster.NewClusterGatewayRoundTripperWrapperGenerator(targetResource.Cluster))
+		return cfg
+	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.resourceName = targetResource.Name
 	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
 	o.resourceNamespace = targetResource.Namespace
+	o.VelaC.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	k8sClient, err := kubernetes.NewForConfig(o.VelaC.Config)
 	if err != nil {
 		return err
 	}
 	o.ClientSet = k8sClient
+
+	o.kcExecOptions.In = c.InOrStdin()
+	o.kcExecOptions.Out = c.OutOrStdout()
+	o.kcExecOptions.ErrOut = c.OutOrStderr()
 	return nil
 }
 
@@ -191,20 +208,7 @@ func (o *VelaExecOptions) Complete() error {
 }
 
 func (o *VelaExecOptions) getPodName(resourceName string) (string, error) {
-	podList, err := o.ClientSet.CoreV1().Pods(o.resourceNamespace).List(o.Ctx, v1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	var pods []string
-	for _, p := range podList.Items {
-		if strings.HasPrefix(p.Name, resourceName) {
-			pods = append(pods, p.Name)
-		}
-	}
-	if len(pods) < 1 {
-		return "", fmt.Errorf("no pods found created by resource %s", resourceName)
-	}
-	return common.AskToChooseOnePods(pods)
+	return getPodNameForResource(o.Ctx, o.ClientSet, resourceName, o.resourceNamespace)
 }
 
 // Run executes a validated remote execution against a pod

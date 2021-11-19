@@ -47,22 +47,6 @@ import (
 )
 
 const (
-	// FlagDescription command flag to specify the description of the definition
-	FlagDescription = "desc"
-	// FlagDryRun command flag to disable actual changes and only display intend changes
-	FlagDryRun = "dry-run"
-	// FlagTemplateYAML command flag to specify which existing template YAML file to use
-	FlagTemplateYAML = "template-yaml"
-	// FlagOutput command flag to specify which file to save
-	FlagOutput = "output"
-	// FlagMessage command flag to specify which file to save
-	FlagMessage = "message"
-	// FlagType command flag to specify which definition type to use
-	FlagType = "type"
-	// FlagNamespace command flag to specify which namespace to use
-	FlagNamespace = "namespace"
-	// FlagInteractive command flag to specify the use of interactive process
-	FlagInteractive = "interactive"
 	// HelmChartNamespacePlaceholder is used as a placeholder for rendering definitions into helm chart format
 	HelmChartNamespacePlaceholder = "###HELM_NAMESPACE###"
 	// HelmChartFormatEnvName is the name of the environment variable to enable render helm chart format YAML
@@ -315,7 +299,7 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			}
 			namespace, err := cmd.Flags().GetString(FlagNamespace)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
+				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
@@ -336,7 +320,7 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
 	return cmd
 }
 
@@ -358,7 +342,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			}
 			namespace, err := cmd.Flags().GetString(FlagNamespace)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
+				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
@@ -386,7 +370,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to list. If empty, all namespaces will be searched.")
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to list. If empty, all namespaces will be searched.")
 	return cmd
 }
 
@@ -409,7 +393,7 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 			}
 			namespace, err := cmd.Flags().GetString(FlagNamespace)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
+				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
@@ -470,7 +454,7 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
 	return cmd
 }
 
@@ -606,7 +590,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			}
 			namespace, err := cmd.Flags().GetString(FlagNamespace)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
+				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
@@ -660,7 +644,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolP(FlagDryRun, "", false, "only build definition from CUE into CRB object without applying it to kubernetes clusters")
-	cmd.Flags().StringP(FlagNamespace, "n", "vela-system", "Specify which namespace to apply.")
+	cmd.Flags().StringP(Namespace, "n", "vela-system", "Specify which namespace to apply.")
 	return cmd
 }
 
@@ -680,7 +664,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 			}
 			namespace, err := cmd.Flags().GetString(FlagNamespace)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
+				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
@@ -725,7 +709,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify the definition type of target. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace the definition locates.")
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace the definition locates.")
 	return cmd
 }
 

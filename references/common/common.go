@@ -21,15 +21,14 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 // BuildRun will build application and deploy from Appfile
-func BuildRun(ctx context.Context, app *api.Application, client client.Client, env *types.EnvMeta, io util.IOStreams) error {
-	o, scopes, err := app.BuildOAMApplication(env, io, app.Tm, true)
+func BuildRun(ctx context.Context, app *api.Application, client client.Client, namespace string, io util.IOStreams) error {
+	o, scopes, err := app.BuildOAMApplication(namespace, io, app.Tm, true)
 	if err != nil {
 		return err
 	}

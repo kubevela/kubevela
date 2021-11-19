@@ -25,28 +25,14 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/spf13/pflag"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
-// RunOptions include all options for run
-type RunOptions struct {
-	Env          *types.EnvMeta
-	WorkloadName string
-	KubeClient   client.Client
-	App          *api.Application
-	AppName      string
-	Staging      bool
-	util.IOStreams
-}
-
 // InitApplication will load Application from cluster
-func InitApplication(env *types.EnvMeta, c common.Args, workloadName string, appGroup string) (*api.Application, error) {
+func InitApplication(namespace string, c common.Args, workloadName string, appGroup string) (*api.Application, error) {
 	var appName string
 	if appGroup != "" {
 		appName = appGroup
@@ -56,7 +42,7 @@ func InitApplication(env *types.EnvMeta, c common.Args, workloadName string, app
 	// TODO(wonderflow): we should load the existing application from cluster and convert to appfile
 	// app, err := appfile.LoadApplication(env.Namespace, appName, c)
 	// compatible application not found
-	app, err := appfile.NewEmptyApplication(env.Namespace, c)
+	app, err := appfile.NewEmptyApplication(namespace, c)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +52,8 @@ func InitApplication(env *types.EnvMeta, c common.Args, workloadName string, app
 }
 
 // BaseComplete will construct an Application from cli parameters.
-func BaseComplete(env *types.EnvMeta, c common.Args, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
-	app, err := InitApplication(env, c, workloadName, appName)
+func BaseComplete(namespace string, c common.Args, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
+	app, err := InitApplication(namespace, c, workloadName, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +65,7 @@ func BaseComplete(env *types.EnvMeta, c common.Args, workloadName string, appNam
 		// Not exist
 		tp = workloadType
 	}
-	template, err := plugins.LoadCapabilityByName(tp, env.Namespace, c)
+	template, err := plugins.LoadCapabilityByName(tp, namespace, c)
 	if err != nil {
 		return nil, err
 	}

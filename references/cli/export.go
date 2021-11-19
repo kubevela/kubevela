@@ -37,15 +37,14 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeStart,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
 			o := &common.AppfileOptions{
-				IO:  ioStream,
-				Env: velaEnv,
+				IO: ioStream,
 			}
-			_, data, err := o.Export(*appFilePath, velaEnv.Namespace, true, c)
+			_, data, err := o.Export(*appFilePath, namespace, true, c)
 			if err != nil {
 				return err
 			}
@@ -55,6 +54,7 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 	}
 	cmd.SetOut(ioStream.Out)
 
+	addNamespaceArg(cmd)
 	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile")
 	return cmd
 }

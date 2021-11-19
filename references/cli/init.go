@@ -26,15 +26,15 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/utils/env"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
@@ -45,8 +45,8 @@ import (
 type appInitOptions struct {
 	client client.Client
 	cmdutil.IOStreams
-	Env *types.EnvMeta
-	c   common2.Args
+	Namespace string
+	c         common2.Args
 
 	app          *api.Application
 	appName      string
@@ -68,15 +68,17 @@ func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
+
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
 			o.client = newClient
-			o.Env, err = GetFlagEnvOrCurrent(cmd, c)
-			if err != nil {
-				return err
-			}
 			o.IOStreams.Info("Welcome to use KubeVela CLI! Please describe your application.")
 			o.IOStreams.Info()
 			if err = o.CheckEnv(); err != nil {
@@ -108,24 +110,25 @@ func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			}
 
 			ctx := context.Background()
-			err = common.BuildRun(ctx, o.app, o.client, o.Env, o.IOStreams)
+			err = common.BuildRun(ctx, o.app, o.client, o.Namespace, o.IOStreams)
 			if err != nil {
 				return err
 			}
-			deployStatus, err := printTrackingDeployStatus(c, o.IOStreams, o.appName, o.Env)
+			deployStatus, err := printTrackingDeployStatus(c, o.IOStreams, o.appName, o.Namespace)
 			if err != nil {
 				return err
 			}
 			if deployStatus != compStatusDeployed {
 				return nil
 			}
-			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Env, cmd, c)
+			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, c)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
 		},
 	}
 	cmd.Flags().BoolVar(&o.renderOnly, "render-only", false, "Rendering vela.yaml in current dir and do not deploy")
+	addNamespaceArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
@@ -144,11 +147,22 @@ func (o *appInitOptions) Naming() error {
 
 // CheckEnv checks environment, e.g., domain and email.
 func (o *appInitOptions) CheckEnv() error {
-	if o.Env.Namespace == "" {
-		o.Env.Namespace = "default"
+	if o.Namespace == "" {
+		o.Namespace = "default"
 	}
-	if err := env.CreateEnv(o.Env.Name, o.Env); err != nil {
-		return errors.Wrap(err, "app init create namespace err")
+	var ns v1.Namespace
+	ctx := context.Background()
+	err := o.client.Get(ctx, client.ObjectKey{
+		Name: o.Namespace,
+	}, &ns)
+	if apierrors.IsNotFound(err) {
+		ns.Name = o.Namespace
+		err = o.client.Create(ctx, &ns)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
 	}
 	return nil
 }
@@ -181,7 +195,7 @@ func formatAndGetUsage(p *types.Parameter) string {
 
 // Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(o.Env.Namespace, o.c, types.TypeComponentDefinition)
+	workloads, err := plugins.LoadInstalledCapabilityWithType(o.Namespace, o.c, types.TypeComponentDefinition)
 	if err != nil {
 		return err
 	}
@@ -303,7 +317,7 @@ func (o *appInitOptions) Workload() error {
 			// other type not supported
 		}
 	}
-	o.app, err = common.BaseComplete(o.Env, o.c, o.workloadName, o.appName, fs, o.workloadType)
+	o.app, err = common.BaseComplete(o.Namespace, o.c, o.workloadName, o.appName, fs, o.workloadType)
 	return err
 }
 
