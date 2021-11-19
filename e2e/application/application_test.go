@@ -122,7 +122,7 @@ var ApplicationPortForwardContext = func(context string, appName string) bool {
 
 var ApplicationInitIntercativeCliContext = func(context string, appName string, workloadType string) bool {
 	return ginkgo.Context(context, func() {
-		ginkgo.It("should init app through interactive questions", func() {
+		ginkgo.FIt("should init app through interactive questions", func() {
 			cli := "vela init"
 			output, err := e2e.InteractiveExec(cli, func(c *expect.Console) {
 				data := []struct {
