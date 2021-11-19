@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var _ = Describe("Test workflow usecase functions", func() {
@@ -41,7 +42,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		workflowUsecase *workflowUsecaseImpl
 	)
 	BeforeEach(func() {
-		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient, apply: apply.NewAPIApplicator(k8sClient)}
 	})
 	It("Test CreateWorkflow function", func() {
 		req := apisv1.CreateWorkflowRequest{
@@ -300,7 +301,27 @@ var _ = Describe("Test workflow usecase functions", func() {
 		recordsNum, err := workflowUsecase.ds.Count(ctx, &model.WorkflowRecord{
 			AppPrimaryKey:      "rollback-app",
 			WorkflowPrimaryKey: "workflow-rollback",
-		})
+			RevisionPrimaryKey: "revision-rollback0",
+		}, nil)
+		Expect(err).Should(BeNil())
+		Expect(recordsNum).Should(Equal(int64(1)))
+
+		By("rollback application without revision version")
+		app.Annotations[oam.AnnotationPublishVersion] = "workflow-rollback-2"
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		Expect(err).Should(BeNil())
+
+		err = workflowUsecase.RollbackRecord(ctx, &model.Application{
+			Name:      "rollback-app",
+			Namespace: "default",
+		}, "workflow-rollback-2", "")
+		Expect(err).Should(BeNil())
+
+		recordsNum, err = workflowUsecase.ds.Count(ctx, &model.WorkflowRecord{
+			AppPrimaryKey:      "rollback-app",
+			WorkflowPrimaryKey: "workflow-rollback",
+			RevisionPrimaryKey: "revision-rollback0",
+		}, nil)
 		Expect(err).Should(BeNil())
 		Expect(recordsNum).Should(Equal(int64(2)))
 	})

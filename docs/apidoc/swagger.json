@@ -898,6 +898,42 @@
 			}
 		},
 		"/api/v1/applications/{name}/envs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list policy for application",
+				"operationId": "listApplicationEnvs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListApplicationEnvBinding"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
 			"post": {
 				"consumes": [
 					"application/xml",
@@ -957,7 +993,7 @@
 					"application"
 				],
 				"summary": "set application  differences in the specified environment",
-				"operationId": "updateApplicationEnvBinding",
+				"operationId": "updateApplicationEnv",
 				"parameters": [
 					{
 						"type": "string",
@@ -968,7 +1004,7 @@
 					},
 					{
 						"type": "string",
-						"description": "identifier of the application ",
+						"description": "identifier of the envBinding ",
 						"name": "envName",
 						"in": "path",
 						"required": true
@@ -1019,7 +1055,7 @@
 					},
 					{
 						"type": "string",
-						"description": "identifier of the application envbinding",
+						"description": "identifier of the envBinding ",
 						"name": "envName",
 						"in": "path",
 						"required": true
@@ -1946,6 +1982,52 @@
 				}
 			}
 		},
+		"/api/v1/clusters/{clusterName}/namespaces": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "create namespace in cluster",
+				"operationId": "createNamespace",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "name of the target cluster",
+						"name": "clusterName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateClusterNamespaceRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.CreateClusterNamespaceResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/definitions": {
 			"get": {
 				"consumes": [
@@ -2693,7 +2775,7 @@
 				}
 			}
 		},
-		"/api/v1/workflows/{name}/records/{record}/rollback/{rollback}": {
+		"/api/v1/workflows/{name}/records/{record}/rollback": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -2725,10 +2807,9 @@
 					},
 					{
 						"type": "string",
-						"description": "identifier of the rollback revision name",
-						"name": "rollback",
-						"in": "path",
-						"required": true
+						"description": "identifier of the rollback revision",
+						"name": "rollbackVersion",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -2939,6 +3020,9 @@
 				"name",
 				"type",
 				"zone",
+				"zoneID",
+				"regionID",
+				"vpcID",
 				"labels",
 				"status",
 				"apiServerURL",
@@ -2966,23 +3050,32 @@
 				"provider": {
 					"type": "string"
 				},
+				"regionID": {
+					"type": "string"
+				},
 				"status": {
 					"type": "string"
 				},
 				"type": {
 					"type": "string"
 				},
+				"vpcID": {
+					"type": "string"
+				},
 				"zone": {
+					"type": "string"
+				},
+				"zoneID": {
 					"type": "string"
 				}
 			}
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"batchRollingState",
-				"currentBatch",
-				"upgradedReplicas",
 				"rollingState",
+				"currentBatch",
+				"batchRollingState",
+				"upgradedReplicas",
 				"upgradedReadyReplicas",
 				"lastTargetAppRevision"
 			],
@@ -3557,10 +3650,9 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
-				"name",
 				"version",
 				"status",
 				"reason",
@@ -3585,9 +3677,6 @@
 					"type": "string"
 				},
 				"envName": {
-					"type": "string"
-				},
-				"name": {
 					"type": "string"
 				},
 				"note": {
@@ -3647,8 +3736,7 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"createTime",
-				"updateTime",
+				"model",
 				"name",
 				"alias",
 				"description",
@@ -3668,10 +3756,6 @@
 				},
 				"apiServerURL": {
 					"type": "string"
-				},
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
 				},
 				"dashboardURL": {
 					"type": "string"
@@ -3694,6 +3778,9 @@
 						"type": "string"
 					}
 				},
+				"model": {
+					"$ref": "#/definitions/model.Model"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -3705,10 +3792,6 @@
 				},
 				"status": {
 					"type": "string"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
 				}
 			}
 		},
@@ -3734,13 +3817,14 @@
 		"model.ProviderInfo": {
 			"required": [
 				"provider",
-				"name",
-				"id",
-				"zone",
+				"clusterID",
 				"labels"
 			],
 			"properties": {
-				"id": {
+				"clusterID": {
+					"type": "string"
+				},
+				"clusterName": {
 					"type": "string"
 				},
 				"labels": {
@@ -3749,13 +3833,19 @@
 						"type": "string"
 					}
 				},
-				"name": {
-					"type": "string"
-				},
 				"provider": {
 					"type": "string"
 				},
+				"regionID": {
+					"type": "string"
+				},
+				"vpcID": {
+					"type": "string"
+				},
 				"zone": {
+					"type": "string"
+				},
+				"zoneID": {
 					"type": "string"
 				}
 			}
@@ -3999,9 +4089,16 @@
 		},
 		"v1.AddonStatusResponse": {
 			"required": [
-				"phase"
+				"phase",
+				"args"
 			],
 			"properties": {
+				"args": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
 				"enabling_progress": {
 					"$ref": "#/definitions/v1.EnablingProgress"
 				},
@@ -4030,12 +4127,6 @@
 				},
 				"description": {
 					"type": "string"
-				},
-				"envBinding": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.EnvBinding"
-					}
 				},
 				"icon": {
 					"type": "string"
@@ -4082,15 +4173,15 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"status",
-				"note",
-				"createTime",
 				"name",
-				"deployUser",
-				"envName",
-				"triggerType",
 				"version",
-				"reason"
+				"envName",
+				"createTime",
+				"status",
+				"reason",
+				"deployUser",
+				"note",
+				"triggerType"
 			],
 			"properties": {
 				"createTime": {
@@ -4726,6 +4817,7 @@
 		},
 		"v1.CreateCloudClusterResponse": {
 			"required": [
+				"clusterName",
 				"clusterID",
 				"status"
 			],
@@ -4733,8 +4825,31 @@
 				"clusterID": {
 					"type": "string"
 				},
+				"clusterName": {
+					"type": "string"
+				},
 				"status": {
 					"type": "string"
+				}
+			}
+		},
+		"v1.CreateClusterNamespaceRequest": {
+			"required": [
+				"namespace"
+			],
+			"properties": {
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateClusterNamespaceResponse": {
+			"required": [
+				"exists"
+			],
+			"properties": {
+				"exists": {
+					"type": "boolean"
 				}
 			}
 		},
@@ -4883,7 +4998,8 @@
 			"required": [
 				"appName",
 				"name",
-				"default"
+				"default",
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -4896,6 +5012,9 @@
 					"type": "boolean"
 				},
 				"description": {
+					"type": "string"
+				},
+				"envName": {
 					"type": "string"
 				},
 				"name": {
@@ -4965,10 +5084,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"name",
-				"version",
 				"description",
 				"icon",
+				"name",
+				"version",
 				"schema",
 				"uiSchema"
 			],
@@ -5019,14 +5138,15 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"icon",
 				"alias",
 				"namespace",
+				"description",
 				"createTime",
 				"updateTime",
+				"icon",
 				"name",
-				"description",
 				"policies",
+				"envBindings",
 				"status",
 				"resourceInfo",
 				"workflowStatus"
@@ -5042,10 +5162,10 @@
 				"description": {
 					"type": "string"
 				},
-				"envBinding": {
+				"envBindings": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.EnvBinding"
+						"type": "string"
 					}
 				},
 				"icon": {
@@ -5089,20 +5209,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
-				"status",
-				"reason",
-				"kubeConfigSecret",
-				"createTime",
-				"updateTime",
-				"description",
-				"dashboardURL",
-				"labels",
 				"provider",
 				"apiServerURL",
-				"kubeConfig",
-				"alias",
+				"model",
+				"name",
+				"description",
 				"icon",
+				"dashboardURL",
+				"kubeConfig",
+				"kubeConfigSecret",
+				"alias",
+				"labels",
+				"status",
+				"reason",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5111,10 +5230,6 @@
 				},
 				"apiServerURL": {
 					"type": "string"
-				},
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
 				},
 				"dashboardURL": {
 					"type": "string"
@@ -5137,6 +5252,9 @@
 						"type": "string"
 					}
 				},
+				"model": {
+					"$ref": "#/definitions/model.Model"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -5151,22 +5269,18 @@
 				},
 				"status": {
 					"type": "string"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
 				}
 			}
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"createTime",
-				"creator",
-				"name",
-				"alias",
 				"updateTime",
+				"type",
+				"creator",
+				"alias",
+				"createTime",
 				"appPrimaryKey",
-				"type"
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -5261,10 +5375,10 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
 				"name",
-				"namespace",
-				"createTime"
+				"namespace"
 			],
 			"properties": {
 				"alias": {
@@ -5297,13 +5411,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime"
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5333,18 +5447,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"version",
-				"status",
+				"reason",
 				"deployUser",
-				"note",
 				"triggerType",
-				"updateTime",
-				"name",
 				"workflowName",
 				"envName",
-				"reason",
 				"createTime",
-				"appPrimaryKey"
+				"version",
+				"note",
+				"updateTime",
+				"appPrimaryKey",
+				"status"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5361,9 +5474,6 @@
 					"type": "string"
 				},
 				"envName": {
-					"type": "string"
-				},
-				"name": {
 					"type": "string"
 				},
 				"note": {
@@ -5392,9 +5502,9 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"name",
 				"namespace",
 				"status",
-				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -5437,13 +5547,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"updateTime",
 				"name",
 				"alias",
 				"description",
 				"enable",
 				"default",
+				"envName",
 				"createTime",
+				"updateTime",
 				"workflowRecord"
 			],
 			"properties": {
@@ -5462,6 +5573,9 @@
 				},
 				"enable": {
 					"type": "boolean"
+				},
+				"envName": {
+					"type": "string"
 				},
 				"name": {
 					"type": "string"
@@ -5534,6 +5648,42 @@
 				}
 			}
 		},
+		"v1.EnvBindingBase": {
+			"required": [
+				"name",
+				"targetNames",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentSelector": {
+					"$ref": "#/definitions/v1.ComponentSelector"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
 		"v1.ListAddonRegistryResponse": {
 			"required": [
 				"registrys"
@@ -5556,6 +5706,19 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/types.AddonMeta"
+					}
+				}
+			}
+		},
+		"v1.ListApplicationEnvBinding": {
+			"required": [
+				"envBindings"
+			],
+			"properties": {
+				"envBindings": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.EnvBindingBase"
 					}
 				}
 			}
@@ -5594,7 +5757,7 @@
 				"creations": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/v1.CreateCloudClusterResponse"
 					}
 				}
 			}
@@ -5619,7 +5782,8 @@
 		},
 		"v1.ListClusterResponse": {
 			"required": [
-				"clusters"
+				"clusters",
+				"total"
 			],
 			"properties": {
 				"clusters": {
@@ -5627,6 +5791,10 @@
 					"items": {
 						"$ref": "#/definitions/v1.ClusterBase"
 					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -5975,7 +6143,8 @@
 		"v1.UpdateWorkflowRequest": {
 			"required": [
 				"enable",
-				"default"
+				"default",
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -5989,6 +6158,9 @@
 				},
 				"enable": {
 					"type": "boolean"
+				},
+				"envName": {
+					"type": "string"
 				},
 				"steps": {
 					"type": "array",
@@ -6008,6 +6180,7 @@
 				"description",
 				"enable",
 				"default",
+				"envName",
 				"createTime",
 				"updateTime"
 			],
@@ -6027,6 +6200,9 @@
 				},
 				"enable": {
 					"type": "boolean"
+				},
+				"envName": {
+					"type": "string"
 				},
 				"name": {
 					"type": "string"

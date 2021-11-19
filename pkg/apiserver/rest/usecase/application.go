@@ -1047,7 +1047,11 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 		revision.Status = status
 	}
 
-	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{Page: page, PageSize: pageSize})
+	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{
+		Page:     page,
+		PageSize: pageSize,
+		SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+	})
 	if err != nil {
 		return nil, err
 	}

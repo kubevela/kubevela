@@ -422,7 +422,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1b
 }
 
 func (w *workflowUsecaseImpl) ResumeRecord(ctx context.Context, appModel *model.Application, recordName string) error {
-	oamApp, err := w.checkRecordSuspended(ctx, appModel)
+	oamApp, err := w.checkRecordRunning(ctx, appModel)
 	if err != nil {
 		return err
 	}
@@ -439,7 +439,7 @@ func (w *workflowUsecaseImpl) ResumeRecord(ctx context.Context, appModel *model.
 }
 
 func (w *workflowUsecaseImpl) TerminateRecord(ctx context.Context, appModel *model.Application, recordName string) error {
-	oamApp, err := w.checkRecordSuspended(ctx, appModel)
+	oamApp, err := w.checkRecordRunning(ctx, appModel)
 	if err != nil {
 		return err
 	}
@@ -456,8 +456,28 @@ func (w *workflowUsecaseImpl) TerminateRecord(ctx context.Context, appModel *mod
 }
 
 func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *model.Application, recordName, revisionVersion string) error {
-	// TODO: if revisionVersion is empty, rollback to the last revision
-	oamApp, err := w.checkRecordSuspended(ctx, appModel)
+	if revisionVersion == "" {
+		// find the latest complete revision version
+		var revision = model.ApplicationRevision{
+			AppPrimaryKey: appModel.Name,
+			Status:        model.RevisionStatusComplete,
+		}
+
+		revisions, err := w.ds.List(ctx, &revision, &datastore.ListOptions{
+			Page:     0,
+			PageSize: 1,
+			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+		})
+		if err != nil {
+			return err
+		}
+		if len(revisions) == 0 {
+			fmt.Errorf("there is no complete revision, please specify a revision version")
+		}
+		revisionVersion = revisions[0].Index()["version"]
+	}
+
+	oamApp, err := w.checkRecordRunning(ctx, appModel)
 	if err != nil {
 		return err
 	}
@@ -483,6 +503,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 	}
 	// replace the application spec
 	oamApp.Spec.Components = rollBackApp.Spec.Components
+	oamApp.Spec.Policies = rollBackApp.Spec.Policies
 	if oamApp.Annotations == nil {
 		oamApp.Annotations = make(map[string]string)
 	}
@@ -506,15 +527,16 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 	return nil
 }
 
-func (w *workflowUsecaseImpl) checkRecordSuspended(ctx context.Context, appModel *model.Application) (*v1beta1.Application, error) {
+func (w *workflowUsecaseImpl) checkRecordRunning(ctx context.Context, appModel *model.Application) (*v1beta1.Application, error) {
 	oamApp := &v1beta1.Application{}
 	if err := w.kubeClient.Get(ctx, types.NamespacedName{Name: appModel.Name, Namespace: appModel.Namespace}, oamApp); err != nil {
 		return nil, err
 	}
-	if oamApp.Status.Workflow != nil && oamApp.Status.Workflow.Suspend != true {
-		return nil, bcode.ErrRevisionNotSuspended
+	if oamApp.Status.Workflow != nil && !oamApp.Status.Workflow.Suspend && !oamApp.Status.Workflow.Terminated && !oamApp.Status.Workflow.Finished {
+		return nil, fmt.Errorf("workflow is still running, can not operate a running workflow")
 	}
 
+	oamApp.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
 	return oamApp, nil
 }
 
