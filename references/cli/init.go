@@ -153,7 +153,7 @@ func (o *appInitOptions) CheckEnv() error {
 	var ns v1.Namespace
 	ctx := context.Background()
 	err := o.client.Get(ctx, client.ObjectKey{
-		Name: Namespace,
+		Name: o.Namespace,
 	}, &ns)
 	if apierrors.IsNotFound(err) {
 		ns.Name = o.Namespace
@@ -161,8 +161,7 @@ func (o *appInitOptions) CheckEnv() error {
 		if err != nil {
 			return err
 		}
-	}
-	if err != nil {
+	} else if err != nil {
 		return err
 	}
 	return nil
