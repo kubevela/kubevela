@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/Netflix/go-expect"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,6 +39,7 @@ var (
 	traitAlias                  = "scaler"
 	appNameForInit              = "initmyapp"
 	jsonAppFile                 = `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
+	testDeleteJsonAppFile       = `{"name":"test-vela-delete","services":{"nginx-test":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
 	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
 	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80,"scaler":{"replicas":2}}}}`
 )
@@ -59,6 +61,12 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 
 	ApplicationInitIntercativeCliContext("test vela init app", appNameForInit, workloadType)
 	e2e.WorkloadDeleteContext("delete", appNameForInit)
+
+	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
+	ApplicationDeleteWithWaitOptions("test delete with wait option", "test-vela-delete")
+
+	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
+	ApplicationDeleteWithForceOptions("test delete with force option", "test-vela-delete")
 })
 
 var ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
@@ -175,6 +183,57 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 			})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Checking Status"))
+		})
+	})
+}
+
+var ApplicationDeleteWithWaitOptions = func(context string, appName string) bool {
+	return ginkgo.Context(context, func() {
+		ginkgo.It("should print successful deletion information", func() {
+			cli := fmt.Sprintf("vela delete %s --wait", appName)
+			output, err := e2e.ExecAndTerminate(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))
+		})
+	})
+}
+
+var ApplicationDeleteWithForceOptions = func(context string, appName string) bool {
+	return ginkgo.Context(context, func() {
+		ginkgo.It("should print successful deletion information", func() {
+			args := common.Args{
+				Schema: common.Scheme,
+			}
+			ctx := context2.Background()
+
+			k8sClient, err := args.GetClient()
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			app := new(v1beta1.Application)
+			gomega.Eventually(func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: "default"}, app); err != nil {
+					return err
+				}
+				meta.AddFinalizer(app, "test")
+				return k8sClient.Update(ctx, app)
+			}, time.Second*3, time.Millisecond*300).Should(gomega.BeNil())
+
+			cli := fmt.Sprintf("vela delete %s --force", appName)
+			output, err := e2e.LongTimeExec(cli, 3*time.Minute)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(output).To(gomega.ContainSubstring("timed out"))
+
+			app = new(v1beta1.Application)
+			gomega.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: "default"}, app)).NotTo(gomega.HaveOccurred())
+			meta.RemoveFinalizer(app, "test")
+			gomega.Eventually(func() error {
+				return k8sClient.Update(ctx, app)
+			}, time.Second*3, time.Millisecond*300).Should(gomega.BeNil())
+
+			cli = fmt.Sprintf("vela delete %s --force", appName)
+			output, err = e2e.ExecAndTerminate(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))
 		})
 	})
 }
