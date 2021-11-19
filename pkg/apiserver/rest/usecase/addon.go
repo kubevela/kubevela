@@ -37,7 +37,7 @@ type AddonUsecase interface {
 	DeleteAddonRegistry(ctx context.Context, name string) error
 	UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
-	ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error)
+	ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error)
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
@@ -92,16 +92,47 @@ type addonUsecaseImpl struct {
 
 // GetAddon will get addon information
 func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
-	addonDetails, err := u.ListAddons(ctx, true, registry, "")
+	var addon *types.Addon
+	var err error
+	var exist bool
+
+	if registry == "" {
+		registries, err := u.ListAddonRegistries(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range registries {
+			if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
+				addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.GetLevelOptions)
+			}
+			if err != nil && !errors.Is(err, pkgaddon.AddonNotExist) {
+				return nil, err
+			}
+			if addon != nil {
+				break
+			}
+		}
+	} else {
+		if addon, exist = u.tryGetAddonFromCache(registry, name); !exist {
+			addonRegistry, err := u.GetAddonRegistry(ctx, registry)
+			if err != nil {
+				return nil, err
+			}
+			addon, err = pkgaddon.GetAddon(name, addonRegistry.Git, pkgaddon.GetLevelOptions)
+			if err != nil && !errors.Is(err, pkgaddon.AddonNotExist) {
+				return nil, err
+			}
+		}
+	}
+
+	if addon == nil {
+		return nil, bcode.ErrAddonNotExist
+	}
+	a, err := AddonImpl2AddonRes(addon)
 	if err != nil {
 		return nil, err
 	}
-	for _, a := range addonDetails {
-		if a.Name == name {
-			return a, nil
-		}
-	}
-	return nil, bcode.ErrAddonNotExist
+	return a, nil
 }
 
 func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
@@ -147,60 +178,54 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 	}
 }
 
-// getCacheKeyWithListOptions will get right cache key for given method registry and detailed, to split different
-func getCacheKeyWithListOptions(registry string, detailed bool, query string) string {
-	var d string
-	if detailed {
-		d = "detailed"
-	}
-	return fmt.Sprintf("%s/%s/%s", registry, d, query)
-}
-
-func (u *addonUsecaseImpl) ListAddons(ctx context.Context, detailed bool, registry, query string) ([]*apis.DetailAddonResponse, error) {
+func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error) {
 	var addons []*types.Addon
 	var listAddons []*types.Addon
-	cacheKey := getCacheKeyWithListOptions(registry, detailed, query)
-	if u.isRegistryCacheUpToDate(cacheKey) {
-		addons = u.getRegistryCache(cacheKey)
-	} else {
-		rs, err := u.ListAddonRegistries(ctx)
-		if err != nil {
-			return nil, err
-		}
+	rs, err := u.ListAddonRegistries(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-		for _, r := range rs {
-			if registry != "" && r.Name != registry {
-				continue
-			}
-			listAddons, err = pkgaddon.ListAddons(detailed, r.Git)
+	for _, r := range rs {
+		if registry != "" && r.Name != registry {
+			continue
+		}
+		if u.isRegistryCacheUpToDate(r.Name) {
+			listAddons = u.getRegistryCache(r.Name)
+		} else {
+			listAddons, err = pkgaddon.ListAddons(r.Git, pkgaddon.GetLevelOptions)
 			if err != nil {
 				log.Logger.Errorf("fail to get addons from registry %s", r.Name)
 				continue
 			}
-			addons = mergeAddons(addons, listAddons)
-		}
-
-		if query != "" {
-			var filtered []*types.Addon
-			for i, addon := range addons {
-				if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
-					filtered = append(filtered, addons[i])
+			// if list addons, details will be retrieved later
+			go func() {
+				addonDetails, err := pkgaddon.ListAddons(r.Git, pkgaddon.EnableLevelOptions)
+				if err != nil {
+					return
 				}
-			}
-			addons = filtered
+				u.putRegistryCache(r.Name, addonDetails)
+			}()
 		}
-		sort.Slice(addons, func(i, j int) bool {
-			return addons[i].Name < addons[j].Name
-		})
+		addons = mergeAddons(addons, listAddons)
+	}
 
-		if detailed {
-			for _, addon := range addons {
-				// render default ui schema
-				addon.UISchema = renderDefaultUISchema(addon.APISchema)
+	if query != "" {
+		var filtered []*types.Addon
+		for i, addon := range addons {
+			if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
+				filtered = append(filtered, addons[i])
 			}
 		}
+		addons = filtered
+	}
+	sort.Slice(addons, func(i, j int) bool {
+		return addons[i].Name < addons[j].Name
+	})
 
-		u.putRegistryCache(cacheKey, addons)
+	for _, addon := range addons {
+		// render default ui schema
+		addon.UISchema = renderDefaultUISchema(addon.APISchema)
 	}
 
 	var addonReses []*apis.DetailAddonResponse
@@ -284,18 +309,35 @@ func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 	return list, nil
 }
 
+func (u *addonUsecaseImpl) tryGetAddonFromCache(registry, addonName string) (*types.Addon, bool) {
+	if u.isRegistryCacheUpToDate(registry) {
+		addons := u.getRegistryCache(registry)
+		for _, a := range addons {
+			if a.Name == addonName {
+				return a, true
+			}
+		}
+	}
+	return nil, false
+}
+
 func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
+	var addon *types.Addon
+	var err error
 	registries, err := u.ListAddonRegistries(ctx)
 	if err != nil {
 		return err
 	}
 	for _, r := range registries {
-		addon, err := pkgaddon.GetAddon(name, r.Git)
-
-		if err != nil && errors.Is(err, bcode.ErrAddonNotExist) {
-			continue
-		} else if err != nil {
+		var exist bool
+		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
+			addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.EnableLevelOptions)
+		}
+		if err != nil && !errors.Is(err, pkgaddon.AddonNotExist) {
 			return bcode.WrapGithubRateLimitErr(err)
+		}
+		if addon == nil {
+			continue
 		}
 
 		app, defs, err := pkgaddon.RenderApplication(addon, args.Args)
@@ -344,7 +386,7 @@ func (u *addonUsecaseImpl) getRegistryCache(name string) []*types.Addon {
 }
 
 func (u *addonUsecaseImpl) putRegistryCache(name string, addons []*types.Addon) {
-	u.addonRegistryCache[name] = restutils.NewMemoryCache(addons, time.Minute*3)
+	u.addonRegistryCache[name] = restutils.NewMemoryCache(addons, time.Minute*10)
 }
 
 func (u *addonUsecaseImpl) isRegistryCacheUpToDate(name string) bool {
