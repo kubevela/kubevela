@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -65,10 +66,17 @@ func (e *envBindingUsecaseImpl) GetEnvBindings(ctx context.Context, app *model.A
 	if err != nil {
 		return nil, bcode.ErrEnvBindingsNotExist
 	}
+	deliveryTarget := model.DeliveryTarget{
+		Namespace: app.Namespace,
+	}
+	deliveryTargets, err := e.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
 	var list []*apisv1.EnvBindingBase
 	for _, ebd := range envBindings {
 		eb := ebd.(*model.EnvBinding)
-		list = append(list, convertEnvbindingModelToBase(app, eb))
+		list = append(list, convertEnvbindingModelToBase(app, eb, deliveryTargets))
 	}
 	return list, nil
 }
@@ -230,7 +238,8 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 	}
 	_, err := e.workflowUsecase.CreateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
 		AppName:     app.PrimaryKey(),
-		Name:        genWorkflowName(app, env.Name),
+		Name:        env.Name,
+		Alias:       fmt.Sprintf("%s env workflow", env.Alias),
 		Description: "Created automatically by envbinding.",
 		EnvName:     env.Name,
 		Steps:       steps,
@@ -243,8 +252,15 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 }
 
 func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error) {
+	deliveryTarget := model.DeliveryTarget{
+		Namespace: app.Namespace,
+	}
+	deliveryTargets, err := e.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
 	return &apisv1.DetailEnvBindingResponse{
-		EnvBindingBase: *convertEnvbindingModelToBase(app, envBinding),
+		EnvBindingBase: *convertEnvbindingModelToBase(app, envBinding, deliveryTargets),
 	}, nil
 }
 
@@ -259,12 +275,25 @@ func convertCreateReqToEnvBindingModel(app *model.Application, req apisv1.Create
 	return envBinding
 }
 
-func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvBinding) *apisv1.EnvBindingBase {
+func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvBinding, deliveryTargets []datastore.Entity) *apisv1.EnvBindingBase {
+	var dtMap = make(map[string]*model.DeliveryTarget, len(deliveryTargets))
+	for _, dte := range deliveryTargets {
+		dt := dte.(*model.DeliveryTarget)
+		dtMap[dt.Name] = dt
+	}
+	var targets []apisv1.DeliveryTargetBase
+	for _, targetName := range envBinding.TargetNames {
+		dt := dtMap[targetName]
+		if dt != nil {
+			targets = append(targets, *convertFromDeliveryTargetModel(dt))
+		}
+	}
 	ebb := &apisv1.EnvBindingBase{
 		Name:              envBinding.Name,
 		Alias:             envBinding.Alias,
 		Description:       envBinding.Description,
 		TargetNames:       envBinding.TargetNames,
+		Targets:           targets,
 		ComponentSelector: (*apisv1.ComponentSelector)(envBinding.ComponentSelector),
 		CreateTime:        envBinding.CreateTime,
 		UpdateTime:        envBinding.UpdateTime,

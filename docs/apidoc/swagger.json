@@ -4274,14 +4274,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"status",
-				"reason",
-				"deployUser",
-				"note",
 				"envName",
 				"triggerType",
 				"createTime",
-				"version"
+				"version",
+				"status",
+				"reason",
+				"deployUser",
+				"note"
 			],
 			"properties": {
 				"createTime": {
@@ -4792,8 +4792,8 @@
 		},
 		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"targetNames",
-				"name"
+				"name",
+				"targetNames"
 			],
 			"properties": {
 				"alias": {
@@ -5268,13 +5268,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"namespace",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
 				"name",
 				"alias",
-				"namespace",
 				"policies",
 				"envBindings",
 				"status",
@@ -5795,6 +5795,12 @@
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
+				},
+				"deliveryTargets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.DeliveryTargetBase"
+					}
 				},
 				"description": {
 					"type": "string"

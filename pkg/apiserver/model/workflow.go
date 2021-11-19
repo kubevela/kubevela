@@ -17,6 +17,7 @@ limitations under the License.
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -62,7 +63,7 @@ func (w *Workflow) TableName() string {
 
 // PrimaryKey return custom primary key
 func (w *Workflow) PrimaryKey() string {
-	return w.Name
+	return fmt.Sprintf("%s-%s", w.AppPrimaryKey, w.Name)
 }
 
 // Index return custom primary key

@@ -325,14 +325,15 @@ type EnvBinding struct {
 
 // EnvBindingBase application env binding
 type EnvBindingBase struct {
-	Name              string             `json:"name" validate:"checkname"`
-	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
-	Description       string             `json:"description,omitempty" optional:"true"`
-	TargetNames       []string           `json:"targetNames"`
-	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
-	CreateTime        time.Time          `json:"createTime"`
-	UpdateTime        time.Time          `json:"updateTime"`
-	AppDeployName     string             `json:"appDeployName"`
+	Name              string               `json:"name" validate:"checkname"`
+	Alias             string               `json:"alias" validate:"checkalias" optional:"true"`
+	Description       string               `json:"description,omitempty" optional:"true"`
+	TargetNames       []string             `json:"targetNames"`
+	Targets           []DeliveryTargetBase `json:"deliveryTargets,omitempty"`
+	ComponentSelector *ComponentSelector   `json:"componentSelector" optional:"true"`
+	CreateTime        time.Time            `json:"createTime"`
+	UpdateTime        time.Time            `json:"updateTime"`
+	AppDeployName     string               `json:"appDeployName"`
 }
 
 // DetailEnvBindingResponse defines the response of env-binding details

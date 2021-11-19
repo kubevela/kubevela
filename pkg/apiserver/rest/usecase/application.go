@@ -1170,10 +1170,6 @@ func genPolicyName(envName string) string {
 	return fmt.Sprintf("%s-%s", EnvBindingPolicyDefaultName, envName)
 }
 
-func genWorkflowName(app *model.Application, envName string) string {
-	return fmt.Sprintf("%s-%s", app.Name, envName)
-}
-
 func genPolicyEnvName(targetName string) string {
 	return targetName
 }

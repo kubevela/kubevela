@@ -114,34 +114,6 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(len(components.Components), 2)).Should(BeEmpty())
 	})
 
-	It("Test list policies", func() {
-		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
-		var policies apisv1.ListApplicationPolicy
-		err = json.NewDecoder(res.Body).Decode(&policies)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(len(policies.Policies), 1)).Should(BeEmpty())
-	})
-
-	It("Test get workflow", func() {
-		// defer GinkgoRecover()
-		// res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/policies")
-		// Expect(err).ShouldNot(HaveOccurred())
-		// Expect(res).ShouldNot(BeNil())
-		// Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		// Expect(res.Body).ShouldNot(BeNil())
-		// defer res.Body.Close()
-		// var policies apisv1.ListApplicationPolicy
-		// err = json.NewDecoder(res.Body).Decode(&policies)
-		// Expect(err).ShouldNot(HaveOccurred())
-		// Expect(cmp.Diff(len(policies.Policies), 1)).Should(BeEmpty())
-	})
-
 	It("Test detail application", func() {
 		defer GinkgoRecover()
 		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd")
@@ -153,7 +125,7 @@ var _ = Describe("Test application rest api", func() {
 		var detail apisv1.DetailApplicationResponse
 		err = json.NewDecoder(res.Body).Decode(&detail)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(len(detail.Policies), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
 	})
 
 	It("Test deploy application", func() {
