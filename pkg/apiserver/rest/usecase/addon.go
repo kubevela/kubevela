@@ -54,9 +54,9 @@ func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
 			return nil, errors.New(fmt.Sprintf("convert %s file content to definition fail", def.Name))
 		}
 		defs = append(defs, &apis.AddonDefinition{
-			obj.GetName(),
-			obj.GetKind(),
-			obj.GetAnnotations()["definition.oam.dev/description"],
+			Name:        obj.GetName(),
+			DefType:     obj.GetKind(),
+			Description: obj.GetAnnotations()["definition.oam.dev/description"],
 		})
 	}
 	return &apis.DetailAddonResponse{

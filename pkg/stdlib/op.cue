@@ -23,7 +23,7 @@ import (
 #Delete: kube.#Delete
 
 #ApplyApplication: #Steps & {
-	load:       oam.#LoadComponets @step(1)
+	load:       oam.#LoadComponetsInOrder @step(1)
 	components: #Steps & {
 		for name, c in load.value {
 			"\(name)": oam.#ApplyComponent & {
@@ -132,6 +132,8 @@ import (
 #SendEmail: email.#Send
 
 #Load: oam.#LoadComponets
+
+#LoadInOrder: oam.#LoadComponetsInOrder
 
 #Steps: {
 	#do: "steps"
