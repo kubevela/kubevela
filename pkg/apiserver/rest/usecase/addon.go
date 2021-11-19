@@ -27,7 +27,6 @@ import (
 	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/references/common"
 )
 
 // AddonUsecase addon usecase
@@ -57,7 +56,7 @@ func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
 		defs = append(defs, &apis.AddonDefinition{
 			obj.GetName(),
 			obj.GetKind(),
-			obj.GetAnnotations()[common.DefinitionDescriptionKey],
+			obj.GetAnnotations()["definition.oam.dev/description"],
 		})
 	}
 	return &apis.DetailAddonResponse{
