@@ -83,12 +83,12 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
 		for i := 0; i < 3; i++ {
-			app.Annotations[oam.AnnotationPublishVersion] = fmt.Sprintf("test-workflow-name-%d", i)
+			app.Annotations[oam.AnnotationPublishVersion] = fmt.Sprintf("list-workflow-name-%d", i)
 			err := workflowUsecase.CreateWorkflowRecord(context.TODO(), app, "test-1234")
 			Expect(err).Should(BeNil())
 		}
 
-		resp, err := workflowUsecase.ListWorkflowRecords(context.TODO(), "test-workflow-name", 0, 10)
+		resp, err := workflowUsecase.ListWorkflowRecords(context.TODO(), "list-workflow-name", 0, 10)
 		Expect(err).Should(BeNil())
 		Expect(resp.Total).Should(Equal(int64(3)))
 	})
