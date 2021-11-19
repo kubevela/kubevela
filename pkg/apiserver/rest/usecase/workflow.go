@@ -246,7 +246,6 @@ func (w *workflowUsecaseImpl) ListWorkflowRecords(ctx context.Context, workflowN
 	resp := &apisv1.ListWorkflowRecordsResponse{
 		Records: []apisv1.WorkflowRecord{},
 	}
-	fmt.Println("??????:", len(records))
 	for _, raw := range records {
 		record, ok := raw.(*model.WorkflowRecord)
 		if ok {
