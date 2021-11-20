@@ -1911,6 +1911,156 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/resume": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "resume suspend workflow record",
+				"operationId": "resumeWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the  workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/rollback": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "rollback suspend application record",
+				"operationId": "rollbackWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the rollback revision",
+						"name": "rollbackVersion",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/terminate": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "terminate suspend workflow record",
+				"operationId": "terminateWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/clusters": {
 			"get": {
 				"consumes": [
@@ -2126,11 +2276,6 @@
 				"operationId": "createCloudCluster",
 				"parameters": [
 					{
-						"enum": [
-							"trait",
-							"workflowstep",
-							"component"
-						],
 						"type": "string",
 						"description": "identifier of the cloud provider",
 						"name": "provider",
@@ -2863,135 +3008,6 @@
 				}
 			}
 		},
-		"/api/v1/workflows/{name}/records/{record}/resume": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "resume suspend workflow record",
-				"operationId": "resumeWorkflowRecord",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the  workflow record",
-						"name": "record",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}/records/{record}/rollback": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "rollback suspend application record",
-				"operationId": "rollbackWorkflowRecord",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the workflow record",
-						"name": "record",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the rollback revision",
-						"name": "rollbackVersion",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}/records/{record}/terminate": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "terminate suspend workflow record",
-				"operationId": "terminateWorkflowRecord",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the workflow record",
-						"name": "record",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
 		"/v1/namespaces/{namespace}/applications/{appname}": {
 			"get": {
 				"consumes": [
@@ -3695,8 +3711,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -4315,14 +4331,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"envName",
+				"triggerType",
+				"createTime",
 				"version",
 				"status",
 				"reason",
 				"deployUser",
-				"note",
-				"envName",
-				"triggerType",
-				"createTime"
+				"note"
 			],
 			"properties": {
 				"createTime": {
@@ -4833,8 +4849,8 @@
 		},
 		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"name",
-				"targetNames"
+				"targetNames",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -5248,10 +5264,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"description",
-				"icon",
 				"name",
 				"version",
+				"description",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -5373,24 +5389,18 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"kubeConfig",
-				"kubeConfigSecret",
-				"model",
+				"apiServerURL",
 				"name",
-				"description",
-				"icon",
 				"labels",
+				"reason",
+				"icon",
 				"status",
+				"provider",
 				"dashboardURL",
 				"kubeConfig",
-				"icon",
-				"reason",
-				"dashboardURL",
 				"model",
 				"alias",
-				"provider",
-				"apiServerURL",
-				"kubeConfig",
+				"description",
 				"kubeConfigSecret",
 				"resourceInfo"
 			],
@@ -5444,13 +5454,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"updateTime",
-				"creator",
-				"alias",
+				"createTime",
 				"type",
-				"alias",
+				"updateTime",
+				"name",
 				"appPrimaryKey",
-				"name"
+				"creator",
+				"alias"
 			],
 			"properties": {
 				"alias": {
@@ -5585,13 +5595,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"description",
 				"creator",
 				"properties",
 				"createTime",
 				"updateTime",
 				"name",
-				"type"
+				"type",
+				"description"
 			],
 			"properties": {
 				"createTime": {
@@ -5622,15 +5632,16 @@
 		"v1.DetailRevisionResponse": {
 			"required": [
 				"note",
-				"createTime",
+				"updateTime",
 				"appPrimaryKey",
-				"status",
-				"envName",
 				"version",
 				"reason",
-				"deployUser",
 				"triggerType",
-				"workflowName"
+				"workflowName",
+				"envName",
+				"createTime",
+				"status",
+				"deployUser"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5721,13 +5732,13 @@
 		"v1.DetailWorkflowResponse": {
 			"required": [
 				"name",
-				"updateTime",
-				"createTime",
+				"enable",
+				"envName",
 				"alias",
 				"description",
-				"enable",
 				"default",
-				"envName"
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -6109,10 +6120,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
-				"updateTime",
 				"name",
 				"description",
-				"createTime"
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {

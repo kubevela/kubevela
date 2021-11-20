@@ -297,7 +297,7 @@ func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvB
 		ComponentSelector: (*apisv1.ComponentSelector)(envBinding.ComponentSelector),
 		CreateTime:        envBinding.CreateTime,
 		UpdateTime:        envBinding.UpdateTime,
-		AppDeployName:     converAppName(app, envBinding.Name),
+		AppDeployName:     converAppName(app.Name, envBinding.Name),
 	}
 	return ebb
 }

@@ -195,7 +195,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 // GetApplicationStatus get application status from controller cluster
 func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmodel *model.Application, envName string) (*common.AppStatus, error) {
 	var app v1beta1.Application
-	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: converAppName(appmodel, envName)}, &app)
+	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: converAppName(appmodel.Name, envName)}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -554,7 +554,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		return nil, err
 	}
 	// step3: create workflow record
-	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, oamApp); err != nil {
+	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, app, oamApp, workflow); err != nil {
 		return nil, err
 	}
 	// step4: check and create namespace
@@ -621,13 +621,14 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      converAppName(appModel, workflow.EnvName),
+			Name:      converAppName(appModel.Name, workflow.EnvName),
 			Namespace: appModel.Namespace,
 			Labels:    appModel.Labels,
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion: version,
 				// publish version is the identifier of workflow record
 				oam.AnnotationPublishVersion: utils.GenerateVersion(reqWorkflowName),
+				oam.AnnotationAppName:        appModel.Name,
 			},
 		},
 	}
@@ -1128,8 +1129,8 @@ func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.Deliver
 	}
 }
 
-func converAppName(app *model.Application, envName string) string {
-	return fmt.Sprintf("%s-%s", app.Name, envName)
+func converAppName(appModelName, envName string) string {
+	return fmt.Sprintf("%s-%s", appModelName, envName)
 }
 
 func genPolicyName(envName string) string {

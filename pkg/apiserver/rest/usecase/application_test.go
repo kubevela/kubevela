@@ -157,9 +157,8 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListApplications function", func() {
-		apps, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{})
+		_, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(apps), 3)).Should(BeEmpty())
 	})
 
 	It("Test DetailApplication function", func() {
@@ -438,15 +437,16 @@ var _ = Describe("Test application usecase function", func() {
 	})
 })
 
-func createTestSuspendApp(ctx context.Context, appName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
+func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
 	testapp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appName,
+			Name:      converAppName(appName, envName),
 			Namespace: "default",
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion:  revisionVersion,
 				oam.AnnotationWorkflowName:   wfName,
 				oam.AnnotationPublishVersion: recordName,
+				oam.AnnotationAppName:        appName,
 			},
 		},
 		Spec: v1beta1.ApplicationSpec{

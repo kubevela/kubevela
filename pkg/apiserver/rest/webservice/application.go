@@ -416,6 +416,43 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.DetailWorkflowRecordResponse{}).
 		Writes(apis.DetailWorkflowRecordResponse{}).Do(returns200, returns500))
 
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/resume").To(c.resumeWorkflowRecord).
+		Doc("resume suspend workflow record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the  workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/terminate").To(c.terminateWorkflowRecord).
+		Doc("terminate suspend workflow record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/rollback").To(c.rollbackWorkflowRecord).
+		Doc("rollback suspend application record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Param(ws.QueryParameter("rollbackVersion", "identifier of the rollback revision").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
+
 	return ws
 }
 

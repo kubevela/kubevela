@@ -183,7 +183,8 @@ func (w *workflowWebService) detailWorkflowRecord(req *restful.Request, res *res
 
 func (w *workflowWebService) resumeWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := w.workflowUsecase.ResumeRecord(req.Request.Context(), app, req.PathParameter("record"))
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	err := w.workflowUsecase.ResumeRecord(req.Request.Context(), app, workflow, req.PathParameter("record"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -193,7 +194,8 @@ func (w *workflowWebService) resumeWorkflowRecord(req *restful.Request, res *res
 
 func (w *workflowWebService) terminateWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := w.workflowUsecase.TerminateRecord(req.Request.Context(), app, req.PathParameter("record"))
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	err := w.workflowUsecase.TerminateRecord(req.Request.Context(), app, workflow, req.PathParameter("record"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -203,7 +205,8 @@ func (w *workflowWebService) terminateWorkflowRecord(req *restful.Request, res *
 
 func (w *workflowWebService) rollbackWorkflowRecord(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := w.workflowUsecase.RollbackRecord(req.Request.Context(), app, req.PathParameter("record"), req.QueryParameter("rollbackVersion"))
+	workflow := req.Request.Context().Value(&apis.CtxKeyWorkflow).(*model.Workflow)
+	err := w.workflowUsecase.RollbackRecord(req.Request.Context(), app, workflow, req.PathParameter("record"), req.QueryParameter("rollbackVersion"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

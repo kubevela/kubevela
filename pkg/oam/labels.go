@@ -133,10 +133,13 @@ const (
 	AnnotationDeployVersion = "app.oam.dev/deployVersion"
 
 	// AnnotationPublishVersion is annotation that record the application workflow version.
-	AnnotationPublishVersion = "vela.io/publish-version"
+	AnnotationPublishVersion = "app.oam.dev/publishVersion"
 
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
+
+	// AnnotationAppName specifies the name for application in db.
+	AnnotationAppName = "app.oam.dev/appName"
 
 	// AnnotationWorkloadGVK indicates the managed workload's GVK by trait
 	AnnotationWorkloadGVK = "trait.oam.dev/workload-gvk"
