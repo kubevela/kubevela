@@ -83,8 +83,8 @@ var _ = Describe("Test velaQL rest api", func() {
 			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appName, Namespace: namespace}, oldApp); err != nil {
 				return err
 			}
-			if oldApp.Status.Phase != common2.ApplicationRunning {
-				return errors.New("application is not ready")
+			if len(oldApp.Status.AppliedResources) != 2 {
+				return errors.Errorf("expect the applied resources number is %d, but get %d", 2, len(oldApp.Status.AppliedResources))
 			}
 			return nil
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
@@ -124,14 +124,14 @@ var _ = Describe("Test velaQL rest api", func() {
 			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appName, Namespace: namespace}, oldApp); err != nil {
 				return err
 			}
-			if oldApp.Status.Phase != common2.ApplicationRunning {
-				return errors.New("application is not ready")
+			if len(oldApp.Status.AppliedResources) != 2 {
+				return errors.Errorf("expect the applied resources number is %d, but get %d", 2, len(oldApp.Status.AppliedResources))
 			}
 			return nil
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
 
 		queryRes, err := http.Get(
-			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"),
+			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"),
 		)
 		Expect(err).Should(BeNil())
 		Expect(queryRes.StatusCode).Should(Equal(200))
@@ -145,7 +145,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes1, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
 			)
 			if err != nil {
 				return err
@@ -195,8 +195,15 @@ var _ = Describe("Test velaQL rest api", func() {
 			if err := k8sClient.Get(context.Background(), client.ObjectKeyFromObject(oldApp), newApp); err != nil {
 				return err
 			}
-			if newApp.Status.Phase != common2.ApplicationRunning {
-				return errors.New("application is not ready")
+			appliedCronJob := false
+			for _, resource := range newApp.Status.AppliedResources {
+				if resource.ObjectReference.Kind == "CronJob" {
+					appliedCronJob = true
+					break
+				}
+			}
+			if !appliedCronJob {
+				return errors.New("fail to apply cronjob")
 			}
 			return nil
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
@@ -208,7 +215,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
 			)
 			if err != nil {
 				return err
@@ -259,7 +266,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s,componentName=%s}.%s", "component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
 			)
 			if err != nil {
 				return err

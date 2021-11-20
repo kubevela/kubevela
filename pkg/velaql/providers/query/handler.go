@@ -45,6 +45,7 @@ type provider struct {
 type AppResources struct {
 	Revision       int64             `json:"revision"`
 	PublishVersion string            `json:"publishVersion"`
+	DeployVersion  string            `json:"deployVersion"`
 	Metadata       metav1.ObjectMeta `json:"metadata"`
 	Components     []Component       `json:"components"`
 }
@@ -63,11 +64,17 @@ type Resource struct {
 
 // Option is the query option
 type Option struct {
-	Name               string   `json:"name"`
-	Namespace          string   `json:"namespace"`
-	Components         []string `json:"components,omitempty"`
-	Cluster            string   `json:"cluster,omitempty"`
-	EnableHistoryQuery bool     `json:"enableHistoryQuery,omitempty"`
+	Name               string        `json:"name"`
+	Namespace          string        `json:"namespace"`
+	Components         []string      `json:"components,omitempty"`
+	Filter             ClusterFilter `json:"filter,omitempty"`
+	EnableHistoryQuery bool          `json:"enableHistoryQuery,omitempty"`
+}
+
+// ClusterFilter filter resource created by component
+type ClusterFilter struct {
+	Cluster          string `json:"cluster,omitempty"`
+	ClusterNamespace string `json:"clusterNamespace,omitempty"`
 }
 
 // ListResourcesInApp lists CRs created by Application
