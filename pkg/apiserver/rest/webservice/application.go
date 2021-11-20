@@ -337,11 +337,23 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Doc("get application status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
+		Filter(c.envCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
 		Returns(200, "", apis.ApplicationStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationStatusResponse{}))
+
+	ws.Route(ws.POST("/{name}/envs/{envName}/recycle").To(c.recycleApplicationEnv).
+		Doc("get application status").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.envCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string").Required(true)).
+		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string").Required(true)).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{name}/workflows").To(c.listApplicationWorkflows).
 		Doc("list application workflow").
@@ -966,6 +978,20 @@ func (c *applicationWebService) applicationStatistics(req *restful.Request, res 
 		return
 	}
 	if err := res.WriteEntity(detail); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) recycleApplicationEnv(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	env := req.Request.Context().Value(&apis.CtxKeyApplicationEnvBinding).(*model.EnvBinding)
+	err := c.envBindingUsecase.ApplicationEnvRecycle(req.Request.Context(), app, env)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

@@ -559,6 +559,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 			return nil, bcode.ErrDeployConflict
 		}
 		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.RevisionStatusComplete {
+			log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
 			return nil, bcode.ErrDeployConflict
 		}
 	}
@@ -631,15 +632,14 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		if err != nil {
 			return nil, err
 		}
-
 	} else {
 		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
 		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
 			return nil, err
 		}
 	}
-	if workflow == nil {
-		return nil, bcode.ErrWorkflowNoDefault
+	if workflow == nil || workflow.EnvName == "" {
+		return nil, bcode.ErrWorkflowNotExist
 	}
 
 	labels := make(map[string]string)
