@@ -197,7 +197,7 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 			wg.Add(1)
 			go readDefinitions(&wg, reader)
 		case ResourcesDirName:
-			if !opt.GetResource {
+			if !opt.GetResource && !opt.GetParameter {
 				break
 			}
 			reader.SetReadContent(item)
