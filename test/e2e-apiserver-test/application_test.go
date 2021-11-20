@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -175,6 +176,9 @@ var _ = Describe("Test application rest api", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/deploy", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
+		body, _ := ioutil.ReadAll(res.Body)
+		fmt.Println(string(body))
+
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
