@@ -40,6 +40,13 @@
     - valueFrom
     label: Add By Secret
   subParameters:
+  - description: Environment variable name
+    jsonKey: name
+    label: Name
+    sort: 100
+    uiType: Input
+    validate:
+      required: true
   - description: The value of the environment variable
     jsonKey: value
     label: Value
@@ -57,6 +64,13 @@
       label: SecretKeyRef
       sort: 100
       subParameters:
+      - description: The name of the secret in the pod's namespace to select from
+        jsonKey: name
+        label: Secret选择
+        sort: 100
+        uiType: SecretSelect
+        validate:
+          required: true
       - description: The key of the secret to select from. Must be a valid secret
           key
         jsonKey: key
@@ -65,25 +79,11 @@
         uiType: SecretKeySelect
         validate:
           required: true
-      - description: The name of the secret in the pod's namespace to select from
-        jsonKey: name
-        label: Secret选择
-        sort: 100
-        uiType: SecretSelect
-        validate:
-          required: true
       uiType: Ignore
       validate:
         required: true
     uiType: InnerGroup
     validate: {}
-  - description: Environment variable name
-    jsonKey: name
-    label: Name
-    sort: 100
-    uiType: Input
-    validate:
-      required: true
   uiType: Structs
   validate: {}
 - description: Which port do you want customer traffic sent to
@@ -99,6 +99,13 @@
   label: 持久化存储
   sort: 11
   subParameters:
+  - description: ""
+    jsonKey: name
+    label: Name
+    sort: 100
+    uiType: Input
+    validate:
+      required: true
   - description: 'Specify volume type, options: "pvc","configMap","secret","emptyDir"'
     jsonKey: type
     label: Type
@@ -118,13 +125,6 @@
   - description: ""
     jsonKey: mountPath
     label: MountPath
-    sort: 100
-    uiType: Input
-    validate:
-      required: true
-  - description: ""
-    jsonKey: name
-    label: Name
     sort: 100
     uiType: Input
     validate:
@@ -246,27 +246,6 @@
     label: HttpGet
     sort: 100
     subParameters:
-    - description: ""
-      jsonKey: httpHeaders
-      label: HttpHeaders
-      sort: 100
-      subParameters:
-      - description: ""
-        jsonKey: value
-        label: Value
-        sort: 100
-        uiType: Input
-        validate:
-          required: true
-      - description: ""
-        jsonKey: name
-        label: Name
-        sort: 100
-        uiType: Input
-        validate:
-          required: true
-      uiType: Structs
-      validate: {}
     - description: The endpoint, relative to the port, to which the HTTP GET request
         should be directed.
       jsonKey: path
@@ -283,6 +262,27 @@
       uiType: Number
       validate:
         required: true
+    - description: ""
+      jsonKey: httpHeaders
+      label: HttpHeaders
+      sort: 100
+      subParameters:
+      - description: ""
+        jsonKey: name
+        label: Name
+        sort: 100
+        uiType: Input
+        validate:
+          required: true
+      - description: ""
+        jsonKey: value
+        label: Value
+        sort: 100
+        uiType: Input
+        validate:
+          required: true
+      uiType: Structs
+      validate: {}
     uiType: KV
     validate: {}
   - description: Number of seconds after the container is started before the first
@@ -373,6 +373,12 @@
       value: Always
     - label: 永不更新
       value: Never
+- description: Specify image pull secrets for your service
+  jsonKey: imagePullSecrets
+  label: ImagePullSecrets
+  sort: 100
+  uiType: Strings
+  validate: {}
 - description: If addRevisionLabel is true, the appRevision label will be added to
     the underlying pods
   jsonKey: addRevisionLabel
@@ -382,9 +388,3 @@
   validate:
     defaultValue: false
     required: true
-- description: Specify image pull secrets for your service
-  jsonKey: imagePullSecrets
-  label: ImagePullSecrets
-  sort: 100
-  uiType: Strings
-  validate: {}

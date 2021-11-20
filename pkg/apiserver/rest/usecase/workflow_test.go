@@ -85,14 +85,17 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app := &v1beta1.Application{}
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
-		app.Annotations[oam.AnnotationWorkflowName] = "list-workflow-name"
+		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-2"
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+			Name: "test-app",
+		}, "test-workflow-2")
 		for i := 0; i < 3; i++ {
 			app.Annotations[oam.AnnotationPublishVersion] = fmt.Sprintf("list-workflow-name-%d", i)
-			err := workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+			err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 			Expect(err).Should(BeNil())
 		}
 
-		resp, err := workflowUsecase.ListWorkflowRecords(context.TODO(), "list-workflow-name", 0, 10)
+		resp, err := workflowUsecase.ListWorkflowRecords(context.TODO(), workflow, 0, 10)
 		Expect(err).Should(BeNil())
 		Expect(resp.Total).Should(Equal(int64(3)))
 	})
@@ -104,10 +107,14 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app := &v1beta1.Application{}
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
-		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-name"
-		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-name-123"
+		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-2"
+		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-123"
 		app.Annotations[oam.AnnotationDeployVersion] = "1234"
-		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+			Name: "test-app",
+		}, "test-workflow-2")
+		Expect(err).Should(BeNil())
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 		Expect(err).Should(BeNil())
 
 		var revision = &model.ApplicationRevision{
@@ -117,15 +124,15 @@ var _ = Describe("Test workflow usecase functions", func() {
 			DeployUser:    "test-user",
 			Note:          "test-commit",
 			TriggerType:   "API",
-			WorkflowName:  "test-workflow-name",
+			WorkflowName:  "test-workflow-2",
 		}
 
 		err = workflowUsecase.createTestApplicationRevision(context.TODO(), revision)
 		Expect(err).Should(BeNil())
 
-		detail, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), "test-workflow-name", "test-workflow-name-123")
+		detail, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), workflow, "test-123")
 		Expect(err).Should(BeNil())
-		Expect(detail.WorkflowRecord.Name).Should(Equal("test-workflow-name-123"))
+		Expect(detail.WorkflowRecord.Name).Should(Equal("test-workflow-2-123"))
 		Expect(detail.DeployUser).Should(Equal("test-user"))
 	})
 
@@ -137,10 +144,13 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
 		app.Status.Workflow.Finished = false
-		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-name"
-		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-name-233"
+		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-2"
+		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-233"
 		app.Annotations[oam.AnnotationDeployVersion] = "4321"
-		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+			Name: "test-app",
+		}, "test-workflow-2")
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 		Expect(err).Should(BeNil())
 
 		By("create one revision to test sync workflow record")
@@ -149,7 +159,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			Version:       "4321",
 			Status:        model.RevisionStatusInit,
 			DeployUser:    "test-user",
-			WorkflowName:  "test-workflow-name",
+			WorkflowName:  "test-workflow-2",
 		}
 		err = workflowUsecase.createTestApplicationRevision(context.TODO(), revision)
 		Expect(err).Should(BeNil())
@@ -164,8 +174,12 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = workflowUsecase.SyncWorkflowRecord(ctx)
 		Expect(err).Should(BeNil())
 
+		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+			Name: "test-app",
+		}, "test-workflow-2")
+		Expect(err).Should(BeNil())
 		By("check the record")
-		record, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), "test-workflow-name", "test-workflow-name-233")
+		record, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-233")
 		Expect(err).Should(BeNil())
 		Expect(record.Status).Should(Equal(model.RevisionStatusComplete))
 
@@ -176,9 +190,9 @@ var _ = Describe("Test workflow usecase functions", func() {
 
 		By("create another workflow record to test sync status from controller revision")
 		app.Status.Workflow.Finished = false
-		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-name-111"
+		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-111"
 		app.Annotations[oam.AnnotationDeployVersion] = "1111"
-		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 		Expect(err).Should(BeNil())
 
 		By("create another revision to test sync workflow record")
@@ -187,7 +201,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			Version:       "1111",
 			Status:        model.RevisionStatusInit,
 			DeployUser:    "test-user",
-			WorkflowName:  "test-workflow-name",
+			WorkflowName:  "test-workflow-2",
 		}
 		err = workflowUsecase.createTestApplicationRevision(context.TODO(), anotherRevision)
 		Expect(err).Should(BeNil())
@@ -196,9 +210,9 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		cr := &appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "record-test-test-workflow-name-111",
+				Name:      "record-test-test-workflow-2-111",
 				Namespace: "default",
-				Labels:    map[string]string{"vela.io/wf-revision": "test-workflow-name-111"},
+				Labels:    map[string]string{"vela.io/wf-revision": "test-workflow-2-111"},
 			},
 			Data: runtime.RawExtension{Raw: raw},
 		}
@@ -209,7 +223,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		By("check the record")
-		anotherRecord, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), "test-workflow-name", "test-workflow-name-111")
+		anotherRecord, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-111")
 		Expect(err).Should(BeNil())
 		Expect(anotherRecord.Status).Should(Equal(model.RevisionStatusComplete))
 
@@ -224,7 +238,12 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app, err := createTestSuspendApp(ctx, "resume-app", "revision-resume1", "workflow-resume", "workflow-resume-1", workflowUsecase.kubeClient)
 		Expect(err).Should(BeNil())
 
-		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+			Name: "test-app",
+		}, "test-workflow-2")
+		Expect(err).Should(BeNil())
+
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
@@ -241,17 +260,22 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}, "workflow-resume-1")
 		Expect(err).Should(BeNil())
 
-		record, err := workflowUsecase.DetailWorkflowRecord(ctx, "workflow-resume", "workflow-resume-1")
+		record, err := workflowUsecase.DetailWorkflowRecord(ctx, workflow, "workflow-resume-1")
 		Expect(err).Should(BeNil())
 		Expect(record.Status).Should(Equal(model.RevisionStatusRunning))
 	})
 
 	It("Test TerminateRecord function", func() {
 		ctx := context.TODO()
-		app, err := createTestSuspendApp(ctx, "terminate-app", "revision-terminate1", "workflow-terminate", "workflow-terminate-1", workflowUsecase.kubeClient)
+		app, err := createTestSuspendApp(ctx, "terminate-app", "revision-terminate1", "test-workflow-2", "test-workflow-2-1", workflowUsecase.kubeClient)
 		Expect(err).Should(BeNil())
 
-		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+			Name: "test-app",
+		}, "test-workflow-2")
+		Expect(err).Should(BeNil())
+
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
@@ -264,20 +288,25 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = workflowUsecase.TerminateRecord(ctx, &model.Application{
 			Name:      "terminate-app",
 			Namespace: "default",
-		}, "workflow-terminate-1")
+		}, "test-workflow-2-1")
 		Expect(err).Should(BeNil())
 
-		record, err := workflowUsecase.DetailWorkflowRecord(ctx, "workflow-terminate", "workflow-terminate-1")
+		record, err := workflowUsecase.DetailWorkflowRecord(ctx, workflow, "test-workflow-2-1")
 		Expect(err).Should(BeNil())
 		Expect(record.Status).Should(Equal(model.RevisionStatusTerminated))
 	})
 
 	It("Test RollbackRecord function", func() {
 		ctx := context.TODO()
-		app, err := createTestSuspendApp(ctx, "rollback-app", "revision-rollback1", "workflow-rollback", "workflow-rollback-1", workflowUsecase.kubeClient)
+		app, err := createTestSuspendApp(ctx, "rollback-app", "revision-rollback1", "test-workflow-2", "test-workflow-2-2", workflowUsecase.kubeClient)
 		Expect(err).Should(BeNil())
 
-		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+			Name: "test-app",
+		}, "test-workflow-2")
+		Expect(err).Should(BeNil())
+
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
@@ -297,7 +326,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = workflowUsecase.RollbackRecord(ctx, &model.Application{
 			Name:      "rollback-app",
 			Namespace: "default",
-		}, "workflow-rollback-1", "revision-rollback0")
+		}, "test-workflow-2-2", "revision-rollback0")
 		Expect(err).Should(BeNil())
 
 		recordsNum, err := workflowUsecase.ds.Count(ctx, &model.WorkflowRecord{
@@ -310,7 +339,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 
 		By("rollback application without revision version")
 		app.Annotations[oam.AnnotationPublishVersion] = "workflow-rollback-2"
-		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app)
+		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), app, workflow)
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.RollbackRecord(ctx, &model.Application{
@@ -333,7 +362,7 @@ var yamlStr = `apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   annotations:
-    app.oam.dev/workflowName: test-workflow-name
+    app.oam.dev/workflowName: test-workflow-2
     app.oam.dev/deployVersion: "1234"
     vela.io/publish-version: "test-workflow-name-111"
   name: test

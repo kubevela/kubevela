@@ -159,6 +159,8 @@ var _ = Describe("Test application rest api", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 
+		http.Get("http://127.0.0.1:8000/api/v1/applications/test-app-sadasd/")
+
 		// deploy app
 		var req = apisv1.ApplicationDeployRequest{
 			Note:         "test apply",

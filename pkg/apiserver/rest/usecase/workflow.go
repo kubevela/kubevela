@@ -48,16 +48,17 @@ const (
 
 // WorkflowUsecase workflow manage api
 type WorkflowUsecase interface {
-	ListApplicationWorkflow(ctx context.Context, app *model.Application, enable *bool) ([]*apisv1.WorkflowBase, error)
-	GetWorkflow(ctx context.Context, workflowName string) (*model.Workflow, error)
+	ListApplicationWorkflow(ctx context.Context, app *model.Application) ([]*apisv1.WorkflowBase, error)
+	GetWorkflow(ctx context.Context, app *model.Application, workflowName string) (*model.Workflow, error)
 	DetailWorkflow(ctx context.Context, workflow *model.Workflow) (*apisv1.DetailWorkflowResponse, error)
 	GetApplicationDefaultWorkflow(ctx context.Context, app *model.Application) (*model.Workflow, error)
-	DeleteWorkflow(ctx context.Context, workflowName string) error
+	DeleteWorkflow(ctx context.Context, app *model.Application, workflowName string) error
+	DeleteWorkflowByApp(ctx context.Context, app *model.Application) error
 	CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
-	CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application) error
+	CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application, workflow *model.Workflow) error
 	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
-	ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
-	DetailWorkflowRecord(ctx context.Context, workflowName, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
+	ListWorkflowRecords(ctx context.Context, workflow *model.Workflow, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
+	DetailWorkflowRecord(ctx context.Context, workflow *model.Workflow, recordName string) (*apisv1.DetailWorkflowRecordResponse, error)
 	SyncWorkflowRecord(ctx context.Context) error
 	ResumeRecord(ctx context.Context, appModel *model.Application, recordName string) error
 	TerminateRecord(ctx context.Context, appModel *model.Application, recordName string) error
@@ -85,15 +86,36 @@ type workflowUsecaseImpl struct {
 }
 
 // DeleteWorkflow delete application workflow
-func (w *workflowUsecaseImpl) DeleteWorkflow(ctx context.Context, workflowName string) error {
+func (w *workflowUsecaseImpl) DeleteWorkflow(ctx context.Context, app *model.Application, workflowName string) error {
 	var workflow = &model.Workflow{
-		Name: workflowName,
+		Name:          workflowName,
+		AppPrimaryKey: app.PrimaryKey(),
 	}
 	if err := w.ds.Delete(ctx, workflow); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrWorkflowNotExist
 		}
 		return err
+	}
+	return nil
+}
+
+func (w *workflowUsecaseImpl) DeleteWorkflowByApp(ctx context.Context, app *model.Application) error {
+	var workflow = &model.Workflow{
+		AppPrimaryKey: app.PrimaryKey(),
+	}
+
+	workflows, err := w.ds.List(ctx, workflow, &datastore.ListOptions{})
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil
+		}
+		return err
+	}
+	for i := range workflows {
+		if err := w.ds.Delete(ctx, workflows[i]); err != nil {
+			log.Logger.Errorf("delete workflow %s failure %s", workflows[i].PrimaryKey(), err.Error())
+		}
 	}
 	return nil
 }
@@ -197,9 +219,10 @@ func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *mode
 }
 
 // GetWorkflow get workflow model
-func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName string) (*model.Workflow, error) {
+func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, app *model.Application, workflowName string) (*model.Workflow, error) {
 	var workflow = model.Workflow{
-		Name: workflowName,
+		Name:          workflowName,
+		AppPrimaryKey: app.PrimaryKey(),
 	}
 	if err := w.ds.Get(ctx, &workflow); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -211,7 +234,7 @@ func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, workflowName stri
 }
 
 // ListApplicationWorkflow list application workflows
-func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *model.Application, enable *bool) ([]*apisv1.WorkflowBase, error) {
+func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *model.Application) ([]*apisv1.WorkflowBase, error) {
 	var workflow = model.Workflow{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
@@ -245,9 +268,9 @@ func (w *workflowUsecaseImpl) GetApplicationDefaultWorkflow(ctx context.Context,
 }
 
 // ListWorkflowRecords list workflow record
-func (w *workflowUsecaseImpl) ListWorkflowRecords(ctx context.Context, workflowName string, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error) {
+func (w *workflowUsecaseImpl) ListWorkflowRecords(ctx context.Context, workflow *model.Workflow, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error) {
 	var record = model.WorkflowRecord{
-		WorkflowPrimaryKey: workflowName,
+		WorkflowPrimaryKey: workflow.PrimaryKey(),
 	}
 	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{Page: page, PageSize: pageSize})
 	if err != nil {
@@ -273,9 +296,9 @@ func (w *workflowUsecaseImpl) ListWorkflowRecords(ctx context.Context, workflowN
 }
 
 // DetailWorkflowRecord get workflow record detail with name
-func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflowName, recordName string) (*apisv1.DetailWorkflowRecordResponse, error) {
+func (w *workflowUsecaseImpl) DetailWorkflowRecord(ctx context.Context, workflow *model.Workflow, recordName string) (*apisv1.DetailWorkflowRecordResponse, error) {
 	var record = model.WorkflowRecord{
-		WorkflowPrimaryKey: workflowName,
+		WorkflowPrimaryKey: workflow.PrimaryKey(),
 		Name:               recordName,
 	}
 	err := w.ds.Get(ctx, &record)
@@ -401,7 +424,7 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 	return nil
 }
 
-func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application) error {
+func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1beta1.Application, workflow *model.Workflow) error {
 	if app.Annotations == nil {
 		return fmt.Errorf("empty annotations in application")
 	}
@@ -416,7 +439,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, app *v1b
 	}
 
 	return w.ds.Add(ctx, &model.WorkflowRecord{
-		WorkflowPrimaryKey: app.Annotations[oam.AnnotationWorkflowName],
+		WorkflowPrimaryKey: workflow.PrimaryKey(),
 		AppPrimaryKey:      app.Name,
 		RevisionPrimaryKey: app.Annotations[oam.AnnotationDeployVersion],
 		Name:               app.Annotations[oam.AnnotationPublishVersion],
@@ -523,9 +546,9 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 	newRecordName := utils.GenerateVersion(record.WorkflowPrimaryKey)
 	oamApp.Annotations[oam.AnnotationDeployVersion] = revisionVersion
 	oamApp.Annotations[oam.AnnotationPublishVersion] = newRecordName
-
+	workflow := &model.Workflow{AppPrimaryKey: appModel.PrimaryKey(), Name: oamApp.Annotations[oam.AnnotationWorkflowName]}
 	// create a new workflow record
-	if err := w.CreateWorkflowRecord(ctx, oamApp); err != nil {
+	if err := w.CreateWorkflowRecord(ctx, oamApp, workflow); err != nil {
 		return err
 	}
 

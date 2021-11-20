@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+	http://wwc.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,13 +32,18 @@ import (
 )
 
 type applicationWebService struct {
+	workflowWebService
 	applicationUsecase usecase.ApplicationUsecase
 	envBindingUsecase  usecase.EnvBindingUsecase
 }
 
 // NewApplicationWebService new application manage webservice
-func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase, envBindingUsecase usecase.EnvBindingUsecase) WebService {
+func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase, envBindingUsecase usecase.EnvBindingUsecase, workflowUsecase usecase.WorkflowUsecase) WebService {
 	return &applicationWebService{
+		workflowWebService: workflowWebService{
+			workflowUsecase:    workflowUsecase,
+			applicationUsecase: applicationUsecase,
+		},
 		applicationUsecase: applicationUsecase,
 		envBindingUsecase:  envBindingUsecase,
 	}
@@ -337,6 +342,79 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.ApplicationStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationStatusResponse{}))
+
+	ws.Route(ws.GET("/{name}/workflows").To(c.listApplicationWorkflows).
+		Doc("list application workflow").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListWorkflowResponse{}).
+		Writes(apis.ListWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.POST("/{name}/workflows").To(c.createApplicationWorkflow).
+		Doc("create application workflow").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreateWorkflowRequest{}).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Returns(200, "create success", apis.DetailWorkflowResponse{}).
+		Returns(400, "create failure", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}").To(c.detailWorkflow).
+		Doc("detail application workflow").
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workfloc.").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "create success", apis.DetailWorkflowResponse{}).
+		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.PUT("/{name}/workflows/{workflowName}").To(c.updateWorkflow).
+		Doc("update application workflow config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Reads(apis.UpdateWorkflowRequest{}).
+		Returns(200, "", apis.DetailWorkflowResponse{}).
+		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.DELETE("/{name}/workflows/{workflowName}").To(c.deleteWorkflow).
+		Doc("deletet workflow").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Returns(200, "", apis.EmptyResponse{}).
+		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records").To(c.listWorkflowRecords).
+		Doc("query application workflow execution record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
+		Param(ws.QueryParameter("pageSize", "query the page size number").DataType("integer")).
+		Returns(200, "", apis.ListWorkflowRecordsResponse{}).
+		Writes(apis.ListWorkflowRecordsResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}").To(c.detailWorkflowRecord).
+		Doc("query application workflow execution record detail").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", apis.DetailWorkflowRecordResponse{}).
+		Writes(apis.DetailWorkflowRecordResponse{}).Do(returns200, returns500))
 
 	return ws
 }
