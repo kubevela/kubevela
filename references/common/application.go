@@ -63,9 +63,9 @@ type applicationMetaList []apis.ApplicationMeta
 
 // AppfileOptions is some configuration that modify options for an Appfile
 type AppfileOptions struct {
-	Kubecli client.Client
-	IO      cmdutil.IOStreams
-	Env     *types.EnvMeta
+	Kubecli   client.Client
+	IO        cmdutil.IOStreams
+	Namespace string
 }
 
 // BuildResult is the export struct from AppFile yaml or AppFile object
@@ -105,11 +105,11 @@ type Option struct {
 
 // DeleteOptions is options for delete
 type DeleteOptions struct {
-	AppName  string
-	CompName string
-	Client   client.Client
-	Env      *types.EnvMeta
-	C        common.Args
+	Namespace string
+	AppName   string
+	CompName  string
+	Client    client.Client
+	C         common.Args
 }
 
 // ListApplications lists all applications
@@ -211,7 +211,7 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, appli
 func (o *DeleteOptions) DeleteApp() (string, error) {
 	ctx := context.Background()
 	var app = new(corev1beta1.Application)
-	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, app)
+	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Sprintf("app \"%s\" already deleted", o.AppName), nil
@@ -228,7 +228,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		healthScopeName, ok := cmp.Scopes[api.DefaultHealthScopeKey]
 		if ok {
 			var healthScope corev1alpha2.HealthScope
-			if err := o.Client.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: healthScopeName}, &healthScope); err != nil {
+			if err := o.Client.Get(ctx, client.ObjectKey{Namespace: o.Namespace, Name: healthScopeName}, &healthScope); err != nil {
 				if apierrors.IsNotFound(err) {
 					continue
 				}
@@ -239,7 +239,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 			}
 		}
 	}
-	return fmt.Sprintf("app \"%s\" deleted from env \"%s\"", o.AppName, o.Env.Name), nil
+	return fmt.Sprintf("app \"%s\" already deleted from namespace \"%s\"", o.AppName, o.Namespace), nil
 }
 
 // DeleteComponent will delete one component including server side.
@@ -248,7 +248,7 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 	if o.AppName == "" {
 		return "", errors.New("app name is required")
 	}
-	app, err := appfile.LoadApplication(o.Env.Namespace, o.AppName, o.C)
+	app, err := appfile.LoadApplication(o.Namespace, o.AppName, o.C)
 	if err != nil {
 		return "", err
 	}
@@ -371,7 +371,7 @@ func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, q
 	appHandler := appfile.NewApplication(app, tm)
 
 	// new
-	retApplication, scopes, err := appHandler.BuildOAMApplication(o.Env, o.IO, appHandler.Tm, quiet)
+	retApplication, scopes, err := appHandler.BuildOAMApplication(o.Namespace, o.IO, appHandler.Tm, quiet)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -441,7 +441,7 @@ func (o *AppfileOptions) Run(filePath, namespace string, c common.Args) error {
 // BaseAppFileRun starts an application according to Appfile
 func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, args common.Args) error {
 
-	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Env.Namespace, args)
+	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Namespace, args)
 	if err != nil {
 		return err
 	}

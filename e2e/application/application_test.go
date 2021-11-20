@@ -88,9 +88,8 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			}, 180*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
 			cli := fmt.Sprintf("vela status %s", applicationName)
-			output, err := e2e.LongTimeExec(cli, 120*time.Second)
+			_, err = e2e.LongTimeExec(cli, 120*time.Second)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
 			// TODO(zzxwill) need to check workloadType after app status is refined
 		})
 	})

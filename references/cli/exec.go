@@ -134,6 +134,7 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
 
 	return cmd
 }
@@ -143,12 +144,18 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.Cmd = c
 	o.Args = argsIn
 
-	env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
+	namespace, err := c.Flags().GetString(Namespace)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
 	}
-	o.Env = env
-	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
+	if namespace == "" {
+		env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
+		if err != nil {
+			return err
+		}
+		namespace = env.Namespace
+	}
+	app, err := appfile.LoadApplication(namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}

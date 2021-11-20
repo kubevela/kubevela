@@ -46,17 +46,18 @@ func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 	cmd.SetOut(ioStreams.Out)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+		if err != nil {
+			return err
+		}
 		newClient, err := c.GetClient()
 		if err != nil {
 			return err
 		}
 		o := &common.DeleteOptions{
-			C: c,
-		}
-		o.Client = newClient
-		o.Env, err = GetFlagEnvOrCurrent(cmd, c)
-		if err != nil {
-			return err
+			C:         c,
+			Namespace: namespace,
+			Client:    newClient,
 		}
 		if len(args) < 1 {
 			return errors.New("must specify name for the app")
@@ -89,5 +90,6 @@ func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		return nil
 	}
 	cmd.PersistentFlags().StringP(Service, "", "", "delete only the specified service in this app")
+	addNamespaceArg(cmd)
 	return cmd
 }

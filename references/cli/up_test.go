@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
@@ -33,13 +32,10 @@ import (
 
 func TestUp(t *testing.T) {
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	env := types.EnvMeta{
-		Name:      "up",
-		Namespace: "env-up",
-	}
+	namespace := "up-ns"
 	o := common.AppfileOptions{
-		IO:  ioStream,
-		Env: &env,
+		IO:        ioStream,
+		Namespace: namespace,
 	}
 	app := &v1beta1.Application{}
 	app.Name = "app-up"

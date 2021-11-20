@@ -73,11 +73,11 @@ func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
-			buff, err := LiveDiffApplication(o, c, velaEnv.Namespace)
+			buff, err := LiveDiffApplication(o, c, namespace)
 			if err != nil {
 				return err
 			}
@@ -90,6 +90,7 @@ func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a file or directory containing capability definitions, they will only be used in dry-run rather than applied to K8s cluster")
 	cmd.Flags().StringVarP(&o.Revision, "Revision", "r", "", "specify an application Revision name, by default, it will compare with the latest Revision")
 	cmd.Flags().IntVarP(&o.Context, "context", "c", -1, "output number lines of context around changes, by default show all unchanged lines")
+	addNamespaceArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

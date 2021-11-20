@@ -46,7 +46,7 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			velaEnv, err := GetFlagEnvOrCurrent(cmd, c)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -70,16 +70,17 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 				}
 			} else {
 				o := &common.AppfileOptions{
-					Kubecli: kubecli,
-					IO:      ioStream,
-					Env:     velaEnv,
+					Kubecli:   kubecli,
+					IO:        ioStream,
+					Namespace: namespace,
 				}
-				return o.Run(*appFilePath, velaEnv.Namespace, c)
+				return o.Run(*appFilePath, o.Namespace, c)
 			}
 			return nil
 		},
 	}
 	cmd.SetOut(ioStream.Out)
 	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile")
+	addNamespaceArg(cmd)
 	return cmd
 }

@@ -44,20 +44,13 @@ func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetFlagEnvOrCurrent(cmd, c)
-			if err != nil {
-				return err
-			}
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			namespace, err := cmd.Flags().GetString(Namespace)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
-			}
-			if namespace == "" {
-				namespace = env.Namespace
 			}
 			return printApplicationList(ctx, newClient, namespace, ioStreams)
 		},
@@ -65,7 +58,7 @@ func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			types.TagCommandType: types.TypeApp,
 		},
 	}
-	cmd.PersistentFlags().StringP(Namespace, "n", "", "specify the namespace the application want to list, default is the current env namespace")
+	addNamespaceArg(cmd)
 	return cmd
 }
 

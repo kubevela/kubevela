@@ -31,7 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/builtin"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -142,7 +141,7 @@ func (app *AppFile) ExecuteAppfileTasks(io cmdutil.IOStreams) error {
 }
 
 // BuildOAMApplication renders Appfile into Application, Scopes and other K8s Resources.
-func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1beta1.Application, []oam.Object, error) {
+func (app *AppFile) BuildOAMApplication(namespace string, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1beta1.Application, []oam.Object, error) {
 	if err := app.ExecuteAppfileTasks(io); err != nil {
 		if strings.Contains(err.Error(), "'image' : not found") {
 			return nil, nil, ErrImageNotDefined
@@ -152,7 +151,7 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 	// auxiliaryObjects currently include OAM Scope Custom Resources and ConfigMaps
 	var auxiliaryObjects []oam.Object
 	servApp := new(v1beta1.Application)
-	servApp.SetNamespace(env.Namespace)
+	servApp.SetNamespace(namespace)
 	servApp.SetName(app.Name)
 	servApp.Spec.Components = []common.ApplicationComponent{}
 	if !silence {
