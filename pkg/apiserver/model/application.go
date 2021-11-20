@@ -216,7 +216,7 @@ func (a *ApplicationRevision) TableName() string {
 
 // PrimaryKey return custom primary key
 func (a *ApplicationRevision) PrimaryKey() string {
-	return a.Version
+	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Version)
 }
 
 // Index return custom index
