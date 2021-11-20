@@ -53,6 +53,7 @@ const (
 	DefinitionsDirName string = "definitions"
 )
 
+// ListOptions contains flags mark what files should be read in an addon directory
 type ListOptions struct {
 	GetDetail     bool
 	GetDefinition bool
@@ -62,17 +63,22 @@ type ListOptions struct {
 }
 
 var (
-	ListLevelOptions   = ListOptions{}
-	GetLevelOptions    = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+	// GetLevelOptions used when get or list addons
+	GetLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+
+	// EnableLevelOptions used when enable addon
 	EnableLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetResource: true, GetTemplate: true, GetParameter: true}
 )
 
-type AddonErr error
+// aError is internal error type of addon
+type aError error
 
 var (
-	AddonNotExist AddonErr = errors.New("addon not exist")
+	// ErrNotExist means addon not exists
+	ErrNotExist aError = errors.New("addon not exist")
 )
 
+// gitHelper helps get addon's file by git
 type gitHelper struct {
 	Client *github.Client
 	Meta   *utils.Content
@@ -85,14 +91,16 @@ type GitAddonSource struct {
 	Token string `json:"token,omitempty"`
 }
 
-type AddonReader struct {
+// asyncReader helps async read files of addon
+type asyncReader struct {
 	addon   *types.Addon
 	h       *gitHelper
 	item    *github.RepositoryContent
 	errChan chan error
 }
 
-func (r *AddonReader) SetReadContent(content *github.RepositoryContent) {
+// SetReadContent set which file to read
+func (r *asyncReader) SetReadContent(content *github.RepositoryContent) {
 	r.item = content
 }
 
@@ -159,8 +167,11 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 		return nil, err
 	}
 	_, items, err := gith.readRepo(gith.Meta.Path)
+	if err != nil {
+		return nil, err
+	}
 
-	reader := AddonReader{
+	reader := asyncReader{
 		addon:   &types.Addon{},
 		h:       gith,
 		errChan: make(chan error, 1),
@@ -213,7 +224,7 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 
 }
 
-func readTemplate(wg *sync.WaitGroup, reader AddonReader) {
+func readTemplate(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -234,7 +245,7 @@ func readTemplate(wg *sync.WaitGroup, reader AddonReader) {
 	}
 }
 
-func readResources(wg *sync.WaitGroup, reader AddonReader) {
+func readResources(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	dirPath := strings.Split(reader.item.GetPath(), "/")
 	dirPath, err := cutPathUntil(dirPath, ResourcesDirName)
@@ -263,7 +274,7 @@ func readResources(wg *sync.WaitGroup, reader AddonReader) {
 }
 
 // readResFile read single resource file
-func readResFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
+func readResFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -288,7 +299,7 @@ func readResFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
 	}
 }
 
-func readDefinitions(wg *sync.WaitGroup, reader AddonReader) {
+func readDefinitions(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	dirPath := strings.Split(reader.item.GetPath(), "/")
 	dirPath, err := cutPathUntil(dirPath, DefinitionsDirName)
@@ -316,7 +327,7 @@ func readDefinitions(wg *sync.WaitGroup, reader AddonReader) {
 }
 
 // readDefFile read single definition file
-func readDefFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
+func readDefFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -331,7 +342,7 @@ func readDefFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
 	reader.addon.Definitions = append(reader.addon.Definitions, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
 }
 
-func readMetadata(wg *sync.WaitGroup, reader AddonReader) {
+func readMetadata(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -348,10 +359,9 @@ func readMetadata(wg *sync.WaitGroup, reader AddonReader) {
 		reader.errChan <- err
 		return
 	}
-	return
 }
 
-func readReadme(wg *sync.WaitGroup, reader AddonReader) {
+func readReadme(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -359,7 +369,10 @@ func readReadme(wg *sync.WaitGroup, reader AddonReader) {
 		return
 	}
 	reader.addon.Detail, err = content.GetContent()
-	return
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
 }
 
 func createGitHelper(baseURL, dir, token string) (*gitHelper, error) {

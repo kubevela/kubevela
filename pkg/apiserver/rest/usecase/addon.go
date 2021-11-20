@@ -51,12 +51,12 @@ func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
 		dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 		_, _, err := dec.Decode([]byte(def.Data), nil, obj)
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("convert %s file content to definition fail", def.Name))
+			return nil, fmt.Errorf("convert %s file content to definition fail", def.Name)
 		}
 		defs = append(defs, &apis.AddonDefinition{
-			obj.GetName(),
-			obj.GetKind(),
-			obj.GetAnnotations()["definition.oam.dev/description"],
+			Name:        obj.GetName(),
+			DefType:     obj.GetKind(),
+			Description: obj.GetAnnotations()["definition.oam.dev/description"],
 		})
 	}
 	return &apis.DetailAddonResponse{
@@ -104,23 +104,21 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 			if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
 				addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.GetLevelOptions)
 			}
-			if err != nil && !errors.Is(err, pkgaddon.AddonNotExist) {
+			if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 				return nil, err
 			}
 			if addon != nil {
 				break
 			}
 		}
-	} else {
-		if addon, exist = u.tryGetAddonFromCache(registry, name); !exist {
-			addonRegistry, err := u.GetAddonRegistry(ctx, registry)
-			if err != nil {
-				return nil, err
-			}
-			addon, err = pkgaddon.GetAddon(name, addonRegistry.Git, pkgaddon.GetLevelOptions)
-			if err != nil && !errors.Is(err, pkgaddon.AddonNotExist) {
-				return nil, err
-			}
+	} else if addon, exist = u.tryGetAddonFromCache(registry, name); !exist {
+		addonRegistry, err := u.GetAddonRegistry(ctx, registry)
+		if err != nil {
+			return nil, err
+		}
+		addon, err = pkgaddon.GetAddon(name, addonRegistry.Git, pkgaddon.GetLevelOptions)
+		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
+			return nil, err
 		}
 	}
 
@@ -332,7 +330,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
 			addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.EnableLevelOptions)
 		}
-		if err != nil && !errors.Is(err, pkgaddon.AddonNotExist) {
+		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return bcode.WrapGithubRateLimitErr(err)
 		}
 		if addon == nil {
