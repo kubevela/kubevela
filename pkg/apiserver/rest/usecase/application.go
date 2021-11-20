@@ -215,7 +215,7 @@ func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appmodel 
 	if err != nil {
 		return nil, err
 	}
-	selector.Add(*re)
+	selector = selector.Add(*re)
 	err = c.kubeClient.List(ctx, &apps, &client.ListOptions{
 		LabelSelector: selector,
 	})
