@@ -192,7 +192,7 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 		} else {
 			listAddons, err = pkgaddon.ListAddons(r.Git, pkgaddon.GetLevelOptions)
 			if err != nil {
-				log.Logger.Errorf("fail to get addons from registry %s", r.Name)
+				log.Logger.Errorf("fail to get addons from registry %s, %v", r.Name, err)
 				continue
 			}
 			// if list addons, details will be retrieved later
