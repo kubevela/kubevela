@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+	http://wwc.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,13 +32,18 @@ import (
 )
 
 type applicationWebService struct {
+	workflowWebService
 	applicationUsecase usecase.ApplicationUsecase
 	envBindingUsecase  usecase.EnvBindingUsecase
 }
 
 // NewApplicationWebService new application manage webservice
-func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase, envBindingUsecase usecase.EnvBindingUsecase) WebService {
+func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase, envBindingUsecase usecase.EnvBindingUsecase, workflowUsecase usecase.WorkflowUsecase) WebService {
 	return &applicationWebService{
+		workflowWebService: workflowWebService{
+			workflowUsecase:    workflowUsecase,
+			applicationUsecase: applicationUsecase,
+		},
 		applicationUsecase: applicationUsecase,
 		envBindingUsecase:  envBindingUsecase,
 	}
@@ -89,15 +94,23 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailApplicationResponse{}))
 
-	ws.Route(ws.GET("/{name}/envs/{envName}/status").To(c.getApplicationStatus).
-		Doc("get application status").
+	ws.Route(ws.PUT("/{name}").To(c.updateApplication).
+		Doc("update one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
-		Returns(200, "", apis.ApplicationStatusResponse{}).
+		Reads(apis.UpdateApplicationRequest{}).
+		Returns(200, "", apis.ApplicationBase{}).
 		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.ApplicationStatusResponse{}))
+		Writes(apis.ApplicationBase{}))
+	ws.Route(ws.GET("/{name}/statistics").To(c.applicationStatistics).
+		Doc("detail one application ").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.ApplicationStatisticsResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationStatisticsResponse{}))
 
 	ws.Route(ws.PUT("/{name}").To(c.updateApplication).
 		Doc("update one application ").
@@ -149,13 +162,24 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Writes(apis.ComponentBase{}))
 
 	ws.Route(ws.GET("/{name}/components/{componentName}").To(c.detailComponent).
-		Doc("detail component  for application ").
+		Doc("detail component for application ").
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.DetailComponentResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailComponentResponse{}))
+
+	ws.Route(ws.PUT("/{name}/components/{componentName}").To(c.updateComponent).
+		Doc("update component config").
+		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdateApplicationComponentRequest{}).
+		Returns(200, "", apis.ComponentBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ComponentBase{}))
 
 	ws.Route(ws.GET("/{name}/policies").To(c.listApplicationPolicies).
 		Doc("list policy for application").
@@ -210,6 +234,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/{name}/components/{compName}/traits").To(c.addApplicationTrait).
 		Doc("add trait for a component").
 		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -221,6 +246,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.PUT("/{name}/components/{compName}/traits/{traitType}").To(c.updateApplicationTrait).
 		Doc("update trait from a component").
 		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
@@ -233,6 +259,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.DELETE("/{name}/components/{compName}/traits/{traitType}").To(c.deleteApplicationTrait).
 		Doc("delete trait from a component").
 		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
@@ -305,6 +332,138 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.EmptyResponse{}).
 		Returns(404, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{name}/envs/{envName}/status").To(c.getApplicationStatus).
+		Doc("get application status").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.envCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
+		Returns(200, "", apis.ApplicationStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationStatusResponse{}))
+
+	ws.Route(ws.POST("/{name}/envs/{envName}/recycle").To(c.recycleApplicationEnv).
+		Doc("get application status").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.envCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string").Required(true)).
+		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string").Required(true)).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{name}/workflows").To(c.listApplicationWorkflows).
+		Doc("list application workflow").
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListWorkflowResponse{}).
+		Writes(apis.ListWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.POST("/{name}/workflows").To(c.createApplicationWorkflow).
+		Doc("create application workflow").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreateWorkflowRequest{}).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Returns(200, "create success", apis.DetailWorkflowResponse{}).
+		Returns(400, "create failure", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}").To(c.detailWorkflow).
+		Doc("detail application workflow").
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workfloc.").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "create success", apis.DetailWorkflowResponse{}).
+		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.PUT("/{name}/workflows/{workflowName}").To(c.updateWorkflow).
+		Doc("update application workflow config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Reads(apis.UpdateWorkflowRequest{}).
+		Returns(200, "", apis.DetailWorkflowResponse{}).
+		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.DELETE("/{name}/workflows/{workflowName}").To(c.deleteWorkflow).
+		Doc("deletet workflow").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Returns(200, "", apis.EmptyResponse{}).
+		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records").To(c.listWorkflowRecords).
+		Doc("query application workflow execution record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
+		Param(ws.QueryParameter("pageSize", "query the page size number").DataType("integer")).
+		Returns(200, "", apis.ListWorkflowRecordsResponse{}).
+		Writes(apis.ListWorkflowRecordsResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}").To(c.detailWorkflowRecord).
+		Doc("query application workflow execution record detail").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", apis.DetailWorkflowRecordResponse{}).
+		Writes(apis.DetailWorkflowRecordResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/resume").To(c.resumeWorkflowRecord).
+		Doc("resume suspend workflow record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the  workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/terminate").To(c.terminateWorkflowRecord).
+		Doc("terminate suspend workflow record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
+
+	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/rollback").To(c.rollbackWorkflowRecord).
+		Doc("rollback suspend application record").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Param(ws.QueryParameter("rollbackVersion", "identifier of the rollback revision").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Filter(c.workflowCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
 
 	return ws
 }
@@ -460,6 +619,30 @@ func (c *applicationWebService) detailComponent(req *restful.Request, res *restf
 		return
 	}
 	if err := res.WriteEntity(detail); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) updateComponent(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	component := req.Request.Context().Value(&apis.CtxKeyApplicationComponent).(*model.ApplicationComponent)
+	// Verify the validity of parameters
+	var updateReq apis.UpdateApplicationComponentRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	base, err := c.applicationUsecase.UpdateComponent(req.Request.Context(), app, component, updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -641,7 +824,7 @@ func (c *applicationWebService) getApplicationStatus(req *restful.Request, res *
 		return
 	}
 
-	if err := res.WriteEntity(apis.ApplicationStatusResponse{Status: status}); err != nil {
+	if err := res.WriteEntity(apis.ApplicationStatusResponse{Status: status, EnvName: req.PathParameter("envName")}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -759,6 +942,17 @@ func (c *applicationWebService) appCheckFilter(req *restful.Request, res *restfu
 	chain.ProcessFilter(req, res)
 }
 
+func (c *applicationWebService) componentCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	component, err := c.applicationUsecase.GetApplicationComponent(req.Request.Context(), app, req.PathParameter("compName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyApplicationComponent, component))
+	chain.ProcessFilter(req, res)
+}
+
 func (c *applicationWebService) envCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	envBindings, err := c.envBindingUsecase.GetEnvBindings(req.Request.Context(), app)
@@ -774,4 +968,31 @@ func (c *applicationWebService) envCheckFilter(req *restful.Request, res *restfu
 		}
 	}
 	bcode.ReturnError(req, res, bcode.ErrApplicationNotEnv)
+}
+
+func (c *applicationWebService) applicationStatistics(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	detail, err := c.applicationUsecase.Statistics(req.Request.Context(), app)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(detail); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) recycleApplicationEnv(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	env := req.Request.Context().Value(&apis.CtxKeyApplicationEnvBinding).(*model.EnvBinding)
+	err := c.envBindingUsecase.ApplicationEnvRecycle(req.Request.Context(), app, env)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }

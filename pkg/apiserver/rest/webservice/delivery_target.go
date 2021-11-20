@@ -177,7 +177,7 @@ func (dt *DeliveryTargetWebService) updateDeliveryTarget(req *restful.Request, r
 func (dt *DeliveryTargetWebService) deleteDeliveryTarget(req *restful.Request, res *restful.Response) {
 	deliveryTargetName := req.PathParameter("name")
 	// deliveryTarget in use, can't be deleted
-	applications, err := dt.applicationUsecase.ListApplications(context.TODO(), apis.ListApplicatioOptions{TargetName: deliveryTargetName})
+	applications, err := dt.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{TargetName: deliveryTargetName})
 	if err != nil {
 		if !errors.Is(err, datastore.ErrRecordNotExist) {
 			bcode.ReturnError(req, res, err)

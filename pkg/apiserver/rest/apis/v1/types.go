@@ -39,6 +39,8 @@ var (
 	CtxKeyDeliveryTarget = "delivery-target"
 	// CtxKeyApplicationEnvBinding request context key of env binding
 	CtxKeyApplicationEnvBinding = "envbinding-policy"
+	// CtxKeyApplicationComponent request context key of component
+	CtxKeyApplicationComponent = "component"
 )
 
 // AddonPhase defines the phase of an addon
@@ -283,6 +285,14 @@ type ApplicationStatusResponse struct {
 	Status  *common.AppStatus `json:"status"`
 }
 
+// ApplicationStatisticsResponse application statistics response body
+type ApplicationStatisticsResponse struct {
+	EnvCount            int64 `json:"envCount"`
+	DeliveryTargetCount int64 `json:"deliveryTargetCount"`
+	RevisonCount        int64 `json:"revisonCount"`
+	WorkflowCount       int64 `json:"workflowCount"`
+}
+
 // CreateApplicationRequest create application  request body
 type CreateApplicationRequest struct {
 	Name        string                  `json:"name" validate:"checkname"`
@@ -315,13 +325,15 @@ type EnvBinding struct {
 
 // EnvBindingBase application env binding
 type EnvBindingBase struct {
-	Name              string             `json:"name" validate:"checkname"`
-	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
-	Description       string             `json:"description,omitempty" optional:"true"`
-	TargetNames       []string           `json:"targetNames"`
-	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
-	CreateTime        time.Time          `json:"createTime"`
-	UpdateTime        time.Time          `json:"updateTime"`
+	Name              string               `json:"name" validate:"checkname"`
+	Alias             string               `json:"alias" validate:"checkalias" optional:"true"`
+	Description       string               `json:"description,omitempty" optional:"true"`
+	TargetNames       []string             `json:"targetNames"`
+	Targets           []DeliveryTargetBase `json:"deliveryTargets,omitempty"`
+	ComponentSelector *ComponentSelector   `json:"componentSelector" optional:"true"`
+	CreateTime        time.Time            `json:"createTime"`
+	UpdateTime        time.Time            `json:"updateTime"`
+	AppDeployName     string               `json:"appDeployName"`
 }
 
 // DetailEnvBindingResponse defines the response of env-binding details
@@ -344,11 +356,10 @@ type ComponentSelector struct {
 // DetailApplicationResponse application  detail
 type DetailApplicationResponse struct {
 	ApplicationBase
-	Policies       []string                `json:"policies"`
-	EnvBindings    []string                `json:"envBindings"`
-	Status         string                  `json:"status"`
-	ResourceInfo   ApplicationResourceInfo `json:"resourceInfo"`
-	WorkflowStatus []WorkflowStepStatus    `json:"workflowStatus"`
+	Policies     []string                `json:"policies"`
+	EnvBindings  []string                `json:"envBindings"`
+	Status       string                  `json:"status"`
+	ResourceInfo ApplicationResourceInfo `json:"resourceInfo"`
 }
 
 // WorkflowStepStatus workflow step status model
@@ -360,7 +371,7 @@ type WorkflowStepStatus struct {
 
 // ApplicationResourceInfo application-level resource consumption statistics
 type ApplicationResourceInfo struct {
-	ComponentNum int `json:"componentNum"`
+	ComponentNum int64 `json:"componentNum"`
 	// Others, such as: Memory、CPU、GPU、Storage
 }
 
@@ -396,6 +407,16 @@ type CreateComponentRequest struct {
 	Properties    string                           `json:"properties,omitempty"`
 	DependsOn     []string                         `json:"dependsOn" optional:"true"`
 	Traits        []*CreateApplicationTraitRequest `json:"traits,omitempty" optional:"true"`
+}
+
+// UpdateApplicationComponentRequest update component request body
+type UpdateApplicationComponentRequest struct {
+	Alias       *string            `json:"alias" validate:"checkalias" optional:"true"`
+	Description *string            `json:"description" optional:"true"`
+	Icon        *string            `json:"icon" optional:"true"`
+	Labels      *map[string]string `json:"labels,omitempty"`
+	Properties  *string            `json:"properties,omitempty"`
+	DependsOn   *[]string          `json:"dependsOn" optional:"true"`
 }
 
 // DetailComponentResponse detail component response body
@@ -567,8 +588,6 @@ type WorkflowStep struct {
 // DetailWorkflowResponse detail workflow response
 type DetailWorkflowResponse struct {
 	WorkflowBase
-	Steps      []WorkflowStep  `json:"steps,omitempty"`
-	LastRecord *WorkflowRecord `json:"workflowRecord"`
 }
 
 // ListWorkflowResponse list application workflows
@@ -578,14 +597,15 @@ type ListWorkflowResponse struct {
 
 // WorkflowBase workflow base model
 type WorkflowBase struct {
-	Name        string    `json:"name"`
-	Alias       string    `json:"alias"`
-	Description string    `json:"description"`
-	Enable      bool      `json:"enable"`
-	Default     bool      `json:"default"`
-	EnvName     string    `json:"envName"`
-	CreateTime  time.Time `json:"createTime"`
-	UpdateTime  time.Time `json:"updateTime"`
+	Name        string         `json:"name"`
+	Alias       string         `json:"alias"`
+	Description string         `json:"description"`
+	Enable      bool           `json:"enable"`
+	Default     bool           `json:"default"`
+	EnvName     string         `json:"envName"`
+	CreateTime  time.Time      `json:"createTime"`
+	UpdateTime  time.Time      `json:"updateTime"`
+	Steps       []WorkflowStep `json:"steps,omitempty"`
 }
 
 // ListWorkflowRecordsResponse list workflow execution record
@@ -722,6 +742,7 @@ type DeliveryTargetBase struct {
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 	CreateTime  time.Time              `json:"createTime"`
 	UpdateTime  time.Time              `json:"updateTime"`
+	AppNum      int64                  `json:"appNum,omitempty"`
 }
 
 // ApplicationRevisionBase application revision base spec

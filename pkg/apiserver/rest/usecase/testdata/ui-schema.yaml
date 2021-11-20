@@ -99,20 +99,6 @@
   label: 持久化存储
   sort: 11
   subParameters:
-  - description: ""
-    jsonKey: mountPath
-    label: MountPath
-    sort: 100
-    uiType: Input
-    validate:
-      required: true
-  - description: ""
-    jsonKey: name
-    label: Name
-    sort: 100
-    uiType: Input
-    validate:
-      required: true
   - description: 'Specify volume type, options: "pvc","configMap","secret","emptyDir"'
     jsonKey: type
     label: Type
@@ -129,6 +115,20 @@
       - label: EmptyDir
         value: emptyDir
       required: true
+  - description: ""
+    jsonKey: mountPath
+    label: MountPath
+    sort: 100
+    uiType: Input
+    validate:
+      required: true
+  - description: ""
+    jsonKey: name
+    label: Name
+    sort: 100
+    uiType: Input
+    validate:
+      required: true
   uiType: Structs
   validate: {}
 - description: Instructions for assessing whether the container is in a suitable state
@@ -137,6 +137,24 @@
   label: ReadinessProbe检测
   sort: 13
   subParameters:
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
+    uiType: KV
+    validate: {}
   - description: Number of seconds after which the probe times out.
     jsonKey: timeoutSeconds
     label: TimeoutSeconds
@@ -182,6 +200,14 @@
     label: HttpGet
     sort: 100
     subParameters:
+    - description: The TCP socket within the container to which the HTTP GET request
+        should be directed.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
     - description: ""
       jsonKey: httpHeaders
       label: HttpHeaders
@@ -209,14 +235,6 @@
       label: Path
       sort: 100
       uiType: Input
-      validate:
-        required: true
-    - description: The TCP socket within the container to which the HTTP GET request
-        should be directed.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
       validate:
         required: true
     uiType: KV
@@ -247,24 +265,6 @@
     validate:
       defaultValue: 1
       required: true
-  - description: Instructions for assessing container health by probing a TCP socket.
-      Either this attribute or the exec attribute or the httpGet attribute MUST be
-      specified. This attribute is mutually exclusive with both the exec attribute
-      and the httpGet attribute.
-    jsonKey: tcpSocket
-    label: TcpSocket
-    sort: 100
-    subParameters:
-    - description: The TCP socket within the container that should be probed to assess
-        container health.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
-      validate:
-        required: true
-    uiType: KV
-    validate: {}
   uiType: Group
   validate: {}
 - description: Instructions for assessing whether the container is alive.
@@ -272,6 +272,52 @@
   label: LivenessProbe检测
   sort: 15
   subParameters:
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
+    uiType: KV
+    validate: {}
+  - description: Number of seconds after which the probe times out.
+    jsonKey: timeoutSeconds
+    label: TimeoutSeconds
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by executing a command.
+      Either this attribute or the httpGet attribute or the tcpSocket attribute MUST
+      be specified. This attribute is mutually exclusive with both the httpGet attribute
+      and the tcpSocket attribute.
+    jsonKey: exec
+    label: Exec
+    sort: 100
+    subParameters:
+    - description: A command to be executed inside the container to assess its health.
+        Each space delimited token of the command is a separate array element. Commands
+        exiting 0 are considered to be successful probes, whilst all other exit codes
+        are considered failures.
+      jsonKey: command
+      label: Command
+      sort: 100
+      uiType: Strings
+      validate:
+        required: true
+    uiType: KV
+    validate: {}
   - description: Number of consecutive failures required to determine the container
       is not alive (liveness probe) or not ready (readiness probe).
     jsonKey: failureThreshold
@@ -354,52 +400,6 @@
     validate:
       defaultValue: 1
       required: true
-  - description: Instructions for assessing container health by probing a TCP socket.
-      Either this attribute or the exec attribute or the httpGet attribute MUST be
-      specified. This attribute is mutually exclusive with both the exec attribute
-      and the httpGet attribute.
-    jsonKey: tcpSocket
-    label: TcpSocket
-    sort: 100
-    subParameters:
-    - description: The TCP socket within the container that should be probed to assess
-        container health.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
-      validate:
-        required: true
-    uiType: KV
-    validate: {}
-  - description: Number of seconds after which the probe times out.
-    jsonKey: timeoutSeconds
-    label: TimeoutSeconds
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
-      required: true
-  - description: Instructions for assessing container health by executing a command.
-      Either this attribute or the httpGet attribute or the tcpSocket attribute MUST
-      be specified. This attribute is mutually exclusive with both the httpGet attribute
-      and the tcpSocket attribute.
-    jsonKey: exec
-    label: Exec
-    sort: 100
-    subParameters:
-    - description: A command to be executed inside the container to assess its health.
-        Each space delimited token of the command is a separate array element. Commands
-        exiting 0 are considered to be successful probes, whilst all other exit codes
-        are considered failures.
-      jsonKey: command
-      label: Command
-      sort: 100
-      uiType: Strings
-      validate:
-        required: true
-    uiType: KV
-    validate: {}
   uiType: Group
   validate: {}
 - description: Specify image pull policy for your service
@@ -416,6 +416,12 @@
       value: Always
     - label: 永不更新
       value: Never
+- description: Specify image pull secrets for your service
+  jsonKey: imagePullSecrets
+  label: ImagePullSecrets
+  sort: 100
+  uiType: Strings
+  validate: {}
 - description: If addRevisionLabel is true, the appRevision label will be added to
     the underlying pods
   jsonKey: addRevisionLabel
@@ -425,9 +431,3 @@
   validate:
     defaultValue: false
     required: true
-- description: Specify image pull secrets for your service
-  jsonKey: imagePullSecrets
-  label: ImagePullSecrets
-  sort: 100
-  uiType: Strings
-  validate: {}

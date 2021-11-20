@@ -17,6 +17,7 @@ limitations under the License.
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -51,6 +52,7 @@ type WorkflowStep struct {
 	OrderIndex  int                `json:"orderIndex"`
 	Inputs      common.StepInputs  `json:"inputs,omitempty"`
 	Outputs     common.StepOutputs `json:"outputs,omitempty"`
+	DependsOn   []string           `json:"dependsOn"`
 	Properties  *JSONStruct        `json:"properties,omitempty"`
 }
 
@@ -61,7 +63,7 @@ func (w *Workflow) TableName() string {
 
 // PrimaryKey return custom primary key
 func (w *Workflow) PrimaryKey() string {
-	return w.Name
+	return fmt.Sprintf("%s-%s", w.AppPrimaryKey, w.Name)
 }
 
 // Index return custom primary key
@@ -83,7 +85,7 @@ func (w *Workflow) Index() map[string]string {
 // WorkflowRecord is the workflow record database model
 type WorkflowRecord struct {
 	Model
-	WorkflowPrimaryKey string                      `json:"workflowPrimaryKey"`
+	WorkflowName       string                      `json:"workflowName"`
 	AppPrimaryKey      string                      `json:"appPrimaryKey"`
 	RevisionPrimaryKey string                      `json:"revisionPrimaryKey"`
 	Name               string                      `json:"name"`
@@ -113,8 +115,8 @@ func (w *WorkflowRecord) Index() map[string]string {
 	if w.Namespace != "" {
 		index["namespace"] = w.Namespace
 	}
-	if w.WorkflowPrimaryKey != "" {
-		index["workflowPrimaryKey"] = w.WorkflowPrimaryKey
+	if w.WorkflowName != "" {
+		index["workflowPrimaryKey"] = w.WorkflowName
 	}
 	if w.AppPrimaryKey != "" {
 		index["appPrimaryKey"] = w.AppPrimaryKey

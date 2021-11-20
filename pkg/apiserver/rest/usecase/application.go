@@ -18,7 +18,6 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -28,6 +27,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -68,10 +69,12 @@ type ApplicationUsecase interface {
 	UpdateApplication(context.Context, *model.Application, apisv1.UpdateApplicationRequest) (*apisv1.ApplicationBase, error)
 	DeleteApplication(ctx context.Context, app *model.Application) error
 	Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error)
+	GetApplicationComponent(ctx context.Context, app *model.Application, componentName string) (*model.ApplicationComponent, error)
 	ListComponents(ctx context.Context, app *model.Application, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentBase, error)
 	AddComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error)
 	DetailComponent(ctx context.Context, app *model.Application, componentName string) (*apisv1.DetailComponentResponse, error)
 	DeleteComponent(ctx context.Context, app *model.Application, componentName string) error
+	UpdateComponent(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.UpdateApplicationComponentRequest) (*apisv1.ComponentBase, error)
 	ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error)
 	AddPolicy(ctx context.Context, app *model.Application, policy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error)
 	DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error)
@@ -81,7 +84,8 @@ type ApplicationUsecase interface {
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
-	DetailRevision(ctx context.Context, appName, revisionVersion string) (*apisv1.DetailRevisionResponse, error)
+	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
+	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -163,7 +167,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 	if err != nil {
 		return nil, err
 	}
-	components, err := c.ListComponents(ctx, app, apisv1.ListApplicationComponentOptions{})
+	componentNum, err := c.ds.Count(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey()}, &datastore.FilterOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -184,9 +188,8 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 		Policies:        policyNames,
 		EnvBindings:     envBindingNames,
 		ResourceInfo: apisv1.ApplicationResourceInfo{
-			ComponentNum: len(components),
+			ComponentNum: componentNum,
 		},
-		WorkflowStatus: []apisv1.WorkflowStepStatus{},
 	}
 	return detail, nil
 }
@@ -194,7 +197,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 // GetApplicationStatus get application status from controller cluster
 func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmodel *model.Application, envName string) (*common.AppStatus, error) {
 	var app v1beta1.Application
-	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: converAppName(appmodel, envName)}, &app)
+	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: converAppName(appmodel.Name, envName)}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -202,6 +205,27 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 		return nil, err
 	}
 	return &app.Status, nil
+}
+
+// GetApplicationCR get application cr in cluster
+func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appmodel *model.Application) (*v1beta1.ApplicationList, error) {
+	var apps v1beta1.ApplicationList
+	selector := labels.NewSelector()
+	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appmodel.Name})
+	if err != nil {
+		return nil, err
+	}
+	selector = selector.Add(*re)
+	err = c.kubeClient.List(ctx, &apps, &client.ListOptions{
+		LabelSelector: selector,
+	})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return &apps, nil
+		}
+		return nil, err
+	}
+	return &apps, nil
 }
 
 // PublishApplicationTemplate publish app template
@@ -247,13 +271,6 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 				return nil, err
 			}
 		}
-		if oamApp.Spec.Workflow != nil && len(oamApp.Spec.Workflow.Steps) > 0 {
-			if err := c.saveApplicationWorkflow(ctx, &application, oamApp.Spec.Workflow.Steps, application.Name); err != nil {
-				log.Logger.Errorf("save applictaion polocies failure,%s", err.Error())
-				return nil, err
-			}
-		}
-		// TODO Waiting for Spec.EnvBinding support
 	}
 
 	// build-in create env binding
@@ -301,44 +318,10 @@ func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.
 	}
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
 	if err != nil {
-		return appPolicy, err
+		return appPolicy, bcode.ErrInvalidProperties
 	}
 	appPolicy.Properties = properties.RawExtension()
 	return appPolicy, nil
-}
-
-func (c *applicationUsecaseImpl) saveApplicationWorkflow(ctx context.Context, application *model.Application, workflowSteps []v1beta1.WorkflowStep, workflowName string) error {
-	var steps []apisv1.WorkflowStep
-	for _, step := range workflowSteps {
-		var propertyStr string
-		if step.Properties != nil {
-			properties, err := model.NewJSONStruct(step.Properties)
-			if err != nil {
-				log.Logger.Errorf("workflow %s step %s properties is invalid %s", application.Name, step.Name, err.Error())
-				continue
-			}
-			propertyStr = properties.JSON()
-		}
-		steps = append(steps, apisv1.WorkflowStep{
-			Name:       step.Name,
-			Type:       step.Type,
-			DependsOn:  step.DependsOn,
-			Properties: propertyStr,
-			Inputs:     step.Inputs,
-			Outputs:    step.Outputs,
-		})
-	}
-	_, err := c.workflowUsecase.CreateWorkflow(ctx, application, apisv1.CreateWorkflowRequest{
-		AppName:     application.PrimaryKey(),
-		Name:        workflowName,
-		Description: "Created automatically.",
-		Steps:       steps,
-		Default:     true,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *applicationUsecaseImpl) saveApplicationEnvBinding(ctx context.Context, app model.Application, envBindings []*apisv1.EnvBinding) error {
@@ -495,7 +478,6 @@ func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.Applicati
 
 func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app *model.Application, policys []v1beta1.AppPolicy) error {
 	var policyModels []datastore.Entity
-	var envbindingPolicy *model.ApplicationPolicy
 	for _, policy := range policys {
 		properties, err := model.NewJSONStruct(policy.Properties)
 		if err != nil {
@@ -510,26 +492,6 @@ func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app 
 		}
 		if policy.Type != string(EnvBindingPolicy) {
 			policyModels = append(policyModels, appPolicy)
-		} else {
-			envbindingPolicy = appPolicy
-		}
-	}
-	// If multiple configurations are configured, enable only the last one.
-	if envbindingPolicy != nil {
-		envbindingPolicy.Name = EnvBindingPolicyDefaultName
-		policyModels = append(policyModels, envbindingPolicy)
-		var envBindingSpec v1alpha1.EnvBindingSpec
-		if err := json.Unmarshal([]byte(envbindingPolicy.Properties.JSON()), &envBindingSpec); err != nil {
-			return fmt.Errorf("unmarshal env binding policy failure %w", err)
-		}
-		for _, env := range envBindingSpec.Envs {
-			envBind := &model.EnvBinding{
-				Name:        env.Name,
-				Description: "",
-			}
-			if env.Selector != nil {
-				envBind.ComponentSelector = (*model.ComponentSelector)(env.Selector)
-			}
 		}
 	}
 	return c.ds.BatchAdd(ctx, policyModels)
@@ -578,24 +540,28 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		return nil, err
 	}
 	configByte, _ := yaml.Marshal(oamApp)
+
+	workflow, err := c.workflowUsecase.GetWorkflow(ctx, app, oamApp.Annotations[oam.AnnotationWorkflowName])
+	if err != nil {
+		return nil, err
+	}
+
 	// step2: check and create deploy event
 	if !req.Force {
 		var lastVersion = model.ApplicationRevision{
 			AppPrimaryKey: app.PrimaryKey(),
+			EnvName:       workflow.EnvName,
 		}
-		list, err := c.ds.List(ctx, &lastVersion, &datastore.ListOptions{PageSize: 1, Page: 1})
+		list, err := c.ds.List(ctx, &lastVersion, &datastore.ListOptions{
+			PageSize: 1, Page: 1, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("query app latest revision failure %s", err.Error())
 			return nil, bcode.ErrDeployConflict
 		}
 		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.RevisionStatusComplete {
+			log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
 			return nil, bcode.ErrDeployConflict
 		}
-	}
-
-	workflow, err := c.workflowUsecase.GetWorkflow(ctx, oamApp.Annotations[oam.AnnotationWorkflowName])
-	if err != nil {
-		return nil, err
 	}
 
 	var appRevision = &model.ApplicationRevision{
@@ -615,7 +581,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		return nil, err
 	}
 	// step3: create workflow record
-	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, oamApp); err != nil {
+	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, app, oamApp, workflow); err != nil {
 		return nil, err
 	}
 	// step4: check and create namespace
@@ -657,19 +623,46 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 }
 
 func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
+	// Priority 1 uses the requested workflow as release .
+	// Priority 2 uses the default workflow as release .
+	var workflow *model.Workflow
+	var err error
+	if reqWorkflowName != "" {
+		workflow, err = c.workflowUsecase.GetWorkflow(ctx, appModel, reqWorkflowName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
+		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
+			return nil, err
+		}
+	}
+	if workflow == nil || workflow.EnvName == "" {
+		return nil, bcode.ErrWorkflowNotExist
+	}
+
+	labels := make(map[string]string)
+	for key, value := range appModel.Labels {
+		labels[key] = value
+	}
+	labels[oam.AnnotationAppName] = appModel.Name
+
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appModel.Name,
+			Name:      converAppName(appModel.Name, workflow.EnvName),
 			Namespace: appModel.Namespace,
-			Labels:    appModel.Labels,
+			Labels:    labels,
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion: version,
 				// publish version is the identifier of workflow record
 				oam.AnnotationPublishVersion: utils.GenerateVersion(reqWorkflowName),
+				oam.AnnotationAppName:        appModel.Name,
+				oam.AnnotationAppAlias:       appModel.Alias,
 			},
 		},
 	}
@@ -705,7 +698,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			traits = append(traits, aTrait)
 		}
 		bc := common.ApplicationComponent{
-			Name:             component.Name,
+			Name:             converComponentName(component.Name, workflow.EnvName),
 			Type:             component.Type,
 			ExternalRevision: component.ExternalRevision,
 			DependsOn:        component.DependsOn,
@@ -732,48 +725,29 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		}
 		app.Spec.Policies = append(app.Spec.Policies, apolicy)
 	}
-
-	// Priority 1 uses the requested workflow as release .
-	// Priority 2 uses the default workflow as release .
-	var workflow *model.Workflow
-	if reqWorkflowName != "" {
-		workflow, err = c.workflowUsecase.GetWorkflow(ctx, reqWorkflowName)
+	if workflow.EnvName != "" {
+		envPolicy, err := c.genPolicyByEnv(ctx, appModel, workflow.EnvName)
 		if err != nil {
 			return nil, err
 		}
-		if workflow.EnvName != "" {
-			envPolicy, err := c.genPolicyByEnv(ctx, appModel, workflow.EnvName)
-			if err != nil {
-				return nil, err
-			}
-			app.Spec.Policies = append(app.Spec.Policies, envPolicy)
-		}
-
-	} else {
-		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
-		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
-			return nil, err
-		}
+		app.Spec.Policies = append(app.Spec.Policies, envPolicy)
 	}
-
-	if workflow != nil {
-		app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
-		var steps []v1beta1.WorkflowStep
-		for _, step := range workflow.Steps {
-			var wstep = v1beta1.WorkflowStep{
-				Name:    step.Name,
-				Type:    step.Type,
-				Inputs:  step.Inputs,
-				Outputs: step.Outputs,
-			}
-			if step.Properties != nil {
-				wstep.Properties = step.Properties.RawExtension()
-			}
-			steps = append(steps, wstep)
+	app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
+	var steps []v1beta1.WorkflowStep
+	for _, step := range workflow.Steps {
+		var wstep = v1beta1.WorkflowStep{
+			Name:    step.Name,
+			Type:    step.Type,
+			Inputs:  step.Inputs,
+			Outputs: step.Outputs,
 		}
-		app.Spec.Workflow = &v1beta1.Workflow{
-			Steps: steps,
+		if step.Properties != nil {
+			wstep.Properties = step.Properties.RawExtension()
 		}
+		steps = append(steps, wstep)
+	}
+	app.Spec.Workflow = &v1beta1.Workflow{
+		Steps: steps,
 	}
 
 	return app, nil
@@ -796,7 +770,13 @@ func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *a
 // DeleteApplication delete application
 func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *model.Application) error {
 	// TODO: check app can be deleted
-
+	crs, err := c.GetApplicationCR(ctx, app)
+	if err != nil {
+		return err
+	}
+	if len(crs.Items) > 0 {
+		return bcode.ErrApplicationRefusedDelete
+	}
 	// query all components to deleted
 	components, err := c.ListComponents(ctx, app, apisv1.ListApplicationComponentOptions{})
 	if err != nil {
@@ -809,7 +789,7 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 	}
 
 	// delete workflow
-	if err := c.workflowUsecase.DeleteWorkflow(ctx, app.Name); err != nil && !errors.Is(err, bcode.ErrWorkflowNotExist) {
+	if err := c.workflowUsecase.DeleteWorkflowByApp(ctx, app); err != nil && !errors.Is(err, bcode.ErrWorkflowNotExist) {
 		log.Logger.Errorf("delete workflow %s failure %s", app.Name, err.Error())
 	}
 
@@ -832,6 +812,50 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 	}
 
 	return c.ds.Delete(ctx, app)
+}
+
+func (c *applicationUsecaseImpl) GetApplicationComponent(ctx context.Context, app *model.Application, componentName string) (*model.ApplicationComponent, error) {
+	var component = model.ApplicationComponent{
+		AppPrimaryKey: app.PrimaryKey(),
+		Name:          componentName,
+	}
+	err := c.ds.Get(ctx, &component)
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrApplicationComponetNotExist
+		}
+		return nil, err
+	}
+	return &component, nil
+}
+
+func (c *applicationUsecaseImpl) UpdateComponent(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.UpdateApplicationComponentRequest) (*apisv1.ComponentBase, error) {
+	if req.Alias != nil {
+		component.Alias = *req.Alias
+	}
+	if req.Description != nil {
+		component.Description = *req.Description
+	}
+	if req.DependsOn != nil {
+		component.DependsOn = *req.DependsOn
+	}
+	if req.Icon != nil {
+		component.Icon = *req.Icon
+	}
+	if req.Labels != nil {
+		component.Labels = *req.Labels
+	}
+	if req.Properties != nil {
+		properties, err := model.NewJSONStructByString(*req.Properties)
+		if err != nil {
+			return nil, bcode.ErrInvalidProperties
+		}
+		component.Properties = properties
+	}
+	if err := c.ds.Put(ctx, component); err != nil {
+		return nil, err
+	}
+	return converComponentModelToBase(component), nil
 }
 
 func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error) {
@@ -859,6 +883,13 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("add component for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
+	return converComponentModelToBase(&componentModel), nil
+}
+
+func converComponentModelToBase(componentModel *model.ApplicationComponent) *apisv1.ComponentBase {
+	if componentModel == nil {
+		return nil
+	}
 	return &apisv1.ComponentBase{
 		Name:          componentModel.Name,
 		Description:   componentModel.Description,
@@ -869,7 +900,7 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		Creator:       componentModel.Creator,
 		CreateTime:    componentModel.CreateTime,
 		UpdateTime:    componentModel.UpdateTime,
-	}, nil
+	}
 }
 
 func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model.Application, componentName string) error {
@@ -1096,6 +1127,29 @@ func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, re
 	}, nil
 }
 
+func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error) {
+	var targetMap = make(map[string]int)
+	envbinding, err := c.envBindingUsecase.GetEnvBindings(ctx, app)
+	if err != nil {
+		log.Logger.Errorf("query app envbinding failure %s", err.Error())
+	}
+	for _, env := range envbinding {
+		for _, target := range env.TargetNames {
+			targetMap[target]++
+		}
+	}
+	count, err := c.ds.Count(ctx, &model.ApplicationRevision{AppPrimaryKey: app.PrimaryKey()}, &datastore.FilterOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.ApplicationStatisticsResponse{
+		EnvCount:            int64(len(envbinding)),
+		DeliveryTargetCount: int64(len(targetMap)),
+		RevisonCount:        count,
+		WorkflowCount:       c.workflowUsecase.CountWorkflow(ctx, app),
+	}, nil
+}
+
 func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.DeliveryTarget) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
 	var componentSelector *v1alpha1.EnvSelector
@@ -1115,16 +1169,16 @@ func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.Deliver
 	}
 }
 
-func converAppName(app *model.Application, envName string) string {
-	return fmt.Sprintf("%s-%s", app.Name, envName)
+func converAppName(appModelName, envName string) string {
+	return fmt.Sprintf("%s-%s", appModelName, envName)
+}
+
+func converComponentName(componentModelName, envName string) string {
+	return fmt.Sprintf("%s-%s", componentModelName, envName)
 }
 
 func genPolicyName(envName string) string {
 	return fmt.Sprintf("%s-%s", EnvBindingPolicyDefaultName, envName)
-}
-
-func genWorkflowName(app *model.Application, envName string) string {
-	return fmt.Sprintf("%s-%s", app.Name, envName)
 }
 
 func genPolicyEnvName(targetName string) string {

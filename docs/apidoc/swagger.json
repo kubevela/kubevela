@@ -228,6 +228,12 @@
 						"name": "name",
 						"in": "path",
 						"required": true
+					},
+					{
+						"type": "string",
+						"description": "filter addons from given registry",
+						"name": "registry",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -834,7 +840,7 @@
 				"tags": [
 					"application"
 				],
-				"summary": "detail component  for application ",
+				"summary": "detail component for application ",
 				"operationId": "detailComponent",
 				"parameters": [
 					{
@@ -849,6 +855,50 @@
 					"200": {
 						"schema": {
 							"$ref": "#/definitions/v1.DetailComponentResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update component config",
+				"operationId": "updateComponent",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateApplicationComponentRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ComponentBase"
 						}
 					},
 					"400": {
@@ -1448,6 +1498,44 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/statistics": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail one application ",
+				"operationId": "applicationStatistics",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationStatisticsResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}/template": {
 			"post": {
 				"consumes": [
@@ -1486,6 +1574,485 @@
 							"$ref": "#/definitions/v1.ApplicationTemplateBase"
 						}
 					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list application workflow",
+				"operationId": "listApplicationWorkflows",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "create application workflow",
+				"operationId": "createApplicationWorkflow",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateWorkflowRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"400": {
+						"description": "create failure",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail application workflow",
+				"operationId": "detailWorkflow",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workfloc.",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update application workflow config",
+				"operationId": "updateWorkflow",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateWorkflowRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "deletet workflow",
+				"operationId": "deleteWorkflow",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "query application workflow execution record",
+				"operationId": "listWorkflowRecords",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "query the page number",
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "query the page size number",
+						"name": "pageSize",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "query application workflow execution record detail",
+				"operationId": "detailWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/resume": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "resume suspend workflow record",
+				"operationId": "resumeWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the  workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/rollback": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "rollback suspend application record",
+				"operationId": "rollbackWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the rollback revision",
+						"name": "rollbackVersion",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/terminate": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "terminate suspend workflow record",
+				"operationId": "terminateWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
 					"400": {
 						"schema": {
 							"$ref": "#/definitions/bcode.Bcode"
@@ -2441,428 +3008,6 @@
 				}
 			}
 		},
-		"/api/v1/workflows": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "list application workflow",
-				"operationId": "listApplicationWorkflows",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the application.",
-						"name": "appName",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "boolean",
-						"description": "query based on enable status",
-						"name": "enable",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/map[string]string"
-						}
-					},
-					"500": {
-						"description": "Bummer, something went wrong"
-					}
-				}
-			},
-			"post": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "create application workflow",
-				"operationId": "createApplicationWorkflow",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.CreateWorkflowRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/map[string]string"
-						}
-					},
-					"400": {
-						"description": "create failure",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					},
-					"500": {
-						"description": "Bummer, something went wrong"
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "detail application workflow",
-				"operationId": "detailWorkflow",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow.",
-						"name": "name",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/map[string]string"
-						}
-					},
-					"500": {
-						"description": "Bummer, something went wrong"
-					}
-				}
-			},
-			"put": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "update application workflow config",
-				"operationId": "updateWorkflow",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.UpdateWorkflowRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/map[string]string"
-						}
-					},
-					"500": {
-						"description": "Bummer, something went wrong"
-					}
-				}
-			},
-			"delete": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "deletet workflow",
-				"operationId": "deleteWorkflow",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/map[string]string"
-						}
-					},
-					"500": {
-						"description": "Bummer, something went wrong"
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}/records": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "query application workflow execution record",
-				"operationId": "listWorkflowRecords",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "integer",
-						"description": "query the page number",
-						"name": "page",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "query the page size number",
-						"name": "pageSize",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/map[string]string"
-						}
-					},
-					"500": {
-						"description": "Bummer, something went wrong"
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}/records/{record}": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "query application workflow execution record detail",
-				"operationId": "detailWorkflowRecord",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the workflow record",
-						"name": "record",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/map[string]string"
-						}
-					},
-					"500": {
-						"description": "Bummer, something went wrong"
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}/records/{record}/resume": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "resume suspend workflow record",
-				"operationId": "resumeWorkflowRecord",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the  workflow record",
-						"name": "record",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}/records/{record}/rollback": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "rollback suspend application record",
-				"operationId": "rollbackWorkflowRecord",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the workflow record",
-						"name": "record",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the rollback revision",
-						"name": "rollbackVersion",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/workflows/{name}/records/{record}/terminate": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"workflow"
-				],
-				"summary": "terminate suspend workflow record",
-				"operationId": "terminateWorkflowRecord",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the workflow",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "identifier of the workflow record",
-						"name": "record",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
 		"/v1/namespaces/{namespace}/applications/{appname}": {
 			"get": {
 				"consumes": [
@@ -3072,11 +3217,11 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"rollingState",
-				"currentBatch",
-				"batchRollingState",
-				"upgradedReplicas",
 				"upgradedReadyReplicas",
+				"rollingState",
+				"batchRollingState",
+				"currentBatch",
+				"upgradedReplicas",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -3566,8 +3711,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -3650,8 +3795,8 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"version",
 				"status",
@@ -3885,7 +4030,7 @@
 						"$ref": "#/definitions/types.AddonDependency"
 					}
 				},
-				"deploy_to": {
+				"deployTo": {
 					"$ref": "#/definitions/types.AddonDeployTo"
 				},
 				"description": {
@@ -4074,6 +4219,19 @@
 				}
 			}
 		},
+		"v1.AddonDefinition": {
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.AddonRegistryMeta": {
 			"required": [
 				"name"
@@ -4173,15 +4331,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"name",
-				"version",
 				"envName",
+				"triggerType",
 				"createTime",
+				"version",
 				"status",
 				"reason",
 				"deployUser",
-				"note",
-				"triggerType"
+				"note"
 			],
 			"properties": {
 				"createTime": {
@@ -4192,9 +4349,6 @@
 					"type": "string"
 				},
 				"envName": {
-					"type": "string"
-				},
-				"name": {
 					"type": "string"
 				},
 				"note": {
@@ -4243,7 +4397,7 @@
 			"properties": {
 				"componentNum": {
 					"type": "integer",
-					"format": "int32"
+					"format": "int64"
 				}
 			}
 		},
@@ -4272,7 +4426,6 @@
 		"v1.ApplicationRevisionBase": {
 			"required": [
 				"createTime",
-				"name",
 				"version",
 				"status",
 				"reason",
@@ -4292,9 +4445,6 @@
 				"envName": {
 					"type": "string"
 				},
-				"name": {
-					"type": "string"
-				},
 				"note": {
 					"type": "string"
 				},
@@ -4309,6 +4459,32 @@
 				},
 				"version": {
 					"type": "string"
+				}
+			}
+		},
+		"v1.ApplicationStatisticsResponse": {
+			"required": [
+				"envCount",
+				"deliveryTargetCount",
+				"revisonCount",
+				"workflowCount"
+			],
+			"properties": {
+				"deliveryTargetCount": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"envCount": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"revisonCount": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"workflowCount": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -4673,8 +4849,8 @@
 		},
 		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"name",
-				"targetNames"
+				"targetNames",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -5057,6 +5233,10 @@
 				"alias": {
 					"type": "string"
 				},
+				"appNum": {
+					"type": "integer",
+					"format": "int64"
+				},
 				"cluster": {
 					"$ref": "#/definitions/v1.ClusterTarget"
 				},
@@ -5084,21 +5264,28 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"description",
-				"icon",
 				"name",
 				"version",
+				"description",
+				"icon",
 				"schema",
-				"uiSchema"
+				"uiSchema",
+				"definitions"
 			],
 			"properties": {
+				"definitions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.AddonDefinition"
+					}
+				},
 				"dependencies": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/types.AddonDependency"
 					}
 				},
-				"deploy_to": {
+				"deployTo": {
 					"$ref": "#/definitions/types.AddonDeployTo"
 				},
 				"description": {
@@ -5138,18 +5325,17 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"alias",
-				"namespace",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
 				"name",
+				"alias",
+				"namespace",
 				"policies",
 				"envBindings",
 				"status",
-				"resourceInfo",
-				"workflowStatus"
+				"resourceInfo"
 			],
 			"properties": {
 				"alias": {
@@ -5198,30 +5384,24 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
-				},
-				"workflowStatus": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.WorkflowStepStatus"
-					}
 				}
 			}
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"provider",
 				"apiServerURL",
-				"model",
 				"name",
-				"description",
+				"labels",
+				"reason",
 				"icon",
+				"status",
+				"provider",
 				"dashboardURL",
 				"kubeConfig",
-				"kubeConfigSecret",
+				"model",
 				"alias",
-				"labels",
-				"status",
-				"reason",
+				"description",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5274,13 +5454,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"updateTime",
-				"type",
-				"creator",
-				"alias",
 				"createTime",
+				"type",
+				"updateTime",
+				"name",
 				"appPrimaryKey",
-				"name"
+				"creator",
+				"alias"
 			],
 			"properties": {
 				"alias": {
@@ -5375,14 +5555,18 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"name",
-				"namespace"
+				"updateTime",
+				"namespace",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
+				},
+				"appNum": {
+					"type": "integer",
+					"format": "int64"
 				},
 				"cluster": {
 					"$ref": "#/definitions/v1.ClusterTarget"
@@ -5411,13 +5595,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"name",
-				"type",
-				"description",
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name",
+				"type",
+				"description"
 			],
 			"properties": {
 				"createTime": {
@@ -5447,17 +5631,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"note",
+				"updateTime",
+				"appPrimaryKey",
+				"version",
 				"reason",
-				"deployUser",
 				"triggerType",
 				"workflowName",
 				"envName",
 				"createTime",
-				"version",
-				"note",
-				"updateTime",
-				"appPrimaryKey",
-				"status"
+				"status",
+				"deployUser"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5548,14 +5732,13 @@
 		"v1.DetailWorkflowResponse": {
 			"required": [
 				"name",
+				"enable",
+				"envName",
 				"alias",
 				"description",
-				"enable",
 				"default",
-				"envName",
 				"createTime",
-				"updateTime",
-				"workflowRecord"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -5589,9 +5772,6 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
-				},
-				"workflowRecord": {
-					"$ref": "#/definitions/v1.WorkflowRecord"
 				}
 			}
 		},
@@ -5653,10 +5833,14 @@
 				"name",
 				"targetNames",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"appDeployName"
 			],
 			"properties": {
 				"alias": {
+					"type": "string"
+				},
+				"appDeployName": {
 					"type": "string"
 				},
 				"componentSelector": {
@@ -5665,6 +5849,12 @@
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
+				},
+				"deliveryTargets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.DeliveryTargetBase"
+					}
 				},
 				"description": {
 					"type": "string"
@@ -6071,6 +6261,37 @@
 				}
 			}
 		},
+		"v1.UpdateApplicationComponentRequest": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"$ref": "#/definitions/v1.UpdateApplicationComponentRequest.labels"
+				},
+				"properties": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.UpdateApplicationComponentRequest.labels": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "string"
+			}
+		},
 		"v1.UpdateApplicationRequest": {
 			"properties": {
 				"alias": {
@@ -6207,6 +6428,12 @@
 				"name": {
 					"type": "string"
 				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowStep"
+					}
+				},
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
@@ -6279,25 +6506,6 @@
 				},
 				"type": {
 					"type": "string"
-				}
-			}
-		},
-		"v1.WorkflowStepStatus": {
-			"required": [
-				"name",
-				"status",
-				"takeTime"
-			],
-			"properties": {
-				"name": {
-					"type": "string"
-				},
-				"status": {
-					"type": "string"
-				},
-				"takeTime": {
-					"type": "integer",
-					"format": "integer"
 				}
 			}
 		},

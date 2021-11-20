@@ -66,3 +66,12 @@ var ErrTraitNotExist = NewBcode(400, 10015, "trait is not exist")
 
 // ErrTraitAlreadyExist  trait is already exist
 var ErrTraitAlreadyExist = NewBcode(400, 10016, "trait is already exist")
+
+// ErrApplicationNoReadyRevision application not have ready revision
+var ErrApplicationNoReadyRevision = NewBcode(400, 10017, "application not have ready revision")
+
+// ErrApplicationRevisionNotExist application revision is not exist
+var ErrApplicationRevisionNotExist = NewBcode(404, 10018, "application revision is not exist")
+
+// ErrApplicationRefusedDelete The application cannot be deleted because it has been deployed
+var ErrApplicationRefusedDelete = NewBcode(400, 10019, "The application cannot be deleted because it has been deployed")
