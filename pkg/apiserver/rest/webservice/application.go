@@ -470,7 +470,6 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
-		Filter(c.workflowCheckFilter).
 		Returns(200, "", nil).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
