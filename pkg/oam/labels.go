@@ -141,6 +141,9 @@ const (
 	// AnnotationAppName specifies the name for application in db.
 	AnnotationAppName = "app.oam.dev/appName"
 
+	// AnnotationAppAlias specifies the alias for application in db.
+	AnnotationAppAlias = "app.oam.dev/appAlias"
+
 	// AnnotationWorkloadGVK indicates the managed workload's GVK by trait
 	AnnotationWorkloadGVK = "trait.oam.dev/workload-gvk"
 

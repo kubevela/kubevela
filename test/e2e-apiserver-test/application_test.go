@@ -33,7 +33,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-var appName = "test-app-namespace"
+var appName = "app-e2e"
 var appProject = "test-app-project"
 
 var _ = Describe("Test application rest api", func() {

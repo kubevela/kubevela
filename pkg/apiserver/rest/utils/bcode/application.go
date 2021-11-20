@@ -72,3 +72,6 @@ var ErrApplicationNoReadyRevision = NewBcode(400, 10017, "application not have r
 
 // ErrApplicationRevisionNotExist application revision is not exist
 var ErrApplicationRevisionNotExist = NewBcode(404, 10018, "application revision is not exist")
+
+// ErrApplicationRefusedDelete The application cannot be deleted because it has been deployed
+var ErrApplicationRefusedDelete = NewBcode(400, 10019, "The application cannot be deleted because it has been deployed")

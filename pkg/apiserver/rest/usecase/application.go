@@ -27,6 +27,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -203,6 +205,27 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 		return nil, err
 	}
 	return &app.Status, nil
+}
+
+// GetApplicationCR get application cr in cluster
+func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appmodel *model.Application) (*v1beta1.ApplicationList, error) {
+	var apps v1beta1.ApplicationList
+	selector := labels.NewSelector()
+	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appmodel.Name})
+	if err != nil {
+		return nil, err
+	}
+	selector.Add(*re)
+	err = c.kubeClient.List(ctx, &apps, &client.ListOptions{
+		LabelSelector: selector,
+	})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return &apps, nil
+		}
+		return nil, err
+	}
+	return &apps, nil
 }
 
 // PublishApplicationTemplate publish app template
@@ -517,12 +540,20 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		return nil, err
 	}
 	configByte, _ := yaml.Marshal(oamApp)
+
+	workflow, err := c.workflowUsecase.GetWorkflow(ctx, app, oamApp.Annotations[oam.AnnotationWorkflowName])
+	if err != nil {
+		return nil, err
+	}
+
 	// step2: check and create deploy event
 	if !req.Force {
 		var lastVersion = model.ApplicationRevision{
 			AppPrimaryKey: app.PrimaryKey(),
+			EnvName:       workflow.EnvName,
 		}
-		list, err := c.ds.List(ctx, &lastVersion, &datastore.ListOptions{PageSize: 1, Page: 1})
+		list, err := c.ds.List(ctx, &lastVersion, &datastore.ListOptions{
+			PageSize: 1, Page: 1, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 		if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("query app latest revision failure %s", err.Error())
 			return nil, bcode.ErrDeployConflict
@@ -530,11 +561,6 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.RevisionStatusComplete {
 			return nil, bcode.ErrDeployConflict
 		}
-	}
-
-	workflow, err := c.workflowUsecase.GetWorkflow(ctx, app, oamApp.Annotations[oam.AnnotationWorkflowName])
-	if err != nil {
-		return nil, err
 	}
 
 	var appRevision = &model.ApplicationRevision{
@@ -615,6 +641,13 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	if workflow == nil {
 		return nil, bcode.ErrWorkflowNoDefault
 	}
+
+	labels := make(map[string]string)
+	for key, value := range appModel.Labels {
+		labels[key] = value
+	}
+	labels[oam.AnnotationAppName] = appModel.Name
+
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -623,12 +656,13 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      converAppName(appModel.Name, workflow.EnvName),
 			Namespace: appModel.Namespace,
-			Labels:    appModel.Labels,
+			Labels:    labels,
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion: version,
 				// publish version is the identifier of workflow record
 				oam.AnnotationPublishVersion: utils.GenerateVersion(reqWorkflowName),
 				oam.AnnotationAppName:        appModel.Name,
+				oam.AnnotationAppAlias:       appModel.Alias,
 			},
 		},
 	}
@@ -664,7 +698,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			traits = append(traits, aTrait)
 		}
 		bc := common.ApplicationComponent{
-			Name:             component.Name,
+			Name:             converComponentName(component.Name, workflow.EnvName),
 			Type:             component.Type,
 			ExternalRevision: component.ExternalRevision,
 			DependsOn:        component.DependsOn,
@@ -736,7 +770,13 @@ func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *a
 // DeleteApplication delete application
 func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *model.Application) error {
 	// TODO: check app can be deleted
-
+	crs, err := c.GetApplicationCR(ctx, app)
+	if err != nil {
+		return err
+	}
+	if len(crs.Items) > 0 {
+		return bcode.ErrApplicationRefusedDelete
+	}
 	// query all components to deleted
 	components, err := c.ListComponents(ctx, app, apisv1.ListApplicationComponentOptions{})
 	if err != nil {
@@ -1131,6 +1171,10 @@ func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.Deliver
 
 func converAppName(appModelName, envName string) string {
 	return fmt.Sprintf("%s-%s", appModelName, envName)
+}
+
+func converComponentName(componentModelName, envName string) string {
+	return fmt.Sprintf("%s-%s", componentModelName, envName)
 }
 
 func genPolicyName(envName string) string {

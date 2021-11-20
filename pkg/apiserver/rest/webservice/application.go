@@ -812,7 +812,7 @@ func (c *applicationWebService) getApplicationStatus(req *restful.Request, res *
 		return
 	}
 
-	if err := res.WriteEntity(apis.ApplicationStatusResponse{Status: status}); err != nil {
+	if err := res.WriteEntity(apis.ApplicationStatusResponse{Status: status, EnvName: req.PathParameter("envName")}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
