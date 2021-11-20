@@ -2,7 +2,7 @@ expose: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Expose port to enable web traffic for your component. This definition is DEPRECATED, please specify expose in component instead."
+	description: "Expose port to enable web traffic for your component."
 	attributes: {
 		podDisruptive: false
 	}

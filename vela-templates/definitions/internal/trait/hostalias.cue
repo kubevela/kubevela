@@ -2,7 +2,7 @@ hostalias: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Add host aliases on K8s pod for your workload which follows the pod spec in path 'spec.template'. This definition is DEPRECATED, please specify host alias in component instead."
+	description: "Add host aliases on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: false
 		appliesToWorkloads: ["*"]

@@ -2,10 +2,27 @@ worker: {
 	type: "component"
 	annotations: {}
 	labels: {}
-	description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic. This definition is DEPRECATED, please use 'webservice' instead."
-	attributes: workload: definition: {
-		apiVersion: "apps/v1"
-		kind:       "Deployment"
+	description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
+	attributes: {
+		workload: definition: {
+			apiVersion: "apps/v1"
+			kind:       "Deployment"
+		}
+		status: {
+			customStatus: #"""
+					import "strconv"
+
+					if context.output.status.readyReplicas != _|_ {
+						message: "ReadyReplicas: " + strconv.FormatInt(context.output.status.readyReplicas, 10)
+					}
+					if context.output.status.readyReplicas == _|_ {
+						message: ""
+					}
+				"""#
+			healthPolicy: #"""
+					isHealth: context.output.status.replicas == context.output.status.readyReplicas
+				"""#
+		}
 	}
 }
 template: {

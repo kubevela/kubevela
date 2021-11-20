@@ -2,7 +2,7 @@ env: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Add env on K8s pod for your workload which follows the pod spec in path 'spec.template'. This definition is DEPRECATED, please specify annotations in component instead."
+	description: "Add env on K8s pod for your workload which follows the pod spec in path 'spec.template'"
 	attributes: appliesToWorkloads: ["*"]
 }
 template: {

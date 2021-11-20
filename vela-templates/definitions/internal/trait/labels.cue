@@ -2,7 +2,7 @@ labels: {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Add labels on K8s pod for your workload which follows the pod spec in path 'spec.template'. This definition is DEPRECATED, please specify labels in component instead."
+	description: "Add labels on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true
 		appliesToWorkloads: ["*"]

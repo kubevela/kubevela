@@ -18,8 +18,8 @@ template: {
 	}
 
 	parameter: {
-		// +usage=Declare the name of the policy
-		policy: string
+		// +usage=Declare the name of the env-binding policy, if empty, the first env-binding policy will be used
+		policy: *"" | string
 		// +usage=Declare the name of the env in policy
 		env: string
 	}
