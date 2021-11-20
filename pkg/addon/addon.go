@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -32,7 +33,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -53,6 +53,26 @@ const (
 	DefinitionsDirName string = "definitions"
 )
 
+type ListOptions struct {
+	GetDetail     bool
+	GetDefinition bool
+	GetResource   bool
+	GetParameter  bool
+	GetTemplate   bool
+}
+
+var (
+	ListLevelOptions   = ListOptions{}
+	GetLevelOptions    = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+	EnableLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetResource: true, GetTemplate: true, GetParameter: true}
+)
+
+type AddonErr error
+
+var (
+	AddonNotExist AddonErr = errors.New("addon not exist")
+)
+
 type gitHelper struct {
 	Client *github.Client
 	Meta   *utils.Content
@@ -65,33 +85,40 @@ type GitAddonSource struct {
 	Token string `json:"token,omitempty"`
 }
 
-// GetAddon get a detailed addon info from GitAddonSource
-func GetAddon(name string, git *GitAddonSource) (*types.Addon, error) {
-	addons, err := ListAddons(true, git)
+type AddonReader struct {
+	addon   *types.Addon
+	h       *gitHelper
+	item    *github.RepositoryContent
+	errChan chan error
+}
+
+func (r *AddonReader) SetReadContent(content *github.RepositoryContent) {
+	r.item = content
+}
+
+// GetAddon get a addon info from GitAddonSource, can be used for get or enable
+func GetAddon(name string, git *GitAddonSource, opt ListOptions) (*types.Addon, error) {
+	addon, err := getSingleAddonFromGit(git.URL, git.Path, name, git.Token, opt)
 	if err != nil {
 		return nil, err
 	}
-
-	for _, addon := range addons {
-		if addon.Name == name {
-			return addon, nil
-		}
-	}
-	return nil, errors.New("addon not exist")
+	return addon, nil
 }
 
-// ListAddons list addons' info from GitAddonSource, if not detailed, result only contains types.AddonMeta
-func ListAddons(detailed bool, git *GitAddonSource) ([]*types.Addon, error) {
-	var gitAddons []*types.Addon
-	gitAddons, err := getAddonsFromGit(git.URL, git.Path, git.Token, detailed)
+// ListAddons list addons' info from GitAddonSource
+func ListAddons(git *GitAddonSource, opt ListOptions) ([]*types.Addon, error) {
+	gitAddons, err := getAddonsFromGit(git.URL, git.Path, git.Token, opt)
 	if err != nil {
 		return nil, err
 	}
 	return gitAddons, nil
 }
 
-func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*types.Addon, error) {
+func getAddonsFromGit(baseURL, dir, token string, opt ListOptions) ([]*types.Addon, error) {
 	var addons []*types.Addon
+	var err error
+	var wg sync.WaitGroup
+	errChan := make(chan error, 1)
 
 	gith, err := createGitHelper(baseURL, dir, token)
 	if err != nil {
@@ -106,168 +133,233 @@ func getAddonsFromGit(baseURL, dir, token string, detailed bool) ([]*types.Addon
 		if subItems.GetType() != "dir" {
 			continue
 		}
-		addonRes := &types.Addon{}
-		_, files, err := gith.readRepo(subItems.GetPath())
-		if err != nil {
-			return nil, err
-		}
-		for _, file := range files {
-			var err error
-
-			switch strings.ToLower(file.GetName()) {
-			case ReadmeFileName:
-				if !detailed {
-					break
-				}
-				err = readReadme(addonRes, gith, file)
-			case MetadataFileName:
-				err = readMetadata(addonRes, gith, file)
-				addonRes.Name = addonutil.TransAddonName(addonRes.Name)
-			case DefinitionsDirName:
-				if !detailed {
-					break
-				}
-				err = readDefinitions(addonRes, gith, file)
-			case ResourcesDirName:
-				if !detailed {
-					break
-				}
-				err = readResources(addonRes, gith, file)
-			case TemplateFileName:
-				if !detailed {
-					break
-				}
-				err = readTemplate(addonRes, gith, file)
-			}
-
+		wg.Add(1)
+		go func(item *github.RepositoryContent) {
+			defer wg.Done()
+			addonRes, err := getSingleAddonFromGit(baseURL, dir, item.GetName(), token, opt)
 			if err != nil {
-				return nil, err
+				errChan <- err
+				return
 			}
-		}
-
-		if detailed && addonRes.Parameters != "" {
-			err = genAddonAPISchema(addonRes)
-			if err != nil {
-				continue
-			}
-		}
-		addons = append(addons, addonRes)
+			addons = append(addons, addonRes)
+		}(subItems)
+	}
+	wg.Wait()
+	if len(errChan) != 0 {
+		return nil, <-errChan
 	}
 	return addons, nil
 }
 
-func readTemplate(addon *types.Addon, h *gitHelper, file *github.RepositoryContent) error {
-	content, _, err := h.readRepo(*file.Path)
+func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOptions) (*types.Addon, error) {
+	var wg sync.WaitGroup
+
+	gith, err := createGitHelper(baseURL, path.Join(dir, addonName), token)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	_, items, err := gith.readRepo(gith.Meta.Path)
+
+	reader := AddonReader{
+		addon:   &types.Addon{},
+		h:       gith,
+		errChan: make(chan error, 1),
+	}
+	for _, item := range items {
+		switch strings.ToLower(item.GetName()) {
+		case ReadmeFileName:
+			if !opt.GetDetail {
+				break
+			}
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readReadme(&wg, reader)
+		case MetadataFileName:
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readMetadata(&wg, reader)
+		case DefinitionsDirName:
+			if !opt.GetDefinition {
+				break
+			}
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readDefinitions(&wg, reader)
+		case ResourcesDirName:
+			if !opt.GetResource {
+				break
+			}
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readResources(&wg, reader)
+		case TemplateFileName:
+			if !opt.GetTemplate {
+				break
+			}
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readTemplate(&wg, reader)
+		}
+	}
+	wg.Wait()
+
+	if opt.GetParameter && reader.addon.Parameters != "" {
+		err = genAddonAPISchema(reader.addon)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return reader.addon, nil
+
+}
+
+func readTemplate(wg *sync.WaitGroup, reader AddonReader) {
+	defer wg.Done()
+	content, _, err := reader.h.readRepo(*reader.item.Path)
+	if err != nil {
+		reader.errChan <- err
+		return
 	}
 	data, err := content.GetContent()
 	if err != nil {
-		return err
+		reader.errChan <- err
+		return
 	}
 	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	addon.AppTemplate = &v1beta1.Application{}
-	_, _, err = dec.Decode([]byte(data), nil, addon.AppTemplate)
+	reader.addon.AppTemplate = &v1beta1.Application{}
+	_, _, err = dec.Decode([]byte(data), nil, reader.addon.AppTemplate)
 	if err != nil {
-		return err
+		reader.errChan <- err
+		return
 	}
-	return nil
 }
 
-func readResources(addon *types.Addon, h *gitHelper, dir *github.RepositoryContent) error {
-	dirPath := strings.Split(dir.GetPath(), "/")
+func readResources(wg *sync.WaitGroup, reader AddonReader) {
+	defer wg.Done()
+	dirPath := strings.Split(reader.item.GetPath(), "/")
 	dirPath, err := cutPathUntil(dirPath, ResourcesDirName)
 	if err != nil {
-		return err
+		reader.errChan <- err
 	}
 
-	_, files, err := h.readRepo(*dir.Path)
+	_, items, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
-		return err
+		reader.errChan <- err
+		return
 	}
-	for _, file := range files {
-		switch file.GetType() {
+	for _, item := range items {
+		switch item.GetType() {
 		case "file":
-			content, _, err := h.readRepo(*file.Path)
-			if err != nil {
-				return err
-			}
-			b, err := content.GetContent()
-			if err != nil {
-				return err
-			}
-
-			if file.GetName() == "parameter.cue" {
-				addon.Parameters = b
-				break
-			}
-			switch filepath.Ext(file.GetName()) {
-			case ".cue":
-				addon.CUETemplates = append(addon.CUETemplates, types.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
-			default:
-				addon.YAMLTemplates = append(addon.YAMLTemplates, types.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
-			}
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readResFile(wg, reader, dirPath)
 		case "dir":
-			err = readResources(addon, h, file)
-			if err != nil {
-				return err
-			}
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readResources(wg, reader)
+
 		}
 	}
-	return nil
 }
 
-func readDefinitions(addon *types.Addon, h *gitHelper, dir *github.RepositoryContent) error {
-	dirPath := strings.Split(dir.GetPath(), "/")
-	dirPath, err := cutPathUntil(dirPath, DefinitionsDirName)
+// readResFile read single resource file
+func readResFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
+	defer wg.Done()
+	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
-		return err
-	}
-	_, files, err := h.readRepo(*dir.Path)
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		switch file.GetType() {
-		case "file":
-			content, _, err := h.readRepo(*file.Path)
-			if err != nil {
-				return err
-			}
-			b, err := content.GetContent()
-			if err != nil {
-				return err
-			}
-			addon.Definitions = append(addon.Definitions, types.AddonElementFile{Data: b, Name: file.GetName(), Path: dirPath})
-		case "dir":
-			err = readDefinitions(addon, h, file)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func readMetadata(addon *types.Addon, h *gitHelper, file *github.RepositoryContent) error {
-	content, _, err := h.readRepo(*file.Path)
-	if err != nil {
-		return err
+		reader.errChan <- err
+		return
 	}
 	b, err := content.GetContent()
 	if err != nil {
-		return err
+		reader.errChan <- err
+		return
 	}
-	return yaml.Unmarshal([]byte(b), &addon.AddonMeta)
+
+	if reader.item.GetName() == "parameter.cue" {
+		reader.addon.Parameters = b
+		return
+	}
+	switch filepath.Ext(reader.item.GetName()) {
+	case ".cue":
+		reader.addon.CUETemplates = append(reader.addon.CUETemplates, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+	default:
+		reader.addon.YAMLTemplates = append(reader.addon.YAMLTemplates, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+	}
 }
 
-func readReadme(addon *types.Addon, h *gitHelper, file *github.RepositoryContent) error {
-	content, _, err := h.readRepo(*file.Path)
+func readDefinitions(wg *sync.WaitGroup, reader AddonReader) {
+	defer wg.Done()
+	dirPath := strings.Split(reader.item.GetPath(), "/")
+	dirPath, err := cutPathUntil(dirPath, DefinitionsDirName)
 	if err != nil {
-		return err
+		reader.errChan <- err
+		return
 	}
-	addon.Detail, err = content.GetContent()
-	return err
+	_, items, err := reader.h.readRepo(*reader.item.Path)
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
+	for _, item := range items {
+		switch item.GetType() {
+		case "file":
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readDefFile(wg, reader, dirPath)
+		case "dir":
+			reader.SetReadContent(item)
+			wg.Add(1)
+			go readDefinitions(wg, reader)
+		}
+	}
+}
+
+// readDefFile read single definition file
+func readDefFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
+	defer wg.Done()
+	content, _, err := reader.h.readRepo(*reader.item.Path)
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
+	b, err := content.GetContent()
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
+	reader.addon.Definitions = append(reader.addon.Definitions, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+}
+
+func readMetadata(wg *sync.WaitGroup, reader AddonReader) {
+	defer wg.Done()
+	content, _, err := reader.h.readRepo(*reader.item.Path)
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
+	b, err := content.GetContent()
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
+	err = yaml.Unmarshal([]byte(b), &reader.addon.AddonMeta)
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
+	return
+}
+
+func readReadme(wg *sync.WaitGroup, reader AddonReader) {
+	defer wg.Done()
+	content, _, err := reader.h.readRepo(*reader.item.Path)
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
+	reader.addon.Detail, err = content.GetContent()
+	return
 }
 
 func createGitHelper(baseURL, dir, token string) (*gitHelper, error) {
