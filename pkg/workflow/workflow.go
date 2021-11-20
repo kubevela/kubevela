@@ -132,12 +132,6 @@ func (w *workflow) ExecuteSteps(ctx context.Context, appRev *oamcore.Application
 
 // Trace record the workflow execute history.
 func (w *workflow) Trace() error {
-	// add annotation for apiserver sync
-	if w.app.Annotations == nil {
-		w.app.Annotations = make(map[string]string)
-	}
-	w.app.Annotations[oam.AnnotationWorkflowName] = w.app.Name
-
 	data, err := json.Marshal(w.app)
 	if err != nil {
 		return err
@@ -339,7 +333,7 @@ func (e *engine) needStop() bool {
 func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {
 	version := ""
 	if annos := app.Annotations; annos != nil {
-		version = annos[wfTypes.AnnotationPublishVersion]
+		version = annos[oam.AnnotationPublishVersion]
 	}
 	if version == "" {
 		specHash, err := utils.ComputeSpecHash(app.Spec)

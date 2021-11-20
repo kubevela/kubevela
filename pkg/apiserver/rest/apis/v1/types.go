@@ -606,12 +606,11 @@ type DetailWorkflowRecordResponse struct {
 
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
-	Name       string                      `json:"name"`
-	Namespace  string                      `json:"namespace"`
-	StartTime  time.Time                   `json:"startTime,omitempty"`
-	Suspend    bool                        `json:"suspend"`
-	Terminated bool                        `json:"terminated"`
-	Steps      []common.WorkflowStepStatus `json:"steps,omitempty"`
+	Name      string                      `json:"name"`
+	Namespace string                      `json:"namespace"`
+	StartTime time.Time                   `json:"startTime,omitempty"`
+	Status    string                      `json:"status"`
+	Steps     []common.WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // ApplicationDeployRequest the application deploy or update event request

@@ -132,6 +132,9 @@ const (
 	// AnnotationDeployVersion know the version number of the deployment.
 	AnnotationDeployVersion = "app.oam.dev/deployVersion"
 
+	// AnnotationPublishVersion is annotation that record the application workflow version.
+	AnnotationPublishVersion = "vela.io/publish-version"
+
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
 

@@ -81,7 +81,7 @@ type ApplicationUsecase interface {
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
 	UpdateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string, req apisv1.UpdateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
-	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
+	DetailRevision(ctx context.Context, appName, revisionVersion string) (*apisv1.DetailRevisionResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -570,6 +570,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 // means to render oam application config and apply to cluster.
 // An event record is generated for each deploy.
 func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
+	// TODO: rollback to handle all the error case
 	// step1: Render oam application
 	version := utils.GenerateVersion("")
 	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, version)
@@ -613,7 +614,11 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	if err := c.ds.Add(ctx, appRevision); err != nil {
 		return nil, err
 	}
-	// step3: check and create namespace
+	// step3: create workflow record
+	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, oamApp); err != nil {
+		return nil, err
+	}
+	// step4: check and create namespace
 	var namespace corev1.Namespace
 	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: oamApp.Namespace}, &namespace); apierrors.IsNotFound(err) {
 		namespace.Name = oamApp.Namespace
@@ -622,7 +627,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 			return nil, bcode.ErrCreateNamespace
 		}
 	}
-	// step4: apply to controller cluster
+	// step5: apply to controller cluster
 	err = c.apply.Apply(ctx, oamApp)
 	if err != nil {
 		appRevision.Status = model.RevisionStatusFail
@@ -638,7 +643,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		log.Logger.Warnf("update deploy event failure %s", err.Error())
 	}
 
-	// step5: update deploy event status
+	// step6: update deploy event status
 	return &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: apisv1.ApplicationRevisionBase{
 			Version:     appRevision.Version,
@@ -663,6 +668,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			Labels:    appModel.Labels,
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion: version,
+				// publish version is the identifier of workflow record
+				oam.AnnotationPublishVersion: utils.GenerateVersion(reqWorkflowName),
 			},
 		},
 	}
@@ -1040,7 +1047,11 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 		revision.Status = status
 	}
 
-	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{Page: page, PageSize: pageSize})
+	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{
+		Page:     page,
+		PageSize: pageSize,
+		SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1072,10 +1083,10 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 	return resp, nil
 }
 
-func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error) {
+func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, revisionVersion string) (*apisv1.DetailRevisionResponse, error) {
 	var revision = model.ApplicationRevision{
 		AppPrimaryKey: appName,
-		Version:       revisionName,
+		Version:       revisionVersion,
 	}
 	if err := c.ds.Get(ctx, &revision); err != nil {
 		return nil, err

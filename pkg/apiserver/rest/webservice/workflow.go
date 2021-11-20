@@ -112,6 +112,36 @@ func (w *workflowWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.DetailWorkflowRecordResponse{}).
 		Writes(apis.DetailWorkflowRecordResponse{}).Do(returns200, returns500))
 
+	ws.Route(ws.GET("/{name}/records/{record}/resume").To(w.resumeWorkflowRecord).
+		Doc("resume suspend workflow record").
+		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the  workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(w.applicationCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
+
+	ws.Route(ws.GET("/{name}/records/{record}/terminate").To(w.terminateWorkflowRecord).
+		Doc("terminate suspend workflow record").
+		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(w.applicationCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
+
+	ws.Route(ws.GET("/{name}/records/{record}/rollback").To(w.rollbackWorkflowRecord).
+		Doc("rollback suspend application record").
+		Param(ws.PathParameter("name", "identifier of the workflow").DataType("string")).
+		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
+		Param(ws.QueryParameter("rollbackVersion", "identifier of the rollback revision").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(w.applicationCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DetailWorkflowRecordResponse{}))
 	return ws
 }
 
@@ -122,6 +152,22 @@ func (w *workflowWebService) workflowCheckFilter(req *restful.Request, res *rest
 		return
 	}
 	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyWorkflow, workflow))
+	chain.ProcessFilter(req, res)
+}
+
+func (w *workflowWebService) applicationCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	workflow, err := w.workflowUsecase.GetWorkflow(req.Request.Context(), req.PathParameter("name"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	app, err := w.applicationUsecase.GetApplication(req.Request.Context(), workflow.AppPrimaryKey)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyApplication, app))
 	chain.ProcessFilter(req, res)
 }
 
@@ -259,4 +305,34 @@ func (w *workflowWebService) detailWorkflowRecord(req *restful.Request, res *res
 		bcode.ReturnError(req, res, err)
 		return
 	}
+}
+
+func (w *workflowWebService) resumeWorkflowRecord(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	err := w.workflowUsecase.ResumeRecord(req.Request.Context(), app, req.PathParameter("record"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	return
+}
+
+func (w *workflowWebService) terminateWorkflowRecord(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	err := w.workflowUsecase.TerminateRecord(req.Request.Context(), app, req.PathParameter("record"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	return
+}
+
+func (w *workflowWebService) rollbackWorkflowRecord(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	err := w.workflowUsecase.RollbackRecord(req.Request.Context(), app, req.PathParameter("record"), req.QueryParameter("rollbackVersion"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	return
 }

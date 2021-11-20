@@ -66,9 +66,7 @@ func (r *recorder) Save(version string, data []byte) Store {
 	if version == "" {
 		wfStatus := r.source.Status.Workflow
 		if wfStatus != nil {
-			if !strings.Contains(wfStatus.AppRevision, ":") {
-				version = wfStatus.AppRevision
-			}
+			version = strings.ReplaceAll(wfStatus.AppRevision, ":", "-")
 		}
 	}
 

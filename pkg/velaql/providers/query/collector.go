@@ -39,7 +39,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // AppCollector collect resource created by application
@@ -77,7 +76,7 @@ func (c *AppCollector) CollectLatestResourceFromApp() ([]AppResources, error) {
 	if app.Status.LatestRevision != nil {
 		revision = app.Status.LatestRevision.Revision
 	}
-	publishVersion := app.GetAnnotations()[types.AnnotationPublishVersion]
+	publishVersion := app.GetAnnotations()[oam.AnnotationPublishVersion]
 
 	appRevName := fmt.Sprintf("%s-v%d", app.Name, revision)
 	comps := make(map[string][]Resource, len(app.Spec.Components))

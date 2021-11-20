@@ -26,12 +26,17 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -459,7 +464,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(revisions.Total).Should(Equal(int64(0)))
 	})
 
-	It("Test DetailRevisions function", func() {
+	It("Test DetailRevision function", func() {
 		err := workflowUsecase.createTestApplicationRevision(context.TODO(), &model.ApplicationRevision{
 			AppPrimaryKey: "test-app",
 			Version:       "123",
@@ -472,3 +477,40 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(revision.DeployUser).Should(Equal("test-user"))
 	})
 })
+
+func createTestSuspendApp(ctx context.Context, appName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
+	testapp := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appName,
+			Namespace: "default",
+			Annotations: map[string]string{
+				oam.AnnotationDeployVersion:  revisionVersion,
+				oam.AnnotationWorkflowName:   wfName,
+				oam.AnnotationPublishVersion: recordName,
+			},
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{{
+				Name:       "test-component",
+				Type:       "worker",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"test":"test"}`)},
+				Traits:     []common.ApplicationTrait{},
+				Scopes:     map[string]string{},
+			}},
+		},
+		Status: common.AppStatus{
+			Workflow: &common.WorkflowStatus{
+				Suspend: true,
+			},
+		},
+	}
+
+	if err := kubeClient.Create(ctx, testapp); err != nil {
+		return nil, err
+	}
+	if err := kubeClient.Status().Patch(ctx, testapp, client.Merge); err != nil {
+		return nil, err
+	}
+
+	return testapp, nil
+}
