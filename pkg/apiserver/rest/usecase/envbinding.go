@@ -68,7 +68,7 @@ func (e *envBindingUsecaseImpl) GetEnvBindings(ctx context.Context, app *model.A
 	var list []*apisv1.EnvBindingBase
 	for _, ebd := range envBindings {
 		eb := ebd.(*model.EnvBinding)
-		list = append(list, convertEnvbindingModelToBase(eb))
+		list = append(list, convertEnvBindingModelToBase(eb))
 	}
 	return list, nil
 }
@@ -153,24 +153,15 @@ func (e *envBindingUsecaseImpl) UpdateEnvBinding(ctx context.Context, app *model
 		}
 		return nil, err
 	}
-	envBindingUpdate := &model.EnvBinding{
-		AppPrimaryKey: app.Name,
-		Name:          envBinding.Name,
-		Alias:         envUpdate.Alias,
-		Description:   envUpdate.Description,
-		TargetNames:   envUpdate.TargetNames,
-	}
-	if envBinding.ComponentSelector != nil {
-		envBindingUpdate.ComponentSelector = envBinding.ComponentSelector
-	}
-	if err := e.ds.Put(ctx, envBindingUpdate); err != nil {
+	convertUpdateReqToEnvBindingModel(envBinding, envUpdate)
+	if err := e.ds.Put(ctx, envBinding); err != nil {
 		return nil, err
 	}
 	//update env workflow
-	if err := e.updateEnvWorkflow(ctx, app, envBindingUpdate); err != nil {
+	if err := e.updateEnvWorkflow(ctx, app, envBinding); err != nil {
 		return nil, bcode.ErrEnvBindingUpdateWorkflow
 	}
-	return e.DetailEnvBinding(ctx, envBindingUpdate)
+	return e.DetailEnvBinding(ctx, envBinding)
 }
 
 func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, app *model.Application, envName string) error {
@@ -250,7 +241,7 @@ func (e *envBindingUsecaseImpl) deleteEnvWorkflow(ctx context.Context, workflowN
 
 func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error) {
 	return &apisv1.DetailEnvBindingResponse{
-		EnvBindingBase: *convertEnvbindingModelToBase(envBinding),
+		EnvBindingBase: *convertEnvBindingModelToBase(envBinding),
 	}, nil
 }
 
@@ -265,7 +256,17 @@ func convertCreateReqToEnvBindingModel(app *model.Application, req apisv1.Create
 	return envBinding
 }
 
-func convertEnvbindingModelToBase(envBinding *model.EnvBinding) *apisv1.EnvBindingBase {
+func convertUpdateReqToEnvBindingModel(envBinding *model.EnvBinding, envUpdate apisv1.PutApplicationEnvRequest) *model.EnvBinding {
+	envBinding.Alias = envUpdate.Alias
+	envBinding.Description = envUpdate.Description
+	envBinding.TargetNames = envUpdate.TargetNames
+	if envUpdate.ComponentSelector != nil {
+		envBinding.ComponentSelector = (*model.ComponentSelector)(envUpdate.ComponentSelector)
+	}
+	return envBinding
+}
+
+func convertEnvBindingModelToBase(envBinding *model.EnvBinding) *apisv1.EnvBindingBase {
 	ebb := &apisv1.EnvBindingBase{
 		Name:              envBinding.Name,
 		Alias:             envBinding.Alias,
