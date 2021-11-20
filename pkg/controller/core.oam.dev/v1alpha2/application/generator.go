@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
+	terraformProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -54,6 +55,9 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
+	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
+		return appParser.ParseWorkloadFromRevision(comp, appRev)
+	})
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
 		options := &wfTypes.GeneratorOptions{
