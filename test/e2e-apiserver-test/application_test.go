@@ -182,7 +182,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(response.Status, model.RevisionStatusRunning)).Should(BeEmpty())
 
 		var oam v1beta1.Application
-		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: "test-app-sadasd", Namespace: "test-app-namespace"}, &oam)
+		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: "test-app-sadasd-dev", Namespace: "default"}, &oam)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(oam.Spec.Components), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
