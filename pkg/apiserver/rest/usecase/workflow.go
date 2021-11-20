@@ -354,7 +354,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 		if err := w.kubeClient.Get(ctx, types.NamespacedName{
-			Name:      converAppName(record.AppPrimaryKey, workflow.EnvName),
+			Name:      convertAppName(record.AppPrimaryKey, workflow.EnvName),
 			Namespace: record.Namespace,
 		}, app); err != nil {
 			klog.ErrorS(err, "failed to get app", "app name", record.AppPrimaryKey)
@@ -517,7 +517,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		}
 
 		revisions, err := w.ds.List(ctx, &revision, &datastore.ListOptions{
-			Page:     0,
+			Page:     1,
 			PageSize: 1,
 			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
 		})
@@ -582,7 +582,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 
 func (w *workflowUsecaseImpl) checkRecordRunning(ctx context.Context, appModel *model.Application, envName string) (*v1beta1.Application, error) {
 	oamApp := &v1beta1.Application{}
-	if err := w.kubeClient.Get(ctx, types.NamespacedName{Name: converAppName(appModel.Name, envName), Namespace: appModel.Namespace}, oamApp); err != nil {
+	if err := w.kubeClient.Get(ctx, types.NamespacedName{Name: convertAppName(appModel.Name, envName), Namespace: appModel.Namespace}, oamApp); err != nil {
 		return nil, err
 	}
 	if oamApp.Status.Workflow != nil && !oamApp.Status.Workflow.Suspend && !oamApp.Status.Workflow.Terminated && !oamApp.Status.Workflow.Finished {

@@ -86,6 +86,7 @@ type ApplicationUsecase interface {
 	ListRevisions(ctx context.Context, appName, envName, status string, page, pageSize int) (*apisv1.ListRevisionsResponse, error)
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
+	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -197,7 +198,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 // GetApplicationStatus get application status from controller cluster
 func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmodel *model.Application, envName string) (*common.AppStatus, error) {
 	var app v1beta1.Application
-	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: converAppName(appmodel.Name, envName)}, &app)
+	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: convertAppName(appmodel.Name, envName)}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -380,6 +381,42 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 	}
 	log.Logger.Infof("batch add %d components for app %s", len(componentModels), app.PrimaryKey())
 	return c.ds.BatchAdd(ctx, componentModels)
+}
+
+// ListRecords list application record
+func (c *applicationUsecaseImpl) ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error) {
+	var record = model.WorkflowRecord{
+		AppPrimaryKey: appName,
+		Status:        model.RevisionStatusRunning,
+	}
+	records, err := c.ds.List(ctx, &record, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 {
+		record.Status = model.RevisionStatusComplete
+		records, err = c.ds.List(ctx, &record, &datastore.ListOptions{
+			Page:     1,
+			PageSize: 1,
+			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	resp := &apisv1.ListWorkflowRecordsResponse{
+		Records: []apisv1.WorkflowRecord{},
+	}
+	for _, raw := range records {
+		record, ok := raw.(*model.WorkflowRecord)
+		if ok {
+			resp.Records = append(resp.Records, *convertFromRecordModel(record))
+		}
+	}
+	resp.Total = int64(len(records))
+
+	return resp, nil
 }
 
 func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.Application, op apisv1.ListApplicationComponentOptions) ([]*apisv1.ComponentBase, error) {
@@ -654,7 +691,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      converAppName(appModel.Name, workflow.EnvName),
+			Name:      convertAppName(appModel.Name, workflow.EnvName),
 			Namespace: appModel.Namespace,
 			Labels:    labels,
 			Annotations: map[string]string{
@@ -1169,7 +1206,7 @@ func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.Deliver
 	}
 }
 
-func converAppName(appModelName, envName string) string {
+func convertAppName(appModelName, envName string) string {
 	return fmt.Sprintf("%s-%s", appModelName, envName)
 }
 

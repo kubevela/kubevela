@@ -196,7 +196,7 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 		return err
 	}
 	var app v1beta1.Application
-	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: converAppName(appModel.Name, envBinding.Name)}, &app)
+	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return bcode.ErrApplicationRefusedDelete
 	}
@@ -282,7 +282,7 @@ func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model
 
 func (e *envBindingUsecaseImpl) ApplicationEnvRecycle(ctx context.Context, appModel *model.Application, envBinding *model.EnvBinding) error {
 	var app v1beta1.Application
-	err := e.kubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: converAppName(appModel.Name, envBinding.Name)}, &app)
+	err := e.kubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -325,7 +325,7 @@ func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvB
 		ComponentSelector: (*apisv1.ComponentSelector)(envBinding.ComponentSelector),
 		CreateTime:        envBinding.CreateTime,
 		UpdateTime:        envBinding.UpdateTime,
-		AppDeployName:     converAppName(app.Name, envBinding.Name),
+		AppDeployName:     convertAppName(app.Name, envBinding.Name),
 	}
 	return ebb
 }
