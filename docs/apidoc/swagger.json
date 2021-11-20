@@ -2468,9 +2468,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"component",
 							"trait",
-							"workflowstep",
-							"component"
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -3695,8 +3695,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -4315,14 +4315,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"version",
+				"status",
+				"reason",
 				"deployUser",
 				"note",
 				"envName",
 				"triggerType",
-				"createTime",
-				"version",
-				"status",
-				"reason"
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5248,10 +5248,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"name",
-				"version",
 				"description",
 				"icon",
+				"name",
+				"version",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -5309,13 +5309,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"description",
+				"createTime",
+				"updateTime",
 				"icon",
 				"name",
 				"alias",
 				"namespace",
-				"description",
-				"createTime",
-				"updateTime",
 				"policies",
 				"envBindings",
 				"status",
@@ -5373,6 +5373,9 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"kubeConfig",
+				"kubeConfigSecret",
+				"model",
 				"name",
 				"description",
 				"icon",
@@ -5445,7 +5448,7 @@
 				"creator",
 				"alias",
 				"type",
-				"createTime",
+				"alias",
 				"appPrimaryKey",
 				"name"
 			],
@@ -5620,7 +5623,6 @@
 			"required": [
 				"note",
 				"createTime",
-				"updateTime",
 				"appPrimaryKey",
 				"status",
 				"envName",
@@ -5673,6 +5675,7 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"name",
 				"namespace",
 				"status",
 				"deployTime",
