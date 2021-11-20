@@ -491,6 +491,9 @@ func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.App
 			}
 			defObjs = append(defObjs, obj)
 		}
+		if app.Spec.Workflow == nil {
+			app.Spec.Workflow = &v1beta1.Workflow{Steps: make([]v1beta1.WorkflowStep, 0)}
+		}
 		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps,
 			v1beta1.WorkflowStep{
 				Name: "deploy-all",
