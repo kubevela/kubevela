@@ -70,12 +70,26 @@ var _ = Describe("Test workflow usecase functions", func() {
 			EnvName:     "dev",
 		}
 
-		base, err := workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
+		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
 			Namespace: "default",
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
+
+		req2 := apisv1.CreateWorkflowRequest{
+			Name:        "test-workflow-1",
+			Description: "change description",
+			EnvName:     "dev2",
+		}
+
+		base, err = workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
+			Name:      appName,
+			Namespace: "default",
+		}, req2)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(base.Description, req2.Description)).Should(BeEmpty())
+		Expect(cmp.Diff(base.EnvName, req2.EnvName)).ShouldNot(BeEmpty())
 
 		req = apisv1.CreateWorkflowRequest{
 			Name:        "test-workflow-2",
@@ -83,7 +97,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			EnvName:     "dev",
 			Default:     true,
 		}
-		base, err = workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
+		base, err = workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
 			Namespace: "default",
 		}, req)
@@ -283,7 +297,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			EnvName:     "resume",
 		}
 
-		base, err := workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
+		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
 			Namespace: "default",
 		}, req)
@@ -327,7 +341,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			EnvName:     "terminate",
 		}
 		workflow := &model.Workflow{Name: workflowName, EnvName: "terminate"}
-		base, err := workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
+		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
 			Namespace: "default",
 		}, req)
@@ -371,7 +385,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			EnvName:     "rollback",
 		}
 		workflow := &model.Workflow{Name: workflowName, EnvName: "rollback"}
-		base, err := workflowUsecase.CreateWorkflow(context.TODO(), &model.Application{
+		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
 			Namespace: "default",
 		}, req)

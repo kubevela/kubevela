@@ -252,7 +252,7 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 			Outputs:    step.Outputs,
 		})
 	}
-	_, err := e.workflowUsecase.CreateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
+	_, err := e.workflowUsecase.CreateOrUpdateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
 		AppName:     app.PrimaryKey(),
 		Name:        env.Name,
 		Alias:       fmt.Sprintf("%s env workflow", env.Alias),

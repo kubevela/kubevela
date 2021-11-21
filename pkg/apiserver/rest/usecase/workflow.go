@@ -50,7 +50,7 @@ type WorkflowUsecase interface {
 	GetApplicationDefaultWorkflow(ctx context.Context, app *model.Application) (*model.Workflow, error)
 	DeleteWorkflow(ctx context.Context, app *model.Application, workflowName string) error
 	DeleteWorkflowByApp(ctx context.Context, app *model.Application) error
-	CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
+	CreateOrUpdateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	CreateWorkflowRecord(ctx context.Context, appModel *model.Application, app *v1beta1.Application, workflow *model.Workflow) error
 	ListWorkflowRecords(ctx context.Context, workflow *model.Workflow, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
@@ -116,9 +116,13 @@ func (w *workflowUsecaseImpl) DeleteWorkflowByApp(ctx context.Context, app *mode
 	return nil
 }
 
-func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
 	if req.EnvName == "" {
 		return nil, bcode.ErrWorkflowNoEnv
+	}
+	workflow, err := w.GetWorkflow(ctx, app, req.Name)
+	if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
+		return nil, err
 	}
 	var steps []model.WorkflowStep
 	for _, step := range req.Steps {
@@ -137,19 +141,29 @@ func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.App
 			Properties:  properties,
 		})
 	}
-	// It is allowed to set multiple workflows as default, and only one takes effect.
-	var workflow = model.Workflow{
-		Steps:         steps,
-		Name:          req.Name,
-		Description:   req.Description,
-		Default:       req.Default,
-		EnvName:       req.EnvName,
-		AppPrimaryKey: app.PrimaryKey(),
+	if workflow != nil {
+		workflow.Steps = steps
+		workflow.Alias = req.Alias
+		workflow.Description = req.Description
+		workflow.Default = req.Default
+		if err := w.ds.Put(ctx, workflow); err != nil {
+			return nil, err
+		}
+	} else {
+		// It is allowed to set multiple workflows as default, and only one takes effect.
+		workflow = &model.Workflow{
+			Steps:         steps,
+			Name:          req.Name,
+			Description:   req.Description,
+			Default:       req.Default,
+			EnvName:       req.EnvName,
+			AppPrimaryKey: app.PrimaryKey(),
+		}
+		if err := w.ds.Add(ctx, workflow); err != nil {
+			return nil, err
+		}
 	}
-	if err := w.ds.Add(ctx, &workflow); err != nil {
-		return nil, err
-	}
-	return w.DetailWorkflow(ctx, &workflow)
+	return w.DetailWorkflow(ctx, workflow)
 }
 
 func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
