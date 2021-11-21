@@ -465,6 +465,14 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailWorkflowRecordResponse{}))
 
+	ws.Route(ws.GET("/{name}/records").To(c.listApplicationRecords).
+		Doc("list application records").
+		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Returns(200, "", nil).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ListWorkflowRecordsResponse{}))
 	return ws
 }
 
@@ -986,6 +994,18 @@ func (c *applicationWebService) recycleApplicationEnv(req *restful.Request, res 
 		return
 	}
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) listApplicationRecords(req *restful.Request, res *restful.Response) {
+	records, err := c.applicationUsecase.ListRecords(req.Request.Context(), req.PathParameter("name"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(records); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

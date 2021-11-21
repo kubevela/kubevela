@@ -127,5 +127,8 @@ func (w *WorkflowRecord) Index() map[string]string {
 	if w.Finished != "" {
 		index["finished"] = w.Finished
 	}
+	if w.Status != "" {
+		index["status"] = w.Status
+	}
 	return index
 }
