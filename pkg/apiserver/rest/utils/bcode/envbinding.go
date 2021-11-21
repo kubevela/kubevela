@@ -26,7 +26,7 @@ var ErrFoundEnvbindingDeliveryTarget = NewBcode(400, 90002, "found application e
 var ErrEnvBindingNotExist = NewBcode(400, 90003, "application envbinding not exist")
 
 // ErrEnvBindingsNotExist application envbindings  is not exist
-var ErrEnvBindingsNotExist = NewBcode(400, 90004, "application envbinding snot exist")
+var ErrEnvBindingsNotExist = NewBcode(400, 90004, "application envbinding is not exist")
 
 // ErrEnvBindingExist application envbinding  is  exist
 var ErrEnvBindingExist = NewBcode(400, 90005, "application envbinding is exist")
