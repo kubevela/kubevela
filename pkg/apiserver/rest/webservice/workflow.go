@@ -45,17 +45,6 @@ func (w *workflowWebService) workflowCheckFilter(req *restful.Request, res *rest
 	chain.ProcessFilter(req, res)
 }
 
-func (w *workflowWebService) applicationCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	workflow, err := w.workflowUsecase.GetWorkflow(req.Request.Context(), app, req.PathParameter("workflowName"))
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyWorkflow, workflow))
-	chain.ProcessFilter(req, res)
-}
-
 func (w *workflowWebService) listApplicationWorkflows(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	workflows, err := w.workflowUsecase.ListApplicationWorkflow(req.Request.Context(), app)
@@ -189,7 +178,10 @@ func (w *workflowWebService) resumeWorkflowRecord(req *restful.Request, res *res
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	return
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }
 
 func (w *workflowWebService) terminateWorkflowRecord(req *restful.Request, res *restful.Response) {
@@ -200,7 +192,10 @@ func (w *workflowWebService) terminateWorkflowRecord(req *restful.Request, res *
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	return
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }
 
 func (w *workflowWebService) rollbackWorkflowRecord(req *restful.Request, res *restful.Response) {
@@ -211,5 +206,8 @@ func (w *workflowWebService) rollbackWorkflowRecord(req *restful.Request, res *r
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	return
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }
