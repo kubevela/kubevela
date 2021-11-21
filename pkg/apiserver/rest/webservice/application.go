@@ -963,19 +963,13 @@ func (c *applicationWebService) componentCheckFilter(req *restful.Request, res *
 
 func (c *applicationWebService) envCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	envBindings, err := c.envBindingUsecase.GetEnvBindings(req.Request.Context(), app)
+	envBinding, err := c.envBindingUsecase.GetEnvBinding(req.Request.Context(), app, req.PathParameter("envName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	for _, env := range envBindings {
-		if env.Name == req.PathParameter("envName") {
-			req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyApplicationEnvBinding, env))
-			chain.ProcessFilter(req, res)
-			return
-		}
-	}
-	bcode.ReturnError(req, res, bcode.ErrApplicationNotEnv)
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyApplicationEnvBinding, envBinding))
+	chain.ProcessFilter(req, res)
 }
 
 func (c *applicationWebService) applicationStatistics(req *restful.Request, res *restful.Response) {

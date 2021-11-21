@@ -42,10 +42,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-const (
-	labelControllerRevisionSync = "apiserver.oam.dev/cr-sync"
-)
-
 // WorkflowUsecase workflow manage api
 type WorkflowUsecase interface {
 	ListApplicationWorkflow(ctx context.Context, app *model.Application) ([]*apisv1.WorkflowBase, error)

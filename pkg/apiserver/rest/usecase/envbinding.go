@@ -39,7 +39,7 @@ import (
 // EnvBindingUsecase envbinding usecase
 type EnvBindingUsecase interface {
 	GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error)
-	GetEnvBinding(ctx context.Context, app *model.Application, envName string) (*apisv1.DetailEnvBindingResponse, error)
+	GetEnvBinding(ctx context.Context, app *model.Application, envName string) (*model.EnvBinding, error)
 	CheckAppEnvBindingsContainTarget(ctx context.Context, app *model.Application, targetName string) (bool, error)
 	CreateEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error)
 	BatchCreateEnvBinding(ctx context.Context, app *model.Application, env apisv1.EnvBindingList) error
@@ -92,7 +92,7 @@ func (e *envBindingUsecaseImpl) GetEnvBindings(ctx context.Context, app *model.A
 	return list, nil
 }
 
-func (e *envBindingUsecaseImpl) GetEnvBinding(ctx context.Context, app *model.Application, envName string) (*apisv1.DetailEnvBindingResponse, error) {
+func (e *envBindingUsecaseImpl) GetEnvBinding(ctx context.Context, app *model.Application, envName string) (*model.EnvBinding, error) {
 	envBinding, err := e.getBindingByEnv(ctx, app, envName)
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -100,7 +100,7 @@ func (e *envBindingUsecaseImpl) GetEnvBinding(ctx context.Context, app *model.Ap
 		}
 		return nil, err
 	}
-	return e.DetailEnvBinding(ctx, app, envBinding)
+	return envBinding, nil
 }
 
 func (e *envBindingUsecaseImpl) CheckAppEnvBindingsContainTarget(ctx context.Context, app *model.Application, targetName string) (bool, error) {
@@ -196,9 +196,9 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 		return err
 	}
 	var app v1beta1.Application
-	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return bcode.ErrApplicationRefusedDelete
+	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.Namespace, Name: converAppName(appModel.Name, envBinding.Name)}, &app)
+	if err == nil || !apierrors.IsNotFound(err) {
+		return bcode.ErrApplicationEnvRefusedDelete
 	}
 	if err := e.ds.Delete(ctx, &model.EnvBinding{AppPrimaryKey: appModel.PrimaryKey(), Name: envBinding.Name}); err != nil {
 		return err

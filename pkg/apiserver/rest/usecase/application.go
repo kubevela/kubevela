@@ -209,16 +209,17 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 }
 
 // GetApplicationCR get application cr in cluster
-func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appmodel *model.Application) (*v1beta1.ApplicationList, error) {
+func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) (*v1beta1.ApplicationList, error) {
 	var apps v1beta1.ApplicationList
 	selector := labels.NewSelector()
-	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appmodel.Name})
+	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.Name})
 	if err != nil {
 		return nil, err
 	}
 	selector = selector.Add(*re)
 	err = c.kubeClient.List(ctx, &apps, &client.ListOptions{
 		LabelSelector: selector,
+		Namespace:     appModel.Namespace,
 	})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -315,7 +316,7 @@ func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.
 		if err != nil || target == nil {
 			return appPolicy, bcode.ErrFoundEnvbindingDeliveryTarget
 		}
-		envBindingSpec.Envs = append(envBindingSpec.Envs, createTargetClusterEnv(envBinding.EnvBindingBase, target))
+		envBindingSpec.Envs = append(envBindingSpec.Envs, createTargetClusterEnv(envBinding, target))
 	}
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
 	if err != nil {
@@ -1187,7 +1188,7 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
-func createTargetClusterEnv(envBind apisv1.EnvBindingBase, target *model.DeliveryTarget) v1alpha1.EnvConfig {
+func createTargetClusterEnv(envBind *model.EnvBinding, target *model.DeliveryTarget) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
 	var componentSelector *v1alpha1.EnvSelector
 	if envBind.ComponentSelector != nil {

@@ -348,7 +348,6 @@ func readMetadata(wg *sync.WaitGroup, reader AddonReader) {
 		reader.errChan <- err
 		return
 	}
-	return
 }
 
 func readReadme(wg *sync.WaitGroup, reader AddonReader) {
@@ -359,7 +358,6 @@ func readReadme(wg *sync.WaitGroup, reader AddonReader) {
 		return
 	}
 	reader.addon.Detail, err = content.GetContent()
-	return
 }
 
 func createGitHelper(baseURL, dir, token string) (*gitHelper, error) {
