@@ -252,7 +252,7 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 			Outputs:    step.Outputs,
 		})
 	}
-	_, err := e.workflowUsecase.CreateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
+	_, err := e.workflowUsecase.CreateOrUpdateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
 		AppName:     app.PrimaryKey(),
 		Name:        env.Name,
 		Alias:       fmt.Sprintf("%s env workflow", env.Alias),
@@ -282,7 +282,7 @@ func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model
 
 func (e *envBindingUsecaseImpl) ApplicationEnvRecycle(ctx context.Context, appModel *model.Application, envBinding *model.EnvBinding) error {
 	var app v1beta1.Application
-	err := e.kubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
+	err := e.kubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil

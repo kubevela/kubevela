@@ -58,7 +58,7 @@ func (w *workflowWebService) listApplicationWorkflows(req *restful.Request, res 
 	}
 }
 
-func (w *workflowWebService) createApplicationWorkflow(req *restful.Request, res *restful.Response) {
+func (w *workflowWebService) createOrUpdateApplicationWorkflow(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
 	var createReq apis.CreateWorkflowRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -69,13 +69,9 @@ func (w *workflowWebService) createApplicationWorkflow(req *restful.Request, res
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	app, err := w.applicationUsecase.GetApplication(req.Request.Context(), createReq.AppName)
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Call the usecase layer code
-	workflowDetail, err := w.workflowUsecase.CreateWorkflow(req.Request.Context(), app, createReq)
+	workflowDetail, err := w.workflowUsecase.CreateOrUpdateWorkflow(req.Request.Context(), app, createReq)
 	if err != nil {
 		log.Logger.Errorf("create application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
