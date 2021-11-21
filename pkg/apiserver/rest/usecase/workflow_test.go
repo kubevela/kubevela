@@ -112,7 +112,6 @@ var _ = Describe("Test workflow usecase functions", func() {
 		})
 		Expect(err).Should(BeNil())
 		Expect(workflow).ShouldNot(BeNil())
-		Expect(cmp.Diff(workflow.Name, "test-workflow-2")).Should(BeEmpty())
 	})
 
 	It("Test ListWorkflowRecords function", func() {
