@@ -1,23 +1,22 @@
-package e2e_apiserver
+package e2e_apiserver_test
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/addon"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 const baseURL = "http://127.0.0.1:8000"
@@ -52,8 +51,8 @@ var _ = Describe("Test addon rest api", func() {
 		By("add registry")
 		createRes := post("/api/v1/addon_registries", createReq)
 		Expect(createRes).ShouldNot(BeNil())
-		Expect(createRes.StatusCode).Should(Equal(200))
 		Expect(createRes.Body).ShouldNot(BeNil())
+		Expect(createRes.StatusCode).Should(Equal(200))
 
 		defer createRes.Body.Close()
 
@@ -77,17 +76,6 @@ var _ = Describe("Test addon rest api", func() {
 	})
 
 	It("should enable and disable an addon", func() {
-		// todo(qiaozp) we should remove this namespace creation. This should be solved with a application template.
-		ns := v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "flux-system",
-			},
-		}
-		args := common.Args{}
-		k8sClient, err := args.GetClient()
-		Expect(err).Should(BeNil())
-		Expect(k8sClient.Create(context.Background(), &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 		defer GinkgoRecover()
 		req := apis.EnableAddonRequest{
 			Args: map[string]string{
@@ -103,25 +91,30 @@ var _ = Describe("Test addon rest api", func() {
 		defer res.Body.Close()
 
 		var statusRes apis.AddonStatusResponse
-		err = json.NewDecoder(res.Body).Decode(&statusRes)
+		err := json.NewDecoder(res.Body).Decode(&statusRes)
 
 		Expect(err).Should(BeNil())
 		Expect(statusRes.Phase).Should(Equal(apis.AddonPhaseEnabling))
 
 		// Wait for addon enabled
 
-		period := 20 * time.Second
-		timeout := 5 * time.Minute
-		err = wait.PollImmediate(period, timeout, func() (done bool, err error) {
+		period := 10 * time.Second
+		timeout := 2 * time.Minute
+		Eventually(func() error {
 			res = get("/api/v1/addons/" + testAddon + "/status")
 			err = json.NewDecoder(res.Body).Decode(&statusRes)
 			Expect(err).Should(BeNil())
 			if statusRes.Phase == apis.AddonPhaseEnabled {
-				return true, nil
+				return nil
 			}
-			return false, nil
-		})
-		Expect(err).Should(BeNil())
+			var app v1beta1.Application
+			err = k8sClient.Get(context.Background(), client.ObjectKey{Name: "addon-example", Namespace: "vela-system"}, &app)
+			Expect(err).Should(BeNil())
+			data, err := json.Marshal(app)
+			Expect(err).Should(BeNil())
+			fmt.Println(data)
+			return errors.New("not ready")
+		}, timeout, period).Should(BeNil())
 
 		res = post("/api/v1/addons/"+testAddon+"/disable", req)
 		Expect(res).ShouldNot(BeNil())
