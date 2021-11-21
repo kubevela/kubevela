@@ -79,7 +79,7 @@ var _ = Describe("Test addon rest api", func() {
 
 	})
 
-	FIt("should enable and disable an addon", func() {
+	It("should enable and disable an addon", func() {
 		// todo(qiaozp) we should remove this namespace creation. This should be solved with a application template.
 		ns := v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
