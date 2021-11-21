@@ -435,12 +435,41 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(revision.Version).Should(Equal("123"))
 		Expect(revision.DeployUser).Should(Equal("test-user"))
 	})
+
+	It("Test ListRecords function", func() {
+		By("no running records in application")
+		ctx := context.TODO()
+		for i := 0; i < 2; i++ {
+			appUsecase.ds.Add(ctx, &model.WorkflowRecord{
+				AppPrimaryKey: "app-records",
+				Name:          fmt.Sprintf("list-%d", i),
+				Status:        model.RevisionStatusComplete,
+			})
+		}
+
+		resp, err := appUsecase.ListRecords(context.TODO(), "app-records")
+		Expect(err).Should(BeNil())
+		Expect(resp.Total).Should(Equal(int64(1)))
+
+		By("3 running records in application")
+		for i := 0; i < 3; i++ {
+			appUsecase.ds.Add(ctx, &model.WorkflowRecord{
+				AppPrimaryKey: "app-records",
+				Name:          fmt.Sprintf("list-running-%d", i),
+				Status:        model.RevisionStatusRunning,
+			})
+		}
+
+		resp, err = appUsecase.ListRecords(context.TODO(), "app-records")
+		Expect(err).Should(BeNil())
+		Expect(resp.Total).Should(Equal(int64(3)))
+	})
 })
 
 func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
 	testapp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      converAppName(appName, envName),
+			Name:      convertAppName(appName, envName),
 			Namespace: "default",
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion:  revisionVersion,
