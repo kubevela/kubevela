@@ -30,3 +30,6 @@ var ErrEnvBindingsNotExist = NewBcode(400, 90004, "application envbinding is not
 
 // ErrEnvBindingExist application envbinding  is  exist
 var ErrEnvBindingExist = NewBcode(400, 90005, "application envbinding is exist")
+
+// ErrEnvBindingUpdateWorkflow application envbinding  update workflow error
+var ErrEnvBindingUpdateWorkflow = NewBcode(400, 90006, "application envbinding update workflow error")

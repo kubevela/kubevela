@@ -48,7 +48,7 @@ var _ = Describe("Test application usecase function", func() {
 	)
 	BeforeEach(func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds}
-		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, kubeClient: k8sClient}
 		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                    ds,
@@ -434,6 +434,23 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(revision.Version).Should(Equal("123"))
 		Expect(revision.DeployUser).Should(Equal("test-user"))
+	})
+
+	It("Test ApplicationEnvRecycle function", func() {
+		req := v1.CreateApplicationRequest{
+			Name:        "app-env-recycle" + "-dev",
+			Namespace:   "test-app-namespace",
+			Description: "this is a test app with env",
+		}
+		base, err := appUsecase.CreateApplication(context.TODO(), req)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
+
+		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{
+			Name:      "app-env-recycle",
+			Namespace: "test-app-namespace",
+		}, &model.EnvBinding{Name: "dev"})
+		Expect(err).Should(BeNil())
 	})
 
 	It("Test ListRecords function", func() {
