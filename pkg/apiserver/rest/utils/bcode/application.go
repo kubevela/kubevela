@@ -75,3 +75,6 @@ var ErrApplicationRevisionNotExist = NewBcode(404, 10018, "application revision 
 
 // ErrApplicationRefusedDelete The application cannot be deleted because it has been deployed
 var ErrApplicationRefusedDelete = NewBcode(400, 10019, "The application cannot be deleted because it has been deployed")
+
+// ErrApplicationEnvRefusedDelete The application env cannot be deleted because it has been deployed
+var ErrApplicationEnvRefusedDelete = NewBcode(400, 10020, "The application envbinding cannot be deleted because it has been deployed")
