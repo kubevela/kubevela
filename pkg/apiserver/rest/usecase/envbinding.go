@@ -196,7 +196,7 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 		return err
 	}
 	var app v1beta1.Application
-	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.Namespace, Name: converAppName(appModel.Name, envBinding.Name)}, &app)
+	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
 	if err == nil || !apierrors.IsNotFound(err) {
 		return bcode.ErrApplicationEnvRefusedDelete
 	}
