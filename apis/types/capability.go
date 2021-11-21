@@ -206,14 +206,15 @@ type Addon struct {
 
 // AddonMeta defines the format for a single addon
 type AddonMeta struct {
-	Name         string             `json:"name" validate:"required"`
-	Version      string             `json:"version"`
-	Description  string             `json:"description"`
-	Icon         string             `json:"icon"`
-	URL          string             `json:"url,omitempty"`
-	Tags         []string           `json:"tags,omitempty"`
-	DeployTo     *AddonDeployTo     `json:"deployTo,omitempty"`
-	Dependencies []*AddonDependency `json:"dependencies,omitempty"`
+	Name          string             `json:"name" validate:"required"`
+	Version       string             `json:"version"`
+	Description   string             `json:"description"`
+	Icon          string             `json:"icon"`
+	URL           string             `json:"url,omitempty"`
+	Tags          []string           `json:"tags,omitempty"`
+	DeployTo      *AddonDeployTo     `json:"deployTo,omitempty"`
+	Dependencies  []*AddonDependency `json:"dependencies,omitempty"`
+	NeedNamespace []string           `json:"needNamespace,omitempty"`
 }
 
 // AddonDeployTo defines where the addon to deploy to

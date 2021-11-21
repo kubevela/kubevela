@@ -464,6 +464,17 @@ func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.App
 	}
 	app.Name = Convert2AppName(addon.Name)
 	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
+	if app.Spec.Workflow == nil {
+		app.Spec.Workflow = &v1beta1.Workflow{}
+	}
+	for _, namespace := range addon.NeedNamespace {
+		comp := common2.ApplicationComponent{
+			Type:       "raw",
+			Name:       fmt.Sprintf("%s-namespace", namespace),
+			Properties: util.Object2RawExtension(renderNamespace(namespace)),
+		}
+		app.Spec.Components = append(app.Spec.Components, comp)
+	}
 
 	for _, tmpl := range addon.YAMLTemplates {
 		comp, err := renderRawComponent(tmpl)
@@ -496,7 +507,11 @@ func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.App
 		}
 		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps,
 			v1beta1.WorkflowStep{
-				Name: "deploy-all",
+				Name: "deploy-control-plane",
+				Type: "apply-application",
+			},
+			v1beta1.WorkflowStep{
+				Name: "deploy-runtime",
 				Type: "deploy2runtime",
 			})
 	} else {
@@ -527,6 +542,14 @@ func renderObject(elem types.AddonElementFile) (*unstructured.Unstructured, erro
 		return nil, err
 	}
 	return obj, nil
+}
+
+func renderNamespace(namespace string) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("v1")
+	u.SetKind("Namespace")
+	u.SetName(namespace)
+	return u
 }
 
 // renderRawComponent will return a component in raw type from string
