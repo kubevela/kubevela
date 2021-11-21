@@ -108,7 +108,7 @@ var _ = Describe("Test addon rest api", func() {
 				return nil
 			}
 			var app v1beta1.Application
-			err = k8sClient.Get(context.Background(), client.ObjectKey{Name: "addon-example", Namespace: "example-system"}, &app)
+			err = k8sClient.Get(context.Background(), client.ObjectKey{Name: "addon-example", Namespace: "vela-system"}, &app)
 			Expect(err).Should(BeNil())
 			data, err := json.Marshal(app)
 			Expect(err).Should(BeNil())
