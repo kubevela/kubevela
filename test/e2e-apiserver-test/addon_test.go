@@ -4,19 +4,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"net/http"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/oam-dev/kubevela/pkg/addon"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -77,7 +77,17 @@ var _ = Describe("Test addon rest api", func() {
 	})
 
 	It("should enable and disable an addon", func() {
-		var err error
+		// todo(qiaozp) we should remove this namespace creation. This should be solved with a application template.
+		ns := v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "flux-system",
+			},
+		}
+		args := common.Args{}
+		k8sClient, err := args.GetClient()
+		Expect(err).Should(BeNil())
+		Expect(k8sClient.Create(context.Background(), &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		defer GinkgoRecover()
 		req := apis.EnableAddonRequest{
 			Args: map[string]string{
@@ -109,22 +119,6 @@ var _ = Describe("Test addon rest api", func() {
 			if statusRes.Phase == apis.AddonPhaseEnabled {
 				return true, nil
 			}
-			fmt.Println(statusRes.Phase)
-			var app v1beta1.Application
-			args := common.Args{}
-			k8sClient, err := args.GetClient()
-			err = k8sClient.Get(context.Background(), client.ObjectKey{
-				Namespace: "example-system",
-				Name:      "addon-example",
-			}, &app)
-			if err != nil {
-				fmt.Println(err)
-				return false, nil
-			}
-			fmt.Println(app.Status)
-			fmt.Println(app.Status.AppliedResources)
-			fmt.Println(app.Status.Phase)
-			fmt.Println(app.Status.Workflow.Steps)
 			return false, nil
 		})
 		Expect(err).Should(BeNil())
