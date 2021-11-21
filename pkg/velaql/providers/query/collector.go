@@ -34,6 +34,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -77,11 +78,12 @@ func (c *AppCollector) CollectLatestResourceFromApp() ([]AppResources, error) {
 		revision = app.Status.LatestRevision.Revision
 	}
 	publishVersion := app.GetAnnotations()[oam.AnnotationPublishVersion]
+	deployVersion := app.GetAnnotations()[oam.AnnotationDeployVersion]
 
 	appRevName := fmt.Sprintf("%s-v%d", app.Name, revision)
 	comps := make(map[string][]Resource, len(app.Spec.Components))
 	for _, rsrcRef := range app.Status.AppliedResources {
-		if c.opt.Cluster != "" && c.opt.Cluster != rsrcRef.Cluster {
+		if !isTargetResource(c.opt.Filter, rsrcRef) {
 			continue
 		}
 		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, rsrcRef.ObjectReference, rsrcRef.Cluster, appRevName)
@@ -106,6 +108,7 @@ func (c *AppCollector) CollectLatestResourceFromApp() ([]AppResources, error) {
 		Metadata:       app.ObjectMeta,
 		Components:     compResList,
 		PublishVersion: publishVersion,
+		DeployVersion:  deployVersion,
 	}}, nil
 }
 
@@ -412,4 +415,14 @@ func getEventFieldSelector(obj *unstructured.Unstructured) fields.Selector {
 	field["involvedObject.kind"] = obj.GetObjectKind().GroupVersionKind().Kind
 	field["involvedObject.uid"] = string(obj.GetUID())
 	return field.AsSelector()
+}
+
+func isTargetResource(opt ClusterFilter, resource common.ClusterObjectReference) bool {
+	if opt.Cluster == "" && opt.ClusterNamespace == "" {
+		return true
+	}
+	if opt.Cluster == resource.Cluster && opt.ClusterNamespace == resource.ObjectReference.Namespace {
+		return true
+	}
+	return false
 }

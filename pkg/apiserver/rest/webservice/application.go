@@ -363,7 +363,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.ListWorkflowResponse{}).
 		Writes(apis.ListWorkflowResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.POST("/{name}/workflows").To(c.createApplicationWorkflow).
+	ws.Route(ws.POST("/{name}/workflows").To(c.createOrUpdateApplicationWorkflow).
 		Doc("create application workflow").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateWorkflowRequest{}).

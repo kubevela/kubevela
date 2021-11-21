@@ -24,10 +24,11 @@ List the pods created by specified component
 
 ```
 parameter: {
-  name:          string // application name
-  namespace:     string // application namespace
-  componentName: string // component name 
-  cluster?:      string // cluster name(Optional)
+	appName:    string // application name
+	appNs:      string // application namespace
+	name:       string // component name
+	cluster?:   string // cluster name(Optional)
+	clusterNs?: string // cluster namespace(Optional)
 }
 ```
 
@@ -45,6 +46,7 @@ status: {
 		revision:       string
 		publishVersion: string
 		podName:        string
+		podNs:          string
 		status:         string
 		podIP:          string
 		hostIP:         string
@@ -61,7 +63,7 @@ status: {
 #### demo
 
 ```sql
-component-pod-view{name=demo,namespace=default,cluster=prod,componentName=web}.status
+component-pod-view{appName=demo,appNs=default,cluster=prod,clusterNs=default,name=web}.status
 ```
 
 ### pod-view
