@@ -5,7 +5,11 @@
 		name:      string
 		namespace: string
 		components?: [...string]
-		cluster?:            string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+		}
+		clusterNamespace?:   string
 		enableHistoryQuery?: bool
 	}
 	...
