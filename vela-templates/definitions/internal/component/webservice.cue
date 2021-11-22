@@ -10,17 +10,16 @@ webservice: {
 		}
 		status: {
 			customStatus: #"""
-					import "strconv"
-
-					if context.output.status.readyReplicas != _|_ {
-						message: "ReadyReplicas: " + strconv.FormatInt(context.output.status.readyReplicas, 10)
-					}
-					if context.output.status.readyReplicas == _|_ {
-						message: ""
-					}
+				import "strconv"
+				if context.output.status.readyReplicas != _|_ {
+					message: "ReadyReplicas: " + strconv.FormatInt(context.output.status.readyReplicas, 10)
+				}
+				if context.output.status.readyReplicas == _|_ {
+					message: ""
+				}
 				"""#
 			healthPolicy: #"""
-					isHealth: context.output.status.replicas == context.output.status.readyReplicas
+				isHealth: context.output.status.replicas == context.output.status.readyReplicas
 				"""#
 		}
 	}
