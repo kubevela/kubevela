@@ -263,7 +263,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		cr := &appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "record-" + appName + "-test-workflow-2-111",
+				Name:      "record-app-workflow-dev-test-workflow-2-111",
 				Namespace: "default",
 				Labels:    map[string]string{"vela.io/wf-revision": "test-workflow-2-111"},
 			},
