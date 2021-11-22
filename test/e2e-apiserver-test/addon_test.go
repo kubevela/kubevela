@@ -2,7 +2,6 @@ package e2e_apiserver_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,9 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/addon"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	. "github.com/onsi/ginkgo"
@@ -98,7 +95,7 @@ var _ = Describe("Test addon rest api", func() {
 
 		// Wait for addon enabled
 
-		period := 10 * time.Second
+		period := 30 * time.Second
 		timeout := 2 * time.Minute
 		Eventually(func() error {
 			res = get("/api/v1/addons/" + testAddon + "/status")
@@ -107,12 +104,7 @@ var _ = Describe("Test addon rest api", func() {
 			if statusRes.Phase == apis.AddonPhaseEnabled {
 				return nil
 			}
-			var app v1beta1.Application
-			err = k8sClient.Get(context.Background(), client.ObjectKey{Name: "addon-example", Namespace: "vela-system"}, &app)
-			Expect(err).Should(BeNil())
-			data, err := json.Marshal(app)
-			Expect(err).Should(BeNil())
-			fmt.Println(data)
+			fmt.Println(statusRes.Phase)
 			return errors.New("not ready")
 		}, timeout, period).Should(BeNil())
 
