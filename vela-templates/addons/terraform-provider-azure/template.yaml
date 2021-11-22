@@ -2,49 +2,42 @@ apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   annotations:
-    addons.oam.dev/description: Kubernetes Terraform Controller for AWS
-    addons.oam.dev/name: terraform-aws
-  name: terraform-aws
+    addons.oam.dev/description: Kubernetes Terraform Controller for Azure
+    addons.oam.dev/name: terraform/provider-azure
+  name: terraform-provider-azure
   namespace: vela-system
 spec:
-  workflow:
-    steps:
-      - type: depends-on-app
-        properties:
-          name: terraform
-          namespace: vela-system
-      - type: apply-application
   components:
-    - name: aws-account-creds
+    - name: azure-account-creds
       properties:
         apiVersion: v1
         kind: Secret
         metadata:
-          name: aws-account-creds
+          name: azure-account-creds
           namespace: vela-system
         type: Opaque
         stringData:
           credentials: |
-            awsAccessKeyID: [[ index .Args "AWS_ACCESS_KEY_ID" ]]
-            awsSecretAccessKey: [[ index .Args "AWS_SECRET_ACCESS_KEY" ]]
-            awsSessionToken: [[ index .Args "AWS_SESSION_TOKEN" ]]
+            armClientID: [[ index .Args "ARM_CLIENT_ID" ]]
+            armClientSecret: [[ index .Args "ARM_CLIENT_SECRET" ]]
+            armSubscriptionID: [[ index .Args "ARM_SUBSCRIPTION_ID" ]]
+            armTenantID: [[ index .Args "ARM_TENANT_ID" ]]
       type: raw
-    - name: aws
+    - name: azure
       type: raw
       properties:
         apiVersion: terraform.core.oam.dev/v1beta1
         kind: Provider
         metadata:
-          name: aws
+          name: azure
           namespace: default
         spec:
-          provider: aws
-          region: '[[ index .Args "AWS_DEFAULT_REGION" ]]'
+          provider: azure
           credentials:
             source: Secret
             secretRef:
               namespace: vela-system
-              name: aws-account-creds
+              name: azure-account-creds
               key: credentials
 {{ range .ResourceFiles }}
     - name: {{ .Name }}
