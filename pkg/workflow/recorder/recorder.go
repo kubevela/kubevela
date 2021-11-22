@@ -66,7 +66,9 @@ func (r *recorder) Save(version string, data []byte) Store {
 	if version == "" {
 		wfStatus := r.source.Status.Workflow
 		if wfStatus != nil {
-			version = strings.ReplaceAll(wfStatus.AppRevision, ":", "-")
+			if !strings.Contains(wfStatus.AppRevision, ":") {
+				version = wfStatus.AppRevision
+			}
 		}
 	}
 
@@ -89,7 +91,16 @@ func (r *recorder) Save(version string, data []byte) Store {
 	}
 	if err := r.cli.Create(context.Background(), rv); err != nil {
 		if kerrors.IsAlreadyExists(err) {
-			r.err = r.cli.Update(context.Background(), rv)
+			// ControllerRevision implements an immutable snapshot of state data
+			// Once a ControllerRevision has been successfully created, it can not be updated.
+			// So we need to delete the old one and create a new one.
+			r.err = r.cli.Delete(context.Background(), &apps.ControllerRevision{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      rv.Name,
+					Namespace: rv.Namespace,
+				},
+			})
+			r.err = r.cli.Create(context.Background(), rv)
 		} else {
 			r.err = errors.WithMessagef(err, "save record %s/%s", rv.Namespace, rv.Name)
 		}
