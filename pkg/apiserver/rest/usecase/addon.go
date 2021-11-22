@@ -125,6 +125,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 	if addon == nil {
 		return nil, bcode.ErrAddonNotExist
 	}
+	addon.UISchema = renderDefaultUISchema(addon.APISchema)
 	a, err := AddonImpl2AddonRes(addon)
 	if err != nil {
 		return nil, err
@@ -335,6 +336,10 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 		}
 		if addon == nil {
 			continue
+		}
+
+		if !pkgaddon.CheckDependencies(ctx, u.kubeClient, addon) {
+			return bcode.ErrAddonDependencyNotSatisfy
 		}
 
 		app, defs, err := pkgaddon.RenderApplication(addon, args.Args)

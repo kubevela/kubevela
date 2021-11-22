@@ -58,6 +58,9 @@ var (
 
 	// ErrAddonSecretGet means fail to get addon argument secret
 	ErrAddonSecretGet = NewBcode(500, 50016, "fail to get addon argument secret")
+
+	// ErrAddonDependencyNotSatisfy means addon's dependencies is not enabled
+	ErrAddonDependencyNotSatisfy = NewBcode(500, 50017, "addon's dependencies is not enabled")
 )
 
 // isGithubRateLimit check if error is github rate limit

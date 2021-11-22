@@ -13,17 +13,9 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"sigs.k8s.io/yaml"
-
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
-	"github.com/pkg/errors"
-	"golang.org/x/oauth2"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -34,6 +26,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/pkg/errors"
+	"golang.org/x/oauth2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -634,4 +633,19 @@ func RenderArgsSecret(addon *types.Addon, args map[string]string) *v1.Secret {
 // Convert2SecName TODO add desc
 func Convert2SecName(name string) string {
 	return addonSecPrefix + name
+}
+
+// CheckDependencies checks if addon's dependent addons is enabled
+func CheckDependencies(ctx context.Context, clt client.Client, addon *types.Addon) bool {
+	var app v1beta1.Application
+	for _, dep := range addon.Dependencies {
+		err := clt.Get(ctx, client.ObjectKey{
+			Namespace: types.DefaultKubeVelaNS,
+			Name:      Convert2AppName(dep.Name),
+		}, &app)
+		if err != nil {
+			return false
+		}
+	}
+	return true
 }
