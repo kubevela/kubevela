@@ -125,6 +125,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 	if addon == nil {
 		return nil, bcode.ErrAddonNotExist
 	}
+	addon.UISchema = renderDefaultUISchema(addon.APISchema)
 	a, err := AddonImpl2AddonRes(addon)
 	if err != nil {
 		return nil, err
