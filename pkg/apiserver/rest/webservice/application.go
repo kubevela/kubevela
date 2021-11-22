@@ -161,16 +161,17 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ComponentBase{}))
 
-	ws.Route(ws.GET("/{name}/components/{componentName}").To(c.detailComponent).
+	ws.Route(ws.GET("/{name}/components/{compName}").To(c.detailComponent).
 		Doc("detail component for application ").
 		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.DetailComponentResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DetailComponentResponse{}))
 
-	ws.Route(ws.PUT("/{name}/components/{componentName}").To(c.updateComponent).
+	ws.Route(ws.PUT("/{name}/components/{compName}").To(c.updateComponent).
 		Doc("update component config").
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
@@ -621,7 +622,7 @@ func (c *applicationWebService) createComponent(req *restful.Request, res *restf
 
 func (c *applicationWebService) detailComponent(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	detail, err := c.applicationUsecase.DetailComponent(req.Request.Context(), app, req.PathParameter("componentName"))
+	detail, err := c.applicationUsecase.DetailComponent(req.Request.Context(), app, req.PathParameter("compName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

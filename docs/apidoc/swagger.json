@@ -1436,6 +1436,40 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/records": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list application records",
+				"operationId": "listApplicationRecords",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}/revisions": {
 			"get": {
 				"consumes": [
@@ -1676,7 +1710,7 @@
 					"application"
 				],
 				"summary": "create application workflow",
-				"operationId": "createApplicationWorkflow",
+				"operationId": "createOrUpdateApplicationWorkflow",
 				"parameters": [
 					{
 						"name": "body",
@@ -2658,9 +2692,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"workflowstep",
 							"component",
-							"trait"
+							"trait",
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -3262,9 +3296,9 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"rollingState",
 				"currentBatch",
 				"upgradedReadyReplicas",
+				"rollingState",
 				"batchRollingState",
 				"upgradedReplicas",
 				"lastTargetAppRevision"
@@ -4376,14 +4410,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"note",
 				"envName",
 				"triggerType",
 				"createTime",
 				"version",
 				"status",
 				"reason",
-				"deployUser"
+				"deployUser",
+				"note"
 			],
 			"properties": {
 				"createTime": {
@@ -5217,16 +5251,12 @@
 		},
 		"v1.CreateWorkflowRequest": {
 			"required": [
-				"appName",
 				"name",
 				"default",
 				"envName"
 			],
 			"properties": {
 				"alias": {
-					"type": "string"
-				},
-				"appName": {
 					"type": "string"
 				},
 				"default": {
@@ -5370,13 +5400,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"updateTime",
 				"icon",
 				"name",
 				"alias",
 				"namespace",
 				"description",
 				"createTime",
+				"updateTime",
 				"policies",
 				"envBindings",
 				"status",
@@ -5434,19 +5464,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"name",
+				"provider",
+				"apiServerURL",
+				"kubeConfigSecret",
+				"labels",
 				"status",
 				"reason",
 				"dashboardURL",
-				"name",
-				"description",
-				"icon",
-				"labels",
-				"kubeConfig",
-				"kubeConfigSecret",
 				"model",
 				"alias",
-				"provider",
-				"apiServerURL",
+				"description",
+				"icon",
+				"kubeConfig",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5499,13 +5529,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"alias",
 				"creator",
-				"updateTime",
-				"appPrimaryKey",
-				"createTime",
+				"alias",
 				"type",
-				"name"
+				"createTime",
+				"name",
+				"updateTime",
+				"appPrimaryKey"
 			],
 			"properties": {
 				"alias": {
@@ -5601,8 +5631,8 @@
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
 				"namespace",
-				"createTime",
 				"updateTime",
+				"createTime",
 				"name"
 			],
 			"properties": {
@@ -5640,13 +5670,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"properties",
-				"createTime",
-				"updateTime",
 				"name",
 				"type",
 				"description",
-				"creator"
+				"creator",
+				"properties",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5676,17 +5706,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"triggerType",
 				"workflowName",
-				"version",
+				"envName",
 				"appPrimaryKey",
 				"status",
-				"reason",
 				"deployUser",
-				"note",
-				"envName",
+				"triggerType",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"version",
+				"reason",
+				"note"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5731,9 +5761,9 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"name",
 				"namespace",
 				"status",
-				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -5776,14 +5806,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"alias",
-				"description",
-				"envName",
-				"createTime",
 				"updateTime",
 				"name",
+				"alias",
+				"description",
+				"default",
+				"envName",
 				"enable",
-				"default"
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -6165,10 +6195,10 @@
 		},
 		"v1.NamespaceDetailResponse": {
 			"required": [
+				"name",
 				"description",
 				"createTime",
-				"updateTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -6409,8 +6439,7 @@
 		"v1.UpdateWorkflowRequest": {
 			"required": [
 				"enable",
-				"default",
-				"envName"
+				"default"
 			],
 			"properties": {
 				"alias": {
@@ -6424,9 +6453,6 @@
 				},
 				"enable": {
 					"type": "boolean"
-				},
-				"envName": {
-					"type": "string"
 				},
 				"steps": {
 					"type": "array",

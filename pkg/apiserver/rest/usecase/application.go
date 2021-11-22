@@ -618,11 +618,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	if err := c.ds.Add(ctx, appRevision); err != nil {
 		return nil, err
 	}
-	// step3: create workflow record
-	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, app, oamApp, workflow); err != nil {
-		return nil, err
-	}
-	// step4: check and create namespace
+	// step3: check and create namespace
 	var namespace corev1.Namespace
 	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: oamApp.Namespace}, &namespace); apierrors.IsNotFound(err) {
 		namespace.Name = oamApp.Namespace
@@ -631,7 +627,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 			return nil, bcode.ErrCreateNamespace
 		}
 	}
-	// step5: apply to controller cluster
+	// step4: apply to controller cluster
 	err = c.apply.Apply(ctx, oamApp)
 	if err != nil {
 		appRevision.Status = model.RevisionStatusFail
@@ -639,15 +635,22 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		if err := c.ds.Put(ctx, appRevision); err != nil {
 			log.Logger.Warnf("update deploy event failure %s", err.Error())
 		}
+
 		log.Logger.Errorf("deploy app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, bcode.ErrDeployApplyFail
 	}
-	appRevision.Status = model.RevisionStatusRunning
-	if err := c.ds.Put(ctx, appRevision); err != nil {
-		log.Logger.Warnf("update deploy event failure %s", err.Error())
+
+	// step5: create workflow record
+	if err := c.workflowUsecase.CreateWorkflowRecord(ctx, app, oamApp, workflow); err != nil {
+		log.Logger.Warnf("create workflow record failure %s", err.Error())
 	}
 
-	// step6: update deploy event status
+	// step6: update app revision status
+	appRevision.Status = model.RevisionStatusRunning
+	if err := c.ds.Put(ctx, appRevision); err != nil {
+		log.Logger.Warnf("update app revision failure %s", err.Error())
+	}
+
 	return &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: apisv1.ApplicationRevisionBase{
 			Version:     appRevision.Version,
@@ -826,6 +829,14 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 		return err
 	}
 
+	var revision = model.ApplicationRevision{
+		AppPrimaryKey: app.PrimaryKey(),
+	}
+	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{})
+	if err != nil {
+		return err
+	}
+
 	// delete workflow
 	if err := c.workflowUsecase.DeleteWorkflowByApp(ctx, app); err != nil && !errors.Is(err, bcode.ErrWorkflowNotExist) {
 		log.Logger.Errorf("delete workflow %s failure %s", app.Name, err.Error())
@@ -842,6 +853,13 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 		err := c.ds.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: app.PrimaryKey(), Name: policy.Name})
 		if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
 			log.Logger.Errorf("delete policy %s in app %s failure %s", policy.Name, app.Name, err.Error())
+		}
+	}
+
+	for _, entity := range revisions {
+		revision := entity.(*model.ApplicationRevision)
+		if err := c.ds.Delete(ctx, &model.ApplicationRevision{AppPrimaryKey: app.PrimaryKey(), Version: revision.Version}); err != nil {
+			log.Logger.Errorf("delete revision %s in app %s failure %s", revision.Version, app.Name, err.Error())
 		}
 	}
 
