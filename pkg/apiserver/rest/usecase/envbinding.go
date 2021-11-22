@@ -173,11 +173,11 @@ func (e *envBindingUsecaseImpl) UpdateEnvBinding(ctx context.Context, app *model
 		return nil, err
 	}
 	convertUpdateReqToEnvBindingModel(envBinding, envUpdate)
-	//update env
+	// update env
 	if err := e.ds.Put(ctx, envBinding); err != nil {
 		return nil, err
 	}
-	//update env workflow
+	// update env workflow
 	if err := e.updateEnvWorkflow(ctx, app, envBinding); err != nil {
 		return nil, bcode.ErrEnvBindingUpdateWorkflow
 	}
@@ -200,7 +200,7 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 	if err := e.ds.Delete(ctx, &model.EnvBinding{AppPrimaryKey: appModel.PrimaryKey(), Name: envBinding.Name}); err != nil {
 		return err
 	}
-	//delete env workflow
+	// delete env workflow
 	if err := e.deleteEnvWorkflow(ctx, appModel, envBinding.Name); err != nil {
 		return err
 	}
@@ -213,11 +213,11 @@ func (e *envBindingUsecaseImpl) BatchDeleteEnvBinding(ctx context.Context, app *
 		return err
 	}
 	for _, envBinding := range envBindings {
-		//delete env
+		// delete env
 		if err := e.ds.Delete(ctx, &model.EnvBinding{AppPrimaryKey: app.PrimaryKey(), Name: envBinding.Name}); err != nil {
 			return err
 		}
-		//delete env workflow
+		// delete env workflow
 		err := e.deleteEnvWorkflow(ctx, app, envBinding.Name)
 		if err != nil {
 			return err
