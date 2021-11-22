@@ -35,7 +35,7 @@ spec:
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             - "--cert-dir={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}"
             {{ end }}
-          image: {{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
+          image: {{ .Values.imageRegistry }}{{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
           imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
           resources:
           {{- toYaml .Values.multicluster.clusterGateway.resources | nindent 12 }}
@@ -132,7 +132,7 @@ spec:
     spec:
       containers:
         - name: create
-          image: {{ .Values.admissionWebhooks.patch.image.repository }}:{{ .Values.admissionWebhooks.patch.image.tag }}
+          image: {{ .Values.imageRegistry }}{{ .Values.admissionWebhooks.patch.image.repository }}:{{ .Values.admissionWebhooks.patch.image.tag }}
           imagePullPolicy: {{ .Values.admissionWebhooks.patch.image.pullPolicy }}
           args:
             - create
@@ -175,7 +175,7 @@ spec:
     spec:
       containers:
         - name: patch
-          image: {{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
+          image: {{ .Values.imageRegistry }}{{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
           imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
           command:
             - /patch
