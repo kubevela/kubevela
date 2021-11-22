@@ -337,6 +337,10 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			continue
 		}
 
+		if !pkgaddon.CheckDependencies(ctx, u.kubeClient, addon) {
+			return bcode.ErrAddonDependencyNotSatisfy
+		}
+
 		app, defs, err := pkgaddon.RenderApplication(addon, args.Args)
 		if err != nil {
 			return bcode.ErrAddonRender
