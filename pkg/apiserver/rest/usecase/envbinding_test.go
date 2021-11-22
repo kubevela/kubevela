@@ -20,10 +20,11 @@ import (
 	"context"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
 var _ = Describe("Test envBindingUsecase functions", func() {

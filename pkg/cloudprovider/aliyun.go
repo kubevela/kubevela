@@ -190,7 +190,7 @@ func (provider *AliyunCloudProvider) CreateCloudCluster(ctx context.Context, clu
 		},
 		Spec: v1beta12.ConfigurationSpec{
 			BaseConfigurationSpec: v1beta12.BaseConfigurationSpec{
-				Path:     "alibaba/cs/dedicated-kubernetes",
+				Path: "alibaba/cs/dedicated-kubernetes",
 				ProviderReference: &types.Reference{
 					Name:      terraformProviderName,
 					Namespace: ns,
