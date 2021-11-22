@@ -169,7 +169,7 @@ var _ = Describe("Test application rest api", func() {
 		var req = apisv1.ApplicationDeployRequest{
 			Note:         "test apply",
 			TriggerType:  "web",
-			WorkflowName: "dev",
+			WorkflowName: "workflow-dev",
 			Force:        false,
 		}
 		bodyByte, err = json.Marshal(req)

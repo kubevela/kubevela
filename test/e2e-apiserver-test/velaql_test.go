@@ -188,7 +188,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return err
 			}
 			return nil
-		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
+		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
 
 		newApp := new(v1beta1.Application)
 		Eventually(func() error {
@@ -206,7 +206,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("fail to apply cronjob")
 			}
 			return nil
-		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
+		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
 
 		newWorkload := new(batchv1beta1.CronJob)
 		Eventually(func() error {
