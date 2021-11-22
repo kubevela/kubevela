@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
@@ -99,6 +100,7 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 		envBinding, err := envBindingUsecase.UpdateEnvBinding(context.TODO(), testApp, "prod", apisv1.PutApplicationEnvRequest{
 			TargetNames: []string{"prod-target-new1"},
 		})
+		Expect(err).Should(BeNil())
 
 		Expect(envBinding).ShouldNot(BeNil())
 		Expect(cmp.Diff(envBinding.TargetNames[0], "prod-target-new1")).Should(BeEmpty())
