@@ -1,0 +1,343 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  annotations:
+    addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
+    addons.oam.dev/name: terraform-alibaba
+  name: terraform-alibaba
+  namespace: vela-system
+spec:
+  components:
+  - name: alibaba-account-creds
+    properties:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: alibaba-account-creds
+        namespace: vela-system
+      stringData:
+        credentials: |
+          accessKeyID: [[ index .Args "ALICLOUD_ACCESS_KEY" ]]
+          accessKeySecret: [[ index .Args "ALICLOUD_SECRET_KEY" ]]
+          securityToken: [[ index .Args "ALICLOUD_SECURITY_TOKEN" ]]
+      type: Opaquehelm
+    type: raw
+  - name: default
+    properties:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Provider
+      metadata:
+        name: default
+        namespace: default
+      spec:
+        credentials:
+          secretRef:
+            key: credentials
+            name: alibaba-account-creds
+            namespace: vela-system
+          source: Secret
+        provider: alibaba
+        region: '[[ index .Args "ALICLOUD_REGION" ]]'
+    type: raw
+  - name: alibaba-redis
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            Redis
+        labels:
+          type: terraform
+        name: alibaba-redis
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules/alibaba/redis
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-ack
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            ACK cluster
+        labels:
+          type: terraform
+        name: alibaba-ack
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/cs/dedicated-kubernetes
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-ask
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            Serverless Kubernetes (ASK)
+        labels:
+          type: terraform
+        name: alibaba-ask
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/cs/serverless-kubernetes
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-eip
+    properties:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            Elastic IP
+        labels:
+          type: terraform
+        name: alibaba-eip
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/oam-dev/terraform-alibaba-eip.git
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-oss
+    properties:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            OSS object
+        labels:
+          type: terraform
+        name: alibaba-oss
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: "resource \"alicloud_oss_bucket\" \"bucket-acl\" {\n  bucket
+              = var.bucket\n  acl = var.acl\n}\noutput \"BUCKET_NAME\" {\n  value
+              = \"${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}\"\n}\nvariable
+              \"bucket\" {\n  description = \"OSS bucket name\"\n  default = \"vela-website\"\n
+              \ type = string\n}\nvariable \"acl\" {\n  description = \"OSS bucket
+              ACL, supported 'private', 'public-read', 'public-read-write'\"\n  default
+              = \"private\"\n  type = string\n} \n"
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-rds
+    properties:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            RDS object
+        labels:
+          type: terraform
+        name: alibaba-rds
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: |
+              module "rds" {
+                source = "github.com/kubevela-contrib/terraform-alicloud-rds"
+                engine = "MySQL"
+                engine_version = "8.0"
+                instance_type = "rds.mysql.c1.large"
+                instance_storage = "20"
+                instance_name = var.instance_name
+                account_name = var.account_name
+                password = var.password
+                allocate_public_connection = var.allocate_public_connection
+                security_ips = ["0.0.0.0/0",]
+              }
+
+              output "DB_NAME" {
+                value = module.rds.this_db_instance_name
+              }
+              output "DB_USER" {
+                value = module.rds.this_db_database_account
+              }
+              output "DB_PORT" {
+                value = module.rds.this_db_instance_port
+              }
+              output "DB_HOST" {
+                value = module.rds.this_db_instance_connection_string
+              }
+              output "DB_PASSWORD" {
+                value = var.password
+              }
+              output "DB_PUBLIC_HOST" {
+                value = module.rds.db_public_connection_string
+              }
+
+              variable "instance_name" {
+                description = "RDS instance name"
+                type = string
+                default = "poc"
+              }
+
+              variable "account_name" {
+                description = "RDS instance user account name"
+                type = string
+                default = "oam"
+              }
+
+              variable "password" {
+                description = "RDS instance account password"
+                type = string
+                default = "Xyfff83jfewGGfaked"
+              }
+
+              variable "allocate_public_connection" {
+                description = "Whether to allocate public connection for a RDS instance."
+                type        = bool
+                default     = true
+              }
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-sls-project
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            SLS Project
+        labels:
+          type: terraform
+        name: alibaba-sls-project
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/sls/project
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-sls-store
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            SLS Store
+        labels:
+          type: terraform
+        name: alibaba-sls-store
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/sls/store
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-vpc
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            VPC
+        labels:
+          type: terraform
+        name: alibaba-vpc
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/vpc
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  - name: alibaba-vswitch
+    properties:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Terraform configuration for Alibaba Cloud
+            VSwitch
+        labels:
+          type: terraform
+        name: alibaba-vswitch
+        namespace: vela-system
+      spec:
+        schematic:
+          terraform:
+            configuration: https://github.com/kubevela-contrib/terraform-modules.git
+            path: alibaba/vswitch
+            type: remote
+        workload:
+          definition:
+            apiVersion: terraform.core.oam.dev/v1beta1
+            kind: Configuration
+    type: raw
+  workflow:
+    steps:
+    - name: ""
+      properties:
+        name: terraform
+        namespace: vela-system
+      type: depends-on-app
+    - name: ""
+      type: apply-application
+status:
+  rollout:
+    batchRollingState: ""
+    currentBatch: 0
+    lastTargetAppRevision: ""
+    rollingState: ""
+    upgradedReadyReplicas: 0
+    upgradedReplicas: 0
