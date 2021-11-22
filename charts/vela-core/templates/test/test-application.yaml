@@ -10,7 +10,7 @@ spec:
     - name: helm-test-express-server
       type: webservice
       properties:
-        image: crccheck/hello-world
+        image: {{ .Values.imageRegistry }}{{ .Values.test.app.repository }}:{{ .Values.test.app.tag }}
         port: 8000
       traits:
         - type: ingress
@@ -30,7 +30,7 @@ spec:
   serviceAccountName: kubevela-vela-core
   containers:
     - name: {{ .Release.Name }}-application-test
-      image: alpine/k8s:1.18.2
+      image: {{ .Values.imageRegistry }}{{ .Values.test.k8s.repository }}:{{ .Values.test.k8s.tag }}
       imagePullPolicy: IfNotPresent
       command:
         - /bin/bash
