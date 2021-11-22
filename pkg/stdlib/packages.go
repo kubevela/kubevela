@@ -57,7 +57,9 @@ func GetPackages(tagTempl string) (map[string]string, error) {
 		}
 		pkgContent := fmt.Sprintf("%s: {\n%s\n}\n", strings.TrimSuffix(file.Name(), ".cue"), string(body))
 		opContent += pkgContent
-		qlContent += pkgContent
+		if file.Name() == "kube.cue" || file.Name() == "query.cue" {
+			qlContent += pkgContent
+		}
 	}
 
 	return map[string]string{
