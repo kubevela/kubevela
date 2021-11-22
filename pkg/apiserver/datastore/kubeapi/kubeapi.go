@@ -168,6 +168,13 @@ func (m *kubeapi) Put(ctx context.Context, entity datastore.Entity) error {
 	if entity.TableName() == "" {
 		return datastore.ErrTableNameEmpty
 	}
+	// update labels
+	labels := entity.Index()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels["table"] = entity.TableName()
+	labels["primaryKey"] = entity.PrimaryKey()
 	entity.SetUpdateTime(time.Now())
 	var configMap corev1.ConfigMap
 	if err := m.kubeclient.Get(ctx, types.NamespacedName{Namespace: m.namespace, Name: generateName(entity)}, &configMap); err != nil {
@@ -181,6 +188,7 @@ func (m *kubeapi) Put(ctx context.Context, entity datastore.Entity) error {
 		return datastore.NewDBError(err)
 	}
 	configMap.BinaryData["data"] = data
+	configMap.Labels = labels
 	if err := m.kubeclient.Update(ctx, &configMap); err != nil {
 		return datastore.NewDBError(err)
 	}

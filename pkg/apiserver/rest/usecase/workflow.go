@@ -382,7 +382,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 		// try to sync the status from the controller revision
 		cr := &appsv1.ControllerRevision{}
 		if err := w.kubeClient.Get(ctx, types.NamespacedName{
-			Name:      fmt.Sprintf("record-%s-%s", record.AppPrimaryKey, record.Name),
+			Name:      fmt.Sprintf("record-%s-%s", convertAppName(record.AppPrimaryKey, workflow.EnvName), record.Name),
 			Namespace: record.Namespace,
 		}, cr); err != nil {
 			klog.ErrorS(err, "failed to get controller revision", "app name", record.AppPrimaryKey, "workflow record name", record.Name)
