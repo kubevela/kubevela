@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	//go:embed pkgs op.cue
+	//go:embed pkgs op.cue ql.cue
 	fs embed.FS
 )
 
@@ -43,17 +43,26 @@ func GetPackages(tagTempl string) (map[string]string, error) {
 		return nil, err
 	}
 
-	pkgContent := string(opBytes) + "\n"
+	qlBytes, err := fs.ReadFile("ql.cue")
+	if err != nil {
+		return nil, err
+	}
+
+	opContent := string(opBytes) + "\n"
+	qlContent := string(qlBytes) + "\n"
 	for _, file := range files {
 		body, err := fs.ReadFile("pkgs/" + file.Name())
 		if err != nil {
 			return nil, err
 		}
-		pkgContent += fmt.Sprintf("%s: {\n%s\n}\n", strings.TrimSuffix(file.Name(), ".cue"), string(body))
+		pkgContent := fmt.Sprintf("%s: {\n%s\n}\n", strings.TrimSuffix(file.Name(), ".cue"), string(body))
+		opContent += pkgContent
+		qlContent += pkgContent
 	}
 
 	return map[string]string{
-		"vela/op": pkgContent + "\n" + tagTempl,
+		"vela/op": opContent + "\n" + tagTempl,
+		"vela/ql": qlContent + "\n" + tagTempl,
 	}, nil
 }
 

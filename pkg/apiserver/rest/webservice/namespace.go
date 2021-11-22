@@ -20,13 +20,22 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 type namespaceWebService struct {
+	namespaceUsecase usecase.NamespaceUsecase
 }
 
-func (c *namespaceWebService) GetWebService() *restful.WebService {
+// NewNamespaceWebService new namespace webservice
+func NewNamespaceWebService(namespaceUsecase usecase.NamespaceUsecase) WebService {
+	return &namespaceWebService{namespaceUsecase: namespaceUsecase}
+}
+
+func (n *namespaceWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/namespaces").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -35,42 +44,55 @@ func (c *namespaceWebService) GetWebService() *restful.WebService {
 
 	tags := []string{"namespace"}
 
-	ws.Route(ws.GET("/").To(noop).
+	ws.Route(ws.GET("/").To(n.listNamespaces).
 		Doc("list all namespaces").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.ListNamespaceResponse{}).
 		Writes(apis.ListNamespaceResponse{}))
 
-	ws.Route(ws.POST("/").To(noop).
+	ws.Route(ws.POST("/").To(n.createNamespace).
 		Doc("create namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateNamespaceRequest{}).
-		Writes(apis.NamesapceDetailResponse{}))
-
-	ws.Route(ws.GET("/{namespace}").To(noop).
-		Doc("get one namespace").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
-		Writes(apis.NamesapceDetailResponse{}))
-
-	// Compatible with historical apis
-	ws.Route(ws.GET("/{namespace}/applications/:appname").To(noop).
-		Doc("get the specified oam application in the specified namespace").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
-		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
-		Writes(apis.ApplicationResponse{}))
-
-	ws.Route(ws.POST("/{namespace}/applications/:appname").To(noop).
-		Doc("create or update oam application in the specified namespace").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
-		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
-		Reads(apis.ApplicationRequest{}))
-
-	ws.Route(ws.DELETE("/{namespace}/applications/:appname").To(noop).
-		Doc("create or update oam application in the specified namespace").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
-		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")))
+		Returns(200, "", apis.NamespaceDetailResponse{}).
+		Writes(apis.NamespaceDetailResponse{}))
 	return ws
+}
+
+func (n *namespaceWebService) listNamespaces(req *restful.Request, res *restful.Response) {
+	namespaces, err := n.namespaceUsecase.ListNamespaces(req.Request.Context())
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.ListNamespaceResponse{Namespaces: namespaces}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *namespaceWebService) createNamespace(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.CreateNamespaceRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the usecase layer code
+	namespaceBase, err := n.namespaceUsecase.CreateNamespace(req.Request.Context(), createReq)
+	if err != nil {
+		log.Logger.Errorf("create application failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(apis.NamespaceDetailResponse{NamespaceBase: *namespaceBase}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }

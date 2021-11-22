@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: component-pod-view
+  namespace: {{.Values.systemDefinitionNamespace}}
+data:
+  template: |
+    import (
+      "vela/ql"
+      "vela/op"
+    )
+
+    parameter: {
+      appName:    string
+      appNs:      string
+      name:       string
+      cluster?:   string
+      clusterNs?: string
+    }
+
+    appList: ql.#ListResourcesInApp & {
+      app: {
+        name:      parameter.appName
+        namespace: parameter.appNs
+        components: [parameter.name]
+        filter: {
+          if parameter.cluster != _|_ {
+            cluster: parameter.cluster
+          }
+          if parameter.clusterNs != _|_ {
+            clusterNamespace: parameter.clusterNs
+          }
+        }
+      }
+    }
+
+    if appList.err == _|_ {
+      appRev:            appList.list[0].revision
+      appPublishVersion: appList.list[0].publishVersion
+      appDeployVersion:  appList.list[0].deployVersion
+      resources:         appList.list[0].components[0].resources
+      collectedPods:     op.#Steps & {
+        for i, resource in resources {
+          "\(i)": ql.#CollectPods & {
+            value:   resource.object
+            cluster: resource.cluster
+          }
+        }
+      }
+
+      podsWithCluster: [ for pods in collectedPods for podObj in pods.list {
+        cluster: pods.cluster
+        obj:     podObj
+      }]
+
+      status: {
+        podList: [ for pod in podsWithCluster {
+          clusterName:    pod.cluster
+          revision:       appRev
+          publishVersion: appPublishVersion
+          deployVersion:  appDeployVersion
+          podName:        pod.obj.metadata.name
+          podNs:          pod.obj.metadata.namespace
+          status:         pod.obj.status.phase
+          // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+          if status != "Pending" && status != "Unknown" {
+            podIP:    pod.obj.status.podIP
+            hostIP:   pod.obj.status.hostIP
+            nodeName: pod.obj.spec.nodeName
+          }
+        }]
+      }
+    }
+
+    if appList.err != _|_ {
+      status: {
+        error: appList.err
+      }
+    }

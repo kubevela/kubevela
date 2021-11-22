@@ -209,7 +209,7 @@ func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Cont
 	oldRtList := &v1beta1.ResourceTrackerList{}
 	if err := a.c.List(ctx, oldRtList, client.MatchingLabels{
 		oam.LabelAppName:        ExtractAppName(a.currentRTName, a.namespace),
-		"app.oam.dev/namesapce": a.namespace,
+		"app.oam.dev/namespace": a.namespace,
 	}); err != nil {
 		return errors.Wrap(err, "cannot retrieve legacy resource trackers with miss-spell label")
 	}

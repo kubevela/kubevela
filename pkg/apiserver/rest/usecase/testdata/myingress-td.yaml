@@ -1,0 +1,65 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Enable public web traffic for the component.
+  name: myingress
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - "*"
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
+        import (
+        	kubev1 "kube/v1"
+        	network "kube/networking.k8s.io/v1beta1"
+        )
+
+        parameter: {
+        	domain: string
+        	http: [string]: int
+        }
+
+        outputs: {
+        service: kubev1.#Service
+        ingress: network.#Ingress
+        }
+
+        // trait template can have multiple outputs in one trait
+        outputs: service: {
+        	metadata:
+        		name: context.name
+        	spec: {
+        		selector:
+        			"app.oam.dev/component": context.name
+        		ports: [
+        			for k, v in parameter.http {
+        				port:       v
+        				targetPort: v
+        			},
+        		]
+        	}
+        }
+
+        outputs: ingress: {
+        	metadata:
+        		name: context.name
+        	spec: {
+        		rules: [{
+        			host: parameter.domain
+        			http: {
+        				paths: [
+        					for k, v in parameter.http {
+        						path: k
+        						backend: {
+        							serviceName: context.name
+        							servicePort: v
+        						}
+        					},
+        				]
+        			}
+        		}]
+        	}
+        }

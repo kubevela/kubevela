@@ -79,6 +79,4 @@ type Action interface {
 const (
 	// ContextKeyMetadata is key that refer to application metadata.
 	ContextKeyMetadata = "metadata__"
-	// AnnotationPublishVersion is annotation that record the application workflow version.
-	AnnotationPublishVersion = "vela.io/publish-version"
 )

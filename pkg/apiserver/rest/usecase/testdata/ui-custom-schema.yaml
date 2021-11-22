@@ -1,0 +1,77 @@
+- uiType: ImageInput
+  jsonKey: image
+  label: 服务镜像
+  sort: 1
+- description: Specifies the attributes of the memory resource required for the container.
+  disable: false
+  jsonKey: memory
+  uiType: MemoryNumber
+  sort: 3
+  label: 分配内存
+- uiType: CPUNumber
+  jsonKey: cpu
+  sort: 5
+  label: 分配CPU
+- jsonKey: cmd
+  label: 启动参数
+  sort: 7
+- description: Define arguments by using environment variables
+  disable: false
+  jsonKey: env
+  label: 环境变量
+  sort: 9
+  subParameterGroupOption:
+    - label: Add By Value
+      keys:
+        - name
+        - value
+    - label: Add By Secret
+      keys:
+       - name
+       - valueFrom
+  subParameters:
+  - description: Specifies a source the value of this var should come from
+    disable: false
+    jsonKey: valueFrom
+    label: Secret选择器
+    uiType: InnerGroup
+    subParameters:
+      - jsonKey: secretKeyRef
+        uiType: Ignore
+        subParameters:
+          - jsonKey: name
+            label: Secret选择
+            uiType: SecretSelect
+          - jsonKey: key
+            label: SecretKey选择
+            uiType: SecretKeySelect
+  uiType: Structs
+  validate: {}
+- jsonKey: port
+  label: 端口设置
+  sort: 10
+- jsonKey: volumes
+  label: 持久化存储
+  sort: 11
+- jsonKey: readinessProbe
+  uiType: Group
+  label: ReadinessProbe检测
+  sort: 13
+- jsonKey: livenessProbe
+  uiType: Group
+  label: LivenessProbe检测
+  sort: 15
+- description: Specify image pull policy for your service
+  disable: false
+  jsonKey: imagePullPolicy
+  label: 镜像更新策略
+  uiType: Select
+  sort: 17
+  validate: 
+    options:
+      - label: 镜像不存在时更新
+        value: IfNotPresent
+      - label: 总是更新
+        value: Always
+      - label: 永不更新
+        value: Never

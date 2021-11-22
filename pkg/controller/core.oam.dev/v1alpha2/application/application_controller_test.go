@@ -55,7 +55,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
@@ -2134,7 +2133,7 @@ var _ = Describe("Test Application Controller", func() {
 		app := appwithNoTrait.DeepCopy()
 		app.Name = "vela-test-app-trace"
 		app.SetNamespace(ns.Name)
-		app.Annotations = map[string]string{wfTypes.AnnotationPublishVersion: "v134"}
+		app.Annotations = map[string]string{oam.AnnotationPublishVersion: "v134"}
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 
@@ -2161,7 +2160,7 @@ var _ = Describe("Test Application Controller", func() {
 		web.Spec.Replicas = pointer.Int32(0)
 		Expect(k8sClient.Update(ctx, web)).Should(BeNil())
 
-		checkApp.Annotations[wfTypes.AnnotationPublishVersion] = "v135"
+		checkApp.Annotations[oam.AnnotationPublishVersion] = "v135"
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}

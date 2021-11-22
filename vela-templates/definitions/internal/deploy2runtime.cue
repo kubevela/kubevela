@@ -26,10 +26,10 @@ template: {
 					"\(cluster_)-\(name)": op.#ApplyComponent & {
 						value:   c
 						cluster: cluster_
-					} @step(3)
+					}
 				}
 			}
-		}
+		} @step(3)
 	}
 
 	parameter: {

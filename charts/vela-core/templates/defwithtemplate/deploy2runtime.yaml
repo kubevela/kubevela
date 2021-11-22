@@ -32,10 +32,10 @@ spec:
         				"\(cluster_)-\(name)": op.#ApplyComponent & {
         					value:   c
         					cluster: cluster_
-        				} @step(3)
+        				}
         			}
         		}
-        	}
+        	} @step(3)
         }
         parameter: {
         	// +usage=Declare the runtime clusters to apply, if empty, all runtime clusters will be used

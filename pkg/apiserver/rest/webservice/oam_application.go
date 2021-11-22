@@ -18,12 +18,23 @@ package webservice
 
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 type oamApplicationWebService struct {
+	oamApplicationUsecase usecase.OAMApplicationUsecase
+}
+
+// NewOAMApplication new oam application
+func NewOAMApplication(oamApplicationUsecase usecase.OAMApplicationUsecase) WebService {
+	return &oamApplicationWebService{
+		oamApplicationUsecase: oamApplicationUsecase,
+	}
 }
 
 func (c *oamApplicationWebService) GetWebService() *restful.WebService {
@@ -33,26 +44,85 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for oam application manage")
 
-	tags := []string{"oam"}
+	tags := []string{"oam-application"}
 
-	ws.Route(ws.GET("/{namespace}/applications/:appname").To(noop).
+	ws.Route(ws.GET("/namespaces/{namespace}/applications/{appname}").To(c.getApplication).
 		Doc("get the specified oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
+		Returns(200, "", apis.ApplicationResponse{}).
 		Writes(apis.ApplicationResponse{}))
 
-	ws.Route(ws.POST("/{namespace}/applications/{appname}").To(noop).
+	ws.Route(ws.POST("/namespaces/{namespace}/applications/{appname}").To(c.createOrUpdateApplication).
 		Doc("create or update oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
 		Reads(apis.ApplicationRequest{}))
 
-	ws.Route(ws.DELETE("/{namespace}/applications/:appname").To(noop).
+	ws.Route(ws.DELETE("/namespaces/{namespace}/applications/{appname}").To(c.deleteApplication).
 		Doc("create or update oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")))
+
 	return ws
+}
+
+func (c *oamApplicationWebService) getApplication(req *restful.Request, res *restful.Response) {
+	namespace := req.PathParameter("namespace")
+	appName := req.PathParameter("appname")
+	appRes, err := c.oamApplicationUsecase.GetOAMApplication(req.Request.Context(), appName, namespace)
+	if err != nil {
+		log.Logger.Errorf("get application failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(appRes); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *oamApplicationWebService) createOrUpdateApplication(req *restful.Request, res *restful.Response) {
+	namespace := req.PathParameter("namespace")
+	appName := req.PathParameter("appname")
+
+	var createReq apis.ApplicationRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	err := c.oamApplicationUsecase.CreateOrUpdateOAMApplication(req.Request.Context(), createReq, appName, namespace)
+	if err != nil {
+		log.Logger.Errorf("create application failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *oamApplicationWebService) deleteApplication(req *restful.Request, res *restful.Response) {
+	namespace := req.PathParameter("namespace")
+	appName := req.PathParameter("appname")
+
+	err := c.oamApplicationUsecase.DeleteOAMApplication(req.Request.Context(), appName, namespace)
+	if err != nil {
+		log.Logger.Errorf("delete application failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }

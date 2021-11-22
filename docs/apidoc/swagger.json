@@ -1,2695 +1,6831 @@
 {
- "swagger": "2.0",
- "info": {
-  "description": "Kubevela api doc",
-  "title": "Kubevela api doc",
-  "contact": {
-   "name": "kubevela",
-   "url": "https://kubevela.io/",
-   "email": "feedback@mail.kubevela.io"
-  },
-  "license": {
-   "name": "Apache License 2.0",
-   "url": "https://github.com/oam-dev/kubevela/blob/master/LICENSE"
-  },
-  "version": "v1beta1"
- },
- "paths": {
-  "/api/v1/applications": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "list all applications",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "Fuzzy search based on name or description",
-      "name": "query",
-      "in": "query"
-     },
-     {
-      "type": "string",
-      "description": "Namespace-based search",
-      "name": "namespace",
-      "in": "query"
-     },
-     {
-      "type": "string",
-      "description": "Cluster-based search",
-      "name": "cluster",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "create one application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.CreateApplicationRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/applications/{name}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "detail one application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "delete one application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/applications/{name}/components": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "gets the component topology of the application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "list components that deployed in define cluster",
-      "name": "cluster",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "create component for application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.CreateComponentRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/applications/{name}/deploy": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "deploy or update the application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/applications/{name}/policies": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "create policy for application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.CreatePolicyRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/applications/{name}/policies/{policyName}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "detail policy for application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the application policy",
-      "name": "policyName",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "detail policy for application",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the application policy",
-      "name": "policyName",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/applications/{name}/template": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "application"
-    ],
-    "summary": "create one application template",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the application",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.CreateApplicationTemplateRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/clusters": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "cluster"
-    ],
-    "summary": "list all clusters",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "Fuzzy search based on name or description",
-      "name": "query",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK",
-      "schema": {
-       "$ref": "#/definitions/map[string]string"
-      }
-     },
-     "500": {
-      "description": "Bummer, something went wrong"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "cluster"
-    ],
-    "summary": "create cluster",
-    "operationId": "createKubeCluster",
-    "parameters": [
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/*v1.CreateClusterRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/clusters/{clusterName}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "cluster"
-    ],
-    "summary": "detail cluster info",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the cluster",
-      "name": "clusterName",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/componentdefinitions": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "componentdefinition"
-    ],
-    "summary": "list all componentdefinition",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "if specified, query the componentdefinition supported by the cluster where the application resides.",
-      "name": "appName",
-      "in": "query"
-     },
-     {
-      "type": "string",
-      "description": "if specified, query the componentdefinition supported by the cluster.",
-      "name": "clusterName",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/namespaces": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "list all namespaces",
-    "operationId": "noop",
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "create namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.CreateNamespaceRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/namespaces/{namespace}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "get one namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/namespaces/{namespace}/applications/:appname": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "get the specified oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     },
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.ApplicationRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "namespace"
-    ],
-    "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/policydefinitions": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "policydefinition"
-    ],
-    "summary": "list all policydefinition",
-    "operationId": "noop",
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/api/v1/workflows/{name}": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "cluster"
-    ],
-    "summary": "detail application workflow",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the workflow, Currently, the application name is used.",
-      "name": "name",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK",
-      "schema": {
-       "$ref": "#/definitions/map[string]string"
-      }
-     },
-     "500": {
-      "description": "Bummer, something went wrong"
-     }
-    }
-   },
-   "put": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "cluster"
-    ],
-    "summary": "create or update application workflow config",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the workflow",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.UpdateWorkflowRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK",
-      "schema": {
-       "$ref": "#/definitions/map[string]string"
-      }
-     },
-     "500": {
-      "description": "Bummer, something went wrong"
-     }
-    }
-   }
-  },
-  "/api/v1/workflows/{name}/records": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "cluster"
-    ],
-    "summary": "query application workflow execution record",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the workflow",
-      "name": "name",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "integer",
-      "description": "Query the page number.",
-      "name": "page",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "integer",
-      "description": "Query the page size number.",
-      "name": "pageSize",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK",
-      "schema": {
-       "$ref": "#/definitions/map[string]string"
-      }
-     },
-     "500": {
-      "description": "Bummer, something went wrong"
-     }
-    }
-   }
-  },
-  "/v1/catalogs": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "cluster"
-    ],
-    "summary": "list all clusters",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "Fuzzy search based on name or description",
-      "name": "query",
-      "in": "query"
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK",
-      "schema": {
-       "$ref": "#/definitions/map[string]string"
-      }
-     },
-     "500": {
-      "description": "Bummer, something went wrong"
-     }
-    }
-   }
-  },
-  "/v1/{namespace}/applications/:appname": {
-   "get": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "oam"
-    ],
-    "summary": "get the specified oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "oam"
-    ],
-    "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  },
-  "/v1/{namespace}/applications/{appname}": {
-   "post": {
-    "consumes": [
-     "application/xml",
-     "application/json"
-    ],
-    "produces": [
-     "application/json",
-     "application/xml"
-    ],
-    "tags": [
-     "oam"
-    ],
-    "summary": "create or update oam application in the specified namespace",
-    "operationId": "noop",
-    "parameters": [
-     {
-      "type": "string",
-      "description": "identifier of the namespace",
-      "name": "namespace",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "string",
-      "description": "identifier of the oam application",
-      "name": "appname",
-      "in": "path",
-      "required": true
-     },
-     {
-      "name": "body",
-      "in": "body",
-      "required": true,
-      "schema": {
-       "$ref": "#/definitions/v1.ApplicationRequest"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     }
-    }
-   }
-  }
- },
- "definitions": {
-  "common.AppRolloutStatus": {
-   "required": [
-    "rollingState",
-    "batchRollingState",
-    "currentBatch",
-    "upgradedReplicas",
-    "upgradedReadyReplicas",
-    "lastTargetAppRevision"
-   ],
-   "properties": {
-    "LastSourceAppRevision": {
-     "type": "string"
-    },
-    "batchRollingState": {
-     "type": "string"
-    },
-    "conditions": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/condition.Condition"
-     }
-    },
-    "currentBatch": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "lastAppliedPodTemplateIdentifier": {
-     "type": "string"
-    },
-    "lastTargetAppRevision": {
-     "type": "string"
-    },
-    "rollingState": {
-     "type": "string"
-    },
-    "rolloutOriginalSize": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "rolloutTargetSize": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "targetGeneration": {
-     "type": "string"
-    },
-    "upgradedReadyReplicas": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "upgradedReplicas": {
-     "type": "integer",
-     "format": "int32"
-    }
-   }
-  },
-  "common.AppStatus": {
-   "properties": {
-    "appliedResources": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.ClusterObjectReference"
-     }
-    },
-    "components": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ObjectReference"
-     }
-    },
-    "conditions": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/condition.Condition"
-     }
-    },
-    "latestRevision": {
-     "$ref": "#/definitions/common.Revision"
-    },
-    "observedGeneration": {
-     "type": "integer",
-     "format": "int64"
-    },
-    "resourceTracker": {
-     "$ref": "#/definitions/v1.ObjectReference"
-    },
-    "rollout": {
-     "$ref": "#/definitions/common.AppRolloutStatus"
-    },
-    "services": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.ApplicationComponentStatus"
-     }
-    },
-    "status": {
-     "type": "string"
-    },
-    "workflow": {
-     "$ref": "#/definitions/common.WorkflowStatus"
-    }
-   }
-  },
-  "common.ApplicationComponent": {
-   "required": [
-    "name",
-    "type"
-   ],
-   "properties": {
-    "externalRevision": {
-     "type": "string"
-    },
-    "inputs": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.inputItem"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "outputs": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.outputItem"
-     }
-    },
-    "properties": {
-     "type": "string"
-    },
-    "scopes": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "traits": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.ApplicationTrait"
-     }
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "common.ApplicationComponentStatus": {
-   "required": [
-    "name",
-    "healthy"
-   ],
-   "properties": {
-    "env": {
-     "type": "string"
-    },
-    "healthy": {
-     "type": "boolean"
-    },
-    "message": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "scopes": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ObjectReference"
-     }
-    },
-    "traits": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.ApplicationTraitStatus"
-     }
-    },
-    "workloadDefinition": {
-     "$ref": "#/definitions/common.WorkloadGVK"
-    }
-   }
-  },
-  "common.ApplicationTrait": {
-   "required": [
-    "type"
-   ],
-   "properties": {
-    "properties": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "common.ApplicationTraitStatus": {
-   "required": [
-    "type",
-    "healthy"
-   ],
-   "properties": {
-    "healthy": {
-     "type": "boolean"
-    },
-    "message": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "common.ClusterObjectReference": {
-   "description": "ObjectReference contains enough information to let you inspect or modify the referred object.",
-   "properties": {
-    "apiVersion": {
-     "description": "API version of the referent.",
-     "type": "string"
-    },
-    "cluster": {
-     "type": "string"
-    },
-    "creator": {
-     "type": "string"
-    },
-    "fieldPath": {
-     "description": "If referring to a piece of an object instead of an entire object, this string should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2]. For example, if the object reference is to a container within a pod, this would take on a value like: \"spec.containers{name}\" (where \"name\" refers to the name of the container that triggered the event) or if no container name is specified \"spec.containers[2]\" (container with index 2 in this pod). This syntax is chosen only to have some well-defined way of referencing a part of an object.",
-     "type": "string"
-    },
-    "kind": {
-     "description": "Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-     "type": "string"
-    },
-    "name": {
-     "description": "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
-     "type": "string"
-    },
-    "namespace": {
-     "description": "Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
-     "type": "string"
-    },
-    "resourceVersion": {
-     "description": "Specific resourceVersion to which this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency",
-     "type": "string"
-    },
-    "uid": {
-     "description": "UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids",
-     "type": "string"
-    }
-   }
-  },
-  "common.Revision": {
-   "required": [
-    "name",
-    "revision"
-   ],
-   "properties": {
-    "name": {
-     "type": "string"
-    },
-    "revision": {
-     "type": "integer",
-     "format": "int64"
-    },
-    "revisionHash": {
-     "type": "string"
-    }
-   }
-  },
-  "common.SubStepsStatus": {
-   "properties": {
-    "mode": {
-     "type": "string"
-    },
-    "stepIndex": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "steps": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.WorkflowSubStepStatus"
-     }
-    }
-   }
-  },
-  "common.WorkflowStatus": {
-   "required": [
-    "mode",
-    "suspend",
-    "terminated"
-   ],
-   "properties": {
-    "appRevision": {
-     "type": "string"
-    },
-    "contextBackend": {
-     "$ref": "#/definitions/v1.ObjectReference"
-    },
-    "mode": {
-     "type": "string"
-    },
-    "steps": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.WorkflowStepStatus"
-     }
-    },
-    "suspend": {
-     "type": "boolean"
-    },
-    "terminated": {
-     "type": "boolean"
-    }
-   }
-  },
-  "common.WorkflowStepStatus": {
-   "required": [
-    "id"
-   ],
-   "properties": {
-    "id": {
-     "type": "string"
-    },
-    "message": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "phase": {
-     "type": "string"
-    },
-    "reason": {
-     "type": "string"
-    },
-    "subSteps": {
-     "$ref": "#/definitions/common.SubStepsStatus"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "common.WorkflowSubStepStatus": {
-   "required": [
-    "id"
-   ],
-   "properties": {
-    "id": {
-     "type": "string"
-    },
-    "message": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "phase": {
-     "type": "string"
-    },
-    "reason": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "common.WorkloadGVK": {
-   "required": [
-    "apiVersion",
-    "kind"
-   ],
-   "properties": {
-    "apiVersion": {
-     "type": "string"
-    },
-    "kind": {
-     "type": "string"
-    }
-   }
-  },
-  "common.inputItem": {
-   "required": [
-    "parameterKey",
-    "from"
-   ],
-   "properties": {
-    "from": {
-     "type": "string"
-    },
-    "parameterKey": {
-     "type": "string"
-    }
-   }
-  },
-  "common.outputItem": {
-   "required": [
-    "valueFrom",
-    "name"
-   ],
-   "properties": {
-    "name": {
-     "type": "string"
-    },
-    "valueFrom": {
-     "type": "string"
-    }
-   }
-  },
-  "condition.Condition": {
-   "required": [
-    "type",
-    "status",
-    "lastTransitionTime",
-    "reason"
-   ],
-   "properties": {
-    "lastTransitionTime": {
-     "type": "string"
-    },
-    "message": {
-     "type": "string"
-    },
-    "reason": {
-     "type": "string"
-    },
-    "status": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "condition.ConditionedStatus": {
-   "properties": {
-    "conditions": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/condition.Condition"
-     }
-    }
-   }
-  },
-  "map[string]string": {
-   "type": "object",
-   "additionalProperties": {
-    "type": "string"
-   }
-  },
-  "types.Parameter": {
-   "required": [
-    "name"
-   ],
-   "properties": {
-    "alias": {
-     "type": "string"
-    },
-    "default": {
-     "$ref": "#/definitions/types.Parameter.default"
-    },
-    "ignore": {
-     "type": "boolean"
-    },
-    "jsonType": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "required": {
-     "type": "boolean"
-    },
-    "short": {
-     "type": "string"
-    },
-    "type": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "usage": {
-     "type": "string"
-    }
-   }
-  },
-  "types.Parameter.default": {},
-  "v1.ApplicationBase": {
-   "required": [
-    "name",
-    "namespace",
-    "description",
-    "createTime",
-    "updateTime",
-    "icon",
-    "status",
-    "gatewayRule"
-   ],
-   "properties": {
-    "clusterList": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ClusterBase"
-     }
-    },
-    "createTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "description": {
-     "type": "string"
-    },
-    "gatewayRule": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.GatewayRule"
-     }
-    },
-    "icon": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "namespace": {
-     "type": "string"
-    },
-    "status": {
-     "type": "string"
-    },
-    "updateTime": {
-     "type": "string",
-     "format": "date-time"
-    }
-   }
-  },
-  "v1.ApplicationRequest": {
-   "required": [
-    "components"
-   ],
-   "properties": {
-    "components": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.ApplicationComponent"
-     }
-    },
-    "policies": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1beta1.AppPolicy"
-     }
-    },
-    "workflow": {
-     "$ref": "#/definitions/v1beta1.Workflow"
-    }
-   }
-  },
-  "v1.ApplicationResourceInfo": {
-   "required": [
-    "componentNum"
-   ],
-   "properties": {
-    "componentNum": {
-     "type": "integer",
-     "format": "int32"
-    }
-   }
-  },
-  "v1.ApplicationResponse": {
-   "required": [
-    "apiVersion",
-    "kind",
-    "spec",
-    "status"
-   ],
-   "properties": {
-    "apiVersion": {
-     "type": "string"
-    },
-    "kind": {
-     "type": "string"
-    },
-    "spec": {
-     "$ref": "#/definitions/v1beta1.ApplicationSpec"
-    },
-    "status": {
-     "$ref": "#/definitions/common.AppStatus"
-    }
-   }
-  },
-  "v1.ApplicationTemplateBase": {
-   "required": [
-    "templateName"
-   ],
-   "properties": {
-    "templateName": {
-     "type": "string"
-    },
-    "versions": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ApplicationTemplateVersion"
-     }
-    }
-   }
-  },
-  "v1.ApplicationTemplateVersion": {
-   "required": [
-    "version",
-    "description",
-    "createUser",
-    "createTime",
-    "updateTime"
-   ],
-   "properties": {
-    "createTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "createUser": {
-     "type": "string"
-    },
-    "description": {
-     "type": "string"
-    },
-    "updateTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "version": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ClusterBase": {
-   "required": [
-    "name",
-    "description",
-    "icon",
-    "labels",
-    "status",
-    "reason"
-   ],
-   "properties": {
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "reason": {
-     "type": "string"
-    },
-    "status": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ClusterResourceInfo": {
-   "required": [
-    "workerNumber",
-    "masterNumber",
-    "memoryCapacity",
-    "cpuCapacity"
-   ],
-   "properties": {
-    "cpuCapacity": {
-     "type": "integer",
-     "format": "int64"
-    },
-    "gpuCapacity": {
-     "type": "integer",
-     "format": "int64"
-    },
-    "masterNumber": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "memoryCapacity": {
-     "type": "integer",
-     "format": "int64"
-    },
-    "storageClassList": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "workerNumber": {
-     "type": "integer",
-     "format": "int32"
-    }
-   }
-  },
-  "v1.ComponentBase": {
-   "required": [
-    "name",
-    "description",
-    "componentType",
-    "bindClusters",
-    "dependsOn",
-    "deployVersion"
-   ],
-   "properties": {
-    "bindClusters": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "componentType": {
-     "type": "string"
-    },
-    "creator": {
-     "type": "string"
-    },
-    "dependsOn": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "deployVersion": {
-     "type": "string"
-    },
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ComponentDefinitionBase": {
-   "required": [
-    "name",
-    "description",
-    "icon",
-    "requiredParams"
-   ],
-   "properties": {
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "requiredParams": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/types.Parameter"
-     }
-    }
-   }
-  },
-  "v1.ComponentListResponse": {
-   "required": [
-    "components"
-   ],
-   "properties": {
-    "components": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ComponentBase"
-     }
-    }
-   }
-  },
-  "v1.CreateApplicationRequest": {
-   "required": [
-    "name",
-    "namespace",
-    "description",
-    "icon"
-   ],
-   "properties": {
-    "clusterList": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "deploy": {
-     "type": "boolean"
-    },
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "namespace": {
-     "type": "string"
-    },
-    "yamlConfig": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.CreateApplicationTemplateRequest": {
-   "required": [
-    "templateName",
-    "version",
-    "description"
-   ],
-   "properties": {
-    "description": {
-     "type": "string"
-    },
-    "templateName": {
-     "type": "string"
-    },
-    "version": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.CreateClusterRequest": {
-   "required": [
-    "name",
-    "icon",
-    "kubeConfig"
-   ],
-   "properties": {
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "kubeConfig": {
-     "type": "string"
-    },
-    "kubeConfigSecret": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.CreateComponentRequest": {
-   "required": [
-    "appName",
-    "name",
-    "description",
-    "componentType",
-    "bindClusters"
-   ],
-   "properties": {
-    "appName": {
-     "type": "string"
-    },
-    "bindClusters": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "componentType": {
-     "type": "string"
-    },
-    "description": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "properties": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.CreateNamespaceRequest": {
-   "required": [
-    "name",
-    "description"
-   ],
-   "properties": {
-    "description": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.CreatePolicyRequest": {
-   "required": [
-    "name",
-    "type",
-    "properties"
-   ],
-   "properties": {
-    "name": {
-     "type": "string"
-    },
-    "properties": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.DetailApplicationResponse": {
-   "required": [
-    "updateTime",
-    "icon",
-    "status",
-    "gatewayRule",
-    "name",
-    "namespace",
-    "description",
-    "createTime",
-    "policies",
-    "status",
-    "resourceInfo",
-    "workflowStatus"
-   ],
-   "properties": {
-    "clusterList": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ClusterBase"
-     }
-    },
-    "createTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "description": {
-     "type": "string"
-    },
-    "gatewayRule": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.GatewayRule"
-     }
-    },
-    "icon": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "namespace": {
-     "type": "string"
-    },
-    "policies": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "resourceInfo": {
-     "$ref": "#/definitions/v1.ApplicationResourceInfo"
-    },
-    "status": {
-     "type": "string"
-    },
-    "updateTime": {
-     "type": "string",
-     "format": "date-time"
-    },
-    "workflowStatus": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.WorkflowStepStatus"
-     }
-    }
-   }
-  },
-  "v1.DetailClusterResponse": {
-   "required": [
-    "name",
-    "description",
-    "icon",
-    "labels",
-    "status",
-    "reason",
-    "resourceInfo"
-   ],
-   "properties": {
-    "dashboardURL": {
-     "type": "string"
-    },
-    "description": {
-     "type": "string"
-    },
-    "icon": {
-     "type": "string"
-    },
-    "labels": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "reason": {
-     "type": "string"
-    },
-    "remoteManageURL": {
-     "type": "string"
-    },
-    "resourceInfo": {
-     "$ref": "#/definitions/v1.ClusterResourceInfo"
-    },
-    "status": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.DetailPolicyResponse": {
-   "required": [
-    "name",
-    "type",
-    "properties"
-   ],
-   "properties": {
-    "name": {
-     "type": "string"
-    },
-    "properties": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.DetailWorkflowResponse": {
-   "required": [
-    "enable",
-    "workflowRecord"
-   ],
-   "properties": {
-    "enable": {
-     "type": "boolean"
-    },
-    "steps": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.WorkflowStep"
-     }
-    },
-    "workflowRecord": {
-     "$ref": "#/definitions/v1.WorkflowRecord"
-    }
-   }
-  },
-  "v1.GatewayRule": {
-   "required": [
-    "ruleType",
-    "address",
-    "protocol",
-    "componentName",
-    "componentPort"
-   ],
-   "properties": {
-    "address": {
-     "type": "string"
-    },
-    "componentName": {
-     "type": "string"
-    },
-    "componentPort": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "protocol": {
-     "type": "string"
-    },
-    "ruleType": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ListApplicationResponse": {
-   "required": [
-    "applications"
-   ],
-   "properties": {
-    "applications": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ApplicationBase"
-     }
-    }
-   }
-  },
-  "v1.ListClusterResponse": {
-   "required": [
-    "clusters"
-   ],
-   "properties": {
-    "clusters": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ClusterBase"
-     }
-    }
-   }
-  },
-  "v1.ListComponentDefinitionResponse": {
-   "required": [
-    "componentDefinitions"
-   ],
-   "properties": {
-    "componentDefinitions": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.ComponentDefinitionBase"
-     }
-    }
-   }
-  },
-  "v1.ListNamespaceResponse": {
-   "required": [
-    "namesapces"
-   ],
-   "properties": {
-    "namesapces": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.NamesapceBase"
-     }
-    }
-   }
-  },
-  "v1.ListPolicyDefinitionResponse": {
-   "required": [
-    "policyDefinitions"
-   ],
-   "properties": {
-    "policyDefinitions": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.PolicyDefinition"
-     }
-    }
-   }
-  },
-  "v1.ListWorkflowRecordsResponse": {
-   "required": [
-    "records",
-    "total"
-   ],
-   "properties": {
-    "records": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.WorkflowRecord"
-     }
-    },
-    "total": {
-     "type": "integer",
-     "format": "int64"
-    }
-   }
-  },
-  "v1.NamesapceBase": {
-   "required": [
-    "name",
-    "description"
-   ],
-   "properties": {
-    "description": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.NamesapceDetailResponse": {
-   "required": [
-    "name",
-    "description",
-    "clusterBind"
-   ],
-   "properties": {
-    "clusterBind": {
-     "type": "object",
-     "additionalProperties": {
-      "type": "string"
-     }
-    },
-    "description": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.ObjectReference": {
-   "description": "ObjectReference contains enough information to let you inspect or modify the referred object.",
-   "properties": {
-    "apiVersion": {
-     "description": "API version of the referent.",
-     "type": "string"
-    },
-    "fieldPath": {
-     "description": "If referring to a piece of an object instead of an entire object, this string should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2]. For example, if the object reference is to a container within a pod, this would take on a value like: \"spec.containers{name}\" (where \"name\" refers to the name of the container that triggered the event) or if no container name is specified \"spec.containers[2]\" (container with index 2 in this pod). This syntax is chosen only to have some well-defined way of referencing a part of an object.",
-     "type": "string"
-    },
-    "kind": {
-     "description": "Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-     "type": "string"
-    },
-    "name": {
-     "description": "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
-     "type": "string"
-    },
-    "namespace": {
-     "description": "Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
-     "type": "string"
-    },
-    "resourceVersion": {
-     "description": "Specific resourceVersion to which this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency",
-     "type": "string"
-    },
-    "uid": {
-     "description": "UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids",
-     "type": "string"
-    }
-   }
-  },
-  "v1.PolicyDefinition": {
-   "required": [
-    "name",
-    "description",
-    "parameters"
-   ],
-   "properties": {
-    "description": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "parameters": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/types.Parameter"
-     }
-    }
-   }
-  },
-  "v1.UpdateWorkflowRequest": {
-   "required": [
-    "enable"
-   ],
-   "properties": {
-    "enable": {
-     "type": "boolean"
-    },
-    "steps": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1.WorkflowStep"
-     }
-    }
-   }
-  },
-  "v1.WorkflowRecord": {},
-  "v1.WorkflowStep": {
-   "required": [
-    "name",
-    "type"
-   ],
-   "properties": {
-    "inputs": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.inputItem"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "outputs": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.outputItem"
-     }
-    },
-    "properties": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "v1.WorkflowStepStatus": {
-   "required": [
-    "name",
-    "status",
-    "takeTime"
-   ],
-   "properties": {
-    "name": {
-     "type": "string"
-    },
-    "status": {
-     "type": "string"
-    },
-    "takeTime": {
-     "type": "integer",
-     "format": "integer"
-    }
-   }
-  },
-  "v1alpha1.CanaryMetric": {
-   "required": [
-    "name"
-   ],
-   "properties": {
-    "interval": {
-     "type": "string"
-    },
-    "metricsRange": {
-     "$ref": "#/definitions/v1alpha1.MetricsExpectedRange"
-    },
-    "name": {
-     "type": "string"
-    },
-    "templateRef": {
-     "$ref": "#/definitions/v1.ObjectReference"
-    }
-   }
-  },
-  "v1alpha1.MetricsExpectedRange": {
-   "properties": {
-    "max": {
-     "type": "string"
-    },
-    "min": {
-     "type": "string"
-    }
-   }
-  },
-  "v1alpha1.RolloutBatch": {
-   "properties": {
-    "batchRolloutWebhooks": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1alpha1.RolloutWebhook"
-     }
-    },
-    "canaryMetric": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1alpha1.CanaryMetric"
-     }
-    },
-    "instanceInterval": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "maxUnavailable": {
-     "type": "string"
-    },
-    "podList": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    },
-    "replicas": {
-     "type": "string"
-    }
-   }
-  },
-  "v1alpha1.RolloutPlan": {
-   "properties": {
-    "batchPartition": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "canaryMetric": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1alpha1.CanaryMetric"
-     }
-    },
-    "numBatches": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "paused": {
-     "type": "boolean"
-    },
-    "rolloutBatches": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1alpha1.RolloutBatch"
-     }
-    },
-    "rolloutStrategy": {
-     "type": "string"
-    },
-    "rolloutWebhooks": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1alpha1.RolloutWebhook"
-     }
-    },
-    "targetSize": {
-     "type": "integer",
-     "format": "int32"
-    }
-   }
-  },
-  "v1alpha1.RolloutStatus": {
-   "required": [
-    "rollingState",
-    "batchRollingState",
-    "currentBatch",
-    "upgradedReplicas",
-    "upgradedReadyReplicas"
-   ],
-   "properties": {
-    "batchRollingState": {
-     "type": "string"
-    },
-    "conditions": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/condition.Condition"
-     }
-    },
-    "currentBatch": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "lastAppliedPodTemplateIdentifier": {
-     "type": "string"
-    },
-    "rollingState": {
-     "type": "string"
-    },
-    "rolloutOriginalSize": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "rolloutTargetSize": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "targetGeneration": {
-     "type": "string"
-    },
-    "upgradedReadyReplicas": {
-     "type": "integer",
-     "format": "int32"
-    },
-    "upgradedReplicas": {
-     "type": "integer",
-     "format": "int32"
-    }
-   }
-  },
-  "v1alpha1.RolloutWebhook": {
-   "required": [
-    "type",
-    "name",
-    "url"
-   ],
-   "properties": {
-    "expectedStatus": {
-     "type": "array",
-     "items": {
-      "type": "integer"
-     }
-    },
-    "metadata": {
-     "$ref": "#/definitions/v1alpha1.RolloutWebhook.metadata"
-    },
-    "method": {
-     "type": "string"
-    },
-    "name": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    },
-    "url": {
-     "type": "string"
-    }
-   }
-  },
-  "v1alpha1.RolloutWebhook.metadata": {
-   "type": "object",
-   "additionalProperties": {
-    "type": "string"
-   }
-  },
-  "v1beta1.AppPolicy": {
-   "required": [
-    "name",
-    "type"
-   ],
-   "properties": {
-    "name": {
-     "type": "string"
-    },
-    "properties": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  },
-  "v1beta1.ApplicationSpec": {
-   "required": [
-    "components"
-   ],
-   "properties": {
-    "components": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.ApplicationComponent"
-     }
-    },
-    "policies": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1beta1.AppPolicy"
-     }
-    },
-    "rolloutPlan": {
-     "$ref": "#/definitions/v1alpha1.RolloutPlan"
-    },
-    "workflow": {
-     "$ref": "#/definitions/v1beta1.Workflow"
-    }
-   }
-  },
-  "v1beta1.Workflow": {
-   "properties": {
-    "steps": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/v1beta1.WorkflowStep"
-     }
-    }
-   }
-  },
-  "v1beta1.WorkflowStep": {
-   "required": [
-    "name",
-    "type"
-   ],
-   "properties": {
-    "inputs": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.inputItem"
-     }
-    },
-    "name": {
-     "type": "string"
-    },
-    "outputs": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/common.outputItem"
-     }
-    },
-    "properties": {
-     "type": "string"
-    },
-    "type": {
-     "type": "string"
-    }
-   }
-  }
- }
+	"swagger": "2.0",
+	"info": {
+		"description": "Kubevela api doc",
+		"title": "Kubevela api doc",
+		"contact": {
+			"name": "kubevela",
+			"url": "https://kubevela.io/",
+			"email": "feedback@mail.kubevela.io"
+		},
+		"license": {
+			"name": "Apache License 2.0",
+			"url": "https://github.com/oam-dev/kubevela/blob/master/LICENSE"
+		},
+		"version": "v1beta1"
+	},
+	"paths": {
+		"/api/v1/addon_registries": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon_registry"
+				],
+				"summary": "list all addon registry",
+				"operationId": "listAddonRegistry",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListAddonRegistryResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon_registry"
+				],
+				"summary": "create an addon registry",
+				"operationId": "createAddonRegistry",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateAddonRegistryRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AddonRegistryMeta"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/addon_registries/{name}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon_registry"
+				],
+				"summary": "update an addon registry",
+				"operationId": "updateAddonRegistry",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateAddonRegistryRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "identifier of the addon registry",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AddonRegistryMeta"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon_registry"
+				],
+				"summary": "delete an addon registry",
+				"operationId": "deleteAddonRegistry",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the addon registry",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AddonRegistryMeta"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/addons": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon"
+				],
+				"summary": "list all addons",
+				"operationId": "listAddons",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "filter addons from given registry",
+						"name": "registry",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Fuzzy search based on name and description.",
+						"name": "query",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListAddonResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/addons/{name}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon"
+				],
+				"summary": "show details of an addon",
+				"operationId": "detailAddon",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "addon name to query detail",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "filter addons from given registry",
+						"name": "registry",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailAddonResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/addons/{name}/disable": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon"
+				],
+				"summary": "disable an addon",
+				"operationId": "disableAddon",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "addon name to enable",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AddonStatusResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/addons/{name}/enable": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon"
+				],
+				"summary": "enable an addon",
+				"operationId": "enableAddon",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.EnableAddonRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "addon name to enable",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AddonStatusResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/addons/{name}/status": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon"
+				],
+				"summary": "show status of an addon",
+				"operationId": "statusAddon",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "addon name to query status",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AddonStatusResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list all applications",
+				"operationId": "listApplications",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Fuzzy search based on name or description",
+						"name": "query",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "The namespace of the managed cluster",
+						"name": "namespace",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Name of the application delivery target",
+						"name": "target",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListApplicationResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "create one application ",
+				"operationId": "createApplication",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateApplicationRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail one application ",
+				"operationId": "detailApplication",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailApplicationResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update one application ",
+				"operationId": "updateApplication",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateApplicationRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "delete one application",
+				"operationId": "deleteApplication",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/components": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "gets the list of application components",
+				"operationId": "listApplicationComponents",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "list components that deployed in define env",
+						"name": "envName",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ComponentListResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "create component  for application ",
+				"operationId": "createComponent",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateComponentRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ComponentBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/components/{compName}/traits": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "add trait for a component",
+				"operationId": "addApplicationTrait",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the component",
+						"name": "compName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateApplicationTraitRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/components/{compName}/traits/{traitType}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update trait from a component",
+				"operationId": "updateApplicationTrait",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the component",
+						"name": "compName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the type of trait",
+						"name": "traitType",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateApplicationTraitRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationTrait"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "delete trait from a component",
+				"operationId": "deleteApplicationTrait",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the component",
+						"name": "compName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the type of trait",
+						"name": "traitType",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationTrait"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/components/{componentName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail component for application ",
+				"operationId": "detailComponent",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailComponentResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update component config",
+				"operationId": "updateComponent",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateApplicationComponentRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ComponentBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/deploy": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "deploy or upgrade the application",
+				"operationId": "deployApplication",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationDeployRequest"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/envs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list policy for application",
+				"operationId": "listApplicationEnvs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListApplicationEnvBinding"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "creating an application environment ",
+				"operationId": "createApplicationEnv",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateApplicationEnvRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EnvBinding"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/envs/{envName}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "set application  differences in the specified environment",
+				"operationId": "updateApplicationEnv",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the envBinding ",
+						"name": "envName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.PutApplicationEnvRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EnvBinding"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "delete an application environment ",
+				"operationId": "deleteApplicationEnv",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the envBinding ",
+						"name": "envName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"404": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/envs/{envName}/recycle": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "get application status",
+				"operationId": "recycleApplicationEnv",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application envbinding",
+						"name": "envName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/envs/{envName}/status": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "get application status",
+				"operationId": "getApplicationStatus",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application envbinding",
+						"name": "envName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationStatusResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/policies": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list policy for application",
+				"operationId": "listApplicationPolicies",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListApplicationPolicy"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "create policy for application",
+				"operationId": "createApplicationPolicy",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreatePolicyRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.PolicyBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/policies/{policyName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail policy for application",
+				"operationId": "detailApplicationPolicy",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application policy",
+						"name": "policyName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailPolicyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update policy for application",
+				"operationId": "updateApplicationPolicy",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application policy",
+						"name": "policyName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdatePolicyRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailPolicyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail policy for application",
+				"operationId": "deleteApplicationPolicy",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application policy",
+						"name": "policyName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/revisions": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list revisions for application",
+				"operationId": "listApplicationRevisions",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "query identifier of the env",
+						"name": "envName",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "query identifier of the status",
+						"name": "status",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "query the page number",
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "query the page size number",
+						"name": "pageSize",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListRevisionsResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/revisions/{revision}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail revision for application",
+				"operationId": "detailApplicationRevision",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application revision",
+						"name": "revision",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailRevisionResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/statistics": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail one application ",
+				"operationId": "applicationStatistics",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationStatisticsResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/template": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "create one application template",
+				"operationId": "publishApplicationTemplate",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateApplicationTemplateRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationTemplateBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list application workflow",
+				"operationId": "listApplicationWorkflows",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "create application workflow",
+				"operationId": "createApplicationWorkflow",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateWorkflowRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"400": {
+						"description": "create failure",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail application workflow",
+				"operationId": "detailWorkflow",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workfloc.",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update application workflow config",
+				"operationId": "updateWorkflow",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateWorkflowRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "deletet workflow",
+				"operationId": "deleteWorkflow",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "query application workflow execution record",
+				"operationId": "listWorkflowRecords",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "query the page number",
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "query the page size number",
+						"name": "pageSize",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "query application workflow execution record detail",
+				"operationId": "detailWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/resume": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "resume suspend workflow record",
+				"operationId": "resumeWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the  workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/rollback": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "rollback suspend application record",
+				"operationId": "rollbackWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the rollback revision",
+						"name": "rollbackVersion",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/workflows/{workflowName}/records/{record}/terminate": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "terminate suspend workflow record",
+				"operationId": "terminateWorkflowRecord",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow",
+						"name": "workflowName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the workflow record",
+						"name": "record",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "list all clusters",
+				"operationId": "listKubeClusters",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Fuzzy search based on name or description",
+						"name": "query",
+						"in": "query"
+					},
+					{
+						"type": "int",
+						"default": 0,
+						"description": "Page for paging",
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"type": "int",
+						"default": 20,
+						"description": "PageSize for paging",
+						"name": "pageSize",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "create cluster",
+				"operationId": "createKubeCluster",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/*v1.CreateClusterRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ClusterBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters/cloud-clusters/{provider}": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "list cloud clusters",
+				"operationId": "listCloudClusters",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cloud provider",
+						"name": "provider",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "int",
+						"default": 0,
+						"description": "Page for paging",
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"type": "int",
+						"default": 20,
+						"description": "PageSize for paging",
+						"name": "pageSize",
+						"in": "query"
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.AccessKeyRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListCloudClusterResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters/cloud-clusters/{provider}/connect": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "create cluster from cloud cluster",
+				"operationId": "connectCloudCluster",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cloud provider",
+						"name": "provider",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.ConnectCloudClusterRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ClusterBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters/cloud-clusters/{provider}/create": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "create cloud cluster",
+				"operationId": "createCloudCluster",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cloud provider",
+						"name": "provider",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateCloudClusterRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.CreateCloudClusterResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters/cloud-clusters/{provider}/creation": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "list cloud cluster creation",
+				"operationId": "listCloudClusterCreation",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cloud provider",
+						"name": "provider",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListCloudClusterCreationResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters/cloud-clusters/{provider}/creation/{cloudClusterName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "check cloud cluster create status",
+				"operationId": "getCloudClusterCreationStatus",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cloud provider",
+						"name": "provider",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier for cloud cluster which is creating",
+						"name": "cloudClusterName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.CreateCloudClusterResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "delete cloud cluster creation",
+				"operationId": "deleteCloudClusterCreation",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cloud provider",
+						"name": "provider",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier for cloud cluster which is creating",
+						"name": "cloudClusterName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.CreateCloudClusterResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters/{clusterName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "detail cluster info",
+				"operationId": "getKubeCluster",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cluster",
+						"name": "clusterName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailClusterResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "modify cluster",
+				"operationId": "modifyKubeCluster",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cluster",
+						"name": "clusterName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateClusterRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ClusterBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "delete cluster",
+				"operationId": "deleteKubeCluster",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the cluster",
+						"name": "clusterName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ClusterBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/clusters/{clusterName}/namespaces": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cluster"
+				],
+				"summary": "create namespace in cluster",
+				"operationId": "createNamespace",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "name of the target cluster",
+						"name": "clusterName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateClusterNamespaceRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.CreateClusterNamespaceResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/definitions": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"definition"
+				],
+				"summary": "list all definitions",
+				"operationId": "listDefinitions",
+				"parameters": [
+					{
+						"enum": [
+							"workflowstep",
+							"component",
+							"trait"
+						],
+						"type": "string",
+						"description": "query the definition type",
+						"name": "type",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "if specified, query the definition supported by the env.",
+						"name": "envName",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/definitions/{name}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"definition"
+				],
+				"summary": "detail definition",
+				"operationId": "detailDefinition",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the definition",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "query the definition type",
+						"name": "type",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/deliveryTargets": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "list deliveryTarget",
+				"operationId": "listDeliveryTargets",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Query the delivery target belonging to a namespace",
+						"name": "namesapce",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page for paging",
+						"name": "page",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "PageSize for paging",
+						"name": "pageSize",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "create deliveryTarget",
+				"operationId": "createDeliveryTarget",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateDeliveryTargetRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"400": {
+						"description": "create failure",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/deliveryTargets/{name}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "detail deliveryTarget",
+				"operationId": "detailDeliveryTarget",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the deliveryTarget.",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "update application DeliveryTarget config",
+				"operationId": "updateDeliveryTarget",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the deliveryTarget",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateDeliveryTargetRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"deliveryTarget"
+				],
+				"summary": "deletet DeliveryTarget",
+				"operationId": "deleteDeliveryTarget",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the deliveryTarget",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]string"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/namespaces": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"namespace"
+				],
+				"summary": "list all namespaces",
+				"operationId": "listNamespaces",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListNamespaceResponse"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"namespace"
+				],
+				"summary": "create namespace",
+				"operationId": "createNamespace",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateNamespaceRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.NamespaceDetailResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/policydefinitions": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"definition"
+				],
+				"summary": "list all policydefinition",
+				"operationId": "noop",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListPolicyDefinitionResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/query": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"velaQL"
+				],
+				"summary": "use velaQL to query resource status",
+				"operationId": "queryView",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "velaql query statement",
+						"name": "velaql",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.VelaQLViewResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/v1/namespaces/{namespace}/applications/{appname}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"oam-application"
+				],
+				"summary": "get the specified oam application in the specified namespace",
+				"operationId": "getApplication",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the namespace",
+						"name": "namespace",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the oam application",
+						"name": "appname",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationResponse"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"oam-application"
+				],
+				"summary": "create or update oam application in the specified namespace",
+				"operationId": "createOrUpdateApplication",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the namespace",
+						"name": "namespace",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the oam application",
+						"name": "appname",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"oam-application"
+				],
+				"summary": "create or update oam application in the specified namespace",
+				"operationId": "deleteApplication",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the namespace",
+						"name": "namespace",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the oam application",
+						"name": "appname",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				}
+			}
+		}
+	},
+	"definitions": {
+		"addon.GitAddonSource": {
+			"properties": {
+				"path": {
+					"type": "string"
+				},
+				"token": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				}
+			}
+		},
+		"bcode.Bcode": {
+			"required": [
+				"BusinessCode",
+				"Message"
+			],
+			"properties": {
+				"BusinessCode": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"Message": {
+					"type": "string"
+				}
+			}
+		},
+		"cloudprovider.CloudCluster": {
+			"required": [
+				"provider",
+				"id",
+				"name",
+				"type",
+				"zone",
+				"zoneID",
+				"regionID",
+				"vpcID",
+				"labels",
+				"status",
+				"apiServerURL",
+				"dashboardURL"
+			],
+			"properties": {
+				"apiServerURL": {
+					"type": "string"
+				},
+				"dashboardURL": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"provider": {
+					"type": "string"
+				},
+				"regionID": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"vpcID": {
+					"type": "string"
+				},
+				"zone": {
+					"type": "string"
+				},
+				"zoneID": {
+					"type": "string"
+				}
+			}
+		},
+		"common.AppRolloutStatus": {
+			"required": [
+				"rollingState",
+				"currentBatch",
+				"upgradedReadyReplicas",
+				"batchRollingState",
+				"upgradedReplicas",
+				"lastTargetAppRevision"
+			],
+			"properties": {
+				"LastSourceAppRevision": {
+					"type": "string"
+				},
+				"batchRollingState": {
+					"type": "string"
+				},
+				"conditions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/condition.Condition"
+					}
+				},
+				"currentBatch": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"lastAppliedPodTemplateIdentifier": {
+					"type": "string"
+				},
+				"lastTargetAppRevision": {
+					"type": "string"
+				},
+				"rollingState": {
+					"type": "string"
+				},
+				"rolloutOriginalSize": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"rolloutTargetSize": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"targetGeneration": {
+					"type": "string"
+				},
+				"upgradedReadyReplicas": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"upgradedReplicas": {
+					"type": "integer",
+					"format": "int32"
+				}
+			}
+		},
+		"common.AppStatus": {
+			"properties": {
+				"appliedResources": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.ClusterObjectReference"
+					}
+				},
+				"components": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ObjectReference"
+					}
+				},
+				"conditions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/condition.Condition"
+					}
+				},
+				"latestRevision": {
+					"$ref": "#/definitions/common.Revision"
+				},
+				"observedGeneration": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"policy": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.PolicyStatus"
+					}
+				},
+				"resourceTracker": {
+					"$ref": "#/definitions/v1.ObjectReference"
+				},
+				"rollout": {
+					"$ref": "#/definitions/common.AppRolloutStatus"
+				},
+				"services": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.ApplicationComponentStatus"
+					}
+				},
+				"status": {
+					"type": "string"
+				},
+				"workflow": {
+					"$ref": "#/definitions/common.WorkflowStatus"
+				}
+			}
+		},
+		"common.ApplicationComponent": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"externalRevision": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"scopes": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.ApplicationTrait"
+					}
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"common.ApplicationComponentStatus": {
+			"required": [
+				"name",
+				"healthy"
+			],
+			"properties": {
+				"env": {
+					"type": "string"
+				},
+				"healthy": {
+					"type": "boolean"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"scopes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ObjectReference"
+					}
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.ApplicationTraitStatus"
+					}
+				},
+				"workloadDefinition": {
+					"$ref": "#/definitions/common.WorkloadGVK"
+				}
+			}
+		},
+		"common.ApplicationTrait": {
+			"required": [
+				"type"
+			],
+			"properties": {
+				"properties": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"common.ApplicationTraitStatus": {
+			"required": [
+				"type",
+				"healthy"
+			],
+			"properties": {
+				"healthy": {
+					"type": "boolean"
+				},
+				"message": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"common.ClusterObjectReference": {
+			"description": "ObjectReference contains enough information to let you inspect or modify the referred object.",
+			"properties": {
+				"apiVersion": {
+					"description": "API version of the referent.",
+					"type": "string"
+				},
+				"cluster": {
+					"type": "string"
+				},
+				"creator": {
+					"type": "string"
+				},
+				"fieldPath": {
+					"description": "If referring to a piece of an object instead of an entire object, this string should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2]. For example, if the object reference is to a container within a pod, this would take on a value like: \"spec.containers{name}\" (where \"name\" refers to the name of the container that triggered the event) or if no container name is specified \"spec.containers[2]\" (container with index 2 in this pod). This syntax is chosen only to have some well-defined way of referencing a part of an object.",
+					"type": "string"
+				},
+				"kind": {
+					"description": "Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+					"type": "string"
+				},
+				"name": {
+					"description": "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+					"type": "string"
+				},
+				"namespace": {
+					"description": "Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
+					"type": "string"
+				},
+				"resourceVersion": {
+					"description": "Specific resourceVersion to which this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency",
+					"type": "string"
+				},
+				"uid": {
+					"description": "UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids",
+					"type": "string"
+				}
+			}
+		},
+		"common.PolicyStatus": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"common.Revision": {
+			"required": [
+				"name",
+				"revision"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"revision": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"revisionHash": {
+					"type": "string"
+				}
+			}
+		},
+		"common.SubStepsStatus": {
+			"properties": {
+				"mode": {
+					"type": "string"
+				},
+				"stepIndex": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.WorkflowSubStepStatus"
+					}
+				}
+			}
+		},
+		"common.WorkflowStatus": {
+			"required": [
+				"mode",
+				"suspend",
+				"terminated",
+				"finished"
+			],
+			"properties": {
+				"appRevision": {
+					"type": "string"
+				},
+				"contextBackend": {
+					"$ref": "#/definitions/v1.ObjectReference"
+				},
+				"finished": {
+					"type": "boolean"
+				},
+				"mode": {
+					"type": "string"
+				},
+				"startTime": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.WorkflowStepStatus"
+					}
+				},
+				"suspend": {
+					"type": "boolean"
+				},
+				"terminated": {
+					"type": "boolean"
+				}
+			}
+		},
+		"common.WorkflowStepStatus": {
+			"required": [
+				"id"
+			],
+			"properties": {
+				"firstExecuteTime": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string"
+				},
+				"lastExecuteTime": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"subSteps": {
+					"$ref": "#/definitions/common.SubStepsStatus"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"common.WorkflowSubStepStatus": {
+			"required": [
+				"id"
+			],
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"common.WorkloadGVK": {
+			"required": [
+				"apiVersion",
+				"kind"
+			],
+			"properties": {
+				"apiVersion": {
+					"type": "string"
+				},
+				"kind": {
+					"type": "string"
+				}
+			}
+		},
+		"common.inputItem": {
+			"required": [
+				"parameterKey",
+				"from"
+			],
+			"properties": {
+				"from": {
+					"type": "string"
+				},
+				"parameterKey": {
+					"type": "string"
+				}
+			}
+		},
+		"common.outputItem": {
+			"required": [
+				"valueFrom",
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"valueFrom": {
+					"type": "string"
+				}
+			}
+		},
+		"condition.Condition": {
+			"required": [
+				"type",
+				"status",
+				"lastTransitionTime",
+				"reason"
+			],
+			"properties": {
+				"lastTransitionTime": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"condition.ConditionedStatus": {
+			"properties": {
+				"conditions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/condition.Condition"
+					}
+				}
+			}
+		},
+		"map[string]string": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "string"
+			}
+		},
+		"model.ApplicationComponent": {
+			"required": [
+				"createTime",
+				"updateTime",
+				"appPrimaryKey",
+				"creator",
+				"name",
+				"alias",
+				"type"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"appPrimaryKey": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"creator": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"externalRevision": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"scopes": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ApplicationTrait"
+					}
+				},
+				"type": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"model.ApplicationRevision": {
+			"required": [
+				"createTime",
+				"updateTime",
+				"appPrimaryKey",
+				"version",
+				"status",
+				"reason",
+				"deployUser",
+				"note",
+				"triggerType",
+				"workflowName",
+				"envName"
+			],
+			"properties": {
+				"appPrimaryKey": {
+					"type": "string"
+				},
+				"applyAppConfig": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"deployUser": {
+					"type": "string"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"note": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"triggerType": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"version": {
+					"type": "string"
+				},
+				"workflowName": {
+					"type": "string"
+				}
+			}
+		},
+		"model.ApplicationTrait": {
+			"required": [
+				"alias",
+				"description",
+				"type",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"type": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"model.Cluster": {
+			"required": [
+				"model",
+				"name",
+				"alias",
+				"description",
+				"icon",
+				"labels",
+				"status",
+				"reason",
+				"provider",
+				"apiServerURL",
+				"dashboardURL",
+				"kubeConfig",
+				"kubeConfigSecret"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"apiServerURL": {
+					"type": "string"
+				},
+				"dashboardURL": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"kubeConfig": {
+					"type": "string"
+				},
+				"kubeConfigSecret": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"model": {
+					"$ref": "#/definitions/model.Model"
+				},
+				"name": {
+					"type": "string"
+				},
+				"provider": {
+					"$ref": "#/definitions/model.ProviderInfo"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
+		"model.JSONStruct": {
+			"type": "object"
+		},
+		"model.Model": {
+			"required": [
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"model.ProviderInfo": {
+			"required": [
+				"provider",
+				"clusterID",
+				"labels"
+			],
+			"properties": {
+				"clusterID": {
+					"type": "string"
+				},
+				"clusterName": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"provider": {
+					"type": "string"
+				},
+				"regionID": {
+					"type": "string"
+				},
+				"vpcID": {
+					"type": "string"
+				},
+				"zone": {
+					"type": "string"
+				},
+				"zoneID": {
+					"type": "string"
+				}
+			}
+		},
+		"types.AddonDependency": {
+			"properties": {
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"types.AddonDeployTo": {
+			"required": [
+				"control_plane",
+				"runtime_cluster"
+			],
+			"properties": {
+				"control_plane": {
+					"type": "boolean"
+				},
+				"runtime_cluster": {
+					"type": "boolean"
+				}
+			}
+		},
+		"types.AddonMeta": {
+			"required": [
+				"name",
+				"version",
+				"description",
+				"icon"
+			],
+			"properties": {
+				"dependencies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/types.AddonDependency"
+					}
+				},
+				"deployTo": {
+					"$ref": "#/definitions/types.AddonDeployTo"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"url": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"types.Parameter": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"default": {
+					"$ref": "#/definitions/types.Parameter.default"
+				},
+				"ignore": {
+					"type": "boolean"
+				},
+				"jsonType": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"required": {
+					"type": "boolean"
+				},
+				"short": {
+					"type": "string"
+				},
+				"type": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"usage": {
+					"type": "string"
+				}
+			}
+		},
+		"types.Parameter.default": {},
+		"utils.GroupOption": {
+			"required": [
+				"label",
+				"keys"
+			],
+			"properties": {
+				"keys": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"label": {
+					"type": "string"
+				}
+			}
+		},
+		"utils.Option": {
+			"required": [
+				"label",
+				"value"
+			],
+			"properties": {
+				"label": {
+					"type": "string"
+				},
+				"value": {
+					"$ref": "#/definitions/utils.Option.value"
+				}
+			}
+		},
+		"utils.Option.value": {},
+		"utils.UIParameter": {
+			"required": [
+				"sort",
+				"label",
+				"description",
+				"jsonKey",
+				"uiType"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"disable": {
+					"type": "boolean"
+				},
+				"jsonKey": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"sort": {
+					"type": "integer",
+					"format": "integer"
+				},
+				"subParameterGroupOption": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.GroupOption"
+					}
+				},
+				"subParameters": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
+					}
+				},
+				"uiType": {
+					"type": "string"
+				},
+				"validate": {
+					"$ref": "#/definitions/utils.Validate"
+				}
+			}
+		},
+		"utils.Validate": {
+			"properties": {
+				"defaultValue": {
+					"$ref": "#/definitions/utils.Validate.defaultValue"
+				},
+				"max": {
+					"type": "number",
+					"format": "double"
+				},
+				"maxLength": {
+					"type": "integer",
+					"format": "integer"
+				},
+				"min": {
+					"type": "number",
+					"format": "double"
+				},
+				"minLength": {
+					"type": "integer",
+					"format": "integer"
+				},
+				"options": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.Option"
+					}
+				},
+				"pattern": {
+					"type": "string"
+				},
+				"required": {
+					"type": "boolean"
+				}
+			}
+		},
+		"utils.Validate.defaultValue": {},
+		"v1.AccessKeyRequest": {
+			"required": [
+				"accessKeyID",
+				"accessKeySecret"
+			],
+			"properties": {
+				"accessKeyID": {
+					"type": "string"
+				},
+				"accessKeySecret": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.AddonDefinition": {
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.AddonRegistryMeta": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"git": {
+					"$ref": "#/definitions/addon.GitAddonSource"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.AddonStatusResponse": {
+			"required": [
+				"phase",
+				"args"
+			],
+			"properties": {
+				"args": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"enabling_progress": {
+					"$ref": "#/definitions/v1.EnablingProgress"
+				},
+				"phase": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ApplicationBase": {
+			"required": [
+				"name",
+				"alias",
+				"namespace",
+				"description",
+				"createTime",
+				"updateTime",
+				"icon"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.ApplicationDeployRequest": {
+			"required": [
+				"workflowName",
+				"note",
+				"triggerType",
+				"force"
+			],
+			"properties": {
+				"force": {
+					"type": "boolean"
+				},
+				"note": {
+					"type": "string"
+				},
+				"triggerType": {
+					"type": "string"
+				},
+				"workflowName": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ApplicationDeployResponse": {
+			"required": [
+				"note",
+				"envName",
+				"triggerType",
+				"createTime",
+				"version",
+				"status",
+				"reason",
+				"deployUser"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"deployUser": {
+					"type": "string"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"note": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"triggerType": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ApplicationRequest": {
+			"required": [
+				"components"
+			],
+			"properties": {
+				"components": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.ApplicationComponent"
+					}
+				},
+				"policies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1beta1.AppPolicy"
+					}
+				},
+				"workflow": {
+					"$ref": "#/definitions/v1beta1.Workflow"
+				}
+			}
+		},
+		"v1.ApplicationResourceInfo": {
+			"required": [
+				"componentNum"
+			],
+			"properties": {
+				"componentNum": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ApplicationResponse": {
+			"required": [
+				"apiVersion",
+				"kind",
+				"spec",
+				"status"
+			],
+			"properties": {
+				"apiVersion": {
+					"type": "string"
+				},
+				"kind": {
+					"type": "string"
+				},
+				"spec": {
+					"$ref": "#/definitions/v1beta1.ApplicationSpec"
+				},
+				"status": {
+					"$ref": "#/definitions/common.AppStatus"
+				}
+			}
+		},
+		"v1.ApplicationRevisionBase": {
+			"required": [
+				"createTime",
+				"version",
+				"status",
+				"reason",
+				"deployUser",
+				"note",
+				"envName",
+				"triggerType"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"deployUser": {
+					"type": "string"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"note": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"triggerType": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ApplicationStatisticsResponse": {
+			"required": [
+				"envCount",
+				"deliveryTargetCount",
+				"revisonCount",
+				"workflowCount"
+			],
+			"properties": {
+				"deliveryTargetCount": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"envCount": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"revisonCount": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"workflowCount": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ApplicationStatusResponse": {
+			"required": [
+				"envName",
+				"status"
+			],
+			"properties": {
+				"envName": {
+					"type": "string"
+				},
+				"status": {
+					"$ref": "#/definitions/common.AppStatus"
+				}
+			}
+		},
+		"v1.ApplicationTemplateBase": {
+			"required": [
+				"templateName",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"templateName": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"versions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ApplicationTemplateVersion"
+					}
+				}
+			}
+		},
+		"v1.ApplicationTemplateVersion": {
+			"required": [
+				"version",
+				"description",
+				"createUser",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"createUser": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ApplicationTrait": {
+			"required": [
+				"name",
+				"type",
+				"properties",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"type": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.ClusterBase": {
+			"required": [
+				"name",
+				"providerInfo",
+				"apiServerURL",
+				"dashboardURL",
+				"status",
+				"reason"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"apiServerURL": {
+					"type": "string"
+				},
+				"dashboardURL": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"providerInfo": {
+					"$ref": "#/definitions/model.ProviderInfo"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ClusterResourceInfo": {
+			"required": [
+				"workerNumber",
+				"masterNumber",
+				"memoryCapacity",
+				"cpuCapacity",
+				"podCapacity",
+				"memoryUsed",
+				"cpuUsed",
+				"podUsed"
+			],
+			"properties": {
+				"cpuCapacity": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"cpuUsed": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"gpuCapacity": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"gpuUsed": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"masterNumber": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"memoryCapacity": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"memoryUsed": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"podCapacity": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"podUsed": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"storageClassList": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"workerNumber": {
+					"type": "integer",
+					"format": "int32"
+				}
+			}
+		},
+		"v1.ClusterTarget": {
+			"required": [
+				"clusterName"
+			],
+			"properties": {
+				"clusterName": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.ComponentBase": {
+			"required": [
+				"name",
+				"alias",
+				"description",
+				"componentType",
+				"envNames",
+				"dependsOn",
+				"deployVersion",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentType": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"creator": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"deployVersion": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"envNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.ComponentListResponse": {
+			"required": [
+				"components"
+			],
+			"properties": {
+				"components": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ComponentBase"
+					}
+				}
+			}
+		},
+		"v1.ComponentSelector": {
+			"required": [
+				"components"
+			],
+			"properties": {
+				"components": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"v1.ConnectCloudClusterRequest": {
+			"required": [
+				"accessKeyID",
+				"accessKeySecret",
+				"clusterID",
+				"name",
+				"icon"
+			],
+			"properties": {
+				"accessKeyID": {
+					"type": "string"
+				},
+				"accessKeySecret": {
+					"type": "string"
+				},
+				"alias": {
+					"type": "string"
+				},
+				"clusterID": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateAddonRegistryRequest": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"git": {
+					"$ref": "#/definitions/addon.GitAddonSource"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateApplicationEnvRequest": {
+			"required": [
+				"name",
+				"targetNames"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentSelector": {
+					"$ref": "#/definitions/v1.ComponentSelector"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"v1.CreateApplicationRequest": {
+			"required": [
+				"name",
+				"namespace",
+				"icon",
+				"component"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"component": {
+					"$ref": "#/definitions/v1.CreateComponentRequest"
+				},
+				"description": {
+					"type": "string"
+				},
+				"envBinding": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.EnvBinding"
+					}
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"yamlConfig": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateApplicationTemplateRequest": {
+			"required": [
+				"templateName",
+				"version",
+				"description"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"templateName": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateApplicationTraitRequest": {
+			"required": [
+				"type",
+				"properties"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateCloudClusterRequest": {
+			"required": [
+				"accessKeyID",
+				"accessKeySecret",
+				"name",
+				"zone",
+				"workerNumber",
+				"cpuCoresPerWorker",
+				"memoryPerWorker"
+			],
+			"properties": {
+				"accessKeyID": {
+					"type": "string"
+				},
+				"accessKeySecret": {
+					"type": "string"
+				},
+				"cpuCoresPerWorker": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"memoryPerWorker": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"name": {
+					"type": "string"
+				},
+				"workerNumber": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"zone": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateCloudClusterResponse": {
+			"required": [
+				"clusterName",
+				"clusterID",
+				"status"
+			],
+			"properties": {
+				"clusterID": {
+					"type": "string"
+				},
+				"clusterName": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateClusterNamespaceRequest": {
+			"required": [
+				"namespace"
+			],
+			"properties": {
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateClusterNamespaceResponse": {
+			"required": [
+				"exists"
+			],
+			"properties": {
+				"exists": {
+					"type": "boolean"
+				}
+			}
+		},
+		"v1.CreateClusterRequest": {
+			"required": [
+				"name",
+				"icon"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"dashboardURL": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"kubeConfig": {
+					"type": "string"
+				},
+				"kubeConfigSecret": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateComponentRequest": {
+			"required": [
+				"name",
+				"componentType"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentType": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.CreateApplicationTraitRequest"
+					}
+				}
+			}
+		},
+		"v1.CreateDeliveryTargetRequest": {
+			"required": [
+				"name",
+				"namespace"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"variable": {
+					"type": "object"
+				}
+			}
+		},
+		"v1.CreateNamespaceRequest": {
+			"required": [
+				"name",
+				"description"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreatePolicyRequest": {
+			"required": [
+				"name",
+				"description",
+				"type",
+				"properties"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateWorkflowRequest": {
+			"required": [
+				"appName",
+				"name",
+				"default",
+				"envName"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"appName": {
+					"type": "string"
+				},
+				"default": {
+					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowStep"
+					}
+				}
+			}
+		},
+		"v1.DefinitionBase": {
+			"required": [
+				"name",
+				"description",
+				"icon"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.DeliveryTargetBase": {
+			"required": [
+				"name",
+				"namespace",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"appNum": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"variable": {
+					"type": "object"
+				}
+			}
+		},
+		"v1.DetailAddonResponse": {
+			"required": [
+				"icon",
+				"name",
+				"version",
+				"description",
+				"schema",
+				"uiSchema",
+				"definitions"
+			],
+			"properties": {
+				"definitions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.AddonDefinition"
+					}
+				},
+				"dependencies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/types.AddonDependency"
+					}
+				},
+				"deployTo": {
+					"$ref": "#/definitions/types.AddonDeployTo"
+				},
+				"description": {
+					"type": "string"
+				},
+				"detail": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"schema": {
+					"type": "string"
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"uiSchema": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
+					}
+				},
+				"url": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.DetailApplicationResponse": {
+			"required": [
+				"updateTime",
+				"icon",
+				"name",
+				"alias",
+				"namespace",
+				"description",
+				"createTime",
+				"policies",
+				"envBindings",
+				"status",
+				"resourceInfo"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"envBindings": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"policies": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"resourceInfo": {
+					"$ref": "#/definitions/v1.ApplicationResourceInfo"
+				},
+				"status": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.DetailClusterResponse": {
+			"required": [
+				"status",
+				"reason",
+				"dashboardURL",
+				"name",
+				"description",
+				"icon",
+				"labels",
+				"kubeConfig",
+				"kubeConfigSecret",
+				"model",
+				"alias",
+				"provider",
+				"apiServerURL",
+				"resourceInfo"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"apiServerURL": {
+					"type": "string"
+				},
+				"dashboardURL": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"kubeConfig": {
+					"type": "string"
+				},
+				"kubeConfigSecret": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"model": {
+					"$ref": "#/definitions/model.Model"
+				},
+				"name": {
+					"type": "string"
+				},
+				"provider": {
+					"$ref": "#/definitions/model.ProviderInfo"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"resourceInfo": {
+					"$ref": "#/definitions/v1.ClusterResourceInfo"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.DetailComponentResponse": {
+			"required": [
+				"alias",
+				"creator",
+				"updateTime",
+				"appPrimaryKey",
+				"createTime",
+				"type",
+				"name"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"appPrimaryKey": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"creator": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"externalRevision": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"scopes": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/model.ApplicationTrait"
+					}
+				},
+				"type": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.DetailDefinitionResponse": {
+			"required": [
+				"schema",
+				"uiSchema"
+			],
+			"properties": {
+				"schema": {
+					"type": "string"
+				},
+				"uiSchema": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
+					}
+				}
+			}
+		},
+		"v1.DetailDeliveryTargetResponse": {
+			"required": [
+				"namespace",
+				"createTime",
+				"updateTime",
+				"name"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"appNum": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"variable": {
+					"type": "object"
+				}
+			}
+		},
+		"v1.DetailPolicyResponse": {
+			"required": [
+				"properties",
+				"createTime",
+				"updateTime",
+				"name",
+				"type",
+				"description",
+				"creator"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"creator": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"type": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.DetailRevisionResponse": {
+			"required": [
+				"triggerType",
+				"workflowName",
+				"version",
+				"appPrimaryKey",
+				"status",
+				"reason",
+				"deployUser",
+				"note",
+				"envName",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"appPrimaryKey": {
+					"type": "string"
+				},
+				"applyAppConfig": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"deployUser": {
+					"type": "string"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"note": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"triggerType": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"version": {
+					"type": "string"
+				},
+				"workflowName": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.DetailWorkflowRecordResponse": {
+			"required": [
+				"namespace",
+				"status",
+				"name",
+				"deployTime",
+				"deployUser",
+				"note",
+				"triggerType"
+			],
+			"properties": {
+				"deployTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"deployUser": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"note": {
+					"type": "string"
+				},
+				"startTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"status": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.WorkflowStepStatus"
+					}
+				},
+				"triggerType": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.DetailWorkflowResponse": {
+			"required": [
+				"alias",
+				"description",
+				"envName",
+				"createTime",
+				"updateTime",
+				"name",
+				"enable",
+				"default"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"default": {
+					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"enable": {
+					"type": "boolean"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowStep"
+					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.EmptyResponse": {},
+		"v1.EnableAddonRequest": {
+			"properties": {
+				"args": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"v1.EnablingProgress": {
+			"required": [
+				"enabled_components",
+				"total_components"
+			],
+			"properties": {
+				"enabled_components": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"total_components": {
+					"type": "integer",
+					"format": "int32"
+				}
+			}
+		},
+		"v1.EnvBinding": {
+			"required": [
+				"name",
+				"targetNames"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentSelector": {
+					"$ref": "#/definitions/v1.ComponentSelector"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"v1.EnvBindingBase": {
+			"required": [
+				"name",
+				"targetNames",
+				"createTime",
+				"updateTime",
+				"appDeployName"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"appDeployName": {
+					"type": "string"
+				},
+				"componentSelector": {
+					"$ref": "#/definitions/v1.ComponentSelector"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"deliveryTargets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.DeliveryTargetBase"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.ListAddonRegistryResponse": {
+			"required": [
+				"registrys"
+			],
+			"properties": {
+				"registrys": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.AddonRegistryMeta"
+					}
+				}
+			}
+		},
+		"v1.ListAddonResponse": {
+			"required": [
+				"addons"
+			],
+			"properties": {
+				"addons": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/types.AddonMeta"
+					}
+				}
+			}
+		},
+		"v1.ListApplicationEnvBinding": {
+			"required": [
+				"envBindings"
+			],
+			"properties": {
+				"envBindings": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.EnvBindingBase"
+					}
+				}
+			}
+		},
+		"v1.ListApplicationPolicy": {
+			"required": [
+				"policies"
+			],
+			"properties": {
+				"policies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.PolicyBase"
+					}
+				}
+			}
+		},
+		"v1.ListApplicationResponse": {
+			"required": [
+				"applications"
+			],
+			"properties": {
+				"applications": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ApplicationBase"
+					}
+				}
+			}
+		},
+		"v1.ListCloudClusterCreationResponse": {
+			"required": [
+				"creations"
+			],
+			"properties": {
+				"creations": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.CreateCloudClusterResponse"
+					}
+				}
+			}
+		},
+		"v1.ListCloudClusterResponse": {
+			"required": [
+				"clusters",
+				"total"
+			],
+			"properties": {
+				"clusters": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/cloudprovider.CloudCluster"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int32"
+				}
+			}
+		},
+		"v1.ListClusterResponse": {
+			"required": [
+				"clusters",
+				"total"
+			],
+			"properties": {
+				"clusters": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ClusterBase"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ListDefinitionResponse": {
+			"required": [
+				"definitions"
+			],
+			"properties": {
+				"definitions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.DefinitionBase"
+					}
+				}
+			}
+		},
+		"v1.ListDeliveryTargetResponse": {
+			"required": [
+				"deliveryTargets",
+				"total"
+			],
+			"properties": {
+				"deliveryTargets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.DeliveryTargetBase"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ListNamespaceResponse": {
+			"required": [
+				"namespaces"
+			],
+			"properties": {
+				"namespaces": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.NamespaceBase"
+					}
+				}
+			}
+		},
+		"v1.ListPolicyDefinitionResponse": {
+			"required": [
+				"policyDefinitions"
+			],
+			"properties": {
+				"policyDefinitions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.PolicyDefinition"
+					}
+				}
+			}
+		},
+		"v1.ListRevisionsResponse": {
+			"required": [
+				"revisions",
+				"total"
+			],
+			"properties": {
+				"revisions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ApplicationRevisionBase"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ListWorkflowRecordsResponse": {
+			"required": [
+				"records",
+				"total"
+			],
+			"properties": {
+				"records": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowRecord"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ListWorkflowResponse": {
+			"required": [
+				"workflows"
+			],
+			"properties": {
+				"workflows": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowBase"
+					}
+				}
+			}
+		},
+		"v1.NamespaceBase": {
+			"required": [
+				"name",
+				"description",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.NamespaceDetailResponse": {
+			"required": [
+				"description",
+				"createTime",
+				"updateTime",
+				"name"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.ObjectReference": {
+			"description": "ObjectReference contains enough information to let you inspect or modify the referred object.",
+			"properties": {
+				"apiVersion": {
+					"description": "API version of the referent.",
+					"type": "string"
+				},
+				"fieldPath": {
+					"description": "If referring to a piece of an object instead of an entire object, this string should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2]. For example, if the object reference is to a container within a pod, this would take on a value like: \"spec.containers{name}\" (where \"name\" refers to the name of the container that triggered the event) or if no container name is specified \"spec.containers[2]\" (container with index 2 in this pod). This syntax is chosen only to have some well-defined way of referencing a part of an object.",
+					"type": "string"
+				},
+				"kind": {
+					"description": "Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+					"type": "string"
+				},
+				"name": {
+					"description": "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+					"type": "string"
+				},
+				"namespace": {
+					"description": "Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
+					"type": "string"
+				},
+				"resourceVersion": {
+					"description": "Specific resourceVersion to which this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency",
+					"type": "string"
+				},
+				"uid": {
+					"description": "UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids",
+					"type": "string"
+				}
+			}
+		},
+		"v1.PolicyBase": {
+			"required": [
+				"name",
+				"type",
+				"description",
+				"creator",
+				"properties",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"creator": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"$ref": "#/definitions/model.JSONStruct"
+				},
+				"type": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.PolicyDefinition": {
+			"required": [
+				"name",
+				"description",
+				"parameters"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"parameters": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/types.Parameter"
+					}
+				}
+			}
+		},
+		"v1.PutApplicationEnvRequest": {
+			"required": [
+				"targetNames"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentSelector": {
+					"$ref": "#/definitions/v1.ComponentSelector"
+				},
+				"description": {
+					"type": "string"
+				},
+				"targetNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"v1.UpdateAddonRegistryRequest": {
+			"properties": {
+				"git": {
+					"$ref": "#/definitions/addon.GitAddonSource"
+				}
+			}
+		},
+		"v1.UpdateApplicationComponentRequest": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"$ref": "#/definitions/v1.UpdateApplicationComponentRequest.labels"
+				},
+				"properties": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.UpdateApplicationComponentRequest.labels": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "string"
+			}
+		},
+		"v1.UpdateApplicationRequest": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"v1.UpdateApplicationTraitRequest": {
+			"required": [
+				"properties"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.UpdateDeliveryTargetRequest": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"description": {
+					"type": "string"
+				},
+				"variable": {
+					"type": "object"
+				}
+			}
+		},
+		"v1.UpdatePolicyRequest": {
+			"required": [
+				"description",
+				"type",
+				"properties"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.UpdateWorkflowRequest": {
+			"required": [
+				"enable",
+				"default",
+				"envName"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"default": {
+					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"enable": {
+					"type": "boolean"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowStep"
+					}
+				}
+			}
+		},
+		"v1.VelaQLViewResponse": {
+			"type": "object"
+		},
+		"v1.WorkflowBase": {
+			"required": [
+				"name",
+				"alias",
+				"description",
+				"enable",
+				"default",
+				"envName",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"default": {
+					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"enable": {
+					"type": "boolean"
+				},
+				"envName": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowStep"
+					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.WorkflowRecord": {
+			"required": [
+				"name",
+				"namespace",
+				"status"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"startTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"status": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.WorkflowStepStatus"
+					}
+				}
+			}
+		},
+		"v1.WorkflowStep": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.CanaryMetric": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"interval": {
+					"type": "string"
+				},
+				"metricsRange": {
+					"$ref": "#/definitions/v1alpha1.MetricsExpectedRange"
+				},
+				"name": {
+					"type": "string"
+				},
+				"templateRef": {
+					"$ref": "#/definitions/v1.ObjectReference"
+				}
+			}
+		},
+		"v1alpha1.MetricsExpectedRange": {
+			"properties": {
+				"max": {
+					"type": "string"
+				},
+				"min": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.RolloutBatch": {
+			"properties": {
+				"batchRolloutWebhooks": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.RolloutWebhook"
+					}
+				},
+				"canaryMetric": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.CanaryMetric"
+					}
+				},
+				"instanceInterval": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"maxUnavailable": {
+					"type": "string"
+				},
+				"podList": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"replicas": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.RolloutPlan": {
+			"properties": {
+				"batchPartition": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"canaryMetric": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.CanaryMetric"
+					}
+				},
+				"numBatches": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"paused": {
+					"type": "boolean"
+				},
+				"rolloutBatches": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.RolloutBatch"
+					}
+				},
+				"rolloutStrategy": {
+					"type": "string"
+				},
+				"rolloutWebhooks": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1alpha1.RolloutWebhook"
+					}
+				},
+				"targetSize": {
+					"type": "integer",
+					"format": "int32"
+				}
+			}
+		},
+		"v1alpha1.RolloutStatus": {
+			"required": [
+				"rollingState",
+				"batchRollingState",
+				"currentBatch",
+				"upgradedReplicas",
+				"upgradedReadyReplicas"
+			],
+			"properties": {
+				"batchRollingState": {
+					"type": "string"
+				},
+				"conditions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/condition.Condition"
+					}
+				},
+				"currentBatch": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"lastAppliedPodTemplateIdentifier": {
+					"type": "string"
+				},
+				"rollingState": {
+					"type": "string"
+				},
+				"rolloutOriginalSize": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"rolloutTargetSize": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"targetGeneration": {
+					"type": "string"
+				},
+				"upgradedReadyReplicas": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"upgradedReplicas": {
+					"type": "integer",
+					"format": "int32"
+				}
+			}
+		},
+		"v1alpha1.RolloutWebhook": {
+			"required": [
+				"type",
+				"name",
+				"url"
+			],
+			"properties": {
+				"expectedStatus": {
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				},
+				"metadata": {
+					"$ref": "#/definitions/v1alpha1.RolloutWebhook.metadata"
+				},
+				"method": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				}
+			}
+		},
+		"v1alpha1.RolloutWebhook.metadata": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "string"
+			}
+		},
+		"v1beta1.AppPolicy": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1beta1.ApplicationSpec": {
+			"required": [
+				"components"
+			],
+			"properties": {
+				"components": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.ApplicationComponent"
+					}
+				},
+				"policies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1beta1.AppPolicy"
+					}
+				},
+				"rolloutPlan": {
+					"$ref": "#/definitions/v1alpha1.RolloutPlan"
+				},
+				"workflow": {
+					"$ref": "#/definitions/v1beta1.Workflow"
+				}
+			}
+		},
+		"v1beta1.Workflow": {
+			"properties": {
+				"steps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1beta1.WorkflowStep"
+					}
+				}
+			}
+		},
+		"v1beta1.WorkflowStep": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		}
+	}
 }

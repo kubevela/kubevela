@@ -378,7 +378,7 @@ var _ = Describe("Test application containing helm module", func() {
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm); err != nil {
 				return err
 			}
-			if cm.Data["openapi-v3-json-schema"] == "" {
+			if cm.Data[types.OpenapiV3JSONSchema] == "" {
 				return errors.New("json schema is not found in the ConfigMap")
 			}
 			return nil

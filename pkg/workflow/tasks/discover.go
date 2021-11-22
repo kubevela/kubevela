@@ -26,11 +26,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/convert"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/email"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/time"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
@@ -40,7 +43,7 @@ import (
 type taskDiscover struct {
 	builtins           map[string]types.TaskGenerator
 	remoteTaskDiscover *custom.TaskLoader
-	templateLoader     *template.Loader
+	templateLoader     template.Loader
 }
 
 // GetTaskGenerator get task generator by name.
@@ -76,7 +79,7 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 	http.Install(providerHandlers)
 	convert.Install(providerHandlers)
 	email.Install(providerHandlers)
-	templateLoader := template.NewTemplateLoader(cli, dm)
+	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
@@ -109,4 +112,23 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 // Pending check task should be executed or not.
 func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 	return false
+}
+
+// NewViewTaskDiscover will create a client for load task generator.
+func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, apply kube.Dispatcher, delete kube.Deleter, viewNs string) types.TaskDiscover {
+	handlerProviders := providers.NewProviders()
+
+	// install builtin provider
+	query.Install(handlerProviders, cli)
+	time.Install(handlerProviders)
+	kube.Install(handlerProviders, cli, apply, delete)
+	http.Install(handlerProviders)
+	convert.Install(handlerProviders)
+	email.Install(handlerProviders)
+
+	templateLoader := template.NewViewTemplateLoader(cli, viewNs)
+	return &taskDiscover{
+		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders),
+		templateLoader:     templateLoader,
+	}
 }

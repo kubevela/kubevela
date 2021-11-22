@@ -191,7 +191,7 @@ func main() {
 
 	// wrapper the round tripper by multi cluster rewriter
 	if enableClusterGateway {
-		if err := multicluster.Initialize(restConfig); err != nil {
+		if _, err := multicluster.Initialize(restConfig, true); err != nil {
 			klog.ErrorS(err, "failed to enable multicluster")
 			os.Exit(1)
 		}

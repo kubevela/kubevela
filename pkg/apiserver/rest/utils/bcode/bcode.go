@@ -23,8 +23,12 @@ import (
 	restful "github.com/emicklei/go-restful/v3"
 	"github.com/go-playground/validator/v10"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 )
+
+// ErrServer an unexpected mistake.
+var ErrServer = NewBcode(500, 500, "The service has lapsed.")
 
 // Bcode business error code
 type Bcode struct {
@@ -57,6 +61,13 @@ func ReturnError(req *restful.Request, res *restful.Response, err error) {
 	var bcode *Bcode
 	if errors.As(err, &bcode) {
 		if err := res.WriteHeaderAndEntity(int(bcode.HTTPCode), err); err != nil {
+			log.Logger.Error("write entity failure %s", err.Error())
+		}
+		return
+	}
+
+	if errors.Is(err, datastore.ErrRecordNotExist) {
+		if err := res.WriteHeaderAndEntity(int(404), err); err != nil {
 			log.Logger.Error("write entity failure %s", err.Error())
 		}
 		return

@@ -18,11 +18,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	restfulspec "github.com/emicklei/go-restful-openapi/v2"
+	"github.com/go-openapi/spec"
+	"github.com/google/uuid"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
@@ -36,22 +42,57 @@ func main() {
 	flag.StringVar(&s.restCfg.Datastore.Type, "datastore-type", "kubeapi", "Metadata storage driver type, support kubeapi and mongodb")
 	flag.StringVar(&s.restCfg.Datastore.Database, "datastore-database", "kubevela", "Metadata storage database name, takes effect when the storage driver is mongodb.")
 	flag.StringVar(&s.restCfg.Datastore.URL, "datastore-url", "", "Metadata storage database url,takes effect when the storage driver is mongodb.")
+	flag.StringVar(&s.restCfg.LeaderConfig.ID, "id", uuid.New().String(), "the holder identity name")
+	flag.StringVar(&s.restCfg.LeaderConfig.LockName, "lock-name", "apiserver-lock", "the lease lock resource name")
+	flag.DurationVar(&s.restCfg.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
 	flag.Parse()
 
+	if len(os.Args) > 2 && os.Args[1] == "build-swagger" {
+		func() {
+			swagger, err := s.buildSwagger()
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			outData, err := json.MarshalIndent(swagger, "", "\t")
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			swaggerFile, err := os.OpenFile(os.Args[2], os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			defer func() {
+				if err := swaggerFile.Close(); err != nil {
+					log.Logger.Errorf("close swagger file failure %s", err.Error())
+				}
+			}()
+			_, err = swaggerFile.Write(outData)
+			if err != nil {
+				log.Logger.Fatal(err.Error())
+			}
+			fmt.Println("build swagger config file success")
+		}()
+		return
+	}
+
 	srvc := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		if err := s.run(); err != nil {
+		if err := s.run(ctx); err != nil {
 			log.Logger.Errorf("failed to run apiserver: %v", err)
 		}
 		close(srvc)
 	}()
 	var term = make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
 	select {
 	case <-term:
 		log.Logger.Infof("Received SIGTERM, exiting gracefully...")
+		cancel()
 	case <-srvc:
+		cancel()
 		os.Exit(1)
 	}
 	log.Logger.Infof("See you next time!")
@@ -62,14 +103,21 @@ type Server struct {
 	restCfg rest.Config
 }
 
-func (s *Server) run() error {
+func (s *Server) run(ctx context.Context) error {
 	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
-
-	ctx := context.Background()
 
 	server, err := rest.New(s.restCfg)
 	if err != nil {
 		return fmt.Errorf("create apiserver failed : %w ", err)
 	}
+
 	return server.Run(ctx)
+}
+
+func (s *Server) buildSwagger() (*spec.Swagger, error) {
+	server, err := rest.New(s.restCfg)
+	if err != nil {
+		return nil, fmt.Errorf("create apiserver failed : %w ", err)
+	}
+	return restfulspec.BuildSwagger(server.RegisterServices()), nil
 }

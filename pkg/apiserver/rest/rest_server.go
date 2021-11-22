@@ -20,15 +20,23 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 )
 
@@ -43,11 +51,21 @@ type Config struct {
 
 	// Datastore config
 	Datastore datastore.Config
+
+	// LeaderConfig for leader election
+	LeaderConfig leaderConfig
+}
+
+type leaderConfig struct {
+	ID       string
+	LockName string
+	Duration time.Duration
 }
 
 // APIServer interface for call api server
 type APIServer interface {
 	Run(context.Context) error
+	RegisterServices() restfulspec.Config
 }
 
 type restServer struct {
@@ -68,11 +86,12 @@ func New(cfg Config) (a APIServer, err error) {
 	case "kubeapi":
 		ds, err = kubeapi.New(context.Background(), cfg.Datastore)
 		if err != nil {
-			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
+			return nil, fmt.Errorf("create kubeapi datastore instance failure %w", err)
 		}
 	default:
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
 	}
+
 	s := &restServer{
 		webContainer: restful.NewContainer(),
 		cfg:          cfg,
@@ -82,16 +101,76 @@ func New(cfg Config) (a APIServer, err error) {
 }
 
 func (s *restServer) Run(ctx context.Context) error {
-	webservice.Init(ctx, s.dataStore)
-	err := s.registerServices()
+	s.RegisterServices()
+
+	l, err := s.setupLeaderElection()
 	if err != nil {
 		return err
 	}
+
+	go func() {
+		leaderelection.RunOrDie(ctx, *l)
+	}()
+
 	return s.startHTTP(ctx)
 }
 
-func (s *restServer) registerServices() error {
+func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig, error) {
+	restCfg := ctrl.GetConfigOrDie()
 
+	rl, err := resourcelock.NewFromKubeconfig(resourcelock.LeasesResourceLock, types.DefaultKubeVelaNS, s.cfg.LeaderConfig.LockName, resourcelock.ResourceLockConfig{
+		Identity: s.cfg.LeaderConfig.ID,
+	}, restCfg, time.Second*10)
+	if err != nil {
+		klog.ErrorS(err, "Unable to setup the resource lock")
+		return nil, err
+	}
+
+	return &leaderelection.LeaderElectionConfig{
+		Lock:          rl,
+		LeaseDuration: time.Second * 15,
+		RenewDeadline: time.Second * 10,
+		RetryPeriod:   time.Second * 2,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				s.runLeader(ctx, s.cfg.LeaderConfig.Duration)
+			},
+			OnStoppedLeading: func() {
+				klog.Infof("leader lost: %s", s.cfg.LeaderConfig.ID)
+				os.Exit(0)
+			},
+			OnNewLeader: func(identity string) {
+				if identity == s.cfg.LeaderConfig.ID {
+					return
+				}
+				klog.Infof("new leader elected: %s", identity)
+			},
+		},
+		ReleaseOnCancel: true,
+	}, nil
+}
+
+func (s restServer) runLeader(ctx context.Context, duration time.Duration) {
+	w := usecase.NewWorkflowUsecase(s.dataStore)
+
+	t := time.NewTicker(duration)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-t.C:
+			if err := w.SyncWorkflowRecord(ctx); err != nil {
+				klog.ErrorS(err, "syncWorkflowRecordError")
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// RegisterServices register web service
+func (s *restServer) RegisterServices() restfulspec.Config {
+	webservice.Init(s.dataStore)
 	/* **************************************************************  */
 	/* *************       Open API Route Group     *****************  */
 	/* **************************************************************  */
@@ -118,7 +197,7 @@ func (s *restServer) registerServices() error {
 		APIPath:                       "/apidocs.json",
 		PostBuildSwaggerObjectHandler: enrichSwaggerObject}
 	s.webContainer.Add(restfulspec.NewOpenAPIService(config))
-	return nil
+	return config
 }
 
 func enrichSwaggerObject(swo *spec.Swagger) {

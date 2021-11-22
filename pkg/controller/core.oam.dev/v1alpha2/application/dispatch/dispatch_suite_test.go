@@ -495,7 +495,7 @@ var _ = Describe("Test compatibility code", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: appName + "-v2-" + namespaceName,
 				Labels: map[string]string{
-					"app.oam.dev/namesapce": namespaceName,
+					"app.oam.dev/namespace": namespaceName,
 					oam.LabelAppName:        appName,
 				},
 			},

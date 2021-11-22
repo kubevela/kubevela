@@ -42,10 +42,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/references/a/preimport"
 )
 
@@ -328,38 +326,6 @@ func registerClusterManagedByOCM(hubConfig *rest.Config, spokeConfig *clientcmda
 	return nil
 }
 
-func getMutableClusterSecret(c client.Client, clusterName string) (*v1.Secret, error) {
-	clusterSecret := &v1.Secret{}
-	if err := c.Get(context.Background(), types2.NamespacedName{Namespace: multicluster.ClusterGatewaySecretNamespace, Name: clusterName}, clusterSecret); err != nil {
-		return nil, errors.Wrapf(err, "failed to find target cluster secret %s", clusterName)
-	}
-	labels := clusterSecret.GetLabels()
-	if labels == nil || labels[v1alpha12.LabelKeyClusterCredentialType] == "" {
-		return nil, fmt.Errorf("invalid cluster secret %s: cluster credential type label %s is not set", clusterName, v1alpha12.LabelKeyClusterCredentialType)
-	}
-	apps := &v1beta1.ApplicationList{}
-	if err := c.List(context.Background(), apps); err != nil {
-		return nil, errors.Wrap(err, "failed to find applications to check clusters")
-	}
-	errs := errors3.ErrorList{}
-	for _, app := range apps.Items {
-		status, err := envbinding.GetEnvBindingPolicyStatus(app.DeepCopy(), "")
-		if err == nil && status != nil {
-			for _, env := range status.Envs {
-				for _, placement := range env.Placements {
-					if placement.Cluster == clusterName {
-						errs.Append(fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
-					}
-				}
-			}
-		}
-	}
-	if errs.HasError() {
-		return nil, errors.Wrapf(errs, "cluster %s is in use now", clusterName)
-	}
-	return clusterSecret, nil
-}
-
 // NewClusterRenameCommand create command to help user rename cluster
 func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
@@ -372,7 +338,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 			if newClusterName == multicluster.ClusterLocalName {
 				return fmt.Errorf("cannot use `%s` as cluster name, it is reserved as the local cluster", multicluster.ClusterLocalName)
 			}
-			clusterSecret, err := getMutableClusterSecret(c.Client, oldClusterName)
+			clusterSecret, err := multicluster.GetMutableClusterSecret(context.Background(), c.Client, oldClusterName)
 			if err != nil {
 				return errors.Wrapf(err, "cluster %s is not mutable now", oldClusterName)
 			}
@@ -425,7 +391,7 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 
 			switch clusterType {
 			case string(v1alpha12.CredentialTypeX509Certificate), string(v1alpha12.CredentialTypeServiceAccountToken):
-				clusterSecret, err := getMutableClusterSecret(c.Client, clusterName)
+				clusterSecret, err := multicluster.GetMutableClusterSecret(context.Background(), c.Client, clusterName)
 				if err != nil {
 					return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)
 				}

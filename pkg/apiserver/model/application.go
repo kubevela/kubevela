@@ -18,18 +18,24 @@ package model
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
-// Application database model
+func init() {
+	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{})
+}
+
+// Application application delivery model
 type Application struct {
+	Model
 	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
 	Namespace   string            `json:"namespace"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	ClusterList []string          `json:"clusterList,omitempty"`
 }
 
 // TableName return custom table name
@@ -54,14 +60,28 @@ func (a *Application) Index() map[string]string {
 	return index
 }
 
+// ClusterSelector cluster selector
+type ClusterSelector struct {
+	Name string `json:"name"`
+	// Adapt to a scenario where only one Namespace is available or a user-defined Namespace is available.
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// ComponentSelector component selector
+type ComponentSelector struct {
+	Components []string `json:"components"`
+}
+
 // ApplicationComponent component database model
 type ApplicationComponent struct {
+	Model
 	AppPrimaryKey string            `json:"appPrimaryKey"`
 	Description   string            `json:"description,omitempty"`
-	Labels        map[string]string `json:"lables,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
 	Icon          string            `json:"icon,omitempty"`
 	Creator       string            `json:"creator"`
 	Name          string            `json:"name"`
+	Alias         string            `json:"alias"`
 	Type          string            `json:"type"`
 
 	// ExternalRevision specified the component revisionName
@@ -104,9 +124,12 @@ func (a *ApplicationComponent) Index() map[string]string {
 
 // ApplicationPolicy app policy
 type ApplicationPolicy struct {
+	Model
 	AppPrimaryKey string      `json:"appPrimaryKey"`
 	Name          string      `json:"name"`
+	Description   string      `json:"description"`
 	Type          string      `json:"type"`
+	Creator       string      `json:"creator"`
 	Properties    *JSONStruct `json:"properties,omitempty"`
 }
 
@@ -137,6 +160,88 @@ func (a *ApplicationPolicy) Index() map[string]string {
 
 // ApplicationTrait application trait
 type ApplicationTrait struct {
-	Type       string      `json:"type"`
-	Properties *JSONStruct `json:"properties,omitempty"`
+	Alias       string      `json:"alias"`
+	Description string      `json:"description"`
+	Type        string      `json:"type"`
+	Properties  *JSONStruct `json:"properties,omitempty"`
+	CreateTime  time.Time   `json:"createTime"`
+	UpdateTime  time.Time   `json:"updateTime"`
+}
+
+// RevisionStatusInit event status init
+var RevisionStatusInit = "init"
+
+// RevisionStatusRunning event status running
+var RevisionStatusRunning = "running"
+
+// RevisionStatusComplete event status complete
+var RevisionStatusComplete = "complete"
+
+// RevisionStatusFail event status failure
+var RevisionStatusFail = "failure"
+
+// RevisionStatusTerminated event status terminated
+var RevisionStatusTerminated = "terminated"
+
+// ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
+type ApplicationRevision struct {
+	Model
+	AppPrimaryKey string `json:"appPrimaryKey"`
+	Version       string `json:"version"`
+	// ApplyAppConfig Stores the application configuration during the current deploy.
+	ApplyAppConfig string `json:"applyAppConfig,omitempty"`
+
+	// Deploy event status
+	Status string `json:"status"`
+	Reason string `json:"reason"`
+
+	// The user that triggers the deploy.
+	DeployUser string `json:"deployUser"`
+
+	// Information that users can note.
+	Note string `json:"note"`
+	// TriggerType the event trigger source, Web or API
+	TriggerType string `json:"triggerType"`
+
+	// WorkflowName deploy controller by workflow
+	WorkflowName string `json:"workflowName"`
+	// EnvName is the env name of this application revision
+	EnvName string `json:"envName"`
+}
+
+// TableName return custom table name
+func (a *ApplicationRevision) TableName() string {
+	return tableNamePrefix + "application_revision"
+}
+
+// PrimaryKey return custom primary key
+func (a *ApplicationRevision) PrimaryKey() string {
+	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Version)
+}
+
+// Index return custom index
+func (a *ApplicationRevision) Index() map[string]string {
+	index := make(map[string]string)
+	if a.Version != "" {
+		index["version"] = a.Version
+	}
+	if a.AppPrimaryKey != "" {
+		index["appPrimaryKey"] = a.AppPrimaryKey
+	}
+	if a.WorkflowName != "" {
+		index["workflowName"] = a.WorkflowName
+	}
+	if a.DeployUser != "" {
+		index["deployUser"] = a.DeployUser
+	}
+	if a.Status != "" {
+		index["status"] = a.Status
+	}
+	if a.TriggerType != "" {
+		index["triggerType"] = a.TriggerType
+	}
+	if a.EnvName != "" {
+		index["envName"] = a.EnvName
+	}
+	return index
 }

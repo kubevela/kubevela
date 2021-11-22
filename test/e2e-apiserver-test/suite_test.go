@@ -18,81 +18,68 @@ package e2e_apiserver_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
 )
 
-var cfg *rest.Config
 var k8sClient client.Client
-var testEnv *envtest.Environment
-var testScheme = runtime.NewScheme()
 
 func TestE2eApiserverTest(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "E2eApiserverTest Suite")
 }
 
+// Suite test in e2e-apiserver-test relies on the pre-setup kubernetes environment
 var _ = BeforeSuite(func() {
-
-	By("bootstrapping test environment")
-
-	testEnv = &envtest.Environment{
-		ControlPlaneStartTimeout: time.Minute * 3,
-		ControlPlaneStopTimeout:  time.Minute,
-		UseExistingCluster:       pointer.BoolPtr(false),
-	}
-
-	By("start kube test env")
-	var err error
-	cfg, err = testEnv.Start()
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
-
-	err = scheme.AddToScheme(testScheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	By("new kube client")
-	cfg.Timeout = time.Minute * 2
-	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
+	var err error
+	k8sClient, err = clients.GetKubeClient()
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
-	clients.SetKubeClient(k8sClient)
 
 	ctx := context.Background()
 
-	server, err := arest.New(arest.Config{
+	cfg := arest.Config{
 		BindAddr: "127.0.0.1:8000",
 		Datastore: datastore.Config{
 			Type:     "kubeapi",
 			Database: "kubevela",
 		},
-	})
+	}
+	cfg.LeaderConfig.ID = uuid.New().String()
+	cfg.LeaderConfig.LockName = "apiserver-lock"
+	cfg.LeaderConfig.Duration = time.Second * 10
+
+	server, err := arest.New(cfg)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(server).ShouldNot(BeNil())
 	go func() {
 		err = server.Run(ctx)
 		Expect(err).ShouldNot(HaveOccurred())
 	}()
+	By("wait for api server to start")
+	Eventually(
+		func() error {
+			res, err := http.Get("http://127.0.0.1:8000/api/v1/namespaces")
+			if err != nil {
+				return err
+			}
+			if res.StatusCode == http.StatusOK {
+				return nil
+			}
+			return errors.New("rest service not ready")
+		}, time.Second*5, time.Millisecond*200).Should(BeNil())
 	By("api server started")
-	time.Sleep(time.Second * 2)
-})
-
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
 })
