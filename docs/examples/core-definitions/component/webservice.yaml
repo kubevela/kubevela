@@ -10,17 +10,14 @@ spec:
         labels:
           test-label: test-value
         image: crccheck/hello-world
-        expose:
-          ports:
-            - 8001
+        exposeType: NodePort
         ports:
           - port: 8000
           - port: 8001
             protocol: UDP
-      traits:
-        - type: network
-          properties:
-            ingress:
-              domain: testsvc.example.com
-              http:
-                "/": 8001    
+            expose: true 
+        volumeMounts:
+          pvc:
+            - name: my-mount
+              mountPath: /test
+              claimName: myclaim

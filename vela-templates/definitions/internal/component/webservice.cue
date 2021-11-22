@@ -25,6 +25,114 @@ webservice: {
 	}
 }
 template: {
+	mountsArray: {
+		pvc: *[
+			for v in parameter.volumeMounts.pvc {
+				{
+					mountPath: v.mountPath
+					name:      v.name
+				}
+			},
+		] | []
+
+		configMap: *[
+				for v in parameter.volumeMounts.configMap {
+				{
+					mountPath: v.mountPath
+					name:      v.name
+				}
+			},
+		] | []
+
+		secret: *[
+			for v in parameter.volumeMounts.secret {
+				{
+					mountPath: v.mountPath
+					name:      v.name
+				}
+			},
+		] | []
+
+		emptyDir: *[
+				for v in parameter.volumeMounts.emptyDir {
+				{
+					mountPath: v.mountPath
+					name:      v.name
+				}
+			},
+		] | []
+
+		hostPath: *[
+				for v in parameter.volumeMounts.hostPath {
+				{
+					mountPath: v.mountPath
+					name:      v.name
+				}
+			},
+		] | []
+	}
+
+	volumesArray: {
+		pvc: *[
+			for v in parameter.volumeMounts.pvc {
+				{
+					name: v.name
+					persistentVolumeClaim: claimName: v.claimName
+				}
+			},
+		] | []
+
+		configMap: *[
+				for v in parameter.volumeMounts.configMap {
+				{
+					name: v.name
+					configMap: {
+						defaultMode: v.defaultMode
+						name:        v.cmName
+						if v.items != _|_ {
+							items: v.items
+						}
+					}
+				}
+			},
+		] | []
+
+		secret: *[
+			for v in parameter.volumeMounts.secret {
+				{
+					name: v.name
+					secret: {
+						defaultMode: v.defaultMode
+						secretName:  v.secretName
+						if v.items != _|_ {
+							items: v.items
+						}
+					}
+				}
+			},
+		] | []
+
+		emptyDir: *[
+				for v in parameter.volumeMounts.emptyDir {
+				{
+					name: v.name
+					emptyDir: medium: v.medium
+				}
+			},
+		] | []
+
+		hostPath: *[
+				for v in parameter.volumeMounts.hostPath {
+				{
+					name: v.name
+					hostPath: {
+						path: v.path
+					}
+				}
+			},
+		] | []
+	}
+
 	output: {
 		apiVersion: "apps/v1"
 		kind:       "Deployment"
@@ -97,12 +205,16 @@ template: {
 							}
 						}
 
-						if parameter["volumes"] != _|_ {
+						if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
 							volumeMounts: [ for v in parameter.volumes {
 								{
 									mountPath: v.mountPath
 									name:      v.name
 								}}]
+						}
+
+						if parameter["volumeMounts"] != _|_ {
+							volumeMounts: mountsArray.pvc + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir + mountsArray.hostPath
 						}
 
 						if parameter["livenessProbe"] != _|_ {
@@ -127,7 +239,7 @@ template: {
 						]
 					}
 
-					if parameter["volumes"] != _|_ {
+					if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
 						volumes: [ for v in parameter.volumes {
 							{
 								name: v.name
@@ -155,28 +267,35 @@ template: {
 								if v.type == "emptyDir" {
 									emptyDir: medium: v.medium
 								}
-							}}]
+							}
+						}]
+					}
+
+					if parameter["volumeMounts"] != _|_ {
+						volumes: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
 					}
 				}
 			}
 		}
 	}
 
+	exposePorts: [
+		for v in parameter.ports if v.expose == true {
+			port:       v.port
+			targetPort: v.port
+		},
+	]
+
 	outputs: {
-		if parameter.expose != _|_ {
+		if len(exposePorts) != 0 {
 			webserviceExpose: {
 				apiVersion: "v1"
 				kind:       "Service"
 				metadata: name: context.name
 				spec: {
 					selector: "app.oam.dev/component": context.name
-					ports: [
-						for p in parameter.expose.ports {
-							port:       p
-							targetPort: p
-						},
-					]
-					type: parameter.expose.type
+					ports: exposePorts
+					type:  parameter.exposeType
 				}
 			}
 		}
@@ -209,15 +328,12 @@ template: {
 			port: int
 			// +usage=Protocol for port. Must be UDP, TCP, or SCTP
 			protocol: *"TCP" | "UDP" | "SCTP"
+			// +usage=Specify if the port should be exposed
+			expose: *false | bool
 		}]
 
-		// +usage=Specify the ports you want to expose
-		expose?: {
-			// +usage=Specify the exposion ports
-			ports: [...int]
-			// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer", "ExternalName"
-			type: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
-		}
+		// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer", "ExternalName"
+		exposeType: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
 
 		// +ignore
 		// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods
@@ -257,7 +373,53 @@ template: {
 		// +usage=Specifies the attributes of the memory resource required for the container.
 		memory?: string
 
-		// +usage=Declare volumes and volumeMounts
+		volumeMounts?: {
+			// +usage=Mount PVC type volume
+			pvc?: [...{
+				name:      string
+				mountPath: string
+				// +usage=The name of the PVC
+				claimName: string
+			}]
+			// +usage=Mount ConfigMap type volume
+			configMap?: [...{
+				name:        string
+				mountPath:   string
+				defaultMode: *420 | int
+				cmName:      string
+				items?: [...{
+					key:  string
+					path: string
+					mode: *511 | int
+				}]
+			}]
+			// +usage=Mount Secret type volume
+			secret?: [...{
+				name:        string
+				mountPath:   string
+				defaultMode: *420 | int
+				secretName:  string
+				items?: [...{
+					key:  string
+					path: string
+					mode: *511 | int
+				}]
+			}]
+			// +usage=Mount EmptyDir type volume
+			emptyDir?: [...{
+				name:      string
+				mountPath: string
+				medium:    *"" | "Memory"
+			}]
+			// +usage=Mount HostPath type volume
+			hostPath?: [...{
+				name:      string
+				mountPath: string
+				path:      string
+			}]
+		}
+
+		// +usage=Deprecated field, use volumeMounts instead.
 		volumes?: [...{
 			name:      string
 			mountPath: string
