@@ -354,17 +354,19 @@ func behindKey(file *ast.File, key string) {
 			decls = append(decls, file.Decls[i])
 		}
 	}
+
+	file.Decls = implDecls
 	if len(decls) == 1 {
 		target := decls[0]
 		if embed, ok := target.(*ast.EmbedDecl); ok {
-			file.Decls = append(implDecls, &ast.Field{
+			file.Decls = append(file.Decls, &ast.Field{
 				Label: ast.NewIdent(key),
 				Value: embed.Expr,
 			})
 			return
 		}
 	}
-	file.Decls = append(implDecls, &ast.Field{
+	file.Decls = append(file.Decls, &ast.Field{
 		Label: ast.NewIdent(key),
 		Value: &ast.StructLit{
 			Elts: decls,
