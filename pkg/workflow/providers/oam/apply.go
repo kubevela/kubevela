@@ -172,6 +172,28 @@ func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTy
 	return nil
 }
 
+// LoadComponentInOrder load component describe info in application output will be a list with order defined in application.
+func (p *provider) LoadComponentInOrder(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	app := &v1beta1.Application{}
+	// if specify `app`, use specified application otherwise use default application fron provider
+	appSettings, err := v.LookupValue("app")
+	if err != nil {
+		if strings.Contains(err.Error(), "not exist") {
+			app = p.app
+		} else {
+			return err
+		}
+	} else {
+		if err := appSettings.UnmarshalTo(app); err != nil {
+			return err
+		}
+	}
+	if err := v.FillObject(app.Spec.Components, "value"); err != nil {
+		return err
+	}
+	return nil
+}
+
 // LoadPolicies load policy describe info in application.
 func (p *provider) LoadPolicies(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	for _, po := range p.app.Spec.Policies {
@@ -190,9 +212,10 @@ func Install(p providers.Providers, app *v1beta1.Application, apply ComponentApp
 		app:    app.DeepCopy(),
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
-		"component-render": prd.RenderComponent,
-		"component-apply":  prd.ApplyComponent,
-		"load":             prd.LoadComponent,
-		"load-policies":    prd.LoadPolicies,
+		"component-render":    prd.RenderComponent,
+		"component-apply":     prd.ApplyComponent,
+		"load":                prd.LoadComponent,
+		"load-policies":       prd.LoadPolicies,
+		"load-comps-in-order": prd.LoadComponentInOrder,
 	})
 }

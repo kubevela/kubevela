@@ -30,3 +30,9 @@
 	value?: {...}
 	...
 }
+
+#LoadComponetsInOrder: {
+	#provider: "oam"
+	#do:       "load-comps-in-order"
+	...
+}
