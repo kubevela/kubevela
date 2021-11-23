@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -87,13 +88,19 @@ var _ = Describe("Addon tests", func() {
 
 	It("Addons Terraform is successfully enables and Terraform application works", func() {
 		By("Install Addon Terraform")
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform").Output()
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))
 		}
 		Expect(err).Should(BeNil())
 		Expect(string(output)).Should(ContainSubstring("Successfully enable addon:"))
+
+		By("Checking Provider")
+		Eventually(func() error {
+			var provider terraformv1beta1.Provider
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "default", Namespace: "default"}, &provider)
+		}, time.Second*120, time.Millisecond*500).Should(BeNil())
 
 		By("Apply an application with Terraform Component")
 		var terraformApp v1beta1.Application

@@ -21,11 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -36,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -61,6 +60,8 @@ var _ = BeforeSuite(func(done Done) {
 	err = crdv1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = v1alpha1.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
+	err = terraformv1beta1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	By("Setting up kubernetes client")
 	k8sClient, err = client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
