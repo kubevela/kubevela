@@ -76,7 +76,6 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
-	http.Install(providerHandlers)
 	convert.Install(providerHandlers)
 	email.Install(providerHandlers)
 	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
@@ -122,7 +121,7 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, apply 
 	query.Install(handlerProviders, cli)
 	time.Install(handlerProviders)
 	kube.Install(handlerProviders, cli, apply, delete)
-	http.Install(handlerProviders)
+	http.Install(handlerProviders, cli, viewNs)
 	convert.Install(handlerProviders)
 	email.Install(handlerProviders)
 

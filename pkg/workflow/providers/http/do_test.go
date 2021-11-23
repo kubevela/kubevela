@@ -17,13 +17,25 @@ limitations under the License.
 package http
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"gotest.tools/assert"
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	httpHandler "github.com/oam-dev/kubevela/pkg/builtin/http"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
@@ -102,7 +114,7 @@ request:{
 
 func TestInstall(t *testing.T) {
 	p := providers.NewProviders()
-	Install(p)
+	Install(p, nil, "")
 	h, ok := p.GetHandler("http", "do")
 	assert.Equal(t, ok, true)
 	assert.Equal(t, h != nil, true)
@@ -133,4 +145,69 @@ func runMockServer(shutdown chan struct{}) {
 			break
 		}
 	}
+}
+
+func TestHTTPSDo(t *testing.T) {
+	s := newMockHttpsServer()
+	defer s.Close()
+	cli := &test.MockClient{
+		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			secret := obj.(*v1.Secret)
+			*secret = v1.Secret{
+				Data: map[string][]byte{
+					"ca.crt":     []byte(httpHandler.MockCerts.Ca),
+					"client.crt": []byte(httpHandler.MockCerts.ClientCrt),
+					"client.key": []byte(httpHandler.MockCerts.ClientKey),
+				},
+			}
+			return nil
+		},
+	}
+	v, err := value.NewValue(`
+method: "GET"
+url: "https://127.0.0.1:8443/api/v1/token?val=test-token"
+`, nil, "")
+	assert.NilError(t, err)
+	assert.NilError(t, v.FillObject("certs", "tls_config", "secret"))
+	prd := &provider{cli, "default"}
+	err = prd.Do(nil, v, nil)
+	assert.NilError(t, err)
+
+}
+
+func newMockHttpsServer() *httptest.Server {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			fmt.Printf("Expected 'GET' request, got '%s'", r.Method)
+		}
+		if r.URL.EscapedPath() != "/api/v1/token" {
+			fmt.Printf("Expected request to '/person', got '%s'", r.URL.EscapedPath())
+		}
+		r.ParseForm()
+		token := r.Form.Get("val")
+		tokenBytes, _ := json.Marshal(map[string]interface{}{"token": token})
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(tokenBytes)
+	}))
+	l, _ := net.Listen("tcp", "127.0.0.1:8443")
+	ts.Listener.Close()
+	ts.Listener = l
+
+	decode := func(in string) []byte {
+		out, _ := base64.StdEncoding.DecodeString(in)
+		return out
+	}
+
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(decode(httpHandler.MockCerts.Ca))
+	cert, _ := tls.X509KeyPair(decode(httpHandler.MockCerts.ServerCrt), decode(httpHandler.MockCerts.ServerKey))
+	ts.TLS = &tls.Config{
+		ClientCAs:    pool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{cert},
+		NextProtos:   []string{"http/1.1"},
+	}
+	ts.StartTLS()
+	return ts
 }

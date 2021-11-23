@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,6 +55,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	kube.Install(handlerProviders, h.r.Client, h.Dispatch, h.Delete)
 	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
+	http.Install(handlerProviders, h.r.Client, app.Namespace)
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
