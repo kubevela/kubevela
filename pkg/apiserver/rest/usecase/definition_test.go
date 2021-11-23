@@ -145,7 +145,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 
 		uiSchema := patchSchema(defaultschema, customschema)
 		Expect(cmp.Diff(len(uiSchema), 12)).Should(BeEmpty())
-		Expect(cmp.Diff(uiSchema[7].JSONKey, "readinessProbe")).Should(BeEmpty())
+		Expect(cmp.Diff(uiSchema[7].JSONKey, "livenessProbe")).Should(BeEmpty())
 		Expect(cmp.Diff(len(uiSchema[7].SubParameters), 8)).Should(BeEmpty())
 
 		outdata, err := yaml.Marshal(uiSchema)
