@@ -137,7 +137,6 @@ func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Respons
 
 func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Response) {
 	var createReq apis.EnableAddonRequest
-	if req.Request.GetBody != nil {
 		err := req.ReadEntity(&createReq)
 		if err != nil {
 			bcode.ReturnError(req, res, err)
@@ -147,10 +146,9 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 			bcode.ReturnError(req, res, err)
 			return
 		}
-	}
 
 	name := req.PathParameter("name")
-	err := s.addonUsecase.EnableAddon(req.Request.Context(), name, createReq)
+	err = s.addonUsecase.EnableAddon(req.Request.Context(), name, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
