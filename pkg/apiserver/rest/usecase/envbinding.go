@@ -131,7 +131,7 @@ func (e *envBindingUsecaseImpl) CreateEnvBinding(ctx context.Context, app *model
 	if err := e.ds.Add(ctx, &envBindingModel); err != nil {
 		return nil, err
 	}
-	err = e.createEnvWorkflow(ctx, app, &envBindingModel)
+	err = e.createEnvWorkflow(ctx, app, &envBindingModel, false)
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +139,12 @@ func (e *envBindingUsecaseImpl) CreateEnvBinding(ctx context.Context, app *model
 }
 
 func (e *envBindingUsecaseImpl) BatchCreateEnvBinding(ctx context.Context, app *model.Application, envbindings apisv1.EnvBindingList) error {
-	for _, envBinding := range envbindings {
-		envBindingModel := convertToEnvBindingModel(app, *envBinding)
+	for i := range envbindings {
+		envBindingModel := convertToEnvBindingModel(app, *envbindings[i])
 		if err := e.ds.Add(ctx, envBindingModel); err != nil {
 			return err
 		}
-		err := e.createEnvWorkflow(ctx, app, envBindingModel)
+		err := e.createEnvWorkflow(ctx, app, envBindingModel, i == 0)
 		if err != nil {
 			return err
 		}
@@ -226,16 +226,15 @@ func (e *envBindingUsecaseImpl) BatchDeleteEnvBinding(ctx context.Context, app *
 	return nil
 }
 
-func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *model.Application, env *model.EnvBinding) error {
+func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *model.Application, env *model.EnvBinding, isDefault bool) error {
 	steps := genEnvWorkflowSteps(env, app)
 	_, err := e.workflowUsecase.CreateOrUpdateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
-		AppName:     app.PrimaryKey(),
-		Name:        env.Name,
-		Alias:       fmt.Sprintf("%s env workflow", env.Alias),
+		Name:        convertWorkflowName(env.Name),
+		Alias:       fmt.Sprintf("%s Workflow", env.Alias),
 		Description: "Created automatically by envbinding.",
 		EnvName:     env.Name,
 		Steps:       steps,
-		Default:     false,
+		Default:     isDefault,
 	})
 	if err != nil {
 		return err
@@ -244,24 +243,18 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 }
 
 func (e *envBindingUsecaseImpl) updateEnvWorkflow(ctx context.Context, app *model.Application, env *model.EnvBinding) error {
-	steps := genEnvWorkflowSteps(env, app)
-	workflow, err := e.workflowUsecase.GetWorkflow(ctx, app, env.Name)
-	if err != nil {
-		return err
-	}
-	_, err = e.workflowUsecase.UpdateWorkflow(ctx, workflow, apisv1.UpdateWorkflowRequest{
-		Steps:       steps,
-		Description: workflow.Description,
-		EnvName:     workflow.EnvName,
-	})
-	if err != nil {
-		return err
-	}
+	// TODO: update env workflow
+	// The existing step configuration should be maintained and the delivery target steps should be automatically updated.
 	return nil
 }
 
 func (e *envBindingUsecaseImpl) deleteEnvWorkflow(ctx context.Context, app *model.Application, workflowName string) error {
-	return e.workflowUsecase.DeleteWorkflow(ctx, app, workflowName)
+	if err := e.workflowUsecase.DeleteWorkflow(ctx, app, workflowName); err != nil {
+		if !errors.Is(err, bcode.ErrWorkflowNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error) {
@@ -376,13 +369,19 @@ func genEnvWorkflowSteps(env *model.EnvBinding, app *model.Application) []apisv1
 			propertyStr = properties.JSON()
 		}
 		steps = append(steps, apisv1.WorkflowStep{
-			Name:       step.Name,
-			Type:       step.Type,
-			DependsOn:  step.DependsOn,
-			Properties: propertyStr,
-			Inputs:     step.Inputs,
-			Outputs:    step.Outputs,
+			Name:        step.Name,
+			Type:        step.Type,
+			Alias:       fmt.Sprintf("Deploy To %s", step.Name),
+			Description: fmt.Sprintf("deploy app to delivery target %s", step.Name),
+			DependsOn:   step.DependsOn,
+			Properties:  propertyStr,
+			Inputs:      step.Inputs,
+			Outputs:     step.Outputs,
 		})
 	}
 	return steps
+}
+
+func convertWorkflowName(envName string) string {
+	return fmt.Sprintf("workflow-%s", envName)
 }
