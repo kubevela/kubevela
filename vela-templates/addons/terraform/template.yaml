@@ -8,25 +8,12 @@ metadata:
 spec:
   workflow:
     steps:
-      - name: checking-depends-on
-        type: depends-on-app
+      - type: depends-on-app
         properties:
           name: fluxcd
           namespace: vela-system
-      - name: apply-ns
-        type: apply-component
-        properties:
-          component: ns-terraform-system
-      - name: apply-resources
-        type: apply-remaining
+      - type: apply-application
   components:
-    - name: ns-terraform-system
-      type: raw
-      properties:
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: terraform-system
     - name: terraform-controller
       type: helm
       properties:

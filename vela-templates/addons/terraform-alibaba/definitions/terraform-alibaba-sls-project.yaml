@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: alibaba-sls-project
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Terraform configuration for Alibaba Cloud SLS Project
+  labels:
+    type: terraform
+spec:
+  workload:
+    definition:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Configuration
+  schematic:
+    terraform:
+      configuration: https://github.com/kubevela-contrib/terraform-modules.git
+      type: remote
+      path: alibaba/sls/project
