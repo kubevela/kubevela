@@ -188,7 +188,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if err := r.patchHealthStatusToApplications(ctx, appConditions, hs); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "cannot patch health status to application")
 	}
-	return reconcile.Result{RequeueAfter: interval - elapsed}, errors.Wrap(r.UpdateStatus(ctx, hs), errUpdateHealthScopeStatus)
+
+	requeueAfter := interval - elapsed
+	if requeueAfter <= time.Second { // prevent underflow
+		requeueAfter = time.Second
+	}
+	return reconcile.Result{RequeueAfter: requeueAfter}, errors.Wrap(r.UpdateStatus(ctx, hs), errUpdateHealthScopeStatus)
 }
 
 // GetScopeHealthStatus get the status of the healthscope based on workload resources.
@@ -243,8 +248,12 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 			)
 
 			subCtx := multicluster.ContextWithClusterName(ctxWithTimeout, resRef.clusterName)
+			ns := resRef.Namespace
+			if ns == "" {
+				ns = healthScope.GetNamespace()
+			}
 			if appfile, ok := appfiles[resRef]; ok {
-				wlHealthCondition, traitConditions = CUEBasedHealthCheck(subCtx, r.client, resRef, healthScope.GetNamespace(), appfile)
+				wlHealthCondition, traitConditions = CUEBasedHealthCheck(subCtx, r.client, resRef, ns, appfile)
 				if wlHealthCondition != nil {
 					klog.V(common.LogDebug).InfoS("Get health condition from CUE-based health check", "workload", resRef, "healthCondition", wlHealthCondition)
 					wlHealthCondition.Traits = traitConditions
@@ -257,7 +266,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 				}
 			}
 
-			wlHealthCondition = r.traitChecker.Check(subCtx, r.client, resRef.ObjectReference, healthScope.GetNamespace())
+			wlHealthCondition = r.traitChecker.Check(subCtx, r.client, resRef.ObjectReference, ns)
 			if wlHealthCondition != nil {
 				klog.V(common.LogDebug).InfoS("Get health condition from health check trait ", "workload", resRef, "healthCondition", wlHealthCondition)
 				wlHealthCondition.Traits = traitConditions
@@ -270,7 +279,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 			}
 
 			for _, checker := range r.checkers {
-				wlHealthCondition = checker.Check(subCtx, r.client, resRef.ObjectReference, healthScope.GetNamespace())
+				wlHealthCondition = checker.Check(subCtx, r.client, resRef.ObjectReference, ns)
 				if wlHealthCondition != nil {
 					klog.V(common.LogDebug).InfoS("Get health condition from built-in checker", "workload", resRef, "healthCondition", wlHealthCondition)
 					// found matched checker and get health condition
@@ -285,7 +294,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 			}
 			// handle unknown workload
 			klog.V(common.LogDebug).InfoS("Get unknown workload", "workload", resRef)
-			wlHealthCondition = r.unknownChecker.Check(subCtx, r.client, resRef.ObjectReference, healthScope.GetNamespace())
+			wlHealthCondition = r.unknownChecker.Check(subCtx, r.client, resRef.ObjectReference, ns)
 			wlHealthCondition.Traits = traitConditions
 			wlHealthResultsC <- wlHealthResult{
 				name:    appInfos[resRef].appName,
@@ -352,8 +361,12 @@ func (r *Reconciler) CollectAppfilesAndAppNames(ctx context.Context, refs []Work
 		u := &unstructured.Unstructured{}
 		u.SetGroupVersionKind(ref.GroupVersionKind())
 
+		refNs := ref.Namespace
+		if refNs == "" {
+			refNs = ns
+		}
 		subCtx := multicluster.ContextWithClusterName(ctx, ref.clusterName)
-		if err := r.client.Get(subCtx, client.ObjectKey{Name: ref.Name, Namespace: ns}, u); err != nil {
+		if err := r.client.Get(subCtx, client.ObjectKey{Name: ref.Name, Namespace: refNs}, u); err != nil {
 			// no need to check error in this function
 			// HealthCheckFn  will handle all errors latter
 			continue
@@ -396,12 +409,7 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, hs *v1alpha2.HealthScope,
 
 func (r *Reconciler) patchHealthStatusToApplications(ctx context.Context, appHealthConditions []*AppHealthCondition, hs *v1alpha2.HealthScope) error {
 	multiClusterAppCondition := make(map[string][]*AppHealthCondition)
-	for i := range appHealthConditions {
-		appHealth := appHealthConditions[i]
-		_, ok := multiClusterAppCondition[appHealth.AppName]
-		if !ok {
-			multiClusterAppCondition[appHealth.AppName] = make([]*AppHealthCondition, 0)
-		}
+	for _, appHealth := range appHealthConditions {
 		multiClusterAppCondition[appHealth.AppName] = append(multiClusterAppCondition[appHealth.AppName], appHealth)
 	}
 
@@ -435,6 +443,7 @@ func (r *Reconciler) patchHealthStatusToApplications(ctx context.Context, appHea
 				healthCondition,
 			})
 			compStatus = append(compStatus, constructAppCompStatus(healthCondition, hsRef)...)
+
 		}
 		app.Status.Services = compStatus
 		app.Status.SetConditions(condition.Condition{
@@ -544,7 +553,11 @@ func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.App
 	if err == nil && policyStatus != nil {
 		for _, env := range policyStatus.Envs {
 			for _, placement := range env.Placements {
-				decisionsMap[placement.Cluster] = env.Env
+				if placement.Namespace != "" {
+					decisionsMap[placement.Cluster+"."+placement.Namespace] = env.Env
+				} else {
+					decisionsMap[placement.Cluster] = env.Env
+				}
 				decisions = append(decisions, struct {
 					Cluster string
 					Env     string
@@ -584,11 +597,17 @@ func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.App
 				}
 
 				if labels := o.GetLabels(); labels != nil {
+					var envName string
+					if _envName, ok := decisionsMap[rs.Cluster+"."+rs.Namespace]; ok {
+						envName = _envName
+					} else {
+						envName = decisionsMap[rs.Cluster]
+					}
 					if labels[oam.WorkloadTypeLabel] != "" {
 						wlRefs = append(wlRefs, WorkloadReference{
 							ObjectReference: rs.ObjectReference,
 							clusterName:     rs.Cluster,
-							envName:         decisionsMap[rs.Cluster],
+							envName:         envName,
 						})
 					} else if labels[oam.TraitTypeLabel] != "" && labels[oam.LabelManageWorkloadTrait] == "true" {
 						// this means this trait is a manage-Workload trait, get workload GVK and name for trait's annotation
@@ -607,7 +626,7 @@ func (r *Reconciler) createWorkloadRefs(ctx context.Context, appRef v1alpha2.App
 						wlRefs = append(wlRefs, WorkloadReference{
 							ObjectReference: objectRef,
 							clusterName:     rs.Cluster,
-							envName:         decisionsMap[rs.Cluster],
+							envName:         envName,
 						})
 					}
 				}
