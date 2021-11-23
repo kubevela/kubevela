@@ -83,7 +83,7 @@ func FirstLower(s string) string {
 }
 
 // GetDefaultUIType Set the default mapping for API Schema Type
-func GetDefaultUIType(apiType string, haveOptions bool, subType string) string {
+func GetDefaultUIType(apiType string, haveOptions bool, subType string, haveSub bool) string {
 	switch apiType {
 	case "string":
 		if haveOptions {
@@ -103,6 +103,9 @@ func GetDefaultUIType(apiType string, haveOptions bool, subType string) string {
 		}
 		return "Structs"
 	case "object":
+		if haveSub {
+			return "Group"
+		}
 		return "KV"
 	default:
 		return "Input"
