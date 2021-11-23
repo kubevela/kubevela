@@ -612,6 +612,16 @@ apply.workload.name`,
 			expect: `"main"
 `,
 		},
+		{
+			src: `
+apply: arr: ["abc","def"]
+`,
+			script: `
+import "strings"
+strings.Join(apply.arr,".")+"$"`,
+			expect: `"abc.def$"
+`,
+		},
 	}
 
 	for _, tCase := range testCases {
@@ -634,7 +644,7 @@ apply.workload.name`,
    op: 12
 `,
 			script: `op(1`,
-			err:    "expected ')', found 'EOF'",
+			err:    "parse script: expected ')', found 'EOF'",
 		},
 		{
 			src: `
