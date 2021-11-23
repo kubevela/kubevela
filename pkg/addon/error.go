@@ -20,8 +20,8 @@ var (
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly
 func WrapErrRateLimit(err error) error {
-	var rateLimit *github.RateLimitError
-	if errors.As(err, &rateLimit) {
+	errRate := &github.RateLimitError{}
+	if errors.As(err, &errRate) {
 		return ErrRateLimit
 	}
 	return err

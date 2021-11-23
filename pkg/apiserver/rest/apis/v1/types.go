@@ -411,7 +411,7 @@ type CreateComponentRequest struct {
 
 // UpdateApplicationComponentRequest update component request body
 type UpdateApplicationComponentRequest struct {
-	Alias       *string            `json:"alias" validate:"checkalias" optional:"true"`
+	Alias       *string            `json:"alias" optional:"true"`
 	Description *string            `json:"description" optional:"true"`
 	Icon        *string            `json:"icon" optional:"true"`
 	Labels      *map[string]string `json:"labels,omitempty"`
@@ -553,7 +553,6 @@ type PolicyDefinition struct {
 
 // CreateWorkflowRequest create workflow  request
 type CreateWorkflowRequest struct {
-	AppName     string         `json:"appName" validate:"checkname"`
 	Name        string         `json:"name"  validate:"checkname"`
 	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
 	Description string         `json:"description" optional:"true"`
@@ -569,7 +568,6 @@ type UpdateWorkflowRequest struct {
 	Steps       []WorkflowStep `json:"steps,omitempty"`
 	Enable      bool           `json:"enable"`
 	Default     bool           `json:"default"`
-	EnvName     string         `json:"envName"`
 }
 
 // WorkflowStep workflow step config

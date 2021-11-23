@@ -36,7 +36,7 @@ type Workflow struct {
 	Alias       string `json:"alias"`
 	Description string `json:"description"`
 	// Workflow used by the default
-	Default       bool           `json:"default"`
+	Default       *bool          `json:"default"`
 	AppPrimaryKey string         `json:"appPrimaryKey"`
 	EnvName       string         `json:"envName"`
 	Steps         []WorkflowStep `json:"steps,omitempty"`
@@ -46,6 +46,7 @@ type Workflow struct {
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
 	Name        string             `json:"name"`
+	Alias       string             `json:"alias"`
 	Type        string             `json:"type"`
 	Group       string             `json:"group"`
 	Description string             `json:"description"`
@@ -78,7 +79,10 @@ func (w *Workflow) Index() map[string]string {
 	if w.EnvName != "" {
 		index["envName"] = w.EnvName
 	}
-	index["default"] = strconv.FormatBool(w.Default)
+	if w.Default != nil {
+		index["default"] = strconv.FormatBool(*w.Default)
+	}
+
 	return index
 }
 

@@ -13,17 +13,9 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"sigs.k8s.io/yaml"
-
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
-	"github.com/pkg/errors"
-	"golang.org/x/oauth2"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -34,6 +26,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/pkg/errors"
+	"golang.org/x/oauth2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -53,6 +52,7 @@ const (
 	DefinitionsDirName string = "definitions"
 )
 
+// ListOptions contains flags mark what files should be read in an addon directory
 type ListOptions struct {
 	GetDetail     bool
 	GetDefinition bool
@@ -62,17 +62,22 @@ type ListOptions struct {
 }
 
 var (
-	ListLevelOptions   = ListOptions{}
-	GetLevelOptions    = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+	// GetLevelOptions used when get or list addons
+	GetLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+
+	// EnableLevelOptions used when enable addon
 	EnableLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetResource: true, GetTemplate: true, GetParameter: true}
 )
 
-type AddonErr error
+// aError is internal error type of addon
+type aError error
 
 var (
-	AddonNotExist AddonErr = errors.New("addon not exist")
+	// ErrNotExist means addon not exists
+	ErrNotExist aError = errors.New("addon not exist")
 )
 
+// gitHelper helps get addon's file by git
 type gitHelper struct {
 	Client *github.Client
 	Meta   *utils.Content
@@ -85,14 +90,16 @@ type GitAddonSource struct {
 	Token string `json:"token,omitempty"`
 }
 
-type AddonReader struct {
+// asyncReader helps async read files of addon
+type asyncReader struct {
 	addon   *types.Addon
 	h       *gitHelper
 	item    *github.RepositoryContent
 	errChan chan error
 }
 
-func (r *AddonReader) SetReadContent(content *github.RepositoryContent) {
+// SetReadContent set which file to read
+func (r *asyncReader) SetReadContent(content *github.RepositoryContent) {
 	r.item = content
 }
 
@@ -159,8 +166,11 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 		return nil, err
 	}
 	_, items, err := gith.readRepo(gith.Meta.Path)
+	if err != nil {
+		return nil, err
+	}
 
-	reader := AddonReader{
+	reader := asyncReader{
 		addon:   &types.Addon{},
 		h:       gith,
 		errChan: make(chan error, 1),
@@ -186,7 +196,7 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 			wg.Add(1)
 			go readDefinitions(&wg, reader)
 		case ResourcesDirName:
-			if !opt.GetResource {
+			if !opt.GetResource && !opt.GetParameter {
 				break
 			}
 			reader.SetReadContent(item)
@@ -213,7 +223,7 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 
 }
 
-func readTemplate(wg *sync.WaitGroup, reader AddonReader) {
+func readTemplate(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -234,7 +244,7 @@ func readTemplate(wg *sync.WaitGroup, reader AddonReader) {
 	}
 }
 
-func readResources(wg *sync.WaitGroup, reader AddonReader) {
+func readResources(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	dirPath := strings.Split(reader.item.GetPath(), "/")
 	dirPath, err := cutPathUntil(dirPath, ResourcesDirName)
@@ -263,7 +273,7 @@ func readResources(wg *sync.WaitGroup, reader AddonReader) {
 }
 
 // readResFile read single resource file
-func readResFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
+func readResFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -288,7 +298,7 @@ func readResFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
 	}
 }
 
-func readDefinitions(wg *sync.WaitGroup, reader AddonReader) {
+func readDefinitions(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	dirPath := strings.Split(reader.item.GetPath(), "/")
 	dirPath, err := cutPathUntil(dirPath, DefinitionsDirName)
@@ -316,7 +326,7 @@ func readDefinitions(wg *sync.WaitGroup, reader AddonReader) {
 }
 
 // readDefFile read single definition file
-func readDefFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
+func readDefFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -331,7 +341,7 @@ func readDefFile(wg *sync.WaitGroup, reader AddonReader, dirPath []string) {
 	reader.addon.Definitions = append(reader.addon.Definitions, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
 }
 
-func readMetadata(wg *sync.WaitGroup, reader AddonReader) {
+func readMetadata(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -350,7 +360,7 @@ func readMetadata(wg *sync.WaitGroup, reader AddonReader) {
 	}
 }
 
-func readReadme(wg *sync.WaitGroup, reader AddonReader) {
+func readReadme(wg *sync.WaitGroup, reader asyncReader) {
 	defer wg.Done()
 	content, _, err := reader.h.readRepo(*reader.item.Path)
 	if err != nil {
@@ -358,6 +368,10 @@ func readReadme(wg *sync.WaitGroup, reader AddonReader) {
 		return
 	}
 	reader.addon.Detail, err = content.GetContent()
+	if err != nil {
+		reader.errChan <- err
+		return
+	}
 }
 
 func createGitHelper(baseURL, dir, token string) (*gitHelper, error) {
@@ -449,6 +463,17 @@ func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.App
 	}
 	app.Name = Convert2AppName(addon.Name)
 	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
+	if app.Spec.Workflow == nil {
+		app.Spec.Workflow = &v1beta1.Workflow{}
+	}
+	for _, namespace := range addon.NeedNamespace {
+		comp := common2.ApplicationComponent{
+			Type:       "raw",
+			Name:       fmt.Sprintf("%s-namespace", namespace),
+			Properties: util.Object2RawExtension(renderNamespace(namespace)),
+		}
+		app.Spec.Components = append(app.Spec.Components, comp)
+	}
 
 	for _, tmpl := range addon.YAMLTemplates {
 		comp, err := renderRawComponent(tmpl)
@@ -476,9 +501,16 @@ func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.App
 			}
 			defObjs = append(defObjs, obj)
 		}
+		if app.Spec.Workflow == nil {
+			app.Spec.Workflow = &v1beta1.Workflow{Steps: make([]v1beta1.WorkflowStep, 0)}
+		}
 		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps,
 			v1beta1.WorkflowStep{
-				Name: "deploy-all",
+				Name: "deploy-control-plane",
+				Type: "apply-application",
+			},
+			v1beta1.WorkflowStep{
+				Name: "deploy-runtime",
 				Type: "deploy2runtime",
 			})
 	} else {
@@ -509,6 +541,14 @@ func renderObject(elem types.AddonElementFile) (*unstructured.Unstructured, erro
 		return nil, err
 	}
 	return obj, nil
+}
+
+func renderNamespace(namespace string) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("v1")
+	u.SetKind("Namespace")
+	u.SetName(namespace)
+	return u
 }
 
 // renderRawComponent will return a component in raw type from string
@@ -593,4 +633,19 @@ func RenderArgsSecret(addon *types.Addon, args map[string]string) *v1.Secret {
 // Convert2SecName TODO add desc
 func Convert2SecName(name string) string {
 	return addonSecPrefix + name
+}
+
+// CheckDependencies checks if addon's dependent addons is enabled
+func CheckDependencies(ctx context.Context, clt client.Client, addon *types.Addon) bool {
+	var app v1beta1.Application
+	for _, dep := range addon.Dependencies {
+		err := clt.Get(ctx, client.ObjectKey{
+			Namespace: types.DefaultKubeVelaNS,
+			Name:      Convert2AppName(dep.Name),
+		}, &app)
+		if err != nil {
+			return false
+		}
+	}
+	return true
 }

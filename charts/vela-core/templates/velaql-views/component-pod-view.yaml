@@ -11,26 +11,35 @@ data:
     )
 
     parameter: {
-      name:          string
-      namespace:     string
-      componentName: string
-      cluster:       *"" | string
+      appName:    string
+      appNs:      string
+      name:       string
+      cluster?:   string
+      clusterNs?: string
     }
 
     appList: ql.#ListResourcesInApp & {
       app: {
-        name:      parameter.name
-        namespace: parameter.namespace
-        components: [parameter.componentName]
-        cluster: parameter.cluster
+        name:      parameter.appName
+        namespace: parameter.appNs
+        components: [parameter.name]
+        filter: {
+          if parameter.cluster != _|_ {
+            cluster: parameter.cluster
+          }
+          if parameter.clusterNs != _|_ {
+            clusterNamespace: parameter.clusterNs
+          }
+        }
       }
     }
 
     if appList.err == _|_ {
-      appRev:         appList.list[0].revision
+      appRev:            appList.list[0].revision
       appPublishVersion: appList.list[0].publishVersion
-      resources:      appList.list[0].components[0].resources
-      collectedPods:  op.#Steps & {
+      appDeployVersion:  appList.list[0].deployVersion
+      resources:         appList.list[0].components[0].resources
+      collectedPods:     op.#Steps & {
         for i, resource in resources {
           "\(i)": ql.#CollectPods & {
             value:   resource.object
@@ -49,7 +58,9 @@ data:
           clusterName:    pod.cluster
           revision:       appRev
           publishVersion: appPublishVersion
+          deployVersion:  appDeployVersion
           podName:        pod.obj.metadata.name
+          podNs:          pod.obj.metadata.namespace
           status:         pod.obj.status.phase
           // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
           if status != "Pending" && status != "Unknown" {
@@ -66,5 +77,3 @@ data:
         error: appList.err
       }
     }
-
-

@@ -50,7 +50,7 @@ type WorkflowUsecase interface {
 	GetApplicationDefaultWorkflow(ctx context.Context, app *model.Application) (*model.Workflow, error)
 	DeleteWorkflow(ctx context.Context, app *model.Application, workflowName string) error
 	DeleteWorkflowByApp(ctx context.Context, app *model.Application) error
-	CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
+	CreateOrUpdateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error)
 	CreateWorkflowRecord(ctx context.Context, appModel *model.Application, app *v1beta1.Application, workflow *model.Workflow) error
 	ListWorkflowRecords(ctx context.Context, workflow *model.Workflow, page, pageSize int) (*apisv1.ListWorkflowRecordsResponse, error)
@@ -87,6 +87,19 @@ func (w *workflowUsecaseImpl) DeleteWorkflow(ctx context.Context, app *model.App
 		Name:          workflowName,
 		AppPrimaryKey: app.PrimaryKey(),
 	}
+	var record = model.WorkflowRecord{
+		AppPrimaryKey: workflow.AppPrimaryKey,
+		WorkflowName:  workflow.Name,
+	}
+	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{})
+	if err != nil {
+		log.Logger.Errorf("list workflow %s record failure %s", workflow.PrimaryKey(), err.Error())
+	}
+	for _, record := range records {
+		if err := w.ds.Delete(ctx, record); err != nil {
+			log.Logger.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
+		}
+	}
 	if err := w.ds.Delete(ctx, workflow); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrWorkflowNotExist
@@ -109,16 +122,34 @@ func (w *workflowUsecaseImpl) DeleteWorkflowByApp(ctx context.Context, app *mode
 		return err
 	}
 	for i := range workflows {
-		if err := w.ds.Delete(ctx, workflows[i]); err != nil {
-			log.Logger.Errorf("delete workflow %s failure %s", workflows[i].PrimaryKey(), err.Error())
+		workflow := workflows[i].(*model.Workflow)
+		var record = model.WorkflowRecord{
+			AppPrimaryKey: workflow.AppPrimaryKey,
+			WorkflowName:  workflow.Name,
+		}
+		records, err := w.ds.List(ctx, &record, &datastore.ListOptions{})
+		if err != nil {
+			log.Logger.Errorf("list workflow %s record failure %s", workflow.PrimaryKey(), err.Error())
+		}
+		for _, record := range records {
+			if err := w.ds.Delete(ctx, record); err != nil {
+				log.Logger.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
+			}
+		}
+		if err := w.ds.Delete(ctx, workflow); err != nil {
+			log.Logger.Errorf("delete workflow %s failure %s", workflow.PrimaryKey(), err.Error())
 		}
 	}
 	return nil
 }
 
-func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *model.Application, req apisv1.CreateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
 	if req.EnvName == "" {
 		return nil, bcode.ErrWorkflowNoEnv
+	}
+	workflow, err := w.GetWorkflow(ctx, app, req.Name)
+	if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
+		return nil, err
 	}
 	var steps []model.WorkflowStep
 	for _, step := range req.Steps {
@@ -130,6 +161,7 @@ func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.App
 		steps = append(steps, model.WorkflowStep{
 			Name:        step.Name,
 			Type:        step.Type,
+			Alias:       step.Alias,
 			Inputs:      step.Inputs,
 			Outputs:     step.Outputs,
 			Description: step.Description,
@@ -137,19 +169,31 @@ func (w *workflowUsecaseImpl) CreateWorkflow(ctx context.Context, app *model.App
 			Properties:  properties,
 		})
 	}
-	// It is allowed to set multiple workflows as default, and only one takes effect.
-	var workflow = model.Workflow{
-		Steps:         steps,
-		Name:          req.Name,
-		Description:   req.Description,
-		Default:       req.Default,
-		EnvName:       req.EnvName,
-		AppPrimaryKey: app.PrimaryKey(),
+	if workflow != nil {
+		workflow.Steps = steps
+		workflow.Alias = req.Alias
+		workflow.Description = req.Description
+		workflow.Default = &req.Default
+		if err := w.ds.Put(ctx, workflow); err != nil {
+			return nil, err
+		}
+	} else {
+		// It is allowed to set multiple workflows as default, and only one takes effect.
+		workflow = &model.Workflow{
+			Steps:         steps,
+			Name:          req.Name,
+			Alias:         req.Alias,
+			Description:   req.Description,
+			Default:       &req.Default,
+			EnvName:       req.EnvName,
+			AppPrimaryKey: app.PrimaryKey(),
+		}
+		log.Logger.Infof("create workflow %s for app %s", req.Name, app.PrimaryKey())
+		if err := w.ds.Add(ctx, workflow); err != nil {
+			return nil, err
+		}
 	}
-	if err := w.ds.Add(ctx, &workflow); err != nil {
-		return nil, err
-	}
-	return w.DetailWorkflow(ctx, &workflow)
+	return w.DetailWorkflow(ctx, workflow)
 }
 
 func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
@@ -161,18 +205,20 @@ func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 			return nil, bcode.ErrInvalidProperties
 		}
 		steps = append(steps, model.WorkflowStep{
-			Name:       step.Name,
-			Type:       step.Type,
-			Inputs:     step.Inputs,
-			Outputs:    step.Outputs,
-			Properties: properties,
+			Name:        step.Name,
+			Alias:       step.Alias,
+			Description: step.Description,
+			DependsOn:   step.DependsOn,
+			Type:        step.Type,
+			Inputs:      step.Inputs,
+			Outputs:     step.Outputs,
+			Properties:  properties,
 		})
 	}
 	workflow.Steps = steps
 	workflow.Description = req.Description
 	// It is allowed to set multiple workflows as default, and only one takes effect.
-	workflow.Default = req.Default
-	workflow.EnvName = req.EnvName
+	workflow.Default = &req.Default
 	if err := w.ds.Put(ctx, workflow); err != nil {
 		return nil, err
 	}
@@ -185,6 +231,7 @@ func converWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
 		apiStep := apisv1.WorkflowStep{
 			Name:        step.Name,
 			Type:        step.Type,
+			Alias:       step.Alias,
 			Description: step.Description,
 			Inputs:      step.Inputs,
 			Outputs:     step.Outputs,
@@ -198,8 +245,9 @@ func converWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
 	}
 	return apisv1.WorkflowBase{
 		Name:        workflow.Name,
+		Alias:       workflow.Alias,
 		Description: workflow.Description,
-		Default:     workflow.Default,
+		Default:     convertBool(workflow.Default),
 		EnvName:     workflow.EnvName,
 		CreateTime:  workflow.CreateTime,
 		UpdateTime:  workflow.UpdateTime,
@@ -249,9 +297,10 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 
 // GetApplicationDefaultWorkflow get application default workflow
 func (w *workflowUsecaseImpl) GetApplicationDefaultWorkflow(ctx context.Context, app *model.Application) (*model.Workflow, error) {
+	var defaultEnable = true
 	var workflow = model.Workflow{
 		AppPrimaryKey: app.PrimaryKey(),
-		Default:       true,
+		Default:       &defaultEnable,
 	}
 	workflows, err := w.ds.List(ctx, &workflow, &datastore.ListOptions{})
 	if err != nil {
@@ -368,7 +417,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 		// try to sync the status from the controller revision
 		cr := &appsv1.ControllerRevision{}
 		if err := w.kubeClient.Get(ctx, types.NamespacedName{
-			Name:      fmt.Sprintf("record-%s-%s", record.AppPrimaryKey, record.Name),
+			Name:      fmt.Sprintf("record-%s-%s", convertAppName(record.AppPrimaryKey, workflow.EnvName), record.Name),
 			Namespace: record.Namespace,
 		}, cr); err != nil {
 			klog.ErrorS(err, "failed to get controller revision", "app name", record.AppPrimaryKey, "workflow record name", record.Name)
@@ -597,4 +646,11 @@ func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord
 		Status:    record.Status,
 		Steps:     record.Steps,
 	}
+}
+
+func convertBool(b *bool) bool {
+	if b == nil {
+		return false
+	}
+	return *b
 }
