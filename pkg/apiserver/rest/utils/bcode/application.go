@@ -24,3 +24,57 @@ var ErrComponentTypeNotSupport = NewBcode(400, 10001, "An unsupported component 
 
 // ErrApplicationExist application is exist
 var ErrApplicationExist = NewBcode(400, 10002, "application name is exist")
+
+// ErrInvalidProperties properties(trait or component or others) is invalid
+var ErrInvalidProperties = NewBcode(400, 10003, "properties is invalid")
+
+// ErrDeployConflict Occurs when a new event is triggered before the last deployment event has completed.
+var ErrDeployConflict = NewBcode(400, 10004, "application deploy conflict")
+
+// ErrDeployApplyFail Failed to update an application to the control cluster.
+var ErrDeployApplyFail = NewBcode(500, 10005, "application deploy apply failure")
+
+// ErrNoComponent no component
+var ErrNoComponent = NewBcode(200, 10006, "application not have components, can not deploy")
+
+// ErrApplicationComponetExist application component is exist
+var ErrApplicationComponetExist = NewBcode(400, 10007, "application component is exist")
+
+// ErrApplicationComponetNotExist  application component is not exist
+var ErrApplicationComponetNotExist = NewBcode(404, 10008, "application component is not exist")
+
+// ErrApplicationPolicyExist application policy is exist
+var ErrApplicationPolicyExist = NewBcode(400, 10009, "application policy is exist")
+
+// ErrApplicationPolicyNotExist  application policy is not exist
+var ErrApplicationPolicyNotExist = NewBcode(404, 10010, "application policy is not exist")
+
+// ErrCreateNamespace auto create namespace failure before deploy app
+var ErrCreateNamespace = NewBcode(500, 10011, "auto create namespace failure")
+
+// ErrApplicationNotExist application is not exist
+var ErrApplicationNotExist = NewBcode(404, 10012, "application name is not exist")
+
+// ErrApplicationNotEnv no env binding policy
+var ErrApplicationNotEnv = NewBcode(404, 10013, "application not set env binding")
+
+// ErrApplicationEnvExist application env is exist
+var ErrApplicationEnvExist = NewBcode(400, 10014, "application env is exist")
+
+// ErrTraitNotExist  trait is not exist
+var ErrTraitNotExist = NewBcode(400, 10015, "trait is not exist")
+
+// ErrTraitAlreadyExist  trait is already exist
+var ErrTraitAlreadyExist = NewBcode(400, 10016, "trait is already exist")
+
+// ErrApplicationNoReadyRevision application not have ready revision
+var ErrApplicationNoReadyRevision = NewBcode(400, 10017, "application not have ready revision")
+
+// ErrApplicationRevisionNotExist application revision is not exist
+var ErrApplicationRevisionNotExist = NewBcode(404, 10018, "application revision is not exist")
+
+// ErrApplicationRefusedDelete The application cannot be deleted because it has been deployed
+var ErrApplicationRefusedDelete = NewBcode(400, 10019, "The application cannot be deleted because it has been deployed")
+
+// ErrApplicationEnvRefusedDelete The application env cannot be deleted because it has been deployed
+var ErrApplicationEnvRefusedDelete = NewBcode(400, 10020, "The application envbinding cannot be deleted because it has been deployed")

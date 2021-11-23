@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apply-object
+  namespace: vela-system
+data:
+  template: |
+    import (
+        "vela/op"
+    )
+
+    apply: op.#Apply & {
+        value: {
+          apiVersion: parameter.apiVersion
+          kind: parameter.kind
+          metadata: {
+            name: parameter.name
+          }
+        }
+    }
+
+    objStatus: {
+      apply.value
+    }
+    parameter: {
+      apiVersion: string
+      kind: string
+      name: string
+    }

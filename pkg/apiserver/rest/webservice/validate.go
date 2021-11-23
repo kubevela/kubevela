@@ -26,8 +26,16 @@ var validate = validator.New()
 
 var nameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
+const (
+	minPageSize = 5
+	maxPageSize = 100
+)
+
 func init() {
 	if err := validate.RegisterValidation("checkname", ValidateName); err != nil {
+		panic(err)
+	}
+	if err := validate.RegisterValidation("checkalias", ValidateAlias); err != nil {
 		panic(err)
 	}
 }
@@ -39,4 +47,13 @@ func ValidateName(fl validator.FieldLevel) bool {
 		return false
 	}
 	return nameRegexp.MatchString(value)
+}
+
+// ValidateAlias custom check alias field
+func ValidateAlias(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value != "" && (len(value) > 64 || len(value) < 2) {
+		return false
+	}
+	return true
 }

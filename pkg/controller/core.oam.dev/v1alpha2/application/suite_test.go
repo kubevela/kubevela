@@ -245,7 +245,7 @@ func NewFakeRecorder(bufferSize int) *FakeRecorder {
 
 // randomNamespaceName generates a random name based on the basic name.
 // Running each ginkgo case in a new namespace with a random name can avoid
-// waiting a long time to GC namesapce.
+// waiting a long time to GC namespace.
 func randomNamespaceName(basic string) string {
 	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
 }

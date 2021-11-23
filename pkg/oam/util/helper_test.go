@@ -1338,7 +1338,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 			},
 		},
 	}
-	// old cluster workload trait scope definition crd is cluster scope, the namesapce field is empty
+	// old cluster workload trait scope definition crd is cluster scope, the namespace field is empty
 	noNs := v1alpha2.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "noNsDefinition",

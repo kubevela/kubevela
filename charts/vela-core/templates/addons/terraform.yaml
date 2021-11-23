@@ -584,6 +584,8 @@ data:
         - name: apply-resources
           type: apply-remaining
     status: {}
+  detail: "# Terraform\n\nThis addon contains terraform operation kit, which allows
+    you to arrange, \ngenerate and use cloud service from different cloud vendor."
 kind: ConfigMap
 metadata:
   annotations:

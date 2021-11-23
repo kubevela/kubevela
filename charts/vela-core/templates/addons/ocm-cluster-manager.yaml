@@ -503,6 +503,10 @@ data:
         - name: apply-resources
           type: apply-remaining
     status: {}
+  detail: |-
+    # ocm-cluster-manager
+
+    This addon aims to support multi-cluster application deployment.
 kind: ConfigMap
 metadata:
   annotations:

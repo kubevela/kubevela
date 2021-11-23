@@ -308,7 +308,7 @@ func getVersioningPeerWorkloadRefs(ctx context.Context, c client.Reader, wlRef c
 	compName := getComponentNameFromLabel(o)
 	appName := getAppConfigNameFromLabel(o)
 	if compName == "" || appName == "" {
-		// if missing these lables, cannot get peer workloads
+		// if missing these labels, cannot get peer workloads
 		return nil, nil
 	}
 

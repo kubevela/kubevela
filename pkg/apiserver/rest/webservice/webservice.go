@@ -17,7 +17,6 @@ limitations under the License.
 package webservice
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/emicklei/go-restful/v3"
@@ -58,15 +57,25 @@ func returns500(b *restful.RouteBuilder) {
 
 // Init init all webservice, pass in the required parameter object.
 // It can be implemented using the idea of dependency injection.
-func Init(ctx context.Context, ds datastore.DataStore) {
+func Init(ds datastore.DataStore) {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
-	applicationUsecase := usecase.NewApplicationUsecase(ds)
+	workflowUsecase := usecase.NewWorkflowUsecase(ds)
+	deliveryTargetUsecase := usecase.NewDeliveryTargetUsecase(ds)
+	namespaceUsecase := usecase.NewNamespaceUsecase()
+	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
+	velaQLUsecase := usecase.NewVelaQLUsecase()
+	definitionUsecase := usecase.NewDefinitionUsecase()
+	addonUsecase := usecase.NewAddonUsecase(ds)
+	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase)
+	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase)
 	RegistWebService(NewClusterWebService(clusterUsecase))
-	RegistWebService(NewApplicationWebService(applicationUsecase))
-	RegistWebService(&namespaceWebService{})
-	RegistWebService(&componentDefinitionWebservice{})
-	RegistWebService(&addonWebService{})
-	RegistWebService(&oamApplicationWebService{})
+	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
+	RegistWebService(NewNamespaceWebService(namespaceUsecase))
+	RegistWebService(NewDefinitionWebservice(definitionUsecase))
+	RegistWebService(NewAddonWebService(addonUsecase))
+	RegistWebService(NewAddonRegistryWebService(addonUsecase))
+	RegistWebService(NewOAMApplication(oamApplicationUsecase))
 	RegistWebService(&policyDefinitionWebservice{})
-	RegistWebService(&workflowWebService{})
+	RegistWebService(NewDeliveryTargetWebService(deliveryTargetUsecase, applicationUsecase))
+	RegistWebService(NewVelaQLWebService(velaQLUsecase))
 }

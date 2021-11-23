@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
@@ -343,7 +344,7 @@ func (e *engine) needStop() bool {
 func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {
 	version := ""
 	if annos := app.Annotations; annos != nil {
-		version = annos[wfTypes.AnnotationPublishVersion]
+		version = annos[oam.AnnotationPublishVersion]
 	}
 	if version == "" {
 		specHash, err := utils.ComputeSpecHash(app.Spec)

@@ -20,11 +20,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"cuelang.org/go/pkg/strings"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/x/bsonx"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -61,6 +63,7 @@ func (m *mongodb) Add(ctx context.Context, entity datastore.Entity) error {
 	if entity.TableName() == "" {
 		return datastore.ErrTableNameEmpty
 	}
+	entity.SetCreateTime(time.Now())
 	if err := m.Get(ctx, entity); err == nil {
 		return datastore.ErrRecordExist
 	}
@@ -121,6 +124,7 @@ func (m *mongodb) Put(ctx context.Context, entity datastore.Entity) error {
 	if entity.TableName() == "" {
 		return datastore.ErrTableNameEmpty
 	}
+	entity.SetUpdateTime(time.Now())
 	collection := m.client.Database(m.database).Collection(entity.TableName())
 	_, err := collection.UpdateOne(ctx, makeNameFilter(entity.PrimaryKey()), makeEntityUpdate(entity))
 	if err != nil {
@@ -179,6 +183,15 @@ func (m *mongodb) Delete(ctx context.Context, entity datastore.Entity) error {
 	return nil
 }
 
+func _applyFilterOptions(filter bson.D, filterOptions datastore.FilterOptions) bson.D {
+	if len(filterOptions.Queries) > 0 {
+		for _, queryOp := range filterOptions.Queries {
+			filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bsonx.Regex(".*"+queryOp.Query+".*", "s")})
+		}
+	}
+	return filter
+}
+
 // List list entity function
 func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datastore.ListOptions) ([]datastore.Entity, error) {
 	if entity.TableName() == "" {
@@ -195,10 +208,20 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 			})
 		}
 	}
+	if op != nil && len(op.Queries) > 0 {
+		filter = _applyFilterOptions(filter, op.FilterOptions)
+	}
 	var findOptions options.FindOptions
 	if op != nil && op.PageSize > 0 && op.Page > 0 {
 		findOptions.SetSkip(int64(op.PageSize * (op.Page - 1)))
 		findOptions.SetLimit(int64(op.PageSize))
+	}
+	if op != nil && len(op.SortBy) > 0 {
+		_d := bson.D{}
+		for _, sortOp := range op.SortBy {
+			_d = append(_d, bson.E{Key: strings.ToLower(sortOp.Key), Value: int(sortOp.Order)})
+		}
+		findOptions.SetSort(_d)
 	}
 	cur, err := collection.Find(ctx, filter, &findOptions)
 	if err != nil {
@@ -224,6 +247,31 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 		return nil, datastore.NewDBError(err)
 	}
 	return list, nil
+}
+
+// Count counts entities
+func (m *mongodb) Count(ctx context.Context, entity datastore.Entity, filterOptions *datastore.FilterOptions) (int64, error) {
+	if entity.TableName() == "" {
+		return 0, datastore.ErrTableNameEmpty
+	}
+	collection := m.client.Database(m.database).Collection(entity.TableName())
+	filter := bson.D{}
+	if entity.Index() != nil {
+		for k, v := range entity.Index() {
+			filter = append(filter, bson.E{
+				Key:   k,
+				Value: v,
+			})
+		}
+	}
+	if filterOptions != nil && len(filterOptions.Queries) > 0 {
+		filter = _applyFilterOptions(filter, *filterOptions)
+	}
+	count, err := collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, datastore.NewDBError(err)
+	}
+	return count, nil
 }
 
 func makeNameFilter(name string) bson.D {

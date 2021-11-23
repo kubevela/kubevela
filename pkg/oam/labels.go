@@ -61,6 +61,9 @@ const (
 
 	// LabelAddonsName records the name of initializer stored in configMap
 	LabelAddonsName = "addons.oam.dev/type"
+
+	// LabelAddonName indicates the name of the corresponding Addon
+	LabelAddonName = "addons.oam.dev/name"
 )
 
 const (
@@ -125,6 +128,21 @@ const (
 
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
+
+	// AnnotationDeployVersion know the version number of the deployment.
+	AnnotationDeployVersion = "app.oam.dev/deployVersion"
+
+	// AnnotationPublishVersion is annotation that record the application workflow version.
+	AnnotationPublishVersion = "app.oam.dev/publishVersion"
+
+	// AnnotationWorkflowName specifies the workflow name for execution.
+	AnnotationWorkflowName = "app.oam.dev/workflowName"
+
+	// AnnotationAppName specifies the name for application in db.
+	AnnotationAppName = "app.oam.dev/appName"
+
+	// AnnotationAppAlias specifies the alias for application in db.
+	AnnotationAppAlias = "app.oam.dev/appAlias"
 
 	// AnnotationWorkloadGVK indicates the managed workload's GVK by trait
 	AnnotationWorkloadGVK = "trait.oam.dev/workload-gvk"

@@ -40,6 +40,7 @@ endif
 # Image URL to use all building/pushing image targets
 VELA_CORE_IMAGE      ?= vela-core:latest
 VELA_CORE_TEST_IMAGE ?= vela-core-test:$(GIT_COMMIT)
+VELA_APISERVER_IMAGE      ?= apiserver:latest
 VELA_RUNTIME_ROLLOUT_IMAGE       ?= vela-runtime-rollout:latest
 VELA_RUNTIME_ROLLOUT_TEST_IMAGE  ?= vela-runtime-rollout-test:$(GIT_COMMIT)
 RUNTIME_CLUSTER_CONFIG ?= /tmp/worker.kubeconfig
@@ -55,7 +56,7 @@ unit-test-core:
 	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... | grep -v apiserver)
 	go test $(shell go list ./references/... | grep -v apiserver)
 unit-test-apiserver:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep apiserver)
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')
 
 # Build vela cli binary
 build: fmt vet lint staticcheck vela-cli kubectl-vela
@@ -135,8 +136,12 @@ check-diff: reviewable
 	@$(OK) branch is clean
 
 # Build the docker image
-docker-build:
+docker-build: docker-build-core docker-build-apiserver
+	@$(OK)
+docker-build-core:
 	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_CORE_IMAGE) .
+docker-build-apiserver:
+	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_APISERVER_IMAGE) -f Dockerfile.apiserver .
 
 # Build the runtime docker image
 docker-build-runtime-rollout:
@@ -169,12 +174,14 @@ e2e-setup:
 	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
 	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 
+build-swagger:
+	go run ./cmd/apiserver/main.go build-swagger ./docs/apidoc/swagger.json
 e2e-api-test:
 	# Run e2e test
 	ginkgo -v -skipPackage capability,setup,application -r e2e
 	ginkgo -v -r e2e/application
 
-e2e-apiserver-test:
+e2e-apiserver-test: build-swagger
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
 	@$(OK) tests pass
 
