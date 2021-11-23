@@ -15,7 +15,6 @@
 
 	timestamp: int64
 	layout:    *"" | string
-	location:  *"" | string
 
 	date?: string
 	...
