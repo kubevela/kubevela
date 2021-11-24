@@ -594,7 +594,7 @@ func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[
 	if err != nil {
 		return nil, err
 	}
-	out, err := v.LookupByScript(fmt.Sprintf("{%s}", elem.Data))
+	out, err := v.LookupByScript(elem.Data)
 	if err != nil {
 		return nil, err
 	}
