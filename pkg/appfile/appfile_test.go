@@ -460,7 +460,7 @@ spec:
 		}
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
-		gotPolicies, err := testAppfile.PrepareWorkflowAndPolicy()
+		_, gotPolicies, err := testAppfile.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))
 

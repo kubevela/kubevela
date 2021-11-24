@@ -231,7 +231,13 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy) ([]*Workload, error) {
 	ws := []*Workload{}
 	for _, policy := range policies {
-		w, err := p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+		var w *Workload
+		var err error
+		if policy.Type == "garbage-collect" {
+			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+		} else {
+			w, err = p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -258,6 +264,21 @@ func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType typ
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
 	}
 	return p.convertTemplate2Workload(name, typ, props, templ)
+}
+
+func (p *Parser) makeBuiltInPolicy(name, typ string, props *runtime.RawExtension) (*Workload, error) {
+	settings, err := util.RawExtension2Map(props)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
+	}
+	return &Workload{
+		Traits:          []*Trait{},
+		ScopeDefinition: []*v1beta1.ScopeDefinition{},
+		Name:            name,
+		Type:            typ,
+		Params:          settings,
+		engine:          definition.NewWorkloadAbstractEngine(name, p.pd),
+	}, nil
 }
 
 func (p *Parser) makeWorkloadFromRevision(name, typ string, capType types.CapType, props *runtime.RawExtension, appRev *v1beta1.ApplicationRevision) (*Workload, error) {

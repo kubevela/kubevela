@@ -107,7 +107,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, err = af.PrepareWorkflowAndPolicy()
+		_, _, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		appRev := &oamcore.ApplicationRevision{}
 
@@ -151,7 +151,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, err = af.PrepareWorkflowAndPolicy()
+		_, _, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		appRev := &oamcore.ApplicationRevision{}
 
@@ -210,7 +210,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, err = af.PrepareWorkflowAndPolicy()
+		_, _, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		apprev := &oamcore.ApplicationRevision{
 			ObjectMeta: metav1.ObjectMeta{

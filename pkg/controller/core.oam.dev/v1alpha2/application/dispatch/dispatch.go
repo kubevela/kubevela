@@ -89,6 +89,12 @@ func (a *AppManifestsDispatcher) StartAndSkipGC(previousRT *v1beta1.ResourceTrac
 	return a
 }
 
+// WithGCOptions set gcOptions for AppManifestsDispatcher
+func (a *AppManifestsDispatcher) WithGCOptions(gcOptions GCOptions) *AppManifestsDispatcher {
+	a.gcHandler.SetGCOptions(gcOptions)
+	return a
+}
+
 // Dispatch apply manifests into k8s and return a resource tracker recording applied manifests' references.
 // If GC is enabled, it will do GC after applying.
 // If 'UpgradeAndSkipGC' is enabled, it will:
