@@ -201,7 +201,7 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 		return err
 	}
 	// delete env workflow
-	if err := e.deleteEnvWorkflow(ctx, appModel, envBinding.Name); err != nil {
+	if err := e.deleteEnvWorkflow(ctx, appModel, convertWorkflowName(envBinding.Name)); err != nil {
 		return err
 	}
 	return nil
@@ -218,7 +218,7 @@ func (e *envBindingUsecaseImpl) BatchDeleteEnvBinding(ctx context.Context, app *
 			return err
 		}
 		// delete env workflow
-		err := e.deleteEnvWorkflow(ctx, app, envBinding.Name)
+		err := e.deleteEnvWorkflow(ctx, app, convertWorkflowName(envBinding.Name))
 		if err != nil {
 			return err
 		}

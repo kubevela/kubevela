@@ -83,9 +83,6 @@ var _ = Describe("Test addon rest api", func() {
 		err = json.NewDecoder(listRes.Body).Decode(&lres)
 		Expect(err).Should(BeNil())
 		Expect(lres.Addons).ShouldNot(BeZero())
-		firstAddon := lres.Addons[0]
-		Expect(firstAddon.Name).Should(Equal("example"))
-
 	})
 
 	PIt("should enable and disable an addon", func() {
