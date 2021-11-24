@@ -176,6 +176,16 @@ func getAddonsFromGit(baseURL, dir, token string, opt ListOptions) ([]*types.Add
 
 func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOptions) (*types.Addon, error) {
 	var wg sync.WaitGroup
+	readOption := map[string]struct {
+		jumpConds bool
+		readFunc  func(wg *sync.WaitGroup, reader asyncReader)
+	}{
+		ReadmeFileName:     {!opt.GetDetail, readReadme},
+		TemplateFileName:   {!opt.GetTemplate, readTemplate},
+		MetadataFileName:   {false, readMetadata},
+		DefinitionsDirName: {!opt.GetDefinition, readDefinitions},
+		ResourcesDirName:   {!opt.GetResource && !opt.GetParameter, readResources},
+	}
 
 	gith, err := createGitHelper(baseURL, path.Join(dir, addonName), token)
 	if err != nil {
@@ -192,39 +202,15 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 		errChan: make(chan error, 1),
 	}
 	for _, item := range items {
-		switch strings.ToLower(item.GetName()) {
-		case ReadmeFileName:
-			if !opt.GetDetail {
+		itemName := strings.ToLower(item.GetName())
+		switch itemName {
+		case ReadmeFileName, MetadataFileName, DefinitionsDirName, ResourcesDirName, TemplateFileName:
+			if readOption[itemName].jumpConds {
 				break
 			}
 			reader.SetReadContent(item)
 			wg.Add(1)
-			go readReadme(&wg, reader)
-		case MetadataFileName:
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readMetadata(&wg, reader)
-		case DefinitionsDirName:
-			if !opt.GetDefinition {
-				break
-			}
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readDefinitions(&wg, reader)
-		case ResourcesDirName:
-			if !opt.GetResource && !opt.GetParameter {
-				break
-			}
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readResources(&wg, reader)
-		case TemplateFileName:
-			if !opt.GetTemplate {
-				break
-			}
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readTemplate(&wg, reader)
+			go readOption[itemName].readFunc(&wg, reader)
 		}
 	}
 	wg.Wait()
