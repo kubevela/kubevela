@@ -24,17 +24,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/fatih/color"
+
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/gosuri/uilive"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -42,6 +49,13 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/appfile/template"
+)
+
+const (
+	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
+	// legacyOnlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
+	// out of the domain of app controller, e.g., AppRollout controller.
+	legacyOnlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
 )
 
 // AppfileOptions is some configuration that modify options for an Appfile
@@ -73,23 +87,118 @@ type DeleteOptions struct {
 	CompName  string
 	Client    client.Client
 	C         common.Args
+
+	Wait        bool
+	ForceDelete bool
 }
 
 // DeleteApp will delete app including server side
-func (o *DeleteOptions) DeleteApp() (string, error) {
+func (o *DeleteOptions) DeleteApp(io cmdutil.IOStreams) error {
+	if o.ForceDelete {
+		return o.ForceDeleteApp(io)
+	}
+	if o.Wait {
+		return o.WaitUntilDeleteApp(io)
+	}
+	return o.DeleteAppWithoutDoubleCheck(io)
+}
+
+// ForceDeleteApp force delete the application
+func (o *DeleteOptions) ForceDeleteApp(io cmdutil.IOStreams) error {
+	ctx := context.Background()
+	err := o.DeleteAppWithoutDoubleCheck(io)
+	if err != nil {
+		return err
+	}
+	app := new(corev1beta1.Application)
+	err = o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	listOpts := []client.ListOption{
+		client.MatchingLabels{
+			oam.LabelAppName:      app.Name,
+			oam.LabelAppNamespace: app.Namespace,
+		}}
+	rtList := &corev1beta1.ResourceTrackerList{}
+	if err = o.Client.List(ctx, rtList, listOpts...); err != nil {
+		return err
+	}
+	for _, rt := range rtList.Items {
+		if err = o.Client.Delete(ctx, rt.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	if err = multicluster.GarbageCollectionForAllResourceTrackersInSubCluster(ctx, o.Client, app); err != nil {
+		return err
+	}
+	io.Info("force deleted the resources created by application")
+
+	err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (done bool, err error) {
+		err = o.Client.Get(ctx, client.ObjectKeyFromObject(app), app)
+		if err == nil {
+			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+			meta.RemoveFinalizer(app, legacyOnlyRevisionFinalizer)
+			err = o.Client.Update(ctx, app)
+		}
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		io.Info("successfully cleanup the resources created by application, but fail to delete the application")
+		return err
+	}
+	return nil
+}
+
+// WaitUntilDeleteApp will wait until the application is completely deleted
+func (o *DeleteOptions) WaitUntilDeleteApp(io cmdutil.IOStreams) error {
+	tryCnt, startTime := 0, time.Now()
+	writer := uilive.New()
+	writer.Start()
+	defer writer.Stop()
+
+	io.Infof(color.New(color.FgYellow).Sprintf("waiting for delete the application \"%s\"...\n", o.AppName))
+	err := wait.PollImmediate(2*time.Second, 5*time.Minute, func() (done bool, err error) {
+		tryCnt++
+		fmt.Fprintf(writer, "try to delete the application for the %d time, wait a total of %f s\n", tryCnt, time.Since(startTime).Seconds())
+		err = o.DeleteAppWithoutDoubleCheck(io)
+		if err != nil {
+			fmt.Printf("Failed delete Application \"%s\": %s\n", o.AppName, err.Error())
+			return false, nil
+		}
+		app := new(corev1beta1.Application)
+		err = o.Client.Get(context.Background(), client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		io.Info("waiting for the application to be deleted timed out, please try again")
+		return err
+	}
+	return nil
+}
+
+// DeleteAppWithoutDoubleCheck delete application without double check
+func (o *DeleteOptions) DeleteAppWithoutDoubleCheck(io cmdutil.IOStreams) error {
 	ctx := context.Background()
 	var app = new(corev1beta1.Application)
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return fmt.Sprintf("app \"%s\" already deleted", o.AppName), nil
+			return nil
 		}
-		return "", fmt.Errorf("delete appconfig err: %w", err)
+		return fmt.Errorf("delete application err: %w", err)
 	}
 
 	err = o.Client.Delete(ctx, app)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete application err: %w", err)
+		return fmt.Errorf("delete application err: %w", err)
 	}
 
 	for _, cmp := range app.Spec.Components {
@@ -100,46 +209,45 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 				if apierrors.IsNotFound(err) {
 					continue
 				}
-				return "", fmt.Errorf("delete health scope %s err: %w", healthScopeName, err)
+				return fmt.Errorf("delete health scope %s err: %w", healthScopeName, err)
 			}
 			if err = o.Client.Delete(ctx, &healthScope); err != nil {
-				return "", fmt.Errorf("delete health scope %s err: %w", healthScopeName, err)
+				return fmt.Errorf("delete health scope %s err: %w", healthScopeName, err)
 			}
 		}
 	}
-	return fmt.Sprintf("app \"%s\" already deleted from namespace \"%s\"", o.AppName, o.Namespace), nil
+	return nil
 }
 
 // DeleteComponent will delete one component including server side.
-func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
+func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) error {
 	var err error
 	if o.AppName == "" {
-		return "", errors.New("app name is required")
+		return errors.New("app name is required")
 	}
 	app, err := appfile.LoadApplication(o.Namespace, o.AppName, o.C)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if len(appfile.GetComponents(app)) <= 1 {
-		return o.DeleteApp()
+		return o.DeleteApp(io)
 	}
 
 	// Remove component from local appfile
 	if err := appfile.RemoveComponent(app, o.CompName); err != nil {
-		return "", err
+		return err
 	}
 
 	// Remove component from appConfig in k8s cluster
 	ctx := context.Background()
 
 	if err := o.Client.Update(ctx, app); err != nil {
-		return "", err
+		return err
 	}
 
 	// It's the server responsibility to GC component
-
-	return fmt.Sprintf("component \"%s\" deleted from \"%s\"", o.CompName, o.AppName), nil
+	return nil
 }
 
 func saveAndLoadRemoteAppfile(url string) (*api.AppFile, error) {
