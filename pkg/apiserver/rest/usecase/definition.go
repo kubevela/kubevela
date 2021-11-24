@@ -287,7 +287,7 @@ func renderUIParameter(key, label string, property *openapi3.SchemaRef, required
 	parameter.JSONKey = key
 	parameter.Description = property.Value.Description
 	parameter.Label = label
-	parameter.UIType = utils.GetDefaultUIType(property.Value.Type, len(parameter.Validate.Options) != 0, subType)
+	parameter.UIType = utils.GetDefaultUIType(property.Value.Type, len(parameter.Validate.Options) != 0, subType, len(property.Value.Properties) > 0)
 	parameter.Validate.Max = property.Value.Max
 	parameter.Validate.MaxLength = property.Value.MaxLength
 	parameter.Validate.Min = property.Value.Min
