@@ -23,7 +23,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.0.0-rc2
 	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/fatih/color v1.12.0
-	github.com/fluxcd/helm-controller/api v0.12.1
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.34.0

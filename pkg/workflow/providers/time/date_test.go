@@ -89,6 +89,66 @@ layout: "Mon, 02 Jan 2006 15:04:05 MST"`,
 	}
 }
 
+func TestDate(t *testing.T) {
+	testcases := map[string]struct {
+		from        string
+		expected    string
+		expectedErr error
+	}{
+		"test convert timestamp to default time layout": {
+			from: `timestamp: 1636249671
+layout: ""
+`,
+			expected:    "2021-11-07T01:47:51Z",
+			expectedErr: nil,
+		},
+		"test convert date to RFC3339 layout": {
+			from: `timestamp: 1636249671
+layout: "2006-01-02T15:04:05Z07:00"
+`,
+			expected:    "2021-11-07T01:47:51Z",
+			expectedErr: nil,
+		},
+		"test convert date to RFC1123 layout": {
+			from: `timestamp: 1551452400
+layout: "Mon, 02 Jan 2006 15:04:05 MST"
+`,
+			expected:    "Fri, 01 Mar 2019 15:00:00 UTC",
+			expectedErr: nil,
+		},
+		"test convert date without time layout": {
+			from:        `timestamp: 1551452400`,
+			expected:    "",
+			expectedErr: errors.New("var(path=layout) not exist"),
+		},
+		"test convert without timestamp": {
+			from:        ``,
+			expected:    "",
+			expectedErr: errors.New("var(path=timestamp) not exist"),
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			v, err := value.NewValue(tc.from, nil, "")
+			r.NoError(err)
+			prd := &provider{}
+			err = prd.Date(nil, v, nil)
+			if tc.expectedErr != nil {
+				r.Equal(tc.expectedErr.Error(), err.Error())
+				return
+			}
+			r.NoError(err)
+			expected, err := v.LookupValue("date")
+			r.NoError(err)
+			ret, err := expected.CueValue().String()
+			r.NoError(err)
+			r.Equal(tc.expected, ret)
+		})
+	}
+}
+
 func TestInstall(t *testing.T) {
 	p := providers.NewProviders()
 	Install(p)

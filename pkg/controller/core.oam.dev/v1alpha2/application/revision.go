@@ -226,7 +226,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		}
 	}
 	for _, p := range af.Policies {
-		if p == nil {
+		if p == nil || p.FullTemplate == nil {
 			continue
 		}
 		if p.FullTemplate.PolicyDefinition != nil {

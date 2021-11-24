@@ -8,6 +8,7 @@ data:
     import (
       "vela/ql"
       "vela/op"
+      "strings"
     )
 
     parameter: {
@@ -47,28 +48,44 @@ data:
           }
         }
       }
-
-      podsWithCluster: [ for pods in collectedPods for podObj in pods.list {
+      podsWithCluster: [ for pods in collectedPods if pods.list != _|_ for podObj in pods.list {
         cluster: pods.cluster
         obj:     podObj
+        workload: {
+          apiVersion: pods.value.apiVersion
+          kind:       pods.value.kind
+        }
       }]
-
+      podsError: [ for pods in collectedPods if pods.err != _|_ {pods.err}]
       status: {
-        podList: [ for pod in podsWithCluster {
-          clusterName:    pod.cluster
-          revision:       appRev
-          publishVersion: appPublishVersion
-          deployVersion:  appDeployVersion
-          podName:        pod.obj.metadata.name
-          podNs:          pod.obj.metadata.namespace
-          status:         pod.obj.status.phase
-          // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-          if status != "Pending" && status != "Unknown" {
-            podIP:    pod.obj.status.podIP
-            hostIP:   pod.obj.status.hostIP
-            nodeName: pod.obj.spec.nodeName
-          }
-        }]
+        if len(podsError) == 0 {
+          podList: [ for pod in podsWithCluster {
+            cluster: pod.cluster
+            workload: pod.workload
+            metadata: {
+              name:         pod.obj.metadata.name
+              namespace:    pod.obj.metadata.namespace
+              creationTime: pod.obj.metadata.creationTimestamp
+              version: {
+                revision:       appRev
+                publishVersion: appPublishVersion
+                deployVersion:  appDeployVersion
+              }
+            }
+            status: {
+              phase: pod.obj.status.phase
+              // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+              if phase != "Pending" && phase != "Unknown" {
+                podIP:    pod.obj.status.podIP
+                hostIP:   pod.obj.status.hostIP
+                nodeName: pod.obj.spec.nodeName
+              }
+            }
+          }]
+        }
+        if len(podsError) != 0 {
+          error: strings.Join(podsError, ",")
+        }
       }
     }
 

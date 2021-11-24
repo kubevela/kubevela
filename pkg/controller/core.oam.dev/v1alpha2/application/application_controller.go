@@ -156,15 +156,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.Info("Successfully apply application revision")
 
-	policies, err := appFile.PrepareWorkflowAndPolicy()
+	builtInPolicies, externalPolicies, err := appFile.PrepareWorkflowAndPolicy()
 	if err != nil {
 		logCtx.Error(err, "[Handle PrepareWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("PrepareWorkflowAndPolicy", err), common.ApplicationPolicyGenerating)
 	}
 
-	if len(policies) > 0 {
-		if err := handler.Dispatch(ctx, "", common.PolicyResourceCreator, policies...); err != nil {
+	if err := handler.HandleBuiltInPolicies(builtInPolicies); err != nil {
+		klog.Error(err, "[Handle BuiltIn Policies]")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HandleBuiltInPolicies", err), common.ApplicationPolicyGenerating)
+	}
+
+	if len(externalPolicies) > 0 {
+		if err := handler.Dispatch(ctx, "", common.PolicyResourceCreator, externalPolicies...); err != nil {
 			logCtx.Error(err, "[Handle ApplyPolicyResources]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("ApplyPolices", err), common.ApplicationPolicyGenerating)

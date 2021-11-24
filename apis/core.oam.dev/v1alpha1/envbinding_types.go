@@ -25,6 +25,9 @@ import (
 const (
 	// EnvBindingPolicyType refers to the type of EnvBinding
 	EnvBindingPolicyType = "env-binding"
+
+	// GarbageCollectPolicyType refers to the type of garbage-collect
+	GarbageCollectPolicyType = "garbage-collect"
 )
 
 // EnvTraitPatch is the patch to trait

@@ -170,10 +170,23 @@ type Handler interface {
 }
 
 // PrepareWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) PrepareWorkflowAndPolicy() (policies []*unstructured.Unstructured, err error) {
-	policies, err = af.generateUnstructureds(af.Policies)
-	if err != nil {
-		return
+func (af *Appfile) PrepareWorkflowAndPolicy() ([]*Workload, []*unstructured.Unstructured, error) {
+	var externalPolicies []*unstructured.Unstructured
+	var builtInPolicies []*Workload
+	var err error
+
+	for _, policy := range af.Policies {
+		switch policy.Type {
+		case v1alpha1.GarbageCollectPolicyType:
+			builtInPolicies = append(builtInPolicies, policy)
+		case v1alpha1.EnvBindingPolicyType:
+		default:
+			un, err := af.generateUnstructured(policy)
+			if err != nil {
+				return nil, nil, err
+			}
+			externalPolicies = append(externalPolicies, un)
+		}
 	}
 
 	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
@@ -181,26 +194,22 @@ func (af *Appfile) PrepareWorkflowAndPolicy() (policies []*unstructured.Unstruct
 		&step.ApplyComponentWorkflowStepGenerator{},
 	).Generate(af.app, af.WorkflowSteps)
 
-	return policies, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return builtInPolicies, externalPolicies, nil
 }
 
-func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
-	var uns []*unstructured.Unstructured
-	for _, wl := range workloads {
-		if wl.Type == v1alpha1.EnvBindingPolicyType {
-			continue
-		}
-		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts)
-		if err != nil {
-			return nil, err
-		}
-		un.SetName(wl.Name)
-		if len(un.GetNamespace()) == 0 {
-			un.SetNamespace(af.Namespace)
-		}
-		uns = append(uns, un)
+func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstructured, error) {
+	un, err := generateUnstructuredFromCUEModule(workload, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts)
+	if err != nil {
+		return nil, err
 	}
-	return uns, nil
+	un.SetName(workload.Name)
+	if len(un.GetNamespace()) == 0 {
+		un.SetNamespace(af.Namespace)
+	}
+	return un, nil
 }
 
 func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {

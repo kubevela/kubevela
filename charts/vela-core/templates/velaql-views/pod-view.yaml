@@ -36,7 +36,7 @@ data:
       cluster: parameter.cluster
     }
 
-    usageMetrics: ql.#Read & {
+    podMetrics: ql.#Read & {
       cluster: parameter.cluster
       value: {
         apiVersion: "metrics.k8s.io/v1beta1"
@@ -53,21 +53,26 @@ data:
         containers: [ for container in pod.value.spec.containers {
           name:  container.name
           image: container.image
-          status: {for containerStatus in pod.value.status.containerStatuses {
-            if containerStatus.name == container.name {
-              state:        containerStatus.state
-              restartCount: containerStatus.restartCount
+          resources: {
+            if container.resources.limits != _|_ {
+              limits: container.resources.limits
             }
-          }}
-          resource: container.resources
-          if usageMetrics.err == _|_ {
-            usageResource: {for containerUsage in usageMetrics.value.containers {
-              if containerUsage.name == container.name {
-                cpu:    containerUsage.usage.cpu
-                memory: containerUsage.usage.memory
-              }
-            }}
+            if container.resources.requests != _|_ {
+              requests: container.resources.requests
+            }
+            if podMetrics.err == _|_ {
+              usage: {for containerUsage in podMetrics.value.containers {
+                if containerUsage.name == container.name {
+                  cpu:    containerUsage.usage.cpu
+                  memory: containerUsage.usage.memory
+                }
+              }}
+            }
           }
+          status: {for containerStatus in pod.value.status.containerStatuses if containerStatus.name == container.name {
+            state:        containerStatus.state
+            restartCount: containerStatus.restartCount
+          }}
         }]
         if eventList.err == _|_ {
           events: eventList.list
@@ -77,4 +82,3 @@ data:
         error: pod.err
       }
     }
-

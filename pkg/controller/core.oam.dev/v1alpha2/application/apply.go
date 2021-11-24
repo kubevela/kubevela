@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -54,6 +55,8 @@ type AppHandler struct {
 	appliedResources []common.ClusterObjectReference
 	deletedResources []common.ClusterObjectReference
 	parser           *appfile.Parser
+
+	gcOptions dispatch.GCOptions
 }
 
 // Dispatch apply manifests into k8s.
@@ -212,7 +215,7 @@ func (h *AppHandler) initDispatcher() {
 	if h.dispatcher == nil {
 		// only do GC when ALL resources are dispatched successfully
 		// so skip GC while dispatching addon resources
-		h.dispatcher = dispatch.NewAppManifestsDispatcher(h.r.Client, h.currentAppRev).StartAndSkipGC(h.latestTracker)
+		h.dispatcher = dispatch.NewAppManifestsDispatcher(h.r.Client, h.currentAppRev).StartAndSkipGC(h.latestTracker).WithGCOptions(h.gcOptions)
 	}
 }
 
@@ -364,4 +367,31 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	// write back rollout status to application
 	h.app.Status.Rollout = &appRollout.Status
 	return res, nil
+}
+
+// HandleBuiltInPolicies handle built in policies
+func (h *AppHandler) HandleBuiltInPolicies(policies []*appfile.Workload) error {
+	for _, policy := range policies {
+		if policy.Type == "garbage-collect" {
+			if err := h.SetGCOptions(policy.Params); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// SetGCOptions set gc options for AppHandler
+func (h *AppHandler) SetGCOptions(options map[string]interface{}) error {
+	bt, err := json.Marshal(options)
+	if err != nil {
+		return err
+	}
+
+	gcOpts := dispatch.GCOptions{}
+	if err = json.Unmarshal(bt, &gcOpts); err != nil {
+		return err
+	}
+	h.gcOptions = gcOpts
+	return nil
 }
