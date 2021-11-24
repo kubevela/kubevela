@@ -61,22 +61,12 @@ func (h *provider) Date(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err != nil {
 		return err
 	}
-	locationName, err := v.GetString("location")
-	if err != nil {
-		return err
-	}
 
 	if layout == "" {
 		layout = time.RFC3339
 	}
-
-	location, err := time.LoadLocation(locationName)
-	if err != nil {
-		return err
-	}
 	t := time.Unix(timestamp, 0)
-	t.In(location)
-	return v.FillObject(t.Format(layout), "date")
+	return v.FillObject(t.UTC().Format(layout), "date")
 }
 
 // Install register handlers to provider discover.

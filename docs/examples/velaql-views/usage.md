@@ -41,17 +41,30 @@ parameter: {
 ```
 // query successful
 status: {
-	podList: [{
-		clusterName:    string 
-		revision:       string
-		publishVersion: string
-		podName:        string
-		podNs:          string
-		status:         string
-		podIP:          string
-		hostIP:         string
-		nodeName:       string
-	}]
+  podList: [{
+    cluster: string
+    worload: {
+      apiVersion: string
+      kind:       string
+    }
+    metadata: {
+      name:         string
+      namespace:    string
+      creationTime: string
+      version: {
+        revision:       string
+        publishVersion: string
+        deployVersion:  string
+      }
+    }
+    status: {
+      phase:    "Pending" | "Running" | "Succeeded" | "Failed" | "Unknown"
+      // if phase == "Pending" or "Unknown": podIP, hostIP, nodeName will be empty
+      podIP:    string
+      hostIP:   string
+      nodeName: strin
+    }
+  }]
 }
 
 // query failed
@@ -91,14 +104,10 @@ parameter: {
 ```
 // query successful
 status: {
-	containers: [ {
+	containers: [{
 		name:  string
 		image: string
-		status: {
-			state:        string
-			restartCount: string
-		}
-		resource: {
+		resources: {
 			limits: {
 				cpu:    string
 				memory: string
@@ -107,13 +116,23 @@ status: {
 				cpu:    string
 				memory: string
 			}
+			usage: {
+				cpu:    string
+				memory: string
+			}
 		}
-		usageResource: {
-			cpu:    string
-			memory: string
+		status: {
+		    // state holds a possible state of container. 
+		    // only one of its members may be specified.
+			state: {
+				running: {...}
+				waiting: {...}
+				terminated: {...}
+			}
+			restartCount: string
 		}
 	}]
-	events: [...corev1.Event]
+	events: [...v1.Event]
 }
 
 // query failed

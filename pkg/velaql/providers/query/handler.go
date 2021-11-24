@@ -19,10 +19,10 @@ package query
 import (
 	stdctx "context"
 
-	fluxcdv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -35,7 +35,11 @@ import (
 const (
 	// ProviderName is provider name for install.
 	ProviderName = "query"
+	// HelmReleaseKind is the kind of HelmRelease
+	HelmReleaseKind = "HelmRelease"
 )
+
+var fluxcdGroupVersion = schema.GroupVersion{Group: "helm.toolkit.fluxcd.io", Version: "v2beta1"}
 
 type provider struct {
 	cli client.Client
@@ -113,7 +117,7 @@ func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.
 	var collector PodCollector
 
 	switch obj.GroupVersionKind() {
-	case fluxcdv2beta1.GroupVersion.WithKind(fluxcdv2beta1.HelmReleaseKind):
+	case fluxcdGroupVersion.WithKind(HelmReleaseKind):
 		collector = helmReleasePodCollector
 	default:
 		collector = NewPodCollector(obj.GroupVersionKind())
