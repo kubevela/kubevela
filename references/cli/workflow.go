@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -45,6 +46,7 @@ func NewWorkflowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		NewWorkflowResumeCommand(c, ioStreams),
 		NewWorkflowTerminateCommand(c, ioStreams),
 		NewWorkflowRestartCommand(c, ioStreams),
+		NewWorkflowRollbackCommand(c, ioStreams),
 	)
 	return cmd
 }
@@ -223,6 +225,47 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 	return cmd
 }
 
+// NewWorkflowRollbackCommand create workflow rollback command
+func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "rollback",
+		Short:   "Rollback an application workflow to the latest revision",
+		Long:    "Rollback an application workflow to the latest revision",
+		Example: "vela workflow rollback <application-name>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("must specify application name")
+			}
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
+			app, err := appfile.LoadApplication(namespace, args[0], c)
+			if err != nil {
+				return err
+			}
+			if app.Spec.Workflow == nil {
+				return fmt.Errorf("the application must have workflow")
+			}
+			if app.Status.Workflow != nil && !app.Status.Workflow.Terminated && !app.Status.Workflow.Suspend && !app.Status.Workflow.Finished {
+				return fmt.Errorf("can not rollback a running workflow")
+			}
+			kubecli, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+
+			err = rollbackWorkflow(kubecli, app)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	addNamespaceArg(cmd)
+	return cmd
+}
+
 func suspendWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	// set the workflow suspend to true
 	app.Status.Workflow.Suspend = true
@@ -268,5 +311,24 @@ func restartWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	}
 
 	fmt.Printf("Successfully restart workflow: %s\n", app.Name)
+	return nil
+}
+
+func rollbackWorkflow(kubecli client.Client, app *v1beta1.Application) error {
+	if app.Status.LatestRevision == nil || app.Status.LatestRevision.Name == "" {
+		return fmt.Errorf("the latest revision is not set: %s", app.Name)
+	}
+	// get the last revision
+	revision := &v1beta1.ApplicationRevision{}
+	if err := kubecli.Get(context.TODO(), k8stypes.NamespacedName{Name: app.Status.LatestRevision.Name, Namespace: app.Namespace}, revision); err != nil {
+		return fmt.Errorf("failed to get the latest revision: %s", err)
+	}
+
+	app.Spec = revision.Spec.Application.Spec
+	if err := kubecli.Status().Update(context.TODO(), app); err != nil {
+		return err
+	}
+
+	fmt.Printf("Successfully rollback workflow to the latest revision: %s\n", app.Name)
 	return nil
 }
