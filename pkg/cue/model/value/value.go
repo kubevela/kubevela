@@ -207,6 +207,27 @@ func (val *Value) MakeValue(s string) (*Value, error) {
 	return v, nil
 }
 
+func (val *Value) makeValueWithFile(files ...*ast.File) (*Value, error) {
+	builder := &build.Instance{}
+	for _, f := range files {
+		if err := builder.AddSyntax(f); err != nil {
+			return nil, err
+		}
+	}
+	if err := val.addImports(builder); err != nil {
+		return nil, err
+	}
+	inst, err := val.r.Build(builder)
+	if err != nil {
+		return nil, err
+	}
+	v := new(Value)
+	v.r = val.r
+	v.v = inst.Value()
+	v.addImports = val.addImports
+	return v, nil
+}
+
 // FillRaw unify the value with the cue format string x at the given path.
 func (val *Value) FillRaw(x string, paths ...string) error {
 	xInst, err := val.r.Compile("-", x)
@@ -296,16 +317,62 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 func (val *Value) LookupByScript(script string) (*Value, error) {
 	var outputKey = "zz_output__"
 	script = strings.TrimSpace(script)
+	scriptFile, err := parser.ParseFile("-", script)
+	if err != nil {
+		return nil, errors.WithMessage(err, "parse script")
+	}
+
 	raw, err := val.String()
 	if err != nil {
 		return nil, err
 	}
-	raw += fmt.Sprintf("\n%s: %s", outputKey, script)
-	newV, err := val.MakeValue(raw)
+
+	rawFile, err := parser.ParseFile("-", raw)
+	if err != nil {
+		return nil, errors.WithMessage(err, "parse script")
+	}
+
+	behindKey(scriptFile, outputKey)
+
+	newV, err := val.makeValueWithFile(rawFile, scriptFile)
 	if err != nil {
 		return nil, err
 	}
+
 	return newV.LookupValue(outputKey)
+}
+func behindKey(file *ast.File, key string) {
+	var (
+		implDecls []ast.Decl
+		decls     []ast.Decl
+	)
+
+	for i, decl := range file.Decls {
+		if _, ok := decl.(*ast.ImportDecl); ok {
+			implDecls = append(implDecls, file.Decls[i])
+		} else {
+			decls = append(decls, file.Decls[i])
+		}
+	}
+
+	file.Decls = implDecls
+	if len(decls) == 1 {
+		target := decls[0]
+		if embed, ok := target.(*ast.EmbedDecl); ok {
+			file.Decls = append(file.Decls, &ast.Field{
+				Label: ast.NewIdent(key),
+				Value: embed.Expr,
+			})
+			return
+		}
+	}
+	file.Decls = append(file.Decls, &ast.Field{
+		Label: ast.NewIdent(key),
+		Value: &ast.StructLit{
+			Elts: decls,
+		},
+	})
+
 }
 
 type field struct {
