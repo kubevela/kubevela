@@ -91,7 +91,7 @@ var _ = Describe("Test addon rest api", func() {
 	PIt("should enable and disable an addon", func() {
 		defer GinkgoRecover()
 		req := apis.EnableAddonRequest{
-			Args: map[string]string{
+			Args: map[string]interface{}{
 				"example": "test-args",
 			},
 		}

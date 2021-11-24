@@ -634,7 +634,7 @@ func Convert2AddonName(name string) string {
 func RenderArgsSecret(addon *types.Addon, args map[string]interface{}) *v1.Secret {
 	data := make(map[string]string)
 	for k, v := range args {
-		switch v:= v.(type) {
+		switch v := v.(type) {
 		case bool:
 			data[k] = strconv.FormatBool(v)
 		default:
