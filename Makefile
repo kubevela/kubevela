@@ -273,7 +273,7 @@ core-uninstall: manifests
 	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: installcue kustomize
+manifests: installcue kustomize addon
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
@@ -281,7 +281,6 @@ manifests: installcue kustomize
 	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/ charts/vela-minimal/crds
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
-	go run ./vela-templates/gen_addons.go
 
 GOLANGCILINT_VERSION ?= v1.38.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -365,3 +364,7 @@ check-license-header:
 
 def-install:
 	./hack/utils/installdefinition.sh
+
+# generate addons to auto-gen and charts
+addon:
+	go run ./vela-templates/gen_addons.go

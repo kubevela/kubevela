@@ -24,6 +24,9 @@ import (
 	"text/template"
 	"time"
 
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+
 	yaml2 "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -55,6 +58,11 @@ const (
 
 	// DependsOnWorkFlowStepName is workflow step name which is used to check dependsOn app
 	DependsOnWorkFlowStepName = "depends-on-app"
+
+	// AddonTerraformProviderNamespace is the namespace of addon terraform provider
+	AddonTerraformProviderNamespace = "default"
+	// AddonTerraformProviderNameArgument is the argument name of addon terraform provider
+	AddonTerraformProviderNameArgument = "providerName"
 )
 
 var statusUninstalled = "uninstalled"
@@ -96,7 +104,7 @@ func NewAddonCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	}
 	cmd.AddCommand(
 		NewAddonListCommand(),
-		NewAddonEnableCommand(ioStreams),
+		NewAddonEnableCommand(c, ioStreams),
 		NewAddonDisableCommand(ioStreams),
 	)
 	return cmd
@@ -120,13 +128,19 @@ func NewAddonListCommand() *cobra.Command {
 }
 
 // NewAddonEnableCommand create addon enable command
-func NewAddonEnableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	ctx := context.Background()
 	return &cobra.Command{
 		Use:     "enable",
 		Short:   "enable an addon",
 		Long:    "enable an addon in cluster",
 		Example: "vela addon enable <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
@@ -135,7 +149,7 @@ func NewAddonEnableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = enableAddon(name, addonArgs)
+			err = enableAddon(ctx, k8sClient, name, addonArgs)
 			if err != nil {
 				return err
 			}
@@ -198,17 +212,21 @@ func listAddons() error {
 	return nil
 }
 
-func enableAddon(name string, args map[string]string) error {
+func enableAddon(ctx context.Context, k8sClient client.Client, name string, args map[string]string) error {
 	repo, err := NewAddonRepo()
 	if err != nil {
 		return err
 	}
+
 	addon, err := repo.getAddon(name)
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(name, "terraform-provider") {
+		args, _ = getTerraformProviderArgumentValue(name, args)
+	}
 	addon.setArgs(args)
-	err = addon.enable()
+	err = addon.enable(ctx, k8sClient, name, args)
 	return err
 }
 
@@ -358,14 +376,25 @@ func (a *Addon) renderApplication() (*v1beta1.Application, error) {
 	return a.application, nil
 }
 
-func (a *Addon) enable() error {
+func (a *Addon) enable(ctx context.Context, k8sClient client.Client, name string, args map[string]string) error {
 	applicator := apply.NewAPIApplicator(clt)
-	ctx := context.Background()
 	obj, err := a.renderApplication()
 	if err != nil {
 		return err
 	}
-	err = a.installDependsOn()
+
+	if strings.HasPrefix(name, "terraform/provider") {
+		providerName, existed, err := checkWhetherTerraformProviderExist(ctx, k8sClient, name, args)
+		if err != nil {
+			return err
+		}
+		if existed {
+			return errors.Errorf("terraform provider %s with name %s already exists", name, providerName)
+		}
+		obj.Name = fmt.Sprintf("%s-%s", obj.Name, providerName)
+	}
+
+	err = a.installDependsOn(ctx, k8sClient, args)
 	if err != nil {
 		return errors.Wrap(err, "Error occurs when install dependent addon")
 	}
@@ -427,7 +456,7 @@ func (a *Addon) setArgs(args map[string]string) {
 	a.Args = args
 }
 
-func (a *Addon) installDependsOn() error {
+func (a *Addon) installDependsOn(ctx context.Context, k8sClient client.Client, args map[string]string) error {
 	if a.application.Spec.Workflow == nil || a.application.Spec.Workflow.Steps == nil {
 		return nil
 	}
@@ -448,7 +477,7 @@ func (a *Addon) installDependsOn() error {
 				return err
 			}
 			if addon.getStatus() != statusInstalled {
-				err = addon.enable()
+				err = addon.enable(ctx, k8sClient, dependsOnAddonName, args)
 				if err != nil {
 					return err
 				}
@@ -461,4 +490,52 @@ func (a *Addon) installDependsOn() error {
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy
 func TransAddonName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
+}
+
+func getTerraformProviderNames(ctx context.Context, k8sClient client.Client) ([]string, error) {
+	var names []string
+	providerList := &terraformv1beta1.ProviderList{}
+	err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, err
+		}
+		return nil, err
+	}
+	for _, provider := range providerList.Items {
+		names = append(names, provider.Name)
+	}
+	return names, nil
+}
+
+// Get the value of argument AddonTerraformProviderNameArgument
+func getTerraformProviderArgumentValue(addonName string, args map[string]string) (map[string]string, string) {
+	providerName, ok := args[AddonTerraformProviderNameArgument]
+	if !ok {
+		switch addonName {
+		case "terraform-provider-alibaba":
+			providerName = "default"
+		case "terraform-provider-aws":
+			providerName = "aws"
+		case "terraform-provider-azure":
+			providerName = "azure"
+		}
+		args[AddonTerraformProviderNameArgument] = providerName
+	}
+	return args, providerName
+}
+
+func checkWhetherTerraformProviderExist(ctx context.Context, k8sClient client.Client, addonName string, args map[string]string) (string, bool, error) {
+	_, providerName := getTerraformProviderArgumentValue(addonName, args)
+
+	providerNames, err := getTerraformProviderNames(ctx, k8sClient)
+	if err != nil {
+		return "", false, err
+	}
+	for _, name := range providerNames {
+		if providerName == name {
+			return providerName, true, nil
+		}
+	}
+	return providerName, false, nil
 }
