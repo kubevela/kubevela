@@ -422,6 +422,12 @@ func (r *Reconciler) patchHealthStatusToApplications(ctx context.Context, appHea
 		if err := r.client.Get(ctx, client.ObjectKey{Name: appName, Namespace: hs.Namespace}, app); err != nil {
 			return err
 		}
+		if app.Status.Workflow == nil {
+			continue
+		}
+		if !app.Status.Workflow.Finished && !app.Status.Workflow.Suspend {
+			continue
+		}
 		copyApp := app.DeepCopy()
 		componentPosition := make(map[string]int)
 		for i, comp := range app.Spec.Components {
