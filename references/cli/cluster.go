@@ -59,6 +59,8 @@ const (
 	ClusterGateWayClusterManagement = "cluster-gateway"
 	// OCMClusterManagement ocm cluster management solution
 	OCMClusterManagement = "ocm"
+	// CreateNamespace specifies the namespace need to create in managedCluster
+	CreateNamespace = "create-namespace"
 )
 
 // ClusterCommandGroup create a group of cluster command
@@ -155,6 +157,20 @@ func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) erro
 	return nil
 }
 
+func ensureVelaSystemNamespaceInstalled(c client.Client, clusterName string, createNamespace string) error {
+	ctx := context.Background()
+	remoteCtx := multicluster.ContextWithClusterName(ctx, clusterName)
+	if err := c.Get(remoteCtx, types2.NamespacedName{Name: createNamespace}, &v1.Namespace{}); err != nil {
+		if !errors2.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to check vela-system ")
+		}
+		if err = c.Create(remoteCtx, &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: createNamespace}}); err != nil {
+			return errors.Wrapf(err, "failed to create vela-system namespace")
+		}
+	}
+	return nil
+}
+
 // NewClusterJoinCommand create command to help user join cluster to multicluster management
 func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
@@ -205,6 +221,16 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 				clusterManagementType = ClusterGateWayClusterManagement
 			}
 
+			// get need created namespace in managed cluster
+			createNamespace, err := cmd.Flags().GetString(CreateNamespace)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get create namespace")
+			}
+
+			if createNamespace == "" {
+				createNamespace = types.DefaultKubeVelaNS
+			}
+
 			switch clusterManagementType {
 			case ClusterGateWayClusterManagement:
 				if endpoint, err := utils.ParseAPIServerEndpoint(cluster.Server); err == nil {
@@ -212,7 +238,7 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 				} else {
 					_, _ = cmd.OutOrStdout().Write([]byte("failed to parse server endpoint: " + err.Error()))
 				}
-				if err = registerClusterManagedByVela(c.Client, cluster, authInfo, clusterName); err != nil {
+				if err = registerClusterManagedByVela(c.Client, cluster, authInfo, clusterName, createNamespace); err != nil {
 					return err
 				}
 			case OCMClusterManagement:
@@ -226,10 +252,11 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagClusterName, "n", "", "Specify the cluster name. If empty, it will use the cluster name in config file. Default to be empty.")
 	cmd.Flags().StringP(FlagClusterManagementEngine, "t", "", "Specify the cluster management engine. If empty, it will use cluster-gateway cluster management solution. Default to be empty.")
+	cmd.Flags().StringP(CreateNamespace, "", "", "Specifies the namespace need to create in managedCluster")
 	return cmd
 }
 
-func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi.Cluster, authInfo *clientcmdapi.AuthInfo, clusterName string) error {
+func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi.Cluster, authInfo *clientcmdapi.AuthInfo, clusterName string, createNamespace string) error {
 	if err := clustermanager.EnsureClusterNotExists(k8sClient, clusterName); err != nil {
 		return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
 	}
@@ -263,6 +290,10 @@ func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi
 	if err := ensureResourceTrackerCRDInstalled(k8sClient, clusterName); err != nil {
 		_ = k8sClient.Delete(context.Background(), secret)
 		return errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
+	}
+	if err := ensureVelaSystemNamespaceInstalled(k8sClient, clusterName, createNamespace); err != nil {
+		_ = k8sClient.Delete(context.Background(), secret)
+		return errors.Wrapf(err, "failed to ensure vela-system namespace installed in cluster %s", clusterName)
 	}
 	return nil
 }

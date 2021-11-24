@@ -193,6 +193,48 @@ func TestLoadComponent(t *testing.T) {
 	r.NoError(err)
 }
 
+func TestLoadComponentInOrder(t *testing.T) {
+	r := require.New(t)
+	p := &provider{
+		app: &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "c1",
+						Type:       "web",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+					},
+					{
+						Name:       "c2",
+						Type:       "web2",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "busybox"}`)},
+					},
+				},
+			},
+		},
+	}
+	v, err := value.NewValue(``, nil, "")
+	r.NoError(err)
+	err = p.LoadComponentInOrder(nil, v, nil)
+	r.NoError(err)
+	s, err := v.String()
+	r.NoError(err)
+	r.Equal(s, `value: [{
+	name: "c1"
+	type: "web"
+	properties: {
+		image: "busybox"
+	}
+}, {
+	name: "c2"
+	type: "web2"
+	properties: {
+		image: "busybox"
+	}
+}]
+`)
+}
+
 var testHealthy bool
 
 func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
