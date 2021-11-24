@@ -92,10 +92,10 @@ data:
         - name: ""
           type: apply-application
     status: {}
-  detail: |-
-    # terraform/provider-aws
+  detail: |
+    # terraform-aws
 
-    This addon contains terraform provider for AWS
+    This addon contains terraform provider for AWS.
 kind: ConfigMap
 metadata:
   annotations:

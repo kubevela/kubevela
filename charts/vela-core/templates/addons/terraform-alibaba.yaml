@@ -11,32 +11,32 @@ data:
       namespace: vela-system
     spec:
       components:
-      - name: alibaba-account-creds
+      - name: alibaba-account-creds-[[ index .Args "providerName" ]]
         properties:
           apiVersion: v1
           kind: Secret
           metadata:
-            name: alibaba-account-creds
+            name: alibaba-account-creds-[[ index .Args "providerName" ]]
             namespace: vela-system
           stringData:
             credentials: |
               accessKeyID: [[ index .Args "ALICLOUD_ACCESS_KEY" ]]
               accessKeySecret: [[ index .Args "ALICLOUD_SECRET_KEY" ]]
               securityToken: [[ index .Args "ALICLOUD_SECURITY_TOKEN" ]]
-          type: Opaquehelm
+          type: Opaque
         type: raw
-      - name: default
+      - name: alibaba-[[ index .Args "providerName" ]]
         properties:
           apiVersion: terraform.core.oam.dev/v1beta1
           kind: Provider
           metadata:
-            name: default
+            name: '[[ index .Args "providerName" ]]'
             namespace: default
           spec:
             credentials:
               secretRef:
                 key: credentials
-                name: alibaba-account-creds
+                name: alibaba-account-creds-[[ index .Args "providerName" ]]
                 namespace: vela-system
               source: Secret
             provider: alibaba
@@ -337,8 +337,8 @@ data:
         - name: ""
           type: apply-application
     status: {}
-  detail: |-
-    # terraform/provider-alibaba
+  detail: |
+    # terraform-alibaba
 
     This addon contains terraform provider for Alibaba Cloud.
 kind: ConfigMap

@@ -31,6 +31,7 @@ import (
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -221,7 +222,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, name string, args
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(name, "terraform-provider") {
+	if strings.HasPrefix(name, "terraform-") {
 		args, _ = getTerraformProviderArgumentValue(name, args)
 	}
 	addon.setArgs(args)
@@ -382,9 +383,9 @@ func (a *Addon) enable(ctx context.Context, k8sClient client.Client, name string
 		return err
 	}
 
-	if strings.HasPrefix(name, "terraform/provider") {
+	if strings.HasPrefix(name, "terraform-") {
 		providerName, existed, err := checkWhetherTerraformProviderExist(ctx, k8sClient, name, args)
-		if err != nil {
+		if err != nil && !apimeta.IsNoMatchError(err) {
 			return err
 		}
 		if existed {
@@ -519,11 +520,11 @@ func getTerraformProviderArgumentValue(addonName string, args map[string]string)
 	providerName, ok := args[AddonTerraformProviderNameArgument]
 	if !ok {
 		switch addonName {
-		case "terraform-provider-alibaba":
+		case "terraform-alibaba":
 			providerName = "default"
-		case "terraform-provider-aws":
+		case "terraform-aws":
 			providerName = "aws"
-		case "terraform-provider-azure":
+		case "terraform-azure":
 			providerName = "azure"
 		}
 		args[AddonTerraformProviderNameArgument] = providerName

@@ -22,7 +22,7 @@ spec:
         metadata:
           name: alibaba-account-creds-[[ index .Args "providerName" ]]
           namespace: vela-system
-        type: Opaquehelm
+        type: Opaque
         stringData:
           credentials: |
             accessKeyID: [[ index .Args "ALICLOUD_ACCESS_KEY" ]]

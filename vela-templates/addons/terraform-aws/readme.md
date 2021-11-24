@@ -1,3 +1,3 @@
-# terraform/provider-aws
+# terraform-aws
 
-This addon contains terraform provider for AWS
+This addon contains terraform provider for AWS.

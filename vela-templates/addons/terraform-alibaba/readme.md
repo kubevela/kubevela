@@ -1,3 +1,3 @@
-# terraform/provider-alibaba
+# terraform-alibaba
 
 This addon contains terraform provider for Alibaba Cloud.

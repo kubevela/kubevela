@@ -272,8 +272,8 @@ data:
         - name: ""
           type: apply-application
     status: {}
-  detail: |-
-    # terraform/provider-azure
+  detail: |
+    # terraform-azure
 
     This addon contains terraform provider for Azure.
 kind: ConfigMap
