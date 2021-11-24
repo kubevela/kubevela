@@ -321,7 +321,7 @@ func rollbackWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	// get the last revision
 	revision := &v1beta1.ApplicationRevision{}
 	if err := kubecli.Get(context.TODO(), k8stypes.NamespacedName{Name: app.Status.LatestRevision.Name, Namespace: app.Namespace}, revision); err != nil {
-		return fmt.Errorf("failed to get the latest revision: %s", err)
+		return fmt.Errorf("failed to get the latest revision: %w", err)
 	}
 
 	app.Spec = revision.Spec.Application.Spec
