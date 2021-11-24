@@ -155,6 +155,20 @@ func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) erro
 	return nil
 }
 
+func ensureVelaSystemNamespaceInstalled(c client.Client, clusterName string) error {
+	ctx := context.Background()
+	remoteCtx := multicluster.ContextWithClusterName(ctx, clusterName)
+	if err := c.Get(remoteCtx, types2.NamespacedName{Name: types.DefaultKubeVelaNS}, &v1.Namespace{}); err != nil {
+		if !errors2.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to check vela-system ")
+		}
+		if err = c.Create(remoteCtx, &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: types.DefaultKubeVelaNS}}); err != nil {
+			return errors.Wrapf(err, "failed to create vela-system namespace")
+		}
+	}
+	return nil
+}
+
 // NewClusterJoinCommand create command to help user join cluster to multicluster management
 func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
@@ -263,6 +277,10 @@ func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi
 	if err := ensureResourceTrackerCRDInstalled(k8sClient, clusterName); err != nil {
 		_ = k8sClient.Delete(context.Background(), secret)
 		return errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
+	}
+	if err := ensureVelaSystemNamespaceInstalled(k8sClient, clusterName); err != nil {
+		_ = k8sClient.Delete(context.Background(), secret)
+		return errors.Wrapf(err, "failed to ensure vela-system namespace installed in cluster %s", clusterName)
 	}
 	return nil
 }
