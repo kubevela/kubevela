@@ -640,11 +640,12 @@ func (w *workflowUsecaseImpl) checkRecordRunning(ctx context.Context, appModel *
 
 func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord {
 	return &apisv1.WorkflowRecord{
-		Name:      record.Name,
-		Namespace: record.Namespace,
-		StartTime: record.StartTime,
-		Status:    record.Status,
-		Steps:     record.Steps,
+		Name:         record.Name,
+		Namespace:    record.Namespace,
+		WorkflowName: record.WorkflowName,
+		StartTime:    record.StartTime,
+		Status:       record.Status,
+		Steps:        record.Steps,
 	}
 }
 
