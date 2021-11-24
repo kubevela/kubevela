@@ -173,7 +173,7 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 		found := false
 		for i := range h.services {
 			current := h.services[i]
-			if current.Name == svc.Name {
+			if current.Name == svc.Name && current.Env == svc.Env {
 				if cover {
 					h.services[i] = svc
 				}
