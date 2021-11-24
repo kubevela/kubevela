@@ -83,7 +83,7 @@ type ListAddonRegistryResponse struct {
 // EnableAddonRequest defines the format for enable addon request
 type EnableAddonRequest struct {
 	// Args is the key-value environment variables, e.g. AK/SK credentials.
-	Args map[string]string `json:"args,omitempty"`
+	Args map[string]interface{} `json:"args,omitempty"`
 }
 
 // ListAddonResponse defines the format for addon list response

@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -457,10 +458,7 @@ func cutPathUntil(path []string, end string) ([]string, error) {
 }
 
 // RenderApplication render a K8s application
-func RenderApplication(addon *types.Addon, args map[string]string) (*v1beta1.Application, []*unstructured.Unstructured, error) {
-	if args == nil {
-		args = map[string]string{}
-	}
+func RenderApplication(addon *types.Addon, args map[string]interface{}) (*v1beta1.Application, []*unstructured.Unstructured, error) {
 	app := addon.AppTemplate
 	if app == nil {
 		app = &v1beta1.Application{
@@ -582,7 +580,7 @@ func renderRawComponent(elem types.AddonElementFile) (*common2.ApplicationCompon
 }
 
 // renderCUETemplate will return a component from cue template
-func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[string]string) (*common2.ApplicationComponent, error) {
+func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[string]interface{}) (*common2.ApplicationComponent, error) {
 	bt, err := json.Marshal(args)
 	if err != nil {
 		return nil, err
@@ -633,14 +631,23 @@ func Convert2AddonName(name string) string {
 }
 
 // RenderArgsSecret TODO add desc
-func RenderArgsSecret(addon *types.Addon, args map[string]string) *v1.Secret {
+func RenderArgsSecret(addon *types.Addon, args map[string]interface{}) *v1.Secret {
+	data := make(map[string]string)
+	for k, v := range args {
+		switch v := v.(type) {
+		case bool:
+			data[k] = strconv.FormatBool(v)
+		default:
+			data[k] = fmt.Sprintf("%v", v)
+		}
+	}
 	sec := v1.Secret{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      Convert2SecName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
-		StringData: args,
+		StringData: data,
 		Type:       v1.SecretTypeOpaque,
 	}
 	return &sec
