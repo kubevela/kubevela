@@ -65,7 +65,7 @@ spec:
   ports:
     - port: 80
       {{- with .Values.velaux.service.nodePort }}
-      nodePort: {{- . }}
+      nodePort: {{ . }}
       {{- end}}
       targetPort: 80
       protocol: TCP
