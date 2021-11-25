@@ -33,7 +33,7 @@ spec:
             - containerPort: 8000
         {{- end }}
         {{- if .Values.velaux.uiServer }}
-        - name: {{ include "kubevela.fullname" . }}-api
+        - name: {{ include "kubevela.fullname" . }}-ui
           securityContext:
           {{- toYaml .Values.securityContext | nindent 12 }}
           image: {{ .Values.imageRegistry }}{{ .Values.velaux.uiServer.image }}
