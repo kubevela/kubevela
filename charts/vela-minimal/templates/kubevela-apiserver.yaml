@@ -1,53 +1,57 @@
-{{- if .Values.apiServer.enabled -}}
+{{- if .Values.velaux -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "kubevela.fullname" . }}-apiserver
+  name: {{ include "kubevela.fullname" . }}-ux
   namespace: {{ .Release.Namespace }}
   labels:
-  {{- include "kubevela.labels" . | nindent 4 }}
+    {{- include "kubevela.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.apiServer.replicaCount }}
+  replicas: {{ .replicaCount }}
   selector:
     matchLabels:
-  {{- include "kubevela-ux.selectorLabels" . | nindent 6 }}
+      {{- include "kubevela-ux.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-    {{- include "kubevela-ux.selectorLabels" . | nindent 8 }}
+        {{- include "kubevela-ux.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
-      {{- toYaml . | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
       securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: {{ include "kubevela.fullname" . }}-apiserver
+        {{- if .Values.velaux.apiServer }}
+        - name: {{ include "kubevela.fullname" . }}-api
           securityContext:
           {{- toYaml .Values.securityContext | nindent 12 }}
-          args:
-            - "apiserver"
-            - "--bind-addr=0.0.0.0:{{ .Values.apiServer.port }}"
-          image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{ quote .Values.image.pullPolicy }}
-          resources:
-          {{- toYaml .Values.resources | nindent 12 }}
+          image: {{ .Values.imageRegistry }}{{ .Values.velaux.apiServer.image }}
           ports:
-            - containerPort: {{ .Values.apiServer.port }}
+            - containerPort: 8000
+        {{- end }}
+        {{- if .Values.velaux.uiServer }}
+        - name: {{ include "kubevela.fullname" . }}-api
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ .Values.imageRegistry }}{{ .Values.velaux.uiServer.image }}
+          ports:
+            - containerPort: 80
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
-      {{- toYaml . | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.affinity }}
       affinity:
-      {{- toYaml . | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
-  {{- toYaml . | nindent 8 }}
-  {{- end }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -55,14 +59,16 @@ metadata:
   name: {{ include "kubevela.fullname" . }}-apiserver
   namespace: {{ .Release.Namespace }}
   labels:
-  {{- include "kubevela.labels" . | nindent 4 }}
+    {{- include "kubevela.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.apiServer.Service.type }}
+  type: {{ .Values.velaux.service.type }}
   ports:
     - port: 80
-      targetPort: {{ .Values.apiServer.port }}
+      {{- with .Values.velaux.service.nodePort }}
+      nodePort: {{- . }}
+      {{- end}}
+      targetPort: 80
       protocol: TCP
-      name: http
   selector:
-  {{- include "kubevela-ux.selectorLabels" . | nindent 6 }}
+    {{- include "kubevela-ux.selectorLabels" . | nindent 4 }}
 {{- end -}}
