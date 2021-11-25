@@ -113,6 +113,8 @@ type asyncReader struct {
 	h       *gitHelper
 	item    *github.RepositoryContent
 	errChan chan error
+	// mutex is needed when append to addon's Definitions/CUETemplate/YAMLTemplate slices
+	mutex *sync.Mutex
 }
 
 // SetReadContent set which file to read
@@ -177,6 +179,16 @@ func getAddonsFromGit(baseURL, dir, token string, opt ListOptions) ([]*types.Add
 
 func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOptions) (*types.Addon, error) {
 	var wg sync.WaitGroup
+	readOption := map[string]struct {
+		jumpConds bool
+		read      func(wg *sync.WaitGroup, reader asyncReader)
+	}{
+		ReadmeFileName:     {!opt.GetDetail, readReadme},
+		TemplateFileName:   {!opt.GetTemplate, readTemplate},
+		MetadataFileName:   {false, readMetadata},
+		DefinitionsDirName: {!opt.GetDefinition, readDefinitions},
+		ResourcesDirName:   {!opt.GetResource && !opt.GetParameter, readResources},
+	}
 
 	gith, err := createGitHelper(baseURL, path.Join(dir, addonName), token)
 	if err != nil {
@@ -191,41 +203,19 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 		addon:   &types.Addon{},
 		h:       gith,
 		errChan: make(chan error, 1),
+		mutex:   &sync.Mutex{},
 	}
 	for _, item := range items {
-		switch strings.ToLower(item.GetName()) {
-		case ReadmeFileName:
-			if !opt.GetDetail {
+		itemName := strings.ToLower(item.GetName())
+		switch itemName {
+		case ReadmeFileName, MetadataFileName, DefinitionsDirName, ResourcesDirName, TemplateFileName:
+			readMethod := readOption[itemName]
+			if readMethod.jumpConds {
 				break
 			}
 			reader.SetReadContent(item)
 			wg.Add(1)
-			go readReadme(&wg, reader)
-		case MetadataFileName:
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readMetadata(&wg, reader)
-		case DefinitionsDirName:
-			if !opt.GetDefinition {
-				break
-			}
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readDefinitions(&wg, reader)
-		case ResourcesDirName:
-			if !opt.GetResource && !opt.GetParameter {
-				break
-			}
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readResources(&wg, reader)
-		case TemplateFileName:
-			if !opt.GetTemplate {
-				break
-			}
-			reader.SetReadContent(item)
-			wg.Add(1)
-			go readTemplate(&wg, reader)
+			go readMethod.read(&wg, reader)
 		}
 	}
 	wg.Wait()
@@ -309,9 +299,13 @@ func readResFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 	}
 	switch filepath.Ext(reader.item.GetName()) {
 	case ".cue":
+		reader.mutex.Lock()
 		reader.addon.CUETemplates = append(reader.addon.CUETemplates, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+		reader.mutex.Unlock()
 	default:
+		reader.mutex.Lock()
 		reader.addon.YAMLTemplates = append(reader.addon.YAMLTemplates, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+		reader.mutex.Unlock()
 	}
 }
 
@@ -355,7 +349,9 @@ func readDefFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 		reader.errChan <- err
 		return
 	}
+	reader.mutex.Lock()
 	reader.addon.Definitions = append(reader.addon.Definitions, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+	reader.mutex.Unlock()
 }
 
 func readMetadata(wg *sync.WaitGroup, reader asyncReader) {
