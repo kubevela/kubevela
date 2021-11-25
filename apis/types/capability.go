@@ -112,6 +112,14 @@ type Parameter struct {
 	JSONType string      `json:"jsonType,omitempty"`
 }
 
+// NestedParameter is more real Parameter. It can contains name and a list
+// of sub-parameter. If subParam is set. other filed in Parameter will be ignored
+// except for Parameter.Name and Parameter.Required
+type NestedParameter struct {
+	Parameter
+	SubParam []NestedParameter
+
+}
 // SetFlagBy set cli flag from Parameter
 func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 	name := v.Name

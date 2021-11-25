@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oam-dev/kubevela/apis/types"
 	"io"
 	"net/http"
 	"os"
@@ -161,6 +163,57 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	arguments := paraDef.Value
 
 	return arguments, nil
+}
+
+func genSchemaFromParameter(title string, p types.NestedParameter) (*openapi3.Schema, error) {
+	paramSchema := openapi3.NewSchema()
+	paramSchema.Title = title
+	if p.SubParam != nil {
+		paramSchema.Type = "object"
+		props := map[string]*openapi3.Schema{}
+		for _, sub := range p.SubParam {
+			subSchema, err := genSchemaFromParameter(sub.Name, sub)
+			if err != nil {
+				return nil, err
+			}
+			props[sub.Name] = subSchema
+		}
+		paramSchema.WithProperties(props)
+	} else {
+		paramSchema.Type = p.JSONType
+		paramSchema.Default = p.Default
+	}
+	return paramSchema, nil
+}
+
+func genOpenAPIFromParameters(title string, parameters []types.NestedParameter) (*openapi3.Schema, error) {
+	paramSchema := openapi3.NewObjectSchema()
+	paramSchema.Title = title
+	requiredProps := make([]string, 0)
+	props := map[string]*openapi3.Schema{}
+	for _, p := range parameters {
+		s, err := genSchemaFromParameter(p.Name, p)
+		if err != nil {
+			return nil, err
+		}
+		props[p.Name] = s
+		if p.Required {
+			requiredProps = append(requiredProps, p.Name)
+		}
+	}
+	paramSchema.Required = requiredProps
+	fmt.Println(requiredProps)
+	paramSchema.WithProperties(props)
+	return paramSchema, nil
+}
+
+// GenOpenAPIFromParameters will help generate openAPI schema from types.NestedParameter array
+func GenOpenAPIFromParameters(parameters []types.NestedParameter) (*openapi3.Schema, error) {
+	paramSchema, err := genOpenAPIFromParameters("", parameters)
+	if err != nil {
+		return nil, err
+	}
+	return paramSchema, nil
 }
 
 // GenOpenAPI generates OpenAPI json schema from cue.Instance

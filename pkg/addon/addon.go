@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	cue2 "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -28,7 +30,6 @@ import (
 	"sync"
 	"time"
 
-	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
@@ -49,7 +50,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -426,24 +426,18 @@ func (h *gitHelper) readRepo(path string) (*github.RepositoryContent, []*github.
 }
 
 func genAddonAPISchema(addonRes *types.Addon) error {
-	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
+	param, err := utils2.PrepareParam(addonRes.Name, addonRes.Parameters)
 	if err != nil {
 		return err
 	}
-	var r cue.Runtime
-	cueInst, err := r.Compile("-", param)
+	nestedParams, err := cue2.GetNestedParameters(param)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "parse parameter to nested parameter fail")
 	}
-	data, err := common.GenOpenAPI(cueInst)
+	schema, err := common.GenOpenAPIFromParameters(nestedParams)
 	if err != nil {
-		return err
+		return errors.Wrap(err,"generate OpenAPI schema fail")
 	}
-	schema, err := utils2.ConvertOpenAPISchema2SwaggerObject(data)
-	if err != nil {
-		return err
-	}
-	utils2.FixOpenAPISchema("", schema)
 	addonRes.APISchema = schema
 	return nil
 }
