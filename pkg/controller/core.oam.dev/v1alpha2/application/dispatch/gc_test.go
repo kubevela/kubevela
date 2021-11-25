@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -33,31 +34,39 @@ func TestIsTrackedResources(t *testing.T) {
 	}{{
 		oldRT: &v1beta1.ResourceTracker{
 			Status: v1beta1.ResourceTrackerStatus{
-				TrackedResources: []corev1.ObjectReference{{
-					Kind:       "Deployment",
-					APIVersion: "apps/v1",
-					Name:       "test",
-					Namespace:  "default",
+				TrackedResources: []common.ClusterObjectReference{{
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}, {
-					Kind:       "Pod",
-					APIVersion: "v1",
-					Name:       "test",
-					Namespace:  "default",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}},
 			},
 		},
 		newRT: &v1beta1.ResourceTracker{
 			Status: v1beta1.ResourceTrackerStatus{
-				TrackedResources: []corev1.ObjectReference{{
-					Kind:       "Deployment",
-					APIVersion: "apps/v1",
-					Name:       "test",
-					Namespace:  "default",
+				TrackedResources: []common.ClusterObjectReference{{
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}, {
-					Kind:       "Pod",
-					APIVersion: "v1",
-					Name:       "test",
-					Namespace:  "default",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}},
 			},
 		},
@@ -65,31 +74,39 @@ func TestIsTrackedResources(t *testing.T) {
 	}, {
 		oldRT: &v1beta1.ResourceTracker{
 			Status: v1beta1.ResourceTrackerStatus{
-				TrackedResources: []corev1.ObjectReference{{
-					Kind:       "Deployment",
-					APIVersion: "apps/v1",
-					Name:       "test",
-					Namespace:  "default",
+				TrackedResources: []common.ClusterObjectReference{{
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}, {
-					Kind:       "Pod",
-					APIVersion: "v1",
-					Name:       "hello",
-					Namespace:  "default",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Name:       "hello",
+						Namespace:  "default",
+					},
 				}},
 			},
 		},
 		newRT: &v1beta1.ResourceTracker{
 			Status: v1beta1.ResourceTrackerStatus{
-				TrackedResources: []corev1.ObjectReference{{
-					Kind:       "Deployment",
-					APIVersion: "apps/v1",
-					Name:       "test",
-					Namespace:  "default",
+				TrackedResources: []common.ClusterObjectReference{{
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}, {
-					Kind:       "Pod",
-					APIVersion: "v1",
-					Name:       "test",
-					Namespace:  "default",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}},
 			},
 		},
@@ -98,16 +115,20 @@ func TestIsTrackedResources(t *testing.T) {
 		oldRT: &v1beta1.ResourceTracker{},
 		newRT: &v1beta1.ResourceTracker{
 			Status: v1beta1.ResourceTrackerStatus{
-				TrackedResources: []corev1.ObjectReference{{
-					Kind:       "Deployment",
-					APIVersion: "apps/v1",
-					Name:       "test",
-					Namespace:  "default",
+				TrackedResources: []common.ClusterObjectReference{{
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}, {
-					Kind:       "Pod",
-					APIVersion: "v1",
-					Name:       "test",
-					Namespace:  "default",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}},
 			},
 		},
@@ -115,16 +136,20 @@ func TestIsTrackedResources(t *testing.T) {
 	}, {
 		oldRT: &v1beta1.ResourceTracker{
 			Status: v1beta1.ResourceTrackerStatus{
-				TrackedResources: []corev1.ObjectReference{{
-					Kind:       "Deployment",
-					APIVersion: "apps/v1",
-					Name:       "test",
-					Namespace:  "default",
+				TrackedResources: []common.ClusterObjectReference{{
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}, {
-					Kind:       "Pod",
-					APIVersion: "v1",
-					Name:       "test",
-					Namespace:  "default",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Name:       "test",
+						Namespace:  "default",
+					},
 				}},
 			},
 		},

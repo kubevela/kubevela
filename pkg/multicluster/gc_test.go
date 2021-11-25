@@ -17,16 +17,19 @@ limitations under the License.
 package multicluster
 
 import (
+	"context"
 	"encoding/json"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func TestGetAppliedCluster(t *testing.T) {
@@ -35,11 +38,12 @@ func TestGetAppliedCluster(t *testing.T) {
 	app.Status.AppliedResources = []common.ClusterObjectReference{{
 		Cluster: "cluster-0",
 	}}
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).Build()
 	app.Status.PolicyStatus = []common.PolicyStatus{{
 		Type:   v1alpha1.EnvBindingPolicyType,
 		Status: &runtime.RawExtension{Raw: []byte(`bad value`)},
 	}}
-	clusters := getAppliedClusters(app)
+	clusters := getAppliedClusters(context.Background(), cli, app)
 	r.Equal(1, len(clusters))
 	r.Equal("cluster-0", clusters[0])
 	envBindingStatus := &v1alpha1.EnvBindingStatus{ClusterConnections: []v1alpha1.ClusterConnection{{
@@ -49,11 +53,12 @@ func TestGetAppliedCluster(t *testing.T) {
 	}}}
 	bs, err := json.Marshal(envBindingStatus)
 	r.NoError(err)
+	app.Status.AppliedResources = []common.ClusterObjectReference{}
 	app.Status.PolicyStatus = []common.PolicyStatus{{
 		Type:   v1alpha1.EnvBindingPolicyType,
 		Status: &runtime.RawExtension{Raw: bs},
 	}}
-	clusters = getAppliedClusters(app)
+	clusters = getAppliedClusters(context.Background(), cli, app)
 	r.Equal(2, len(clusters))
 	sort.Strings(clusters)
 	r.Equal("cluster-1", clusters[0])

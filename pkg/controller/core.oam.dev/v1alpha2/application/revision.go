@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -598,27 +599,6 @@ func ComputeComponentRevisionHash(comp *types.ComponentManifest) (string, error)
 	return utils.ComputeSpecHash(&compRevisionHash)
 }
 
-// createOrGetResourceTracker create or get a resource tracker to manage all componentRevisions
-func (h *AppHandler) createOrGetResourceTracker(ctx context.Context) (*v1beta1.ResourceTracker, error) {
-	rt := &v1beta1.ResourceTracker{}
-	rtName := h.app.Name + "-" + h.app.Namespace
-	if err := h.r.Get(ctx, ktypes.NamespacedName{Name: rtName}, rt); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-		rt.SetName(rtName)
-		rt.SetLabels(map[string]string{
-			oam.LabelAppName:      h.app.Name,
-			oam.LabelAppNamespace: h.app.Namespace,
-		})
-		rt.SetAnnotations(map[string]string{oam.AnnotationResourceTrackerLifeLong: "true"})
-		if err = h.r.Create(ctx, rt); err != nil {
-			return nil, err
-		}
-	}
-	return rt, nil
-}
-
 // createControllerRevision records snapshot of a component
 func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.ComponentManifest) error {
 	comp, err := componentManifest2Component(cm)
@@ -626,7 +606,7 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 		return err
 	}
 	revision, _ := utils.ExtractRevision(cm.RevisionName)
-	rt, err := h.createOrGetResourceTracker(ctx)
+	rt, err := resourcetracker.CreateOrGetApplicationRootResourceTracker(ctx, h.r.Client, h.app)
 	if err != nil {
 		return err
 	}
@@ -798,7 +778,7 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 		return nil, err
 	}
 	for _, rt := range rtList.Items {
-		if dispatch.IsLifeLongResourceTracker(rt) {
+		if rt.IsLifeLong() {
 			continue
 		}
 		appRev := dispatch.ExtractAppRevisionName(rt.Name, ns)

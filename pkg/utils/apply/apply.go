@@ -18,7 +18,10 @@ package apply
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -270,6 +273,37 @@ func MustBeControllableByAny(ctrlUIDs []types.UID) ApplyOption {
 			}
 		}
 		return errors.Errorf("existing object is not controlled by any of UID %q", ctrlUIDs)
+	}
+}
+
+// MustBeControlledByApp requires that the new object is controllable by versioned resourcetracker
+func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
+	pattern := "^" + app.GetName() + "-v[0-9]+-" + app.GetNamespace() + "$"
+	return func(_ *applyAction, existing, _ client.Object) error {
+		if existing == nil {
+			return nil
+		}
+		existingObjMeta, _ := existing.(metav1.Object)
+		c := metav1.GetControllerOf(existingObjMeta)
+		if c == nil {
+			return nil
+		}
+
+		// NOTE This is for backward compatibility after ApplicationContext is deprecated.
+		// In legacy clusters, existing resources are ctrl-owned by ApplicationContext or ResourceTracker (only for
+		// cx-namespace and cluster-scope resources).  We use a particular annotation to identify legacy resources.
+		if len(existingObjMeta.GetAnnotations()[oam.AnnotationKubeVelaVersion]) == 0 {
+			// just skip checking UIDs, '3-way-merge' will remove the legacy ctrl-owner automatically
+			return nil
+		}
+
+		if !(c.APIVersion == v1beta1.SchemeGroupVersion.String()) || !(c.Kind == v1beta1.ResourceTrackerKind) {
+			return fmt.Errorf("existing object is not controlled by resourcetracker, currently controlled by %s[%s]", c.Kind, c.APIVersion)
+		}
+		if !regexp.MustCompile(pattern).MatchString(c.Name) {
+			return fmt.Errorf("existing object is controlled by resourcetracker %s which does not conform to pattern %s", c.Name, pattern)
+		}
+		return nil
 	}
 }
 
