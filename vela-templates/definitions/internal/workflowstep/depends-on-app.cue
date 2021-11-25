@@ -6,7 +6,9 @@ import (
 "depends-on-app": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "check or install depends-on Application"
 }
 

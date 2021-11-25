@@ -1,7 +1,9 @@
 pvc: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"deprecated": "true"
+	}
 	description: "Create a Persistent Volume Claim and mount the PVC as volume to the  first container in the pod. This definition is DEPRECATED, please specify pvc in 'storage' instead."
 	attributes: {
 		appliesToWorkloads: ["deployments.apps"]

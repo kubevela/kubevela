@@ -1,7 +1,9 @@
 volumes: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"deprecated": "true"
+	}
 	description: "Add volumes on K8s pod for your workload which follows the pod spec in path 'spec.template'. This definition is DEPRECATED, please use 'storage' instead."
 	attributes: {
 		appliesToWorkloads: ["deployments.apps"]

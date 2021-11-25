@@ -5,7 +5,9 @@ import (
 "apply-remaining": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Apply remaining components and traits"
 }
 template: {

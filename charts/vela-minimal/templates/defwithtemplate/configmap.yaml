@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Create/Attach configmaps on K8s pod for your workload which follows the pod spec in path 'spec.template'. This definition is DEPRECATED, please specify configmap in 'storage' instead.
+  labels:
+    custom.definition.oam.dev/deprecated: "true"
   name: configmap
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

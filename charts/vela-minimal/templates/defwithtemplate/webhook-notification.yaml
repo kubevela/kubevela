@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Send message to webhook. This definition is DEPRECATED, please use 'notification' instead.
+  labels:
+    custom.definition.oam.dev/deprecated: "true"
   name: webhook-notification
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

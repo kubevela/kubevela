@@ -5,6 +5,8 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Raw allow users to specify raw K8s object in properties. This definition is DEPRECATED, please use 'k8s-objects' instead.
+  labels:
+    custom.definition.oam.dev/deprecated: "true"
   name: raw
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

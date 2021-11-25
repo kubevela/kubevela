@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Enable public web traffic for the component, the ingress API matches K8s v1.20+.
+  labels:
+    custom.definition.oam.dev/deprecated: "true"
   name: ingress-1-20
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Enable public web traffic for the component.
+  labels:
+    custom.definition.oam.dev/deprecated: "true"
   name: ingress
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

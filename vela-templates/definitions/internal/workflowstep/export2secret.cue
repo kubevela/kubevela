@@ -5,7 +5,9 @@ import (
 "export2secret": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Export data to secret for your workflow steps"
 }
 template: {

@@ -1,7 +1,9 @@
 "ingress-1-20": {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"deprecated": "true"
+	}
 	description: "Enable public web traffic for the component, the ingress API matches K8s v1.20+."
 	attributes: {
 		podDisruptive: false

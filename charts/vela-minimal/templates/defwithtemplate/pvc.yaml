@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Create a Persistent Volume Claim and mount the PVC as volume to the  first container in the pod. This definition is DEPRECATED, please specify pvc in 'storage' instead.
+  labels:
+    custom.definition.oam.dev/deprecated: "true"
   name: pvc
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

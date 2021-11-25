@@ -1,7 +1,9 @@
 ingress: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"deprecated": "true"
+	}
 	description: "Enable public web traffic for the component."
 	attributes: {
 		podDisruptive: false

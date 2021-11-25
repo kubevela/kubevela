@@ -23,7 +23,9 @@
 		workloadRefPath: ""
 	}
 	description: "Enable public web traffic for the component without creating a Service."
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	type: "trait"
 }
 

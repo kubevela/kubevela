@@ -1,7 +1,9 @@
 configmap: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"deprecated": "true"
+	}
 	description: "Create/Attach configmaps on K8s pod for your workload which follows the pod spec in path 'spec.template'. This definition is DEPRECATED, please specify configmap in 'storage' instead."
 	attributes: {
 		podDisruptive: true

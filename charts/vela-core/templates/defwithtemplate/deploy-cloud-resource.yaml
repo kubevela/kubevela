@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Deploy cloud resource and bind secret to clusters
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: deploy-cloud-resource
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

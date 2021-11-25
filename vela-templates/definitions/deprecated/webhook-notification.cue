@@ -6,7 +6,9 @@ import (
 "webhook-notification": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"deprecated": "true"
+	}
 	description: "Send message to webhook. This definition is DEPRECATED, please use 'notification' instead."
 }
 template: {

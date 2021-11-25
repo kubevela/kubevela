@@ -5,7 +5,9 @@ import (
 "apply-object": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Apply raw kubernetes objects for your workflow steps"
 }
 template: {

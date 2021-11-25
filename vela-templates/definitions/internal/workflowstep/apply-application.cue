@@ -5,7 +5,9 @@ import (
 "apply-application": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Apply application for your workflow steps"
 }
 template: {

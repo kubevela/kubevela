@@ -5,7 +5,9 @@ import (
 "read-object": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Read objects for your workflow steps"
 }
 template: {
