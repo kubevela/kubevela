@@ -490,7 +490,6 @@ spec:
       if context.output.status.readyReplicas == _|_ {
       	message: ""
       }
-    healthPolicy: 'isHealth: context.output.status.replicas == context.output.status.readyReplicas'
   workload:
     definition:
       apiVersion: apps/v1

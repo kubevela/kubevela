@@ -18,9 +18,9 @@ webservice: {
 					message: ""
 				}
 				"""#
-			healthPolicy: #"""
-				isHealth: context.output.status.replicas == context.output.status.readyReplicas
-				"""#
+			// healthPolicy: #"""
+			//  isHealth: context.output.status.replicas == context.output.status.readyReplicas
+			//  """#
 		}
 	}
 }
