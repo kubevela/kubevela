@@ -20,8 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	cue2 "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -45,11 +44,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
+	cue2 "github.com/oam-dev/kubevela/pkg/cue"
 	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -436,7 +437,7 @@ func genAddonAPISchema(addonRes *types.Addon) error {
 	}
 	schema, err := common.GenOpenAPIFromParameters(nestedParams)
 	if err != nil {
-		return errors.Wrap(err,"generate OpenAPI schema fail")
+		return errors.Wrap(err, "generate OpenAPI schema fail")
 	}
 	addonRes.APISchema = schema
 	return nil
@@ -493,6 +494,7 @@ func RenderApplication(addon *types.Addon, args map[string]interface{}) (*v1beta
 	for _, tmpl := range addon.CUETemplates {
 		comp, err := renderCUETemplate(tmpl, addon.Parameters, args)
 		if err != nil {
+			log.Logger.Errorf("fail to render cue template, %v",err)
 			return nil, nil, ErrRenderCueTmpl
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)

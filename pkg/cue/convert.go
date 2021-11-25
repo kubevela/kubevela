@@ -19,9 +19,11 @@ package cue
 import (
 	"errors"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-	errors2 "github.com/pkg/errors"
 	"strings"
+
+	errors2 "github.com/pkg/errors"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 
 	"cuelang.org/go/cue"
 

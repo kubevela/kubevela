@@ -118,8 +118,8 @@ type Parameter struct {
 type NestedParameter struct {
 	Parameter
 	SubParam []NestedParameter
-
 }
+
 // SetFlagBy set cli flag from Parameter
 func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 	name := v.Name

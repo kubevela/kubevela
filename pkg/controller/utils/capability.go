@@ -536,7 +536,7 @@ func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]
 }
 
 // PrepareParam is a copy of PrepareParameterCue, for ast parse
-func PrepareParam(capabilityName, capabilityTemplate string)(string,error){
+func PrepareParam(capabilityName, capabilityTemplate string) (string, error) {
 	var template string
 	var withParameterFlag bool
 	r := regexp.MustCompile(`[[:space:]]*parameter:[[:space:]]*`)
@@ -546,7 +546,7 @@ func PrepareParam(capabilityName, capabilityTemplate string)(string,error){
 		if r.MatchString(text) {
 			// a variable has to be refined as a definition which starts with "#"
 			// text may be start with space or tab, we should clean up text
-			text = fmt.Sprintf("%s", trimRe.ReplaceAllString(text, ""))
+			text = trimRe.ReplaceAllString(text, "")
 			withParameterFlag = true
 		}
 		template += fmt.Sprintf("%s\n", text)
@@ -557,6 +557,7 @@ func PrepareParam(capabilityName, capabilityTemplate string)(string,error){
 	}
 	return template, nil
 }
+
 // PrepareParameterCue cuts `parameter` section form definition .cue file
 func PrepareParameterCue(capabilityName, capabilityTemplate string) (string, error) {
 	var template string

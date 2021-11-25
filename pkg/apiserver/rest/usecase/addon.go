@@ -359,6 +359,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 		}
 
 		app, defs, err := pkgaddon.RenderApplication(addon, args.Args)
+		log.Logger.Errorf("render application fail: %v",err)
 		if err != nil {
 			return bcode.ErrAddonRender
 		}

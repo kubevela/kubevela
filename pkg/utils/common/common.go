@@ -22,13 +22,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/oam-dev/kubevela/apis/types"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/getkin/kin-openapi/openapi3"
+
+	"github.com/oam-dev/kubevela/apis/types"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
