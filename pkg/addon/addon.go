@@ -568,7 +568,7 @@ func renderNamespace(namespace string) *unstructured.Unstructured {
 func renderRawComponent(elem types.AddonElementFile) (*common2.ApplicationComponent, error) {
 	baseRawComponent := common2.ApplicationComponent{
 		Type: "raw",
-		Name: strings.Join(append(elem.Path, elem.Name), "-"),
+		Name: elem.Name,
 	}
 	obj, err := renderObject(elem)
 	if err != nil {
