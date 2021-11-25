@@ -115,7 +115,7 @@ velaux:
     Service:
       type: ClusterIP
   uiServer:
-    image: barnett/kubevela:velaux.11241
+    image: oamdev/velaux
   service:
     type: NodePort
     nodePort: 32465
