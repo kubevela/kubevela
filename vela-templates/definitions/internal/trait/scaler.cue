@@ -13,6 +13,6 @@ template: {
 		// +usage=Specify the number of workload
 		replicas: *1 | int
 	}
-	// +patchStrategy=retainKey
+	// +patchStrategy=retainKeys
 	patch: spec: replicas: parameter.replicas
 }
