@@ -166,27 +166,17 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 }
 
 func genSchemaFromParameter(title string, p types.NestedParameter) (*openapi3.Schema, error) {
+	if p.SubParam != nil {
+		return genSchemaFromParameters(p.Name, p.SubParam)
+	}
 	paramSchema := openapi3.NewSchema()
 	paramSchema.Title = title
-	if p.SubParam != nil {
-		paramSchema.Type = "object"
-		props := map[string]*openapi3.Schema{}
-		for _, sub := range p.SubParam {
-			subSchema, err := genSchemaFromParameter(sub.Name, sub)
-			if err != nil {
-				return nil, err
-			}
-			props[sub.Name] = subSchema
-		}
-		paramSchema.WithProperties(props)
-	} else {
-		paramSchema.Type = p.JSONType
-		paramSchema.Default = p.Default
-	}
+	paramSchema.Type = p.JSONType
+	paramSchema.Default = p.Default
 	return paramSchema, nil
 }
 
-func genOpenAPIFromParameters(title string, parameters []types.NestedParameter) (*openapi3.Schema, error) {
+func genSchemaFromParameters(title string, parameters []types.NestedParameter) (*openapi3.Schema, error) {
 	paramSchema := openapi3.NewObjectSchema()
 	paramSchema.Title = title
 	requiredProps := make([]string, 0)
@@ -202,14 +192,13 @@ func genOpenAPIFromParameters(title string, parameters []types.NestedParameter) 
 		}
 	}
 	paramSchema.Required = requiredProps
-	fmt.Println(requiredProps)
 	paramSchema.WithProperties(props)
 	return paramSchema, nil
 }
 
 // GenOpenAPIFromParameters will help generate openAPI schema from types.NestedParameter array
 func GenOpenAPIFromParameters(parameters []types.NestedParameter) (*openapi3.Schema, error) {
-	paramSchema, err := genOpenAPIFromParameters("", parameters)
+	paramSchema, err := genSchemaFromParameters("", parameters)
 	if err != nil {
 		return nil, err
 	}
