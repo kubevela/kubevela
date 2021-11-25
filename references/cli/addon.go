@@ -424,7 +424,7 @@ func waitApplicationRunning(obj *v1beta1.Application) error {
 			return nil
 		}
 		timeConsumed := int(time.Since(start).Seconds())
-		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. Is is now in phase: %s (timeout %d/%d seconds)...",
+		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
 			phase, timeConsumed, int(timeout.Seconds())))
 		time.Sleep(trackInterval)
 	}
