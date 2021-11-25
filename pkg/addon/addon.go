@@ -112,7 +112,7 @@ type asyncReader struct {
 	h       *gitHelper
 	item    *github.RepositoryContent
 	errChan chan error
-	//mutex is needed when append to addon's Definitions/CUETemplate/YAMLTemplate slices
+	// mutex is needed when append to addon's Definitions/CUETemplate/YAMLTemplate slices
 	mutex *sync.Mutex
 }
 
