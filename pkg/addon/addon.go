@@ -112,6 +112,8 @@ type asyncReader struct {
 	h       *gitHelper
 	item    *github.RepositoryContent
 	errChan chan error
+	//mutex is needed when append to addon's Definitions/CUETemplate/YAMLTemplate slices
+	mutex *sync.Mutex
 }
 
 // SetReadContent set which file to read
@@ -178,7 +180,7 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 	var wg sync.WaitGroup
 	readOption := map[string]struct {
 		jumpConds bool
-		readFunc  func(wg *sync.WaitGroup, reader asyncReader)
+		read      func(wg *sync.WaitGroup, reader asyncReader)
 	}{
 		ReadmeFileName:     {!opt.GetDetail, readReadme},
 		TemplateFileName:   {!opt.GetTemplate, readTemplate},
@@ -200,17 +202,19 @@ func getSingleAddonFromGit(baseURL, dir, addonName, token string, opt ListOption
 		addon:   &types.Addon{},
 		h:       gith,
 		errChan: make(chan error, 1),
+		mutex:   &sync.Mutex{},
 	}
 	for _, item := range items {
 		itemName := strings.ToLower(item.GetName())
 		switch itemName {
 		case ReadmeFileName, MetadataFileName, DefinitionsDirName, ResourcesDirName, TemplateFileName:
-			if readOption[itemName].jumpConds {
+			readMethod := readOption[itemName]
+			if readMethod.jumpConds {
 				break
 			}
 			reader.SetReadContent(item)
 			wg.Add(1)
-			go readOption[itemName].readFunc(&wg, reader)
+			go readMethod.read(&wg, reader)
 		}
 	}
 	wg.Wait()
@@ -294,9 +298,13 @@ func readResFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 	}
 	switch filepath.Ext(reader.item.GetName()) {
 	case ".cue":
+		reader.mutex.Lock()
 		reader.addon.CUETemplates = append(reader.addon.CUETemplates, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+		reader.mutex.Unlock()
 	default:
+		reader.mutex.Lock()
 		reader.addon.YAMLTemplates = append(reader.addon.YAMLTemplates, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+		reader.mutex.Unlock()
 	}
 }
 
@@ -340,7 +348,9 @@ func readDefFile(wg *sync.WaitGroup, reader asyncReader, dirPath []string) {
 		reader.errChan <- err
 		return
 	}
+	reader.mutex.Lock()
 	reader.addon.Definitions = append(reader.addon.Definitions, types.AddonElementFile{Data: b, Name: reader.item.GetName(), Path: dirPath})
+	reader.mutex.Unlock()
 }
 
 func readMetadata(wg *sync.WaitGroup, reader asyncReader) {
