@@ -501,6 +501,9 @@ func RenderApplication(addon *types.Addon, args map[string]interface{}) (*v1beta
 		if err != nil {
 			return nil, nil, ErrRenderCueTmpl
 		}
+		if addon.Name == "observability" && strings.HasSuffix(comp.Name, ".cue") {
+			comp.Name = strings.Split(comp.Name, ".cue")[0]
+		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
 
