@@ -10,11 +10,11 @@ spec:
   replicas: {{ .Values.apiServer.replicaCount }}
   selector:
     matchLabels:
-  {{- include "kubevela-apiserver.selectorLabels" . | nindent 6 }}
+  {{- include "kubevela-ux.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-    {{- include "kubevela-apiserver.selectorLabels" . | nindent 8 }}
+    {{- include "kubevela-ux.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -64,5 +64,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-  {{- include "kubevela-apiserver.selectorLabels" . | nindent 6 }}
+  {{- include "kubevela-ux.selectorLabels" . | nindent 6 }}
 {{- end -}}

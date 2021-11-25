@@ -13,10 +13,6 @@ image:
   repository: oamdev/vela-core
   tag: latest
   pullPolicy: Always
-apiserverImage:
-  repository: oamdev/vela-apiserver
-  tag: v1.1.2
-  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
@@ -110,12 +106,18 @@ dependCheckWait: 30s
 # OAMSpecVer is the oam spec version controller want to setup
 OAMSpecVer: "v0.3"
 
-apiServer:
-  enabled: true
-  port: 8000
+
+velaux:
   replicaCount: 1
-  Service:
-    type: ClusterIP
+  apiServer:
+    image: oamdev/vela-apiserver:v1.1.2
+    Service:
+      type: ClusterIP
+  uiServer:
+    image: barnett/kubevela:velaux.11241
+  service:
+    type: NodePort
+    nodePort: 32465
 
 multicluster:
   enabled: false
