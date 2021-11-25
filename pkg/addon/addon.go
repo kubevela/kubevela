@@ -606,7 +606,7 @@ func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[
 		return nil, err
 	}
 	comp := common2.ApplicationComponent{
-		Name: strings.Join(append(elem.Path, elem.Name), "-"),
+		Name: elem.Name,
 	}
 	err = yaml.Unmarshal(b, &comp)
 	if err != nil {
