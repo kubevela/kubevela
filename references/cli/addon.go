@@ -24,29 +24,24 @@ import (
 	"text/template"
 	"time"
 
-	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-
-	yaml2 "k8s.io/apimachinery/pkg/util/yaml"
-
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"github.com/Masterminds/sprig"
 	"github.com/gosuri/uitable"
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	types2 "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
+	yaml2 "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -410,22 +405,29 @@ func (a *Addon) enable(ctx context.Context, k8sClient client.Client, name string
 }
 
 func waitApplicationRunning(obj *v1beta1.Application) error {
-	ctx := context.Background()
-	period := 20 * time.Second
+	trackInterval := 5 * time.Second
 	timeout := 10 * time.Minute
+	start := time.Now()
+	ctx := context.Background()
 	var app v1beta1.Application
-	return wait.PollImmediate(period, timeout, func() (done bool, err error) {
-		err = clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &app)
+	spinner := newTrackingSpinnerWithDelay("Waiting addon running ...", 1*time.Second)
+	spinner.Start()
+	defer spinner.Stop()
+
+	for {
+		err := clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &app)
 		if err != nil {
-			return false, client.IgnoreNotFound(err)
+			return client.IgnoreNotFound(err)
 		}
 		phase := app.Status.Phase
 		if phase == common2.ApplicationRunning {
-			return true, nil
+			return nil
 		}
-		fmt.Printf("Application %s is in phase:%s...\n", obj.GetName(), phase)
-		return false, nil
-	})
+		timeConsumed := int(time.Since(start).Seconds())
+		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
+			phase, timeConsumed, int(timeout.Seconds())))
+		time.Sleep(trackInterval)
+	}
 }
 func (a *Addon) disable() error {
 	obj, err := a.renderApplication()
