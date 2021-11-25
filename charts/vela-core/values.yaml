@@ -110,7 +110,8 @@ OAMSpecVer: "v0.3"
 velaux:
   replicaCount: 1
   apiServer:
-    image: oamdev/vela-apiserver:v1.1.2
+    image: oamdev/vela-apiserver 
+
     Service:
       type: ClusterIP
   uiServer:
