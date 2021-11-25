@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
@@ -136,7 +137,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 			},
 			OnStoppedLeading: func() {
 				klog.Infof("leader lost: %s", s.cfg.LeaderConfig.ID)
-				//os.Exit(0)
+				os.Exit(0)
 			},
 			OnNewLeader: func(identity string) {
 				if identity == s.cfg.LeaderConfig.ID {
