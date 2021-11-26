@@ -221,13 +221,24 @@ func (h *handler) setWorkloadBaseInfo() {
 		h.sourceWorkload.SetNamespace(h.rollout.Namespace)
 	}
 
+	var appRev string
+	if len(h.rollout.GetLabels()) > 0 {
+		appRev = h.rollout.GetLabels()[oam.LabelAppRevision]
+	}
+
 	h.targetWorkload.SetName(h.compName)
-	util.AddLabels(h.targetWorkload, map[string]string{oam.LabelAppComponentRevision: h.targetRevName})
+	util.AddLabels(h.targetWorkload, map[string]string{
+		oam.LabelAppComponentRevision: h.targetRevName,
+		oam.LabelAppRevision:          appRev,
+	})
 	util.AddAnnotations(h.targetWorkload, map[string]string{oam.AnnotationSkipGC: "true"})
 
 	if h.sourceWorkload != nil {
 		h.sourceWorkload.SetName(h.compName)
-		util.AddLabels(h.sourceWorkload, map[string]string{oam.LabelAppComponentRevision: h.sourceRevName})
+		util.AddLabels(h.sourceWorkload, map[string]string{
+			oam.LabelAppComponentRevision: h.sourceRevName,
+			oam.LabelAppRevision:          appRev,
+		})
 	}
 }
 
