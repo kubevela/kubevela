@@ -20,7 +20,6 @@ import (
 	stdctx "context"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,40 +44,26 @@ type provider struct {
 	cli client.Client
 }
 
-// AppResources represent resources created by app
-type AppResources struct {
-	Revision       int64             `json:"revision"`
-	PublishVersion string            `json:"publishVersion"`
-	DeployVersion  string            `json:"deployVersion"`
-	Metadata       metav1.ObjectMeta `json:"metadata"`
-	Components     []Component       `json:"components"`
-}
-
-// Component group resources rendered by ApplicationComponent
-type Component struct {
-	Name      string     `json:"name"`
-	Resources []Resource `json:"resources"`
-}
-
 // Resource refer to an object with cluster info
 type Resource struct {
-	Cluster string                     `json:"cluster"`
-	Object  *unstructured.Unstructured `json:"object"`
+	Cluster   string                     `json:"cluster"`
+	Component string                     `json:"component"`
+	Revision  string                     `json:"revision"`
+	Object    *unstructured.Unstructured `json:"object"`
 }
 
 // Option is the query option
 type Option struct {
-	Name               string        `json:"name"`
-	Namespace          string        `json:"namespace"`
-	Components         []string      `json:"components,omitempty"`
-	Filter             ClusterFilter `json:"filter,omitempty"`
-	EnableHistoryQuery bool          `json:"enableHistoryQuery,omitempty"`
+	Name      string       `json:"name"`
+	Namespace string       `json:"namespace"`
+	Filter    FilterOption `json:"filter,omitempty"`
 }
 
-// ClusterFilter filter resource created by component
-type ClusterFilter struct {
-	Cluster          string `json:"cluster,omitempty"`
-	ClusterNamespace string `json:"clusterNamespace,omitempty"`
+// FilterOption filter resource created by component
+type FilterOption struct {
+	Cluster          string   `json:"cluster,omitempty"`
+	ClusterNamespace string   `json:"clusterNamespace,omitempty"`
+	Components       []string `json:"components,omitempty"`
 }
 
 // ListResourcesInApp lists CRs created by Application
