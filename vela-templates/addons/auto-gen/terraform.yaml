@@ -111,6 +111,8 @@ spec:
       kind: ComponentDefinition
       metadata:
         annotations:
+          cloud-resource/console-url: https://oss.console.aliyun.com/bucket/oss-{ALICLOUD_REGION}/{BUCKET_NAME}/overview
+          cloud-resource/identifier: BUCKET_NAME
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             OSS object
         labels:
@@ -138,6 +140,9 @@ spec:
       kind: ComponentDefinition
       metadata:
         annotations:
+          cloud-resource/console-url: https://rdsnext.console.aliyun.com/detail/{DB_ID}/basicInfo?&region={ALICLOUD_REGION}
+          cloud-resource/identifier: DB_ID
+          cloud-resource/sensitive-outputs: DB_PASSWORD
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             RDS object
         labels:
@@ -159,6 +164,10 @@ spec:
                 password = var.password
                 allocate_public_connection = var.allocate_public_connection
                 security_ips = ["0.0.0.0/0",]
+              }
+
+              output "DB_ID" {
+                value = module.rds.db_instance_id
               }
 
               output "DB_NAME" {
