@@ -362,13 +362,6 @@ type DetailApplicationResponse struct {
 	ResourceInfo ApplicationResourceInfo `json:"resourceInfo"`
 }
 
-// WorkflowStepStatus workflow step status model
-type WorkflowStepStatus struct {
-	Name     string        `json:"name"`
-	Status   string        `json:"status"`
-	TakeTime time.Duration `json:"takeTime"`
-}
-
 // ApplicationResourceInfo application-level resource consumption statistics
 type ApplicationResourceInfo struct {
 	ComponentNum int64 `json:"componentNum"`
@@ -624,12 +617,12 @@ type DetailWorkflowRecordResponse struct {
 
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
-	Name         string                      `json:"name"`
-	Namespace    string                      `json:"namespace"`
-	WorkflowName string                      `json:"workflowName"`
-	StartTime    time.Time                   `json:"startTime,omitempty"`
-	Status       string                      `json:"status"`
-	Steps        []common.WorkflowStepStatus `json:"steps,omitempty"`
+	Name         string                     `json:"name"`
+	Namespace    string                     `json:"namespace"`
+	WorkflowName string                     `json:"workflowName"`
+	StartTime    time.Time                  `json:"startTime,omitempty"`
+	Status       string                     `json:"status"`
+	Steps        []model.WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // ApplicationDeployRequest the application deploy or update event request

@@ -48,7 +48,6 @@ type WorkflowStep struct {
 	Name        string             `json:"name"`
 	Alias       string             `json:"alias"`
 	Type        string             `json:"type"`
-	Group       string             `json:"group"`
 	Description string             `json:"description"`
 	OrderIndex  int                `json:"orderIndex"`
 	Inputs      common.StepInputs  `json:"inputs,omitempty"`
@@ -89,15 +88,27 @@ func (w *Workflow) Index() map[string]string {
 // WorkflowRecord is the workflow record database model
 type WorkflowRecord struct {
 	Model
-	WorkflowName       string                      `json:"workflowName"`
-	AppPrimaryKey      string                      `json:"appPrimaryKey"`
-	RevisionPrimaryKey string                      `json:"revisionPrimaryKey"`
-	Name               string                      `json:"name"`
-	Namespace          string                      `json:"namespace"`
-	StartTime          time.Time                   `json:"startTime,omitempty"`
-	Finished           string                      `json:"finished"`
-	Steps              []common.WorkflowStepStatus `json:"steps,omitempty"`
-	Status             string                      `json:"status"`
+	WorkflowName       string               `json:"workflowName"`
+	AppPrimaryKey      string               `json:"appPrimaryKey"`
+	RevisionPrimaryKey string               `json:"revisionPrimaryKey"`
+	Name               string               `json:"name"`
+	Namespace          string               `json:"namespace"`
+	StartTime          time.Time            `json:"startTime,omitempty"`
+	Finished           string               `json:"finished"`
+	Steps              []WorkflowStepStatus `json:"steps,omitempty"`
+	Status             string               `json:"status"`
+}
+
+type WorkflowStepStatus struct {
+	ID               string                   `json:"id"`
+	Name             string                   `json:"name"`
+	Alias            string                   `json:"alias"`
+	Type             string                   `json:"type,omitempty"`
+	Phase            common.WorkflowStepPhase `json:"phase,omitempty"`
+	Message          string                   `json:"message,omitempty"`
+	Reason           string                   `json:"reason,omitempty"`
+	FirstExecuteTime time.Time                `json:"firstExecuteTime,omitempty"`
+	LastExecuteTime  time.Time                `json:"lastExecuteTime,omitempty"`
 }
 
 // TableName return custom table name
