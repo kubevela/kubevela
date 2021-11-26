@@ -6,8 +6,8 @@ data:
     metadata:
       annotations:
         addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
-        addons.oam.dev/name: terraform/provider-alibaba
-      name: terraform-provider-alibaba
+        addons.oam.dev/name: terraform-alibaba
+      name: terraform-alibaba
       namespace: vela-system
     spec:
       components:
@@ -42,17 +42,26 @@ data:
             provider: alibaba
             region: '[[ index .Args "ALICLOUD_REGION" ]]'
         type: raw
+      workflow:
+        steps:
+        - name: ""
+          properties:
+            name: terraform
+            namespace: vela-system
+          type: depends-on-app
+        - name: ""
+          type: apply-application
     status: {}
-  detail: |-
-    # terraform/provider-alibaba
+  detail: |
+    # terraform-alibaba
 
     This addon contains terraform provider for Alibaba Cloud.
 kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
-    addons.oam.dev/name: terraform/provider-alibaba
+    addons.oam.dev/name: terraform-alibaba
   labels:
-    addons.oam.dev/type: terraform-provider-alibaba
-  name: terraform-provider-alibaba
+    addons.oam.dev/type: terraform-alibaba
+  name: terraform-alibaba
   namespace: {{.Values.systemDefinitionNamespace}}

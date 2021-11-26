@@ -8,19 +8,12 @@ metadata:
   namespace: vela-system
 spec:
   components:
-  - name: ns-terraform-system
-    properties:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: terraform-system
-    type: raw
   - name: terraform-controller
     properties:
       chart: terraform-controller
       repoType: helm
       url: https://charts.kubevela.net/addons
-      version: 0.2.5
+      version: 0.2.8
     type: helm
   - name: alibaba-redis
     properties:
@@ -569,15 +562,11 @@ spec:
     type: raw
   workflow:
     steps:
-    - name: checking-depends-on
+    - name: ""
       properties:
         name: fluxcd
         namespace: vela-system
       type: depends-on-app
-    - name: apply-ns
-      properties:
-        component: ns-terraform-system
-      type: apply-component
-    - name: apply-resources
-      type: apply-remaining
+    - name: ""
+      type: apply-application
 status: {}

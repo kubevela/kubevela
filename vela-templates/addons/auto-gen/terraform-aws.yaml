@@ -3,8 +3,8 @@ kind: Application
 metadata:
   annotations:
     addons.oam.dev/description: Kubernetes Terraform Controller for AWS
-    addons.oam.dev/name: terraform/provider-aws
-  name: terraform-provider-aws
+    addons.oam.dev/name: terraform-aws
+  name: terraform-aws
   namespace: vela-system
 spec:
   components:
@@ -39,4 +39,13 @@ spec:
         provider: aws
         region: '[[ index .Args "AWS_DEFAULT_REGION" ]]'
     type: raw
+  workflow:
+    steps:
+    - name: ""
+      properties:
+        name: terraform
+        namespace: vela-system
+      type: depends-on-app
+    - name: ""
+      type: apply-application
 status: {}

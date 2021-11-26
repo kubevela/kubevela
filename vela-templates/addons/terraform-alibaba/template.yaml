@@ -3,10 +3,17 @@ kind: Application
 metadata:
   annotations:
     addons.oam.dev/description: Kubernetes Terraform Controller for Alibaba Cloud
-    addons.oam.dev/name: terraform/provider-alibaba
-  name: terraform-provider-alibaba
+    addons.oam.dev/name: terraform-alibaba
+  name: terraform-alibaba
   namespace: vela-system
 spec:
+  workflow:
+    steps:
+      - type: depends-on-app
+        properties:
+          name: terraform
+          namespace: vela-system
+      - type: apply-application
   components:
     - name: alibaba-account-creds-[[ index .Args "providerName" ]]
       properties:

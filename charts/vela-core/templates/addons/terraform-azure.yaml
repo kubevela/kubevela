@@ -6,8 +6,8 @@ data:
     metadata:
       annotations:
         addons.oam.dev/description: Kubernetes Terraform Controller for Azure
-        addons.oam.dev/name: terraform/provider-azure
-      name: terraform-provider-azure
+        addons.oam.dev/name: terraform-azure
+      name: terraform-azure
       namespace: vela-system
     spec:
       components:
@@ -42,17 +42,26 @@ data:
               source: Secret
             provider: azure
         type: raw
+      workflow:
+        steps:
+        - name: ""
+          properties:
+            name: terraform
+            namespace: vela-system
+          type: depends-on-app
+        - name: ""
+          type: apply-application
     status: {}
-  detail: |-
-    # terraform/provider-azure
+  detail: |
+    # terraform-azure
 
     This addon contains terraform provider for Azure.
 kind: ConfigMap
 metadata:
   annotations:
     addons.oam.dev/description: Kubernetes Terraform Controller for Azure
-    addons.oam.dev/name: terraform/provider-azure
+    addons.oam.dev/name: terraform-azure
   labels:
-    addons.oam.dev/type: terraform-provider-azure
-  name: terraform-provider-azure
+    addons.oam.dev/type: terraform-azure
+  name: terraform-azure
   namespace: {{.Values.systemDefinitionNamespace}}
