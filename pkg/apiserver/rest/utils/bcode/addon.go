@@ -42,7 +42,7 @@ var (
 	ErrAddonRender = NewBcode(500, 50010, "addon render fail")
 
 	// ErrAddonApply fail to apply application to cluster
-	ErrAddonApply = NewBcode(500, 50011, "fail to apply addon application")
+	ErrAddonApply = NewBcode(500, 50011, "fail to apply addon resources")
 
 	// ErrReadGit fail to get addon application
 	ErrReadGit = NewBcode(500, 50012, "fail to read git repo")
