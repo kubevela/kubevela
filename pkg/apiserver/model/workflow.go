@@ -99,6 +99,7 @@ type WorkflowRecord struct {
 	Status             string               `json:"status"`
 }
 
+// WorkflowStepStatus is the workflow step status database model
 type WorkflowStepStatus struct {
 	ID               string                   `json:"id"`
 	Name             string                   `json:"name"`
