@@ -224,8 +224,8 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 		addons = mergeAddons(addons, listAddons)
 	}
 
-	for i,a:=range addons{
-		if a.Invisible{
+	for i, a := range addons {
+		if a.Invisible {
 			addons = append(addons[:i], addons[i+1:]...)
 		}
 	}

@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -35,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
@@ -657,12 +657,13 @@ func RenderArgsSecret(addon *types.Addon, args map[string]interface{}) *unstruct
 	return u
 }
 
-// Convert2SecName TODO add desc
+// Convert2SecName generate addon argument secret name
 func Convert2SecName(name string) string {
 	return addonSecPrefix + name
 }
 
-type AddonHandler struct {
+// Handler helps addon enable, dependency-check, dispatch resources
+type Handler struct {
 	ctx    context.Context
 	addon  *types.Addon
 	clt    client.Client
@@ -670,8 +671,8 @@ type AddonHandler struct {
 	args   map[string]interface{}
 }
 
-func newAddonHandler(ctx context.Context, addon *types.Addon, clt client.Client, source *GitAddonSource, args map[string]interface{}) AddonHandler {
-	return AddonHandler{
+func newAddonHandler(ctx context.Context, addon *types.Addon, clt client.Client, source *GitAddonSource, args map[string]interface{}) Handler {
+	return Handler{
 		ctx:    ctx,
 		addon:  addon,
 		clt:    clt,
@@ -680,6 +681,7 @@ func newAddonHandler(ctx context.Context, addon *types.Addon, clt client.Client,
 	}
 }
 
+// EnableAddon will enable addon with dependency check, source is where addon from.
 func EnableAddon(ctx context.Context, addon *types.Addon, clt client.Client, source *GitAddonSource, args map[string]interface{}) error {
 	h := newAddonHandler(ctx, addon, clt, source, args)
 	err := h.enableAddon()
@@ -689,7 +691,7 @@ func EnableAddon(ctx context.Context, addon *types.Addon, clt client.Client, sou
 	return nil
 }
 
-func (h *AddonHandler) enableAddon() error {
+func (h *Handler) enableAddon() error {
 	var err error
 	if err = h.checkDependencies(); err != nil {
 		return err
@@ -701,7 +703,7 @@ func (h *AddonHandler) enableAddon() error {
 }
 
 // checkDependencies checks if addon's dependent addons is enabled
-func (h *AddonHandler) checkDependencies() error {
+func (h *Handler) checkDependencies() error {
 	var app v1beta1.Application
 	for _, dep := range h.addon.Dependencies {
 		err := h.clt.Get(h.ctx, client.ObjectKey{
@@ -733,7 +735,7 @@ func (h *AddonHandler) checkDependencies() error {
 	return nil
 }
 
-func (h *AddonHandler) dispatchAddonResource() error {
+func (h *Handler) dispatchAddonResource() error {
 	app, defs, err := RenderApplication(h.addon, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
@@ -759,7 +761,7 @@ func (h *AddonHandler) dispatchAddonResource() error {
 
 	if h.args != nil && len(h.args) > 0 {
 		sec := RenderArgsSecret(h.addon, h.args)
-		addOwner(sec,app)
+		addOwner(sec, app)
 		err = h.clt.Create(h.ctx, sec)
 		if err != nil {
 			return err
