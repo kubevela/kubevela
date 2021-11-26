@@ -72,19 +72,19 @@ func init() {
 	clientArgs, _ = common.InitBaseRestConfig()
 	clt, _ = clientArgs.GetClient()
 	legacyAddonNamespace = map[string]string{
-		"fluxcd":              types.DefaultKubeVelaNS,
-		"ns-flux-system":      types.DefaultKubeVelaNS,
-		"kruise":              types.DefaultKubeVelaNS,
-		"prometheus":          types.DefaultKubeVelaNS,
-		"observability":       "observability",
-		"observability-asset": types.DefaultKubeVelaNS,
-		"istio":               "istio-system",
-		"ns-istio-system":     types.DefaultKubeVelaNS,
-		"keda":                types.DefaultKubeVelaNS,
-		"ocm-cluster-manager": types.DefaultKubeVelaNS,
-		"terraform":           types.DefaultKubeVelaNS,
-		"terraform-alibaba":   "default",
-		"terraform-azure":     "default",
+		"fluxcd":                     types.DefaultKubeVelaNS,
+		"ns-flux-system":             types.DefaultKubeVelaNS,
+		"kruise":                     types.DefaultKubeVelaNS,
+		"prometheus":                 types.DefaultKubeVelaNS,
+		"observability":              "observability",
+		"observability-asset":        types.DefaultKubeVelaNS,
+		"istio":                      "istio-system",
+		"ns-istio-system":            types.DefaultKubeVelaNS,
+		"keda":                       types.DefaultKubeVelaNS,
+		"ocm-cluster-manager":        types.DefaultKubeVelaNS,
+		"terraform":                  types.DefaultKubeVelaNS,
+		"terraform-provider/alibaba": "default",
+		"terraform-provider/azure":   "default",
 	}
 }
 
