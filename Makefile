@@ -220,9 +220,11 @@ e2e-cleanup:
 	rm -rf ~/.vela
 
 image-cleanup:
+ifneq (, $(shell which docker))
 # Delete Docker image
 ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
 	docker rmi -f $(VELA_CORE_TEST_IMAGE)
+endif
 endif
 
 end-e2e-core:
