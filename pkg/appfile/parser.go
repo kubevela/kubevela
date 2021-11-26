@@ -78,6 +78,9 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appName := app.Name
 
 	appfile := p.newAppfile(appName, ns, app)
+	if app.Status.LatestRevision != nil {
+		appfile.AppRevisionName = app.Status.LatestRevision.Name
+	}
 
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
