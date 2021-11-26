@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
@@ -440,7 +441,6 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 }
 
 func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1beta1.Application, recordName, source string) error {
-
 	var record = &model.WorkflowRecord{
 		AppPrimaryKey: app.Annotations[oam.AnnotationAppName],
 		Name:          recordName,
@@ -474,7 +474,17 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		}
 
 		record.Status = summaryStatus
-		record.Steps = status.Steps
+		stepStatus := make(map[string]common.WorkflowStepStatus, len(status.Steps))
+		for _, step := range status.Steps {
+			stepStatus[step.Name] = step
+		}
+		for i, step := range record.Steps {
+			record.Steps[i].Phase = stepStatus[step.Name].Phase
+			record.Steps[i].Message = stepStatus[step.Name].Message
+			record.Steps[i].Reason = stepStatus[step.Name].Reason
+			record.Steps[i].FirstExecuteTime = stepStatus[step.Name].FirstExecuteTime.Time
+			record.Steps[i].LastExecuteTime = stepStatus[step.Name].LastExecuteTime.Time
+		}
 		record.Finished = strconv.FormatBool(status.Finished)
 
 		if err := w.ds.Put(ctx, record); err != nil {
@@ -504,6 +514,14 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 	if app.Annotations[oam.AnnotationDeployVersion] == "" {
 		return fmt.Errorf("failed to get deploy version from application")
 	}
+	steps := make([]model.WorkflowStepStatus, len(workflow.Steps))
+	for i, step := range workflow.Steps {
+		steps[i] = model.WorkflowStepStatus{
+			Name:  step.Name,
+			Alias: step.Alias,
+			Type:  step.Type,
+		}
+	}
 
 	return w.ds.Add(ctx, &model.WorkflowRecord{
 		WorkflowName:       workflow.Name,
@@ -513,6 +531,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		Namespace:          appModel.Namespace,
 		Finished:           "false",
 		StartTime:          time.Now().Time,
+		Steps:              steps,
 		Status:             model.RevisionStatusInit,
 	})
 }
@@ -645,12 +664,13 @@ func (w *workflowUsecaseImpl) checkRecordRunning(ctx context.Context, appModel *
 
 func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord {
 	return &apisv1.WorkflowRecord{
-		Name:         record.Name,
-		Namespace:    record.Namespace,
-		WorkflowName: record.WorkflowName,
-		StartTime:    record.StartTime,
-		Status:       record.Status,
-		Steps:        record.Steps,
+		Name:                record.Name,
+		Namespace:           record.Namespace,
+		WorkflowName:        record.WorkflowName,
+		ApplicationRevision: record.RevisionPrimaryKey,
+		StartTime:           record.StartTime,
+		Status:              record.Status,
+		Steps:               record.Steps,
 	}
 }
 
