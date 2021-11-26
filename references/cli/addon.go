@@ -504,8 +504,8 @@ func getTerraformProviderNames(ctx context.Context, k8sClient client.Client) ([]
 	providerList := &terraformv1beta1.ProviderList{}
 	err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
 	if err != nil {
-		if kerrors.IsNotFound(err) {
-			return nil, err
+		if apimeta.IsNoMatchError(err) || kerrors.IsNotFound(err) {
+			return nil, nil
 		}
 		return nil, err
 	}
