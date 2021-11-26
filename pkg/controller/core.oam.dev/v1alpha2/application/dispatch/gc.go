@@ -68,68 +68,69 @@ type GCHandler struct {
 
 // GarbageCollect delete the old resources that are no longer in the new resource tracker
 func (h *GCHandler) GarbageCollect(ctx context.Context, oldRT, newRT *v1beta1.ResourceTracker, legacyRTs []*v1beta1.ResourceTracker) error {
-	h.oldRT = oldRT
-	h.newRT = newRT
-	if err := h.validate(); err != nil {
-		return err
-	}
-	klog.InfoS("Garbage collect for application", "old", h.oldRT.Name, "new", h.newRT.Name)
-
-	// if enabled KeepLegacyResource gc options, GCHandler will:
-	// 1. keep legacy resources created by old application
-	// 2. keep legacy resourceTrackers, if legacy resourceTracker not track any resources, delete it.
-	if h.gcOptions.KeepLegacyResource {
-		// if previous resourceTracker not track any resources, delete it
-		if !isTrackedResources(oldRT, newRT) {
-			if err := h.c.Delete(ctx, oldRT); err != nil && !kerrors.IsNotFound(err) {
-				klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
-				return errors.Wrapf(err, "cannot delete resource tracker %q", oldRT.Name)
-			}
-			klog.InfoS("Successfully GC a resource tracker which not track any resources", "name", oldRT.Name)
+	if oldRT != nil && oldRT != newRT {
+		h.oldRT = oldRT
+		h.newRT = newRT
+		if err := h.validate(); err != nil {
+			return err
 		}
-		// if legacy resourceTracker not track any resources, delete it.
-		return h.cleanUpResourceTracker(ctx, legacyRTs)
-	}
-	for _, oldRsc := range h.oldRT.Status.TrackedResources {
-		reused := false
-		for _, newRsc := range h.newRT.Status.TrackedResources {
-			if oldRsc.APIVersion == newRsc.APIVersion && oldRsc.Kind == newRsc.Kind &&
-				oldRsc.Namespace == newRsc.Namespace && oldRsc.Name == newRsc.Name {
-				reused = true
-				break
+		klog.InfoS("Garbage collect for application", "old", h.oldRT.Name, "new", h.newRT.Name)
+
+		// if enabled KeepLegacyResource gc options, GCHandler will:
+		// 1. keep legacy resources created by old application
+		// 2. keep legacy resourceTrackers, if legacy resourceTracker not track any resources, delete it.
+		if h.gcOptions.KeepLegacyResource {
+			// if previous resourceTracker not track any resources, delete it
+			if !isTrackedResources(oldRT, newRT) {
+				if err := h.c.Delete(ctx, oldRT); err != nil && !kerrors.IsNotFound(err) {
+					klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
+					return errors.Wrapf(err, "cannot delete resource tracker %q", oldRT.Name)
+				}
+				klog.InfoS("Successfully GC a resource tracker which not track any resources", "name", oldRT.Name)
+			}
+			// if legacy resourceTracker not track any resources, delete it.
+			return h.cleanUpResourceTracker(ctx, legacyRTs)
+		}
+		for _, oldRsc := range h.oldRT.Status.TrackedResources {
+			reused := false
+			for _, newRsc := range h.newRT.Status.TrackedResources {
+				if oldRsc.APIVersion == newRsc.APIVersion && oldRsc.Kind == newRsc.Kind &&
+					oldRsc.Namespace == newRsc.Namespace && oldRsc.Name == newRsc.Name {
+					reused = true
+					break
+				}
+			}
+			if !reused {
+				toBeDeleted := &unstructured.Unstructured{}
+				toBeDeleted.SetAPIVersion(oldRsc.APIVersion)
+				toBeDeleted.SetKind(oldRsc.Kind)
+				toBeDeleted.SetNamespace(oldRsc.Namespace)
+				toBeDeleted.SetName(oldRsc.Name)
+
+				isSkip := false
+				var err error
+				if isSkip, err = h.handleResourceSkipGC(ctx, toBeDeleted, oldRT); err != nil {
+					return errors.Wrap(err, "cannot handle resource skipResourceGC")
+				}
+				if isSkip {
+					// the resource have skipGC annotation, will not delete the resource
+					continue
+				}
+
+				if err := h.c.Delete(ctx, toBeDeleted); err != nil && !kerrors.IsNotFound(err) {
+					klog.ErrorS(err, "Failed to delete a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
+					return errors.Wrapf(err, "cannot delete resource %q", oldRsc)
+				}
+				klog.InfoS("Successfully GC a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
 			}
 		}
-		if !reused {
-			toBeDeleted := &unstructured.Unstructured{}
-			toBeDeleted.SetAPIVersion(oldRsc.APIVersion)
-			toBeDeleted.SetKind(oldRsc.Kind)
-			toBeDeleted.SetNamespace(oldRsc.Namespace)
-			toBeDeleted.SetName(oldRsc.Name)
-
-			isSkip := false
-			var err error
-			if isSkip, err = h.handleResourceSkipGC(ctx, toBeDeleted, oldRT); err != nil {
-				return errors.Wrap(err, "cannot handle resource skipResourceGC")
-			}
-			if isSkip {
-				// the resource have skipGC annotation, will not delete the resource
-				continue
-			}
-
-			if err := h.c.Delete(ctx, toBeDeleted); err != nil && !kerrors.IsNotFound(err) {
-				klog.ErrorS(err, "Failed to delete a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
-				return errors.Wrapf(err, "cannot delete resource %q", oldRsc)
-			}
-			klog.InfoS("Successfully GC a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
+		// delete the old resource tracker
+		if err := h.c.Delete(ctx, h.oldRT); err != nil && !kerrors.IsNotFound(err) {
+			klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
+			return errors.Wrapf(err, "cannot delete resource tracker %q", h.oldRT.Name)
 		}
+		klog.InfoS("Successfully GC a resource tracker and its resources", "name", h.oldRT.Name)
 	}
-	// delete the old resource tracker
-	if err := h.c.Delete(ctx, h.oldRT); err != nil && !kerrors.IsNotFound(err) {
-		klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
-		return errors.Wrapf(err, "cannot delete resource tracker %q", h.oldRT.Name)
-	}
-	klog.InfoS("Successfully GC a resource tracker and its resources", "name", h.oldRT.Name)
-
 	for _, rt := range legacyRTs {
 		if err := h.c.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
 			klog.ErrorS(err, "Failed to delete a legacy resource tracker", "legacy", rt.Name)
