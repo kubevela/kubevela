@@ -4,15 +4,18 @@
 	app: {
 		name:      string
 		namespace: string
-		components?: [...string]
 		filter?: {
 			cluster?:          string
 			clusterNamespace?: string
+			components?: [...string]
 		}
-		clusterNamespace?:   string
-		enableHistoryQuery?: bool
 	}
-	...
+	list?: [...{
+		cluster:   string
+		component: string
+		revision:  string
+		object: {...}
+	}]
 }
 
 #CollectPods: {

@@ -39,9 +39,9 @@ import (
 )
 
 type AppResourcesList struct {
-	List []AppResources `json:"list,omitempty"`
-	App  interface{}    `json:"app"`
-	Err  string         `json:"err,omitempty"`
+	List []Resource  `json:"list,omitempty"`
+	App  interface{} `json:"app"`
+	Err  string      `json:"err,omitempty"`
 }
 
 type PodList struct {
@@ -149,182 +149,6 @@ var _ = Describe("Test Query Provider", func() {
 			opt := `app: {
 				name: "test"
 				namespace: "test"
-				components: ["web"]
-			}`
-			v, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(nil, v, nil)).Should(BeNil())
-
-			type AppResourcesList struct {
-				List []AppResources `json:"list"`
-				App  interface{}    `json:"app"`
-			}
-			appResList := new(AppResourcesList)
-			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
-
-			Expect(len(appResList.List)).Should(Equal(1))
-			Expect(len(appResList.List[0].Components)).Should(Equal(1))
-			Expect(len(appResList.List[0].Components[0].Resources)).Should(Equal(2))
-
-			Expect(appResList.List[0].Components[0].Resources[0].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[0].GroupVersionKind()))
-			Expect(appResList.List[0].Components[0].Resources[1].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[1].GroupVersionKind()))
-		})
-
-		It("Test list legacy resources created by application", func() {
-			appName := "test-legacy"
-			appNs := "test-legacy"
-			ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNs}}
-			Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
-			for i := 1; i <= 5; i++ {
-				rt := new(v1beta1.ResourceTracker)
-				rt.SetName(fmt.Sprintf("%s-v%d-%s", appName, i, appNs))
-				rt.SetLabels(map[string]string{
-					oam.LabelAppName:      appName,
-					oam.LabelAppNamespace: appNs,
-				})
-				Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
-				oldRT := new(v1beta1.ResourceTracker)
-				Eventually(func() error {
-					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(rt), oldRT); err != nil {
-						return err
-					}
-					oldRT.Status.TrackedResources = []corev1.ObjectReference{{
-						APIVersion: "v1",
-						Kind:       "Service",
-						Namespace:  appNs,
-						Name:       fmt.Sprintf("web-v%d", i),
-					}, {
-						APIVersion: "apps/v1",
-						Kind:       "Deployment",
-						Namespace:  appNs,
-						Name:       fmt.Sprintf("web-v%d", i),
-					}}
-					if err := k8sClient.Status().Update(ctx, oldRT); err != nil {
-						return err
-					}
-					return nil
-				}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
-
-				appDeploy := baseDeploy.DeepCopy()
-				appDeploy.SetName(fmt.Sprintf("web-v%d", i))
-				appDeploy.SetNamespace(appNs)
-				appDeploy.SetLabels(map[string]string{
-					oam.LabelAppComponent: "web",
-					oam.LabelAppRevision:  fmt.Sprintf("%s-v%d", appName, i),
-				})
-				Expect(k8sClient.Create(ctx, appDeploy)).Should(BeNil())
-
-				appService := baseService.DeepCopy()
-				appService.SetName(fmt.Sprintf("web-v%d", i))
-				appService.SetNamespace(appNs)
-				appService.SetLabels(map[string]string{
-					oam.LabelAppComponent: "web",
-					oam.LabelAppRevision:  fmt.Sprintf("%s-v%d", appName, i),
-				})
-				Expect(k8sClient.Create(ctx, appService)).Should(BeNil())
-			}
-
-			prd := provider{cli: k8sClient}
-			opt := `app: {
-				name: "test-legacy"
-				namespace: "test-legacy"
-				components: ["web"]
-				enableHistoryQuery: true
-			}`
-			v, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(nil, v, nil)).Should(BeNil())
-
-			type AppResourcesList struct {
-				List []AppResources `json:"list"`
-				App  interface{}    `json:"app"`
-			}
-			appResList := new(AppResourcesList)
-			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
-
-			Expect(len(appResList.List)).Should(Equal(5))
-			for _, app := range appResList.List {
-				Expect(len(app.Components)).Should(Equal(1))
-				Expect(app.Components[0].Resources[0].Object.GroupVersionKind()).Should(Equal((&corev1.ObjectReference{
-					APIVersion: "v1",
-					Kind:       "Service",
-				}).GroupVersionKind()))
-				Expect(app.Components[0].Resources[1].Object.GroupVersionKind()).Should(Equal((&corev1.ObjectReference{
-					APIVersion: "apps/v1",
-					Kind:       "Deployment",
-				}).GroupVersionKind()))
-			}
-		})
-
-		It("Test list legacy resources meet complex scene", func() {
-			appName := "test-legacy-complex"
-			appNs := "test-legacy-complex"
-			ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNs}}
-			Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
-			for i := 1; i <= 2; i++ {
-				rt := new(v1beta1.ResourceTracker)
-				rt.SetName(fmt.Sprintf("%s-v%d-%s", appName, i, appNs))
-				rt.SetLabels(map[string]string{
-					oam.LabelAppName:      appName,
-					oam.LabelAppNamespace: appNs,
-				})
-				Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
-				oldRT := new(v1beta1.ResourceTracker)
-				Eventually(func() error {
-					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(rt), oldRT); err != nil {
-						return err
-					}
-					oldRT.Status.TrackedResources = []corev1.ObjectReference{{
-						APIVersion: "v1",
-						Kind:       "Service",
-						Namespace:  appNs,
-						Name:       fmt.Sprintf("web-v%d", i),
-					}, {
-						APIVersion: "apps/v1",
-						Kind:       "Deployment",
-						Namespace:  appNs,
-						Name:       fmt.Sprintf("web-v%d", i),
-					}}
-					if err := k8sClient.Status().Update(ctx, oldRT); err != nil {
-						return err
-					}
-					return nil
-				}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
-
-				appDeploy := baseDeploy.DeepCopy()
-				appDeploy.SetName(fmt.Sprintf("web-v%d", i))
-				appDeploy.SetNamespace(appNs)
-				appDeploy.SetLabels(map[string]string{
-					oam.LabelAppComponent: "web",
-					oam.LabelAppRevision:  fmt.Sprintf("%s-v%d", appName, i),
-				})
-				Expect(k8sClient.Create(ctx, appDeploy)).Should(BeNil())
-
-				appService := baseService.DeepCopy()
-				appService.SetName(fmt.Sprintf("web-v%d", i))
-				appService.SetNamespace(appNs)
-				appService.SetLabels(map[string]string{
-					oam.LabelAppComponent: "web",
-					oam.LabelAppRevision:  fmt.Sprintf("%s-v%d", appName, i),
-				})
-				Expect(k8sClient.Create(ctx, appService)).Should(BeNil())
-			}
-
-			By("create resourceTracker without trackedResource")
-			emptyRT := new(v1beta1.ResourceTracker)
-			emptyRT.SetName(fmt.Sprintf("%s-%s", appName, appNs))
-			emptyRT.SetLabels(map[string]string{
-				oam.LabelAppName:      appName,
-				oam.LabelAppNamespace: appNs,
-			})
-			Expect(k8sClient.Create(ctx, emptyRT)).Should(BeNil())
-
-			prd := provider{cli: k8sClient}
-			opt := `app: {
-				name: "test-legacy-complex"
-				namespace: "test-legacy-complex"
-				components: []
-				enableHistoryQuery: true
 			}`
 			v, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())
@@ -332,92 +156,11 @@ var _ = Describe("Test Query Provider", func() {
 
 			appResList := new(AppResourcesList)
 			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
+
 			Expect(len(appResList.List)).Should(Equal(2))
 
-			By("create resourceTracker tracked an un-exist resource")
-			rt := new(v1beta1.ResourceTracker)
-			rt.SetName(fmt.Sprintf("%s-v%d-%s", appName, 3, appNs))
-			rt.SetLabels(map[string]string{
-				oam.LabelAppName:      appName,
-				oam.LabelAppNamespace: appNs,
-			})
-			Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
-
-			oldRT := new(v1beta1.ResourceTracker)
-			Eventually(func() error {
-				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(rt), oldRT); err != nil {
-					return err
-				}
-				oldRT.Status.TrackedResources = []corev1.ObjectReference{{
-					APIVersion: "v1",
-					Kind:       "Service",
-					Namespace:  appNs,
-					Name:       fmt.Sprintf("web-v%d", 3),
-				}, {
-					APIVersion: "apps/v1",
-					Kind:       "Deployment",
-					Namespace:  appNs,
-					Name:       fmt.Sprintf("web-v%d", 3),
-				}}
-				if err := k8sClient.Status().Update(ctx, oldRT); err != nil {
-					return err
-				}
-				return nil
-			}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
-
-			appService := baseService.DeepCopy()
-			appService.SetName(fmt.Sprintf("web-v%d", 4))
-			appService.SetNamespace(appNs)
-			appService.SetLabels(map[string]string{
-				oam.LabelAppComponent: "web",
-				oam.LabelAppRevision:  fmt.Sprintf("%s-v%d", appName, 4),
-			})
-			Expect(k8sClient.Create(ctx, appService)).Should(BeNil())
-
-			newV, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(nil, newV, nil)).Should(BeNil())
-			appResList = new(AppResourcesList)
-			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
-			Expect(len(appResList.List)).Should(Equal(2))
-
-			By("create resourceTracker tracked with wrong name")
-			wrongNameRT := new(v1beta1.ResourceTracker)
-			wrongNameRT.SetName("test-1")
-			wrongNameRT.SetLabels(map[string]string{
-				oam.LabelAppName:      appName,
-				oam.LabelAppNamespace: appNs,
-			})
-			Expect(k8sClient.Create(ctx, wrongNameRT)).Should(BeNil())
-
-			oldRT = new(v1beta1.ResourceTracker)
-			Eventually(func() error {
-				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(wrongNameRT), oldRT); err != nil {
-					return err
-				}
-				oldRT.Status.TrackedResources = []corev1.ObjectReference{{
-					APIVersion: "v1",
-					Kind:       "Service",
-					Namespace:  appNs,
-					Name:       fmt.Sprintf("web-v%d", 4),
-				}, {
-					APIVersion: "apps/v1",
-					Kind:       "Deployment",
-					Namespace:  appNs,
-					Name:       fmt.Sprintf("web-v%d", 4),
-				}}
-				if err := k8sClient.Status().Update(ctx, oldRT); err != nil {
-					return err
-				}
-				return nil
-			}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
-
-			newV, err = value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(nil, newV, nil)).Should(BeNil())
-			appResList = new(AppResourcesList)
-			Expect(newV.UnmarshalTo(appResList)).Should(BeNil())
-			Expect(len(appResList.Err)).ShouldNot(Equal(0))
+			Expect(appResList.List[0].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[0].GroupVersionKind()))
+			Expect(appResList.List[1].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[1].GroupVersionKind()))
 		})
 
 		It("Test list resource with incomplete parameter", func() {
@@ -522,7 +265,7 @@ cluster: "test"`
 			Expect(err).ShouldNot(BeNil())
 			Expect(err.Error()).Should(Equal("var(path=cluster) not exist"))
 
-			optWithWrongValue := `value: {} 
+			optWithWrongValue := `value: {}
 cluster: "test"`
 			v, err = value.NewValue(optWithWrongValue, nil, "")
 			Expect(err).Should(BeNil())
