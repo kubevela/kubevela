@@ -224,6 +224,12 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 		addons = mergeAddons(addons, listAddons)
 	}
 
+	for i, a := range addons {
+		if a.Invisible {
+			addons = append(addons[:i], addons[i+1:]...)
+		}
+	}
+
 	if query != "" {
 		var filtered []*types.Addon
 		for i, addon := range addons {
@@ -354,49 +360,14 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			continue
 		}
 
-		if !pkgaddon.CheckDependencies(ctx, u.kubeClient, addon) {
-			return bcode.ErrAddonDependencyNotSatisfy
-		}
-
-		app, defs, err := pkgaddon.RenderApplication(addon, args.Args)
+		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, r.Git, args.Args)
 		if err != nil {
-			return bcode.ErrAddonRender
-		}
-
-		err = u.kubeClient.Get(ctx, client.ObjectKey{Namespace: app.GetNamespace(), Name: app.GetName()}, app)
-		if err == nil {
-			return bcode.ErrAddonIsEnabled
-		}
-
-		err = u.apply.Apply(ctx, app)
-		if err != nil {
-			log.Logger.Errorf("create application fail: %s", err.Error())
+			log.Logger.Errorf("err when enable addon: %v", err)
 			return bcode.ErrAddonApply
 		}
-
-		for _, def := range defs {
-			addOwner(def, app)
-			err = u.apply.Apply(ctx, def)
-			if err != nil {
-				log.Logger.Errorf("apply definition fail: %v", err)
-				return bcode.ErrAddonApply
-			}
-		}
-
-		sec := pkgaddon.RenderArgsSecret(addon, args.Args)
-		err = u.apply.Apply(ctx, sec)
-		if err != nil {
-			return bcode.ErrAddonSecretApply
-		}
-
 		return nil
 	}
 	return bcode.ErrAddonNotExist
-}
-
-func addOwner(child *unstructured.Unstructured, app *v1beta1.Application) {
-	child.SetOwnerReferences(append(child.GetOwnerReferences(),
-		*metav1.NewControllerRef(app, v1beta1.ApplicationKindVersionKind)))
 }
 
 func (u *addonUsecaseImpl) getRegistryCache(name string) []*types.Addon {

@@ -34,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
@@ -630,7 +631,7 @@ func Convert2AddonName(name string) string {
 }
 
 // RenderArgsSecret TODO add desc
-func RenderArgsSecret(addon *types.Addon, args map[string]interface{}) *v1.Secret {
+func RenderArgsSecret(addon *types.Addon, args map[string]interface{}) *unstructured.Unstructured {
 	data := make(map[string]string)
 	for k, v := range args {
 		switch v := v.(type) {
@@ -649,25 +650,127 @@ func RenderArgsSecret(addon *types.Addon, args map[string]interface{}) *v1.Secre
 		StringData: data,
 		Type:       v1.SecretTypeOpaque,
 	}
-	return &sec
+	u, err := util.Object2Unstructured(sec)
+	if err != nil {
+		return nil
+	}
+	return u
 }
 
-// Convert2SecName TODO add desc
+// Convert2SecName generate addon argument secret name
 func Convert2SecName(name string) string {
 	return addonSecPrefix + name
 }
 
-// CheckDependencies checks if addon's dependent addons is enabled
-func CheckDependencies(ctx context.Context, clt client.Client, addon *types.Addon) bool {
+// Handler helps addon enable, dependency-check, dispatch resources
+type Handler struct {
+	ctx    context.Context
+	addon  *types.Addon
+	clt    client.Client
+	source *GitAddonSource
+	args   map[string]interface{}
+}
+
+func newAddonHandler(ctx context.Context, addon *types.Addon, clt client.Client, source *GitAddonSource, args map[string]interface{}) Handler {
+	return Handler{
+		ctx:    ctx,
+		addon:  addon,
+		clt:    clt,
+		source: source,
+		args:   args,
+	}
+}
+
+// EnableAddon will enable addon with dependency check, source is where addon from.
+func EnableAddon(ctx context.Context, addon *types.Addon, clt client.Client, source *GitAddonSource, args map[string]interface{}) error {
+	h := newAddonHandler(ctx, addon, clt, source, args)
+	err := h.enableAddon()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *Handler) enableAddon() error {
+	var err error
+	if err = h.checkDependencies(); err != nil {
+		return err
+	}
+	if err = h.dispatchAddonResource(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// checkDependencies checks if addon's dependent addons is enabled
+func (h *Handler) checkDependencies() error {
 	var app v1beta1.Application
-	for _, dep := range addon.Dependencies {
-		err := clt.Get(ctx, client.ObjectKey{
+	for _, dep := range h.addon.Dependencies {
+		err := h.clt.Get(h.ctx, client.ObjectKey{
 			Namespace: types.DefaultKubeVelaNS,
 			Name:      Convert2AppName(dep.Name),
 		}, &app)
+		if err == nil {
+			continue
+		}
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		// enable this addon if it's invisible
+		depAddon, err := GetAddon(dep.Name, h.source, EnableLevelOptions)
 		if err != nil {
-			return false
+			return errors.Wrap(err, "fail to find dependent addon in source repository")
+		}
+		if !depAddon.Invisible {
+			return fmt.Errorf("dependent addon %s cannot be enabled automatically", depAddon.Name)
+		}
+		// invisible addon SHOULD be enabled without argument
+		depHandler := *h
+		depHandler.addon = depAddon
+		depHandler.args = nil
+		if err = depHandler.enableAddon(); err != nil {
+			return errors.Wrap(err, "fail to dispatch dependent addon resource")
 		}
 	}
-	return true
+	return nil
+}
+
+func (h *Handler) dispatchAddonResource() error {
+	app, defs, err := RenderApplication(h.addon, h.args)
+	if err != nil {
+		return errors.Wrap(err, "render addon application fail")
+	}
+
+	err = h.clt.Get(h.ctx, client.ObjectKeyFromObject(app), app)
+	if err == nil {
+		return errors.New("addon is already enabled")
+	}
+
+	err = h.clt.Create(h.ctx, app)
+	if err != nil {
+		return errors.Wrap(err, "fail to create application")
+	}
+
+	for _, def := range defs {
+		addOwner(def, app)
+		err = h.clt.Create(h.ctx, def)
+		if err != nil {
+			return err
+		}
+	}
+
+	if h.args != nil && len(h.args) > 0 {
+		sec := RenderArgsSecret(h.addon, h.args)
+		addOwner(sec, app)
+		err = h.clt.Create(h.ctx, sec)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addOwner(child *unstructured.Unstructured, app *v1beta1.Application) {
+	child.SetOwnerReferences(append(child.GetOwnerReferences(),
+		*metav1.NewControllerRef(app, v1beta1.ApplicationKindVersionKind)))
 }
