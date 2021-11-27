@@ -60,6 +60,7 @@ var _ = Describe("Test rollout related handler func", func() {
 		srcWorkload.SetAPIVersion("apps/v1")
 		srcWorkload.SetKind("Deployment")
 		compName := "comp-test"
+		appRevName := "app-revision-v2"
 		h := handler{
 			reconciler: &reconciler{
 				Client: k8sClient,
@@ -67,6 +68,9 @@ var _ = Describe("Test rollout related handler func", func() {
 			rollout: &v1alpha1.Rollout{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: namespace,
+					Labels: map[string]string{
+						oam.LabelAppRevision: appRevName,
+					},
 				}},
 			targetWorkload: tarWorkload,
 			sourceWorkload: srcWorkload,
@@ -82,10 +86,10 @@ var _ = Describe("Test rollout related handler func", func() {
 		Expect(h.targetWorkload.GetNamespace()).Should(BeEquivalentTo(namespace))
 		Expect(h.sourceWorkload.GetNamespace()).Should(BeEquivalentTo(namespace))
 		tarLabel := h.targetWorkload.GetLabels()
-		Expect(len(tarLabel)).Should(BeEquivalentTo(2))
+		Expect(tarLabel[oam.LabelAppRevision]).Should(BeEquivalentTo(appRevName))
 		Expect(tarLabel[oam.LabelAppComponentRevision]).Should(BeEquivalentTo("comp-test-v2"))
 		srcLabel := h.sourceWorkload.GetLabels()
-		Expect(len(srcLabel)).Should(BeEquivalentTo(2))
+		Expect(srcLabel[oam.LabelAppRevision]).Should(BeEquivalentTo(appRevName))
 		Expect(srcLabel[oam.LabelAppComponentRevision]).Should(BeEquivalentTo("comp-test-v1"))
 
 		Expect(h.assembleWorkload(ctx)).Should(BeNil())
