@@ -184,6 +184,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 	for _, e := range envBindings {
 		envBindingNames = append(envBindingNames, e.Name)
 	}
+
 	var detail = &apisv1.DetailApplicationResponse{
 		ApplicationBase: *base,
 		Policies:        policyNames,
@@ -191,6 +192,12 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 		ResourceInfo: apisv1.ApplicationResourceInfo{
 			ComponentNum: componentNum,
 		},
+		ApplicationType: func() string {
+			if c.envBindingUsecase.GetSuitableType(ctx, app) == DeployCloudResource {
+				return "cloud"
+			}
+			return "common"
+		}(),
 	}
 	return detail, nil
 }

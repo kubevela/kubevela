@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -48,6 +49,8 @@ type DefinitionUsecase interface {
 	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
 	// AddDefinitionUISchema add or update custom definition ui schema
 	AddDefinitionUISchema(ctx context.Context, name, defType, configRaw string) ([]*utils.UIParameter, error)
+	// GetComponentDefinition get component definition
+	GetComponentDefinition(ctx context.Context, name string) (*v1alpha2.ComponentDefinition, error)
 }
 
 type definitionUsecaseImpl struct {
@@ -112,6 +115,14 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 	}
 	d.caches[cache] = utils.NewMemoryCache(defs, time.Minute*3)
 	return defs, nil
+}
+
+func (d *definitionUsecaseImpl) GetComponentDefinition(ctx context.Context, name string) (*v1alpha2.ComponentDefinition, error) {
+	var componentDefinition v1alpha2.ComponentDefinition
+	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: name}, &componentDefinition); err != nil {
+		return nil, err
+	}
+	return &componentDefinition, nil
 }
 
 // DetailDefinition get definition detail
