@@ -45,10 +45,12 @@ var _ = Describe("Test application usecase function", func() {
 		workflowUsecase       *workflowUsecaseImpl
 		envBindingUsecase     *envBindingUsecaseImpl
 		deliveryTargetUsecase *deliveryTargetUsecaseImpl
+		definitionUsecase     *definitionUsecaseImpl
 	)
 	BeforeEach(func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds}
-		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, kubeClient: k8sClient}
+		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                    ds,

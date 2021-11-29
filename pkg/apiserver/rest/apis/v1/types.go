@@ -356,10 +356,11 @@ type ComponentSelector struct {
 // DetailApplicationResponse application  detail
 type DetailApplicationResponse struct {
 	ApplicationBase
-	Policies     []string                `json:"policies"`
-	EnvBindings  []string                `json:"envBindings"`
-	Status       string                  `json:"status"`
-	ResourceInfo ApplicationResourceInfo `json:"resourceInfo"`
+	Policies        []string                `json:"policies"`
+	EnvBindings     []string                `json:"envBindings"`
+	Status          string                  `json:"status"`
+	ApplicationType string                  `json:"applicationType"`
+	ResourceInfo    ApplicationResourceInfo `json:"resourceInfo"`
 }
 
 // ApplicationResourceInfo application-level resource consumption statistics

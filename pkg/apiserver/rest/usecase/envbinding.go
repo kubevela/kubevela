@@ -36,6 +36,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
+const (
+	// Deploy2Env deploy app to target cluster, suitable for common applications
+	Deploy2Env string = "deploy2env"
+	// DeployCloudResource deploy app to local and copy secret to target cluster, suitable for cloud application.
+	DeployCloudResource string = "deploy-cloud-resource"
+	// TerraformWorkfloadType cloud application
+	TerraformWorkfloadType string = "configurations.terraform.core.oam.dev"
+)
+
 // EnvBindingUsecase envbinding usecase
 type EnvBindingUsecase interface {
 	GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error)
@@ -48,24 +57,27 @@ type EnvBindingUsecase interface {
 	BatchDeleteEnvBinding(ctx context.Context, app *model.Application) error
 	DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error)
 	ApplicationEnvRecycle(ctx context.Context, appModel *model.Application, envBinding *model.EnvBinding) error
+	GetSuitableType(ctx context.Context, app *model.Application) string
 }
 
 type envBindingUsecaseImpl struct {
-	ds              datastore.DataStore
-	workflowUsecase WorkflowUsecase
-	kubeClient      client.Client
+	ds                datastore.DataStore
+	workflowUsecase   WorkflowUsecase
+	definitionUsecase DefinitionUsecase
+	kubeClient        client.Client
 }
 
 // NewEnvBindingUsecase new envBinding usecase
-func NewEnvBindingUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase) EnvBindingUsecase {
+func NewEnvBindingUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase, definitionUsecase DefinitionUsecase) EnvBindingUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
 	}
 	return &envBindingUsecaseImpl{
-		ds:              ds,
-		workflowUsecase: workflowUsecase,
-		kubeClient:      kubecli,
+		ds:                ds,
+		workflowUsecase:   workflowUsecase,
+		definitionUsecase: definitionUsecase,
+		kubeClient:        kubecli,
 	}
 }
 
@@ -227,7 +239,7 @@ func (e *envBindingUsecaseImpl) BatchDeleteEnvBinding(ctx context.Context, app *
 }
 
 func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *model.Application, env *model.EnvBinding, isDefault bool) error {
-	steps := genEnvWorkflowSteps(env, app)
+	steps := e.genEnvWorkflowSteps(ctx, env, app)
 	_, err := e.workflowUsecase.CreateOrUpdateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
 		Name:        convertWorkflowName(env.Name),
 		Alias:       fmt.Sprintf("%s Workflow", env.Alias),
@@ -344,12 +356,32 @@ func convertToEnvBindingModel(app *model.Application, envBind apisv1.EnvBinding)
 	return &re
 }
 
-func genEnvWorkflowSteps(env *model.EnvBinding, app *model.Application) []apisv1.WorkflowStep {
+func (e *envBindingUsecaseImpl) GetSuitableType(ctx context.Context, app *model.Application) string {
+	components, err := e.ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey()}, &datastore.ListOptions{PageSize: 1, Page: 1})
+	if err != nil {
+		log.Logger.Errorf("list application component list failure %s", err.Error())
+	}
+	if len(components) > 0 {
+		component := components[0].(*model.ApplicationComponent)
+		definition, err := e.definitionUsecase.GetComponentDefinition(ctx, component.Type)
+		if err != nil {
+			log.Logger.Errorf("get component definition %s failure %s", component.Type, err.Error())
+		}
+		if definition != nil {
+			if definition.Spec.Workload.Type == TerraformWorkfloadType {
+				return DeployCloudResource
+			}
+		}
+	}
+	return Deploy2Env
+}
+
+func (e *envBindingUsecaseImpl) genEnvWorkflowSteps(ctx context.Context, env *model.EnvBinding, app *model.Application) []apisv1.WorkflowStep {
 	var workflowSteps []v1beta1.WorkflowStep
 	for _, targetName := range env.TargetNames {
 		step := v1beta1.WorkflowStep{
 			Name: genPolicyEnvName(targetName),
-			Type: "deploy2env",
+			Type: e.GetSuitableType(ctx, app),
 			Properties: util.Object2RawExtension(map[string]string{
 				"policy": genPolicyName(env.Name),
 				"env":    genPolicyEnvName(targetName),
