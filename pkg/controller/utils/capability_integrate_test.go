@@ -181,7 +181,7 @@ spec:
 				Controller:         pointer.BoolPtr(true),
 				BlockOwnerDeletion: pointer.BoolPtr(true),
 			}}
-			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, typeTraitDefinition, []byte(""), ownerReference)
+			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, typeTraitDefinition, nil, nil, []byte(""), ownerReference)
 			Expect(err).Should(BeNil())
 		})
 	})

@@ -8,7 +8,6 @@ metadata:
     definition.oam.dev/description: Terraform configuration for Azure Database Mariadb
   labels:
     type: terraform
-    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   workload:
     definition:

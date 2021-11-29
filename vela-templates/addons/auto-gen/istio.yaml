@@ -27,8 +27,6 @@ spec:
       apiVersion: core.oam.dev/v1beta1
       kind: WorkflowStepDefinition
       metadata:
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: canary-rollout
         namespace: vela-system
       spec:
@@ -98,8 +96,6 @@ spec:
       metadata:
         annotations:
           definition.oam.dev/description: use istio to manage in-cluster traffic
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: istio-gateway
         namespace: vela-system
       spec:
@@ -129,8 +125,6 @@ spec:
       apiVersion: core.oam.dev/v1beta1
       kind: WorkflowStepDefinition
       metadata:
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: canary-rollback
         namespace: vela-system
       spec:
@@ -209,8 +203,6 @@ spec:
       metadata:
         annotations:
           definition.oam.dev/description: use istio to manage traffic
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: canary-traffic
         namespace: vela-system
       spec:

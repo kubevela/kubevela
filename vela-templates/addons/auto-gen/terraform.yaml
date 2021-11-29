@@ -24,7 +24,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             ACK cluster
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-ack
         namespace: vela-system
@@ -48,7 +47,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             Serverless Kubernetes (ASK)
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-ask
         namespace: vela-system
@@ -72,7 +70,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             Elastic IP
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-eip
         namespace: vela-system
@@ -97,7 +94,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             OSS object
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-oss
         namespace: vela-system
@@ -128,7 +124,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             RDS object
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-rds
         namespace: vela-system
@@ -209,7 +204,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             Redis
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-redis
         namespace: vela-system
@@ -232,7 +226,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             SLS Project
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-sls-project
         namespace: vela-system
@@ -256,7 +249,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             SLS Store
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-sls-store
         namespace: vela-system
@@ -280,7 +272,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             VPC
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-vpc
         namespace: vela-system
@@ -304,7 +295,6 @@ spec:
           definition.oam.dev/description: Terraform configuration for Alibaba Cloud
             VSwitch
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: alibaba-vswitch
         namespace: vela-system
@@ -327,7 +317,6 @@ spec:
         annotations:
           definition.oam.dev/description: Terraform configuration for AWS S3
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: aws-s3
         namespace: vela-system
@@ -370,7 +359,6 @@ spec:
             Mariadb
           provider: azure
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: azure-database-mariadb
         namespace: vela-system
@@ -487,7 +475,6 @@ spec:
             Account
           provider: azure
         labels:
-          custom.definition.oam.dev/ui-hidden: "true"
           type: terraform
         name: azure-storage-account
         namespace: vela-system

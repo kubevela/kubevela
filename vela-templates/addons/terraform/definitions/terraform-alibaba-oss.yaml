@@ -12,7 +12,6 @@ metadata:
     # the outputs which are sensitive. Separate them by a comma if there are more than one
   labels:
     type: terraform
-    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   workload:
     definition:

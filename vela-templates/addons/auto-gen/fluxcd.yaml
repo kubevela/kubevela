@@ -5763,8 +5763,6 @@ spec:
         annotations:
           definition.oam.dev/description: helm release is a group of K8s resources
             from either git repository or helm repo
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: helm
         namespace: vela-system
       spec:
@@ -5843,8 +5841,6 @@ spec:
       metadata:
         annotations:
           definition.oam.dev/description: A list of JSON6902 patch to selected target
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: kustomize-json-patch
       spec:
         schematic:
@@ -5870,8 +5866,6 @@ spec:
         annotations:
           definition.oam.dev/description: A list of StrategicMerge or JSON6902 patch
             to selected target
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: kustomize-patch
       spec:
         schematic:
@@ -5895,8 +5889,6 @@ spec:
         annotations:
           definition.oam.dev/description: kustomize can fetching, building, updating
             and applying Kustomize manifests from git repo.
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: kustomize
         namespace: vela-system
       spec:
@@ -6008,8 +6000,6 @@ spec:
       metadata:
         annotations:
           definition.oam.dev/description: A list of strategic merge to kustomize config
-        labels:
-          custom.definition.oam.dev/ui-hidden: "true"
         name: kustomize-strategy-merge
       spec:
         schematic:
