@@ -31,13 +31,3 @@ spec:
       type: health
       properties:
         probeInterval: 5
-  workflow:
-    steps:
-      - name: apply-my-server-unhealthy
-        type: apply-component
-        properties:
-          component: my-server-unhealthy
-      - name: apply-my-server
-        type: apply-component
-        properties:
-          component: my-server
