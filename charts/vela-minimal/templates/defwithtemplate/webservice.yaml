@@ -509,4 +509,5 @@ spec:
     definition:
       apiVersion: apps/v1
       kind: Deployment
+    type: deployments.apps
 

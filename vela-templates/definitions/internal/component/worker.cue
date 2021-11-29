@@ -6,9 +6,12 @@ worker: {
 	}
 	description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
 	attributes: {
-		workload: definition: {
-			apiVersion: "apps/v1"
-			kind:       "Deployment"
+		workload: {
+			definition: {
+				apiVersion: "apps/v1"
+				kind:       "Deployment"
+			}
+			type: "deployments.apps"
 		}
 		status: {
 			customStatus: #"""

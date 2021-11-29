@@ -3,9 +3,12 @@ task: {
 	annotations: {}
 	labels: {}
 	description: "Describes jobs that run code or a script to completion."
-	attributes: workload: definition: {
-		apiVersion: "batch/v1"
-		kind:       "Job"
+	attributes: workload: {
+		definition: {
+			apiVersion: "batch/v1"
+			kind:       "Job"
+		}
+		type: "jobs.batch"
 	}
 }
 template: {

@@ -484,9 +484,10 @@ type DetailDefinitionResponse struct {
 
 // DefinitionBase is the definition base model
 type DefinitionBase struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Icon        string `json:"icon"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	WorkloadType string `json:"workloadType,omitempty"`
+	Icon         string `json:"icon"`
 }
 
 // CreatePolicyRequest create app policy

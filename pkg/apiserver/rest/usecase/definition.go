@@ -77,7 +77,7 @@ func NewDefinitionUsecase() DefinitionUsecase {
 	return &definitionUsecaseImpl{kubeClient: kubecli, caches: make(map[string]*utils.MemoryCache)}
 }
 
-func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType, appliedWorkloads string) ([]*apisv1.DefinitionBase, error) {
+func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
 	defs := &unstructured.UnstructuredList{}
 	switch defType {
 	case "component":
@@ -88,7 +88,7 @@ func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, de
 	case "trait":
 		defs.SetAPIVersion(definitionAPIVersion)
 		defs.SetKind(kindTraitDefinition)
-		return d.listDefinitions(ctx, defs, kindTraitDefinition, appliedWorkloads)
+		return d.listDefinitions(ctx, defs, kindTraitDefinition, appliedWorkload)
 
 	case "workflowstep":
 		defs.SetAPIVersion(definitionAPIVersion)
@@ -100,8 +100,8 @@ func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, de
 	}
 }
 
-func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache, appliedWorkloads string) ([]*apisv1.DefinitionBase, error) {
-	if mc := d.caches[cache]; mc != nil && !mc.IsExpired() && appliedWorkloads == "" {
+func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
+	if mc := d.caches[cache]; mc != nil && !mc.IsExpired() && appliedWorkload == "" {
 		return mc.GetData().([]*apisv1.DefinitionBase), nil
 	}
 	matchLabels := metav1.LabelSelector{
@@ -127,14 +127,14 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 	}
 	var defs []*apisv1.DefinitionBase
 	for _, def := range list.Items {
-		if appliedWorkloads != "" {
+		if appliedWorkload != "" {
 			traitDef := &v1beta1.TraitDefinition{}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
 				return nil, errors.Wrap(err, "invalid trait definition")
 			}
 			filter := false
 			for _, workload := range traitDef.Spec.AppliesToWorkloads {
-				if workload == appliedWorkloads || workload == "*" {
+				if workload == appliedWorkload || workload == "*" {
 					filter = true
 					break
 				}
@@ -143,12 +143,20 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 				continue
 			}
 		}
-		defs = append(defs, &apisv1.DefinitionBase{
+		definition := &apisv1.DefinitionBase{
 			Name:        def.GetName(),
 			Description: def.GetAnnotations()[types.AnnoDefinitionDescription],
-		})
+		}
+		if cache == kindComponentDefinition {
+			compDef := &v1beta1.ComponentDefinition{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, compDef); err != nil {
+				return nil, errors.Wrap(err, "invalid component definition")
+			}
+			definition.WorkloadType = compDef.Spec.Workload.Type
+		}
+		defs = append(defs, definition)
 	}
-	if appliedWorkloads == "" {
+	if appliedWorkload == "" {
 		d.caches[cache] = utils.NewMemoryCache(defs, time.Minute*3)
 	}
 	return defs, nil
