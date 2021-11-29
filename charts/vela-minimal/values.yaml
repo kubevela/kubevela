@@ -105,13 +105,6 @@ dependCheckWait: 30s
 # OAMSpecVer is the oam spec version controller want to setup
 OAMSpecVer: "minimal"
 
-apiServer:
-  enabled: false
-  port: 8000
-  replicaCount: 1
-  Service:
-    type: ClusterIP
-
 multicluster:
   enabled: false
   clusterGateway:

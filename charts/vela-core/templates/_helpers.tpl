@@ -51,11 +51,6 @@ app.kubernetes.io/name: {{ include "kubevela.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "kubevela-apiserver.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "kubevela.name" . }}-apiserver
-app.kubernetes.io/instance: {{ .Release.Name }}-apiserver
-{{- end -}}
-
 {{- define "kubevela-cluster-gateway.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "kubevela.name" . }}-cluster-gateway
 app.kubernetes.io/instance: {{ .Release.Name }}-cluster-gateway
