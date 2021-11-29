@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // data types of parameter value
@@ -173,7 +174,77 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 		schema.Description = v.Description
 		schemas[v.Name] = schema
 	}
+
+	otherProperties := parseOtherProperties4TerraformDefinition()
+	for k, v := range otherProperties {
+		schemas[k] = v
+	}
+
 	return generateJSONSchemaWithRequiredProperty(schemas, required)
+}
+
+func parseOtherProperties4TerraformDefinition() map[string]*openapi3.Schema {
+	otherProperties := make(map[string]*openapi3.Schema)
+
+	// 1. writeConnectionSecretToRef
+	secretName := openapi3.NewStringSchema()
+	secretName.Title = "name"
+	secretName.Description = plugins.TerraformSecretNameDescription
+
+	secretNamespace := openapi3.NewStringSchema()
+	secretNamespace.Title = "namespace"
+	secretNamespace.Description = plugins.TerraformSecretNamespaceDescription
+
+	secret := openapi3.NewObjectSchema()
+	secret.Title = plugins.TerraformWriteConnectionSecretToRefName
+	secret.Description = plugins.TerraformWriteConnectionSecretToRefDescription
+	secret.Properties = openapi3.Schemas{
+		"name":      &openapi3.SchemaRef{Value: secretName},
+		"namespace": &openapi3.SchemaRef{Value: secretNamespace},
+	}
+	secret.Required = []string{"name"}
+
+	otherProperties[plugins.TerraformWriteConnectionSecretToRefName] = secret
+
+	// 2. providerRef
+	providerName := openapi3.NewStringSchema()
+	providerName.Title = "name"
+	providerName.Description = "The name of the Terraform Cloud provider"
+
+	providerNamespace := openapi3.NewStringSchema()
+	providerNamespace.Title = "namespace"
+	providerNamespace.Default = "default"
+	providerNamespace.Description = "The namespace of the Terraform Cloud provider"
+
+	var providerRefName = "providerRef"
+	provider := openapi3.NewObjectSchema()
+	provider.Title = providerRefName
+	provider.Description = "specifies the Provider"
+	provider.Properties = openapi3.Schemas{
+		"name":      &openapi3.SchemaRef{Value: providerName},
+		"namespace": &openapi3.SchemaRef{Value: providerNamespace},
+	}
+	provider.Required = []string{"name"}
+
+	otherProperties[providerRefName] = provider
+
+	// 3. deleteResource
+	var deleteResourceName = "deleteResource"
+	deleteResource := openapi3.NewBoolSchema()
+	deleteResource.Title = deleteResourceName
+	deleteResource.Description = "DeleteResource will determine whether provisioned cloud resources will be deleted when application is deleted"
+	deleteResource.Default = true
+	otherProperties[deleteResourceName] = deleteResource
+
+	// 4. region
+	var regionName = "region"
+	region := openapi3.NewStringSchema()
+	region.Title = regionName
+	region.Description = "Region is cloud provider's region. It will override providerRef"
+	otherProperties[regionName] = region
+
+	return otherProperties
+
 }
 
 func generateJSONSchemaWithRequiredProperty(schemas map[string]*openapi3.Schema, required []string) ([]byte, error) {
