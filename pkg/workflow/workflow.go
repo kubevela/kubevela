@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,7 +61,7 @@ func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.Workfl
 
 // ExecuteSteps process workflow step in order.
 func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.ApplicationRevision, taskRunners []wfTypes.TaskRunner) (common.WorkflowState, error) {
-	revAndSpecHash, err := computeAppRevisionHash(appRev.Name, w.app)
+	revAndSpecHash, err := ComputeWorkflowRevisionHash(appRev.Name, w.app)
 	if err != nil {
 		return common.WorkflowStateExecuting, err
 	}
@@ -78,7 +80,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		w.app.Status.Workflow = &common.WorkflowStatus{
 			AppRevision: revAndSpecHash,
 			Mode:        common.WorkflowModeStep,
-			StartTime:   metav1.NewTime(time.Now()),
+			StartTime:   metav1.Now(),
 		}
 		if w.dagMode {
 			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
@@ -86,6 +88,18 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		// clean recorded resources info.
 		w.app.Status.Services = nil
 		w.app.Status.AppliedResources = nil
+
+		// clean conditions after render
+		var reservedCondtions []condition.Condition
+		for i, cond := range w.app.Status.Conditions {
+			condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
+			if err == nil {
+				if condTpy < common.RenderCondition {
+					reservedCondtions = append(reservedCondtions, w.app.Status.Conditions[i])
+				}
+			}
+		}
+		w.app.Status.Conditions = reservedCondtions
 	}
 
 	wfStatus := w.app.Status.Workflow
@@ -341,7 +355,8 @@ func (e *engine) needStop() bool {
 	return e.status.Suspend || e.status.Terminated
 }
 
-func computeAppRevisionHash(rev string, app *oamcore.Application) (string, error) {
+// ComputeWorkflowRevisionHash compute workflow revision.
+func ComputeWorkflowRevisionHash(rev string, app *oamcore.Application) (string, error) {
 	version := ""
 	if annos := app.Annotations; annos != nil {
 		version = annos[oam.AnnotationPublishVersion]

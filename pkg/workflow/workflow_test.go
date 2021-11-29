@@ -20,10 +20,6 @@ import (
 	"context"
 	"encoding/json"
 
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -36,6 +32,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
