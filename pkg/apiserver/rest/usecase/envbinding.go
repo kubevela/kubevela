@@ -265,7 +265,7 @@ func (e *envBindingUsecaseImpl) updateEnvWorkflow(ctx context.Context, app *mode
 	var envStepNames = env.TargetNames
 	var workflowStepNames []string
 	for _, step := range workflow.Steps {
-		if step.Type == Deploy2Env {
+		if isEnvStepType(step.Type) {
 			workflowStepNames = append(workflowStepNames, step.Name)
 		}
 	}
@@ -274,14 +274,14 @@ func (e *envBindingUsecaseImpl) updateEnvWorkflow(ctx context.Context, app *mode
 	_, readyToDeleteSteps, readyToAddSteps := compareSlices(workflowStepNames, envStepNames)
 
 	for _, step := range workflow.Steps {
-		if step.Type == Deploy2Env && utils.StringsContain(readyToDeleteSteps, step.Name) {
+		if isEnvStepType(step.Type) && utils.StringsContain(readyToDeleteSteps, step.Name) {
 			continue
 		}
 		filteredSteps = append(filteredSteps, convertFromWorkflowStepModel(step))
 	}
 
 	for _, step := range envSteps {
-		if step.Type == Deploy2Env && utils.StringsContain(readyToAddSteps, step.Name) {
+		if isEnvStepType(step.Type) && utils.StringsContain(readyToAddSteps, step.Name) {
 			filteredSteps = append(filteredSteps, step)
 		}
 	}
@@ -477,4 +477,8 @@ func compareSlices(a []string, b []string) ([]string, []string, []string) {
 		}
 	}
 	return inAAndB, inAButNotB, inBButNotA
+}
+
+func isEnvStepType(stepType string) bool {
+	return stepType == Deploy2Env || stepType == DeployCloudResource
 }
