@@ -525,6 +525,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 
 	return w.ds.Add(ctx, &model.WorkflowRecord{
 		WorkflowName:       workflow.Name,
+		WorkflowAlias:      workflow.Alias,
 		AppPrimaryKey:      appModel.PrimaryKey(),
 		RevisionPrimaryKey: app.Annotations[oam.AnnotationDeployVersion],
 		Name:               app.Annotations[oam.AnnotationPublishVersion],
@@ -532,7 +533,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		Finished:           "false",
 		StartTime:          time.Now().Time,
 		Steps:              steps,
-		Status:             model.RevisionStatusInit,
+		Status:             model.RevisionStatusRunning,
 	})
 }
 func (w *workflowUsecaseImpl) CountWorkflow(ctx context.Context, app *model.Application) int64 {
@@ -667,6 +668,7 @@ func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord
 		Name:                record.Name,
 		Namespace:           record.Namespace,
 		WorkflowName:        record.WorkflowName,
+		WorkflowAlias:       record.WorkflowAlias,
 		ApplicationRevision: record.RevisionPrimaryKey,
 		StartTime:           record.StartTime,
 		Status:              record.Status,

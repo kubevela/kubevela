@@ -89,6 +89,7 @@ func (w *Workflow) Index() map[string]string {
 type WorkflowRecord struct {
 	Model
 	WorkflowName       string               `json:"workflowName"`
+	WorkflowAlias      string               `json:"workflowAlias"`
 	AppPrimaryKey      string               `json:"appPrimaryKey"`
 	RevisionPrimaryKey string               `json:"revisionPrimaryKey"`
 	Name               string               `json:"name"`

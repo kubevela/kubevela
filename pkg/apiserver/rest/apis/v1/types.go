@@ -621,6 +621,7 @@ type WorkflowRecord struct {
 	Name                string                     `json:"name"`
 	Namespace           string                     `json:"namespace"`
 	WorkflowName        string                     `json:"workflowName"`
+	WorkflowAlias       string                     `json:"workflowAlias"`
 	ApplicationRevision string                     `json:"applicationRevision"`
 	StartTime           time.Time                  `json:"startTime,omitempty"`
 	Status              string                     `json:"status"`
