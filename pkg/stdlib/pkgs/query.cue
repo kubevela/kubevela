@@ -16,6 +16,7 @@
 		revision:  string
 		object: {...}
 	}]
+	...
 }
 
 #CollectPods: {

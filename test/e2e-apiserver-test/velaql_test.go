@@ -45,7 +45,8 @@ type PodStatus struct {
 	Events     interface{} `json:"events"`
 }
 type Status struct {
-	PodList []PodStatus `json:"podList"`
+	PodList []PodStatus `json:"podList,omitempty"`
+	Error   string      `json:"error,omitempty"`
 }
 
 var _ = Describe("Test velaQL rest api", func() {
@@ -213,9 +214,11 @@ var _ = Describe("Test velaQL rest api", func() {
 			return k8sClient.Get(context.Background(), client.ObjectKey{Name: component2Name, Namespace: namespace}, newWorkload)
 		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
 
+		fmt.Printf("YYYYYY %s YYYYYYYYY\n", newWorkload.Labels)
+
 		Eventually(func() error {
 			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s}.%s", "test-component-pod-view", appName, namespace, "status"),
 			)
 			if err != nil {
 				return err
@@ -229,6 +232,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			if err != nil {
 				return err
 			}
+			fmt.Printf("XXXXXXXXXXXXX error: %s XXXXXXXXXXXX\n", status.Error)
 			if len(status.PodList) == 0 {
 				return errors.New("pod list is 0")
 			}
