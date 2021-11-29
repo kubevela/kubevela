@@ -126,7 +126,8 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 	}
 	var list []*apisv1.ApplicationBase
 	for _, entity := range entitys {
-		appBase := c.converAppModelToBase(entity.(*model.Application))
+		appModel := entity.(*model.Application)
+		appBase := c.converAppModelToBase(appModel)
 		if listOptions.Query != "" &&
 			!(strings.Contains(appBase.Alias, listOptions.Query) ||
 				strings.Contains(appBase.Name, listOptions.Query) ||
@@ -134,7 +135,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 			continue
 		}
 		if listOptions.TargetName != "" {
-			targetIsContain, _ := c.envBindingUsecase.CheckAppEnvBindingsContainTarget(ctx, &app, listOptions.TargetName)
+			targetIsContain, _ := c.envBindingUsecase.CheckAppEnvBindingsContainTarget(ctx, appModel, listOptions.TargetName)
 			if !targetIsContain {
 				continue
 			}

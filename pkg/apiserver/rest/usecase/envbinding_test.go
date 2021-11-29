@@ -18,11 +18,12 @@ package usecase
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
