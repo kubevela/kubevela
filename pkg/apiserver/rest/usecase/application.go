@@ -135,7 +135,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 		}
 		if listOptions.TargetName != "" {
 			targetIsContain, _ := c.envBindingUsecase.CheckAppEnvBindingsContainTarget(ctx, &app, listOptions.TargetName)
-			if targetIsContain {
+			if !targetIsContain {
 				continue
 			}
 		}
