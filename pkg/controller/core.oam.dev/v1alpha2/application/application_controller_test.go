@@ -2101,28 +2101,10 @@ var _ = Describe("Test Application Controller", func() {
 			{
 				Cluster: "",
 				Creator: common.WorkflowResourceCreator,
-				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
-					Namespace:  "app-applied-resources",
-					Name:       "myweb-1game-config",
-					APIVersion: "v1",
-				},
-			},
-			{
-				Cluster: "",
-				Creator: common.WorkflowResourceCreator,
 				ObjectReference: corev1.ObjectReference{Kind: "Deployment",
 					Namespace:  "app-applied-resources",
 					Name:       "myweb2",
 					APIVersion: "apps/v1",
-				},
-			},
-			{
-				Cluster: "",
-				Creator: common.WorkflowResourceCreator,
-				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
-					Namespace:  "app-applied-resources",
-					Name:       "myweb2game-config",
-					APIVersion: "v1",
 				},
 			},
 		}))
