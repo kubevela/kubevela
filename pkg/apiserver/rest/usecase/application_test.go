@@ -164,7 +164,9 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListApplications with targetName function", func() {
-		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{TargetName: "dev-target"})
+		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{
+			Namespace:  "test-app-namespace",
+			TargetName: "dev-target"})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(list), 2)).Should(BeEmpty())
 	})
