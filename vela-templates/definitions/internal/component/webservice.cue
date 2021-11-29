@@ -344,6 +344,7 @@ template: {
 			expose: *false | bool
 		}]
 
+		// +ignore
 		// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer", "ExternalName"
 		exposeType: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
 
