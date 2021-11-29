@@ -243,8 +243,44 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 }
 
 func (e *envBindingUsecaseImpl) updateEnvWorkflow(ctx context.Context, app *model.Application, env *model.EnvBinding) error {
-	// TODO: update env workflow
 	// The existing step configuration should be maintained and the delivery target steps should be automatically updated.
+	envSteps := genEnvWorkflowSteps(env, app)
+	workflow, err := e.workflowUsecase.GetWorkflow(ctx, app, convertWorkflowName(env.Name))
+	if err != nil {
+		return err
+	}
+
+	var envStepNames = env.TargetNames
+	var workflowStepNames []string
+	for _, step := range workflow.Steps {
+		if step.Type == "deploy2env" {
+			workflowStepNames = append(workflowStepNames, step.Name)
+		}
+	}
+
+	var filteredSteps []apisv1.WorkflowStep
+	_, readyToDeleteSteps, readyToAddSteps := compareSlices(workflowStepNames, envStepNames)
+
+	for _, step := range workflow.Steps {
+		if step.Type == "deploy2env" && utils.StringsContain(readyToDeleteSteps, step.Name) {
+			continue
+		}
+		filteredSteps = append(filteredSteps, convertFromWorkflowStepModel(step))
+	}
+
+	for _, step := range envSteps {
+		if step.Type == "deploy2env" && utils.StringsContain(readyToAddSteps, step.Name) {
+			filteredSteps = append(filteredSteps, step)
+		}
+	}
+
+	_, err = e.workflowUsecase.UpdateWorkflow(ctx, workflow, apisv1.UpdateWorkflowRequest{
+		Steps:       filteredSteps,
+		Description: workflow.Description,
+	})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -384,4 +420,29 @@ func genEnvWorkflowSteps(env *model.EnvBinding, app *model.Application) []apisv1
 
 func convertWorkflowName(envName string) string {
 	return fmt.Sprintf("workflow-%s", envName)
+}
+
+func compareSlices(a []string, b []string) ([]string, []string, []string) {
+	m := make(map[string]uint8)
+	for _, k := range a {
+		m[k] |= 1 << 0
+	}
+	for _, k := range b {
+		m[k] |= 1 << 1
+	}
+
+	var inAAndB, inAButNotB, inBButNotA []string
+	for k, v := range m {
+		a := v&(1<<0) != 0
+		b := v&(1<<1) != 0
+		switch {
+		case a && b:
+			inAAndB = append(inAAndB, k)
+		case a && !b:
+			inAButNotB = append(inAButNotB, k)
+		case !a && b:
+			inBButNotA = append(inBButNotA, k)
+		}
+	}
+	return inAAndB, inAButNotB, inBButNotA
 }

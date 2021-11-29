@@ -228,20 +228,7 @@ func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 func converWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
 	var steps []apisv1.WorkflowStep
 	for _, step := range workflow.Steps {
-		apiStep := apisv1.WorkflowStep{
-			Name:        step.Name,
-			Type:        step.Type,
-			Alias:       step.Alias,
-			Description: step.Description,
-			Inputs:      step.Inputs,
-			Outputs:     step.Outputs,
-			Properties:  step.Properties.JSON(),
-			DependsOn:   step.DependsOn,
-		}
-		if step.Properties != nil {
-			apiStep.Properties = step.Properties.JSON()
-		}
-		steps = append(steps, apiStep)
+		steps = append(steps, convertFromWorkflowStepModel(step))
 	}
 	return apisv1.WorkflowBase{
 		Name:        workflow.Name,
@@ -646,6 +633,23 @@ func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord
 		Status:    record.Status,
 		Steps:     record.Steps,
 	}
+}
+
+func convertFromWorkflowStepModel(step model.WorkflowStep) apisv1.WorkflowStep {
+	apiStep := apisv1.WorkflowStep{
+		Name:        step.Name,
+		Type:        step.Type,
+		Alias:       step.Alias,
+		Description: step.Description,
+		Inputs:      step.Inputs,
+		Outputs:     step.Outputs,
+		Properties:  step.Properties.JSON(),
+		DependsOn:   step.DependsOn,
+	}
+	if step.Properties != nil {
+		apiStep.Properties = step.Properties.JSON()
+	}
+	return apiStep
 }
 
 func convertBool(b *bool) bool {
