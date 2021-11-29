@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -31,6 +32,7 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 	var (
 		envBindingUsecase *envBindingUsecaseImpl
 		workflowUsecase   *workflowUsecaseImpl
+		definitionUsecase DefinitionUsecase
 		envBindingDemo1   apisv1.EnvBinding
 		envBindingDemo2   apisv1.EnvBinding
 		testApp           *model.Application
@@ -41,7 +43,8 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 			Namespace: "default",
 		}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient}
-		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, kubeClient: k8sClient}
+		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: make(map[string]*utils.MemoryCache)}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, definitionUsecase: definitionUsecase, kubeClient: k8sClient}
 		envBindingDemo1 = apisv1.EnvBinding{
 			Name:        "dev",
 			Alias:       "dev alias",
@@ -99,14 +102,24 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 
 	It("Test Application UpdateEnv function", func() {
 		envBinding, err := envBindingUsecase.UpdateEnvBinding(context.TODO(), testApp, "prod", apisv1.PutApplicationEnvRequest{
-			TargetNames: []string{"prod-target-new1"},
+			TargetNames: []string{"prod-target-new1", "prod-target-new2"},
 		})
 		Expect(err).Should(BeNil())
 		Expect(envBinding).ShouldNot(BeNil())
 		Expect(cmp.Diff(envBinding.TargetNames[0], "prod-target-new1")).Should(BeEmpty())
-		// workflow, err := workflowUsecase.GetWorkflow(context.TODO(), testApp, "prod")
-		// Expect(err).Should(BeNil())
-		// Expect(cmp.Diff(workflow.Steps[0].Name, "prod-target-new1")).Should(BeEmpty())
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), testApp, "workflow-prod")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(workflow.Steps[0].Name, "prod-target-new1")).Should(BeEmpty())
+
+		envBinding, err = envBindingUsecase.UpdateEnvBinding(context.TODO(), testApp, "prod", apisv1.PutApplicationEnvRequest{
+			TargetNames: []string{"prod-target-new3", "prod-target-new2"},
+		})
+		Expect(err).Should(BeNil())
+		Expect(envBinding).ShouldNot(BeNil())
+		Expect(cmp.Diff(envBinding.TargetNames[0], "prod-target-new3")).Should(BeEmpty())
+		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, "workflow-prod")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(workflow.Steps[1].Name, "prod-target-new3")).Should(BeEmpty())
 	})
 
 	It("Test Application DeleteEnv function", func() {
