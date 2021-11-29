@@ -44,15 +44,13 @@ else
 fi
 
 function render {
-  deprecatedDir=$1
-  internalDir=$2
-  outputDir=$3
-  rm "$outputDir"/* 2>/dev/null || true
-  mkdir -p "$outputDir"
-  if [ -d "$deprecatedDir" ]; then
-    $VELA_CMD def render "$deprecatedDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$deprecatedDir/{{INPUT_FILENAME}}"
+  inputDir=$1
+  outputDir=$2
+  if [ -z "$3" ] || [ "$3" != "--append" ]; then
+    rm "$outputDir"/* 2>/dev/null || true
   fi
-  $VELA_CMD def render "$internalDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$internalDir/{{INPUT_FILENAME}}"
+  mkdir -p "$outputDir"
+  $VELA_CMD def render "$inputDir" -o "$outputDir" --message "Definition source cue file: vela-templates/$inputDir/{{INPUT_FILENAME}}"
   retVal=$?
   if [ $retVal -ne 0 ]; then
     echo -ne "${RED}Failed. Exit code: ${retVal}.${NC}\n"
@@ -64,19 +62,28 @@ function renderMinimal {
   inputDir=$1
   outputDir=$2
 
-  cp -r $inputDir $outputDir 
+  cp -r "$inputDir" "$outputDir"
 
-  rm -f $outputDir/defwithtemplate/env-binding.yaml
-  rm -f $outputDir/defwithtemplate/deploy2env.yaml  
+  rm -f "$outputDir"/defwithtemplate/env-binding.yaml
+  rm -f "$outputDir"/defwithtemplate/deploy2env.yaml
 }
 
 echo -e "${HEAD_PROMPT}Start generating definitions at ${LIGHTGRAY}${SCRIPT_DIR}${NC} ..."
-echo -ne "${HEAD_PROMPT}${YELLOW}(0/2) Generating internal definitions from ${LIGHTGRAY}${INTERNAL_DEFINITION_DIR}${YELLOW} and ${LIGHTGRAY}${DEPRECATED_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
+
+# Generate Internal definitions
+echo -ne "${HEAD_PROMPT}${YELLOW}(0/3) Generating internal definitions from ${LIGHTGRAY}${INTERNAL_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
 export AS_HELM_CHART=true
-render $DEPRECATED_DEFINITION_DIR $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
+render $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
 renderMinimal $INTERNAL_TEMPLATE_DIR $MINIMAL_TEMPLATE_DIR
-echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${YELLOW}(1/2) Generating registry definitions from ${LIGHTGRAY}${REGISTRY_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${REGISTRY_TEMPLATE_DIR}${YELLOW} ... "
+
+# Generate deprecated definitions
+echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${YELLOW}(1/3) Generating deprecated definitions from ${LIGHTGRAY}${DEPRECATED_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
+render $DEPRECATED_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR --append
+echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${YELLOW}(2/3) Generating registry definitions from ${LIGHTGRAY}${REGISTRY_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${REGISTRY_TEMPLATE_DIR}${YELLOW} ... "
+
+# Generate registry definitions
 export AS_HELM_CHART=system
-render "" $REGISTRY_DEFINITION_DIR $REGISTRY_TEMPLATE_DIR
-echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${GREEN}(2/2) All done.${NC}\n"
+render $REGISTRY_DEFINITION_DIR $REGISTRY_TEMPLATE_DIR
+
+echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${GREEN}(3/3) All done.${NC}\n"
 popd &> /dev/null

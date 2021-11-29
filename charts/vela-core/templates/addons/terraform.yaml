@@ -212,6 +212,7 @@ data:
               definition.oam.dev/description: Terraform configuration for Alibaba Cloud
                 Redis
             labels:
+              custom.definition.oam.dev/ui-hidden: "true"
               type: terraform
             name: alibaba-redis
             namespace: vela-system
