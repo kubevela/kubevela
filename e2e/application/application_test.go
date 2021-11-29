@@ -149,16 +149,8 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 						a: "mysvc",
 					},
 					{
-						q: "If addRevisionLabel is true, the appRevision label will be added to the underlying pods (optional, default is false):",
-						a: "N",
-					},
-					{
 						q: "Which image would you like to use for your service ",
 						a: "nginx:latest",
-					},
-					{
-						q: "Which port do you want customer traffic sent to ",
-						a: "",
 					},
 					{
 						q: "Specify image pull policy for your service ",

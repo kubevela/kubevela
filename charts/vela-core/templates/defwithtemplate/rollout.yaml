@@ -4,7 +4,9 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: rollout the component
+    definition.oam.dev/description: Rollout the component.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: rollout
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

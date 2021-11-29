@@ -4,7 +4,9 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Binding secrets of cloud resources to component env
+    definition.oam.dev/description: Binding secrets of cloud resources to component env. This definition is DEPRECATED, please use 'storage' instead.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: service-binding
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

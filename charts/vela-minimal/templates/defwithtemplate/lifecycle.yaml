@@ -4,7 +4,9 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Add lifecycle hooks for the first container of K8s pod for your workload which follows the pod spec in path 'spec.template'.
+    definition.oam.dev/description: Add lifecycle hooks for every container of K8s pod for your workload which follows the pod spec in path 'spec.template'.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: lifecycle
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
@@ -14,7 +16,7 @@ spec:
   schematic:
     cue:
       template: |
-        patch: spec: template: spec: containers: [{
+        patch: spec: template: spec: containers: [...{
         	lifecycle: {
         		if parameter.postStart != _|_ {
         			postStart: parameter.postStart
@@ -23,7 +25,7 @@ spec:
         			preStop: parameter.preStop
         		}
         	}
-        }, ...]
+        }]
         parameter: {
         	postStart?: #LifeCycleHandler
         	preStop?:   #LifeCycleHandler

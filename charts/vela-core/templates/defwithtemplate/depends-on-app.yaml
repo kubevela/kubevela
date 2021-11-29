@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: check or install depends-on Application
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: depends-on-app
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

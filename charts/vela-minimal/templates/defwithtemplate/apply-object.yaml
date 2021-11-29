@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Apply raw kubernetes objects for your workflow steps
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: apply-object
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
