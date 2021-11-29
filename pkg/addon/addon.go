@@ -50,6 +50,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -746,24 +747,26 @@ func Convert2SecName(name string) string {
 type Handler struct {
 	ctx    context.Context
 	addon  *types.Addon
-	clt    client.Client
+	cli    client.Client
+	apply  apply.Applicator
 	source *GitAddonSource
 	args   map[string]interface{}
 }
 
-func newAddonHandler(ctx context.Context, addon *types.Addon, clt client.Client, source *GitAddonSource, args map[string]interface{}) Handler {
+func newAddonHandler(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, source *GitAddonSource, args map[string]interface{}) Handler {
 	return Handler{
 		ctx:    ctx,
 		addon:  addon,
-		clt:    clt,
+		cli:    cli,
+		apply:  apply,
 		source: source,
 		args:   args,
 	}
 }
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, addon *types.Addon, clt client.Client, source *GitAddonSource, args map[string]interface{}) error {
-	h := newAddonHandler(ctx, addon, clt, source, args)
+func EnableAddon(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, source *GitAddonSource, args map[string]interface{}) error {
+	h := newAddonHandler(ctx, addon, cli, apply, source, args)
 	err := h.enableAddon()
 	if err != nil {
 		return err
@@ -786,7 +789,7 @@ func (h *Handler) enableAddon() error {
 func (h *Handler) checkDependencies() error {
 	var app v1beta1.Application
 	for _, dep := range h.addon.Dependencies {
-		err := h.clt.Get(h.ctx, client.ObjectKey{
+		err := h.cli.Get(h.ctx, client.ObjectKey{
 			Namespace: types.DefaultKubeVelaNS,
 			Name:      Convert2AppName(dep.Name),
 		}, &app)
@@ -821,19 +824,14 @@ func (h *Handler) dispatchAddonResource() error {
 		return errors.Wrap(err, "render addon application fail")
 	}
 
-	err = h.clt.Get(h.ctx, client.ObjectKeyFromObject(app), app)
-	if err == nil {
-		return errors.New("addon is already enabled")
-	}
-
-	err = h.clt.Create(h.ctx, app)
+	err = h.apply.Apply(h.ctx, app)
 	if err != nil {
 		return errors.Wrap(err, "fail to create application")
 	}
 
 	for _, def := range defs {
 		addOwner(def, app)
-		err = h.clt.Create(h.ctx, def)
+		err = h.apply.Apply(h.ctx, def)
 		if err != nil {
 			return err
 		}
@@ -841,7 +839,7 @@ func (h *Handler) dispatchAddonResource() error {
 
 	for _, schema := range schemas {
 		addOwner(schema, app)
-		err = h.clt.Create(h.ctx, schema)
+		err = h.apply.Apply(h.ctx, schema)
 		if err != nil {
 			return err
 		}
@@ -850,7 +848,7 @@ func (h *Handler) dispatchAddonResource() error {
 	if h.args != nil && len(h.args) > 0 {
 		sec := RenderArgsSecret(h.addon, h.args)
 		addOwner(sec, app)
-		err = h.clt.Create(h.ctx, sec)
+		err = h.apply.Apply(h.ctx, sec)
 		if err != nil {
 			return err
 		}

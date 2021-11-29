@@ -73,6 +73,7 @@ func Init(ds datastore.DataStore) {
 	RegistWebService(NewNamespaceWebService(namespaceUsecase))
 	RegistWebService(NewDefinitionWebservice(definitionUsecase))
 	RegistWebService(NewAddonWebService(addonUsecase))
+	RegistWebService(NewEnabledAddonWebService(addonUsecase))
 	RegistWebService(NewAddonRegistryWebService(addonUsecase))
 	RegistWebService(NewOAMApplication(oamApplicationUsecase))
 	RegistWebService(&policyDefinitionWebservice{})

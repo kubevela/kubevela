@@ -42,6 +42,7 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -57,6 +58,8 @@ type AddonUsecase interface {
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
+	ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error)
+	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 }
 
 // AddonImpl2AddonRes convert types.Addon to the type apiserver need
@@ -165,31 +168,25 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 		return nil, bcode.ErrGetAddonApplication
 	}
 
-	switch app.Status.Phase {
-	case common2.ApplicationRunning:
-		res := apis.AddonStatusResponse{
-			Phase:            apis.AddonPhaseEnabled,
-			EnablingProgress: nil,
-		}
-		var sec v1.Secret
-		err := u.kubeClient.Get(ctx, client.ObjectKey{
-			Namespace: types.DefaultKubeVelaNS,
-			Name:      pkgaddon.Convert2SecName(name),
-		}, &sec)
-		if err != nil {
-			return nil, bcode.ErrAddonSecretGet
-		}
-		res.Args = make(map[string]string, len(sec.Data))
-		for k, v := range sec.Data {
-			res.Args[k] = string(v)
-		}
-		return &res, nil
-	default:
-		return &apis.AddonStatusResponse{
-			Phase:            apis.AddonPhaseEnabling,
-			EnablingProgress: nil,
-		}, nil
+	res := apis.AddonStatusResponse{
+		Phase:            convertAppStateToAddonPhase(app.Status.Phase),
+		EnablingProgress: nil,
 	}
+	var sec v1.Secret
+	err = u.kubeClient.Get(ctx, client.ObjectKey{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      pkgaddon.Convert2SecName(name),
+	}, &sec)
+	if err != nil {
+		return nil, bcode.ErrAddonSecretGet
+	}
+
+	res.Args = make(map[string]string, len(sec.Data))
+	for k, v := range sec.Data {
+		res.Args[k] = string(v)
+	}
+
+	return &res, nil
 }
 
 func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error) {
@@ -360,7 +357,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			continue
 		}
 
-		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, r.Git, args.Args)
+		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, r.Git, args.Args)
 		if err != nil {
 			log.Logger.Errorf("err when enable addon: %v", err)
 			return bcode.ErrAddonApply
@@ -402,6 +399,66 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 	return nil
 }
 
+func (u *addonUsecaseImpl) ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error) {
+	apps := &v1beta1.ApplicationList{}
+	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName}); err != nil {
+		return nil, err
+	}
+	var response []*apis.AddonStatusResponse
+	for _, application := range apps.Items {
+		if addonName := application.Labels[oam.LabelAddonName]; addonName != "" {
+			if application.Status.Phase != common2.ApplicationRunning {
+				continue
+			}
+			response = append(response, &apis.AddonStatusResponse{
+				Name:  addonName,
+				Phase: convertAppStateToAddonPhase(application.Status.Phase),
+			})
+		}
+	}
+	return response, nil
+}
+
+func (u *addonUsecaseImpl) UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
+
+	var app v1beta1.Application
+	// check addon application whether exist
+	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      pkgaddon.Convert2AppName(name),
+	}, &app)
+	if err != nil {
+		return err
+	}
+
+	var addon *types.Addon
+	registries, err := u.ListAddonRegistries(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range registries {
+		var exist bool
+		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
+			addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.EnableLevelOptions)
+		}
+		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
+			return bcode.WrapGithubRateLimitErr(err)
+		}
+		if addon == nil {
+			continue
+		}
+
+		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, r.Git, args.Args)
+		if err != nil {
+			log.Logger.Errorf("err when enable addon: %v", err)
+			return bcode.ErrAddonApply
+		}
+		return nil
+	}
+	return bcode.ErrAddonNotExist
+}
+
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) *model.AddonRegistry {
 	return &model.AddonRegistry{
 		Name: req.Name,
@@ -433,5 +490,14 @@ func ConvertAddonRegistryModel2AddonRegistryMeta(r *model.AddonRegistry) *apis.A
 	return &apis.AddonRegistryMeta{
 		Name: r.Name,
 		Git:  r.Git,
+	}
+}
+
+func convertAppStateToAddonPhase(state common2.ApplicationPhase) apis.AddonPhase {
+	switch state {
+	case common2.ApplicationRunning:
+		return apis.AddonPhaseEnabled
+	default:
+		return apis.AddonPhaseEnabling
 	}
 }

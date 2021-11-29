@@ -91,6 +91,11 @@ type ListAddonResponse struct {
 	Addons []*types.AddonMeta `json:"addons"`
 }
 
+// ListEnabledAddonResponse defines the format for enabled addon list response
+type ListEnabledAddonResponse struct {
+	EnabledAddons []*AddonStatusResponse
+}
+
 // DetailAddonResponse defines the format for showing the addon details
 type DetailAddonResponse struct {
 	types.AddonMeta
@@ -113,6 +118,7 @@ type AddonDefinition struct {
 
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
+	Name  string            `json:"name"`
 	Phase AddonPhase        `json:"phase"`
 	Args  map[string]string `json:"args"`
 
