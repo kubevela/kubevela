@@ -103,15 +103,6 @@ func New(cfg Config) (a APIServer, err error) {
 func (s *restServer) Run(ctx context.Context) error {
 	s.RegisterServices()
 
-	l, err := s.setupLeaderElection()
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		leaderelection.RunOrDie(ctx, *l)
-	}()
-
 	return s.startHTTP(ctx)
 }
 
