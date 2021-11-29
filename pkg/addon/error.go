@@ -30,8 +30,11 @@ var (
 	// ErrRenderCueTmpl is error when render addon's cue file
 	ErrRenderCueTmpl = NewAddonError("fail to render cue tmpl")
 
-	// ErrRateLimit means exceed github access rate limit
+	// ErrRateLimit means exceed GitHub access rate limit
 	ErrRateLimit = NewAddonError("exceed github access rate limit")
+
+	// ErrNotExist  means addon not exists
+	ErrNotExist = NewAddonError("addon not exist")
 )
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly

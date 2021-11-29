@@ -49,7 +49,8 @@ type LocalContent struct {
 
 // OssContent for oss registry
 type OssContent struct {
-	BucketURL string `json:"bucket_url"`
+	EndPoint string `json:"bucket_url"`
+	Bucket   string `json:"bucket"`
 }
 
 // GithubContent for cap center
@@ -120,7 +121,8 @@ func Parse(addr string) (string, *Content, error) {
 	case "oss":
 		return TypeOss, &Content{
 			OssContent: OssContent{
-				BucketURL: URL.Host,
+				EndPoint: URL.Host,
+				Bucket:   URL.Path,
 			},
 		}, nil
 	case "file":

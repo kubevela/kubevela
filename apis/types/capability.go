@@ -234,5 +234,4 @@ type AddonDependency struct {
 type AddonElementFile struct {
 	Data string
 	Name string
-	Path []string
 }
