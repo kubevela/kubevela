@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-ask-sample
+spec:
+  components:
+    - name: sample-ask
+      type: alibaba-ask
+      properties:
+        name: kubevela
+
+        writeConnectionSecretToRef:
+          name: ask-conn
