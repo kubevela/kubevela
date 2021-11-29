@@ -44,7 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/pkg/utils/terraform"
 )
 
 // data types of parameter value
@@ -189,22 +189,22 @@ func parseOtherProperties4TerraformDefinition() map[string]*openapi3.Schema {
 	// 1. writeConnectionSecretToRef
 	secretName := openapi3.NewStringSchema()
 	secretName.Title = "name"
-	secretName.Description = plugins.TerraformSecretNameDescription
+	secretName.Description = terraform.TerraformSecretNameDescription
 
 	secretNamespace := openapi3.NewStringSchema()
 	secretNamespace.Title = "namespace"
-	secretNamespace.Description = plugins.TerraformSecretNamespaceDescription
+	secretNamespace.Description = terraform.TerraformSecretNamespaceDescription
 
 	secret := openapi3.NewObjectSchema()
-	secret.Title = plugins.TerraformWriteConnectionSecretToRefName
-	secret.Description = plugins.TerraformWriteConnectionSecretToRefDescription
+	secret.Title = terraform.TerraformWriteConnectionSecretToRefName
+	secret.Description = terraform.TerraformWriteConnectionSecretToRefDescription
 	secret.Properties = openapi3.Schemas{
 		"name":      &openapi3.SchemaRef{Value: secretName},
 		"namespace": &openapi3.SchemaRef{Value: secretNamespace},
 	}
 	secret.Required = []string{"name"}
 
-	otherProperties[plugins.TerraformWriteConnectionSecretToRefName] = secret
+	otherProperties[terraform.TerraformWriteConnectionSecretToRefName] = secret
 
 	// 2. providerRef
 	providerName := openapi3.NewStringSchema()
