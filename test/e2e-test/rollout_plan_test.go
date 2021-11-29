@@ -37,14 +37,13 @@ import (
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func() {
+var _ = PDescribe("rollout related e2e-test,Cloneset based rollout tests", func() {
 	ctx := context.Background()
 	var namespaceName, appRolloutName string
 	var ns corev1.Namespace
@@ -214,7 +213,6 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 
 		Eventually(
 			func() error {
-				var clonesetOwner *metav1.OwnerReference
 				kc = kruise.CloneSet{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
 				if err != nil {
@@ -223,17 +221,6 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 				if kc.Status.UpdatedReplicas != *kc.Spec.Replicas {
 					return fmt.Errorf("expect cloneset updated replicas %d, but got %d",
 						kc.Status.UpdatedReplicas, *kc.Spec.Replicas)
-				}
-				clonesetOwner = metav1.GetControllerOf(&kc)
-				if clonesetOwner == nil {
-					return fmt.Errorf("controller owner missed")
-				}
-				if clonesetOwner.Kind != v1beta1.ResourceTrackerKind {
-					return fmt.Errorf("controller kind missmatch wants %s actually %s", v1beta1.ResourceTrackerKind, clonesetOwner.Kind)
-				}
-				resourceTrackerName := dispatch.ConstructResourceTrackerName(targetAppName, namespaceName)
-				if resourceTrackerName != clonesetOwner.Name {
-					return fmt.Errorf("controller name missmatch wants %s actually %s", resourceTrackerName, clonesetOwner.Name)
 				}
 				return nil
 			},
@@ -268,17 +255,6 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 			var err error
 			if err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespaceName, Name: appRollout.Spec.ComponentList[0]}, ingress); err != nil {
 				return err
-			}
-			owner := metav1.GetControllerOf(ingress)
-			if owner == nil {
-				return fmt.Errorf("ingress don't have controller owner")
-			}
-			if owner.Kind != v1beta1.ResourceTrackerKind {
-				return fmt.Errorf("ingress owner kind miss match wants %s actually %s", v1beta1.ResourceTrackerKind, owner.Kind)
-			}
-			rtName := dispatch.ConstructResourceTrackerName(appRollout.Spec.TargetAppRevisionName, appRollout.Namespace)
-			if owner.Name != rtName {
-				return fmt.Errorf("ingress owner error wants %s actually %s", rtName, owner.Name)
 			}
 			if ingress.Spec.Rules[0].Host != domain {
 				return fmt.Errorf("domain mismatch wants %s actually %s", domain, ingress.Spec.Rules[0].Host)
@@ -634,18 +610,6 @@ var _ = Describe("rollout related e2e-test,Cloneset based rollout tests", func()
 				return k8sClient.Update(ctx, &appRollout)
 			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
-
-		By("Verify that resourceTracker control the cloneset")
-		clonesetName := appRollout.Spec.ComponentList[0]
-		Eventually(
-			func() string {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: clonesetName}, &kc)
-				clonesetOwner := metav1.GetControllerOf(&kc)
-				if clonesetOwner == nil {
-					return ""
-				}
-				return clonesetOwner.Kind
-			}, time.Second*30, time.Second).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
 	})
 
 	It("Test rollout will update same name trait", func() {

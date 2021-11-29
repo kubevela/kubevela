@@ -41,8 +41,8 @@ import (
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -115,35 +115,25 @@ func (o *DeleteOptions) ForceDeleteApp(io cmdutil.IOStreams) error {
 	if err != nil {
 		return client.IgnoreNotFound(err)
 	}
-
-	listOpts := []client.ListOption{
-		client.MatchingLabels{
-			oam.LabelAppName:      app.Name,
-			oam.LabelAppNamespace: app.Namespace,
-		}}
-	rtList := &corev1beta1.ResourceTrackerList{}
-	if err = o.Client.List(ctx, rtList, listOpts...); err != nil {
-		return err
-	}
-	for _, rt := range rtList.Items {
-		if err = o.Client.Delete(ctx, rt.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
-			return err
-		}
-	}
-	if err = multicluster.GarbageCollectionForAllResourceTrackersInSubCluster(ctx, o.Client, app); err != nil {
-		return err
-	}
 	io.Info("force deleted the resources created by application")
-
 	err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (done bool, err error) {
 		err = o.Client.Get(ctx, client.ObjectKeyFromObject(app), app)
-		if err == nil {
-			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
-			meta.RemoveFinalizer(app, legacyOnlyRevisionFinalizer)
-			err = o.Client.Update(ctx, app)
-		}
 		if apierrors.IsNotFound(err) {
 			return true, nil
+		}
+		rk, err := resourcekeeper.NewResourceKeeper(ctx, o.Client, app)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to create resource keeper to run garbage collection")
+		}
+		if done, _, err = rk.GarbageCollect(ctx); err != nil && !apierrors.IsConflict(err) {
+			return false, errors.Wrapf(err, "failed to run garbage collect")
+		}
+		if done {
+			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+			meta.RemoveFinalizer(app, legacyOnlyRevisionFinalizer)
+			if err = o.Client.Update(ctx, app); err != nil && !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
+				return false, errors.Wrapf(err, "failed to update app finalizer")
+			}
 		}
 		return false, nil
 	})

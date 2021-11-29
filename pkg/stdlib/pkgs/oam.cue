@@ -2,6 +2,7 @@
 	#provider: "oam"
 	#do:       "component-apply"
 	cluster:   *"" | string
+	env:       *"" | string
 	value: {...}
 	patch?: {...}
 	...
@@ -11,6 +12,7 @@
 	#provider: "oam"
 	#do:       "component-render"
 	cluster:   *"" | string
+	env:       *"" | string
 	value: {...}
 	patch?: {...}
 	output?: {...}

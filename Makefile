@@ -53,7 +53,7 @@ test: vet lint staticcheck unit-test-core
 	@$(OK) unit-tests pass
 
 unit-test-core:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... | grep -v apiserver)
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver)
 	go test $(shell go list ./references/... | grep -v apiserver)
 unit-test-apiserver:
 	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')

@@ -32,6 +32,7 @@ const (
 	ReasonFailedWorkflow    = "FailedWorkflow"
 	ReasonFailedApply       = "FailedApply"
 	ReasonFailedHealthCheck = "FailedHealthCheck"
+	ReasonFailedStateKeep   = "FailedStateKeep"
 	ReasonFailedGC          = "FailedGC"
 	ReasonFailedRollout     = "FailedRollout"
 )

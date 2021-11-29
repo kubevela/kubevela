@@ -21,6 +21,7 @@ import (
 	"errors"
 
 	"github.com/oam-dev/terraform-controller/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Kube defines the encapsulation in raw Kubernetes resource format
@@ -191,6 +193,8 @@ const (
 	ApplicationRunning ApplicationPhase = "running"
 	// ApplicationUnhealthy means the app finished rendering and applied result to the cluster, but still unhealthy
 	ApplicationUnhealthy ApplicationPhase = "unhealthy"
+	// ApplicationDeleting means application is being deleted
+	ApplicationDeleting ApplicationPhase = "deleting"
 )
 
 // WorkflowState is a string that mark the workflow state
@@ -293,6 +297,7 @@ type AppStatus struct {
 	// Services record the status of the application services
 	Services []ApplicationComponentStatus `json:"services,omitempty"`
 
+	// Deprecated
 	// ResourceTracker record the status of the ResourceTracker
 	ResourceTracker *corev1.ObjectReference `json:"resourceTracker,omitempty"`
 
@@ -475,6 +480,48 @@ const (
 	// WorkflowResourceCreator create the resource in workflow.
 	WorkflowResourceCreator ResourceCreatorRole = "workflow"
 )
+
+// OAMObjectReference defines the object reference for an oam resource
+type OAMObjectReference struct {
+	Component string `json:"component,omitempty"`
+	Trait     string `json:"trait,omitempty"`
+	Env       string `json:"env,omitempty"`
+}
+
+// Equal check if two references are equal
+func (in OAMObjectReference) Equal(r OAMObjectReference) bool {
+	return in.Component == r.Component && in.Trait == r.Trait && in.Env == r.Env
+}
+
+// AddLabelsToObject add labels to object if properties are not empty
+func (in OAMObjectReference) AddLabelsToObject(obj client.Object) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	if in.Component != "" {
+		labels[oam.LabelAppComponent] = in.Component
+	}
+	if in.Trait != "" {
+		labels[oam.TraitTypeLabel] = in.Trait
+	}
+	if in.Env != "" {
+		labels[oam.LabelAppEnv] = in.Env
+	}
+	obj.SetLabels(labels)
+}
+
+// NewOAMObjectReferenceFromObject create OAMObjectReference from object
+func NewOAMObjectReferenceFromObject(obj client.Object) OAMObjectReference {
+	if labels := obj.GetLabels(); labels != nil {
+		return OAMObjectReference{
+			Component: labels[oam.LabelAppComponent],
+			Trait:     labels[oam.TraitTypeLabel],
+			Env:       labels[oam.LabelAppEnv],
+		}
+	}
+	return OAMObjectReference{}
+}
 
 // ClusterObjectReference defines the object reference with cluster.
 type ClusterObjectReference struct {

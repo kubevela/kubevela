@@ -107,15 +107,12 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, _, err = af.PrepareWorkflowAndPolicy()
+		_, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		appRev := &oamcore.ApplicationRevision{}
 
-		handler := &AppHandler{
-			r:      reconciler,
-			app:    app,
-			parser: appParser,
-		}
+		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		Expect(err).Should(Succeed())
 
 		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
@@ -151,15 +148,12 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, _, err = af.PrepareWorkflowAndPolicy()
+		_, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		appRev := &oamcore.ApplicationRevision{}
 
-		handler := &AppHandler{
-			r:      reconciler,
-			app:    app,
-			parser: appParser,
-		}
+		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		Expect(err).Should(Succeed())
 
 		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
@@ -210,7 +204,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, _, err = af.PrepareWorkflowAndPolicy()
+		_, err = af.PrepareWorkflowAndPolicy()
 		Expect(err).Should(BeNil())
 		apprev := &oamcore.ApplicationRevision{
 			ObjectMeta: metav1.ObjectMeta{
@@ -229,11 +223,8 @@ var _ = Describe("Test Application workflow generator", func() {
 		apprev.Spec.TraitDefinitions["rollout"] = *td
 		Expect(k8sClient.Create(ctx, apprev)).Should(BeNil())
 
-		handler := &AppHandler{
-			r:      reconciler,
-			app:    app,
-			parser: appParser,
-		}
+		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		Expect(err).Should(Succeed())
 
 		renderFunc := handler.renderComponentFunc(appParser, apprev, af)
 		comp := common.ApplicationComponent{
@@ -246,7 +237,7 @@ var _ = Describe("Test Application workflow generator", func() {
 				},
 			},
 		}
-		_, _, err = renderFunc(comp, nil, "", "")
+		_, _, err = renderFunc(comp, nil, "", "", "")
 		Expect(err).Should(BeNil())
 	})
 })

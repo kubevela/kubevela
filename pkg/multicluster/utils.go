@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -44,8 +45,6 @@ type contextKey string
 const (
 	// ClusterContextKey is the name of cluster using in client http context
 	ClusterContextKey = contextKey("ClusterName")
-	// ClusterLabelKey specifies which cluster the target k8s object should locate
-	ClusterLabelKey = "cluster.oam.dev/clusterName"
 	// ClusterLocalName specifies the local cluster
 	ClusterLocalName = "local"
 )
@@ -55,19 +54,35 @@ var (
 	ClusterGatewaySecretNamespace string
 )
 
+// ClusterNameInContext extract cluster name from context
+func ClusterNameInContext(ctx context.Context) string {
+	clusterName := ctx.Value(ClusterContextKey)
+	if clusterName != nil {
+		return clusterName.(string)
+	}
+	return ""
+}
+
 // ContextWithClusterName create context with multi-cluster by cluster name
 func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
 	return context.WithValue(ctx, ClusterContextKey, clusterName)
 }
 
-// SetClusterName set cluster name for object
-func SetClusterName(obj *unstructured.Unstructured, clusterName string) {
-	labels := obj.GetLabels()
-	if labels == nil {
-		labels = map[string]string{}
+// ContextInLocalCluster create context in local cluster
+func ContextInLocalCluster(ctx context.Context) context.Context {
+	return context.WithValue(ctx, ClusterContextKey, ClusterLocalName)
+}
+
+// ResourcesWithClusterName set cluster name for resources
+func ResourcesWithClusterName(clusterName string, objs ...*unstructured.Unstructured) []*unstructured.Unstructured {
+	var _objs []*unstructured.Unstructured
+	for _, obj := range objs {
+		if obj != nil {
+			oam.SetCluster(obj, clusterName)
+			_objs = append(_objs, obj)
+		}
 	}
-	labels[ClusterLabelKey] = clusterName
-	obj.SetLabels(labels)
+	return _objs
 }
 
 // GetClusterGatewayService get cluster gateway backend service reference

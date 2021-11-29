@@ -23,10 +23,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
-
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,13 +36,16 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -606,24 +605,14 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 		return err
 	}
 	revision, _ := utils.ExtractRevision(cm.RevisionName)
-	rt, err := resourcetracker.CreateOrGetApplicationRootResourceTracker(ctx, h.r.Client, h.app)
-	if err != nil {
-		return err
-	}
 	cr := &appsv1.ControllerRevision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cm.RevisionName,
 			Namespace: h.getComponentRevisionNamespace(ctx),
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ResourceTrackerKind,
-					Name:       rt.GetName(),
-					UID:        rt.GetUID(),
-					Controller: pointer.BoolPtr(true),
-				},
-			},
 			Labels: map[string]string{
+				oam.LabelAppComponent:                cm.Name,
+				oam.LabelAppCluster:                  multicluster.ClusterNameInContext(ctx),
+				oam.LabelAppEnv:                      envbinding.EnvNameInContext(ctx),
 				oam.LabelControllerRevisionComponent: cm.Name,
 				oam.LabelComponentRevisionHash:       cm.RevisionHash,
 			},
@@ -631,7 +620,8 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 		Revision: int64(revision),
 		Data:     *util.Object2RawExtension(comp),
 	}
-	return h.r.Create(ctx, cr)
+	common.NewOAMObjectReferenceFromObject(cm.StandardWorkload).AddLabelsToObject(cr)
+	return h.resourceKeeper.DispatchComponentRevision(ctx, cr)
 }
 
 func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Component, error) {
@@ -763,26 +753,9 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 
 // gatherUsingAppRevision get all using appRevisions include app's status pointing to and appContext point to
 func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool, error) {
-	ns := h.app.Namespace
-	listOpts := []client.ListOption{
-		client.MatchingLabels{
-			oam.LabelAppName:      h.app.Name,
-			oam.LabelAppNamespace: ns,
-		}}
 	usingRevision := map[string]bool{}
 	if h.app.Status.LatestRevision != nil && len(h.app.Status.LatestRevision.Name) != 0 {
 		usingRevision[h.app.Status.LatestRevision.Name] = true
-	}
-	rtList := &v1beta1.ResourceTrackerList{}
-	if err := h.r.List(ctx, rtList, listOpts...); err != nil {
-		return nil, err
-	}
-	for _, rt := range rtList.Items {
-		if rt.IsLifeLong() {
-			continue
-		}
-		appRev := dispatch.ExtractAppRevisionName(rt.Name, ns)
-		usingRevision[appRev] = true
 	}
 	appRolloutRevision, err := utils.CheckAppRolloutUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
 	if err != nil {
@@ -857,11 +830,15 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 		r.GetObjectKind().SetGroupVersionKind(resource.GroupVersionKind())
 		_ctx := multicluster.ContextWithClusterName(ctx, resource.Cluster)
 		err := h.r.Get(_ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
-		if err != nil {
+		notFound := apierrors.IsNotFound(err)
+		if err != nil && !notFound {
 			return err
 		}
 		if compRevisionInUse[compName] == nil {
 			compRevisionInUse[compName] = map[string]struct{}{}
+		}
+		if notFound {
+			continue
 		}
 		compRevision, ok := r.GetLabels()[oam.LabelAppComponentRevision]
 		if ok {
@@ -891,7 +868,9 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 			if _, inUse := compRevisionInUse[curComp.Name][rev.Name]; inUse {
 				continue
 			}
-			if err := h.r.Delete(_ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
+			_rev := rev.DeepCopy()
+			oam.SetCluster(_rev, curComp.Cluster)
+			if err := h.resourceKeeper.DeleteComponentRevision(_ctx, _rev); err != nil {
 				return err
 			}
 			needKill--

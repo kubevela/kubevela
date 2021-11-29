@@ -478,6 +478,7 @@ var _ = Describe("StatefulSet controller", func() {
 					Kind:       v1beta1.AppRolloutKind,
 					Name:       "def",
 					UID:        "123456",
+					Controller: pointer.Bool(true),
 				},
 				{
 					APIVersion: corev1.SchemeGroupVersion.String(),

@@ -20,8 +20,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
-
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,9 +32,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
@@ -128,20 +130,22 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 }
 
 func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 
 		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
+		return renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace, env)
 	}
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		ctx := contextWithComponentRevisionNamespace(multicluster.ContextWithClusterName(context.Background(), clusterName), overrideNamespace)
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
+		ctx = contextWithComponentRevisionNamespace(ctx, overrideNamespace)
+		ctx = envbinding.ContextWithEnvName(ctx, env)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -154,7 +158,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		}
 		wl.Ctx.SetCtx(ctx)
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace, env)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -207,7 +211,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
-func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), client)})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
@@ -216,6 +220,12 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 		readyWorkload.SetNamespace(overrideNamespace)
 		for _, readyTrait := range readyTraits {
 			readyTrait.SetNamespace(overrideNamespace)
+		}
+	}
+	if env != "" {
+		meta.AddLabels(readyWorkload, map[string]string{oam.LabelAppEnv: env})
+		for _, readyTrait := range readyTraits {
+			meta.AddLabels(readyTrait, map[string]string{oam.LabelAppEnv: env})
 		}
 	}
 	return readyWorkload, readyTraits, nil

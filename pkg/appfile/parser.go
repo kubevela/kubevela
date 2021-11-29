@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -236,9 +237,12 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 	for _, policy := range policies {
 		var w *Workload
 		var err error
-		if policy.Type == "garbage-collect" {
+		switch policy.Type {
+		case v1alpha1.GarbageCollectPolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
-		} else {
+		case v1alpha1.ApplyOncePolicyType:
+			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+		default:
 			w, err = p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
 		}
 		if err != nil {

@@ -35,8 +35,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	appUtil "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
 )
 
@@ -182,6 +182,15 @@ func (h *rolloutHandler) handleRolloutModified() {
 	h.appRollout.Status.StateTransition(v1alpha1.RollingModifiedEvent)
 }
 
+func getAppFromAppRev(appRev *v1beta1.ApplicationRevision) *v1beta1.Application {
+	app := appRev.Spec.Application.DeepCopy()
+	owner := metav1.GetControllerOf(appRev)
+	if owner != nil {
+		app.SetUID(owner.UID)
+	}
+	return app
+}
+
 // templateTargetManifest call dispatch to template target app revision's manifests to k8s
 func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	var rt *v1beta1.ResourceTracker
@@ -189,7 +198,7 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	// revision
 	if h.sourceAppRevision != nil {
 		rt = new(v1beta1.ResourceTracker)
-		err := h.Get(ctx, types.NamespacedName{Name: dispatch.ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
+		err := h.Get(ctx, types.NamespacedName{Name: ConstructResourceTrackerName(h.appRollout.Spec.SourceAppRevisionName, h.appRollout.Namespace)}, rt)
 		if err != nil {
 			klog.Errorf("specified sourceAppRevisionName %s but cannot fetch the sourceResourceTracker %v",
 				h.appRollout.Spec.SourceAppRevisionName, err)
@@ -198,9 +207,12 @@ func (h *rolloutHandler) templateTargetManifest(ctx context.Context) error {
 	}
 
 	// use source resourceTracker to handle same resource owner transfer
-	dispatcher := dispatch.NewAppManifestsDispatcher(h.Client, h.targetAppRevision).StartAndSkipGC(rt)
-	_, err := dispatcher.Dispatch(ctx, h.targetManifests)
+	handler, err := resourcekeeper.NewResourceKeeper(ctx, h.Client, getAppFromAppRev(h.targetAppRevision))
 	if err != nil {
+		klog.Errorf("failed to create resource keeper")
+		return err
+	}
+	if err := handler.Dispatch(ctx, h.targetManifests); err != nil {
 		klog.Errorf("dispatch targetRevision error %s:%v", h.appRollout.Spec.TargetAppRevisionName, err)
 		return err
 	}
@@ -244,7 +256,7 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 	if h.sourceAppRevision != nil {
 		oldRT := &v1beta1.ResourceTracker{}
 		err := h.Client.Get(ctx, client.ObjectKey{
-			Name: dispatch.ConstructResourceTrackerName(h.sourceAppRevision.Name, h.sourceAppRevision.Namespace)}, oldRT)
+			Name: ConstructResourceTrackerName(h.sourceAppRevision.Name, h.sourceAppRevision.Namespace)}, oldRT)
 		if err != nil && apierrors.IsNotFound(err) {
 			// end finalizing if source revision's tracker is already gone
 			// this guarantees finalizeRollingSucceeded will only GC once
@@ -253,10 +265,13 @@ func (h *rolloutHandler) finalizeRollingSucceeded(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		d := dispatch.NewAppManifestsDispatcher(h.Client, h.targetAppRevision).
-			EndAndGC(oldRT)
+		handler, err := resourcekeeper.NewResourceKeeper(ctx, h.Client, getAppFromAppRev(h.targetAppRevision))
+		if err != nil {
+			klog.Errorf("failed to create resource keeper")
+			return err
+		}
 		// no need to dispatch manifest again, just do GC
-		if _, err := d.Dispatch(ctx, nil); err != nil {
+		if err = handler.Dispatch(ctx, nil); err != nil {
 			return err
 		}
 	}
@@ -282,7 +297,7 @@ func (h *rolloutHandler) handleSourceWorkload(ctx context.Context) error {
 	// logic here is  compatibility code for 1.0.X lagacy workload, their ownerReference is appcontext, so remove it
 	if len(wantOwner) == 0 {
 		klog.InfoS("meet a lagacy workload, should let resourceTracker take over it")
-		rtName := dispatch.ConstructResourceTrackerName(h.sourceRevName, h.appRollout.Namespace)
+		rtName := ConstructResourceTrackerName(h.sourceRevName, h.appRollout.Namespace)
 		rt := v1beta1.ResourceTracker{}
 		if err := h.Get(ctx, types.NamespacedName{Name: rtName}, &rt); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -334,4 +349,9 @@ func (h *rolloutHandler) assembleManifest(ctx context.Context) error {
 	}
 	// we never need generate source manifest, cause we needn't template source ever.
 	return nil
+}
+
+// ConstructResourceTrackerName to be deprecated
+func ConstructResourceTrackerName(appRevName, ns string) string {
+	return fmt.Sprintf("%s-%s", appRevName, ns)
 }

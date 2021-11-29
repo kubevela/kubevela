@@ -322,7 +322,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 				if err != nil {
 					return err
 				}
-				if len(kc.OwnerReferences) != 1 {
+				if len(kc.OwnerReferences) == 0 {
 					return fmt.Errorf("cloneset owner missmatch")
 				}
 				if kc.OwnerReferences[0].UID != checkRollout.UID || kc.OwnerReferences[0].Kind != v1alpha1.RolloutKind {
@@ -420,7 +420,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 				if err != nil {
 					return err
 				}
-				if len(kc.OwnerReferences) != 1 {
+				if len(kc.OwnerReferences) == 0 {
 					return fmt.Errorf("cloneset owner missmatch")
 				}
 				if kc.OwnerReferences[0].UID != checkRollout.UID || kc.OwnerReferences[0].Kind != v1alpha1.RolloutKind {

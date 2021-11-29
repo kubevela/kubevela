@@ -24,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	v14 "k8s.io/api/storage/v1"
-	v13 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,30 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
-
-// ensureResourceTrackerCRDInstalled ensures resourcetracker to be installed in child cluster
-func ensureResourceTrackerCRDInstalled(ctx context.Context, c client.Client, clusterName string) error {
-	remoteCtx := ContextWithClusterName(ctx, clusterName)
-	crdName := types2.NamespacedName{Name: "resourcetrackers." + v1beta1.Group}
-	if err := c.Get(remoteCtx, crdName, &v13.CustomResourceDefinition{}); err != nil {
-		if !errors2.IsNotFound(err) {
-			return errors.Wrapf(err, "failed to check resourcetracker crd in cluster %s", clusterName)
-		}
-		crd := &v13.CustomResourceDefinition{}
-		if err = c.Get(ctx, crdName, crd); err != nil {
-			return errors.Wrapf(err, "failed to get resourcetracker crd in hub cluster")
-		}
-		crd.ObjectMeta = v12.ObjectMeta{
-			Name:        crdName.Name,
-			Annotations: crd.Annotations,
-			Labels:      crd.Labels,
-		}
-		if err = c.Create(remoteCtx, crd); err != nil {
-			return errors.Wrapf(err, "failed to create resourcetracker crd in cluster %s", clusterName)
-		}
-	}
-	return nil
-}
 
 // ensureVelaSystemNamespaceInstalled ensures vela namespace  to be installed in child cluster
 func ensureVelaSystemNamespaceInstalled(ctx context.Context, c client.Client, clusterName string, createNamespace string) error {
@@ -183,10 +158,6 @@ func JoinClusterByKubeConfig(_ctx context.Context, k8sClient client.Client, kube
 
 	if err := k8sClient.Create(_ctx, secret); err != nil {
 		return cluster, errors.Wrapf(err, "failed to add cluster to kubernetes")
-	}
-	if err := ensureResourceTrackerCRDInstalled(_ctx, k8sClient, clusterName); err != nil {
-		_ = k8sClient.Delete(_ctx, secret)
-		return cluster, errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
 	}
 
 	if err := ensureVelaSystemNamespaceInstalled(_ctx, k8sClient, clusterName, types.DefaultKubeVelaNS); err != nil {

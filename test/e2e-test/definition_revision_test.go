@@ -272,7 +272,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v2-%s", appName, namespace)}, rt); err != nil {
 				return err
 			}
-			if len(rt.Status.TrackedResources) != 0 {
+			if len(rt.Spec.ManagedResources) != 0 {
 				return nil
 			}
 			return errors.New("v2 resources have not been dispatched")

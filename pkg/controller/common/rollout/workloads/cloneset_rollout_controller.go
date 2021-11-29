@@ -274,7 +274,8 @@ func (c *CloneSetRolloutController) Finalize(ctx context.Context, succeed bool) 
 	isOwner := false
 	for _, owner := range c.cloneSet.GetOwnerReferences() {
 		if owner.Kind == c.parentController.GetObjectKind().GroupVersionKind().Kind &&
-			owner.APIVersion == c.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() {
+			owner.APIVersion == c.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() &&
+			owner.Controller != nil && *owner.Controller {
 			isOwner = true
 			continue
 		}

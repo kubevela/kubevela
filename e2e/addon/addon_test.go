@@ -35,12 +35,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/e2e"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Addon Test", func() {
-	args := common.Args{}
+	args := common.Args{Schema: common.Scheme}
 	k8sClient, err := args.GetClient()
 	Expect(err).Should(BeNil())
 	ctx := context.Background()
@@ -94,6 +95,9 @@ var _ = Describe("Addon Test", func() {
 			output, err := e2e.LongTimeExec("vela addon disable test-addon", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully disable addon"))
+			Eventually(func(g Gomega) {
+				g.Expect(apierrors.IsNotFound(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-test-addon", Namespace: "vela-system"}, &v1beta1.Application{}))).Should(BeTrue())
+			}, 60*time.Second).Should(Succeed())
 		})
 
 		It("Enable addon with input", func() {
@@ -106,6 +110,9 @@ var _ = Describe("Addon Test", func() {
 			output, err := e2e.LongTimeExec("vela addon disable test-addon", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully disable addon"))
+			Eventually(func(g Gomega) {
+				g.Expect(apierrors.IsNotFound(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-test-addon", Namespace: "vela-system"}, &v1beta1.Application{}))).Should(BeTrue())
+			}, 60*time.Second).Should(Succeed())
 		})
 
 	})

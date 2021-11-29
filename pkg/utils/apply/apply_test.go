@@ -23,6 +23,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -365,64 +365,60 @@ func TestMustBeControllableBy(t *testing.T) {
 	}
 }
 
-func TestMustBeControllableByAny(t *testing.T) {
-	ctrlByAny := []types.UID{"owner1", "owner2"}
-	cases := map[string]struct {
-		reason  string
-		current client.Object
-		want    error
+func TestMustBeControlledByApp(t *testing.T) {
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app"}}
+	ao := MustBeControlledByApp(app)
+	testCases := map[string]struct {
+		existing client.Object
+		hasError bool
 	}{
-		"NoExistingObject": {
-			reason: "No error should be returned if no existing object",
+		"no old app": {
+			existing: nil,
+			hasError: false,
 		},
-		"Adoptable": {
-			reason: "A current object with no controller reference may be adopted and controlled",
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{
-					oam.AnnotationKubeVelaVersion: "undefined",
-				}},
-			},
+		"old app has no label": {
+			existing: &appsv1.Deployment{},
+			hasError: false,
 		},
-		"ControlledBySuppliedUID": {
-			reason: "A current object that is already controlled by the supplied UID is controllable",
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{
-					oam.AnnotationKubeVelaVersion: "undefined",
-				},
-				OwnerReferences: []metav1.OwnerReference{{
-					UID:        types.UID("owner1"),
-					Controller: pointer.BoolPtr(true),
-				}}}},
+		"old app has no app label": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{},
+			}},
+			hasError: false,
 		},
-		"ControlledBySomeoneElse": {
-			reason: "A current object that is already controlled by a different UID is not controllable",
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{
-					oam.AnnotationKubeVelaVersion: "undefined",
-				},
-				OwnerReferences: []metav1.OwnerReference{{
-					UID:        types.UID("some-other-uid"),
-					Controller: pointer.BoolPtr(true),
-				}}}},
-			want: errors.Errorf("existing object is not controlled by any of UID %q", ctrlByAny),
+		"old app has no app ns label": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{oam.LabelAppName: "app"},
+			}},
+			hasError: false,
 		},
-		"BackwardCompatability": {
-			reason: "A current object without annotation 'kubevelavesion' is legacy",
-			current: &testObject{ObjectMeta: metav1.ObjectMeta{
-				OwnerReferences: []metav1.OwnerReference{{
-					UID:        types.UID("some-other-uid"),
-					Controller: pointer.BoolPtr(true),
-				}}}},
+		"old app has correct label": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "default"},
+			}},
+			hasError: false,
+		},
+		"old app has incorrect app label": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{oam.LabelAppName: "a", oam.LabelAppNamespace: "default"},
+			}},
+			hasError: true,
+		},
+		"old app has incorrect ns label": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "ns"},
+			}},
+			hasError: true,
 		},
 	}
-
-	for name, tc := range cases {
+	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ao := MustBeControllableByAny(ctrlByAny)
-			act := new(applyAction)
-			err := ao(act, tc.current, nil)
-			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nMustBeControllableByAny(...)(...): -want error, +got error\n%s\n", tc.reason, diff)
+			r := require.New(t)
+			err := ao(&applyAction{}, tc.existing, nil)
+			if tc.hasError {
+				r.Error(err)
+			} else {
+				r.NoError(err)
 			}
 		})
 	}

@@ -80,14 +80,6 @@ var _ = Describe("Test MultiCluster Rollout", func() {
 				if targetDeploy.Status.UpdatedReplicas != *targetDeploy.Spec.Replicas {
 					return fmt.Errorf("update not finish")
 				}
-				if len(targetDeploy.OwnerReferences) != 1 {
-					return fmt.Errorf("workload ownerReference missMatch")
-				}
-				// guarantee rollout's owners and  workload's owners are same
-				if targetDeploy.OwnerReferences[0].Kind != rollout.OwnerReferences[0].Kind ||
-					targetDeploy.OwnerReferences[0].Name != rollout.OwnerReferences[0].Name {
-					return fmt.Errorf("workload ownerReference missMatch")
-				}
 				if rollout.Status.LastSourceRevision == "" {
 					return nil
 				}
@@ -96,7 +88,7 @@ var _ = Describe("Test MultiCluster Rollout", func() {
 					return fmt.Errorf("source deploy still exist")
 				}
 				return nil
-			}, time.Second*360).Should(BeNil())
+			}, time.Second*60).Should(BeNil())
 		}
 
 		It("Test Rollout whole feature in runtime cluster ", func() {

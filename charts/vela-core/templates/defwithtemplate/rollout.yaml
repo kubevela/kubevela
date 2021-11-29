@@ -43,4 +43,7 @@ spec:
         	batchPartition?: int
         }
         rolloutBatch: replicas: int
+  status:
+    customStatus: 'message: context.outputs.rollout.status.rollingState'
+    healthPolicy: 'isHealth: context.outputs.rollout.status.batchRollingState == "batchReady"'
 

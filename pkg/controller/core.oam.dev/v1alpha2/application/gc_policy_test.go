@@ -157,9 +157,9 @@ var _ = Describe("Test Application with GC options", func() {
 				rtObjKey := client.ObjectKey{Name: fmt.Sprintf("%s-v%d-%s", app.Name, i, ns.Name)}
 				rt := new(v1beta1.ResourceTracker)
 				Expect(k8sClient.Get(ctx, rtObjKey, rt)).Should(BeNil())
-				Expect(len(rt.Status.TrackedResources)).Should(Equal(3))
+				Expect(len(rt.Spec.ManagedResources)).Should(Equal(3))
 
-				for _, obj := range rt.Status.TrackedResources {
+				for _, obj := range rt.Spec.ManagedResources {
 					un := new(unstructured.Unstructured)
 					un.SetGroupVersionKind(obj.GroupVersionKind())
 					Expect(k8sClient.Get(ctx, client.ObjectKey{Name: obj.Name, Namespace: obj.Namespace}, un)).Should(BeNil())
@@ -184,7 +184,7 @@ var _ = Describe("Test Application with GC options", func() {
 				},
 			}
 			Expect(k8sClient.Delete(ctx, testRT)).Should(BeNil())
-			for _, obj := range testRT.Status.TrackedResources {
+			for _, obj := range testRT.Spec.ManagedResources {
 				un := &unstructured.Unstructured{}
 				un.SetGroupVersionKind(obj.GroupVersionKind())
 				Eventually(func() error {
@@ -257,7 +257,7 @@ var _ = Describe("Test Application with GC options", func() {
 
 			By("delete all resources")
 			Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-			testutil.ReconcileRetry(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+			testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
 			Expect(k8sClient.List(ctx, rtList, listOpts...))
 			Expect(len(rtList.Items)).Should(Equal(0))
 		})
@@ -322,9 +322,9 @@ var _ = Describe("Test Application with GC options", func() {
 				rtObjKey := client.ObjectKey{Name: fmt.Sprintf("%s-v%d-%s", app.Name, i, ns.Name)}
 				rt := new(v1beta1.ResourceTracker)
 				Expect(k8sClient.Get(ctx, rtObjKey, rt)).Should(BeNil())
-				Expect(len(rt.Status.TrackedResources)).Should(Equal(4))
+				Expect(len(rt.Spec.ManagedResources)).Should(Equal(4))
 
-				for _, obj := range rt.Status.TrackedResources {
+				for _, obj := range rt.Spec.ManagedResources {
 					if obj.Kind == reflect.TypeOf(corev1.ConfigMap{}).Name() {
 						Expect(obj.Name).Should(Equal("test-cm"))
 						cm := new(corev1.ConfigMap)
@@ -357,7 +357,7 @@ var _ = Describe("Test Application with GC options", func() {
 			}
 
 			Expect(k8sClient.Delete(ctx, testRT)).Should(BeNil())
-			for _, obj := range testRT.Status.TrackedResources {
+			for _, obj := range testRT.Spec.ManagedResources {
 				if obj.Kind == reflect.TypeOf(corev1.ConfigMap{}).Name() {
 					cm := new(corev1.ConfigMap)
 					Expect(k8sClient.Get(ctx, client.ObjectKey{Name: obj.Name, Namespace: obj.Namespace}, cm)).Should(BeNil())
@@ -385,7 +385,7 @@ var _ = Describe("Test Application with GC options", func() {
 
 			By("delete all resources")
 			Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-			testutil.ReconcileRetry(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+			testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
 			Expect(k8sClient.List(ctx, rtList, listOpts...))
 			Expect(len(rtList.Items)).Should(Equal(0))
 		})
@@ -443,9 +443,9 @@ var _ = Describe("Test Application with GC options", func() {
 				rtObjKey := client.ObjectKey{Name: fmt.Sprintf("%s-v%d-%s", app.Name, i, ns.Name)}
 				rt := new(v1beta1.ResourceTracker)
 				Expect(k8sClient.Get(ctx, rtObjKey, rt)).Should(BeNil())
-				Expect(len(rt.Status.TrackedResources)).Should(Equal(1))
+				Expect(len(rt.Spec.ManagedResources)).Should(Equal(1))
 
-				for _, obj := range rt.Status.TrackedResources {
+				for _, obj := range rt.Spec.ManagedResources {
 					un := new(unstructured.Unstructured)
 					un.SetGroupVersionKind(obj.GroupVersionKind())
 					Expect(k8sClient.Get(ctx, client.ObjectKey{Name: obj.Name, Namespace: obj.Namespace}, un)).Should(BeNil())
@@ -465,7 +465,7 @@ var _ = Describe("Test Application with GC options", func() {
 
 			By("delete all resources")
 			Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-			testutil.ReconcileRetry(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+			testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
 			Expect(k8sClient.List(ctx, rtList, listOpts...))
 			Expect(len(rtList.Items)).Should(Equal(0))
 		})

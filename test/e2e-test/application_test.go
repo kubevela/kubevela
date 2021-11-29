@@ -137,10 +137,6 @@ var _ = Describe("Application Normal tests", func() {
 				if gotCR.Revision != revisionNum {
 					return fmt.Errorf("expect revision %d != real %d", revisionNum, gotCR.Revision)
 				}
-				ctrlOwner := metav1.GetControllerOf(gotCR)
-				if ctrlOwner == nil || ctrlOwner.Kind != v1beta1.ResourceTrackerKind {
-					return fmt.Errorf("expect ControllerRevision is control-owned by a ResourceTracker")
-				}
 				return nil
 			},
 			time.Second*10, time.Millisecond*500).Should(BeNil())
