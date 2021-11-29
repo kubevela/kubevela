@@ -2001,12 +2001,12 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		Expect(k8sClient.Create(context.Background(), &ns)).Should(BeNil())
 
-		healthComponentDef := &v1beta1.ComponentDefinition{}
-		hCDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
-		Expect(json.Unmarshal(hCDefJson, healthComponentDef)).Should(BeNil())
-		healthComponentDef.Name = "worker-with-health"
-		healthComponentDef.Namespace = "app-applied-resources"
-		Expect(k8sClient.Create(ctx, healthComponentDef)).Should(BeNil())
+		webComponentDef := &v1beta1.ComponentDefinition{}
+		hCDefJson, _ := yaml.YAMLToJSON([]byte(componentDefYaml))
+		Expect(json.Unmarshal(hCDefJson, webComponentDef)).Should(BeNil())
+		webComponentDef.Name = "web-worker"
+		webComponentDef.Namespace = "app-applied-resources"
+		Expect(k8sClient.Create(ctx, webComponentDef)).Should(BeNil())
 
 		app := &v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
@@ -2021,13 +2021,13 @@ var _ = Describe("Test Application Controller", func() {
 				Components: []common.ApplicationComponent{
 					{
 						Name:       "myweb1",
-						Type:       "worker-with-health",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Type:       "web-worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 					{
 						Name:       "myweb2",
-						Type:       "worker-with-health",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+						Type:       "web-worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 					},
 				},
 			},
@@ -2037,7 +2037,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 		Expect(checkApp.Status.AppliedResources).Should(BeEquivalentTo([]common.ClusterObjectReference{
 			{
 				Cluster: "",
@@ -2051,12 +2051,21 @@ var _ = Describe("Test Application Controller", func() {
 			{
 				Cluster: "",
 				Creator: common.WorkflowResourceCreator,
-				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
+				ObjectReference: corev1.ObjectReference{Kind: "Deployment",
 					Namespace:  "app-applied-resources",
-					Name:       "myweb1game-config",
-					APIVersion: "v1",
+					Name:       "myweb2",
+					APIVersion: "apps/v1",
 				},
 			},
+		}))
+
+		// make error
+		checkApp.Spec.Components[0].Properties = nil
+		Expect(k8sClient.Update(context.Background(), checkApp)).Should(BeNil())
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		checkApp = &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.AppliedResources).Should(BeEquivalentTo([]common.ClusterObjectReference{
 			{
 				Cluster: "",
 				Creator: common.WorkflowResourceCreator,
@@ -2066,23 +2075,19 @@ var _ = Describe("Test Application Controller", func() {
 					APIVersion: "apps/v1",
 				},
 			},
-			{
-				Cluster: "",
-				Creator: common.WorkflowResourceCreator,
-				ObjectReference: corev1.ObjectReference{Kind: "ConfigMap",
-					Namespace:  "app-applied-resources",
-					Name:       "myweb2game-config",
-					APIVersion: "v1",
-				},
-			},
 		}))
+		Expect(checkApp.Status.Conditions[len(checkApp.Status.Conditions)-1].Type).Should(BeEquivalentTo("Render"))
 
-		checkApp.Spec.Components[0].Name = "myweb-1"
+		checkApp.Spec.Components[0] = common.ApplicationComponent{
+			Name:       "myweb-1",
+			Type:       "web-worker",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+		}
 		Expect(k8sClient.Update(context.Background(), checkApp)).Should(BeNil())
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 		Expect(checkApp.Status.AppliedResources).Should(BeEquivalentTo([]common.ClusterObjectReference{
 			{
 				Cluster: "",

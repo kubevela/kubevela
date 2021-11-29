@@ -909,7 +909,7 @@ spec:
                         type: array
                       status:
                         description: ApplicationPhase is a label for the condition
-                          of a application at the current time
+                          of an application at the current time
                         type: string
                       workflow:
                         description: Workflow record the status of workflow
@@ -3100,7 +3100,7 @@ spec:
                         type: array
                       status:
                         description: ApplicationPhase is a label for the condition
-                          of a application at the current time
+                          of an application at the current time
                         type: string
                       workflow:
                         description: Workflow record the status of workflow

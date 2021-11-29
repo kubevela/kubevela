@@ -18,6 +18,7 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/oam-dev/terraform-controller/api/v1beta1"
 
@@ -163,7 +164,7 @@ type Status struct {
 	HealthPolicy string `json:"healthPolicy,omitempty"`
 }
 
-// ApplicationPhase is a label for the condition of a application at the current time
+// ApplicationPhase is a label for the condition of an application at the current time
 type ApplicationPhase string
 
 const (
@@ -503,4 +504,49 @@ func (re RawExtensionPointer) MarshalJSON() ([]byte, error) {
 	}
 	// TODO: Check whether ContentType is actually JSON before returning it.
 	return re.RawExtension.Raw, nil
+}
+
+// ApplicationConditionType is a valid value for ApplicationCondition.Type
+type ApplicationConditionType int
+
+const (
+	// ParsedCondition indicates whether the parsing  is successful.
+	ParsedCondition ApplicationConditionType = iota
+	// RevisionCondition indicates whether the generated revision is successful.
+	RevisionCondition
+	// PolicyCondition indicates whether policy processing is successful.
+	PolicyCondition
+	// RenderCondition indicates whether render processing is successful.
+	RenderCondition
+	// WorkflowCondition indicates whether workflow processing is successful.
+	WorkflowCondition
+	// RolloutCondition indicates whether rollout processing is successful.
+	RolloutCondition
+	// ReadyCondition indicates whether whole application processing is successful.
+	ReadyCondition
+)
+
+var conditions = map[ApplicationConditionType]string{
+	ParsedCondition:   "Parsed",
+	RevisionCondition: "Revision",
+	PolicyCondition:   "Policy",
+	RenderCondition:   "Render",
+	WorkflowCondition: "Workflow",
+	RolloutCondition:  "Rollout",
+	ReadyCondition:    "Ready",
+}
+
+// String returns the string corresponding to the condition type.
+func (ct ApplicationConditionType) String() string {
+	return conditions[ct]
+}
+
+// ParseApplicationConditionType parse ApplicationCondition Type.
+func ParseApplicationConditionType(s string) (ApplicationConditionType, error) {
+	for k, v := range conditions {
+		if v == s {
+			return k, nil
+		}
+	}
+	return -1, errors.New("unknown condition type")
 }
