@@ -216,6 +216,10 @@ spec:
                         required:
                         - name
                         type: object
+                      region:
+                        description: Region is cloud provider's region. It will override
+                          the region in the region field of ProviderReference
+                        type: string
                       type:
                         default: hcl
                         description: Type specifies which Terraform configuration
@@ -486,6 +490,10 @@ spec:
                         required:
                         - name
                         type: object
+                      region:
+                        description: Region is cloud provider's region. It will override
+                          the region in the region field of ProviderReference
+                        type: string
                       type:
                         default: hcl
                         description: Type specifies which Terraform configuration
