@@ -128,8 +128,8 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 
 	return &leaderelection.LeaderElectionConfig{
 		Lock:          rl,
-		LeaseDuration: time.Second * 100,
-		RenewDeadline: time.Second * 60,
+		LeaseDuration: time.Second * 15,
+		RenewDeadline: time.Second * 10,
 		RetryPeriod:   time.Second * 2,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
