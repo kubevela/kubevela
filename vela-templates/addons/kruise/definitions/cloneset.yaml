@@ -3,6 +3,8 @@ kind: ComponentDefinition
 metadata:
   name: cloneset
   namespace: vela-system
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.
     If workload type is skipped for any service defined in Appfile, it will be defaulted to `webservice` type."

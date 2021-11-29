@@ -224,7 +224,11 @@ func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.Compon
 	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
 }
 
-func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.ApplicationRevision) (*common.ApplicationComponentStatus, bool, error) {
+func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*common.ApplicationComponentStatus, bool, error) {
+	namespace := h.app.Namespace
+	if overrideNamespace != "" {
+		namespace = overrideNamespace
+	}
 
 	var (
 		status = common.ApplicationComponentStatus{
@@ -240,7 +244,7 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 	if wl.CapabilityCategory == types.TerraformCategory {
 		ctx := context.Background()
 		var configuration terraformapi.Configuration
-		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
+		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: namespace}, &configuration); err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
 		}
 		if configuration.Status.Apply.State != terraformtypes.Available {
@@ -250,12 +254,12 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 		}
 		status.Message = configuration.Status.Apply.Message
 	} else {
-		if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
+		if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, namespace); !ok || err != nil {
 			isHealth = false
 			status.Healthy = false
 		}
 
-		status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
+		status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, namespace)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, wl.Name)
 		}
@@ -267,11 +271,11 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 			Type:    tr.Name,
 			Healthy: true,
 		}
-		if ok, err := tr.EvalHealth(wl.Ctx, h.r.Client, h.app.Namespace); !ok || err != nil {
+		if ok, err := tr.EvalHealth(wl.Ctx, h.r.Client, namespace); !ok || err != nil {
 			isHealth = false
 			traitStatus.Healthy = false
 		}
-		traitStatus.Message, err = tr.EvalStatus(wl.Ctx, h.r.Client, h.app.Namespace)
+		traitStatus.Message, err = tr.EvalStatus(wl.Ctx, h.r.Client, namespace)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, wl.Name, tr.Name)
 		}

@@ -18,7 +18,6 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -36,7 +35,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -57,156 +55,41 @@ func NewAppCollector(cli client.Client, opt Option) *AppCollector {
 }
 
 // CollectResourceFromApp collect resources created by application
-func (c *AppCollector) CollectResourceFromApp() ([]AppResources, error) {
-	if c.opt.EnableHistoryQuery {
-		return c.CollectHistoryResourceFromApp()
-	}
-	return c.CollectLatestResourceFromApp()
-}
-
-// CollectLatestResourceFromApp collect resources created by latest application
-func (c *AppCollector) CollectLatestResourceFromApp() ([]AppResources, error) {
+func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 	ctx := context.Background()
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: c.opt.Name, Namespace: c.opt.Namespace}
 	if err := c.k8sClient.Get(ctx, appKey, app); err != nil {
 		return nil, err
 	}
-
-	var revision int64
-	if app.Status.LatestRevision != nil {
-		revision = app.Status.LatestRevision.Revision
-	}
-	publishVersion := app.GetAnnotations()[oam.AnnotationPublishVersion]
-	deployVersion := app.GetAnnotations()[oam.AnnotationDeployVersion]
-
-	appRevName := fmt.Sprintf("%s-v%d", app.Name, revision)
-	comps := make(map[string][]Resource, len(app.Spec.Components))
+	resources := make([]Resource, 0, len(app.Spec.Components))
 	for _, rsrcRef := range app.Status.AppliedResources {
-		if !isTargetResource(c.opt.Filter, rsrcRef) {
+		if !isResourceInTargetCluster(c.opt.Filter, rsrcRef) {
 			continue
 		}
-		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, rsrcRef.ObjectReference, rsrcRef.Cluster, appRevName)
+		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, rsrcRef.ObjectReference, rsrcRef.Cluster)
 		if err != nil {
 			return nil, err
 		}
-		if len(compName) == 0 {
-			continue
-		}
-		comps[compName] = append(comps[compName], Resource{
-			Cluster: rsrcRef.Cluster,
-			Object:  obj,
-		})
-	}
-	compResList := c.extractComponentResourceWithOption(comps)
-	if len(compResList) == 0 {
-		return nil, errors.Errorf("fail to find resources created by %v", c.opt.Components)
-	}
-
-	return []AppResources{{
-		Revision:       revision,
-		Metadata:       app.ObjectMeta,
-		Components:     compResList,
-		PublishVersion: publishVersion,
-		DeployVersion:  deployVersion,
-	}}, nil
-}
-
-// CollectHistoryResourceFromApp collect history resources created by application
-func (c *AppCollector) CollectHistoryResourceFromApp() ([]AppResources, error) {
-	var appResList []AppResources
-	rts, err := listResourceTrackers(c.k8sClient, c.opt.Name, c.opt.Namespace)
-	if err != nil {
-		return nil, err
-	}
-	appResList = make([]AppResources, 0, len(rts))
-	for _, rt := range rts {
-		if len(rt.Status.TrackedResources) == 0 {
-			continue
-		}
-		appRevName := dispatch.ExtractAppRevisionName(rt.Name, c.opt.Namespace)
-		revision, err := oamutil.ExtractRevisionNum(appRevName, "-")
-		if err != nil {
-			return nil, err
-		}
-		comps := make(map[string][]Resource)
-		for _, trackedResourceRef := range rt.Status.TrackedResources {
-			compName, obj, err := getObjectCreatedByComponent(c.k8sClient, trackedResourceRef, "", appRevName)
-			if err != nil {
-				return nil, err
-			}
-			if len(compName) == 0 {
-				continue
-			}
-			comps[compName] = append(comps[compName], Resource{
-				Cluster: "",
-				Object:  obj,
-			})
-		}
-		compResList := c.extractComponentResourceWithOption(comps)
-		if len(compResList) != 0 {
-			appResList = append(appResList, AppResources{
-				Revision:   int64(revision),
-				Metadata:   rt.ObjectMeta,
-				Components: compResList,
+		if len(compName) != 0 && isResourceInTargetComponent(c.opt.Filter, compName) {
+			resources = append(resources, Resource{
+				Component: compName,
+				Revision:  obj.GetLabels()[oam.LabelAppRevision],
+				Cluster:   rsrcRef.Cluster,
+				Object:    obj,
 			})
 		}
 	}
-	if len(appResList) == 0 {
-		return nil, errors.Errorf("fail to find resources created by %v", c.opt.Components)
+	if len(resources) == 0 {
+		return nil, errors.Errorf("fail to find resources created by application: %v", c.opt.Name)
 	}
-	return appResList, nil
-}
-
-func (c *AppCollector) extractComponentResourceWithOption(comps map[string][]Resource) []Component {
-	var result []Component
-
-	// if not specify component, return all components resource created by app
-	if len(c.opt.Components) == 0 {
-		for name, resource := range comps {
-			if len(resource) == 0 {
-				continue
-			}
-			result = append(result, Component{
-				Name:      name,
-				Resources: resource,
-			})
-		}
-		return result
-	}
-
-	for _, compName := range c.opt.Components {
-		if len(comps[compName]) == 0 {
-			continue
-		}
-		result = append(result, Component{
-			Name:      compName,
-			Resources: comps[compName],
-		})
-	}
-	return result
-}
-
-// listResourceTrackers list all resourceTracker with specified app
-func listResourceTrackers(cli client.Client, appName, appNs string) ([]v1beta1.ResourceTracker, error) {
-	listOpts := []client.ListOption{
-		client.MatchingLabels{
-			oam.LabelAppName:      appName,
-			oam.LabelAppNamespace: appNs,
-		}}
-	rtList := &v1beta1.ResourceTrackerList{}
-	ctx := context.Background()
-	if err := cli.List(ctx, rtList, listOpts...); err != nil {
-		klog.ErrorS(err, "Failed to list Resource tracker of app", "name", appName)
-		return nil, err
-	}
-	return rtList.Items, nil
+	return resources, nil
 }
 
 // getObjectCreatedByComponent get k8s obj created by components
-func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReference, cluster string, appRevName string) (componentName string, obj *unstructured.Unstructured, err error) {
+func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReference, cluster string) (string, *unstructured.Unstructured, error) {
 	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	obj = new(unstructured.Unstructured)
+	obj := new(unstructured.Unstructured)
 	obj.SetGroupVersionKind(objRef.GroupVersionKind())
 	obj.SetNamespace(objRef.Namespace)
 	obj.SetName(objRef.Name)
@@ -215,17 +98,14 @@ func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReferenc
 	if key.Namespace == "" {
 		key.Namespace = "default"
 	}
-	if err = cli.Get(ctx, key, obj); err != nil {
+	if err := cli.Get(ctx, key, obj); err != nil {
 		if kerrors.IsNotFound(err) {
 			return "", nil, nil
 		}
 		return "", nil, err
 	}
-	if obj.GetLabels()[oam.LabelAppRevision] != appRevName {
-		return
-	}
-	componentName = obj.GetLabels()[oam.LabelAppComponent]
-	return
+	componentName := obj.GetLabels()[oam.LabelAppComponent]
+	return componentName, obj, nil
 }
 
 var standardWorkloads = []schema.GroupVersionKind{
@@ -417,12 +297,24 @@ func getEventFieldSelector(obj *unstructured.Unstructured) fields.Selector {
 	return field.AsSelector()
 }
 
-func isTargetResource(opt ClusterFilter, resource common.ClusterObjectReference) bool {
+func isResourceInTargetCluster(opt FilterOption, resource common.ClusterObjectReference) bool {
 	if opt.Cluster == "" && opt.ClusterNamespace == "" {
 		return true
 	}
 	if opt.Cluster == resource.Cluster && opt.ClusterNamespace == resource.ObjectReference.Namespace {
 		return true
+	}
+	return false
+}
+
+func isResourceInTargetComponent(opt FilterOption, componentName string) bool {
+	if len(opt.Components) == 0 && len(componentName) != 0 {
+		return true
+	}
+	for _, component := range opt.Components {
+		if component == componentName {
+			return true
+		}
 	}
 	return false
 }

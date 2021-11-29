@@ -11,6 +11,110 @@ spec:
   schematic:
     cue:
       template: |
+        mountsArray: {
+        	pvc: *[
+        		for v in parameter.volumeMounts.pvc {
+        			{
+        				mountPath: v.mountPath
+        				name:      v.name
+        			}
+        		},
+        	] | []
+
+        	configMap: *[
+        			for v in parameter.volumeMounts.configMap {
+        			{
+        				mountPath: v.mountPath
+        				name:      v.name
+        			}
+        		},
+        	] | []
+
+        	secret: *[
+        		for v in parameter.volumeMounts.secret {
+        			{
+        				mountPath: v.mountPath
+        				name:      v.name
+        			}
+        		},
+        	] | []
+
+        	emptyDir: *[
+        			for v in parameter.volumeMounts.emptyDir {
+        			{
+        				mountPath: v.mountPath
+        				name:      v.name
+        			}
+        		},
+        	] | []
+
+        	hostPath: *[
+        			for v in parameter.volumeMounts.hostPath {
+        			{
+        				mountPath: v.mountPath
+        				name:      v.name
+        			}
+        		},
+        	] | []
+        }
+        volumesArray: {
+        	pvc: *[
+        		for v in parameter.volumeMounts.pvc {
+        			{
+        				name: v.name
+        				persistentVolumeClaim: claimName: v.claimName
+        			}
+        		},
+        	] | []
+
+        	configMap: *[
+        			for v in parameter.volumeMounts.configMap {
+        			{
+        				name: v.name
+        				configMap: {
+        					defaultMode: v.defaultMode
+        					name:        v.cmName
+        					if v.items != _|_ {
+        						items: v.items
+        					}
+        				}
+        			}
+        		},
+        	] | []
+
+        	secret: *[
+        		for v in parameter.volumeMounts.secret {
+        			{
+        				name: v.name
+        				secret: {
+        					defaultMode: v.defaultMode
+        					secretName:  v.secretName
+        					if v.items != _|_ {
+        						items: v.items
+        					}
+        				}
+        			}
+        		},
+        	] | []
+
+        	emptyDir: *[
+        			for v in parameter.volumeMounts.emptyDir {
+        			{
+        				name: v.name
+        				emptyDir: medium: v.medium
+        			}
+        		},
+        	] | []
+
+        	hostPath: *[
+        			for v in parameter.volumeMounts.hostPath {
+        			{
+        				name: v.name
+        				hostPath: path: v.path
+        			}
+        		},
+        	] | []
+        }
         output: {
         	apiVersion: "apps/v1"
         	kind:       "Deployment"
@@ -18,21 +122,38 @@ spec:
         		selector: matchLabels: "app.oam.dev/component": context.name
 
         		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        				if parameter.addRevisionLabel {
-        					"app.oam.dev/appRevision": context.appRevision
+        			metadata: {
+        				labels: {
+        					if parameter.labels != _|_ {
+        						parameter.labels
+        					}
+        					if parameter.addRevisionLabel {
+        						"app.oam.dev/appRevision": context.appRevision
+        					}
+        					"app.oam.dev/component": context.name
+        					"app.oam.dev/revision":  context.revision
         				}
-        				"app.oam.dev/revision": context.revision
+        				if parameter.annotations != _|_ {
+        					annotations: parameter.annotations
+        				}
         			}
 
         			spec: {
         				containers: [{
         					name:  context.name
         					image: parameter.image
-        					ports: [{
-        						containerPort: parameter.port
-        					}]
+        					if parameter["port"] != _|_ && parameter["ports"] == _|_ {
+        						ports: [{
+        							containerPort: parameter.port
+        						}]
+        					}
+        					if parameter["ports"] != _|_ {
+        						ports: [ for v in parameter.ports {
+        							{
+        								containerPort: v.port
+        								protocol:      v.protocol
+        							}}]
+        					}
 
         					if parameter["imagePullPolicy"] != _|_ {
         						imagePullPolicy: parameter.imagePullPolicy
@@ -64,12 +185,16 @@ spec:
         						}
         					}
 
-        					if parameter["volumes"] != _|_ {
+        					if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
         						volumeMounts: [ for v in parameter.volumes {
         							{
         								mountPath: v.mountPath
         								name:      v.name
         							}}]
+        					}
+
+        					if parameter["volumeMounts"] != _|_ {
+        						volumeMounts: mountsArray.pvc + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir + mountsArray.hostPath
         					}
 
         					if parameter["livenessProbe"] != _|_ {
@@ -82,6 +207,11 @@ spec:
 
         				}]
 
+        				if parameter["hostAliases"] != _|_ {
+        					// +patchKey=ip
+        					hostAliases: parameter.hostAliases
+        				}
+
         				if parameter["imagePullSecrets"] != _|_ {
         					imagePullSecrets: [ for v in parameter.imagePullSecrets {
         						name: v
@@ -89,7 +219,7 @@ spec:
         					]
         				}
 
-        				if parameter["volumes"] != _|_ {
+        				if parameter["volumes"] != _|_ && parameter["volumeMounts"] == _|_ {
         					volumes: [ for v in parameter.volumes {
         						{
         							name: v.name
@@ -117,26 +247,72 @@ spec:
         							if v.type == "emptyDir" {
         								emptyDir: medium: v.medium
         							}
-        						}}]
+        						}
+        					}]
+        				}
+
+        				if parameter["volumeMounts"] != _|_ {
+        					volumes: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
         				}
         			}
         		}
         	}
         }
+        exposePorts: [
+        	for v in parameter.ports if v.expose == true {
+        		port:       v.port
+        		targetPort: v.port
+        	},
+        ]
+        outputs: {
+        	if len(exposePorts) != 0 {
+        		webserviceExpose: {
+        			apiVersion: "v1"
+        			kind:       "Service"
+        			metadata: name: context.name
+        			spec: {
+        				selector: "app.oam.dev/component": context.name
+        				ports: exposePorts
+        				type:  parameter.exposeType
+        			}
+        		}
+        	}
+        }
         parameter: {
+        	// +usage=Specify the labels in the workload
+        	labels?: {...}
+
+        	// +usage=Specify the annotations in the workload
+        	annotations?: {...}
+
         	// +usage=Which image would you like to use for your service
         	// +short=i
         	image: string
 
         	// +usage=Specify image pull policy for your service
-        	imagePullPolicy?: string
+        	imagePullPolicy?: "Always" | "Never" | "IfNotPresent"
 
         	// +usage=Specify image pull secrets for your service
         	imagePullSecrets?: [...string]
 
-        	// +usage=Which port do you want customer traffic sent to
+        	// +ignore
+        	// +usage=Deprecated field, please use ports instead
         	// +short=p
-        	port: *80 | int
+        	port?: int
+
+        	// +usage=Which ports do you want customer traffic sent to, defaults to 80
+        	ports?: [...{
+        		// +usage=Number of port to expose on the pod's IP address
+        		port: int
+        		// +usage=Protocol for port. Must be UDP, TCP, or SCTP
+        		protocol: *"TCP" | "UDP" | "SCTP"
+        		// +usage=Specify if the port should be exposed
+        		expose: *false | bool
+        	}]
+
+        	// +ignore
+        	// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer", "ExternalName"
+        	exposeType: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
 
         	// +ignore
         	// +usage=If addRevisionLabel is true, the appRevision label will be added to the underlying pods
@@ -160,6 +336,13 @@ spec:
         				// +usage=The key of the secret to select from. Must be a valid secret key
         				key: string
         			}
+        			// +usage=Selects a key of a config map in the pod's namespace
+        			configMapKeyRef: {
+        				// +usage=The name of the config map in the pod's namespace to select from
+        				name: string
+        				// +usage=The key of the config map to select from. Must be a valid secret key
+        				key: string
+        			}
         		}
         	}]
 
@@ -169,7 +352,53 @@ spec:
         	// +usage=Specifies the attributes of the memory resource required for the container.
         	memory?: string
 
-        	// +usage=Declare volumes and volumeMounts
+        	volumeMounts?: {
+        		// +usage=Mount PVC type volume
+        		pvc?: [...{
+        			name:      string
+        			mountPath: string
+        			// +usage=The name of the PVC
+        			claimName: string
+        		}]
+        		// +usage=Mount ConfigMap type volume
+        		configMap?: [...{
+        			name:        string
+        			mountPath:   string
+        			defaultMode: *420 | int
+        			cmName:      string
+        			items?: [...{
+        				key:  string
+        				path: string
+        				mode: *511 | int
+        			}]
+        		}]
+        		// +usage=Mount Secret type volume
+        		secret?: [...{
+        			name:        string
+        			mountPath:   string
+        			defaultMode: *420 | int
+        			secretName:  string
+        			items?: [...{
+        				key:  string
+        				path: string
+        				mode: *511 | int
+        			}]
+        		}]
+        		// +usage=Mount EmptyDir type volume
+        		emptyDir?: [...{
+        			name:      string
+        			mountPath: string
+        			medium:    *"" | "Memory"
+        		}]
+        		// +usage=Mount HostPath type volume
+        		hostPath?: [...{
+        			name:      string
+        			mountPath: string
+        			path:      string
+        		}]
+        	}
+
+        	// +usage=Deprecated field, use volumeMounts instead.
         	volumes?: [...{
         		name:      string
         		mountPath: string
@@ -247,7 +476,35 @@ spec:
 
         	// +usage=Number of consecutive failures required to determine the container is not alive (liveness probe) or not ready (readiness probe).
         	failureThreshold: *3 | int
+
+        	// +usage=Specify the hostAliases to add
+        	hostAliases: [...{
+        		ip: string
+        		hostnames: [...string]
+        	}]
         }
+  status:
+    customStatus: |-
+      import "strconv"
+      ready: {
+      	if context.output.status.readyReplicas == _|_ {
+      		replica: "0"
+      	}
+      	if context.output.status.readyReplicas != _|_ {
+      		replica:  strconv.FormatInt(context.output.status.readyReplicas, 10)
+      	}
+      }
+      message: "Ready:" + ready.replica + "/" + strconv.FormatInt(context.output.status.replicas, 10)
+    healthPolicy: |-
+      ready: {
+      	if context.output.status.readyReplicas == _|_ {
+      		replica: 0
+      	}
+      	if context.output.status.readyReplicas != _|_ {
+      		replica:  context.output.status.readyReplicas
+      	}
+      }
+      isHealth: context.output.status.replicas == context.output.status.readyReplicas
   workload:
     definition:
       apiVersion: apps/v1

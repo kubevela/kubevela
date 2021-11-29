@@ -664,8 +664,14 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	}
 
 	configuration := terraformapi.Configuration{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
-		ObjectMeta: metav1.ObjectMeta{Name: wl.Name, Namespace: ns},
+		TypeMeta: metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wl.Name,
+			Namespace: ns,
+		},
+	}
+	if wl.FullTemplate.ComponentDefinition != nil {
+		configuration.ObjectMeta.Annotations = wl.FullTemplate.ComponentDefinition.Annotations
 	}
 
 	switch wl.FullTemplate.Terraform.Type {

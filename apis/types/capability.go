@@ -201,6 +201,7 @@ type Addon struct {
 	Parameters    string               `json:"parameters"`
 	CUETemplates  []AddonElementFile   `json:"cue_templates"`
 	YAMLTemplates []AddonElementFile   `json:"yaml_templates,omitempty"`
+	DefSchemas    []AddonElementFile   `json:"def_schemas,omitempty"`
 	AppTemplate   *v1beta1.Application `json:"app_template"`
 }
 
@@ -215,6 +216,7 @@ type AddonMeta struct {
 	DeployTo      *AddonDeployTo     `json:"deployTo,omitempty"`
 	Dependencies  []*AddonDependency `json:"dependencies,omitempty"`
 	NeedNamespace []string           `json:"needNamespace,omitempty"`
+	Invisible     bool               `json:"invisible"`
 }
 
 // AddonDeployTo defines where the addon to deploy to

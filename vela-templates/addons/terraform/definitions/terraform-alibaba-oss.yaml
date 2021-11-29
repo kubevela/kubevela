@@ -5,8 +5,14 @@ metadata:
   namespace: vela-system
   annotations:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud OSS object
+    # identifier of this cloud resource
+    cloud-resource/identifier: BUCKET_NAME
+    # the console url of this cloud resource
+    cloud-resource/console-url: "https://oss.console.aliyun.com/bucket/oss-{ALICLOUD_REGION}/{BUCKET_NAME}/overview"
+    # the outputs which are sensitive. Separate them by a comma if there are more than one
   labels:
     type: terraform
+    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   workload:
     definition:

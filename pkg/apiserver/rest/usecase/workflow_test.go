@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
@@ -95,7 +96,17 @@ var _ = Describe("Test workflow usecase functions", func() {
 			Name:        "test-workflow-2",
 			Description: "this is test workflow",
 			EnvName:     "dev",
-			Default:     true,
+			Steps: []apisv1.WorkflowStep{
+				{
+					Name:  "apply-pvc",
+					Alias: "step-alias-1",
+				},
+				{
+					Name:  "apply-server",
+					Alias: "step-alias-2",
+				},
+			},
+			Default: true,
 		}
 		base, err = workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
@@ -232,6 +243,10 @@ var _ = Describe("Test workflow usecase functions", func() {
 		record, err := workflowUsecase.DetailWorkflowRecord(context.TODO(), workflow, "test-workflow-2-233")
 		Expect(err).Should(BeNil())
 		Expect(record.Status).Should(Equal(model.RevisionStatusComplete))
+		Expect(record.Steps[0].Alias).Should(Equal("step-alias-1"))
+		Expect(record.Steps[0].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
+		Expect(record.Steps[1].Alias).Should(Equal("step-alias-2"))
+		Expect(record.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
 
 		By("check the application revision")
 		err = workflowUsecase.ds.Get(ctx, revision)

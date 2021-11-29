@@ -480,6 +480,11 @@ type ClusterObjectReference struct {
 	corev1.ObjectReference `json:",inline"`
 }
 
+// Equal check if two references are equal
+func (in ClusterObjectReference) Equal(r ClusterObjectReference) bool {
+	return in.APIVersion == r.APIVersion && in.Kind == r.Kind && in.Name == r.Name && in.Namespace == r.Namespace && in.UID == r.UID && in.Creator == r.Creator && in.Cluster == r.Cluster
+}
+
 // RawExtensionPointer is the pointer of raw extension
 type RawExtensionPointer struct {
 	RawExtension *runtime.RawExtension

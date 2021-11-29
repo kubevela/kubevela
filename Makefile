@@ -112,6 +112,7 @@ fmt: goimports installcue
 	go fmt ./...
 	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w $$(go list -f {{.Dir}} ./...)
 	$(CUE) fmt ./vela-templates/definitions/internal/*
+	$(CUE) fmt ./vela-templates/definitions/deprecated/*
 	$(CUE) fmt ./vela-templates/definitions/registry/*
 	$(CUE) fmt ./pkg/stdlib/pkgs/*
 	$(CUE) fmt ./pkg/stdlib/op.cue
@@ -165,7 +166,7 @@ e2e-setup:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
 	bin/vela addon enable fluxcd
-	bin/vela addon enable terraform
+	bin/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
 	ginkgo version
 	ginkgo -v -r e2e/setup
 
@@ -220,9 +221,11 @@ e2e-cleanup:
 	rm -rf ~/.vela
 
 image-cleanup:
+ifneq (, $(shell which docker))
 # Delete Docker image
 ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
 	docker rmi -f $(VELA_CORE_TEST_IMAGE)
+endif
 endif
 
 end-e2e-core:

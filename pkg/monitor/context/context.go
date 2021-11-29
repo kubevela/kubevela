@@ -91,7 +91,8 @@ func (t *traceContext) Commit(msg string) {
 }
 
 func (t *traceContext) getTagsWith(keysAndValues ...interface{}) []interface{} {
-	tags := append(t.tags, keysAndValues...)
+	tags := t.tags
+	tags = append(tags, keysAndValues...)
 	return append(tags, spanTagID, t.id)
 }
 

@@ -356,17 +356,11 @@ type ComponentSelector struct {
 // DetailApplicationResponse application  detail
 type DetailApplicationResponse struct {
 	ApplicationBase
-	Policies     []string                `json:"policies"`
-	EnvBindings  []string                `json:"envBindings"`
-	Status       string                  `json:"status"`
-	ResourceInfo ApplicationResourceInfo `json:"resourceInfo"`
-}
-
-// WorkflowStepStatus workflow step status model
-type WorkflowStepStatus struct {
-	Name     string        `json:"name"`
-	Status   string        `json:"status"`
-	TakeTime time.Duration `json:"takeTime"`
+	Policies        []string                `json:"policies"`
+	EnvBindings     []string                `json:"envBindings"`
+	Status          string                  `json:"status"`
+	ApplicationType string                  `json:"applicationType"`
+	ResourceInfo    ApplicationResourceInfo `json:"resourceInfo"`
 }
 
 // ApplicationResourceInfo application-level resource consumption statistics
@@ -624,12 +618,13 @@ type DetailWorkflowRecordResponse struct {
 
 // WorkflowRecord workflow record
 type WorkflowRecord struct {
-	Name         string                      `json:"name"`
-	Namespace    string                      `json:"namespace"`
-	WorkflowName string                      `json:"workflowName"`
-	StartTime    time.Time                   `json:"startTime,omitempty"`
-	Status       string                      `json:"status"`
-	Steps        []common.WorkflowStepStatus `json:"steps,omitempty"`
+	Name                string                     `json:"name"`
+	Namespace           string                     `json:"namespace"`
+	WorkflowName        string                     `json:"workflowName"`
+	ApplicationRevision string                     `json:"applicationRevision"`
+	StartTime           time.Time                  `json:"startTime,omitempty"`
+	Status              string                     `json:"status"`
+	Steps               []model.WorkflowStepStatus `json:"steps,omitempty"`
 }
 
 // ApplicationDeployRequest the application deploy or update event request

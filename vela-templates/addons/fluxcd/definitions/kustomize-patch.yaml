@@ -1,6 +1,8 @@
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   annotations:
     definition.oam.dev/description: "A list of StrategicMerge or JSON6902 patch to selected target"
   name: kustomize-patch

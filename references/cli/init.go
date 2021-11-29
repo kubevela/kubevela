@@ -228,6 +228,9 @@ func (o *appInitOptions) Workload() error {
 		if p.Name == "name" {
 			continue
 		}
+		if p.Ignore {
+			continue
+		}
 		usage := formatAndGetUsage(&p)
 		// nolint:exhaustive
 		switch p.Type {

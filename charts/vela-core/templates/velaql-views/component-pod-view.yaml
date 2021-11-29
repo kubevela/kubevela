@@ -14,16 +14,18 @@ data:
     parameter: {
       appName:    string
       appNs:      string
-      name:       string
+      name?:      string
       cluster?:   string
       clusterNs?: string
     }
 
-    appList: ql.#ListResourcesInApp & {
+    annotationDeployVersion:  "app.oam.dev/deployVersion"
+    annotationPublishVersion: "app.oam.dev/publishVersion"
+
+    resources: ql.#ListResourcesInApp & {
       app: {
         name:      parameter.appName
         namespace: parameter.appNs
-        components: [parameter.name]
         filter: {
           if parameter.cluster != _|_ {
             cluster: parameter.cluster
@@ -31,17 +33,16 @@ data:
           if parameter.clusterNs != _|_ {
             clusterNamespace: parameter.clusterNs
           }
+          if parameter.name != _|_ {
+            components: [parameter.name]
+          }
         }
       }
     }
 
-    if appList.err == _|_ {
-      appRev:            appList.list[0].revision
-      appPublishVersion: appList.list[0].publishVersion
-      appDeployVersion:  appList.list[0].deployVersion
-      resources:         appList.list[0].components[0].resources
-      collectedPods:     op.#Steps & {
-        for i, resource in resources {
+    if resources.err == _|_ {
+      collectedPods: op.#Steps & {
+        for i, resource in resources.list {
           "\(i)": ql.#CollectPods & {
             value:   resource.object
             cluster: resource.cluster
@@ -55,21 +56,30 @@ data:
           apiVersion: pods.value.apiVersion
           kind:       pods.value.kind
         }
+        if pods.value.metadata.annotations[annotationPublishVersion] != _|_ {
+          publishVersion: pods.value.metadata.annotations[annotationPublishVersion]
+        }
+        if pods.value.metadata.annotations[annotationDeployVersion] != _|_ {
+          deployVersion: pods.value.metadata.annotations[annotationDeployVersion]
+        }
       }]
       podsError: [ for pods in collectedPods if pods.err != _|_ {pods.err}]
       status: {
         if len(podsError) == 0 {
           podList: [ for pod in podsWithCluster {
-            cluster: pod.cluster
+            cluster:  pod.cluster
             workload: pod.workload
             metadata: {
               name:         pod.obj.metadata.name
               namespace:    pod.obj.metadata.namespace
               creationTime: pod.obj.metadata.creationTimestamp
               version: {
-                revision:       appRev
-                publishVersion: appPublishVersion
-                deployVersion:  appDeployVersion
+                if pod.publishVersion != _|_ {
+                  publishVersion: pod.publishVersion
+                }
+                if pod.deployVersion != _|_ {
+                  deployVersion: pod.deployVersion
+                }
               }
             }
             status: {
@@ -89,8 +99,8 @@ data:
       }
     }
 
-    if appList.err != _|_ {
+    if resources.err != _|_ {
       status: {
-        error: appList.err
+        error: resources.err
       }
     }

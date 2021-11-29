@@ -115,6 +115,9 @@ func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value,
 	if err = envbinding.WritePlacementDecisions(p.app, policy, env, decisions); err != nil {
 		return err
 	}
+	if err = envbinding.WriteClustersToResourceTracker(context.Background(), p.Client, p.app, clusterName); err != nil {
+		return err
+	}
 	return v.FillObject(map[string]interface{}{"decisions": decisions}, "outputs")
 }
 

@@ -31,6 +31,7 @@ import (
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -201,6 +202,10 @@ func listAddons() error {
 	table := uitable.New()
 	table.AddRow("NAME", "DESCRIPTION", "STATUS")
 	for _, addon := range addons {
+		// Addon terraform should be invisible to end-users. It will be installed by other addons like `terraform-alibaba`
+		if addon.name == "terraform" {
+			continue
+		}
 		table.AddRow(addon.name, addon.description, addon.getStatus())
 	}
 	fmt.Println(table.String())
@@ -217,7 +222,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, name string, args
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(name, "terraform-provider") {
+	if strings.HasPrefix(name, "terraform-") {
 		args, _ = getTerraformProviderArgumentValue(name, args)
 	}
 	addon.setArgs(args)
@@ -378,9 +383,9 @@ func (a *Addon) enable(ctx context.Context, k8sClient client.Client, name string
 		return err
 	}
 
-	if strings.HasPrefix(name, "terraform/provider") {
+	if strings.HasPrefix(name, "terraform-") {
 		providerName, existed, err := checkWhetherTerraformProviderExist(ctx, k8sClient, name, args)
-		if err != nil {
+		if err != nil && !apimeta.IsNoMatchError(err) {
 			return err
 		}
 		if existed {
@@ -499,8 +504,8 @@ func getTerraformProviderNames(ctx context.Context, k8sClient client.Client) ([]
 	providerList := &terraformv1beta1.ProviderList{}
 	err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
 	if err != nil {
-		if kerrors.IsNotFound(err) {
-			return nil, err
+		if apimeta.IsNoMatchError(err) || kerrors.IsNotFound(err) {
+			return nil, nil
 		}
 		return nil, err
 	}
@@ -515,11 +520,11 @@ func getTerraformProviderArgumentValue(addonName string, args map[string]string)
 	providerName, ok := args[AddonTerraformProviderNameArgument]
 	if !ok {
 		switch addonName {
-		case "terraform-provider-alibaba":
+		case "terraform-alibaba":
 			providerName = "default"
-		case "terraform-provider-aws":
+		case "terraform-aws":
 			providerName = "aws"
-		case "terraform-provider-azure":
+		case "terraform-azure":
 			providerName = "azure"
 		}
 		args[AddonTerraformProviderNameArgument] = providerName

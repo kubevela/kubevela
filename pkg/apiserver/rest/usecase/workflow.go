@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
@@ -395,21 +396,22 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 			AppPrimaryKey: record.AppPrimaryKey,
 		}
 		if err := w.ds.Get(ctx, workflow); err != nil {
-			log.Logger.Errorf("get workflow %s/%s failure %s", record.AppPrimaryKey, record.WorkflowName, err.Error())
+			klog.ErrorS(err, "failed to get workflow", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
+		appName := convertAppName(record.AppPrimaryKey, workflow.EnvName)
 		if err := w.kubeClient.Get(ctx, types.NamespacedName{
-			Name:      convertAppName(record.AppPrimaryKey, workflow.EnvName),
+			Name:      appName,
 			Namespace: record.Namespace,
 		}, app); err != nil {
-			klog.ErrorS(err, "failed to get app", "app name", record.AppPrimaryKey)
-			return err
+			klog.ErrorS(err, "failed to get app", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
+			continue
 		}
 
 		// try to sync the status from the running application
 		if app.Annotations != nil && app.Annotations[oam.AnnotationPublishVersion] == record.Name {
-			if err := w.syncWorkflowStatus(ctx, app, record.Name); err != nil {
-				klog.ErrorS(err, "failed to sync workflow status", "app name", record.AppPrimaryKey, "workflow record name", record.Name)
+			if err := w.syncWorkflowStatus(ctx, app, record.Name, app.Name); err != nil {
+				klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			}
 			continue
 		}
@@ -417,19 +419,19 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 		// try to sync the status from the controller revision
 		cr := &appsv1.ControllerRevision{}
 		if err := w.kubeClient.Get(ctx, types.NamespacedName{
-			Name:      fmt.Sprintf("record-%s-%s", convertAppName(record.AppPrimaryKey, workflow.EnvName), record.Name),
+			Name:      fmt.Sprintf("record-%s-%s", appName, record.Name),
 			Namespace: record.Namespace,
 		}, cr); err != nil {
-			klog.ErrorS(err, "failed to get controller revision", "app name", record.AppPrimaryKey, "workflow record name", record.Name)
+			klog.ErrorS(err, "failed to get controller revision", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
 		appInRevision, err := util.RawExtension2Application(cr.Data)
 		if err != nil {
-			klog.ErrorS(err, "failed to get app data in controller revision", "controller revision name", cr.Name, "app name", record.AppPrimaryKey, "workflow record name", record.Name)
+			klog.ErrorS(err, "failed to get app data in controller revision", "controller revision name", cr.Name, "app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
-		if err := w.syncWorkflowStatus(ctx, appInRevision, record.Name); err != nil {
-			klog.ErrorS(err, "failed to sync workflow status", "app name", record.AppPrimaryKey, "workflow record version", record.Name)
+		if err := w.syncWorkflowStatus(ctx, appInRevision, record.Name, cr.Name); err != nil {
+			klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
 
@@ -438,8 +440,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 	return nil
 }
 
-func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1beta1.Application, recordName string) error {
-
+func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1beta1.Application, recordName, source string) error {
 	var record = &model.WorkflowRecord{
 		AppPrimaryKey: app.Annotations[oam.AnnotationAppName],
 		Name:          recordName,
@@ -473,7 +474,17 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		}
 
 		record.Status = summaryStatus
-		record.Steps = status.Steps
+		stepStatus := make(map[string]common.WorkflowStepStatus, len(status.Steps))
+		for _, step := range status.Steps {
+			stepStatus[step.Name] = step
+		}
+		for i, step := range record.Steps {
+			record.Steps[i].Phase = stepStatus[step.Name].Phase
+			record.Steps[i].Message = stepStatus[step.Name].Message
+			record.Steps[i].Reason = stepStatus[step.Name].Reason
+			record.Steps[i].FirstExecuteTime = stepStatus[step.Name].FirstExecuteTime.Time
+			record.Steps[i].LastExecuteTime = stepStatus[step.Name].LastExecuteTime.Time
+		}
 		record.Finished = strconv.FormatBool(status.Finished)
 
 		if err := w.ds.Put(ctx, record); err != nil {
@@ -484,6 +495,10 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		if err := w.ds.Put(ctx, revision); err != nil {
 			return err
 		}
+	}
+
+	if record.Status == model.RevisionStatusComplete {
+		klog.InfoS("successfully sync workflow status", "oam app name", app.Name, "workflow name", record.WorkflowName, "record name", record.Name, "status", record.Status, "sync source", source)
 	}
 
 	return nil
@@ -499,6 +514,14 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 	if app.Annotations[oam.AnnotationDeployVersion] == "" {
 		return fmt.Errorf("failed to get deploy version from application")
 	}
+	steps := make([]model.WorkflowStepStatus, len(workflow.Steps))
+	for i, step := range workflow.Steps {
+		steps[i] = model.WorkflowStepStatus{
+			Name:  step.Name,
+			Alias: step.Alias,
+			Type:  step.Type,
+		}
+	}
 
 	return w.ds.Add(ctx, &model.WorkflowRecord{
 		WorkflowName:       workflow.Name,
@@ -508,6 +531,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		Namespace:          appModel.Namespace,
 		Finished:           "false",
 		StartTime:          time.Now().Time,
+		Steps:              steps,
 		Status:             model.RevisionStatusInit,
 	})
 }
@@ -529,7 +553,7 @@ func (w *workflowUsecaseImpl) ResumeRecord(ctx context.Context, appModel *model.
 	if err := w.kubeClient.Status().Patch(ctx, oamApp, client.Merge); err != nil {
 		return err
 	}
-	if err := w.syncWorkflowStatus(ctx, oamApp, recordName); err != nil {
+	if err := w.syncWorkflowStatus(ctx, oamApp, recordName, oamApp.Name); err != nil {
 		return err
 	}
 
@@ -546,7 +570,7 @@ func (w *workflowUsecaseImpl) TerminateRecord(ctx context.Context, appModel *mod
 	if err := w.kubeClient.Status().Patch(ctx, oamApp, client.Merge); err != nil {
 		return err
 	}
-	if err := w.syncWorkflowStatus(ctx, oamApp, recordName); err != nil {
+	if err := w.syncWorkflowStatus(ctx, oamApp, recordName, oamApp.Name); err != nil {
 		return err
 	}
 
@@ -640,12 +664,13 @@ func (w *workflowUsecaseImpl) checkRecordRunning(ctx context.Context, appModel *
 
 func convertFromRecordModel(record *model.WorkflowRecord) *apisv1.WorkflowRecord {
 	return &apisv1.WorkflowRecord{
-		Name:         record.Name,
-		Namespace:    record.Namespace,
-		WorkflowName: record.WorkflowName,
-		StartTime:    record.StartTime,
-		Status:       record.Status,
-		Steps:        record.Steps,
+		Name:                record.Name,
+		Namespace:           record.Namespace,
+		WorkflowName:        record.WorkflowName,
+		ApplicationRevision: record.RevisionPrimaryKey,
+		StartTime:           record.StartTime,
+		Status:              record.Status,
+		Steps:               record.Steps,
 	}
 }
 

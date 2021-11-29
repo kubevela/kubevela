@@ -3,6 +3,8 @@ kind: ComponentDefinition
 metadata:
   name: helm
   namespace: vela-system
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   annotations:
     definition.oam.dev/description: "helm release is a group of K8s resources from either git repository or helm repo"
 spec:

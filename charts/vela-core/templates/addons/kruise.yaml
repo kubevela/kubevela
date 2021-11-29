@@ -31,6 +31,8 @@ data:
                 services that have a stable network endpoint to receive external network
                 traffic from customers. If workload type is skipped for any service defined
                 in Appfile, it will be defaulted to `webservice` type.
+            labels:
+              custom.definition.oam.dev/ui-hidden: "true"
             name: cloneset
             namespace: vela-system
           spec:
@@ -140,6 +142,8 @@ data:
           apiVersion: core.oam.dev/v1beta1
           kind: WorkflowStepDefinition
           metadata:
+            labels:
+              custom.definition.oam.dev/ui-hidden: "true"
             name: predownloadimage
           spec:
             schematic:
