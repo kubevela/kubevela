@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: add an init container and use shared volume with pod
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: init-container
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

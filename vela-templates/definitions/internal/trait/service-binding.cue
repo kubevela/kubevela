@@ -1,7 +1,9 @@
 "service-binding": {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Binding secrets of cloud resources to component env. This definition is DEPRECATED, please use 'storage' instead."
 	attributes: appliesToWorkloads: ["*"]
 }

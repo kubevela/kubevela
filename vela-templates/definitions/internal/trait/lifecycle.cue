@@ -1,7 +1,9 @@
 lifecycle: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Add lifecycle hooks for every container of K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true

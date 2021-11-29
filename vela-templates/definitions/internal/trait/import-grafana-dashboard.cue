@@ -6,7 +6,9 @@
 		workloadRefPath: ""
 	}
 	description: "Import dashboards to Grafana"
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	type: "trait"
 }
 

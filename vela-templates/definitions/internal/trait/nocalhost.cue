@@ -5,7 +5,9 @@ import (
 nocalhost: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "nocalhost develop configuration."
 	attributes: {
 		podDisruptive: true

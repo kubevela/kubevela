@@ -1,7 +1,9 @@
 rollout: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Rollout the component."
 	attributes: {
 		manageWorkload: true

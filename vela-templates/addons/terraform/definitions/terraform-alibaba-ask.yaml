@@ -7,6 +7,7 @@ metadata:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud Serverless Kubernetes (ASK)
   labels:
     type: terraform
+    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   workload:
     definition:

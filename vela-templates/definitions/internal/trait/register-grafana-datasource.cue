@@ -7,7 +7,9 @@
 		workloadRefPath: ""
 	}
 	description: "Add a datasource to Grafana"
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	type: "trait"
 }
 

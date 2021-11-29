@@ -5,8 +5,6 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Export data to config map for your workflow steps
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: export2config
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

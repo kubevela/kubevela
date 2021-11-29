@@ -5,7 +5,9 @@ import (
 "share-cloud-resource": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Sync secrets created by terraform component to runtime clusters so that runtime clusters can share the created cloud resource."
 }
 template: {

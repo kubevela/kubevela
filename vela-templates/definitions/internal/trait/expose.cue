@@ -1,7 +1,9 @@
 expose: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Expose port to enable web traffic for your component."
 	attributes: {
 		podDisruptive: false

@@ -1,7 +1,9 @@
 labels: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Add labels on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true

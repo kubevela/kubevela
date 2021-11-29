@@ -5,9 +5,7 @@ import (
 "deploy-cloud-resource": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
+	labels: {}
 	description: "Deploy cloud resource and bind secret to clusters"
 }
 template: {

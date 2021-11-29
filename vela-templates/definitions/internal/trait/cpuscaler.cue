@@ -1,7 +1,9 @@
 cpuscaler: {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Automatically scale the component based on CPU usage."
 	attributes: appliesToWorkloads: ["deployments.apps"]
 }

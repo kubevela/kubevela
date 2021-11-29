@@ -329,6 +329,7 @@ template: {
 		// +usage=Specify image pull secrets for your service
 		imagePullSecrets?: [...string]
 
+		// +ignore
 		// +usage=Deprecated field, please use ports instead
 		// +short=p
 		port?: int

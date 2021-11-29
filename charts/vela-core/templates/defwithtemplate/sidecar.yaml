@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Inject a sidecar container to K8s pod for your workload which follows the pod spec in path 'spec.template'.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: sidecar
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

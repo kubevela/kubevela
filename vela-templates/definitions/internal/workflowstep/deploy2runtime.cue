@@ -5,9 +5,7 @@ import (
 "deploy2runtime": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
+	labels: {}
 	description: "Deploy application to runtime clusters"
 }
 template: {

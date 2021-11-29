@@ -1,7 +1,9 @@
 worker: {
 	type: "component"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
 	attributes: {
 		workload: definition: {

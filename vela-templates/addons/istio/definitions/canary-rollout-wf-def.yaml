@@ -3,6 +3,8 @@ kind: WorkflowStepDefinition
 metadata:
   name: canary-rollout
   namespace: vela-system
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   schematic:
     cue:
