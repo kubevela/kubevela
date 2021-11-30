@@ -63,7 +63,8 @@ func ContextWithClusterName(ctx context.Context, clusterName string) context.Con
 
 // TracerWithClusterName create tracer with multi-cluster by cluster name
 func TracerWithClusterName(ctx monitorContext.Context, clusterName string) monitorContext.Context {
-	return ctx.WithValue(ClusterContextKey, clusterName)
+	fork := ctx.Fork(clusterName, nil)
+	return fork.WithValue(ClusterContextKey, clusterName)
 }
 
 // SetClusterName set cluster name for object

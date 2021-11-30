@@ -71,7 +71,8 @@ const (
 )
 
 func tracerWithComponentRevisionNamespace(ctx monitorContext.Context, ns string) monitorContext.Context {
-	return ctx.WithValue(ComponentRevisionNamespaceContextKey, ns)
+	fork := ctx.Fork(ns, nil)
+	return fork.WithValue(ComponentRevisionNamespaceContextKey, ns)
 }
 
 func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
