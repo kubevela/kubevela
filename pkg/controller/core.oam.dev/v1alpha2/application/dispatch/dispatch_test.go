@@ -22,14 +22,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/interfaces"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestSetOAMOwner(t *testing.T) {
 	tests := map[string]struct {
-		OO       ObjectOwner
+		OO       interfaces.ObjectOwner
 		CO       v1.OwnerReference
 		ExpOwner []v1.OwnerReference
 	}{
@@ -41,37 +44,11 @@ func TestSetOAMOwner(t *testing.T) {
 				Name:       "myapp",
 			},
 			ExpOwner: []v1.OwnerReference{{
-				APIVersion: "core.oam.dev/v1beta1",
-				Kind:       "ResourceTracker",
-				Name:       "myapp",
-			}},
-		},
-		"test remove old resourceTracker owner": {
-			OO: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"ownerReferences": []interface{}{
-							map[string]interface{}{
-								"apiVersion": "core.oam.dev/v1beta1",
-								"kind":       "ResourceTracker",
-							},
-							map[string]interface{}{
-								"apiVersion": "core.oam.dev/v1alpha2",
-								"kind":       "ApplicationContext",
-							},
-						},
-					},
-				},
-			},
-			CO: v1.OwnerReference{
-				APIVersion: "core.oam.dev/v1beta1",
-				Kind:       "ResourceTracker",
-				Name:       "myapp",
-			},
-			ExpOwner: []v1.OwnerReference{{
-				APIVersion: "core.oam.dev/v1beta1",
-				Kind:       "ResourceTracker",
-				Name:       "myapp",
+				APIVersion:         "core.oam.dev/v1beta1",
+				Kind:               "ResourceTracker",
+				Name:               "myapp",
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
 			}},
 		},
 		"test other owner not removed": {
@@ -94,19 +71,22 @@ func TestSetOAMOwner(t *testing.T) {
 				Name:       "myapp",
 			},
 			ExpOwner: []v1.OwnerReference{{
-				APIVersion: "core.oam.dev/v1beta1",
-				Kind:       "ResourceTracker",
-				Name:       "myapp",
-			},
-				{
-					APIVersion: "core.oam.dev/v1alpha1",
-					Kind:       "Rollout",
-					Name:       "xxx",
-				}},
+				APIVersion:         "core.oam.dev/v1beta1",
+				Kind:               "ResourceTracker",
+				Name:               "myapp",
+				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: pointer.Bool(true),
+			}, {
+				APIVersion: "core.oam.dev/v1alpha1",
+				Kind:       "Rollout",
+				Name:       "xxx",
+			}},
 		},
 	}
 	for name, ti := range tests {
-		setOrOverrideOAMControllerOwner(ti.OO, ti.CO)
+		rt := &v1beta1.ResourceTracker{}
+		rt.Name = ti.CO.Name
+		rt.AddOwnerReferenceToTrackerResource(ti.OO)
 		assert.Equal(t, ti.ExpOwner, ti.OO.GetOwnerReferences(), name)
 	}
 }

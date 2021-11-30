@@ -1,6 +1,8 @@
 apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: canary-rollback
   namespace: vela-system
 spec:

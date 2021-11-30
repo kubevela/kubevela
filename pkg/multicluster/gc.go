@@ -27,23 +27,35 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
-func getAppliedClusters(app *v1beta1.Application) []string {
-	status, err := envbinding.GetEnvBindingPolicyStatus(app, "")
-	appliedClusters := map[string]bool{}
+func getClustersFromRootResourceTracker(ctx context.Context, c client.Client, app *v1beta1.Application) []string {
+	rt, err := resourcetracker.GetApplicationRootResourceTracker(ctx, c, app)
 	if err != nil {
-		klog.InfoS("failed to get envbinding policy status during gc", "err", err.Error())
+		return nil
+	}
+	return rt.GetTrackedClusters()
+}
+
+func getAppliedClusters(ctx context.Context, c client.Client, app *v1beta1.Application) []string {
+	appliedClusters := map[string]bool{}
+	for _, v := range app.Status.AppliedResources {
+		appliedClusters[v.Cluster] = true
+	}
+	status, err := envbinding.GetEnvBindingPolicyStatus(app, "")
+	if err != nil {
 		// fallback
-		for _, v := range app.Status.AppliedResources {
-			appliedClusters[v.Cluster] = true
-		}
+		klog.InfoS("failed to get envbinding policy status during gc", "err", err.Error())
 	}
 	if status != nil {
 		for _, conn := range status.ClusterConnections {
 			appliedClusters[conn.ClusterName] = true
 		}
+	}
+	for _, cluster := range getClustersFromRootResourceTracker(ctx, c, app) {
+		appliedClusters[cluster] = true
 	}
 	var clusters []string
 	for cluster := range appliedClusters {
@@ -53,9 +65,9 @@ func getAppliedClusters(app *v1beta1.Application) []string {
 }
 
 // GarbageCollectionForOutdatedResourcesInSubClusters run garbage collection in sub clusters and remove outdated ResourceTrackers with their associated resources
-func GarbageCollectionForOutdatedResourcesInSubClusters(ctx context.Context, app *v1beta1.Application, gcHandler func(context.Context) error) error {
+func GarbageCollectionForOutdatedResourcesInSubClusters(ctx context.Context, c client.Client, app *v1beta1.Application, gcHandler func(context.Context) error) error {
 	var errs errors2.ErrorList
-	for _, clusterName := range getAppliedClusters(app) {
+	for _, clusterName := range getAppliedClusters(ctx, c, app) {
 		if err := gcHandler(ContextWithClusterName(ctx, clusterName)); err != nil {
 			if !errors.As(err, &errors2.ResourceTrackerNotExistError{}) {
 				errs.Append(errors.Wrapf(err, "failed to run gc in subCluster %s", clusterName))
@@ -68,27 +80,44 @@ func GarbageCollectionForOutdatedResourcesInSubClusters(ctx context.Context, app
 	return nil
 }
 
-// GarbageCollectionForAllResourceTrackersInSubCluster run garbage collection in sub clusters and remove all ResourceTrackers for the EnvBinding
-func GarbageCollectionForAllResourceTrackersInSubCluster(ctx context.Context, c client.Client, app *v1beta1.Application) error {
-	// delete subCluster resourceTracker
-	for _, cluster := range getAppliedClusters(app) {
-		subCtx := ContextWithClusterName(ctx, cluster)
-		listOpts := []client.ListOption{
-			client.MatchingLabels{
-				oam.LabelAppName:      app.Name,
-				oam.LabelAppNamespace: app.Namespace,
-			}}
-		rtList := &v1beta1.ResourceTrackerList{}
-		if err := c.List(subCtx, rtList, listOpts...); err != nil {
-			klog.ErrorS(err, "failed to list resource tracker of app", "name", app.Name, "cluster", cluster)
+func garbageCollectResourceTrackers(ctx context.Context, c client.Client, app *v1beta1.Application, cluster string) error {
+	if cluster != "" {
+		ctx = ContextWithClusterName(ctx, cluster)
+	}
+	listOpts := []client.ListOption{
+		client.MatchingLabels{
+			oam.LabelAppName:      app.Name,
+			oam.LabelAppNamespace: app.Namespace,
+		}}
+	rtList := &v1beta1.ResourceTrackerList{}
+	if err := c.List(ctx, rtList, listOpts...); err != nil {
+		klog.ErrorS(err, "failed to list resource tracker of app", "name", app.Name, "cluster", cluster)
+		return errors.WithMessage(err, "cannot remove finalizer")
+	}
+	for _, rt := range rtList.Items {
+		if err := c.Delete(ctx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
+			klog.ErrorS(err, "failed to delete resource tracker", "name", rt.Name)
 			return errors.WithMessage(err, "cannot remove finalizer")
-		}
-		for _, rt := range rtList.Items {
-			if err := c.Delete(subCtx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
-				klog.ErrorS(err, "failed to delete resource tracker", "name", rt.Name)
-				return errors.WithMessage(err, "cannot remove finalizer")
-			}
 		}
 	}
 	return nil
+}
+
+// GarbageCollectionForAllResourceTrackersInSubCluster run garbage collection in sub clusters and remove all ResourceTrackers
+func GarbageCollectionForAllResourceTrackersInSubCluster(ctx context.Context, c client.Client, app *v1beta1.Application) error {
+	// delete subCluster resourceTracker
+	for _, cluster := range getAppliedClusters(ctx, c, app) {
+		if err := garbageCollectResourceTrackers(ctx, c, app, cluster); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GarbageCollectionForAllResourceTrackers run garbage collection in sub clusters and remove all ResourceTrackers, including managed cluster
+func GarbageCollectionForAllResourceTrackers(ctx context.Context, c client.Client, app *v1beta1.Application) error {
+	if err := GarbageCollectionForAllResourceTrackersInSubCluster(ctx, c, app); err != nil {
+		return err
+	}
+	return garbageCollectResourceTrackers(ctx, c, app, "")
 }

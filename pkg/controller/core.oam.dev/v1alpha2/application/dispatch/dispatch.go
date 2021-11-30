@@ -23,15 +23,12 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -205,7 +202,7 @@ func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Cont
 	}
 	for _, rt := range rtList.Items {
 		if rt.Name != a.currentRTName &&
-			(a.previousRT != nil && rt.Name != a.previousRT.Name) && !IsLifeLongResourceTracker(rt) {
+			(a.previousRT != nil && rt.Name != a.previousRT.Name) && !rt.IsLifeLong() {
 			a.legacyRTs = append(a.legacyRTs, rt.DeepCopy())
 		}
 	}
@@ -222,7 +219,7 @@ func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Cont
 	if len(oldRtList.Items) != 0 {
 		for _, rt := range oldRtList.Items {
 			if rt.Name != a.currentRTName &&
-				(a.previousRT != nil && rt.Name != a.previousRT.Name) && !IsLifeLongResourceTracker(rt) {
+				(a.previousRT != nil && rt.Name != a.previousRT.Name) && !rt.IsLifeLong() {
 				a.legacyRTs = append(a.legacyRTs, rt.DeepCopy())
 			}
 		}
@@ -232,36 +229,13 @@ func (a *AppManifestsDispatcher) retrieveLegacyResourceTrackers(ctx context.Cont
 }
 
 func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, manifests []*unstructured.Unstructured) error {
-	ctrlUIDs := []types.UID{a.currentRT.UID}
-	if a.previousRT != nil && a.previousRT.Name != a.currentRTName {
-		klog.InfoS("Going to apply or upgrade resources", "from", a.previousRT.Name, "to", a.currentRTName)
-		// if two RT's names are different, it means dispatching operation happens in an upgrade or rollout scenario
-		// in such two scenarios, for those unchanged manifests, we will
-		// - make sure existing resources are controlled by any of these two resource trackers
-		// - set new resource tracker as their controller owner
-		ctrlUIDs = append(ctrlUIDs, a.previousRT.UID)
-	}
-
-	// allow to apply changes to resources owned by legacy RTs
-	for _, rt := range a.legacyRTs {
-		ctrlUIDs = append(ctrlUIDs, rt.UID)
-	}
-
-	applyOpts := []apply.ApplyOption{apply.MustBeControllableByAny(ctrlUIDs), apply.NotUpdateRenderHashEqual()}
-	ownerRef := metav1.OwnerReference{
-		APIVersion:         v1beta1.SchemeGroupVersion.String(),
-		Kind:               reflect.TypeOf(v1beta1.ResourceTracker{}).Name(),
-		Name:               a.currentRT.Name,
-		UID:                a.currentRT.UID,
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
-	}
+	applyOpts := []apply.ApplyOption{apply.MustBeControlledByApp(&a.appRev.Spec.Application), apply.NotUpdateRenderHashEqual()}
 	for _, rsc := range manifests {
 		if rsc == nil {
 			continue
 		}
 
-		immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, ownerRef, applyOpts)
+		immutable, err := a.ImmutableResourcesUpdate(ctx, rsc, a.currentRT, applyOpts)
 		if immutable {
 			if err != nil {
 				klog.ErrorS(err, "Failed to apply immutable resource with new ownerReference", "object",
@@ -273,7 +247,7 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 		}
 
 		// each resource applied by dispatcher MUST be controlled by resource tracker
-		setOrOverrideOAMControllerOwner(rsc, ownerRef)
+		a.currentRT.AddOwnerReferenceToTrackerResource(rsc)
 		if err := a.applicator.Apply(ctx, rsc, applyOpts...); err != nil {
 			klog.ErrorS(err, "Failed to apply a resource", "object",
 				klog.KObj(rsc), "apiVersion", rsc.GetAPIVersion(), "kind", rsc.GetKind())
@@ -288,7 +262,7 @@ func (a *AppManifestsDispatcher) applyAndRecordManifests(ctx context.Context, ma
 
 // ImmutableResourcesUpdate only updates the ownerReference
 // TODO(wonderflow): we should allow special fields to be updated. e.g. the resources.requests for bound claims for PV should be able to update
-func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, res *unstructured.Unstructured, ownerRef metav1.OwnerReference, applyOpts []apply.ApplyOption) (bool, error) {
+func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, res *unstructured.Unstructured, rt *v1beta1.ResourceTracker, applyOpts []apply.ApplyOption) (bool, error) {
 	if res == nil {
 		return false, nil
 	}
@@ -302,7 +276,7 @@ func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, r
 		if err != nil {
 			return true, err
 		}
-		setOrOverrideOAMControllerOwner(pv, ownerRef)
+		rt.AddOwnerReferenceToTrackerResource(pv)
 		pv.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1.PersistentVolume{}).Name()))
 		return true, a.applicator.Apply(ctx, pv, applyOpts...)
 	default:
@@ -313,29 +287,13 @@ func (a *AppManifestsDispatcher) ImmutableResourcesUpdate(ctx context.Context, r
 func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context, appliedManifests []*unstructured.Unstructured) error {
 	// merge applied resources and already tracked ones
 	if a.currentRT.Status.TrackedResources == nil {
-		a.currentRT.Status.TrackedResources = make([]v1.ObjectReference, 0)
+		a.currentRT.Status.TrackedResources = make([]common.ClusterObjectReference, 0)
 	}
 	for _, rsc := range appliedManifests {
 		if rsc == nil {
 			continue
 		}
-		appliedRef := v1.ObjectReference{
-			APIVersion: rsc.GetAPIVersion(),
-			Kind:       rsc.GetKind(),
-			Name:       rsc.GetName(),
-			Namespace:  rsc.GetNamespace(),
-		}
-		alreadyTracked := false
-		for _, tracked := range a.currentRT.Status.TrackedResources {
-			if tracked.APIVersion == appliedRef.APIVersion && tracked.Kind == appliedRef.Kind &&
-				tracked.Name == appliedRef.Name && tracked.Namespace == appliedRef.Namespace {
-				alreadyTracked = true
-				break
-			}
-		}
-		if !alreadyTracked {
-			a.currentRT.Status.TrackedResources = append(a.currentRT.Status.TrackedResources, appliedRef)
-		}
+		a.currentRT.AddTrackedResource(rsc)
 	}
 
 	// TODO move TrackedResources from status to spec
@@ -354,37 +312,4 @@ func (a *AppManifestsDispatcher) updateResourceTrackerStatus(ctx context.Context
 	}
 	klog.InfoS("Successfully update resource tracker status", "resourceTracker", a.currentRTName)
 	return nil
-}
-
-// ObjectOwner is a interface for get and set ownerReference
-type ObjectOwner interface {
-	GetOwnerReferences() []metav1.OwnerReference
-	SetOwnerReferences([]metav1.OwnerReference)
-}
-
-// setOrOverrideOAMControllerOwner will set the new owner and remove the legacy OAM owner
-func setOrOverrideOAMControllerOwner(obj ObjectOwner, controllerOwner metav1.OwnerReference) {
-	newOwnerRefs := []metav1.OwnerReference{controllerOwner}
-	for _, owner := range obj.GetOwnerReferences() {
-		// delete the old resourceTracker owner
-		if owner.Kind == v1beta1.ResourceTrackerKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
-			continue
-		}
-		// delete the old appContext owner
-		if owner.Kind == "ApplicationContext" && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
-			continue
-		}
-		if owner.Controller != nil && *owner.Controller &&
-			owner.UID != controllerOwner.UID {
-			owner.Controller = pointer.BoolPtr(false)
-		}
-		newOwnerRefs = append(newOwnerRefs, owner)
-	}
-	obj.SetOwnerReferences(newOwnerRefs)
-}
-
-// IsLifeLongResourceTracker check if resourcetracker shares the same whole life with the entire application
-func IsLifeLongResourceTracker(rt v1beta1.ResourceTracker) bool {
-	_, ok := rt.GetAnnotations()[oam.AnnotationResourceTrackerLifeLong]
-	return ok
 }

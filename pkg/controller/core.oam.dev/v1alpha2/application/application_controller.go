@@ -219,7 +219,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if wfStatus != nil {
 				ref, err := handler.DispatchAndGC(ctx)
 				if err == nil {
-					err = multicluster.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, app, func(c context.Context) error {
+					err = multicluster.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, r.Client, app, func(c context.Context) error {
 						_, e := handler.DispatchAndGC(c)
 						return e
 					})
@@ -332,23 +332,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 		if meta.FinalizerExists(app, resourceTrackerFinalizer) || meta.FinalizerExists(app, legacyOnlyRevisionFinalizer) {
-			listOpts := []client.ListOption{
-				client.MatchingLabels{
-					oam.LabelAppName:      app.Name,
-					oam.LabelAppNamespace: app.Namespace,
-				}}
-			rtList := &v1beta1.ResourceTrackerList{}
-			if err := r.Client.List(ctx, rtList, listOpts...); err != nil {
-				ctx.Error(err, "Failed to list resource tracker of app", "name", app.Name)
-				return true, errors.WithMessage(err, "cannot remove finalizer")
-			}
-			for _, rt := range rtList.Items {
-				if err := r.Client.Delete(ctx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
-					ctx.Error(err, "Failed to delete resource tracker", "name", rt.Name)
-					return true, errors.WithMessage(err, "cannot remove finalizer")
-				}
-			}
-			if err := multicluster.GarbageCollectionForAllResourceTrackersInSubCluster(ctx, r.Client, app); err != nil {
+			if err := multicluster.GarbageCollectionForAllResourceTrackers(ctx, r.Client, app); err != nil {
 				return true, err
 			}
 			meta.RemoveFinalizer(app, resourceTrackerFinalizer)

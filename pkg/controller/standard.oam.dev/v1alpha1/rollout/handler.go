@@ -25,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -317,14 +316,7 @@ func (h *handler) recordWorkloadInResourceTracker(ctx context.Context, workload 
 		klog.Errorf("fail to get resourceTracker to record workload rollout: namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
 		return err
 	}
-	recordedWorkload := corev1.ObjectReference{
-		APIVersion: workload.GetAPIVersion(),
-		Kind:       workload.GetKind(),
-		UID:        workload.GetUID(),
-		Namespace:  workload.GetNamespace(),
-		Name:       workload.GetName(),
-	}
-	rt.Status.TrackedResources = append(rt.Status.TrackedResources, recordedWorkload)
+	rt.AddTrackedResource(workload)
 	if err := h.Status().Update(ctx, &rt); err != nil {
 		klog.Errorf("fail to update resourceTracker for rollout record workload namespace:%s, name: %s", h.rollout.Namespace, h.rollout.Name)
 		return err

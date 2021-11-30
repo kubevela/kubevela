@@ -17,7 +17,6 @@
 package v1beta1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -256,33 +255,4 @@ type ScopeDefinitionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ScopeDefinition `json:"items"`
-}
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// An ResourceTracker represents a tracker for track cross namespace resources
-// +kubebuilder:resource:scope=Cluster,categories={oam},shortName=tracker
-type ResourceTracker struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Status ResourceTrackerStatus `json:"status,omitempty"`
-}
-
-// ResourceTrackerStatus define the status of resourceTracker
-type ResourceTrackerStatus struct {
-	TrackedResources []corev1.ObjectReference `json:"trackedResources,omitempty"`
-}
-
-// +kubebuilder:object:root=true
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// ResourceTrackerList contains a list of ResourceTracker
-type ResourceTrackerList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ResourceTracker `json:"items"`
 }

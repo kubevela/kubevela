@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Read objects for your workflow steps
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: read-object
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

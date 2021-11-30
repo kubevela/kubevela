@@ -8,6 +8,7 @@ metadata:
     provider: azure
   labels:
     type: terraform
+    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   workload:
     definition:

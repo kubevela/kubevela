@@ -17,13 +17,17 @@ limitations under the License.
 package envbinding
 
 import (
+	"context"
 	"encoding/json"
 
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 )
 
 // ReadPlacementDecisions read placement decisions from application status, return (decisions, if decision is made, error)
@@ -120,6 +124,26 @@ func WritePlacementDecisions(app *v1beta1.Application, policyName string, envNam
 			Type:   v1alpha1.EnvBindingPolicyType,
 			Status: &runtime.RawExtension{Raw: bs},
 		})
+	}
+	return nil
+}
+
+// WriteClustersToResourceTracker records cluster into application root resource tracker
+func WriteClustersToResourceTracker(ctx context.Context, c client.Client, app *v1beta1.Application, clusters ...string) error {
+	rt, err := resourcetracker.CreateOrGetApplicationRootResourceTracker(ctx, c, app)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create/get application root resource tracker")
+	}
+	update := false
+	for _, cluster := range clusters {
+		if exists := rt.AddTrackedCluster(cluster); !exists {
+			update = true
+		}
+	}
+	if update {
+		if err = c.Status().Update(ctx, rt); err != nil {
+			return errors.Wrapf(err, "failed to add cluster into application root resource tracker")
+		}
 	}
 	return nil
 }

@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Apply application for your workflow steps
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: apply-application
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
