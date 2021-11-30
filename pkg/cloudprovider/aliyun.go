@@ -190,7 +190,6 @@ func (provider *AliyunCloudProvider) CreateCloudCluster(ctx context.Context, clu
 		},
 		Spec: v1beta12.ConfigurationSpec{
 			BaseConfigurationSpec: v1beta12.BaseConfigurationSpec{
-				Path: "alibaba/cs/dedicated-kubernetes",
 				ProviderReference: &types.Reference{
 					Name:      terraformProviderName,
 					Namespace: ns,
@@ -198,11 +197,12 @@ func (provider *AliyunCloudProvider) CreateCloudCluster(ctx context.Context, clu
 			},
 			Remote:   "https://github.com/kubevela-contrib/terraform-modules.git",
 			Variable: &runtime.RawExtension{Raw: bs},
-			WriteConnectionSecretToReference: &types.SecretReference{
-				Name:      name,
-				Namespace: ns,
-			},
 		},
+	}
+	cfg.Spec.Path = "alibaba/cs/dedicated-kubernetes"
+	cfg.Spec.WriteConnectionSecretToReference = &types.SecretReference{
+		Name:      name,
+		Namespace: ns,
 	}
 
 	if err = provider.k8sClient.Create(ctx, &cfg); err != nil {
