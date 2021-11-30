@@ -71,7 +71,7 @@ const (
 	legacyOnlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
 )
 
-// Reconciler reconciles a Application object
+// Reconciler reconciles an Application object
 type Reconciler struct {
 	client.Client
 	dm                   discoverymapper.DiscoveryMapper
@@ -160,25 +160,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		logCtx.Error(err, "[Handle PrepareWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("PrepareWorkflowAndPolicy", err), common.ApplicationPolicyGenerating)
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "PrepareWorkflowAndPolicy")), common.ApplicationPolicyGenerating)
 	}
 
 	if err := handler.HandleBuiltInPolicies(builtInPolicies); err != nil {
 		klog.Error(err, "[Handle BuiltIn Policies]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition("HandleBuiltInPolicies", err), common.ApplicationPolicyGenerating)
+		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "HandleBuiltInPolicies")), common.ApplicationPolicyGenerating)
 	}
 
 	if len(externalPolicies) > 0 {
 		if err := handler.Dispatch(ctx, "", common.PolicyResourceCreator, externalPolicies...); err != nil {
 			logCtx.Error(err, "[Handle ApplyPolicyResources]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("ApplyPolices", err), common.ApplicationPolicyGenerating)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "ApplyPolices")), common.ApplicationPolicyGenerating)
 		}
 		logCtx.Info("Successfully generated application policies")
 	}
 
-	app.Status.SetConditions(condition.ReadyCondition("Render"))
+	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
+
+	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
 	if !appWillRollout(app) {
@@ -186,14 +188,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			logCtx.Error(err, "[handle workflow]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Workflow", err), common.ApplicationRunningWorkflow)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
 		}
 		wf := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode)
 		workflowState, err := wf.ExecuteSteps(logCtx.Fork("workflow"), handler.currentAppRev, steps)
 		if err != nil {
 			logCtx.Error(err, "[handle workflow]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Workflow", err), common.ApplicationRunningWorkflow)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
 		}
 
 		handler.addServiceStatus(false, app.Status.Services...)
@@ -207,7 +209,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case common.WorkflowStateTerminated:
 			logCtx.Info("Workflow return state=Terminated")
 			if err := r.doWorkflowFinish(app, wf); err != nil {
-				return r.endWithNegativeConditionWithRetry(ctx, app, condition.ErrorCondition("DoWorkflowFinish", err), common.ApplicationRunningWorkflow)
+				return r.endWithNegativeConditionWithRetry(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationWorkflowTerminated)
 		case common.WorkflowStateExecuting:
@@ -227,14 +229,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				if err != nil {
 					logCtx.Error(err, "Failed to gc after workflow")
 					r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
-					return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("GCAfterWorkflow", err), common.ApplicationRunningWorkflow)
+					return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "GCAfterWorkflow")), common.ApplicationRunningWorkflow)
 				}
 				app.Status.ResourceTracker = ref
 			}
 			if err := r.doWorkflowFinish(app, wf); err != nil {
-				return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("DoWorkflowFinish", err), common.ApplicationRunningWorkflow)
+				return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
-			app.Status.SetConditions(condition.ReadyCondition("WorkflowFinished"))
+			app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 			r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 			logCtx.Info("Application manifests has applied by workflow successfully")
 			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationWorkflowFinished)
@@ -250,7 +252,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			logCtx.Error(err, "Failed to render components")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
+			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
 		}
 
 		assemble.HandleCheckManageWorkloadTrait(*handler.currentAppRev, comps)
@@ -258,7 +260,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := handler.HandleComponentsRevision(logCtx, comps); err != nil {
 			logCtx.Error(err, "Failed to handle components revision")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition("Render", err), common.ApplicationRendering)
+			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
 		}
 		klog.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
 	}
@@ -268,7 +270,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			logCtx.Error(err, "Failed to handle rollout")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Rollout", err), common.ApplicationRollingOut)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.RolloutCondition.String(), err), common.ApplicationRollingOut)
 		}
 		// skip health check and garbage collection if rollout have not finished
 		// start next reconcile immediately
@@ -281,7 +283,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		// there is no need reconcile immediately, that means the rollout operation have finished
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
-		app.Status.SetConditions(condition.ReadyCondition("Rollout"))
+		app.Status.SetConditions(condition.ReadyCondition(common.RolloutCondition.String()))
 		logCtx.Info("Finished rollout ")
 	}
 	var phase = common.ApplicationRunning
@@ -299,7 +301,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.Info("Successfully garbage collect")
 	app.Status.SetConditions(condition.Condition{
-		Type:               condition.TypeReady,
+		Type:               condition.ConditionType(common.ReadyCondition.String()),
 		Status:             corev1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             condition.ReasonReconcileSuccess,
