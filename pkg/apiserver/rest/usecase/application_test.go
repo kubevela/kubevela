@@ -26,8 +26,11 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -495,7 +498,19 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test createTargetClusterEnv function", func() {
-		err := k8sClient.Create(context.TODO(), &v1beta1.ComponentDefinition{
+		var namespace corev1.Namespace
+		err := k8sClient.Get(context.TODO(), k8stypes.NamespacedName{Name: types.DefaultKubeVelaNS}, &namespace)
+		if apierrors.IsNotFound(err) {
+			err := k8sClient.Create(context.TODO(), &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: types.DefaultKubeVelaNS,
+				},
+			})
+			Expect(err).Should(BeNil())
+		} else {
+			Expect(err).Should(BeNil())
+		}
+		err = k8sClient.Create(context.TODO(), &v1beta1.ComponentDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "aliyun-rds",
 				Namespace: types.DefaultKubeVelaNS,
