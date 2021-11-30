@@ -163,6 +163,14 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 	})
 
+	It("Test ListApplications and filter by targetName function", func() {
+		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{
+			Namespace:  "test-app-namespace",
+			TargetName: "dev-target"})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(list), 2)).Should(BeEmpty())
+	})
+
 	It("Test DetailApplication function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())

@@ -63,7 +63,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("namespace", "The namespace of the managed cluster").DataType("string")).
-		Param(ws.QueryParameter("target", "Name of the application delivery target").DataType("string")).
+		Param(ws.QueryParameter("targetName", "Name of the application delivery target").DataType("string")).
 		Returns(200, "", apis.ListApplicationResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListApplicationResponse{}))
@@ -506,7 +506,7 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
 	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{
 		Namespace:  req.QueryParameter("namespace"),
-		TargetName: req.QueryParameter("target"),
+		TargetName: req.QueryParameter("targetName"),
 		Query:      req.QueryParameter("query"),
 	})
 	if err != nil {
