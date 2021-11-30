@@ -184,8 +184,10 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 		}
 		if configuration.Status.Apply.State != terraformtypes.Available {
 			status.Healthy = false
+			isHealth = false
 		} else {
 			status.Healthy = true
+			isHealth = true
 		}
 		status.Message = configuration.Status.Apply.Message
 	} else {
