@@ -45,7 +45,8 @@ type PodStatus struct {
 	Events     interface{} `json:"events"`
 }
 type Status struct {
-	PodList []PodStatus `json:"podList"`
+	PodList []PodStatus `json:"podList,omitempty"`
+	Error   string      `json:"error,omitempty"`
 }
 
 var _ = Describe("Test velaQL rest api", func() {
@@ -215,7 +216,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s}.%s", "test-component-pod-view", appName, namespace, "status"),
 			)
 			if err != nil {
 				return err
