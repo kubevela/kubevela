@@ -230,7 +230,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx monitorContext.Context, healthScop
 	if healthScope.Spec.ProbeTimeout != nil {
 		timeout = time.Duration(*healthScope.Spec.ProbeTimeout) * time.Second
 	}
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx.GetContext(), timeout)
 	defer cancel()
 	ctx.SetContext(ctxWithTimeout)
 
