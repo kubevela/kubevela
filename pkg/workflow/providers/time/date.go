@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -33,7 +34,7 @@ const (
 type provider struct {
 }
 
-func (h *provider) Timestamp(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Timestamp(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	date, err := v.GetString("date")
 	if err != nil {
 		return err
@@ -52,7 +53,7 @@ func (h *provider) Timestamp(ctx wfContext.Context, v *value.Value, act types.Ac
 	return v.FillObject(t.Unix(), "timestamp")
 }
 
-func (h *provider) Date(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Date(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	timestamp, err := v.GetInt64("timestamp")
 	if err != nil {
 		return err

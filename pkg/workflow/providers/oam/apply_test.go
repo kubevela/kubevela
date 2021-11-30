@@ -213,7 +213,7 @@ func TestLoadComponentInOrder(t *testing.T) {
 	}
 	v, err := value.NewValue(``, nil, "")
 	r.NoError(err)
-	err = p.LoadComponentInOrder(nil, v, nil)
+	err = p.LoadComponentInOrder(nil, nil, v, nil)
 	r.NoError(err)
 	s, err := v.String()
 	r.NoError(err)

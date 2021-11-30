@@ -41,14 +41,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
 	hubCtx = context.Background()
-	logCtx := monitorContext.NewTraceContext(hubCtx, "")
-	workerCtx = multicluster.ContextWithClusterName(logCtx, WorkerClusterName)
+	workerCtx = multicluster.ContextWithClusterName(hubCtx, WorkerClusterName)
 	return
 }
 

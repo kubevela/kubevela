@@ -41,7 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -136,10 +135,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 
 func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) error {
 	ctx := context.Background()
-	logCtx := monitorContext.NewTraceContext(ctx, "ensureResourceTrackerCRDInstalled")
-	defer logCtx.Commit("ensureResourceTrackerCRDInstalled")
-
-	remoteCtx := multicluster.ContextWithClusterName(logCtx, clusterName)
+	remoteCtx := multicluster.ContextWithClusterName(ctx, clusterName)
 	crdName := types2.NamespacedName{Name: "resourcetrackers." + v1beta1.Group}
 	if err := c.Get(remoteCtx, crdName, &v13.CustomResourceDefinition{}); err != nil {
 		if !errors2.IsNotFound(err) {

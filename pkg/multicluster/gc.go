@@ -19,7 +19,6 @@ package multicluster
 import (
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -30,7 +29,7 @@ import (
 	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
-func getClustersFromRootResourceTracker(ctx context.Context, c client.Client, app *v1beta1.Application) []string {
+func getClustersFromRootResourceTracker(ctx monitorContext.Context, c client.Client, app *v1beta1.Application) []string {
 	rt, err := resourcetracker.GetApplicationRootResourceTracker(ctx, c, app)
 	if err != nil {
 		return nil
@@ -38,7 +37,7 @@ func getClustersFromRootResourceTracker(ctx context.Context, c client.Client, ap
 	return rt.GetTrackedClusters()
 }
 
-func getAppliedClusters(ctx context.Context, c client.Client, app *v1beta1.Application) []string {
+func getAppliedClusters(ctx monitorContext.Context, c client.Client, app *v1beta1.Application) []string {
 	appliedClusters := map[string]bool{}
 	for _, v := range app.Status.AppliedResources {
 		appliedClusters[v.Cluster] = true
@@ -46,7 +45,7 @@ func getAppliedClusters(ctx context.Context, c client.Client, app *v1beta1.Appli
 	status, err := envbinding.GetEnvBindingPolicyStatus(app, "")
 	if err != nil {
 		// fallback
-		klog.InfoS("failed to get envbinding policy status during gc", "err", err.Error())
+		ctx.Info("failed to get envbinding policy status during gc", "err", err.Error())
 	}
 	if status != nil {
 		for _, conn := range status.ClusterConnections {
@@ -64,10 +63,10 @@ func getAppliedClusters(ctx context.Context, c client.Client, app *v1beta1.Appli
 }
 
 // GarbageCollectionForOutdatedResourcesInSubClusters run garbage collection in sub clusters and remove outdated ResourceTrackers with their associated resources
-func GarbageCollectionForOutdatedResourcesInSubClusters(ctx monitorContext.Context, c client.Client, app *v1beta1.Application, gcHandler func(context.Context) error) error {
+func GarbageCollectionForOutdatedResourcesInSubClusters(ctx monitorContext.Context, c client.Client, app *v1beta1.Application, gcHandler func(monitorContext.Context) error) error {
 	var errs errors2.ErrorList
 	for _, clusterName := range getAppliedClusters(ctx, c, app) {
-		if err := gcHandler(ContextWithClusterName(ctx, clusterName)); err != nil {
+		if err := gcHandler(TracerWithClusterName(ctx, clusterName)); err != nil {
 			if !errors.As(err, &errors2.ResourceTrackerNotExistError{}) {
 				errs.Append(errors.Wrapf(err, "failed to run gc in subCluster %s", clusterName))
 			}
@@ -79,9 +78,9 @@ func GarbageCollectionForOutdatedResourcesInSubClusters(ctx monitorContext.Conte
 	return nil
 }
 
-func garbageCollectResourceTrackers(ctx context.Context, c client.Client, app *v1beta1.Application, cluster string) error {
+func garbageCollectResourceTrackers(ctx monitorContext.Context, c client.Client, app *v1beta1.Application, cluster string) error {
 	if cluster != "" {
-		ctx = ContextWithClusterName(ctx, cluster)
+		ctx = TracerWithClusterName(ctx, cluster)
 	}
 	listOpts := []client.ListOption{
 		client.MatchingLabels{
@@ -90,12 +89,12 @@ func garbageCollectResourceTrackers(ctx context.Context, c client.Client, app *v
 		}}
 	rtList := &v1beta1.ResourceTrackerList{}
 	if err := c.List(ctx, rtList, listOpts...); err != nil {
-		klog.ErrorS(err, "failed to list resource tracker of app", "name", app.Name, "cluster", cluster)
+		ctx.Error(err, "failed to list resource tracker of app", "name", app.Name, "cluster", cluster)
 		return errors.WithMessage(err, "cannot remove finalizer")
 	}
 	for _, rt := range rtList.Items {
 		if err := c.Delete(ctx, rt.DeepCopy()); err != nil && !kerrors.IsNotFound(err) {
-			klog.ErrorS(err, "failed to delete resource tracker", "name", rt.Name)
+			ctx.Error(err, "failed to delete resource tracker", "name", rt.Name)
 			return errors.WithMessage(err, "cannot remove finalizer")
 		}
 	}
@@ -103,7 +102,7 @@ func garbageCollectResourceTrackers(ctx context.Context, c client.Client, app *v
 }
 
 // GarbageCollectionForAllResourceTrackersInSubCluster run garbage collection in sub clusters and remove all ResourceTrackers
-func GarbageCollectionForAllResourceTrackersInSubCluster(ctx context.Context, c client.Client, app *v1beta1.Application) error {
+func GarbageCollectionForAllResourceTrackersInSubCluster(ctx monitorContext.Context, c client.Client, app *v1beta1.Application) error {
 	// delete subCluster resourceTracker
 	for _, cluster := range getAppliedClusters(ctx, c, app) {
 		if err := garbageCollectResourceTrackers(ctx, c, app, cluster); err != nil {
@@ -114,7 +113,7 @@ func GarbageCollectionForAllResourceTrackersInSubCluster(ctx context.Context, c 
 }
 
 // GarbageCollectionForAllResourceTrackers run garbage collection in sub clusters and remove all ResourceTrackers, including managed cluster
-func GarbageCollectionForAllResourceTrackers(ctx context.Context, c client.Client, app *v1beta1.Application) error {
+func GarbageCollectionForAllResourceTrackers(ctx monitorContext.Context, c client.Client, app *v1beta1.Application) error {
 	if err := GarbageCollectionForAllResourceTrackersInSubCluster(ctx, c, app); err != nil {
 		return err
 	}

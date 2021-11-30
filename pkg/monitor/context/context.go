@@ -34,6 +34,7 @@ type Context interface {
 	Logger
 	GetContext() stdctx.Context
 	SetContext(ctx stdctx.Context)
+	WithValue(key, val interface{}) Context
 	AddTag(keysAndValues ...interface{}) Context
 	Fork(name string, exporters ...Exporter) Context
 	Commit(msg string)
@@ -89,6 +90,11 @@ func (t *traceContext) Commit(msg string) {
 		export(t, duration.Microseconds())
 	}
 	klog.InfoSDepth(1, msg, t.getTagsWith("duration", duration.String())...)
+}
+
+func (t *traceContext) WithValue(key, val interface{}) Context {
+	t.Context = stdctx.WithValue(t.Context, key, val)
+	return t
 }
 
 func (t *traceContext) getTagsWith(keysAndValues ...interface{}) []interface{} {

@@ -254,7 +254,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx monitorContext.Context, healthScop
 				traitConditions   []*TraitHealthCondition
 			)
 
-			subCtx := multicluster.ContextWithClusterName(ctxWithTimeout, resRef.clusterName)
+			subCtx := multicluster.TracerWithClusterName(ctx, resRef.clusterName)
 			ns := resRef.Namespace
 			if ns == "" {
 				ns = healthScope.GetNamespace()
@@ -372,7 +372,7 @@ func (r *Reconciler) CollectAppfilesAndAppNames(ctx monitorContext.Context, refs
 		if refNs == "" {
 			refNs = ns
 		}
-		subCtx := multicluster.ContextWithClusterName(ctx, ref.clusterName)
+		subCtx := multicluster.TracerWithClusterName(ctx, ref.clusterName)
 		if err := r.client.Get(subCtx, client.ObjectKey{Name: ref.Name, Namespace: refNs}, u); err != nil {
 			// no need to check error in this function
 			// HealthCheckFn  will handle all errors latter
@@ -602,7 +602,7 @@ func (r *Reconciler) createWorkloadRefs(ctx monitorContext.Context, appRef v1alp
 				o := new(unstructured.Unstructured)
 				o.SetKind(rs.Kind)
 				o.SetAPIVersion(rs.APIVersion)
-				if err := r.client.Get(multicluster.ContextWithClusterName(ctx, rs.Cluster), client.ObjectKey{
+				if err := r.client.Get(multicluster.TracerWithClusterName(ctx, rs.Cluster), client.ObjectKey{
 					Name:      rs.Name,
 					Namespace: rs.Namespace,
 				}, o); err != nil {

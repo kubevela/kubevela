@@ -29,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -104,8 +105,8 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 	return viewCtx.GetVar(qv.Export)
 }
 
-func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
-	ctx = multicluster.ContextWithClusterName(ctx, cluster)
+func (handler *ViewHandler) dispatch(ctx monitorContext.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+	ctx = multicluster.TracerWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
 		if err := applicator.Apply(ctx, manifest); err != nil {

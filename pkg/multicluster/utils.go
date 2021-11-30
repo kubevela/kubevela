@@ -57,10 +57,13 @@ var (
 )
 
 // ContextWithClusterName create context with multi-cluster by cluster name
-func ContextWithClusterName(ctx monitorContext.Context, clusterName string) monitorContext.Context {
-	newCtx := context.WithValue(ctx, ClusterContextKey, clusterName)
-	ctx.SetContext(newCtx)
-	return ctx
+func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
+	return context.WithValue(ctx, ClusterContextKey, clusterName)
+}
+
+// TracerWithClusterName create tracer with multi-cluster by cluster name
+func TracerWithClusterName(ctx monitorContext.Context, clusterName string) monitorContext.Context {
+	return ctx.WithValue(ClusterContextKey, clusterName)
 }
 
 // SetClusterName set cluster name for object

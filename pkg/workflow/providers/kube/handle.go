@@ -85,7 +85,7 @@ func (h *provider) Apply(ctx wfContext.Context, tracer monitorContext.Context, v
 	if err != nil {
 		return err
 	}
-	deployCtx := multicluster.ContextWithClusterName(tracer, cluster)
+	deployCtx := multicluster.TracerWithClusterName(tracer, cluster)
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (h *provider) Read(ctx wfContext.Context, tracer monitorContext.Context, v 
 	if err != nil {
 		return err
 	}
-	readCtx := multicluster.ContextWithClusterName(tracer, cluster)
+	readCtx := multicluster.TracerWithClusterName(tracer, cluster)
 	if err := h.cli.Get(readCtx, key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -153,7 +153,7 @@ func (h *provider) List(ctx wfContext.Context, tracer monitorContext.Context, v 
 		client.InNamespace(filter.Namespace),
 		client.MatchingLabels(filter.MatchingLabels),
 	}
-	readCtx := multicluster.ContextWithClusterName(tracer, cluster)
+	readCtx := multicluster.TracerWithClusterName(tracer, cluster)
 	if err := h.cli.List(readCtx, list, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -174,7 +174,7 @@ func (h *provider) Delete(ctx wfContext.Context, tracer monitorContext.Context, 
 	if err != nil {
 		return err
 	}
-	deleteCtx := multicluster.ContextWithClusterName(tracer, cluster)
+	deleteCtx := multicluster.TracerWithClusterName(tracer, cluster)
 	if err := h.delete(deleteCtx, cluster, common.WorkflowResourceCreator, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}

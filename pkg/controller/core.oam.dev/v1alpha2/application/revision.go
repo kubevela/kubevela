@@ -70,10 +70,8 @@ const (
 	ComponentRevisionNamespaceContextKey = contextKey("component-revision-namespace")
 )
 
-func contextWithComponentRevisionNamespace(ctx monitorContext.Context, ns string) monitorContext.Context {
-	newCtx := context.WithValue(ctx, ComponentRevisionNamespaceContextKey, ns)
-	ctx.SetContext(newCtx)
-	return ctx
+func tracerWithComponentRevisionNamespace(ctx monitorContext.Context, ns string) monitorContext.Context {
+	return ctx.WithValue(ComponentRevisionNamespaceContextKey, ns)
 }
 
 func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
@@ -858,7 +856,7 @@ func cleanUpWorkflowComponentRevision(ctx monitorContext.Context, h *AppHandler)
 		ns := resource.Namespace
 		r := &unstructured.Unstructured{}
 		r.GetObjectKind().SetGroupVersionKind(resource.GroupVersionKind())
-		_ctx := multicluster.ContextWithClusterName(ctx, resource.Cluster)
+		_ctx := multicluster.TracerWithClusterName(ctx, resource.Cluster)
 		err := h.r.Get(_ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
 		if err != nil {
 			return err
@@ -877,7 +875,7 @@ func cleanUpWorkflowComponentRevision(ctx monitorContext.Context, h *AppHandler)
 		listOpts := []client.ListOption{client.MatchingLabels{
 			oam.LabelControllerRevisionComponent: curComp.Name,
 		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
-		_ctx := multicluster.ContextWithClusterName(ctx, curComp.Cluster)
+		_ctx := multicluster.TracerWithClusterName(ctx, curComp.Cluster)
 		if err := h.r.List(_ctx, crList, listOpts...); err != nil {
 			return err
 		}

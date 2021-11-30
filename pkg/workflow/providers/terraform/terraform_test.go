@@ -67,7 +67,7 @@ func TestLoadTerraformComponents(t *testing.T) {
 		act := &mock.Action{}
 		v, err := value.NewValue("", nil, "")
 		r.NoError(err)
-		err = p.LoadTerraformComponents(nil, v, act)
+		err = p.LoadTerraformComponents(nil, nil, v, act)
 		if testCase.HasError {
 			r.Error(err)
 			continue
@@ -132,7 +132,7 @@ func TestGetConnectionStatus(t *testing.T) {
 		if testCase.ComponentName != "" {
 			r.NoError(v.FillObject(map[string]string{"componentName": testCase.ComponentName}, "inputs"))
 		}
-		err = p.GetConnectionStatus(nil, v, act)
+		err = p.GetConnectionStatus(nil, nil, v, act)
 		if testCase.Error != "" {
 			r.Error(err)
 			r.Contains(err.Error(), testCase.Error)

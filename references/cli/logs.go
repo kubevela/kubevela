@@ -24,7 +24,6 @@ import (
 	"text/template"
 	"time"
 
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 
 	"github.com/fatih/color"
@@ -89,9 +88,6 @@ type Args struct {
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
 func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
-	logCtx := monitorContext.NewTraceContext(ctx, "vela logs")
-	defer logCtx.Commit("vela logs")
-
 	clientSet, err := kubernetes.NewForConfig(l.Args.Config)
 	if err != nil {
 		return err
@@ -109,7 +105,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	}
 
 	if selectedRes.Cluster != "" && selectedRes.Cluster != "local" {
-		ctx = multicluster.ContextWithClusterName(logCtx, selectedRes.Cluster)
+		ctx = multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
 	}
 	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
 	labelSelector := labels.Everything()

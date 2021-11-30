@@ -41,6 +41,7 @@ import (
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -106,6 +107,8 @@ func (o *DeleteOptions) DeleteApp(io cmdutil.IOStreams) error {
 // ForceDeleteApp force delete the application
 func (o *DeleteOptions) ForceDeleteApp(io cmdutil.IOStreams) error {
 	ctx := context.Background()
+	logCtx := monitorContext.NewTraceContext(ctx, "force delete app")
+	defer logCtx.Commit("force delete app")
 	err := o.DeleteAppWithoutDoubleCheck(io)
 	if err != nil {
 		return err
@@ -130,7 +133,7 @@ func (o *DeleteOptions) ForceDeleteApp(io cmdutil.IOStreams) error {
 			return err
 		}
 	}
-	if err = multicluster.GarbageCollectionForAllResourceTrackersInSubCluster(ctx, o.Client, app); err != nil {
+	if err = multicluster.GarbageCollectionForAllResourceTrackersInSubCluster(logCtx, o.Client, app); err != nil {
 		return err
 	}
 	io.Info("force deleted the resources created by application")

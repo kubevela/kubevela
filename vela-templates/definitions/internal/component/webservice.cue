@@ -30,7 +30,7 @@ webservice: {
 						replica:  context.output.status.readyReplicas
 					}
 				}
-				isHealth: context.output.status.replicas == context.output.status.readyReplicas
+				isHealth: context.output.status.replicas == ready.replica
 				"""#
 		}
 	}

@@ -127,7 +127,7 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 
 func (h *AppHandler) renderComponentFunc(c monitorContext.Context, appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-		ctx := multicluster.ContextWithClusterName(c, clusterName)
+		ctx := multicluster.TracerWithClusterName(c, clusterName)
 
 		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -139,7 +139,7 @@ func (h *AppHandler) renderComponentFunc(c monitorContext.Context, appParser *ap
 
 func (h *AppHandler) applyComponentFunc(c monitorContext.Context, appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		ctx := contextWithComponentRevisionNamespace(multicluster.ContextWithClusterName(c, clusterName), overrideNamespace)
+		ctx := tracerWithComponentRevisionNamespace(multicluster.TracerWithClusterName(c, clusterName), overrideNamespace)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {

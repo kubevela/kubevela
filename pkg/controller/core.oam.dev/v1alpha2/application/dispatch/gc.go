@@ -17,6 +17,7 @@ limitations under the License.
 package dispatch
 
 import (
+	"context"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -25,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -121,20 +123,21 @@ func (h *GCHandler) GarbageCollect(ctx monitorContext.Context, oldRT, newRT *v1b
 					return errors.Wrapf(err, "cannot delete resource %q", oldRsc)
 				}
 				ctx.Info("Successfully GC a resource", "name", oldRsc.Name, "apiVersion", oldRsc.APIVersion, "kind", oldRsc.Kind)
+			}
+			// delete the old resource tracker
+			if err := h.c.Delete(ctx, h.oldRT); err != nil && !kerrors.IsNotFound(err) {
+				klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
+				return errors.Wrapf(err, "cannot delete resource tracker %q", h.oldRT.Name)
+			}
+			klog.InfoS("Successfully GC a resource tracker and its resources", "name", h.oldRT.Name)
 		}
-		// delete the old resource tracker
-		if err := h.c.Delete(ctx, h.oldRT); err != nil && !kerrors.IsNotFound(err) {
-			klog.ErrorS(err, "Failed to delete resource tracker", "name", h.oldRT.Name)
-			return errors.Wrapf(err, "cannot delete resource tracker %q", h.oldRT.Name)
+		for _, rt := range legacyRTs {
+			if err := h.c.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
+				ctx.Error(err, "Failed to delete a legacy resource tracker", "legacy", rt.Name)
+				return errors.Wrap(err, "cannot delete legacy resource tracker")
+			}
+			ctx.Info("Successfully delete a legacy resource tracker", "legacy", rt.Name, "latest", h.newRT.Name)
 		}
-		klog.InfoS("Successfully GC a resource tracker and its resources", "name", h.oldRT.Name)
-	}
-	for _, rt := range legacyRTs {
-		if err := h.c.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
-			ctx.Error(err, "Failed to delete a legacy resource tracker", "legacy", rt.Name)
-			return errors.Wrap(err, "cannot delete legacy resource tracker")
-		}
-		ctx.Info("Successfully delete a legacy resource tracker", "legacy", rt.Name, "latest", h.newRT.Name)
 	}
 	return nil
 }

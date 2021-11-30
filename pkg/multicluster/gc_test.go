@@ -29,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -43,7 +44,8 @@ func TestGetAppliedCluster(t *testing.T) {
 		Type:   v1alpha1.EnvBindingPolicyType,
 		Status: &runtime.RawExtension{Raw: []byte(`bad value`)},
 	}}
-	clusters := getAppliedClusters(context.Background(), cli, app)
+	logCtx := monitorContext.NewTraceContext(context.Background(), "")
+	clusters := getAppliedClusters(logCtx, cli, app)
 	r.Equal(1, len(clusters))
 	r.Equal("cluster-0", clusters[0])
 	envBindingStatus := &v1alpha1.EnvBindingStatus{ClusterConnections: []v1alpha1.ClusterConnection{{
@@ -58,7 +60,7 @@ func TestGetAppliedCluster(t *testing.T) {
 		Type:   v1alpha1.EnvBindingPolicyType,
 		Status: &runtime.RawExtension{Raw: bs},
 	}}
-	clusters = getAppliedClusters(context.Background(), cli, app)
+	clusters = getAppliedClusters(logCtx, cli, app)
 	r.Equal(2, len(clusters))
 	sort.Strings(clusters)
 	r.Equal("cluster-1", clusters[0])

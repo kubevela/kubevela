@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -67,7 +68,7 @@ type FilterOption struct {
 }
 
 // ListResourcesInApp lists CRs created by Application
-func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) ListResourcesInApp(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -84,7 +85,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	return v.FillObject(appResList, "list")
 }
 
-func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) CollectPods(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
@@ -115,7 +116,7 @@ func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.
 	return v.FillObject(pods, "list")
 }
 
-func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) SearchEvents(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err

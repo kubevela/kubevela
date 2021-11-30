@@ -24,6 +24,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -42,7 +43,7 @@ type provider struct {
 	renderer WorkloadRenderer
 }
 
-func (p *provider) LoadTerraformComponents(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadTerraformComponents(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	var components []common.ApplicationComponent
 	for _, comp := range p.app.Spec.Components {
 		wl, err := p.renderer(comp)
@@ -57,7 +58,7 @@ func (p *provider) LoadTerraformComponents(ctx wfContext.Context, v *value.Value
 	return v.FillObject(components, "outputs", "components")
 }
 
-func (p *provider) GetConnectionStatus(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) GetConnectionStatus(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	componentName, err := v.GetString("inputs", "componentName")
 	if err != nil {
 		return errors.Wrapf(err, "failed to get component name")

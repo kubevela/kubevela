@@ -174,7 +174,7 @@ func (p *provider) LoadComponent(ctx wfContext.Context, tracer monitorContext.Co
 }
 
 // LoadComponentInOrder load component describe info in application output will be a list with order defined in application.
-func (p *provider) LoadComponentInOrder(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) LoadComponentInOrder(ctx wfContext.Context, tracer monitorContext.Context, v *value.Value, act wfTypes.Action) error {
 	app := &v1beta1.Application{}
 	// if specify `app`, use specified application otherwise use default application fron provider
 	appSettings, err := v.LookupValue("app")

@@ -152,7 +152,7 @@ var _ = Describe("Test Query Provider", func() {
 			}`
 			v, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(nil, v, nil)).Should(BeNil())
+			Expect(prd.ListResourcesInApp(nil, nil, v, nil)).Should(BeNil())
 
 			appResList := new(AppResourcesList)
 			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
@@ -168,7 +168,7 @@ var _ = Describe("Test Query Provider", func() {
 			prd := provider{cli: k8sClient}
 			newV, err := value.NewValue(optWithoutApp, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.ListResourcesInApp(nil, newV, nil)
+			err = prd.ListResourcesInApp(nil, nil, newV, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(err.Error()).Should(Equal("var(path=app) not exist"))
 		})
@@ -210,7 +210,7 @@ var _ = Describe("Test Query Provider", func() {
 cluster: ""`, deployJson)
 			v, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())
-			Expect(prd.CollectPods(nil, v, nil)).Should(BeNil())
+			Expect(prd.CollectPods(nil, nil, v, nil)).Should(BeNil())
 
 			podList := new(PodList)
 			Expect(v.UnmarshalTo(podList)).Should(BeNil())
@@ -228,14 +228,14 @@ cluster: ""`, deployJson)
 			prd := provider{cli: k8sClient}
 			v, err := value.NewValue(emptyOpt, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.CollectPods(nil, v, nil)
+			err = prd.CollectPods(nil, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(err.Error()).Should(Equal("var(path=value) not exist"))
 
 			optWithoutCluster := `value: {}`
 			v, err = value.NewValue(optWithoutCluster, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.CollectPods(nil, v, nil)
+			err = prd.CollectPods(nil, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(err.Error()).Should(Equal("var(path=cluster) not exist"))
 
@@ -243,7 +243,7 @@ cluster: ""`, deployJson)
 cluster: "test"`
 			v, err = value.NewValue(optWithWrongValue, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.CollectPods(nil, v, nil)
+			err = prd.CollectPods(nil, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 		})
 	})
@@ -254,14 +254,14 @@ cluster: "test"`
 			prd := provider{cli: k8sClient}
 			v, err := value.NewValue(emptyOpt, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(nil, v, nil)
+			err = prd.SearchEvents(nil, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(err.Error()).Should(Equal("var(path=value) not exist"))
 
 			optWithoutCluster := `value: {}`
 			v, err = value.NewValue(optWithoutCluster, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(nil, v, nil)
+			err = prd.SearchEvents(nil, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(err.Error()).Should(Equal("var(path=cluster) not exist"))
 
@@ -269,7 +269,7 @@ cluster: "test"`
 cluster: "test"`
 			v, err = value.NewValue(optWithWrongValue, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(nil, v, nil)
+			err = prd.SearchEvents(nil, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 		})
 	})

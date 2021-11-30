@@ -30,7 +30,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -140,8 +139,6 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 
 // Init prepares the arguments accepted by the Exec command
 func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []string) error {
-	logCtx := monitorContext.NewTraceContext(ctx, "init vela exec")
-	defer logCtx.Commit("init vela exec")
 	o.Cmd = c
 	o.Args = argsIn
 
@@ -175,7 +172,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.resourceName = targetResource.Name
-	o.Ctx = multicluster.ContextWithClusterName(logCtx, targetResource.Cluster)
+	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
 	o.resourceNamespace = targetResource.Namespace
 	o.VelaC.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	k8sClient, err := kubernetes.NewForConfig(o.VelaC.Config)
