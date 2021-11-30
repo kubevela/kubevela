@@ -156,7 +156,7 @@ func (t *traceContext) AddTag(keysAndValues ...interface{}) Context {
 // NewTraceContext new a TraceContext
 func NewTraceContext(ctx stdctx.Context, id string) Context {
 	if id == "" {
-		id = "i-" + utils.RandomString(8)
+		id = "i-" + utils.RandomString(12)
 	}
 	return &traceContext{
 		Context:        ctx,
