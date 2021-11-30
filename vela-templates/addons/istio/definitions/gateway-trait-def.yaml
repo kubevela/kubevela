@@ -3,8 +3,6 @@
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   annotations:
     definition.oam.dev/description: use istio to manage in-cluster traffic
   name: istio-gateway

@@ -43,6 +43,7 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string").Required(true).AllowableValues(map[string]string{"component": "", "trait": "", "workflowstep": ""})).
 		Param(ws.QueryParameter("envName", "if specified, query the definition supported by the env.").DataType("string")).
+		Param(ws.QueryParameter("appliedWorkload", "if specified, query the trait definition applied to the workload.").DataType("string")).
 		Returns(200, "", apis.ListDefinitionResponse{}).
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))
 
@@ -64,7 +65,7 @@ func NewDefinitionWebservice(du usecase.DefinitionUsecase) WebService {
 }
 
 func (d *definitionWebservice) listDefinitions(req *restful.Request, res *restful.Response) {
-	definitions, err := d.definitionUsecase.ListDefinitions(req.Request.Context(), req.QueryParameter("envName"), req.QueryParameter("type"))
+	definitions, err := d.definitionUsecase.ListDefinitions(req.Request.Context(), req.QueryParameter("envName"), req.QueryParameter("type"), req.QueryParameter("appliedWorkload"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

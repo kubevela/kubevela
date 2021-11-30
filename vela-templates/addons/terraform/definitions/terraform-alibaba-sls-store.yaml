@@ -7,7 +7,6 @@ metadata:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud SLS Store
   labels:
     type: terraform
-    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   workload:
     definition:

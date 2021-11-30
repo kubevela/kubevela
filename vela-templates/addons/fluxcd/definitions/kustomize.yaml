@@ -3,8 +3,6 @@ kind: ComponentDefinition
 metadata:
   name: kustomize
   namespace: vela-system
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   annotations:
     definition.oam.dev/description: "kustomize can fetching, building, updating and applying Kustomize manifests from git repo."
 spec:

@@ -36,8 +36,18 @@ const (
 )
 
 const (
-	// AnnDescription is the annotation which describe what is the capability used for in a WorkloadDefinition/TraitDefinition Object
-	AnnDescription = "definition.oam.dev/description"
+	// AnnoDefinitionDescription is the annotation which describe what is the capability used for in a WorkloadDefinition/TraitDefinition Object
+	AnnoDefinitionDescription = "definition.oam.dev/description"
+	// AnnoDefinitionAppliedWorkloads is the annotation which describe what is the workloads used for in a TraitDefinition Object
+	AnnoDefinitionAppliedWorkloads = "definition.oam.dev/appliedWorkloads"
+	// LabelDefinition is the label for definition
+	LabelDefinition = "definition.oam.dev"
+	// LabelDefinitionName is the label for definition name
+	LabelDefinitionName = "definition.oam.dev/name"
+	// LabelDefinitionDeprecated is the label which describe whether the capability is deprecated
+	LabelDefinitionDeprecated = "custom.definition.oam.dev/deprecated"
+	// LabelDefinitionHidden is the label which describe whether the capability is hidden by UI
+	LabelDefinitionHidden = "custom.definition.oam.dev/ui-hidden"
 )
 
 const (

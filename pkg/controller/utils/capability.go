@@ -249,7 +249,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, componentDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -267,7 +267,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeComponentDefinition, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeComponentDefinition, defRev.Spec.ComponentDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -330,7 +330,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, traitDefinition.Labels, traitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -348,7 +348,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeTraitDefinition, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeTraitDefinition, defRev.Spec.TraitDefinition.Labels, defRev.Spec.TraitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -399,7 +399,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, stepDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -417,7 +417,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, defRev.Spec.WorkflowStepDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -430,12 +430,22 @@ type CapabilityBaseDefinition struct {
 
 // CreateOrUpdateConfigMap creates ConfigMap to store OpenAPI v3 schema or or updates data in ConfigMap
 func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace,
-	definitionName, definitionType string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
+	definitionName, definitionType string, labels map[string]string, appliedWorkloads []string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
 	cmName := fmt.Sprintf("%s-%s%s", definitionType, types.CapabilityConfigMapNamePrefix, definitionName)
 	var cm v1.ConfigMap
 	var data = map[string]string{
 		types.OpenapiV3JSONSchema: string(jsonSchema),
 	}
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[types.LabelDefinition] = "schema"
+	labels[types.LabelDefinitionName] = definitionName
+	annotations := make(map[string]string)
+	if appliedWorkloads != nil {
+		annotations[types.AnnoDefinitionAppliedWorkloads] = strings.Join(appliedWorkloads, ",")
+	}
+
 	// No need to check the existence of namespace, if it doesn't exist, API server will return the error message
 	// before it's to be reconciled by ComponentDefinition/TraitDefinition controller.
 	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cmName}, &cm)
@@ -449,10 +459,8 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 				Name:            cmName,
 				Namespace:       namespace,
 				OwnerReferences: ownerReferences,
-				Labels: map[string]string{
-					"definition.oam.dev":      "schema",
-					"definition.oam.dev/name": definitionName,
-				},
+				Labels:          labels,
+				Annotations:     annotations,
 			},
 			Data: data,
 		}
@@ -465,6 +473,8 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 	}
 
 	cm.Data = data
+	cm.Labels = labels
+	cm.Annotations = annotations
 	if err = k8sClient.Update(ctx, &cm); err != nil {
 		return cmName, fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 	}

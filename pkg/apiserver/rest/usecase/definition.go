@@ -24,15 +24,18 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -44,7 +47,7 @@ import (
 // DefinitionUsecase definition usecase, Implement the management of ComponentDefinition、TraitDefinition and WorkflowStepDefinition.
 type DefinitionUsecase interface {
 	// ListDefinitions list definition base info
-	ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error)
+	ListDefinitions(ctx context.Context, envName, defType, appliedWorkloads string) ([]*apisv1.DefinitionBase, error)
 	// DetailDefinition get definition detail
 	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
 	// AddDefinitionUISchema add or update custom definition ui schema
@@ -74,46 +77,88 @@ func NewDefinitionUsecase() DefinitionUsecase {
 	return &definitionUsecaseImpl{kubeClient: kubecli, caches: make(map[string]*utils.MemoryCache)}
 }
 
-func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType string) ([]*apisv1.DefinitionBase, error) {
+func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
 	defs := &unstructured.UnstructuredList{}
 	switch defType {
 	case "component":
 		defs.SetAPIVersion(definitionAPIVersion)
 		defs.SetKind(kindComponentDefinition)
-		return d.listDefinitions(ctx, defs, kindComponentDefinition)
+		return d.listDefinitions(ctx, defs, kindComponentDefinition, "")
 
 	case "trait":
 		defs.SetAPIVersion(definitionAPIVersion)
 		defs.SetKind(kindTraitDefinition)
-		return d.listDefinitions(ctx, defs, kindTraitDefinition)
+		return d.listDefinitions(ctx, defs, kindTraitDefinition, appliedWorkload)
 
 	case "workflowstep":
 		defs.SetAPIVersion(definitionAPIVersion)
 		defs.SetKind(kindWorkflowStepDefinition)
-		return d.listDefinitions(ctx, defs, kindWorkflowStepDefinition)
+		return d.listDefinitions(ctx, defs, kindWorkflowStepDefinition, "")
 
 	default:
 		return nil, bcode.ErrDefinitionTypeNotSupport
 	}
 }
 
-func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache string) ([]*apisv1.DefinitionBase, error) {
-	if mc := d.caches[cache]; mc != nil && !mc.IsExpired() {
+func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
+	if mc := d.caches[cache]; mc != nil && !mc.IsExpired() && appliedWorkload == "" {
 		return mc.GetData().([]*apisv1.DefinitionBase), nil
 	}
+	matchLabels := metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      types.LabelDefinitionDeprecated,
+				Operator: metav1.LabelSelectorOpDoesNotExist,
+			},
+			{
+				Key:      types.LabelDefinitionHidden,
+				Operator: metav1.LabelSelectorOpDoesNotExist,
+			},
+		},
+	}
+	selector, err := metav1.LabelSelectorAsSelector(&matchLabels)
+	if err != nil {
+		return nil, err
+	}
 	if err := d.kubeClient.List(ctx, list, &client.ListOptions{
-		Namespace: types.DefaultKubeVelaNS,
+		LabelSelector: selector,
 	}); err != nil {
 		return nil, err
 	}
 	var defs []*apisv1.DefinitionBase
 	for _, def := range list.Items {
-		defs = append(defs, &apisv1.DefinitionBase{
+		if appliedWorkload != "" {
+			traitDef := &v1beta1.TraitDefinition{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
+				return nil, errors.Wrap(err, "invalid trait definition")
+			}
+			filter := false
+			for _, workload := range traitDef.Spec.AppliesToWorkloads {
+				if workload == appliedWorkload || workload == "*" {
+					filter = true
+					break
+				}
+			}
+			if !filter {
+				continue
+			}
+		}
+		definition := &apisv1.DefinitionBase{
 			Name:        def.GetName(),
-			Description: def.GetAnnotations()[types.AnnDescription],
-		})
+			Description: def.GetAnnotations()[types.AnnoDefinitionDescription],
+		}
+		if cache == kindComponentDefinition {
+			compDef := &v1beta1.ComponentDefinition{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, compDef); err != nil {
+				return nil, errors.Wrap(err, "invalid component definition")
+			}
+			definition.WorkloadType = compDef.Spec.Workload.Type
+		}
+		defs = append(defs, definition)
 	}
-	d.caches[cache] = utils.NewMemoryCache(defs, time.Minute*3)
+	if appliedWorkload == "" {
+		d.caches[cache] = utils.NewMemoryCache(defs, time.Minute*3)
+	}
 	return defs, nil
 }
 

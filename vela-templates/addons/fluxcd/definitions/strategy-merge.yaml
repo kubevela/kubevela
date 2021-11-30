@@ -1,8 +1,6 @@
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   annotations:
     definition.oam.dev/description: "A list of strategic merge to kustomize config"
   name: kustomize-strategy-merge

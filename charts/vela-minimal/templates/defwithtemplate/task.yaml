@@ -248,4 +248,5 @@ spec:
     definition:
       apiVersion: batch/v1
       kind: Job
+    type: jobs.batch
 

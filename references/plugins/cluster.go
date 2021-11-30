@@ -229,7 +229,7 @@ func GetDescription(annotation map[string]string) string {
 	if annotation == nil {
 		return DescriptionUndefined
 	}
-	desc, ok := annotation[types.AnnDescription]
+	desc, ok := annotation[types.AnnoDefinitionDescription]
 	if !ok {
 		return DescriptionUndefined
 	}

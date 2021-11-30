@@ -13,7 +13,6 @@ metadata:
     cloud-resource/sensitive-outputs: "DB_PASSWORD"
   labels:
     type: terraform
-    custom.definition.oam.dev/ui-hidden: "true"
 spec:
   workload:
     definition:
