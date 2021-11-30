@@ -24,26 +24,26 @@ import (
 	"text/template"
 	"time"
 
-	yaml2 "k8s.io/apimachinery/pkg/util/yaml"
-
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	"github.com/Masterminds/sprig"
 	"github.com/gosuri/uitable"
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	yaml2 "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -55,6 +55,11 @@ const (
 
 	// DependsOnWorkFlowStepName is workflow step name which is used to check dependsOn app
 	DependsOnWorkFlowStepName = "depends-on-app"
+
+	// AddonTerraformProviderNamespace is the namespace of addon terraform provider
+	AddonTerraformProviderNamespace = "default"
+	// AddonTerraformProviderNameArgument is the argument name of addon terraform provider
+	AddonTerraformProviderNameArgument = "providerName"
 )
 
 var statusUninstalled = "uninstalled"
@@ -68,19 +73,19 @@ func init() {
 	clientArgs, _ = common.InitBaseRestConfig()
 	clt, _ = clientArgs.GetClient()
 	legacyAddonNamespace = map[string]string{
-		"fluxcd":              types.DefaultKubeVelaNS,
-		"ns-flux-system":      types.DefaultKubeVelaNS,
-		"kruise":              types.DefaultKubeVelaNS,
-		"prometheus":          types.DefaultKubeVelaNS,
-		"observability":       "observability",
-		"observability-asset": types.DefaultKubeVelaNS,
-		"istio":               "istio-system",
-		"ns-istio-system":     types.DefaultKubeVelaNS,
-		"keda":                types.DefaultKubeVelaNS,
-		"ocm-cluster-manager": types.DefaultKubeVelaNS,
-		"terraform":           types.DefaultKubeVelaNS,
-		"terraform-alibaba":   "default",
-		"terraform-azure":     "default",
+		"fluxcd":                     types.DefaultKubeVelaNS,
+		"ns-flux-system":             types.DefaultKubeVelaNS,
+		"kruise":                     types.DefaultKubeVelaNS,
+		"prometheus":                 types.DefaultKubeVelaNS,
+		"observability":              "observability",
+		"observability-asset":        types.DefaultKubeVelaNS,
+		"istio":                      "istio-system",
+		"ns-istio-system":            types.DefaultKubeVelaNS,
+		"keda":                       types.DefaultKubeVelaNS,
+		"ocm-cluster-manager":        types.DefaultKubeVelaNS,
+		"terraform":                  types.DefaultKubeVelaNS,
+		"terraform-provider/alibaba": "default",
+		"terraform-provider/azure":   "default",
 	}
 }
 
@@ -96,7 +101,7 @@ func NewAddonCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	}
 	cmd.AddCommand(
 		NewAddonListCommand(),
-		NewAddonEnableCommand(ioStreams),
+		NewAddonEnableCommand(c, ioStreams),
 		NewAddonDisableCommand(ioStreams),
 	)
 	return cmd
@@ -120,13 +125,19 @@ func NewAddonListCommand() *cobra.Command {
 }
 
 // NewAddonEnableCommand create addon enable command
-func NewAddonEnableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	ctx := context.Background()
 	return &cobra.Command{
 		Use:     "enable",
 		Short:   "enable an addon",
 		Long:    "enable an addon in cluster",
 		Example: "vela addon enable <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
@@ -135,7 +146,7 @@ func NewAddonEnableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = enableAddon(name, addonArgs)
+			err = enableAddon(ctx, k8sClient, name, addonArgs)
 			if err != nil {
 				return err
 			}
@@ -202,17 +213,21 @@ func listAddons() error {
 	return nil
 }
 
-func enableAddon(name string, args map[string]string) error {
+func enableAddon(ctx context.Context, k8sClient client.Client, name string, args map[string]string) error {
 	repo, err := NewAddonRepo()
 	if err != nil {
 		return err
 	}
+
 	addon, err := repo.getAddon(name)
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(name, "terraform-") {
+		args, _ = getTerraformProviderArgumentValue(name, args)
+	}
 	addon.setArgs(args)
-	err = addon.enable()
+	err = addon.enable(ctx, k8sClient, name, args)
 	return err
 }
 
@@ -362,14 +377,25 @@ func (a *Addon) renderApplication() (*v1beta1.Application, error) {
 	return a.application, nil
 }
 
-func (a *Addon) enable() error {
+func (a *Addon) enable(ctx context.Context, k8sClient client.Client, name string, args map[string]string) error {
 	applicator := apply.NewAPIApplicator(clt)
-	ctx := context.Background()
 	obj, err := a.renderApplication()
 	if err != nil {
 		return err
 	}
-	err = a.installDependsOn()
+
+	if strings.HasPrefix(name, "terraform-") {
+		providerName, existed, err := checkWhetherTerraformProviderExist(ctx, k8sClient, name, args)
+		if err != nil && !apimeta.IsNoMatchError(err) {
+			return err
+		}
+		if existed {
+			return errors.Errorf("terraform provider %s with name %s already exists", name, providerName)
+		}
+		obj.Name = fmt.Sprintf("%s-%s", obj.Name, providerName)
+	}
+
+	err = a.installDependsOn(ctx, k8sClient, args)
 	if err != nil {
 		return errors.Wrap(err, "Error occurs when install dependent addon")
 	}
@@ -431,7 +457,7 @@ func (a *Addon) setArgs(args map[string]string) {
 	a.Args = args
 }
 
-func (a *Addon) installDependsOn() error {
+func (a *Addon) installDependsOn(ctx context.Context, k8sClient client.Client, args map[string]string) error {
 	if a.application.Spec.Workflow == nil || a.application.Spec.Workflow.Steps == nil {
 		return nil
 	}
@@ -452,7 +478,7 @@ func (a *Addon) installDependsOn() error {
 				return err
 			}
 			if addon.getStatus() != statusInstalled {
-				err = addon.enable()
+				err = addon.enable(ctx, k8sClient, dependsOnAddonName, args)
 				if err != nil {
 					return err
 				}
@@ -465,4 +491,52 @@ func (a *Addon) installDependsOn() error {
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy
 func TransAddonName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
+}
+
+func getTerraformProviderNames(ctx context.Context, k8sClient client.Client) ([]string, error) {
+	var names []string
+	providerList := &terraformv1beta1.ProviderList{}
+	err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
+	if err != nil {
+		if apimeta.IsNoMatchError(err) || kerrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	for _, provider := range providerList.Items {
+		names = append(names, provider.Name)
+	}
+	return names, nil
+}
+
+// Get the value of argument AddonTerraformProviderNameArgument
+func getTerraformProviderArgumentValue(addonName string, args map[string]string) (map[string]string, string) {
+	providerName, ok := args[AddonTerraformProviderNameArgument]
+	if !ok {
+		switch addonName {
+		case "terraform-alibaba":
+			providerName = "default"
+		case "terraform-aws":
+			providerName = "aws"
+		case "terraform-azure":
+			providerName = "azure"
+		}
+		args[AddonTerraformProviderNameArgument] = providerName
+	}
+	return args, providerName
+}
+
+func checkWhetherTerraformProviderExist(ctx context.Context, k8sClient client.Client, addonName string, args map[string]string) (string, bool, error) {
+	_, providerName := getTerraformProviderArgumentValue(addonName, args)
+
+	providerNames, err := getTerraformProviderNames(ctx, k8sClient)
+	if err != nil {
+		return "", false, err
+	}
+	for _, name := range providerNames {
+		if providerName == name {
+			return providerName, true, nil
+		}
+	}
+	return providerName, false, nil
 }

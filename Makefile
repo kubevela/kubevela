@@ -155,7 +155,7 @@ e2e-setup:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
 	bin/vela addon enable fluxcd
-	bin/vela addon enable terraform-alibaba
+	bin/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
 	ginkgo version
 	ginkgo -v -r e2e/setup
 
@@ -259,7 +259,7 @@ core-uninstall: manifests
 	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: installcue kustomize
+manifests: installcue kustomize addon
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
@@ -267,7 +267,6 @@ manifests: installcue kustomize
 	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/ charts/vela-minimal/crds
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
-	go run ./vela-templates/gen_addons.go
 
 GOLANGCILINT_VERSION ?= v1.38.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -351,3 +350,7 @@ check-license-header:
 
 def-install:
 	./hack/utils/installdefinition.sh
+
+# generate addons to auto-gen and charts
+addon:
+	go run ./vela-templates/gen_addons.go

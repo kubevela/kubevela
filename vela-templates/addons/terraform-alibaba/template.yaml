@@ -15,27 +15,27 @@ spec:
           namespace: vela-system
       - type: apply-application
   components:
-    - name: alibaba-account-creds
+    - name: alibaba-account-creds-[[ index .Args "providerName" ]]
       properties:
         apiVersion: v1
         kind: Secret
         metadata:
-          name: alibaba-account-creds
+          name: alibaba-account-creds-[[ index .Args "providerName" ]]
           namespace: vela-system
-        type: Opaquehelm
+        type: Opaque
         stringData:
           credentials: |
             accessKeyID: [[ index .Args "ALICLOUD_ACCESS_KEY" ]]
             accessKeySecret: [[ index .Args "ALICLOUD_SECRET_KEY" ]]
             securityToken: [[ index .Args "ALICLOUD_SECURITY_TOKEN" ]]
       type: raw
-    - name: default
+    - name: alibaba-[[ index .Args "providerName" ]]
       type: raw
       properties:
         apiVersion: terraform.core.oam.dev/v1beta1
         kind: Provider
         metadata:
-          name: default
+          name: '[[ index .Args "providerName" ]]'
           namespace: default
         spec:
           provider: alibaba
@@ -44,7 +44,7 @@ spec:
             source: Secret
             secretRef:
               namespace: vela-system
-              name: alibaba-account-creds
+              name: alibaba-account-creds-[[ index .Args "providerName" ]]
               key: credentials
 {{ range .ResourceFiles }}
     - name: {{ .Name }}

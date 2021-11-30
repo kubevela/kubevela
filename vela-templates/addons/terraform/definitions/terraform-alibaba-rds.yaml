@@ -5,6 +5,12 @@ metadata:
   namespace: vela-system
   annotations:
     definition.oam.dev/description: Terraform configuration for Alibaba Cloud RDS object
+    # identifier of this cloud resource
+    cloud-resource/identifier: DB_ID
+    # the console url of this cloud resource
+    cloud-resource/console-url: "https://rdsnext.console.aliyun.com/detail/{DB_ID}/basicInfo?&region={ALICLOUD_REGION}"
+    # the outputs which are sensitive. Separate them by a comma if there are more than one
+    cloud-resource/sensitive-outputs: "DB_PASSWORD"
   labels:
     type: terraform
 spec:
@@ -26,6 +32,10 @@ spec:
           password = var.password
           allocate_public_connection = var.allocate_public_connection
           security_ips = ["0.0.0.0/0",]
+        }
+
+        output "DB_ID" {
+          value = module.rds.db_instance_id
         }
 
         output "DB_NAME" {
