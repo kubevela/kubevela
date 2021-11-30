@@ -510,7 +510,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		}
 	}
 
-	return w.ds.Add(ctx, &model.WorkflowRecord{
+	if err := w.ds.Add(ctx, &model.WorkflowRecord{
 		WorkflowName:       workflow.Name,
 		WorkflowAlias:      workflow.Alias,
 		AppPrimaryKey:      appModel.PrimaryKey(),
@@ -521,8 +521,35 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		StartTime:          time.Now().Time,
 		Steps:              steps,
 		Status:             model.RevisionStatusRunning,
-	})
+	}); err != nil {
+		return err
+	}
+
+	// set rest records' status to terminate
+	var record = model.WorkflowRecord{
+		WorkflowName:  workflow.Name,
+		AppPrimaryKey: appModel.PrimaryKey(),
+		Finished:      "false",
+	}
+	// list all unfinished workflow records
+	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, raw := range records {
+		record, ok := raw.(*model.WorkflowRecord)
+		if ok {
+			record.Status = model.RevisionStatusTerminated
+			record.Finished = "true"
+			if err := w.ds.Put(ctx, record); err != nil {
+				klog.Info("failed to set rest records' status to terminate", "app name", appModel.PrimaryKey(), "workflow name", record.WorkflowName, "record name", record.Name, "error", err)
+			}
+		}
+	}
+
+	return nil
 }
+
 func (w *workflowUsecaseImpl) CountWorkflow(ctx context.Context, app *model.Application) int64 {
 	count, err := w.ds.Count(ctx, &model.Workflow{AppPrimaryKey: app.PrimaryKey()}, &datastore.FilterOptions{})
 	if err != nil {
