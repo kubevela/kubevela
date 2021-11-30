@@ -60,11 +60,17 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 		err = k8sClient.Create(context.Background(), &cd)
 		Expect(err).Should(Succeed())
-		components, err := definitionUsecase.ListDefinitions(context.TODO(), "", "component", "")
+		definitions, err := definitionUsecase.ListDefinitions(context.TODO(), "", "component", "")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(components), 1)).Should(BeEmpty())
-		Expect(cmp.Diff(components[0].Name, "webservice-test")).Should(BeEmpty())
-		Expect(components[0].Description).ShouldNot(BeEmpty())
+		var selectDefinition *v1.DefinitionBase
+		for i, definition := range definitions {
+			if definition.WorkloadType == "deployments.apps" {
+				selectDefinition = definitions[i]
+			}
+		}
+		Expect(selectDefinition).ShouldNot(BeNil())
+		Expect(cmp.Diff(selectDefinition.Name, "webservice-test")).Should(BeEmpty())
+		Expect(selectDefinition.Description).ShouldNot(BeEmpty())
 
 		By("List trait definitions")
 		myingress, err := ioutil.ReadFile("./testdata/myingress-td.yaml")

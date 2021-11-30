@@ -249,6 +249,7 @@ spec:
         	failureThreshold: *3 | int
         }
   workload:
+    type: deployments.apps
     definition:
       apiVersion: apps/v1
       kind: Deployment

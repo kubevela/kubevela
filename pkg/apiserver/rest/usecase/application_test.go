@@ -510,7 +510,7 @@ var _ = Describe("Test application usecase function", func() {
 		} else {
 			Expect(err).Should(BeNil())
 		}
-		err = k8sClient.Create(context.TODO(), &v1beta1.ComponentDefinition{
+		definition := &v1beta1.ComponentDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "aliyun-rds",
 				Namespace: types.DefaultKubeVelaNS,
@@ -520,7 +520,8 @@ var _ = Describe("Test application usecase function", func() {
 					Type: TerraformWorkfloadType,
 				},
 			},
-		})
+		}
+		err = k8sClient.Create(context.TODO(), definition)
 		Expect(err).Should(BeNil())
 		envConfig := appUsecase.createTargetClusterEnv(context.TODO(), &model.Application{
 			Namespace: "prod",
@@ -540,6 +541,8 @@ var _ = Describe("Test application usecase function", func() {
 		})
 		Expect(cmp.Diff(len(envConfig.Patch.Components), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(strings.Contains(string(envConfig.Patch.Components[0].Properties.Raw), "aliyun"), true)).Should(BeEmpty())
+		err = k8sClient.Delete(context.TODO(), definition)
+		Expect(err).Should(BeNil())
 	})
 })
 
