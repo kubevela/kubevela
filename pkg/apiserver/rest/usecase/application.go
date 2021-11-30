@@ -112,6 +112,7 @@ func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUseca
 		deliveryTargetUsecase: deliveryTargetUsecase,
 		kubeClient:            kubecli,
 		apply:                 apply.NewAPIApplicator(kubecli),
+		definitionUsecase:     definitionUsecase,
 	}
 }
 
