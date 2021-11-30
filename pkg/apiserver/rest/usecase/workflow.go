@@ -539,6 +539,9 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 	for _, raw := range records {
 		record, ok := raw.(*model.WorkflowRecord)
 		if ok {
+			if record.Name == app.Annotations[oam.AnnotationPublishVersion] {
+				continue
+			}
 			record.Status = model.RevisionStatusTerminated
 			record.Finished = "true"
 			if err := w.ds.Put(ctx, record); err != nil {
