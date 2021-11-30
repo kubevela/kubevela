@@ -163,7 +163,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 	})
 
-	It("Test ListApplications with targetName function", func() {
+	It("Test ListApplications and filter by targetName function", func() {
 		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{
 			Namespace:  "test-app-namespace",
 			TargetName: "dev-target"})
