@@ -67,7 +67,7 @@ func Init(ds datastore.DataStore) {
 	definitionUsecase := usecase.NewDefinitionUsecase()
 	addonUsecase := usecase.NewAddonUsecase(ds)
 	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase)
-	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase)
+	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase, definitionUsecase)
 	RegistWebService(NewClusterWebService(clusterUsecase))
 	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
 	RegistWebService(NewNamespaceWebService(namespaceUsecase))

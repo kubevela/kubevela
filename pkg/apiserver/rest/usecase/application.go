@@ -96,10 +96,11 @@ type applicationUsecaseImpl struct {
 	workflowUsecase       WorkflowUsecase
 	envBindingUsecase     EnvBindingUsecase
 	deliveryTargetUsecase DeliveryTargetUsecase
+	definitionUsecase     DefinitionUsecase
 }
 
 // NewApplicationUsecase new application usecase
-func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase, envBindingUsecase EnvBindingUsecase, deliveryTargetUsecase DeliveryTargetUsecase) ApplicationUsecase {
+func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase, envBindingUsecase EnvBindingUsecase, deliveryTargetUsecase DeliveryTargetUsecase, definitionUsecase DefinitionUsecase) ApplicationUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
@@ -309,7 +310,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 	return base, nil
 }
 
-func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.Application, envName string) (v1beta1.AppPolicy, error) {
+func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.Application, envName string, components []*model.ApplicationComponent) (v1beta1.AppPolicy, error) {
 	appPolicy := v1beta1.AppPolicy{}
 	envBinding, err := c.envBindingUsecase.GetEnvBinding(ctx, app, envName)
 	if err != nil {
@@ -324,7 +325,7 @@ func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.
 		if err != nil || target == nil {
 			return appPolicy, bcode.ErrFoundEnvbindingDeliveryTarget
 		}
-		envBindingSpec.Envs = append(envBindingSpec.Envs, createTargetClusterEnv(envBinding, target))
+		envBindingSpec.Envs = append(envBindingSpec.Envs, c.createTargetClusterEnv(ctx, app, envBinding, target, components))
 	}
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
 	if err != nil {
@@ -733,9 +734,10 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	if err != nil {
 		return nil, err
 	}
-
+	var componentModels []*model.ApplicationComponent
 	for _, entity := range components {
 		component := entity.(*model.ApplicationComponent)
+		componentModels = append(componentModels, component)
 		var traits []common.ApplicationTrait
 		for _, trait := range component.Traits {
 			aTrait := common.ApplicationTrait{
@@ -775,7 +777,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		app.Spec.Policies = append(app.Spec.Policies, apolicy)
 	}
 	if workflow.EnvName != "" {
-		envPolicy, err := c.genPolicyByEnv(ctx, appModel, workflow.EnvName)
+		envPolicy, err := c.genPolicyByEnv(ctx, appModel, workflow.EnvName, componentModels)
 		if err != nil {
 			return nil, err
 		}
@@ -1214,7 +1216,7 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
-func createTargetClusterEnv(envBind *model.EnvBinding, target *model.DeliveryTarget) v1alpha1.EnvConfig {
+func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app *model.Application, envBind *model.EnvBinding, target *model.DeliveryTarget, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
 	var componentSelector *v1alpha1.EnvSelector
 	if envBind.ComponentSelector != nil {
@@ -1226,10 +1228,52 @@ func createTargetClusterEnv(envBind *model.EnvBinding, target *model.DeliveryTar
 		placement.ClusterSelector = &common.ClusterSelector{Name: target.Cluster.ClusterName}
 		placement.NamespaceSelector = &v1alpha1.NamespaceSelector{Name: target.Cluster.Namespace}
 	}
+	var componentPatchs []v1alpha1.EnvComponentPatch
+	// init cloud application region and provider info
+	for _, component := range components {
+		definition, err := c.definitionUsecase.GetComponentDefinition(ctx, component.Type)
+		if err != nil {
+			log.Logger.Errorf("get component definition %s failure %s", component.Type, err.Error())
+			continue
+		}
+		if definition != nil {
+			if definition.Spec.Workload.Type == TerraformWorkfloadType {
+				properties := model.JSONStruct{
+					"providerRef": map[string]interface{}{
+						"name":      "",
+						"namespace": "default",
+					},
+					"region": "",
+					"writeConnectionSecretToRef": map[string]interface{}{
+						"name":      fmt.Sprintf("%s-%s", component.Name, envBind.Name),
+						"namespace": app.Namespace,
+					},
+				}
+				if region, ok := target.Variable["region"]; ok {
+					properties["region"] = region
+				}
+				if providerName, ok := target.Variable["providerName"]; ok {
+					properties["providerRef"].(map[string]interface{})["name"] = providerName
+				}
+				if providerNamespace, ok := target.Variable["providerNamespace"]; ok {
+					properties["providerRef"].(map[string]interface{})["namespace"] = providerNamespace
+				}
+				log.Logger.Info(properties)
+				componentPatchs = append(componentPatchs, v1alpha1.EnvComponentPatch{
+					Name:       component.Name,
+					Properties: properties.RawExtension(),
+				})
+			}
+		}
+	}
+
 	return v1alpha1.EnvConfig{
 		Name:      genPolicyEnvName(target.Name),
 		Placement: placement,
 		Selector:  componentSelector,
+		Patch: v1alpha1.EnvPatch{
+			Components: componentPatchs,
+		},
 	}
 }
 

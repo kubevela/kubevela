@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -58,6 +59,7 @@ var _ = Describe("Test application usecase function", func() {
 			apply:                 apply.NewAPIApplicator(k8sClient),
 			kubeClient:            k8sClient,
 			envBindingUsecase:     envBindingUsecase,
+			definitionUsecase:     definitionUsecase,
 			deliveryTargetUsecase: deliveryTargetUsecase,
 		}
 	})
@@ -490,6 +492,39 @@ var _ = Describe("Test application usecase function", func() {
 		resp, err = appUsecase.ListRecords(context.TODO(), "app-records")
 		Expect(err).Should(BeNil())
 		Expect(resp.Total).Should(Equal(int64(3)))
+	})
+
+	It("Test createTargetClusterEnv function", func() {
+		err := k8sClient.Create(context.TODO(), &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "aliyun-rds",
+				Namespace: types.DefaultKubeVelaNS,
+			},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Workload: common.WorkloadTypeDescriptor{
+					Type: TerraformWorkfloadType,
+				},
+			},
+		})
+		Expect(err).Should(BeNil())
+		envConfig := appUsecase.createTargetClusterEnv(context.TODO(), &model.Application{
+			Namespace: "prod",
+		}, &model.EnvBinding{
+			TargetNames: []string{"prod"},
+		}, &model.DeliveryTarget{
+			Name: "prod",
+			Variable: map[string]interface{}{
+				"region":       "hangzhou",
+				"providerName": "aliyun",
+			},
+		}, []*model.ApplicationComponent{
+			{
+				Name: "component1",
+				Type: "aliyun-rds",
+			},
+		})
+		Expect(cmp.Diff(len(envConfig.Patch.Components), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(strings.Contains(string(envConfig.Patch.Components[0].Properties.Raw), "aliyun"), true)).Should(BeEmpty())
 	})
 })
 
