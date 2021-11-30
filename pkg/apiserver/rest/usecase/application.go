@@ -1261,8 +1261,9 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 				}
 				log.Logger.Info(properties)
 				componentPatchs = append(componentPatchs, v1alpha1.EnvComponentPatch{
-					Name:       component.Name,
+					Name:       converComponentName(component.Name, envBind.Name),
 					Properties: properties.RawExtension(),
+					Type:       component.Type,
 				})
 			}
 		}
