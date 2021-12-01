@@ -34,6 +34,13 @@ func NewAddonWebService(u usecase.AddonUsecase) WebService {
 	}
 }
 
+// NewEnabledAddonWebService returns enabled addon web service
+func NewEnabledAddonWebService(u usecase.AddonUsecase) WebService {
+	return &enabledAddonWebService{
+		addonUsecase: u,
+	}
+}
+
 type addonWebService struct {
 	addonUsecase usecase.AddonUsecase
 }
@@ -94,6 +101,16 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.AddonStatusResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
+		Writes(apis.AddonStatusResponse{}))
+
+	// update addon
+	ws.Route(ws.PUT("/{name}/update").To(s.updateAddon).
+		Doc("update an addon").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.EnableAddonRequest{}).
+		Returns(200, "", apis.AddonStatusResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Param(ws.PathParameter("name", "addon name to update").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
 	return ws
@@ -180,6 +197,72 @@ func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Respons
 	}
 
 	err = res.WriteEntity(*status)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (s *addonWebService) updateAddon(req *restful.Request, res *restful.Response) {
+	var createReq apis.EnableAddonRequest
+	var args []byte
+	_, err := req.Request.Body.Read(args)
+	if err == nil {
+		err := req.ReadEntity(&createReq)
+		if err != nil {
+			bcode.ReturnError(req, res, err)
+			return
+		}
+		if err = validate.Struct(&createReq); err != nil {
+			bcode.ReturnError(req, res, err)
+			return
+		}
+	}
+
+	name := req.PathParameter("name")
+	err = s.addonUsecase.UpdateAddon(req.Request.Context(), name, createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	s.statusAddon(req, res)
+}
+
+type enabledAddonWebService struct {
+	addonUsecase usecase.AddonUsecase
+}
+
+func (s *enabledAddonWebService) GetWebService() *restful.WebService {
+	ws := new(restful.WebService)
+	ws.Path(versionPrefix+"/enabled-addon").
+		Consumes(restful.MIME_XML, restful.MIME_JSON).
+		Produces(restful.MIME_JSON, restful.MIME_XML).
+		Doc("api for addon management")
+
+	tags := []string{"addon"}
+
+	// List enabled addon from cluster
+	ws.Route(ws.GET("/").To(s.list).
+		Doc("list all addons").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
+		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
+		Returns(200, "", apis.ListAddonResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ListAddonResponse{}))
+
+	return ws
+}
+
+func (s *enabledAddonWebService) list(req *restful.Request, res *restful.Response) {
+	enabledAddons, err := s.addonUsecase.ListEnabledAddon(req.Request.Context())
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	err = res.WriteEntity(apis.ListEnabledAddonResponse{EnabledAddons: enabledAddons})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
