@@ -1,4 +1,4 @@
-FROM node:14.17
+FROM node:16.9.0
 WORKDIR /workspace
 COPY website-dev.sh /workspace
 
