@@ -2,13 +2,14 @@ package addon
 
 import (
 	"encoding/xml"
-	"gotest.tools/assert"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"strings"
 	"testing"
+
+	"gotest.tools/assert"
 )
 
 var paths = []string{
@@ -61,13 +62,10 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 }
 
 func TestGetAddon(t *testing.T) {
-	var reader AsyncReader
-	var err error
-	var server *httptest.Server
-	server = httptest.NewServer(ossHandler)
+	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
-	reader, err = NewAsyncReader(server.URL, "", "", ossType)
+	reader, err := NewAsyncReader(server.URL, "", "", ossType)
 
 	assert.NilError(t, err)
 
