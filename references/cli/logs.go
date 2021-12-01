@@ -88,7 +88,8 @@ type Args struct {
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
 func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
-
+	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
+	labelSelector := labels.Everything()
 	clientSet, err := kubernetes.NewForConfig(l.Args.Config)
 	if err != nil {
 		return err
@@ -98,18 +99,23 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	// TODO(@zzxwill): fix the hardcode logs
 	if selectedRes.Kind == "Configuration" {
-		selectedRes.Namespace = "vela-system"
 		selectedRes.Cluster = "local"
-		selectedRes.Name += "-apply"
+		if l.App.DeletionTimestamp == nil {
+			selectedRes.Name += "-apply"
+			labelSelector = labels.SelectorFromSet(map[string]string{
+				"job-name": selectedRes.Name,
+			})
+		}
+		// TODO(zzxwill) : We should also support showing logs when the terraform is destroying resources.
+		// But currently, when deleting an application, it won't hold on its deletion. So `vela logs` miss application
+		// parameter and is unable to display any logs.
 	}
 
 	if selectedRes.Cluster != "" && selectedRes.Cluster != "local" {
 		ctx = multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
 	}
-	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
-	labelSelector := labels.Everything()
+
 	pod, err := regexp.Compile(selectedRes.Name + "-.*")
 	if err != nil {
 		return fmt.Errorf("fail to compile '%s' for logs query", selectedRes.Name+".*")
