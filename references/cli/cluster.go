@@ -22,18 +22,18 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/api/core/v1"
-	v13 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types2 "k8s.io/apimachinery/pkg/types"
+	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/oam-dev/cluster-register/pkg/hub"
 	"github.com/oam-dev/cluster-register/pkg/spoke"
@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/a/preimport"
 )
 
@@ -54,6 +55,10 @@ const (
 	FlagClusterManagementEngine = "engine"
 	// FlagKubeConfigPath specifies the kubeconfig path
 	FlagKubeConfigPath = "kubeconfig-path"
+	// FlagInClusterBootstrap prescribes the cluster registration to use the internal
+	// IP from the kube-public/cluster-info configmap, otherwise the endpoint in the
+	// hub kubeconfig will be used for registration.
+	FlagInClusterBootstrap = "in-cluster-boostrap"
 
 	// ClusterGateWayClusterManagement cluster-gateway cluster management solution
 	ClusterGateWayClusterManagement = "cluster-gateway"
@@ -64,7 +69,7 @@ const (
 )
 
 // ClusterCommandGroup create a group of cluster command
-func ClusterCommandGroup(c common.Args) *cobra.Command {
+func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Manage Clusters",
@@ -97,7 +102,7 @@ func ClusterCommandGroup(c common.Args) *cobra.Command {
 	}
 	cmd.AddCommand(
 		NewClusterListCommand(&c),
-		NewClusterJoinCommand(&c),
+		NewClusterJoinCommand(&c, ioStreams),
 		NewClusterRenameCommand(&c),
 		NewClusterDetachCommand(&c),
 		NewClusterProbeCommand(&c),
@@ -136,16 +141,16 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) error {
 	ctx := context.Background()
 	remoteCtx := multicluster.ContextWithClusterName(ctx, clusterName)
-	crdName := types2.NamespacedName{Name: "resourcetrackers." + v1beta1.Group}
-	if err := c.Get(remoteCtx, crdName, &v13.CustomResourceDefinition{}); err != nil {
-		if !errors2.IsNotFound(err) {
+	crdName := k8stypes.NamespacedName{Name: "resourcetrackers." + v1beta1.Group}
+	if err := c.Get(remoteCtx, crdName, &apiextensionsv1.CustomResourceDefinition{}); err != nil {
+		if !apierrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to check resourcetracker crd in cluster %s", clusterName)
 		}
-		crd := &v13.CustomResourceDefinition{}
+		crd := &apiextensionsv1.CustomResourceDefinition{}
 		if err = c.Get(ctx, crdName, crd); err != nil {
 			return errors.Wrapf(err, "failed to get resourcetracker crd in hub cluster")
 		}
-		crd.ObjectMeta = v12.ObjectMeta{
+		crd.ObjectMeta = metav1.ObjectMeta{
 			Name:        crdName.Name,
 			Annotations: crd.Annotations,
 			Labels:      crd.Labels,
@@ -160,11 +165,11 @@ func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) erro
 func ensureVelaSystemNamespaceInstalled(c client.Client, clusterName string, createNamespace string) error {
 	ctx := context.Background()
 	remoteCtx := multicluster.ContextWithClusterName(ctx, clusterName)
-	if err := c.Get(remoteCtx, types2.NamespacedName{Name: createNamespace}, &v1.Namespace{}); err != nil {
-		if !errors2.IsNotFound(err) {
+	if err := c.Get(remoteCtx, k8stypes.NamespacedName{Name: createNamespace}, &corev1.Namespace{}); err != nil {
+		if !apierrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to check vela-system ")
 		}
-		if err = c.Create(remoteCtx, &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: createNamespace}}); err != nil {
+		if err = c.Create(remoteCtx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: createNamespace}}); err != nil {
 			return errors.Wrapf(err, "failed to create vela-system namespace")
 		}
 	}
@@ -172,7 +177,7 @@ func ensureVelaSystemNamespaceInstalled(c client.Client, clusterName string, cre
 }
 
 // NewClusterJoinCommand create command to help user join cluster to multicluster management
-func NewClusterJoinCommand(c *common.Args) *cobra.Command {
+func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "join [KUBECONFIG]",
 		Short: "join managed cluster",
@@ -236,13 +241,18 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 				if endpoint, err := utils.ParseAPIServerEndpoint(cluster.Server); err == nil {
 					cluster.Server = endpoint
 				} else {
-					_, _ = cmd.OutOrStdout().Write([]byte("failed to parse server endpoint: " + err.Error()))
+					ioStreams.Infof("failed to parse server endpoint: %v", err)
 				}
 				if err = registerClusterManagedByVela(c.Client, cluster, authInfo, clusterName, createNamespace); err != nil {
 					return err
 				}
 			case OCMClusterManagement:
-				if err = registerClusterManagedByOCM(c.Config, config, clusterName); err != nil {
+				inClusterBootstrap, err := cmd.Flags().GetBool(FlagInClusterBootstrap)
+				if err != nil {
+					return errors.Wrapf(err, "failed to determine the registration endpoint for the hub cluster "+
+						"when parsing --in-cluster-bootstrap flag")
+				}
+				if err = registerClusterManagedByOCM(ioStreams, c.Config, config, clusterName, inClusterBootstrap); err != nil {
 					return err
 				}
 			}
@@ -253,6 +263,9 @@ func NewClusterJoinCommand(c *common.Args) *cobra.Command {
 	cmd.Flags().StringP(FlagClusterName, "n", "", "Specify the cluster name. If empty, it will use the cluster name in config file. Default to be empty.")
 	cmd.Flags().StringP(FlagClusterManagementEngine, "t", "", "Specify the cluster management engine. If empty, it will use cluster-gateway cluster management solution. Default to be empty.")
 	cmd.Flags().StringP(CreateNamespace, "", "", "Specifies the namespace need to create in managedCluster")
+	cmd.Flags().BoolP(FlagInClusterBootstrap, "", true, "If true, the registering managed cluster "+
+		`will use the internal endpoint prescribed in the hub cluster's configmap "kube-public/cluster-info to register "`+
+		"itself to the hub cluster. Otherwise use the original endpoint from the hub kubeconfig.")
 	return cmd
 }
 
@@ -260,28 +273,28 @@ func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi
 	if err := clustermanager.EnsureClusterNotExists(k8sClient, clusterName); err != nil {
 		return errors.Wrapf(err, "cannot use cluster name %s", clusterName)
 	}
-	var credentialType v1alpha12.CredentialType
+	var credentialType clusterv1alpha1.CredentialType
 	data := map[string][]byte{
 		"endpoint": []byte(cluster.Server),
 		"ca.crt":   cluster.CertificateAuthorityData,
 	}
 	if len(authInfo.Token) > 0 {
-		credentialType = v1alpha12.CredentialTypeServiceAccountToken
+		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
 		data["token"] = []byte(authInfo.Token)
 	} else {
-		credentialType = v1alpha12.CredentialTypeX509Certificate
+		credentialType = clusterv1alpha1.CredentialTypeX509Certificate
 		data["tls.crt"] = authInfo.ClientCertificateData
 		data["tls.key"] = authInfo.ClientKeyData
 	}
-	secret := &v1.Secret{
-		ObjectMeta: v12.ObjectMeta{
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      clusterName,
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
-				v1alpha12.LabelKeyClusterCredentialType: string(credentialType),
+				clusterv1alpha1.LabelKeyClusterCredentialType: string(credentialType),
 			},
 		},
-		Type: v1.SecretTypeOpaque,
+		Type: corev1.SecretTypeOpaque,
 		Data: data,
 	}
 	if err := k8sClient.Create(context.Background(), secret); err != nil {
@@ -298,15 +311,18 @@ func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi
 	return nil
 }
 
-func registerClusterManagedByOCM(hubConfig *rest.Config, spokeConfig *clientcmdapi.Config, clusterName string) error {
+func registerClusterManagedByOCM(ioStreams cmdutil.IOStreams, hubConfig *rest.Config, spokeConfig *clientcmdapi.Config, clusterName string, inClusterBootstrap bool) error {
 	ctx := context.Background()
 	hubCluster, err := hub.NewHubCluster(hubConfig)
 	if err != nil {
 		return errors.Wrap(err, "fail to create client connect to hub cluster")
 	}
 
-	crdName := types2.NamespacedName{Name: "managedclusters." + ocmclusterv1.GroupName}
-	if err := hubCluster.Client.Get(context.Background(), crdName, &v13.CustomResourceDefinition{}); err != nil {
+	hubTracker := newTrackingSpinner("Checking the environment of hub cluster..")
+	hubTracker.FinalMSG = "Hub cluster all set, continue registration.\n"
+	hubTracker.Start()
+	crdName := k8stypes.NamespacedName{Name: "managedclusters." + ocmclusterv1.GroupName}
+	if err := hubCluster.Client.Get(context.Background(), crdName, &apiextensionsv1.CustomResourceDefinition{}); err != nil {
 		return err
 	}
 
@@ -320,6 +336,7 @@ func registerClusterManagedByOCM(hubConfig *rest.Config, spokeConfig *clientcmda
 			return errors.Errorf("you have register a cluster named %s", clusterName)
 		}
 	}
+	hubTracker.Stop()
 
 	spokeRestConf, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
 		return spokeConfig, nil
@@ -328,7 +345,15 @@ func registerClusterManagedByOCM(hubConfig *rest.Config, spokeConfig *clientcmda
 		return errors.Wrap(err, "fail to convert spoke-cluster kubeconfig")
 	}
 
-	hubKubeToken, err := hubCluster.GenerateHubClusterKubeConfig(ctx, "")
+	spokeTracker := newTrackingSpinner("Building registration config for the managed cluster")
+	spokeTracker.FinalMSG = "Successfully prepared registration config.\n"
+	spokeTracker.Start()
+	overridingRegistrationEndpoint := ""
+	if !inClusterBootstrap {
+		ioStreams.Infof("Using the api endpoint from hub kubeconfig %q as registration entry.\n", hubConfig.Host)
+		overridingRegistrationEndpoint = hubConfig.Host
+	}
+	hubKubeToken, err := hubCluster.GenerateHubClusterKubeConfig(ctx, overridingRegistrationEndpoint)
 	if err != nil {
 		return errors.Wrap(err, "fail to generate the token for spoke-cluster")
 	}
@@ -342,11 +367,38 @@ func registerClusterManagedByOCM(hubConfig *rest.Config, spokeConfig *clientcmda
 	if err != nil {
 		return errors.Wrap(err, "fail to prepare the env for spoke-cluster")
 	}
+	spokeTracker.Stop()
 
-	csrCheck := newTrackingSpinner("wait for managed-cluster register request ...")
-	csrCheck.Start()
-	defer csrCheck.Stop()
-	ready, err := hubCluster.Wait4SpokeClusterReady(ctx, clusterName)
+	registrationOperatorTracker := newTrackingSpinner("Waiting for registration operators running: (`kubectl -n open-cluster-management get pod -l app=klusterlet`)")
+	registrationOperatorTracker.FinalMSG = "Registration operator successfully deployed.\n"
+	registrationOperatorTracker.Start()
+	if err := spokeCluster.WaitForRegistrationOperatorReady(ctx); err != nil {
+		return errors.Wrap(err, "fail to setup registration operator for spoke-cluster")
+	}
+	registrationOperatorTracker.Stop()
+
+	registrationAgentTracker := newTrackingSpinner("Waiting for registration agent running: (`kubectl -n open-cluster-management-agent get pod -l app=klusterlet-registration-agent`)")
+	registrationAgentTracker.FinalMSG = "Registration agent successfully deployed.\n"
+	registrationAgentTracker.Start()
+	if err := spokeCluster.WaitForRegistrationAgentReady(ctx); err != nil {
+		return errors.Wrap(err, "fail to setup registration agent for spoke-cluster")
+	}
+	registrationAgentTracker.Stop()
+
+	csrCreationTracker := newTrackingSpinner("Waiting for CSRs created (`kubectl get csr -l open-cluster-management.io/cluster-name=" + spokeCluster.Name + "`)")
+	csrCreationTracker.FinalMSG = "Successfully found corresponding CSR from the agent.\n"
+	csrCreationTracker.Start()
+	if err := hubCluster.WaitForCSRCreated(ctx, spokeCluster.Name); err != nil {
+		return errors.Wrap(err, "failed found CSR created by registration agent")
+	}
+	csrCreationTracker.Stop()
+
+	ioStreams.Infof("Approving the CSR for cluster %q.\n", spokeCluster.Name)
+	if err := hubCluster.ApproveCSR(ctx, spokeCluster.Name); err != nil {
+		return errors.Wrap(err, "failed found CSR created by registration agent")
+	}
+
+	ready, err := hubCluster.WaitForSpokeClusterReady(ctx, clusterName)
 	if err != nil || !ready {
 		return errors.Errorf("fail to waiting for register request")
 	}
@@ -379,7 +431,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 			if err := c.Client.Delete(context.Background(), clusterSecret); err != nil {
 				return errors.Wrapf(err, "failed to rename cluster from %s to %s", oldClusterName, newClusterName)
 			}
-			clusterSecret.ObjectMeta = v12.ObjectMeta{
+			clusterSecret.ObjectMeta = metav1.ObjectMeta{
 				Name:        newClusterName,
 				Namespace:   multicluster.ClusterGatewaySecretNamespace,
 				Labels:      clusterSecret.Labels,
@@ -421,7 +473,7 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 			}
 
 			switch clusterType {
-			case string(v1alpha12.CredentialTypeX509Certificate), string(v1alpha12.CredentialTypeServiceAccountToken):
+			case string(clusterv1alpha1.CredentialTypeX509Certificate), string(clusterv1alpha1.CredentialTypeServiceAccountToken):
 				clusterSecret, err := multicluster.GetMutableClusterSecret(context.Background(), c.Client, clusterName)
 				if err != nil {
 					return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)
@@ -451,12 +503,12 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 					return err
 				}
 				managedCluster := ocmclusterv1.ManagedCluster{
-					ObjectMeta: v12.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name: clusterName,
 					},
 				}
 				if err = c.Client.Delete(context.Background(), &managedCluster); err != nil {
-					if !errors2.IsNotFound(err) {
+					if !apierrors.IsNotFound(err) {
 						return err
 					}
 				}
