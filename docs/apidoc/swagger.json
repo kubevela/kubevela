@@ -664,6 +664,88 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/components/{compName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "detail component for application ",
+				"operationId": "detailComponent",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.DetailComponentResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "update component config",
+				"operationId": "updateComponent",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateApplicationComponentRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ComponentBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}/components/{compName}/traits": {
 			"post": {
 				"consumes": [
@@ -817,88 +899,6 @@
 					"200": {
 						"schema": {
 							"$ref": "#/definitions/v1.ApplicationTrait"
-						}
-					},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/applications/{name}/components/{componentName}": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"application"
-				],
-				"summary": "detail component for application ",
-				"operationId": "detailComponent",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the application ",
-						"name": "name",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.DetailComponentResponse"
-						}
-					},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			},
-			"put": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"application"
-				],
-				"summary": "update component config",
-				"operationId": "updateComponent",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the application",
-						"name": "name",
-						"in": "path",
-						"required": true
-					},
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.UpdateApplicationComponentRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.ComponentBase"
 						}
 					},
 					"400": {
@@ -3297,10 +3297,10 @@
 		"common.AppRolloutStatus": {
 			"required": [
 				"currentBatch",
+				"upgradedReplicas",
 				"upgradedReadyReplicas",
 				"rollingState",
 				"batchRollingState",
-				"upgradedReplicas",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -4121,6 +4121,12 @@
 				"name": {
 					"type": "string"
 				},
+				"needNamespace": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
 				"tags": {
 					"type": "array",
 					"items": {
@@ -4209,9 +4215,13 @@
 				"label",
 				"description",
 				"jsonKey",
-				"uiType"
+				"uiType",
+				"additional"
 			],
 			"properties": {
+				"additional": {
+					"type": "boolean"
+				},
 				"description": {
 					"type": "string"
 				},
@@ -4410,14 +4420,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"note",
 				"envName",
 				"triggerType",
 				"createTime",
 				"version",
 				"status",
 				"reason",
-				"deployUser",
-				"note"
+				"deployUser"
 			],
 			"properties": {
 				"createTime": {
@@ -4928,8 +4938,8 @@
 		},
 		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"name",
-				"targetNames"
+				"targetNames",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -5339,10 +5349,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"icon",
-				"name",
 				"version",
 				"description",
+				"name",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -5375,6 +5385,12 @@
 				"name": {
 					"type": "string"
 				},
+				"needNamespace": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
 				"schema": {
 					"type": "string"
 				},
@@ -5400,13 +5416,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"icon",
-				"name",
-				"alias",
 				"namespace",
 				"description",
 				"createTime",
 				"updateTime",
+				"icon",
+				"name",
+				"alias",
 				"policies",
 				"envBindings",
 				"status",
@@ -5465,17 +5481,17 @@
 		"v1.DetailClusterResponse": {
 			"required": [
 				"name",
-				"provider",
-				"apiServerURL",
+				"description",
+				"dashboardURL",
 				"kubeConfigSecret",
+				"model",
+				"alias",
+				"icon",
 				"labels",
 				"status",
 				"reason",
-				"dashboardURL",
-				"model",
-				"alias",
-				"description",
-				"icon",
+				"provider",
+				"apiServerURL",
 				"kubeConfig",
 				"resourceInfo"
 			],
@@ -5530,12 +5546,12 @@
 		"v1.DetailComponentResponse": {
 			"required": [
 				"creator",
-				"alias",
-				"type",
-				"createTime",
+				"appPrimaryKey",
 				"name",
-				"updateTime",
-				"appPrimaryKey"
+				"alias",
+				"createTime",
+				"type",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -5630,10 +5646,10 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
-				"namespace",
-				"updateTime",
+				"name",
 				"createTime",
-				"name"
+				"namespace",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -5670,13 +5686,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime",
-				"updateTime"
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5706,17 +5722,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"workflowName",
-				"envName",
-				"appPrimaryKey",
-				"status",
 				"deployUser",
 				"triggerType",
-				"createTime",
+				"workflowName",
 				"updateTime",
+				"appPrimaryKey",
 				"version",
-				"reason",
-				"note"
+				"note",
+				"envName",
+				"createTime",
+				"status",
+				"reason"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5761,9 +5777,10 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"status",
 				"name",
 				"namespace",
-				"status",
+				"workflowName",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -5801,19 +5818,22 @@
 				},
 				"triggerType": {
 					"type": "string"
+				},
+				"workflowName": {
+					"type": "string"
 				}
 			}
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"updateTime",
 				"name",
-				"alias",
 				"description",
-				"default",
-				"envName",
 				"enable",
-				"createTime"
+				"envName",
+				"alias",
+				"default",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -5854,10 +5874,7 @@
 		"v1.EnableAddonRequest": {
 			"properties": {
 				"args": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					}
+					"type": "object"
 				}
 			}
 		},
@@ -6515,6 +6532,7 @@
 			"required": [
 				"name",
 				"namespace",
+				"workflowName",
 				"status"
 			],
 			"properties": {
@@ -6536,6 +6554,9 @@
 					"items": {
 						"$ref": "#/definitions/common.WorkflowStepStatus"
 					}
+				},
+				"workflowName": {
+					"type": "string"
 				}
 			}
 		},

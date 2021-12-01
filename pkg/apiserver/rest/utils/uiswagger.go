@@ -29,10 +29,12 @@ type UIParameter struct {
 	Validate    *Validate `json:"validate,omitempty"`
 	JSONKey     string    `json:"jsonKey"`
 	UIType      string    `json:"uiType"`
-	// means only can be read.
+	// means disable parameter in ui
 	Disable                 *bool          `json:"disable,omitempty"`
 	SubParameterGroupOption []GroupOption  `json:"subParameterGroupOption,omitempty"`
 	SubParameters           []*UIParameter `json:"subParameters,omitempty"`
+	AdditionalParameter     *UIParameter   `json:"additionalParameter,omitempty"`
+	Additional              *bool          `json:"additional,omitempty"`
 }
 
 // GroupOption define multiple data structure composition options.
