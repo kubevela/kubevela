@@ -558,7 +558,7 @@ type CreateWorkflowRequest struct {
 	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
 	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
-	Default     bool           `json:"default"`
+	Default     *bool          `json:"default"`
 	EnvName     string         `json:"envName"`
 }
 

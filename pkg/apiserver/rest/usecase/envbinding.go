@@ -43,6 +43,8 @@ const (
 	DeployCloudResource string = "deploy-cloud-resource"
 	// TerraformWorkfloadType cloud application
 	TerraformWorkfloadType string = "configurations.terraform.core.oam.dev"
+	// TerraformWorkfloadKind terraform workload kind
+	TerraformWorkfloadKind string = "Configuration"
 )
 
 // EnvBindingUsecase envbinding usecase
@@ -246,7 +248,7 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 		Description: "Created automatically by envbinding.",
 		EnvName:     env.Name,
 		Steps:       steps,
-		Default:     isDefault,
+		Default:     &isDefault,
 	})
 	if err != nil {
 		return err
@@ -405,6 +407,9 @@ func (e *envBindingUsecaseImpl) GetSuitableType(ctx context.Context, app *model.
 		}
 		if definition != nil {
 			if definition.Spec.Workload.Type == TerraformWorkfloadType {
+				return DeployCloudResource
+			}
+			if definition.Spec.Workload.Definition.Kind == TerraformWorkfloadKind {
 				return DeployCloudResource
 			}
 		}

@@ -1238,7 +1238,8 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 			continue
 		}
 		if definition != nil {
-			if definition.Spec.Workload.Type == TerraformWorkfloadType {
+			if definition.Spec.Workload.Type == TerraformWorkfloadType ||
+				definition.Spec.Workload.Definition.Kind == TerraformWorkfloadKind {
 				properties := model.JSONStruct{
 					"providerRef": map[string]interface{}{
 						"name":      "",

@@ -174,7 +174,7 @@ func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 		workflow.Steps = steps
 		workflow.Alias = req.Alias
 		workflow.Description = req.Description
-		workflow.Default = &req.Default
+		workflow.Default = req.Default
 		if err := w.ds.Put(ctx, workflow); err != nil {
 			return nil, err
 		}
@@ -185,7 +185,7 @@ func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 			Name:          req.Name,
 			Alias:         req.Alias,
 			Description:   req.Description,
-			Default:       &req.Default,
+			Default:       req.Default,
 			EnvName:       req.EnvName,
 			AppPrimaryKey: app.PrimaryKey(),
 		}
