@@ -36,6 +36,7 @@ import (
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/terraform"
 )
 
 const (
@@ -49,13 +50,6 @@ const (
 	WorkloadTypePath = "workload-types"
 	// TraitPath is the URL path for trait typed capability
 	TraitPath = "traits"
-)
-
-const (
-	// TerraformWriteConnectionSecretToRefName is the name for Terraform WriteConnectionSecretToRef
-	TerraformWriteConnectionSecretToRefName = "writeConnectionSecretToRef"
-	// TerraformWriteConnectionSecretToRefType is the type for Terraform WriteConnectionSecretToRef
-	TerraformWriteConnectionSecretToRefType = "[writeConnectionSecretToRef](#writeConnectionSecretToRef)"
 )
 
 // Int64Type is int64 type
@@ -747,10 +741,10 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		writeConnectionSecretToRefReferenceParameter ReferenceParameter
 	)
 
-	writeConnectionSecretToRefReferenceParameter.Name = TerraformWriteConnectionSecretToRefName
-	writeConnectionSecretToRefReferenceParameter.PrintableType = TerraformWriteConnectionSecretToRefType
+	writeConnectionSecretToRefReferenceParameter.Name = terraform.TerraformWriteConnectionSecretToRefName
+	writeConnectionSecretToRefReferenceParameter.PrintableType = terraform.TerraformWriteConnectionSecretToRefType
 	writeConnectionSecretToRefReferenceParameter.Required = false
-	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
+	writeConnectionSecretToRefReferenceParameter.Usage = terraform.TerraformWriteConnectionSecretToRefDescription
 
 	variables, err := common.ParseTerraformVariables(capability.TerraformConfiguration)
 	if err != nil {
@@ -781,15 +775,15 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeSecretRefNameParam.Name = "name"
 	writeSecretRefNameParam.PrintableType = "string"
 	writeSecretRefNameParam.Required = true
-	writeSecretRefNameParam.Usage = "The secret name which the cloud resource connection will be written to"
+	writeSecretRefNameParam.Usage = terraform.TerraformSecretNameDescription
 
 	writeSecretRefNameSpaceParam.Name = "namespace"
 	writeSecretRefNameSpaceParam.PrintableType = "string"
 	writeSecretRefNameSpaceParam.Required = false
-	writeSecretRefNameSpaceParam.Usage = "The secret namespace which the cloud resource connection will be written to"
+	writeSecretRefNameSpaceParam.Usage = terraform.TerraformSecretNamespaceDescription
 
 	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
-	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 4), TerraformWriteConnectionSecretToRefName)
+	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 4), terraform.TerraformWriteConnectionSecretToRefName)
 
 	tables = append(tables, ReferenceParameterTable{
 		Name:       writeSecretTableName,
