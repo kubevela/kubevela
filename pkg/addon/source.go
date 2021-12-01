@@ -40,7 +40,7 @@ const (
 	// FileType means a file
 	FileType = "file"
 
-	bucketTmpl        = "https://%s.%s"
+	bucketTmpl        = "%s//%s.%s"
 	singleOssFileTmpl = "%s/%s"
 	listOssFileTmpl   = "%s?prefix=%s"
 )
@@ -246,21 +246,20 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 	resp, err := o.client.R().Get(fmt.Sprintf(listOssFileTmpl, o.bucketEndPoint, readPath))
 
 	if err != nil {
-		return "", nil, errors.Errorf("read path %s fail", readPath)
+		return "", nil, errors.Wrapf(err, "read path %s fail", readPath)
 	}
 	list := ListBucketResult{}
 	err = xml.Unmarshal(resp.Body(), &list)
 	if err != nil && err.Error() != EOFError {
 		return "", nil, err
 	}
-	if len(list.Files) == 1 {
+	if len(list.Files) == 1 && list.Files[0] == readPath {
 		resp, err = o.client.R().Get(fmt.Sprintf(singleOssFileTmpl, o.bucketEndPoint, readPath))
 		if err != nil {
 			return "", nil, err
 		}
 		// This is a file
 		return string(resp.Body()), nil, nil
-
 	}
 	// This is a path
 	if err == nil {
@@ -268,7 +267,6 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 		return "", items, nil
 	}
 
-	// This is a file
 	return "", nil, errors.Wrap(err, "read oss fail")
 }
 
@@ -352,9 +350,19 @@ func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (Asyn
 			h:          gith,
 		}, nil
 	case ossType:
+		ossURL, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, err
+		}
+		var bucketEndPoint string
+		if dirOrBucket == "" {
+			bucketEndPoint = ossURL.String()
+		} else {
+			bucketEndPoint = fmt.Sprintf(bucketTmpl, ossURL.Scheme, dirOrBucket, baseURL)
+		}
 		return &ossReader{
 			baseReader:     bReader,
-			bucketEndPoint: fmt.Sprintf(bucketTmpl, dirOrBucket, baseURL),
+			bucketEndPoint: bucketEndPoint,
 			client:         resty.New(),
 		}, nil
 	}
