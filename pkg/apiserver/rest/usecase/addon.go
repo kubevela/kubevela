@@ -121,7 +121,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 		}
 		for _, r := range registries {
 			if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
-				addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.GetLevelOptions)
+				addon, err = SourceOf(r).GetAddon(name, pkgaddon.GetLevelOptions)
 			}
 			if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 				return nil, err
@@ -135,7 +135,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 		if err != nil {
 			return nil, err
 		}
-		addon, err = pkgaddon.GetAddon(name, addonRegistry.Git, pkgaddon.GetLevelOptions)
+		addon, err = addonRegistry.Git.GetAddon(name, pkgaddon.GetLevelOptions)
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return nil, err
 		}
@@ -201,17 +201,17 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 		if registry != "" && r.Name != registry {
 			continue
 		}
-		if u.isRegistryCacheUpToDate(r.Name) {
+		if false && u.isRegistryCacheUpToDate(r.Name) {
 			listAddons = u.getRegistryCache(r.Name)
 		} else {
-			listAddons, err = pkgaddon.ListAddons(r.Git, pkgaddon.GetLevelOptions)
+			listAddons, err = SourceOf(r).ListAddons(pkgaddon.GetLevelOptions)
 			if err != nil {
 				log.Logger.Errorf("fail to get addons from registry %s, %v", r.Name, err)
 				continue
 			}
 			// if list addons, details will be retrieved later
 			go func() {
-				addonDetails, err := pkgaddon.ListAddons(r.Git, pkgaddon.EnableLevelOptions)
+				addonDetails, err := SourceOf(r).ListAddons(pkgaddon.EnableLevelOptions)
 				if err != nil {
 					return
 				}
@@ -275,6 +275,7 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 	return &apis.AddonRegistryMeta{
 		Name: r.Name,
 		Git:  r.Git,
+		OSS:  r.Oss,
 	}, nil
 }
 
@@ -298,6 +299,7 @@ func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, 
 		return nil, bcode.ErrAddonRegistryNotExist
 	}
 	r.Git = req.Git
+	r.Oss = req.Oss
 	err = u.addonRegistryDS.Put(ctx, &r)
 	if err != nil {
 		return nil, err
@@ -306,6 +308,7 @@ func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, 
 	return &apis.AddonRegistryMeta{
 		Name: r.Name,
 		Git:  r.Git,
+		OSS:  r.Oss,
 	}, nil
 }
 
@@ -348,7 +351,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 	for _, r := range registries {
 		var exist bool
 		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
-			addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.EnableLevelOptions)
+			addon, err = SourceOf(r).GetAddon(name, pkgaddon.EnableLevelOptions)
 		}
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return bcode.WrapGithubRateLimitErr(err)
@@ -357,7 +360,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			continue
 		}
 
-		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, r.Git, args.Args)
+		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, SourceOf(r), args.Args)
 		if err != nil {
 			log.Logger.Errorf("err when enable addon: %v", err)
 			return bcode.ErrAddonApply
@@ -440,7 +443,7 @@ func (u *addonUsecaseImpl) UpdateAddon(ctx context.Context, name string, args ap
 	for _, r := range registries {
 		var exist bool
 		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
-			addon, err = pkgaddon.GetAddon(name, r.Git, pkgaddon.EnableLevelOptions)
+			addon, err = SourceOf(r).GetAddon(name, pkgaddon.EnableLevelOptions)
 		}
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return bcode.WrapGithubRateLimitErr(err)
@@ -463,6 +466,7 @@ func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegist
 	return &model.AddonRegistry{
 		Name: req.Name,
 		Git:  req.Git,
+		Oss:  req.Oss,
 	}
 }
 
@@ -490,6 +494,7 @@ func ConvertAddonRegistryModel2AddonRegistryMeta(r *model.AddonRegistry) *apis.A
 	return &apis.AddonRegistryMeta{
 		Name: r.Name,
 		Git:  r.Git,
+		OSS:  r.Oss,
 	}
 }
 
@@ -500,4 +505,12 @@ func convertAppStateToAddonPhase(state common2.ApplicationPhase) apis.AddonPhase
 	default:
 		return apis.AddonPhaseEnabling
 	}
+}
+
+// SourceOf returns actual Source in registry meta
+func SourceOf(meta *apis.AddonRegistryMeta) pkgaddon.Source {
+	if meta.OSS != nil {
+		return meta.OSS
+	}
+	return meta.Git
 }

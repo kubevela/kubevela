@@ -61,18 +61,21 @@ type EmptyResponse struct{}
 // CreateAddonRegistryRequest defines the format for addon registry create request
 type CreateAddonRegistryRequest struct {
 	Name string                `json:"name" validate:"checkname"`
-	Git  *addon.GitAddonSource `json:"git,omitempty" validate:"required"`
+	Git  *addon.GitAddonSource `json:"git,omitempty" `
+	Oss  *addon.OSSAddonSource `json:"oss,omitempty"`
 }
 
 // UpdateAddonRegistryRequest defines the format for addon registry update request
 type UpdateAddonRegistryRequest struct {
-	Git *addon.GitAddonSource `json:"git,omitempty" validate:"required"`
+	Git *addon.GitAddonSource `json:"git,omitempty"`
+	Oss *addon.OSSAddonSource `json:"oss,omitempty"`
 }
 
 // AddonRegistryMeta defines the format for a single addon registry
 type AddonRegistryMeta struct {
 	Name string                `json:"name" validate:"required"`
 	Git  *addon.GitAddonSource `json:"git,omitempty"`
+	OSS  *addon.OSSAddonSource `json:"oss,omitempty"`
 }
 
 // ListAddonRegistryResponse list addon registry

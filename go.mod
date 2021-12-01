@@ -29,6 +29,7 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-playground/validator/v10 v10.9.0
+	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/uuid v1.1.2

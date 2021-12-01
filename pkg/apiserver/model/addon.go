@@ -24,6 +24,7 @@ type AddonRegistry struct {
 	Name string `json:"name"`
 
 	Git *addon.GitAddonSource `json:"git,omitempty"`
+	Oss *addon.OSSAddonSource `json:"oss,omitempty"`
 }
 
 // TableName return custom table name
