@@ -26,12 +26,16 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -58,6 +62,7 @@ var _ = Describe("Test application usecase function", func() {
 			apply:                 apply.NewAPIApplicator(k8sClient),
 			kubeClient:            k8sClient,
 			envBindingUsecase:     envBindingUsecase,
+			definitionUsecase:     definitionUsecase,
 			deliveryTargetUsecase: deliveryTargetUsecase,
 		}
 	})
@@ -490,6 +495,54 @@ var _ = Describe("Test application usecase function", func() {
 		resp, err = appUsecase.ListRecords(context.TODO(), "app-records")
 		Expect(err).Should(BeNil())
 		Expect(resp.Total).Should(Equal(int64(3)))
+	})
+
+	It("Test createTargetClusterEnv function", func() {
+		var namespace corev1.Namespace
+		err := k8sClient.Get(context.TODO(), k8stypes.NamespacedName{Name: types.DefaultKubeVelaNS}, &namespace)
+		if apierrors.IsNotFound(err) {
+			err := k8sClient.Create(context.TODO(), &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: types.DefaultKubeVelaNS,
+				},
+			})
+			Expect(err).Should(BeNil())
+		} else {
+			Expect(err).Should(BeNil())
+		}
+		definition := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "aliyun-rds",
+				Namespace: types.DefaultKubeVelaNS,
+			},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Workload: common.WorkloadTypeDescriptor{
+					Type: TerraformWorkfloadType,
+				},
+			},
+		}
+		err = k8sClient.Create(context.TODO(), definition)
+		Expect(err).Should(BeNil())
+		envConfig := appUsecase.createTargetClusterEnv(context.TODO(), &model.Application{
+			Namespace: "prod",
+		}, &model.EnvBinding{
+			TargetNames: []string{"prod"},
+		}, &model.DeliveryTarget{
+			Name: "prod",
+			Variable: map[string]interface{}{
+				"region":       "hangzhou",
+				"providerName": "aliyun",
+			},
+		}, []*model.ApplicationComponent{
+			{
+				Name: "component1",
+				Type: "aliyun-rds",
+			},
+		})
+		Expect(cmp.Diff(len(envConfig.Patch.Components), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(strings.Contains(string(envConfig.Patch.Components[0].Properties.Raw), "aliyun"), true)).Should(BeEmpty())
+		err = k8sClient.Delete(context.TODO(), definition)
+		Expect(err).Should(BeNil())
 	})
 })
 
