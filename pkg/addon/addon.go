@@ -503,7 +503,7 @@ func renderNamespace(namespace string) *unstructured.Unstructured {
 func renderRawComponent(elem types.AddonElementFile) (*common2.ApplicationComponent, error) {
 	baseRawComponent := common2.ApplicationComponent{
 		Type: "raw",
-		Name: elem.Name,
+		Name: strings.ReplaceAll(elem.Name, ".", "-"),
 	}
 	obj, err := renderObject(elem)
 	if err != nil {
@@ -555,7 +555,7 @@ func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[
 		return nil, err
 	}
 	comp := common2.ApplicationComponent{
-		Name: elem.Name,
+		Name: strings.ReplaceAll(elem.Name, ".", "-"),
 	}
 	err = yaml.Unmarshal(b, &comp)
 	if err != nil {
