@@ -596,12 +596,12 @@ variable "password" {
 			},
 
 			Spec: terraformapi.ConfigurationSpec{
-				HCL:                              configuration,
-				Variable:                         raw,
-				WriteConnectionSecretToReference: &terraformtypes.SecretReference{Name: "db", Namespace: "default"},
+				HCL:      configuration,
+				Variable: raw,
 			},
 			Status: terraformapi.ConfigurationStatus{},
 		}
+		workload.Spec.WriteConnectionSecretToReference = &terraformtypes.SecretReference{Name: "db", Namespace: "default"}
 
 		expectCompManifest := &oamtypes.ComponentManifest{
 			Name: compName,
@@ -908,13 +908,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		args args
 		want want
 	}{
-		"json workload with invalid secret": {
-			args: args{
-				json:   "abc",
-				params: map[string]interface{}{"acl": "private", "writeConnectionSecretToRef": map[string]interface{}{"name": "", "namespace": ""}},
-			},
-			want: want{err: errors.New(errTerraformNameOfWriteConnectionSecretToRefNotSet)}},
-
 		"json workload with secret": {
 			args: args{
 
@@ -986,10 +979,10 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				},
 			}
 			configSpec = terraformapi.ConfigurationSpec{
-				HCL:                              tc.args.hcl,
-				Variable:                         raw,
-				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+				HCL:      tc.args.hcl,
+				Variable: raw,
 			}
+			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 		}
 		if tc.args.json != "" {
 			template = &Template{
@@ -999,10 +992,10 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				},
 			}
 			configSpec = terraformapi.ConfigurationSpec{
-				JSON:                             tc.args.json,
-				Variable:                         raw,
-				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+				JSON:     tc.args.json,
+				Variable: raw,
 			}
+			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 		}
 		if tc.args.remote != "" {
 			template = &Template{
@@ -1012,10 +1005,10 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				},
 			}
 			configSpec = terraformapi.ConfigurationSpec{
-				Remote:                           tc.args.remote,
-				Variable:                         raw,
-				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+				Remote:   tc.args.remote,
+				Variable: raw,
 			}
+			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 		}
 		if tc.args.hcl == "" && tc.args.json == "" && tc.args.remote == "" {
 			template = &Template{
@@ -1023,9 +1016,9 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 			}
 
 			configSpec = terraformapi.ConfigurationSpec{
-				Variable:                         raw,
-				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+				Variable: raw,
 			}
+			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 		}
 		if tc.args.providerRef != nil {
 			template.Terraform.ProviderReference = tc.args.providerRef
