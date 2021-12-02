@@ -17,32 +17,23 @@ limitations under the License.
 package cli
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
-	"text/template"
 	"time"
 
-	"github.com/Masterminds/sprig"
 	"github.com/gosuri/uitable"
-	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	types2 "k8s.io/apimachinery/pkg/types"
-	yaml2 "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -62,30 +53,33 @@ const (
 )
 
 var statusUninstalled = "uninstalled"
-var statusInstalled = "installed"
+var statusEnabled = "enabled"
+var statusEnabling = "enabling"
 var clt client.Client
 var clientArgs common.Args
 
-var legacyAddonNamespace map[string]string
+// var legacyAddonNamespace map[string]string
 
 func init() {
 	clientArgs, _ = common.InitBaseRestConfig()
 	clt, _ = clientArgs.GetClient()
-	legacyAddonNamespace = map[string]string{
-		"fluxcd":                     types.DefaultKubeVelaNS,
-		"ns-flux-system":             types.DefaultKubeVelaNS,
-		"kruise":                     types.DefaultKubeVelaNS,
-		"prometheus":                 types.DefaultKubeVelaNS,
-		"observability":              "observability",
-		"observability-asset":        types.DefaultKubeVelaNS,
-		"istio":                      "istio-system",
-		"ns-istio-system":            types.DefaultKubeVelaNS,
-		"keda":                       types.DefaultKubeVelaNS,
-		"ocm-cluster-manager":        types.DefaultKubeVelaNS,
-		"terraform":                  types.DefaultKubeVelaNS,
-		"terraform-provider/alibaba": "default",
-		"terraform-provider/azure":   "default",
-	}
+
+	// assume KubeVela 1.2 needn't consider the compatibility of 1.1
+	// legacyAddonNamespace = map[string]string{
+	//	"fluxcd":                     types.DefaultKubeVelaNS,
+	//	"ns-flux-system":             types.DefaultKubeVelaNS,
+	//	"kruise":                     types.DefaultKubeVelaNS,
+	//	"prometheus":                 types.DefaultKubeVelaNS,
+	//	"observability":              "observability",
+	//	"observability-asset":        types.DefaultKubeVelaNS,
+	//	"istio":                      "istio-system",
+	//	"ns-istio-system":            types.DefaultKubeVelaNS,
+	//	"keda":                       types.DefaultKubeVelaNS,
+	//	"ocm-cluster-manager":        types.DefaultKubeVelaNS,
+	//	"terraform":                  types.DefaultKubeVelaNS,
+	//	"terraform-provider/alibaba": "default",
+	//	"terraform-provider/azure":   "default",
+	// }
 }
 
 // NewAddonCommand create `addon` command
@@ -102,6 +96,7 @@ func NewAddonCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		NewAddonListCommand(),
 		NewAddonEnableCommand(c, ioStreams),
 		NewAddonDisableCommand(ioStreams),
+		NewAddonStatusCommand(ioStreams),
 	)
 	return cmd
 }
@@ -114,7 +109,7 @@ func NewAddonListCommand() *cobra.Command {
 		Short:   "List addons",
 		Long:    "List addons in KubeVela",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := listAddons()
+			err := listAddons(context.Background(), "")
 			if err != nil {
 				return err
 			}
@@ -150,13 +145,16 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return err
 			}
 			fmt.Printf("Successfully enable addon:%s\n", name)
+			if name == "velaux" {
+				fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard`)
+			}
 			return nil
 		},
 	}
 }
 
-func parseToMap(args []string) (map[string]string, error) {
-	res := map[string]string{}
+func parseToMap(args []string) (map[string]interface{}, error) {
+	res := map[string]interface{}{}
 	for _, pair := range args {
 		line := strings.Split(pair, "=")
 		if len(line) != 2 {
@@ -193,223 +191,124 @@ func NewAddonDisableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	}
 }
 
-func listAddons() error {
-	repo, err := NewAddonRepo()
+// NewAddonStatusCommand create addon status command
+func NewAddonStatusCommand(ioStream cmdutil.IOStreams) *cobra.Command {
+	return &cobra.Command{
+		Use:     "status",
+		Short:   "get an addon's status",
+		Long:    "get an addon's status from cluster",
+		Example: "vela addon status <addon-name>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("must specify addon name")
+			}
+			name := args[0]
+			err := statusAddon(name)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+}
+
+func enableAddon(ctx context.Context, k8sClient client.Client, name string, args map[string]interface{}) error {
+	var addon *types.Addon
+	var err error
+	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
+	registries, err := registryDS.ListRegistries(ctx)
 	if err != nil {
 		return err
 	}
-	addons := repo.listAddons()
-	table := uitable.New()
-	table.AddRow("NAME", "DESCRIPTION", "STATUS")
-	for _, addon := range addons {
-		// Addon terraform should be invisible to end-users. It will be installed by other addons like `terraform-alibaba`
-		if addon.name == "terraform" {
+
+	for _, registry := range registries {
+		var source pkgaddon.Source
+		if registry.Oss != nil {
+			source = registry.Oss
+		} else {
+			source = registry.Git
+		}
+		addon, err = source.GetAddon(name, pkgaddon.EnableLevelOptions)
+		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
+			return err
+		}
+		if addon == nil {
 			continue
 		}
-		table.AddRow(addon.name, addon.description, addon.getStatus())
+		err = pkgaddon.EnableAddon(ctx, addon, k8sClient, apply.NewAPIApplicator(k8sClient), source, args)
+		if err != nil {
+			return err
+		}
+		if err := waitApplicationRunning(addon.Name); err != nil {
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("addon: %s not found in registrys", name)
+}
+
+func disableAddon(name string) error {
+	if err := pkgaddon.DisableAddon(context.Background(), clt, name); err != nil {
+		return err
+	}
+	return nil
+}
+
+func statusAddon(name string) error {
+	status, err := fetchAddonStatus(context.Background(), clt, name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("addon %s status is %s \n", name, status)
+	if status == statusEnabling {
+		fmt.Printf("please check addon related application: namespace: %s name: %s", types.DefaultKubeVelaNS, pkgaddon.Convert2AppName(name))
+	}
+	return nil
+}
+
+func listAddons(ctx context.Context, registry string) error {
+	var addons []*types.Addon
+	var err error
+	registryDS := pkgaddon.NewRegistryDataStore(clt)
+	registries, err := registryDS.ListRegistries(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	for _, r := range registries {
+		if registry != "" && r.Name != registry {
+			continue
+		}
+
+		var source pkgaddon.Source
+		if r.Oss != nil {
+			source = r.Oss
+		} else {
+			source = r.Git
+		}
+		addList, err := source.ListAddons(pkgaddon.GetLevelOptions)
+		if err != nil {
+			continue
+		}
+		addons = mergeAddons(addons, addList)
+	}
+
+	table := uitable.New()
+	table.AddRow("NAME", "DESCRIPTION", "STATUS")
+
+	for _, addon := range addons {
+		status, err := fetchAddonStatus(ctx, clt, addon.Name)
+		if err != nil {
+			return err
+		}
+		table.AddRow(addon.Name, addon.Description, status)
 	}
 	fmt.Println(table.String())
 	return nil
 }
 
-func enableAddon(ctx context.Context, k8sClient client.Client, name string, args map[string]string) error {
-	repo, err := NewAddonRepo()
-	if err != nil {
-		return err
-	}
-
-	addon, err := repo.getAddon(name)
-	if err != nil {
-		return err
-	}
-	if strings.HasPrefix(name, "terraform-") {
-		args, _ = getTerraformProviderArgumentValue(name, args)
-	}
-	addon.setArgs(args)
-	err = addon.enable(ctx, k8sClient, name, args)
-	return err
-}
-
-func disableAddon(name string) error {
-	if isLegacyAddonExist(name) {
-		return tryDisableInitializerAddon(name)
-	}
-	repo, err := NewAddonRepo()
-	if err != nil {
-		return err
-	}
-	addon, err := repo.getAddon(name)
-	if err != nil {
-		return errors.Wrap(err, "get addon err")
-	}
-	if addon.getStatus() == statusUninstalled {
-		fmt.Printf("Addon %s is not installed\n", addon.name)
-		return nil
-	}
-	return addon.disable()
-
-}
-
-func isLegacyAddonExist(name string) bool {
-	if namespace, ok := legacyAddonNamespace[name]; ok {
-		convertedAddonName := TransAddonName(name)
-		init := unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "core.oam.dev/v1beta1",
-				"kind":       "Initializer",
-			},
-		}
-		err := clt.Get(context.TODO(), client.ObjectKey{
-			Namespace: namespace,
-			Name:      convertedAddonName,
-		}, &init)
-		return err == nil
-	}
-	return false
-}
-
-func tryDisableInitializerAddon(addonName string) error {
-	fmt.Printf("Trying to disable addon in initializer implementation...\n")
-	init := unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "core.oam.dev/v1beta1",
-			"kind":       "Initializer",
-			"metadata": map[string]interface{}{
-				"name":      TransAddonName(addonName),
-				"namespace": legacyAddonNamespace[addonName],
-			},
-		},
-	}
-	return clt.Delete(context.TODO(), &init)
-
-}
-func newAddon(data *v1.ConfigMap) *Addon {
-	description := data.ObjectMeta.Annotations[DescAnnotation]
-	a := Addon{name: data.Annotations[oam.AnnotationAddonsName], description: description, data: data.Data["application"]}
-	return &a
-}
-
-// AddonRepo is a place to store addon info
-type AddonRepo interface {
-	getAddon(name string) (Addon, error)
-	listAddons() []Addon
-}
-
-// NewAddonRepo create new addon repo,now only support ConfigMap
-func NewAddonRepo() (AddonRepo, error) {
-	list := v1.ConfigMapList{}
-	matchLabels := metav1.LabelSelector{
-		MatchExpressions: []metav1.LabelSelectorRequirement{{
-			Key:      oam.LabelAddonsName,
-			Operator: metav1.LabelSelectorOpExists,
-		}},
-	}
-	selector, err := metav1.LabelSelectorAsSelector(&matchLabels)
-	if err != nil {
-		return nil, err
-	}
-	err = clt.List(context.Background(), &list, &client.ListOptions{LabelSelector: selector})
-	if err != nil {
-		return nil, errors.Wrap(err, "Get addon list failed")
-	}
-	return configMapAddonRepo{maps: list.Items}, nil
-}
-
-type configMapAddonRepo struct {
-	maps []v1.ConfigMap
-}
-
-// AddonNotFoundErr means addon not found
-type AddonNotFoundErr struct {
-	addonName string
-}
-
-func (e AddonNotFoundErr) Error() string {
-	return fmt.Sprintf("addon %s not found", e.addonName)
-}
-
-func (c configMapAddonRepo) getAddon(name string) (Addon, error) {
-	for i := range c.maps {
-		if addonName, ok := c.maps[i].Annotations[oam.AnnotationAddonsName]; ok && name == addonName {
-			return *newAddon(&c.maps[i]), nil
-		}
-	}
-	return Addon{}, AddonNotFoundErr{addonName: name}
-}
-
-func (c configMapAddonRepo) listAddons() []Addon {
-	var addons []Addon
-	for i := range c.maps {
-		addon := newAddon(&c.maps[i])
-		addons = append(addons, *addon)
-	}
-	return addons
-}
-
-// Addon consist of a Initializer resource to enable an addon
-type Addon struct {
-	name        string
-	description string
-	data        string
-	// Args is map for renderInitializer
-	Args        map[string]string
-	application *v1beta1.Application
-}
-
-func (a *Addon) renderApplication() (*v1beta1.Application, error) {
-	if a.Args == nil {
-		a.Args = map[string]string{}
-	}
-	t, err := template.New("addon-template").Delims("[[", "]]").Funcs(sprig.TxtFuncMap()).Parse(a.data)
-	if err != nil {
-		return nil, errors.Wrap(err, "parsing addon initializer template error")
-	}
-	buf := bytes.Buffer{}
-	err = t.Execute(&buf, a)
-	if err != nil {
-		return nil, errors.Wrap(err, "application template render fail")
-	}
-	err = yaml2.NewYAMLOrJSONDecoder(&buf, buf.Len()).Decode(&a.application)
-	if err != nil {
-		return nil, err
-	}
-	return a.application, nil
-}
-
-func (a *Addon) enable(ctx context.Context, k8sClient client.Client, name string, args map[string]string) error {
-	applicator := apply.NewAPIApplicator(clt)
-	obj, err := a.renderApplication()
-	if err != nil {
-		return err
-	}
-
-	if strings.HasPrefix(name, "terraform-") {
-		providerName, existed, err := checkWhetherTerraformProviderExist(ctx, k8sClient, name, args)
-		if err != nil && !apimeta.IsNoMatchError(err) {
-			return err
-		}
-		if existed {
-			return errors.Errorf("terraform provider %s with name %s already exists", name, providerName)
-		}
-		obj.Name = fmt.Sprintf("%s-%s", obj.Name, providerName)
-	}
-
-	err = a.installDependsOn(ctx, k8sClient, args)
-	if err != nil {
-		return errors.Wrap(err, "Error occurs when install dependent addon")
-	}
-	err = applicator.Apply(ctx, obj)
-	if err != nil {
-		return errors.Wrapf(err, "Error occurs when apply addon application: %s\n", a.name)
-	}
-	err = waitApplicationRunning(a.application)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func waitApplicationRunning(obj *v1beta1.Application) error {
+func waitApplicationRunning(addonName string) error {
 	trackInterval := 5 * time.Second
 	timeout := 600 * time.Second
 	start := time.Now()
@@ -420,7 +319,7 @@ func waitApplicationRunning(obj *v1beta1.Application) error {
 	defer spinner.Stop()
 
 	for {
-		err := clt.Get(ctx, types2.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, &app)
+		err := clt.Get(ctx, types2.NamespacedName{Name: pkgaddon.Convert2AppName(addonName), Namespace: types.DefaultKubeVelaNS}, &app)
 		if err != nil {
 			return client.IgnoreNotFound(err)
 		}
@@ -432,69 +331,11 @@ func waitApplicationRunning(obj *v1beta1.Application) error {
 		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
 			phase, timeConsumed, int(timeout.Seconds())))
 		if timeConsumed > int(timeout.Seconds()) {
-			return errors.Errorf("Enabling timeout, please run \"vela status %s -n vela-system\" to check the status of the addon", obj.Name)
+			return errors.Errorf("Enabling timeout, please run \"vela status %s -n vela-system\" to check the status of the addon", addonName)
 		}
 		time.Sleep(trackInterval)
 	}
-}
-func (a *Addon) disable() error {
-	obj, err := a.renderApplication()
-	if err != nil {
-		return err
-	}
-	fmt.Println("Deleting all resources...")
-	err = clt.Delete(context.TODO(), obj, client.PropagationPolicy(metav1.DeletePropagationForeground))
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
-func (a *Addon) getStatus() string {
-	var application v1beta1.Application
-	err := clt.Get(context.Background(), client.ObjectKey{
-		Namespace: types.DefaultKubeVelaNS,
-		Name:      TransAddonName(a.name),
-	}, &application)
-	if err != nil {
-		return statusUninstalled
-	}
-	return statusInstalled
-}
-
-func (a *Addon) setArgs(args map[string]string) {
-	a.Args = args
-}
-
-func (a *Addon) installDependsOn(ctx context.Context, k8sClient client.Client, args map[string]string) error {
-	if a.application.Spec.Workflow == nil || a.application.Spec.Workflow.Steps == nil {
-		return nil
-	}
-	repo, err := NewAddonRepo()
-	if err != nil {
-		return err
-	}
-	for _, step := range a.application.Spec.Workflow.Steps {
-		if step.Type == DependsOnWorkFlowStepName {
-			props, err := util.RawExtension2Map(step.Properties)
-			if err != nil {
-				return err
-			}
-			dependsOnAddonName, _ := props["name"].(string)
-			fmt.Printf("Installing dependent addon: %s\n", dependsOnAddonName)
-			addon, err := repo.getAddon(dependsOnAddonName)
-			if err != nil {
-				return err
-			}
-			if addon.getStatus() != statusInstalled {
-				err = addon.enable(ctx, k8sClient, dependsOnAddonName, args)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
 }
 
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy
@@ -502,50 +343,87 @@ func TransAddonName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
 }
 
-func getTerraformProviderNames(ctx context.Context, k8sClient client.Client) ([]string, error) {
-	var names []string
-	providerList := &terraformv1beta1.ProviderList{}
-	err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
-	if err != nil {
-		if apimeta.IsNoMatchError(err) || kerrors.IsNotFound(err) {
-			return nil, nil
+func fetchAddonStatus(ctx context.Context, client client.Client, name string) (string, error) {
+
+	addonApp := &v1beta1.Application{}
+	if err := client.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: pkgaddon.Convert2AppName(name)}, addonApp); err != nil {
+		if kerrors.IsNotFound(err) {
+			return statusUninstalled, nil
 		}
-		return nil, err
+		return "", err
 	}
-	for _, provider := range providerList.Items {
-		names = append(names, provider.Name)
+
+	if addonApp.Status.Phase == common2.ApplicationRunning {
+		return statusEnabled, nil
 	}
-	return names, nil
+
+	return statusEnabling, nil
 }
 
+func mergeAddons(a1, a2 []*types.Addon) []*types.Addon {
+	for _, item := range a2 {
+		if hasAddon(a1, item.Name) {
+			continue
+		}
+		a1 = append(a1, item)
+	}
+	return a1
+}
+
+func hasAddon(addons []*types.Addon, name string) bool {
+	for _, addon := range addons {
+		if addon.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// TODO(wangyike) addon can support multi-tenancy, an addon can be enabled multi times and will create many times
+// func checkWhetherTerraformProviderExist(ctx context.Context, k8sClient client.Client, addonName string, args map[string]string) (string, bool, error) {
+//	_, providerName := getTerraformProviderArgumentValue(addonName, args)
+//
+//	providerNames, err := getTerraformProviderNames(ctx, k8sClient)
+//	if err != nil {
+//		return "", false, err
+//	}
+//	for _, name := range providerNames {
+//		if providerName == name {
+//			return providerName, true, nil
+//		}
+//	}
+//	return providerName, false, nil
+// }
+
+//  func getTerraformProviderNames(ctx context.Context, k8sClient client.Client) ([]string, error) {
+//	var names []string
+//	providerList := &terraformv1beta1.ProviderList{}
+//	err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
+//	if err != nil {
+//		if apimeta.IsNoMatchError(err) || kerrors.IsNotFound(err) {
+//			return nil, nil
+//		}
+//		return nil, err
+//	}
+//	for _, provider := range providerList.Items {
+//		names = append(names, provider.Name)
+//	}
+//	return names, nil
+// }
+//
 // Get the value of argument AddonTerraformProviderNameArgument
-func getTerraformProviderArgumentValue(addonName string, args map[string]string) (map[string]string, string) {
-	providerName, ok := args[AddonTerraformProviderNameArgument]
-	if !ok {
-		switch addonName {
-		case "terraform-alibaba":
-			providerName = "default"
-		case "terraform-aws":
-			providerName = "aws"
-		case "terraform-azure":
-			providerName = "azure"
-		}
-		args[AddonTerraformProviderNameArgument] = providerName
-	}
-	return args, providerName
-}
-
-func checkWhetherTerraformProviderExist(ctx context.Context, k8sClient client.Client, addonName string, args map[string]string) (string, bool, error) {
-	_, providerName := getTerraformProviderArgumentValue(addonName, args)
-
-	providerNames, err := getTerraformProviderNames(ctx, k8sClient)
-	if err != nil {
-		return "", false, err
-	}
-	for _, name := range providerNames {
-		if providerName == name {
-			return providerName, true, nil
-		}
-	}
-	return providerName, false, nil
-}
+// func getTerraformProviderArgumentValue(addonName string, args map[string]string) (map[string]string, string) {
+//	providerName, ok := args[AddonTerraformProviderNameArgument]
+//	if !ok {
+//		switch addonName {
+//		case "terraform-alibaba":
+//			providerName = "default"
+//		case "terraform-aws":
+//			providerName = "aws"
+//		case "terraform-azure":
+//			providerName = "azure"
+//		}
+//		args[AddonTerraformProviderNameArgument] = providerName
+//	}
+//	return args, providerName
+// }

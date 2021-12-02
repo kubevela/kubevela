@@ -88,7 +88,7 @@ var _ = Describe("Addon tests", func() {
 
 	It("Addons Terraform is successfully enables and Terraform application works", func() {
 		By("Install Addon Terraform")
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba providerName=alibaba-e2e ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing").Output()
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba  ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))
@@ -99,7 +99,7 @@ var _ = Describe("Addon tests", func() {
 		By("Checking Provider")
 		Eventually(func() error {
 			var provider terraformv1beta1.Provider
-			return k8sClient.Get(ctx, client.ObjectKey{Name: "alibaba-e2e", Namespace: "default"}, &provider)
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "default", Namespace: "default"}, &provider)
 		}, time.Second*120, time.Millisecond*500).Should(BeNil())
 
 		By("Apply an application with Terraform Component")
