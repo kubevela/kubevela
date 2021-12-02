@@ -412,7 +412,7 @@ func (c *applicationUsecaseImpl) ListRecords(ctx context.Context, appName string
 		records, err = c.ds.List(ctx, &record, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
-			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 		})
 		if err != nil {
 			return nil, err
