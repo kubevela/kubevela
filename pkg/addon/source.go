@@ -386,6 +386,7 @@ type ListBucketResult struct {
 	Count int    `xml:"KeyCount"`
 }
 
+// File is for oss xml parse
 type File struct {
 	Name string `xml:"Key"`
 	Size int    `xml:"Size"`
