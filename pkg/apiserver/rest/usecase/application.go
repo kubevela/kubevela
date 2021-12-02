@@ -620,10 +620,12 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 				if err := c.ds.Get(ctx, rollbackRevision); err == nil {
 					status = rollbackRevision.Status
 				}
-				if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated {
-					log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
-					return nil, bcode.ErrDeployConflict
-				}
+			} else {
+				status = revision.Status
+			}
+			if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated {
+				log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
+				return nil, bcode.ErrDeployConflict
 			}
 		}
 	}
@@ -733,6 +735,14 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			},
 		},
 	}
+	originalApp := &v1beta1.Application{}
+	if c.kubeClient.Get(ctx, types.NamespacedName{
+		Name:      convertAppName(appModel.Name, workflow.EnvName),
+		Namespace: appModel.Namespace,
+	}, originalApp); err == nil {
+		app.ResourceVersion = originalApp.ResourceVersion
+	}
+
 	var component = model.ApplicationComponent{
 		AppPrimaryKey: appModel.PrimaryKey(),
 	}

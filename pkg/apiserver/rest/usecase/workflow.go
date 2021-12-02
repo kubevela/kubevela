@@ -527,27 +527,58 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		return err
 	}
 
+	if err := resetRevisionsAndRecords(ctx, w.ds, appModel.PrimaryKey(), workflow.Name, app.Annotations[oam.AnnotationDeployVersion], app.Annotations[oam.AnnotationPublishVersion]); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func resetRevisionsAndRecords(ctx context.Context, ds datastore.DataStore, appName, workflowName, skipRevision, skipRecord string) error {
+	// set revision status' status to terminate
+	var revision = model.ApplicationRevision{
+		AppPrimaryKey: appName,
+		Status:        model.RevisionStatusRunning,
+	}
+	// list all running revisions
+	revisions, err := ds.List(ctx, &revision, &datastore.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, raw := range revisions {
+		revision, ok := raw.(*model.ApplicationRevision)
+		if ok {
+			if revision.Version == skipRevision {
+				continue
+			}
+			revision.Status = model.RevisionStatusTerminated
+			if err := ds.Put(ctx, revision); err != nil {
+				klog.Info("failed to set rest revisions' status to terminate", "app name", appName, "revision version", revision.Version, "error", err)
+			}
+		}
+	}
+
 	// set rest records' status to terminate
 	var record = model.WorkflowRecord{
-		WorkflowName:  workflow.Name,
-		AppPrimaryKey: appModel.PrimaryKey(),
+		WorkflowName:  workflowName,
+		AppPrimaryKey: appName,
 		Finished:      "false",
 	}
 	// list all unfinished workflow records
-	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{})
+	records, err := ds.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
 		return err
 	}
 	for _, raw := range records {
 		record, ok := raw.(*model.WorkflowRecord)
 		if ok {
-			if record.Name == app.Annotations[oam.AnnotationPublishVersion] {
+			if record.Name == skipRecord {
 				continue
 			}
 			record.Status = model.RevisionStatusTerminated
 			record.Finished = "true"
-			if err := w.ds.Put(ctx, record); err != nil {
-				klog.Info("failed to set rest records' status to terminate", "app name", appModel.PrimaryKey(), "workflow name", record.WorkflowName, "record name", record.Name, "error", err)
+			if err := ds.Put(ctx, record); err != nil {
+				klog.Info("failed to set rest records' status to terminate", "app name", appName, "workflow name", record.WorkflowName, "record name", record.Name, "error", err)
 			}
 		}
 	}
@@ -650,7 +681,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 
 	// update the original revision status to rollback
 	originalRevision.Status = model.RevisionStatusRollback
-	originalRevision.RollbackVersion = rollbackRevision.Version
+	originalRevision.RollbackVersion = revisionVersion
 	originalRevision.UpdateTime = time.Now().Time
 	if err := w.ds.Put(ctx, originalRevision); err != nil {
 		return err
