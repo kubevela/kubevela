@@ -432,7 +432,7 @@ func waitApplicationRunning(obj *v1beta1.Application) error {
 		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
 			phase, timeConsumed, int(timeout.Seconds())))
 		if timeConsumed > int(timeout.Seconds()) {
-			return errors.Errorf("Enable timeout, please run \"vela status %s\" to check addon application status", obj.Name)
+			return errors.Errorf("Enable timeout, please run \"vela status %s -n vela-system\" to check addon application status", obj.Name)
 		}
 		time.Sleep(trackInterval)
 	}
