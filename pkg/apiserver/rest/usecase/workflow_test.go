@@ -91,7 +91,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req2.Description)).Should(BeEmpty())
 		Expect(cmp.Diff(base.EnvName, req2.EnvName)).ShouldNot(BeEmpty())
-
+		var defaultW = true
 		req = apisv1.CreateWorkflowRequest{
 			Name:        "test-workflow-2",
 			Description: "this is test workflow",
@@ -106,7 +106,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 					Alias: "step-alias-2",
 				},
 			},
-			Default: true,
+			Default: &defaultW,
 		}
 		base, err = workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
 			Name:      appName,

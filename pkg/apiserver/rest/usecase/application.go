@@ -1241,13 +1241,12 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 			continue
 		}
 		if definition != nil {
-			if definition.Spec.Workload.Type == TerraformWorkfloadType {
+			if definition.Spec.Workload.Type == TerraformWorkfloadType ||
+				definition.Spec.Workload.Definition.Kind == TerraformWorkfloadKind {
 				properties := model.JSONStruct{
 					"providerRef": map[string]interface{}{
-						"name":      "",
-						"namespace": "default",
+						"name": "default",
 					},
-					"region": "",
 					"writeConnectionSecretToRef": map[string]interface{}{
 						"name":      fmt.Sprintf("%s-%s", component.Name, envBind.Name),
 						"namespace": app.Namespace,
@@ -1262,7 +1261,6 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 				if providerNamespace, ok := target.Variable["providerNamespace"]; ok {
 					properties["providerRef"].(map[string]interface{})["namespace"] = providerNamespace
 				}
-				log.Logger.Info(properties)
 				componentPatchs = append(componentPatchs, v1alpha1.EnvComponentPatch{
 					Name:       converComponentName(component.Name, envBind.Name),
 					Properties: properties.RawExtension(),
