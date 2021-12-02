@@ -606,7 +606,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		revisions, err := w.ds.List(ctx, &revision, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
-			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 		})
 		if err != nil {
 			return err
@@ -630,11 +630,27 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		return err
 	}
 
-	var rollbackRevision = model.ApplicationRevision{
+	var originalRevision = &model.ApplicationRevision{
+		AppPrimaryKey: appModel.Name,
+		Version:       record.RevisionPrimaryKey,
+	}
+	if err := w.ds.Get(ctx, originalRevision); err != nil {
+		return err
+	}
+
+	var rollbackRevision = &model.ApplicationRevision{
 		AppPrimaryKey: appModel.Name,
 		Version:       revisionVersion,
 	}
-	if err := w.ds.Get(ctx, &rollbackRevision); err != nil {
+	if err := w.ds.Get(ctx, rollbackRevision); err != nil {
+		return err
+	}
+
+	// update the original revision status to rollback
+	originalRevision.Status = model.RevisionStatusRollback
+	originalRevision.RollbackVersion = rollbackRevision.Version
+	originalRevision.UpdateTime = time.Now().Time
+	if err := w.ds.Put(ctx, originalRevision); err != nil {
 		return err
 	}
 

@@ -398,14 +398,14 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 func (c *applicationUsecaseImpl) ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error) {
 	var record = model.WorkflowRecord{
 		AppPrimaryKey: appName,
-		Status:        model.RevisionStatusRunning,
+		Finished:      "false",
 	}
 	records, err := c.ds.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	if len(records) == 0 {
-		record.Status = model.RevisionStatusComplete
+		record.Finished = "true"
 		records, err = c.ds.List(ctx, &record, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
@@ -1148,7 +1148,7 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 	revisions, err := c.ds.List(ctx, &revision, &datastore.ListOptions{
 		Page:     page,
 		PageSize: pageSize,
-		SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 	})
 	if err != nil {
 		return nil, err

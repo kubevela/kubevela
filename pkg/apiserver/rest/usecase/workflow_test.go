@@ -301,6 +301,36 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(anotherRevision.Status).Should(Equal(model.RevisionStatusComplete))
 	})
 
+	It("Test CreateRecord function", func() {
+		ctx := context.TODO()
+		for i := 0; i < 3; i++ {
+			workflowUsecase.ds.Add(ctx, &model.WorkflowRecord{
+				AppPrimaryKey: "record-app",
+				Name:          fmt.Sprintf("test-record-%d", i),
+				WorkflowName:  "test-workflow",
+				Finished:      "false",
+			})
+		}
+
+		app, err := createTestSuspendApp(ctx, "record-app", "dev", "revision-123", "test-workflow", "test-record-3", workflowUsecase.kubeClient)
+		Expect(err).Should(BeNil())
+
+		err = workflowUsecase.CreateWorkflowRecord(ctx, &model.Application{
+			Name:      "record-app",
+			Namespace: "default",
+		}, app, &model.Workflow{Name: "test-workflow"})
+		Expect(err).Should(BeNil())
+
+		record := &model.WorkflowRecord{
+			Name:          "test-record-3",
+			AppPrimaryKey: "record-app",
+			WorkflowName:  "test-workflow",
+		}
+		err = workflowUsecase.ds.Get(ctx, record)
+		Expect(err).Should(BeNil())
+		Expect(record.Status).Should(Equal(model.RevisionStatusRunning))
+	})
+
 	It("Test ResumeRecord function", func() {
 		ctx := context.TODO()
 
@@ -464,6 +494,15 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}, nil)
 		Expect(err).Should(BeNil())
 		Expect(recordsNum).Should(Equal(int64(2)))
+
+		originalRevision := &model.ApplicationRevision{
+			AppPrimaryKey: appName,
+			Version:       "revision-rollback1",
+		}
+		err = workflowUsecase.ds.Get(ctx, originalRevision)
+		Expect(err).Should(BeNil())
+		Expect(originalRevision.Status).Should(Equal(model.RevisionStatusRollback))
+		Expect(originalRevision.RollbackVersion).Should(Equal("revision-rollback0"))
 	})
 })
 
