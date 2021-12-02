@@ -215,6 +215,9 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 		}
 		return nil, err
 	}
+	if !app.DeletionTimestamp.IsZero() {
+		app.Status.Phase = "deleting"
+	}
 	return &app.Status, nil
 }
 
@@ -242,7 +245,7 @@ func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appModel 
 
 // PublishApplicationTemplate publish app template
 func (c *applicationUsecaseImpl) PublishApplicationTemplate(ctx context.Context, app *model.Application) (*apisv1.ApplicationTemplateBase, error) {
-	//TODO:
+	// TODO:
 	return nil, nil
 }
 
