@@ -462,8 +462,8 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 
 		record.Status = summaryStatus
 		stepStatus := make(map[string]*common.WorkflowStepStatus, len(status.Steps))
-		for _, step := range status.Steps {
-			stepStatus[step.Name] = &step
+		for i, step := range status.Steps {
+			stepStatus[step.Name] = &status.Steps[i]
 		}
 		for i, step := range record.Steps {
 			if stepStatus[step.Name] != nil {
