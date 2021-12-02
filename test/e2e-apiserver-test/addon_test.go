@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -52,10 +51,9 @@ func get(path string) *http.Response {
 var _ = Describe("Test addon rest api", func() {
 	createReq := apis.CreateAddonRegistryRequest{
 		Name: "test-addon-registry-1",
-		Git: &addon.GitAddonSource{
-			URL:   "https://github.com/oam-dev/catalog",
-			Path:  "addons/",
-			Token: os.Getenv("GITHUB_TOKEN"),
+		Oss: &addon.OSSAddonSource{
+			EndPoint: "https://oss-cn-hangzhou.aliyuncs.com",
+			Bucket:   "kubevela-addons",
 		},
 	}
 	It("should add a registry and list addons from it", func() {
