@@ -475,6 +475,7 @@ var _ = Describe("Test application usecase function", func() {
 			appUsecase.ds.Add(ctx, &model.WorkflowRecord{
 				AppPrimaryKey: "app-records",
 				Name:          fmt.Sprintf("list-%d", i),
+				Finished:      "true",
 				Status:        model.RevisionStatusComplete,
 			})
 		}
@@ -488,6 +489,7 @@ var _ = Describe("Test application usecase function", func() {
 			appUsecase.ds.Add(ctx, &model.WorkflowRecord{
 				AppPrimaryKey: "app-records",
 				Name:          fmt.Sprintf("list-running-%d", i),
+				Finished:      "false",
 				Status:        model.RevisionStatusRunning,
 			})
 		}
