@@ -41,7 +41,7 @@ var paths = []string{
 var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
 	queryPath := strings.TrimPrefix(req.URL.Path, "/")
 
-	if strings.HasPrefix(req.URL.RawQuery, "prefix") {
+	if strings.Contains(req.URL.RawQuery, "prefix") {
 		prefix := req.URL.Query().Get("prefix")
 		res := ListBucketResult{
 			Files: []File{},
