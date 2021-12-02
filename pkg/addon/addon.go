@@ -555,7 +555,7 @@ func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[
 		return nil, err
 	}
 	comp := common2.ApplicationComponent{
-		Name: elem.Name,
+		Name: strings.ReplaceAll(elem.Name, ".", "-"),
 	}
 	err = yaml.Unmarshal(b, &comp)
 	if err != nil {
