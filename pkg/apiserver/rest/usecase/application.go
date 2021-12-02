@@ -609,9 +609,22 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 			log.Logger.Errorf("query app latest revision failure %s", err.Error())
 			return nil, bcode.ErrDeployConflict
 		}
-		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.RevisionStatusComplete {
-			log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
-			return nil, bcode.ErrDeployConflict
+		if len(list) > 0 {
+			revision := list[0].(*model.ApplicationRevision)
+			var status string
+			if revision.Status == model.RevisionStatusRollback {
+				rollbackRevision := &model.ApplicationRevision{
+					AppPrimaryKey: revision.AppPrimaryKey,
+					Version:       revision.RollbackVersion,
+				}
+				if err := c.ds.Get(ctx, rollbackRevision); err == nil {
+					status = rollbackRevision.Status
+				}
+				if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated {
+					log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
+					return nil, bcode.ErrDeployConflict
+				}
+			}
 		}
 	}
 

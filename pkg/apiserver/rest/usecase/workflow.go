@@ -396,7 +396,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 		}
 
 		// try to sync the status from the running application
-		if app.Annotations != nil && app.Annotations[oam.AnnotationPublishVersion] == record.Name {
+		if app.Annotations != nil && app.Status.Workflow != nil && app.Status.Workflow.AppRevision == record.Name {
 			if err := w.syncWorkflowStatus(ctx, app, record.Name, app.Name); err != nil {
 				klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			}
@@ -461,16 +461,18 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		}
 
 		record.Status = summaryStatus
-		stepStatus := make(map[string]common.WorkflowStepStatus, len(status.Steps))
+		stepStatus := make(map[string]*common.WorkflowStepStatus, len(status.Steps))
 		for _, step := range status.Steps {
-			stepStatus[step.Name] = step
+			stepStatus[step.Name] = &step
 		}
 		for i, step := range record.Steps {
-			record.Steps[i].Phase = stepStatus[step.Name].Phase
-			record.Steps[i].Message = stepStatus[step.Name].Message
-			record.Steps[i].Reason = stepStatus[step.Name].Reason
-			record.Steps[i].FirstExecuteTime = stepStatus[step.Name].FirstExecuteTime.Time
-			record.Steps[i].LastExecuteTime = stepStatus[step.Name].LastExecuteTime.Time
+			if stepStatus[step.Name] != nil {
+				record.Steps[i].Phase = stepStatus[step.Name].Phase
+				record.Steps[i].Message = stepStatus[step.Name].Message
+				record.Steps[i].Reason = stepStatus[step.Name].Reason
+				record.Steps[i].FirstExecuteTime = stepStatus[step.Name].FirstExecuteTime.Time
+				record.Steps[i].LastExecuteTime = stepStatus[step.Name].LastExecuteTime.Time
+			}
 		}
 		record.Finished = strconv.FormatBool(status.Finished)
 
@@ -484,7 +486,7 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		}
 	}
 
-	if record.Status == model.RevisionStatusComplete {
+	if record.Finished == "true" {
 		klog.InfoS("successfully sync workflow status", "oam app name", app.Name, "workflow name", record.WorkflowName, "record name", record.Name, "status", record.Status, "sync source", source)
 	}
 
