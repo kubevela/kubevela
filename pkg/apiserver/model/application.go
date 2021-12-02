@@ -183,11 +183,15 @@ var RevisionStatusFail = "failure"
 // RevisionStatusTerminated event status terminated
 var RevisionStatusTerminated = "terminated"
 
+// RevisionStatusRollback event status rollback
+var RevisionStatusRollback = "rollback"
+
 // ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
 type ApplicationRevision struct {
 	Model
-	AppPrimaryKey string `json:"appPrimaryKey"`
-	Version       string `json:"version"`
+	AppPrimaryKey   string `json:"appPrimaryKey"`
+	Version         string `json:"version"`
+	RollbackVersion string `json:"rollbackVersion,omitempty"`
 	// ApplyAppConfig Stores the application configuration during the current deploy.
 	ApplyAppConfig string `json:"applyAppConfig,omitempty"`
 
