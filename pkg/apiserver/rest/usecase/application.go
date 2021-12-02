@@ -736,7 +736,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		},
 	}
 	originalApp := &v1beta1.Application{}
-	if c.kubeClient.Get(ctx, types.NamespacedName{
+	if err := c.kubeClient.Get(ctx, types.NamespacedName{
 		Name:      convertAppName(appModel.Name, workflow.EnvName),
 		Namespace: appModel.Namespace,
 	}, originalApp); err == nil {
