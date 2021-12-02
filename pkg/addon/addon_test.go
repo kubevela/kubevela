@@ -50,7 +50,7 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 		for _, p := range paths {
 			if strings.HasPrefix(p, prefix) {
 				// Size 100 is for mock a file
-				res.Files = append(res.Files, File{Name: p,Size: 100})
+				res.Files = append(res.Files, File{Name: p, Size: 100})
 				res.Count += 1
 			}
 		}
