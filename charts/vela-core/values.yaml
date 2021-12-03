@@ -126,7 +126,7 @@ multicluster:
 test:
   app:
     repository: oamdev/hello-world
-    tag: latest
+    tag: v1
   k8s:
     repository: oamdev/alpine-k8s
     tag: 1.18.2

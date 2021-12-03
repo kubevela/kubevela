@@ -125,4 +125,4 @@ multicluster:
 test:
   app:
     repository: oamdev/hello-world
-    tag: latest
+    tag: v1
