@@ -301,6 +301,9 @@ func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIPa
 			if cusSchema.Sort != 0 {
 				dSchema.Sort = cusSchema.Sort
 			}
+			if cusSchema.Additional != nil {
+				dSchema.Additional = cusSchema.Additional
+			}
 		}
 	}
 	sort.Slice(defaultSchema, func(i, j int) bool {
@@ -334,6 +337,13 @@ func renderUIParameter(key, label string, property *openapi3.SchemaRef, required
 	}
 	if property.Value.Properties != nil {
 		parameter.SubParameters = renderDefaultUISchema(property.Value)
+	}
+	if property.Value.AdditionalProperties != nil {
+		parameter.SubParameters = renderDefaultUISchema(property.Value.AdditionalProperties.Value)
+		var enable = true
+		value := property.Value.AdditionalProperties.Value
+		parameter.AdditionalParameter = renderUIParameter(value.Title, utils.FirstUpper(value.Title), property.Value.AdditionalProperties, value.Required)
+		parameter.Additional = &enable
 	}
 	parameter.Validate = &utils.Validate{}
 	parameter.Validate.DefaultValue = property.Value.Default

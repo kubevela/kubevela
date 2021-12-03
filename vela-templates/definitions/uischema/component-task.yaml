@@ -2,9 +2,21 @@
   jsonKey: image
   label: Image
   sort: 1
+- jsonKey: restart
+  sort: 2
+  uiType: Select
+  validate: 
+    options: 
+      - label: Never
+        value: Never
+      - label: OnFailure
+        value: OnFailure
+- jsonKey: count
+  sort: 3
+  uiType: Number
 - jsonKey: memory
   uiType: MemoryNumber
-  sort: 3
+  sort: 4
   label: Memory Request&Limit
 - uiType: CPUNumber
   jsonKey: cpu
@@ -23,8 +35,6 @@
         value: Always
       - label: Never
         value: Never
-- jsonKey: exposeType
-  sort: 8
 - jsonKey: cmd
   label: CMD
   sort: 9
@@ -74,8 +84,6 @@
   description: "Set the path and type that the service needs to persist."
   uiType: Group
   subParameters:
-    - jsonKey: configMap
-      disable: true
     - jsonKey: secret
       disable: true
     - jsonKey: pvc
@@ -85,6 +93,7 @@
     - jsonKey: emptyDir
       sort: 5
   sort: 12
+
 
 - jsonKey: readinessProbe
   uiType: Group
@@ -115,7 +124,7 @@
         sort: 5
   - jsonKey: tcpSocket
     sort: 19
-    
+
   sort: 13
 
 - jsonKey: livenessProbe
@@ -124,6 +133,29 @@
   subParameters:
   - jsonKey: hostAliases
     disable: true
+  - jsonKey: timeoutSeconds
+    sort: 1
+  - jsonKey: failureThreshold
+    sort: 4
+  - jsonKey: initialDelaySeconds
+    sort: 7
+  - jsonKey: periodSeconds
+    sort: 9
+  - jsonKey: successThreshold
+    sort: 11
+  - jsonKey: exec
+    sort: 14
+  - jsonKey: httpGet
+    sort: 19
+    subParameters:
+      - jsonKey: port
+        sort: 1
+      - jsonKey: path
+        sort: 3
+      - jsonKey: httpHeaders
+        sort: 5
+  - jsonKey: tcpSocket
+    sort: 19
   sort: 15
 
 - jsonKey: annotations
@@ -131,12 +163,6 @@
 
 - jsonKey: lables
   sort: 21
-
-- jsonKey: addRevisionLabel
-  disable: true
-
-- jsonKey: port
-  disable: true
 
 - jsonKey: volumes
   disable: true

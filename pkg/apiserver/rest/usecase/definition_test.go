@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"path"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -163,12 +165,23 @@ var _ = Describe("Test namespace usecase functions", func() {
 
 func TestAddDefinitionUISchema(t *testing.T) {
 	du := NewDefinitionUsecase()
-	cdata, err := ioutil.ReadFile("./testdata/ui-custom-schema.yaml")
+	schemaFiles, err := ioutil.ReadDir("../../../../vela-templates/definitions/uischema")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = du.AddDefinitionUISchema(context.TODO(), "webservice", "component", string(cdata))
-	if err != nil {
-		t.Fatal(err)
+	for _, sf := range schemaFiles {
+		if !sf.IsDir() {
+			typeNames := strings.SplitN(sf.Name(), "-", 2)
+			cdata, err := ioutil.ReadFile(path.Join("../../../../vela-templates/definitions/uischema", sf.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			definitionName := strings.Replace(typeNames[1], path.Ext(sf.Name()), "", -1)
+			_, err = du.AddDefinitionUISchema(context.TODO(), definitionName, typeNames[0], string(cdata))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("create ui schema %s for %s definition", definitionName, typeNames[0])
+		}
 	}
 }
