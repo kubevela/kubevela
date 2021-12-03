@@ -332,7 +332,7 @@ func registerClusterManagedByOCM(ioStreams cmdutil.IOStreams, hubConfig *rest.Co
 	}
 
 	for _, cluster := range clusters {
-		if cluster.Name == clusterName {
+		if cluster.Name == clusterName && cluster.Accepted {
 			return errors.Errorf("you have register a cluster named %s", clusterName)
 		}
 	}

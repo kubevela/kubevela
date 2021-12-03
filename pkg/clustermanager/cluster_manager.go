@@ -22,15 +22,15 @@ import (
 
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
-	v13 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
+	corev1 "k8s.io/api/core/v1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierror "k8s.io/apimachinery/pkg/api/errors"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
-	v12 "open-cluster-management.io/api/cluster/v1"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	types2 "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -49,9 +49,9 @@ func GetClient(kubeConfigData []byte) (client.Client, error) {
 }
 
 // GetRegisteredClusters will get all registered clusters in control plane
-func GetRegisteredClusters(c client.Client) ([]types2.Cluster, error) {
-	var clusters []types2.Cluster
-	secrets := v1.SecretList{}
+func GetRegisteredClusters(c client.Client) ([]types.Cluster, error) {
+	var clusters []types.Cluster
+	secrets := corev1.SecretList{}
 	if err := c.List(context.Background(), &secrets, client.HasLabels{v1alpha1.LabelKeyClusterCredentialType}, client.InNamespace(multicluster.ClusterGatewaySecretNamespace)); err != nil {
 		return nil, errors.Wrapf(err, "failed to get clusterSecret secrets")
 	}
@@ -60,31 +60,33 @@ func GetRegisteredClusters(c client.Client) ([]types2.Cluster, error) {
 		if endp, ok := clusterSecret.GetLabels()[v1alpha1.LabelKeyClusterEndpointType]; ok {
 			endpoint = endp
 		}
-		clusters = append(clusters, types2.Cluster{
+		clusters = append(clusters, types.Cluster{
 			Name:     clusterSecret.Name,
 			Type:     clusterSecret.GetLabels()[v1alpha1.LabelKeyClusterCredentialType],
 			EndPoint: endpoint,
+			Accepted: true,
 		})
 	}
 
-	crdName := types.NamespacedName{Name: "managedclusters." + v12.GroupName}
-	if err := c.Get(context.Background(), crdName, &v13.CustomResourceDefinition{}); err != nil {
-		if errors2.IsNotFound(err) {
+	crdName := k8stypes.NamespacedName{Name: "managedclusters." + clusterv1.GroupName}
+	if err := c.Get(context.Background(), crdName, &crdv1.CustomResourceDefinition{}); err != nil {
+		if apierror.IsNotFound(err) {
 			return clusters, nil
 		}
 		return nil, err
 	}
 
-	managedClusters := v12.ManagedClusterList{}
+	managedClusters := clusterv1.ManagedClusterList{}
 	if err := c.List(context.Background(), &managedClusters); err != nil {
 		return nil, errors.Wrapf(err, "failed to get managed clusters")
 	}
 	for _, cluster := range managedClusters.Items {
 		if len(cluster.Spec.ManagedClusterClientConfigs) != 0 {
-			clusters = append(clusters, types2.Cluster{
+			clusters = append(clusters, types.Cluster{
 				Name:     cluster.Name,
 				Type:     "OCM ManagedServiceAccount",
 				EndPoint: "-",
+				Accepted: cluster.Spec.HubAcceptsClient,
 			})
 		}
 	}
@@ -117,26 +119,34 @@ func EnsureClusterExists(c client.Client, clusterName string) error {
 
 // clusterExists will check whether the cluster exist or not
 func clusterExists(c client.Client, clusterName string) (bool, error) {
-	err := c.Get(context.Background(), types.NamespacedName{Name: clusterName, Namespace: multicluster.ClusterGatewaySecretNamespace}, &v1.Secret{})
+	err := c.Get(context.Background(),
+		k8stypes.NamespacedName{
+			Name:      clusterName,
+			Namespace: multicluster.ClusterGatewaySecretNamespace,
+		},
+		&corev1.Secret{})
 	if err == nil {
 		return true, nil
 	}
-	if !errors2.IsNotFound(err) {
+	if !apierror.IsNotFound(err) {
 		return false, errors.Wrapf(err, "failed to check duplicate cluster")
 	}
 
-	crdName := types.NamespacedName{Name: "managedclusters." + v12.GroupName}
-	if err = c.Get(context.Background(), crdName, &v13.CustomResourceDefinition{}); err != nil {
-		if errors2.IsNotFound(err) {
+	crdName := k8stypes.NamespacedName{Name: "managedclusters." + clusterv1.GroupName}
+	if err = c.Get(context.Background(), crdName, &crdv1.CustomResourceDefinition{}); err != nil {
+		if apierror.IsNotFound(err) {
 			return false, nil
 		}
 		return false, errors.Wrapf(err, "failed to get managedcluster CRD to check duplicate cluster")
 	}
-	err = c.Get(context.Background(), types.NamespacedName{Name: clusterName, Namespace: multicluster.ClusterGatewaySecretNamespace}, &v12.ManagedCluster{})
+	err = c.Get(context.Background(), k8stypes.NamespacedName{
+		Name:      clusterName,
+		Namespace: multicluster.ClusterGatewaySecretNamespace,
+	}, &clusterv1.ManagedCluster{})
 	if err == nil {
 		return true, nil
 	}
-	if !errors2.IsNotFound(err) {
+	if !apierror.IsNotFound(err) {
 		return false, errors.Wrapf(err, "failed to check duplicate cluster")
 	}
 	return false, nil

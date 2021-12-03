@@ -103,4 +103,5 @@ type Cluster struct {
 	Name     string
 	Type     string
 	EndPoint string
+	Accepted bool
 }
