@@ -105,4 +105,4 @@ OAMSpecVer: "v0.2"
 test:
   app:
     repository: oamdev/busybox
-    tag: latest
+    tag: v1
