@@ -50,14 +50,20 @@ import (
 
 // constant error information
 const (
-	errInvalidValueType                                = "require %q type parameter value"
-	errTerraformConfigurationIsNotSet                  = "terraform configuration is not set"
-	errFailToConvertTerraformComponentProperties       = "failed to convert Terraform component properties"
-	errTerraformNameOfWriteConnectionSecretToRefNotSet = "the name of writeConnectionSecretToRef of terraform component is not set"
+	errInvalidValueType                          = "require %q type parameter value"
+	errTerraformConfigurationIsNotSet            = "terraform configuration is not set"
+	errFailToConvertTerraformComponentProperties = "failed to convert Terraform component properties"
+	errConvertTerraformBaseConfigurationSpec     = "failed to convert properties to Terraform Configuration spec"
 )
 
-// WriteConnectionSecretToRefKey is used to create a secret for cloud resource connection
-const WriteConnectionSecretToRefKey = "writeConnectionSecretToRef"
+const (
+	// WriteConnectionSecretToRefKey is used to create a secret for cloud resource connection
+	WriteConnectionSecretToRefKey = "writeConnectionSecretToRef"
+	// RegionKey is the region of a Cloud Provider
+	RegionKey = "region"
+	// ProviderRefKey is the reference of a Provider
+	ProviderRefKey = "providerRef"
+)
 
 // Workload is component
 type Workload struct {
@@ -678,19 +684,24 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.Path = wl.FullTemplate.Terraform.Path
 	}
 
-	if wl.FullTemplate.Terraform.ProviderReference != nil {
-		configuration.Spec.ProviderReference = wl.FullTemplate.Terraform.ProviderReference
-	}
-
 	// 1. parse writeConnectionSecretToRef
-	if err := json.Unmarshal(params, &configuration.Spec); err != nil {
+	if err := json.Unmarshal(params, &configuration); err != nil {
 		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
 
-	if configuration.Spec.WriteConnectionSecretToReference != nil {
-		if configuration.Spec.WriteConnectionSecretToReference.Name == "" {
-			return nil, errors.New(errTerraformNameOfWriteConnectionSecretToRefNotSet)
-		}
+	var spec terraformapi.BaseConfigurationSpec
+	if err := json.Unmarshal(params, &spec); err != nil {
+		return nil, errors.Wrap(err, errConvertTerraformBaseConfigurationSpec)
+	}
+	if spec.ProviderReference != nil && !reflect.DeepEqual(configuration.Spec.ProviderReference, spec.ProviderReference) {
+		configuration.Spec.ProviderReference = spec.ProviderReference
+	}
+	if spec.Region != "" && configuration.Spec.Region != spec.Region {
+		configuration.Spec.Region = spec.Region
+	}
+	if spec.WriteConnectionSecretToReference != nil && spec.WriteConnectionSecretToReference.Name != "" &&
+		!reflect.DeepEqual(configuration.Spec.WriteConnectionSecretToReference, spec.WriteConnectionSecretToReference) {
+		configuration.Spec.WriteConnectionSecretToReference = spec.WriteConnectionSecretToReference
 		// set namespace for writeConnectionSecretToRef, developer needn't manually set it
 		if configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
 			configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
@@ -708,11 +719,14 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
 	delete(variableMap, WriteConnectionSecretToRefKey)
+	delete(variableMap, RegionKey)
+	delete(variableMap, ProviderRefKey)
 
 	data, err := json.Marshal(variableMap)
 	if err != nil {
 		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
+
 	configuration.Spec.Variable = &runtime.RawExtension{Raw: data}
 	raw := util.Object2RawExtension(&configuration)
 	return util.RawExtension2Unstructured(raw)
