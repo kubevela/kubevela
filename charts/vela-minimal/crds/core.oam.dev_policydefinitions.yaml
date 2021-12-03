@@ -169,11 +169,15 @@ spec:
                             type: string
                           namespace:
                             default: default
-                            description: Namespace of the secret.
+                            description: Namespace of the referenced object.
                             type: string
                         required:
                         - name
                         type: object
+                      region:
+                        description: Region is cloud provider's region. It will override
+                          the region in the region field of ProviderReference
+                        type: string
                       type:
                         default: hcl
                         description: Type specifies which Terraform configuration
@@ -183,6 +187,22 @@ spec:
                         - json
                         - remote
                         type: string
+                      writeConnectionSecretToRef:
+                        description: WriteConnectionSecretToReference specifies the
+                          namespace and name of a Secret to which any connection details
+                          for this managed resource should be written. Connection
+                          details frequently include the endpoint, username, and password
+                          required to connect to the managed resource.
+                        properties:
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - name
+                        type: object
                     required:
                     - configuration
                     type: object

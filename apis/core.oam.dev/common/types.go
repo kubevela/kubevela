@@ -112,6 +112,9 @@ type Terraform struct {
 	// +kubebuilder:validation:Enum:=hcl;json;remote
 	Type string `json:"type,omitempty"`
 
+	// Path is the sub-directory of remote git repository. It's valid when remote is set
+	Path string `json:"path,omitempty"`
+
 	v1beta1.BaseConfigurationSpec `json:",inline"`
 }
 
