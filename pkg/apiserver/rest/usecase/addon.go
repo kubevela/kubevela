@@ -85,8 +85,8 @@ func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
 	}, nil
 }
 
-// NewAddonUsecase returns a addon usecase
-func NewAddonUsecase(ds datastore.DataStore) AddonUsecase {
+// NewAddonUsecase returns an addon usecase
+func NewAddonUsecase() AddonUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		panic(err)
@@ -133,7 +133,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 		if err != nil {
 			return nil, err
 		}
-		addon, err = addonRegistry.Git.GetAddon(name, pkgaddon.GetLevelOptions)
+		addon, err = SourceOf(*addonRegistry).GetAddon(name, pkgaddon.GetLevelOptions)
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return nil, err
 		}
@@ -204,7 +204,7 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 		if registry != "" && r.Name != registry {
 			continue
 		}
-		if false && u.isRegistryCacheUpToDate(r.Name) {
+		if u.isRegistryCacheUpToDate(r.Name) {
 			listAddons = u.getRegistryCache(r.Name)
 		} else {
 			listAddons, err = SourceOf(*r).ListAddons(pkgaddon.GetLevelOptions)
@@ -447,7 +447,7 @@ func (u *addonUsecaseImpl) UpdateAddon(ctx context.Context, name string, args ap
 			continue
 		}
 
-		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, r.Git, args.Args)
+		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, SourceOf(*r), args.Args)
 		if err != nil {
 			log.Logger.Errorf("err when enable addon: %v", err)
 			return bcode.ErrAddonApply

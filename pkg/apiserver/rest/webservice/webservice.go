@@ -65,7 +65,7 @@ func Init(ds datastore.DataStore) {
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
-	addonUsecase := usecase.NewAddonUsecase(ds)
+	addonUsecase := usecase.NewAddonUsecase()
 	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase)
 	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase, definitionUsecase)
 	RegistWebService(NewClusterWebService(clusterUsecase))
