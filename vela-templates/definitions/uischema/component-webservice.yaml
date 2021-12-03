@@ -62,9 +62,28 @@
 - jsonKey: ports
   label: Service Ports
   sort: 11
+  subParameters:
+    - jsonKey: port
+      sort: 1
+    - jsonKey: protocol
+      sort: 2
+    - jsonKey: expose
+      sort: 3
 - jsonKey: volumeMounts
   label: Persistent Storage
+  description: "Set the path and type that the service needs to persist."
   uiType: Group
+  subParameters:
+    - jsonKey: configMap
+      disable: true
+    - jsonKey: secret
+      disable: true
+    - jsonKey: pvc
+      sort: 1
+    - jsonKey: hostPath
+      sort: 3
+    - jsonKey: emptyDir
+      sort: 5
   sort: 12
 
 - jsonKey: readinessProbe
