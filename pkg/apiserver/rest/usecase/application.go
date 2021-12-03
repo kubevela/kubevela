@@ -412,7 +412,7 @@ func (c *applicationUsecaseImpl) ListRecords(ctx context.Context, appName string
 		records, err = c.ds.List(ctx, &record, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
-			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 		})
 		if err != nil {
 			return nil, err
@@ -609,9 +609,24 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 			log.Logger.Errorf("query app latest revision failure %s", err.Error())
 			return nil, bcode.ErrDeployConflict
 		}
-		if len(list) > 0 && list[0].(*model.ApplicationRevision).Status != model.RevisionStatusComplete {
-			log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
-			return nil, bcode.ErrDeployConflict
+		if len(list) > 0 {
+			revision := list[0].(*model.ApplicationRevision)
+			var status string
+			if revision.Status == model.RevisionStatusRollback {
+				rollbackRevision := &model.ApplicationRevision{
+					AppPrimaryKey: revision.AppPrimaryKey,
+					Version:       revision.RollbackVersion,
+				}
+				if err := c.ds.Get(ctx, rollbackRevision); err == nil {
+					status = rollbackRevision.Status
+				}
+			} else {
+				status = revision.Status
+			}
+			if status != model.RevisionStatusComplete && status != model.RevisionStatusTerminated {
+				log.Logger.Warnf("last app revision can not complete %s/%s", list[0].(*model.ApplicationRevision).AppPrimaryKey, list[0].(*model.ApplicationRevision).Version)
+				return nil, bcode.ErrDeployConflict
+			}
 		}
 	}
 
@@ -720,6 +735,14 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			},
 		},
 	}
+	originalApp := &v1beta1.Application{}
+	if err := c.kubeClient.Get(ctx, types.NamespacedName{
+		Name:      convertAppName(appModel.Name, workflow.EnvName),
+		Namespace: appModel.Namespace,
+	}, originalApp); err == nil {
+		app.ResourceVersion = originalApp.ResourceVersion
+	}
+
 	var component = model.ApplicationComponent{
 		AppPrimaryKey: appModel.PrimaryKey(),
 	}

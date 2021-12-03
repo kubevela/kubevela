@@ -329,7 +329,14 @@ func (e *envBindingUsecaseImpl) ApplicationEnvRecycle(ctx context.Context, appMo
 		}
 		return err
 	}
-	return e.kubeClient.Delete(ctx, &app)
+	if err := e.kubeClient.Delete(ctx, &app); err != nil {
+		return err
+	}
+
+	if err := resetRevisionsAndRecords(ctx, e.ds, appModel.Name, "", "", ""); err != nil {
+		return err
+	}
+	return nil
 }
 
 func convertCreateReqToEnvBindingModel(app *model.Application, req apisv1.CreateApplicationEnvRequest) model.EnvBinding {

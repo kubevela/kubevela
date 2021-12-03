@@ -396,7 +396,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 		}
 
 		// try to sync the status from the running application
-		if app.Annotations != nil && app.Annotations[oam.AnnotationPublishVersion] == record.Name {
+		if app.Annotations != nil && app.Status.Workflow != nil && app.Status.Workflow.AppRevision == record.Name {
 			if err := w.syncWorkflowStatus(ctx, app, record.Name, app.Name); err != nil {
 				klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
 			}
@@ -461,16 +461,18 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		}
 
 		record.Status = summaryStatus
-		stepStatus := make(map[string]common.WorkflowStepStatus, len(status.Steps))
-		for _, step := range status.Steps {
-			stepStatus[step.Name] = step
+		stepStatus := make(map[string]*common.WorkflowStepStatus, len(status.Steps))
+		for i, step := range status.Steps {
+			stepStatus[step.Name] = &status.Steps[i]
 		}
 		for i, step := range record.Steps {
-			record.Steps[i].Phase = stepStatus[step.Name].Phase
-			record.Steps[i].Message = stepStatus[step.Name].Message
-			record.Steps[i].Reason = stepStatus[step.Name].Reason
-			record.Steps[i].FirstExecuteTime = stepStatus[step.Name].FirstExecuteTime.Time
-			record.Steps[i].LastExecuteTime = stepStatus[step.Name].LastExecuteTime.Time
+			if stepStatus[step.Name] != nil {
+				record.Steps[i].Phase = stepStatus[step.Name].Phase
+				record.Steps[i].Message = stepStatus[step.Name].Message
+				record.Steps[i].Reason = stepStatus[step.Name].Reason
+				record.Steps[i].FirstExecuteTime = stepStatus[step.Name].FirstExecuteTime.Time
+				record.Steps[i].LastExecuteTime = stepStatus[step.Name].LastExecuteTime.Time
+			}
 		}
 		record.Finished = strconv.FormatBool(status.Finished)
 
@@ -484,7 +486,7 @@ func (w *workflowUsecaseImpl) syncWorkflowStatus(ctx context.Context, app *v1bet
 		}
 	}
 
-	if record.Status == model.RevisionStatusComplete {
+	if record.Finished == "true" {
 		klog.InfoS("successfully sync workflow status", "oam app name", app.Name, "workflow name", record.WorkflowName, "record name", record.Name, "status", record.Status, "sync source", source)
 	}
 
@@ -525,27 +527,58 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		return err
 	}
 
+	if err := resetRevisionsAndRecords(ctx, w.ds, appModel.PrimaryKey(), workflow.Name, app.Annotations[oam.AnnotationDeployVersion], app.Annotations[oam.AnnotationPublishVersion]); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func resetRevisionsAndRecords(ctx context.Context, ds datastore.DataStore, appName, workflowName, skipRevision, skipRecord string) error {
+	// set revision status' status to terminate
+	var revision = model.ApplicationRevision{
+		AppPrimaryKey: appName,
+		Status:        model.RevisionStatusRunning,
+	}
+	// list all running revisions
+	revisions, err := ds.List(ctx, &revision, &datastore.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, raw := range revisions {
+		revision, ok := raw.(*model.ApplicationRevision)
+		if ok {
+			if revision.Version == skipRevision {
+				continue
+			}
+			revision.Status = model.RevisionStatusTerminated
+			if err := ds.Put(ctx, revision); err != nil {
+				klog.Info("failed to set rest revisions' status to terminate", "app name", appName, "revision version", revision.Version, "error", err)
+			}
+		}
+	}
+
 	// set rest records' status to terminate
 	var record = model.WorkflowRecord{
-		WorkflowName:  workflow.Name,
-		AppPrimaryKey: appModel.PrimaryKey(),
+		WorkflowName:  workflowName,
+		AppPrimaryKey: appName,
 		Finished:      "false",
 	}
 	// list all unfinished workflow records
-	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{})
+	records, err := ds.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
 		return err
 	}
 	for _, raw := range records {
 		record, ok := raw.(*model.WorkflowRecord)
 		if ok {
-			if record.Name == app.Annotations[oam.AnnotationPublishVersion] {
+			if record.Name == skipRecord {
 				continue
 			}
 			record.Status = model.RevisionStatusTerminated
 			record.Finished = "true"
-			if err := w.ds.Put(ctx, record); err != nil {
-				klog.Info("failed to set rest records' status to terminate", "app name", appModel.PrimaryKey(), "workflow name", record.WorkflowName, "record name", record.Name, "error", err)
+			if err := ds.Put(ctx, record); err != nil {
+				klog.Info("failed to set rest records' status to terminate", "app name", appName, "workflow name", record.WorkflowName, "record name", record.Name, "error", err)
 			}
 		}
 	}
@@ -648,7 +681,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 
 	// update the original revision status to rollback
 	originalRevision.Status = model.RevisionStatusRollback
-	originalRevision.RollbackVersion = rollbackRevision.Version
+	originalRevision.RollbackVersion = revisionVersion
 	originalRevision.UpdateTime = time.Now().Time
 	if err := w.ds.Put(ctx, originalRevision); err != nil {
 		return err
