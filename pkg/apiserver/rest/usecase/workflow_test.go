@@ -140,6 +140,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		for i := 0; i < 3; i++ {
 			app.Annotations[oam.AnnotationPublishVersion] = fmt.Sprintf("list-workflow-name-%d", i)
+			app.Status.Workflow.AppRevision = fmt.Sprintf("list-workflow-name-%d", i)
 			err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
 				Name:      appName,
 				Namespace: "default",
@@ -160,6 +161,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
 		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-123"
+		app.Status.Workflow.AppRevision = "test-workflow-2-123"
 		app.Annotations[oam.AnnotationDeployVersion] = "1234"
 		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
@@ -201,6 +203,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app.Status.Workflow.Finished = false
 		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-2"
 		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-233"
+		app.Status.Workflow.AppRevision = "test-workflow-2-233"
 		app.Annotations[oam.AnnotationDeployVersion] = "4321"
 		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
 			Name:      appName,
@@ -256,6 +259,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		By("create another workflow record to test sync status from controller revision")
 		app.Status.Workflow.Finished = false
 		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-111"
+		app.Status.Workflow.AppRevision = "test-workflow-2-111"
 		app.Annotations[oam.AnnotationDeployVersion] = "1111"
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name:      appName,
@@ -475,6 +479,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 
 		By("rollback application without revision version")
 		app.Annotations[oam.AnnotationPublishVersion] = "workflow-rollback-2"
+		app.Status.Workflow.AppRevision = "workflow-rollback-2"
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
 			Name:      appName,
 			Namespace: "default",
@@ -546,7 +551,8 @@ status:
       type: apply-component
     suspend: false
     terminated: false
-    finished: true`
+    finished: true
+    appRevision: "test-workflow-name-111"`
 
 func (w *workflowUsecaseImpl) createTestApplicationRevision(ctx context.Context, revision *model.ApplicationRevision) error {
 	if err := w.ds.Add(ctx, revision); err != nil {
