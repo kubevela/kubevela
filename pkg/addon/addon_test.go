@@ -41,15 +41,16 @@ var paths = []string{
 var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
 	queryPath := strings.TrimPrefix(req.URL.Path, "/")
 
-	if strings.HasPrefix(req.URL.RawQuery, "prefix") {
+	if strings.Contains(req.URL.RawQuery, "prefix") {
 		prefix := req.URL.Query().Get("prefix")
 		res := ListBucketResult{
-			Files: []string{},
+			Files: []File{},
 			Count: 0,
 		}
 		for _, p := range paths {
 			if strings.HasPrefix(p, prefix) {
-				res.Files = append(res.Files, p)
+				// Size 100 is for mock a file
+				res.Files = append(res.Files, File{Name: p, Size: 100})
 				res.Count += 1
 			}
 		}

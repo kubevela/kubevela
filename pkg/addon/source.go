@@ -40,9 +40,9 @@ const (
 	// FileType means a file
 	FileType = "file"
 
-	bucketTmpl        = "%s//%s.%s"
+	bucketTmpl        = "%s://%s.%s"
 	singleOssFileTmpl = "%s/%s"
-	listOssFileTmpl   = "%s?prefix=%s"
+	listOssFileTmpl   = "%s?max-keys=1000&prefix=%s"
 )
 
 // Source is where to get addons
@@ -253,7 +253,15 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 	if err != nil && err.Error() != EOFError {
 		return "", nil, err
 	}
-	if len(list.Files) == 1 && list.Files[0] == readPath {
+	var actualFiles []File
+	for _, f := range list.Files {
+		if f.Size > 0 {
+			actualFiles = append(actualFiles, f)
+		}
+	}
+	list.Files = actualFiles
+	list.Count = len(actualFiles)
+	if len(list.Files) == 1 && list.Files[0].Name == readPath {
 		resp, err = o.client.R().Get(fmt.Sprintf(singleOssFileTmpl, o.bucketEndPoint, readPath))
 		if err != nil {
 			return "", nil, err
@@ -270,13 +278,13 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 	return "", nil, errors.Wrap(err, "read oss fail")
 }
 
-func convert2OssItem(files []string, nowPath string) []Item {
+func convert2OssItem(files []File, nowPath string) []Item {
 	const slash = "/"
 	var items []Item
 	ps := strings.Split(path.Clean(nowPath), slash)
 	pathExist := map[string]bool{}
 	for _, f := range files {
-		fPath := strings.Split(path.Clean(f), slash)
+		fPath := strings.Split(path.Clean(f.Name), slash)
 		if ps[0] != "." {
 			fPath = fPath[len(ps):]
 		}
@@ -286,7 +294,7 @@ func convert2OssItem(files []string, nowPath string) []Item {
 		}
 		pathExist[name] = true
 		item := OssItem{
-			path: f,
+			path: f.Name,
 			name: fPath[0],
 			tp:   FileType,
 		}
@@ -358,7 +366,10 @@ func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (Asyn
 		if dirOrBucket == "" {
 			bucketEndPoint = ossURL.String()
 		} else {
-			bucketEndPoint = fmt.Sprintf(bucketTmpl, ossURL.Scheme, dirOrBucket, baseURL)
+			if ossURL.Scheme == "" {
+				ossURL.Scheme = "https"
+			}
+			bucketEndPoint = fmt.Sprintf(bucketTmpl, ossURL.Scheme, dirOrBucket, ossURL.Host)
 		}
 		return &ossReader{
 			baseReader:     bReader,
@@ -371,6 +382,12 @@ func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (Asyn
 
 // ListBucketResult describe a file list from OSS
 type ListBucketResult struct {
-	Files []string `xml:"Contents>Key"`
-	Count int      `xml:"KeyCount"`
+	Files []File `xml:"Contents"`
+	Count int    `xml:"KeyCount"`
+}
+
+// File is for oss xml parse
+type File struct {
+	Name string `xml:"Key"`
+	Size int    `xml:"Size"`
 }

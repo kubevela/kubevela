@@ -169,21 +169,26 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 	}
 
 	res := apis.AddonStatusResponse{
+		Name:             name,
 		Phase:            convertAppStateToAddonPhase(app.Status.Phase),
 		EnablingProgress: nil,
+	}
+	if res.Phase != apis.AddonPhaseEnabled {
+		return &res, nil
 	}
 	var sec v1.Secret
 	err = u.kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      pkgaddon.Convert2SecName(name),
 	}, &sec)
-	if err != nil {
+	if err != nil && !errors2.IsNotFound(err) {
 		return nil, bcode.ErrAddonSecretGet
-	}
+	} else if errors2.IsNotFound(err) {
+		res.Args = make(map[string]string, len(sec.Data))
+		for k, v := range sec.Data {
+			res.Args[k] = string(v)
+		}
 
-	res.Args = make(map[string]string, len(sec.Data))
-	for k, v := range sec.Data {
-		res.Args[k] = string(v)
 	}
 
 	return &res, nil
