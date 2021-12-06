@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -90,16 +90,16 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		w.app.Status.AppliedResources = nil
 
 		// clean conditions after render
-		var reservedCondtions []condition.Condition
+		var reservedConditions []condition.Condition
 		for i, cond := range w.app.Status.Conditions {
 			condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
 			if err == nil {
 				if condTpy < common.RenderCondition {
-					reservedCondtions = append(reservedCondtions, w.app.Status.Conditions[i])
+					reservedConditions = append(reservedConditions, w.app.Status.Conditions[i])
 				}
 			}
 		}
-		w.app.Status.Conditions = reservedCondtions
+		w.app.Status.Conditions = reservedConditions
 	}
 
 	wfStatus := w.app.Status.Workflow
@@ -154,6 +154,29 @@ func (w *workflow) Trace() error {
 		return err
 	}
 	return recorder.With(w.cli, w.app).Save("", data).Limit(10).Error()
+}
+
+func (w *workflow) Cleanup(ctx monitorContext.Context) error {
+	ctxCM := &corev1.ConfigMap{}
+	if err := w.cli.Get(ctx, client.ObjectKey{
+		Namespace: w.app.Namespace,
+		Name:      fmt.Sprintf("workflow-%s-context", w.app.Name),
+	}, ctxCM); err != nil {
+		ctx.Error(err, "failed to get workflow context", "application", w.app.Name, "config map", fmt.Sprintf("workflow-%s-context", w.app.Name))
+		return err
+	}
+
+	for _, step := range w.app.Status.Workflow.Steps {
+		key := fmt.Sprintf("failedTimes__.%s", step.ID)
+		if _, ok := ctxCM.Data[key]; ok {
+			delete(ctxCM.Data, key)
+		}
+	}
+
+	if err := w.cli.Update(ctx, ctxCM); err != nil {
+		ctx.Error(err, "failed to update workflow context", "application", w.app.Name, "config map", fmt.Sprintf("workflow-%s-context", w.app.Name))
+	}
+	return nil
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -218,11 +241,15 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 		pendingTasks []wfTypes.TaskRunner
 	)
 	done := true
+	wait := false
+	failed := false
 	for _, tRunner := range taskRunners {
 		ready := false
 		for _, ss := range e.status.Steps {
 			if ss.Name == tRunner.Name() {
 				ready = ss.Phase == common.WorkflowStepPhaseSucceeded
+				wait = wait || ss.Phase == common.WorkflowStepPhaseRunning
+				failed = failed || ss.Phase == common.WorkflowStepPhaseFailedAfterRetries
 				break
 			}
 		}
@@ -243,6 +270,12 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 		err := e.steps(wfCtx, todoTasks)
 		if err != nil {
 			return err
+		}
+
+		if !wait && failed {
+			e.finishStep(&wfTypes.Operation{
+				Suspend: true,
+			})
 		}
 		if e.needStop() {
 			return nil
@@ -305,6 +338,9 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 			return nil
 		}
 
+		if operation.FailedAfterRetries {
+			operation.Suspend = true
+		}
 		e.finishStep(operation)
 		if e.needStop() {
 			return nil

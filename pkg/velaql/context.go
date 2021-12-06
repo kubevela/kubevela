@@ -71,6 +71,18 @@ func (c ViewContext) SetVar(v *value.Value, paths ...string) error {
 	return c.vars.Error()
 }
 
+// GetData get data from workflow context config map.
+func (c ViewContext) GetDataInConfigMap(paths ...string) string {
+	// return c.store.Data[strings.Join(paths, ".")]
+	return ""
+}
+
+// SetVar set variable to workflow context.
+func (c ViewContext) SetDataInConfigMap(data string, paths ...string) {
+	// c.store.Data[strings.Join(paths, ".")] = data
+	// c.modified = true
+}
+
 // Commit the workflow context and persist it's content.
 func (c ViewContext) Commit() error {
 	return errors.New("not support func Commit")

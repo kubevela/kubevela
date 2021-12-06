@@ -55,8 +55,10 @@ type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v
 
 // Operation is workflow operation object.
 type Operation struct {
-	Suspend    bool
-	Terminated bool
+	Suspend            bool
+	Terminated         bool
+	Waiting            bool
+	FailedAfterRetries bool
 }
 
 // TaskGenerator will generate taskRunner.

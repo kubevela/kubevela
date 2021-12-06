@@ -205,7 +205,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
 		case common.WorkflowStateTerminated:
 			logCtx.Info("Workflow return state=Terminated")
-			if err := r.doWorkflowFinish(app, wf); err != nil {
+			if err := r.doWorkflowFinish(logCtx, app, wf); err != nil {
 				return r.endWithNegativeConditionWithRetry(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
@@ -215,7 +215,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, err
 		case common.WorkflowStateSucceeded:
 			logCtx.Info("Workflow return state=Succeeded")
-			if err := r.doWorkflowFinish(app, wf); err != nil {
+			if err := r.doWorkflowFinish(logCtx, app, wf); err != nil {
 				return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
@@ -408,9 +408,12 @@ func (r *Reconciler) patchStatusWithRetryOnConflict(ctx context.Context, app *v1
 	})
 }
 
-func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
+func (r *Reconciler) doWorkflowFinish(ctx monitorContext.Context, app *v1beta1.Application, wf workflow.Workflow) error {
 	if err := wf.Trace(); err != nil {
 		return errors.WithMessage(err, "record workflow state")
+	}
+	if err := wf.Cleanup(ctx); err != nil {
+		return errors.WithMessage(err, "cleanup workflow")
 	}
 	app.Status.Workflow.Finished = true
 	return nil

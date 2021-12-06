@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
@@ -177,7 +178,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			if err := paramsValue.Error(); err != nil {
-				exec.err(err, StatusReasonParameter)
+				exec.err(ctx, err, StatusReasonParameter)
 				return exec.status(), exec.operation(), nil
 			}
 
@@ -192,7 +193,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID)
 			if err != nil {
-				exec.err(err, StatusReasonRendering)
+				exec.err(ctx, err, StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
 			}
 
@@ -203,13 +204,13 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 			if err := exec.doSteps(ctx, taskv); err != nil {
 				tracer.Error(err, "do steps")
-				exec.err(err, StatusReasonExecute)
+				exec.err(ctx, err, StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
 			}
 
 			for _, hook := range options.PostStopHooks {
 				if err := hook(ctx, taskv, wfStep, exec.status().Phase); err != nil {
-					exec.err(err, StatusReasonOutput)
+					exec.err(ctx, err, StatusReasonOutput)
 					return exec.status(), exec.operation(), nil
 				}
 			}
@@ -237,10 +238,11 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string) (
 type executor struct {
 	handlers providers.Providers
 
-	wfStatus   common.WorkflowStepStatus
-	suspend    bool
-	terminated bool
-	wait       bool
+	wfStatus           common.WorkflowStepStatus
+	suspend            bool
+	terminated         bool
+	failedAfterRetries bool
+	wait               bool
 
 	tracer monitorContext.Context
 }
@@ -269,16 +271,43 @@ func (exec *executor) Wait(message string) {
 	exec.wfStatus.Message = message
 }
 
-func (exec *executor) err(err error, reason string) {
+func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
 	exec.wfStatus.Message = err.Error()
 	exec.wfStatus.Reason = reason
+	exec.checkErrorTimes(ctx)
+}
+
+func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
+	var err error
+	var times int
+	const failedPrefix = "failedTimes__"
+	data := ctx.GetDataInConfigMap(failedPrefix, exec.wfStatus.ID)
+	if data == "" {
+		times = 0
+	} else {
+		times, err = strconv.Atoi(data)
+		if err != nil {
+			times = 0
+		}
+	}
+
+	times++
+	if times > 5 {
+		exec.wfStatus.Phase = common.WorkflowStepPhaseFailedAfterRetries
+		exec.failedAfterRetries = true
+		return
+	}
+
+	ctx.SetDataInConfigMap(strconv.Itoa(times), failedPrefix, exec.wfStatus.ID)
 }
 
 func (exec *executor) operation() *wfTypes.Operation {
 	return &wfTypes.Operation{
-		Suspend:    exec.suspend,
-		Terminated: exec.terminated,
+		Suspend:            exec.suspend,
+		Terminated:         exec.terminated,
+		Waiting:            exec.wait,
+		FailedAfterRetries: exec.failedAfterRetries,
 	}
 }
 

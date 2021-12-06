@@ -128,7 +128,7 @@ spec: {
 	expected, err := yaml.Marshal(wfCtx.components)
 	assert.NilError(t, err)
 
-	err = wfCtx.LoadFromConfigMap(wfCtx.store)
+	err = wfCtx.LoadFromConfigMap(*wfCtx.store)
 	assert.NilError(t, err)
 	componentsYaml, err := yaml.Marshal(wfCtx.components)
 	assert.NilError(t, err)
@@ -203,7 +203,7 @@ result: 101
 func TestRefObj(t *testing.T) {
 
 	wfCtx := new(WorkflowContext)
-	wfCtx.store = corev1.ConfigMap{}
+	wfCtx.store = &corev1.ConfigMap{}
 	wfCtx.store.APIVersion = "v1"
 	wfCtx.store.Kind = "ConfigMap"
 	wfCtx.store.Name = "app-v1"

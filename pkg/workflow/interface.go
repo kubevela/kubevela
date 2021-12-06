@@ -19,6 +19,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/monitor/context"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -30,4 +31,7 @@ type Workflow interface {
 
 	// Trace record workflow state in controllerRevision.
 	Trace() error
+
+	// Cleanup cleans up the temporary data in workflow context.
+	Cleanup(ctx monitorContext.Context) error
 }

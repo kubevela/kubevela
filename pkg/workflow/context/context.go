@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -49,7 +50,7 @@ const (
 // WorkflowContext is workflow context.
 type WorkflowContext struct {
 	cli        client.Client
-	store      corev1.ConfigMap
+	store      *corev1.ConfigMap
 	components map[string]*ComponentManifest
 	vars       *value.Value
 	modified   bool
@@ -103,6 +104,17 @@ func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	return nil
 }
 
+// GetData get data from workflow context config map.
+func (wf *WorkflowContext) GetDataInConfigMap(paths ...string) string {
+	return wf.store.Data[strings.Join(paths, ".")]
+}
+
+// SetVar set variable to workflow context.
+func (wf *WorkflowContext) SetDataInConfigMap(data string, paths ...string) {
+	wf.store.Data[strings.Join(paths, ".")] = data
+	wf.modified = true
+}
+
 // MakeParameter make 'value' with interface{}
 func (wf *WorkflowContext) MakeParameter(parameter interface{}) (*value.Value, error) {
 	var s = "{}"
@@ -145,18 +157,19 @@ func (wf *WorkflowContext) writeToStore() error {
 		jsonObject[name] = s
 	}
 
-	wf.store.Data = map[string]string{
-		ConfigMapKeyComponents: string(util.MustJSONMarshal(jsonObject)),
-		ConfigMapKeyVars:       varStr,
+	if wf.store.Data == nil {
+		wf.store.Data = make(map[string]string)
 	}
+	wf.store.Data[ConfigMapKeyComponents] = string(util.MustJSONMarshal(jsonObject))
+	wf.store.Data[ConfigMapKeyVars] = varStr
 	return nil
 }
 
 func (wf *WorkflowContext) sync() error {
 	ctx := context.Background()
-	if err := wf.cli.Update(ctx, &wf.store); err != nil {
+	if err := wf.cli.Update(ctx, wf.store); err != nil {
 		if kerrors.IsNotFound(err) {
-			return wf.cli.Create(ctx, &wf.store)
+			return wf.cli.Create(ctx, wf.store)
 		}
 		return err
 	}
@@ -300,7 +313,7 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 	}
 	wfCtx := &WorkflowContext{
 		cli:        cli,
-		store:      store,
+		store:      &store,
 		components: map[string]*ComponentManifest{},
 		modified:   true,
 	}
@@ -321,7 +334,7 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	}
 	ctx := &WorkflowContext{
 		cli:   cli,
-		store: store,
+		store: &store,
 	}
 	if err := ctx.LoadFromConfigMap(store); err != nil {
 		return nil, err
