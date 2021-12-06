@@ -39,6 +39,9 @@ var paths = []string{
 
 	"terraform/metadata.yaml",
 	"terraform-alibaba/metadata.yaml",
+
+	"test-error-addon/metadata.yaml",
+	"test-error-addon/resources/parameter.cue",
 }
 
 var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
@@ -98,7 +101,7 @@ func TestGetAddon(t *testing.T) {
 	assert.Assert(t, len(addon.Definitions) > 0)
 
 	addons, err := GetAddonsFromReader(reader, EnableLevelOptions)
-	assert.NilError(t, err)
+	assert.Assert(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
 	assert.Equal(t, len(addons), 3)
 
 	// test listing from OSS will act like listing from directory
