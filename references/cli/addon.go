@@ -404,14 +404,14 @@ func (a *Addon) enable(ctx context.Context, k8sClient client.Client, name string
 	}
 	err = waitApplicationRunning(a.application)
 	if err != nil {
-		return errors.Wrap(err, "Error occurs when waiting addon applicatoin running")
+		return err
 	}
 	return nil
 }
 
 func waitApplicationRunning(obj *v1beta1.Application) error {
 	trackInterval := 5 * time.Second
-	timeout := 10 * time.Minute
+	timeout := 600 * time.Second
 	start := time.Now()
 	ctx := context.Background()
 	var app v1beta1.Application
@@ -431,6 +431,9 @@ func waitApplicationRunning(obj *v1beta1.Application) error {
 		timeConsumed := int(time.Since(start).Seconds())
 		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
 			phase, timeConsumed, int(timeout.Seconds())))
+		if timeConsumed > int(timeout.Seconds()) {
+			return errors.Errorf("Enabling timeout, please run \"vela status %s -n vela-system\" to check the status of the addon", obj.Name)
+		}
 		time.Sleep(trackInterval)
 	}
 }
