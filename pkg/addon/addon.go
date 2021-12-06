@@ -102,12 +102,12 @@ func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*types.Addon, error)
 	if err != nil {
 		return nil, err
 	}
+	var l sync.Mutex
 	for _, subItem := range items {
 		if subItem.GetType() != "dir" {
 			continue
 		}
 		wg.Add(1)
-		var l sync.Mutex
 		go func(item Item) {
 			defer wg.Done()
 			ar := r.WithNewAddonAndMutex()
