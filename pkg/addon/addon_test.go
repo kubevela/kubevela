@@ -36,6 +36,9 @@ var paths = []string{
 	"example/resources/configmap.cue",
 	"example/resources/parameter.cue",
 	"example/resources/service/source-controller.yaml",
+
+	"terraform/metadata.yaml",
+	"terraform-alibaba/metadata.yaml",
 }
 
 var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
@@ -96,5 +99,11 @@ func TestGetAddon(t *testing.T) {
 
 	addons, err := GetAddonsFromReader(reader, EnableLevelOptions)
 	assert.NilError(t, err)
-	assert.Assert(t, len(addons) == 1)
+	assert.Equal(t, len(addons), 3)
+
+	// test listing from OSS will act like listing from directory
+	_, items, err := reader.Read("terraform")
+	assert.NilError(t, err)
+	assert.Equal(t, len(items), 1, "should list items only from terraform/ without terraform-alibaba/")
+	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
 }
