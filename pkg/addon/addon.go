@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -25,11 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
-
-	"k8s.io/client-go/rest"
-
-	"github.com/oam-dev/kubevela/pkg/definition"
 
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
@@ -40,7 +38,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -50,6 +51,8 @@ import (
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
 	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -93,6 +96,39 @@ var (
 
 	// EnableLevelOptions used when enable addon
 	EnableLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetResource: true, GetTemplate: true, GetParameter: true, GetDefSchema: true}
+)
+
+// ObservabilityEnvironment contains the Observability addon's domain for each cluster
+type ObservabilityEnvironment struct {
+	Cluster string
+	Domain  string
+}
+
+// ObservabilityEnvBindingValues is a list of ObservabilityEnvironment and will be used to render observability-env-binding.yaml
+type ObservabilityEnvBindingValues struct {
+	Envs []ObservabilityEnvironment
+}
+
+const (
+	// ObservabilityEnvBindingEnvTag is the env Tag for env-binding settings for observability addon
+	ObservabilityEnvBindingEnvTag = `        envs:`
+
+	// ObservabilityEnvBindingEnvTmpl is the env values for env-binding settings for observability addon
+	ObservabilityEnvBindingEnvTmpl = `
+        {{ with .Envs}}
+          {{ range . }}
+          - name: {{.Cluster}}
+            placement:
+              clusterSelector:
+                name: {{.Cluster}}
+            patch:
+              components:
+                - name: grafana
+                  type: helm
+                  traits:
+                    domain: {{.Domain}}
+          {{ end }}
+        {{ end }}`
 )
 
 // GetAddonsFromReader list addons from AsyncReader
@@ -424,7 +460,7 @@ func genAddonAPISchema(addonRes *Addon) error {
 }
 
 // RenderApp render a K8s application
-func RenderApp(addon *Addon, config *rest.Config, args map[string]interface{}) (*v1beta1.Application, error) {
+func RenderApp(ctx context.Context, k8sClient client.Client, addon *Addon, config *rest.Config, args map[string]interface{}) (*v1beta1.Application, error) {
 	if args == nil {
 		args = map[string]interface{}{}
 	}
@@ -476,7 +512,8 @@ func RenderApp(addon *Addon, config *rest.Config, args map[string]interface{}) (
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
 
-	if isDeployToRuntimeOnly(addon) {
+	switch {
+	case isDeployToRuntimeOnly(addon):
 		if app.Spec.Workflow == nil {
 			app.Spec.Workflow = &v1beta1.Workflow{Steps: make([]v1beta1.WorkflowStep, 0)}
 		}
@@ -489,7 +526,18 @@ func RenderApp(addon *Addon, config *rest.Config, args map[string]interface{}) (
 				Name: "deploy-runtime",
 				Type: "deploy2runtime",
 			})
-	} else {
+	case addon.Name == "observability":
+		arg, ok := args["grafana-domain"]
+		if !ok {
+			return nil, errors.New("grafana-domain is not set")
+		}
+		domain := arg.(string)
+		policies, err := preparePolicies4Observability(ctx, k8sClient, domain)
+		if err != nil {
+			return nil, errors.Wrap(err, "fail to render the policies for Add-on Observability")
+		}
+		app.Spec.Policies = policies
+	default:
 		for _, def := range addon.Definitions {
 			comp, err := renderRawComponent(def)
 			if err != nil {
@@ -570,6 +618,74 @@ func RenderDefinitionSchema(addon *Addon) ([]*unstructured.Unstructured, error) 
 	}
 	return schemaConfigmaps, nil
 }
+
+func allocateDomainForAddon(ctx context.Context, k8sClient client.Client, domain string) ([]ObservabilityEnvironment, error) {
+	secrets, err := multicluster.ListExistingClusterSecrets(ctx, k8sClient)
+	if err != nil {
+		klog.Error(err, "failed to list existing cluster secrets")
+		return nil, err
+	}
+
+	envs := make([]ObservabilityEnvironment, len(secrets))
+
+	for i, secret := range secrets {
+		cluster := secret.Name
+		domain := fmt.Sprintf("%s.%s", cluster, domain)
+		envs[i] = ObservabilityEnvironment{
+			Cluster: cluster,
+			Domain:  domain,
+		}
+	}
+
+	return envs, nil
+}
+
+func preparePolicies4Observability(ctx context.Context, k8sClient client.Client, domain string) ([]v1beta1.AppPolicy, error) {
+	clusters, err := allocateDomainForAddon(ctx, k8sClient, domain)
+	if err != nil {
+		return nil, err
+	}
+
+	envProperties, err := renderEnvBinding4Observability(clusters)
+	if err != nil {
+		return nil, err
+	}
+
+	var properties runtime.RawExtension
+	envs := fmt.Sprintf("%s\n%s", ObservabilityEnvBindingEnvTag, envProperties)
+	envJSON, err := yaml.YAMLToJSON([]byte(envs))
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(envJSON, &properties)
+	if err != nil {
+		return nil, err
+	}
+
+	policies := []v1beta1.AppPolicy{{
+		Name:       "grafana-domain",
+		Type:       "env-binding",
+		Properties: &properties,
+	}}
+
+	return policies, nil
+}
+
+func renderEnvBinding4Observability(envs []ObservabilityEnvironment) (string, error) {
+	todos := ObservabilityEnvBindingValues{
+		Envs: envs,
+	}
+
+	t := template.Must(template.New("grafana").Parse(ObservabilityEnvBindingEnvTmpl))
+	var envProperties bytes.Buffer
+	err := t.Execute(&envProperties, todos)
+	if err != nil {
+		return "", err
+	}
+
+	return envProperties.String(), nil
+}
+
 func isDeployToRuntimeOnly(addon *Addon) bool {
 	if addon.DeployTo == nil {
 		return false
@@ -725,19 +841,19 @@ func newAddonHandler(ctx context.Context, addon *Addon, cli client.Client, apply
 	}
 }
 
-func (h *Handler) enableAddon() error {
+func (h *Handler) enableAddon(ctx context.Context, k8sClient client.Client) error {
 	var err error
-	if err = h.checkDependencies(); err != nil {
+	if err = h.checkDependencies(ctx, k8sClient); err != nil {
 		return err
 	}
-	if err = h.dispatchAddonResource(); err != nil {
+	if err = h.dispatchAddonResource(ctx, k8sClient); err != nil {
 		return err
 	}
 	return nil
 }
 
 // checkDependencies checks if addon's dependent addons is enabled
-func (h *Handler) checkDependencies() error {
+func (h *Handler) checkDependencies(ctx context.Context, k8sClient client.Client) error {
 	var app v1beta1.Application
 	for _, dep := range h.addon.Dependencies {
 		err := h.cli.Get(h.ctx, client.ObjectKey{
@@ -758,15 +874,15 @@ func (h *Handler) checkDependencies() error {
 		depHandler := *h
 		depHandler.addon = depAddon
 		depHandler.args = nil
-		if err = depHandler.enableAddon(); err != nil {
+		if err = depHandler.enableAddon(ctx, k8sClient); err != nil {
 			return errors.Wrap(err, "fail to dispatch dependent addon resource")
 		}
 	}
 	return nil
 }
 
-func (h *Handler) dispatchAddonResource() error {
-	app, err := RenderApp(h.addon, h.config, h.args)
+func (h *Handler) dispatchAddonResource(ctx context.Context, k8sClient client.Client) error {
+	app, err := RenderApp(ctx, k8sClient, h.addon, h.config, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}

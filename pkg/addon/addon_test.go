@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"context"
 	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
@@ -84,6 +85,8 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 	}
 }
 
+var ctx = context.Background()
+
 func TestGetAddon(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
@@ -111,9 +114,64 @@ func TestGetAddon(t *testing.T) {
 	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
 }
 
+func TestRenderEnvBinding4Observability(t *testing.T) {
+	testcases := []struct {
+		envs   []ObservabilityEnvironment
+		expect string
+		err    error
+	}{
+		{
+			envs: []ObservabilityEnvironment{
+				{
+					Cluster: "c1",
+					Domain:  "a.com",
+				},
+				{
+					Cluster: "c2",
+					Domain:  "b.com",
+				},
+			},
+			expect: `
+        
+          
+          - name: c1
+            placement:
+              clusterSelector:
+                name: c1
+            patch:
+              components:
+                - name: grafana
+                  type: helm
+                  traits:
+                    domain: a.com
+          
+          - name: c2
+            placement:
+              clusterSelector:
+                name: c2
+            patch:
+              components:
+                - name: grafana
+                  type: helm
+                  traits:
+                    domain: b.com
+          
+        `,
+			err: nil,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			env, err := renderEnvBinding4Observability(tc.envs)
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, tc.expect, env)
+		})
+	}
+}
+
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
-	app, err := RenderApp(&addon, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, nil, &addon, nil, map[string]interface{}{})
 	assert.NilError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 }
@@ -131,7 +189,7 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(&addonDeployToRuntime, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, nil, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NilError(t, err)
 	steps := app.Spec.Workflow.Steps
 	assert.Check(t, len(steps) >= 2)
