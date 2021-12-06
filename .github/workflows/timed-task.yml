@@ -1,7 +1,7 @@
 name: Timed Task
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '* * * * *'
 jobs:
   clean-image:
     runs-on: aliyun
