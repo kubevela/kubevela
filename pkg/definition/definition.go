@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+// Package definition contains some helper functions used in vela CLI
+// and vela addon mechanism
+package definition
 
 import (
 	"context"
@@ -41,10 +43,10 @@ import (
 )
 
 const (
-	// DefinitionDescriptionKey the key for accessing definition description
-	DefinitionDescriptionKey = "definition.oam.dev/description"
-	// DefinitionUserPrefix defines the prefix of user customized label or annotation
-	DefinitionUserPrefix = "custom.definition.oam.dev/"
+	// DescriptionKey the key for accessing definition description
+	DescriptionKey = "definition.oam.dev/description"
+	// UserPrefix defines the prefix of user customized label or annotation
+	UserPrefix = "custom.definition.oam.dev/"
 )
 
 var (
@@ -100,15 +102,15 @@ func (def *Definition) SetType(t string) error {
 func (def *Definition) ToCUE() (*cue.Value, string, error) {
 	annotations := map[string]string{}
 	for key, val := range def.GetAnnotations() {
-		if strings.HasPrefix(key, DefinitionUserPrefix) {
-			annotations[strings.TrimPrefix(key, DefinitionUserPrefix)] = val
+		if strings.HasPrefix(key, UserPrefix) {
+			annotations[strings.TrimPrefix(key, UserPrefix)] = val
 		}
 	}
-	desc := def.GetAnnotations()[DefinitionDescriptionKey]
+	desc := def.GetAnnotations()[DescriptionKey]
 	labels := map[string]string{}
 	for key, val := range def.GetLabels() {
-		if strings.HasPrefix(key, DefinitionUserPrefix) {
-			labels[strings.TrimPrefix(key, DefinitionUserPrefix)] = val
+		if strings.HasPrefix(key, UserPrefix) {
+			labels[strings.TrimPrefix(key, UserPrefix)] = val
 		}
 	}
 	spec := map[string]interface{}{}
@@ -193,13 +195,13 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	}
 	annotations := map[string]string{}
 	for k, v := range def.GetAnnotations() {
-		if !strings.HasPrefix(k, DefinitionUserPrefix) && k != DefinitionDescriptionKey {
+		if !strings.HasPrefix(k, UserPrefix) && k != DescriptionKey {
 			annotations[k] = v
 		}
 	}
 	labels := map[string]string{}
 	for k, v := range def.GetLabels() {
-		if !strings.HasPrefix(k, DefinitionUserPrefix) {
+		if !strings.HasPrefix(k, UserPrefix) {
 			annotations[k] = v
 		}
 	}
@@ -242,14 +244,14 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 				if err != nil {
 					return err
 				}
-				annotations[DefinitionDescriptionKey] = desc
+				annotations[DescriptionKey] = desc
 			case "annotations":
 				var _annotations map[string]string
 				if err := codec.Encode(_value, &_annotations); err != nil {
 					return err
 				}
 				for _k, _v := range _annotations {
-					annotations[DefinitionUserPrefix+_k] = _v
+					annotations[UserPrefix+_k] = _v
 				}
 			case "labels":
 				var _labels map[string]string
@@ -257,7 +259,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 					return err
 				}
 				for _k, _v := range _labels {
-					labels[DefinitionUserPrefix+_k] = _v
+					labels[UserPrefix+_k] = _v
 				}
 			case "attributes":
 				if err := codec.Encode(_value, &spec); err != nil {
