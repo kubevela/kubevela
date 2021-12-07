@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,8 +32,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+<<<<<<< HEAD
 	ctrlEvent "sigs.k8s.io/controller-runtime/pkg/event"
 	ctrlHandler "sigs.k8s.io/controller-runtime/pkg/handler"
+=======
+	k8sevent "sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+>>>>>>> dd8fe0c6 (Feat: add workflow reconcile backoff time)
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -65,7 +71,7 @@ const (
 
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait before reconcile workflow again
-	baseWorkflowBackoffWaitTime = 3000 * time.Millisecond
+	baseWorkflowBackoffWaitTime = 10000 * time.Millisecond
 
 	// baseWorkflowBackoffWaitTime is the time to wait gc check
 	baseGCBackoffWaitTime = 3000 * time.Millisecond
@@ -176,7 +182,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
-
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
 	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
@@ -200,6 +206,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		app.Status.AppliedResources = handler.appliedResources
 		app.Status.Services = handler.services
 		switch workflowState {
+		case common.WorkflowStateInitializing:
+			logCtx.Info("Workflow return state=Initializing")
+			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationRunningWorkflow)
 		case common.WorkflowStateSuspended:
 			logCtx.Info("Workflow return state=Suspend")
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
@@ -212,7 +221,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case common.WorkflowStateExecuting:
 			logCtx.Info("Workflow return state=Executing")
 			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
-			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, err
+			return reconcile.Result{RequeueAfter: time.Duration(wf.GetBackoffWaitTime() * int(time.Second))}, err
 		case common.WorkflowStateSucceeded:
 			logCtx.Info("Workflow return state=Succeeded")
 			if err := r.doWorkflowFinish(logCtx, app, wf); err != nil {
@@ -472,6 +481,30 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
+		}).
+		WithEventFilter(predicate.Funcs{
+			// filter the changes in workflow status
+			// let workflow handle its reconcile
+			UpdateFunc: func(e k8sevent.UpdateEvent) bool {
+				new := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
+				old := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
+				if old.Status.Workflow != nil && new.Status.Workflow != nil {
+					// ignore the changes in workflow status
+					new.Status.Workflow.Steps = old.Status.Workflow.Steps
+					new.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
+					new.Status.AppliedResources = old.Status.AppliedResources
+					new.Status.Services = old.Status.Services
+					new.ManagedFields = old.ManagedFields
+					new.ResourceVersion = old.ResourceVersion
+				}
+				return !reflect.DeepEqual(old, new)
+			},
+			CreateFunc: func(e k8sevent.CreateEvent) bool {
+				return true
+			},
+			DeleteFunc: func(e k8sevent.DeleteEvent) bool {
+				return true
+			},
 		}).
 		For(&v1beta1.Application{}).
 		Complete(r)

@@ -231,7 +231,7 @@ func TestContext(t *testing.T) {
 					assert.NilError(t, err)
 					*o = cm
 					return nil
-				case generateStoreName("app-v1"):
+				case GenerateStoreName("app-v1"):
 					if wfCm != nil {
 						*o = *wfCm
 						return nil

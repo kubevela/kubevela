@@ -81,4 +81,8 @@ type Action interface {
 const (
 	// ContextKeyMetadata is key that refer to application metadata.
 	ContextKeyMetadata = "metadata__"
+	// ContextPrefixFailedTimes is the prefix that refer to the failed times of the step in workflow context config map.
+	ContextPrefixFailedTimes = "failed_times"
+	// ContextPrefixBackoffTimes is the prefix that refer to the backoff times in workflow context config map.
+	ContextPrefixBackoffTimes = "backoff_times"
 )

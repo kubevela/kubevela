@@ -71,16 +71,27 @@ func (c ViewContext) SetVar(v *value.Value, paths ...string) error {
 	return c.vars.Error()
 }
 
-// GetData get data from workflow context config map.
+// GetStore get configmap of workflow context.
+func (c ViewContext) GetStore() *corev1.ConfigMap {
+	return nil
+}
+
+// GetDataInConfigMap get data from workflow context config map.
 func (c ViewContext) GetDataInConfigMap(paths ...string) string {
-	// return c.store.Data[strings.Join(paths, ".")]
 	return ""
 }
 
-// SetVar set variable to workflow context.
+// SetDataInConfigMap set data in workflow context config map.
 func (c ViewContext) SetDataInConfigMap(data string, paths ...string) {
-	// c.store.Data[strings.Join(paths, ".")] = data
-	// c.modified = true
+}
+
+// IncreaseCountInConfigMap increase count in workflow context config map.
+func (c ViewContext) IncreaseCountInConfigMap(paths ...string) int {
+	return 0
+}
+
+// DeleteDataInConfigMap delete data in workflow context config map.
+func (c ViewContext) DeleteDataInConfigMap(paths ...string) {
 }
 
 // Commit the workflow context and persist it's content.

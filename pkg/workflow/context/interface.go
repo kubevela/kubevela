@@ -29,8 +29,11 @@ type Context interface {
 	PatchComponent(name string, patchValue *value.Value) error
 	GetVar(paths ...string) (*value.Value, error)
 	SetVar(v *value.Value, paths ...string) error
+	GetStore() *corev1.ConfigMap
 	GetDataInConfigMap(path ...string) string
 	SetDataInConfigMap(data string, path ...string)
+	IncreaseCountInConfigMap(paths ...string) int
+	DeleteDataInConfigMap(paths ...string)
 	Commit() error
 	MakeParameter(parameter interface{}) (*value.Value, error)
 	StoreRef() *corev1.ObjectReference

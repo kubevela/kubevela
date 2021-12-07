@@ -19,6 +19,9 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -40,9 +43,17 @@ import (
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
+const (
+	// baseWorkflowBackoffWaitTime is the base time to wait before reconcile workflow again
+	baseWorkflowBackoffWaitTime = 1
+	// maxWorkflowBackoffWaitTime is the max time to wait before reconcile workflow again
+	maxWorkflowBackoffWaitTime = 60
+)
+
 type workflow struct {
 	app     *oamcore.Application
 	cli     client.Client
+	wfCtx   wfContext.Context
 	dagMode bool
 }
 
@@ -94,12 +105,13 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		for i, cond := range w.app.Status.Conditions {
 			condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
 			if err == nil {
-				if condTpy < common.RenderCondition {
+				if condTpy <= common.RenderCondition {
 					reservedConditions = append(reservedConditions, w.app.Status.Conditions[i])
 				}
 			}
 		}
 		w.app.Status.Conditions = reservedConditions
+		return common.WorkflowStateInitializing, nil
 	}
 
 	wfStatus := w.app.Status.Workflow
@@ -122,6 +134,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		ctx.Error(err, "make context")
 		return common.WorkflowStateExecuting, err
 	}
+	w.wfCtx = wfCtx
 
 	e := &engine{
 		status:     wfStatus,
@@ -157,26 +170,56 @@ func (w *workflow) Trace() error {
 }
 
 func (w *workflow) Cleanup(ctx monitorContext.Context) error {
+	ctxName := wfContext.GenerateStoreName(w.app.Name)
 	ctxCM := &corev1.ConfigMap{}
 	if err := w.cli.Get(ctx, client.ObjectKey{
 		Namespace: w.app.Namespace,
-		Name:      fmt.Sprintf("workflow-%s-context", w.app.Name),
+		Name:      ctxName,
 	}, ctxCM); err != nil {
-		ctx.Error(err, "failed to get workflow context", "application", w.app.Name, "config map", fmt.Sprintf("workflow-%s-context", w.app.Name))
+		ctx.Error(err, "failed to get workflow context", "application", w.app.Name, "config map", ctxName)
 		return err
 	}
 
-	for _, step := range w.app.Status.Workflow.Steps {
-		key := fmt.Sprintf("failedTimes__.%s", step.ID)
-		if _, ok := ctxCM.Data[key]; ok {
-			delete(ctxCM.Data, key)
+	for k := range ctxCM.Data {
+		if strings.HasPrefix(k, wfTypes.ContextPrefixFailedTimes) || strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
+			delete(ctxCM.Data, k)
 		}
 	}
 
 	if err := w.cli.Update(ctx, ctxCM); err != nil {
-		ctx.Error(err, "failed to update workflow context", "application", w.app.Name, "config map", fmt.Sprintf("workflow-%s-context", w.app.Name))
+		ctx.Error(err, "failed to update workflow context", "application", w.app.Name, "config map", ctxName)
+		return err
 	}
 	return nil
+}
+
+func (w *workflow) GetBackoffWaitTime() int {
+	ctxCM := w.wfCtx.GetStore()
+
+	// the default value of min times reaches the max workflow backoff wait time
+	minTimes := 6
+	found := false
+	for k, v := range ctxCM.Data {
+		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
+			found = true
+			times, err := strconv.Atoi(v)
+			if err != nil {
+				times = 0
+			}
+			if times < minTimes {
+				minTimes = times
+			}
+		}
+	}
+	if !found {
+		return baseWorkflowBackoffWaitTime
+	}
+
+	times := int(math.Pow(2, float64(minTimes)))
+	if times*baseWorkflowBackoffWaitTime < maxWorkflowBackoffWaitTime {
+		return times * baseWorkflowBackoffWaitTime
+	}
+	return maxWorkflowBackoffWaitTime
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -245,11 +288,11 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 	failed := false
 	for _, tRunner := range taskRunners {
 		ready := false
+		var stepID string
 		for _, ss := range e.status.Steps {
 			if ss.Name == tRunner.Name() {
+				stepID = ss.ID
 				ready = ss.Phase == common.WorkflowStepPhaseSucceeded
-				wait = wait || ss.Phase == common.WorkflowStepPhaseRunning
-				failed = failed || ss.Phase == common.WorkflowStepPhaseFailedAfterRetries
 				break
 			}
 		}
@@ -260,6 +303,8 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 				continue
 			}
 			todoTasks = append(todoTasks, tRunner)
+		} else {
+			wfCtx.DeleteDataInConfigMap(wfTypes.ContextPrefixBackoffTimes, stepID)
 		}
 	}
 	if done {
@@ -272,6 +317,15 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 			return err
 		}
 
+		for _, ss := range e.status.Steps {
+			if ss.Phase == common.WorkflowStepPhaseRunning {
+				wait = true
+				break
+			}
+			if ss.Phase == common.WorkflowStepPhaseFailedAfterRetries {
+				failed = true
+			}
+		}
 		if !wait && failed {
 			e.finishStep(&wfTypes.Operation{
 				Suspend: true,
@@ -327,15 +381,19 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 
 		e.updateStepStatus(status)
 
-		if err := wfCtx.Commit(); err != nil {
-			return errors.WithMessage(err, "commit workflow context")
-		}
-
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
+			wfCtx.IncreaseCountInConfigMap(wfTypes.ContextPrefixBackoffTimes, status.ID)
+			if err := wfCtx.Commit(); err != nil {
+				return errors.WithMessage(err, "commit workflow context")
+			}
 			if e.isDag() {
 				continue
 			}
 			return nil
+		}
+		wfCtx.DeleteDataInConfigMap(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		if err := wfCtx.Commit(); err != nil {
+			return errors.WithMessage(err, "commit workflow context")
 		}
 
 		if operation.FailedAfterRetries {

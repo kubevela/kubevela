@@ -20,12 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
-
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
-
-	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
@@ -36,7 +31,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -279,27 +276,11 @@ func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 }
 
 func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
-	var err error
-	var times int
-	const failedPrefix = "failedTimes__"
-	data := ctx.GetDataInConfigMap(failedPrefix, exec.wfStatus.ID)
-	if data == "" {
-		times = 0
-	} else {
-		times, err = strconv.Atoi(data)
-		if err != nil {
-			times = 0
-		}
-	}
-
-	times++
-	if times > 5 {
+	times := ctx.IncreaseCountInConfigMap(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
+	if times >= 5 {
 		exec.wfStatus.Phase = common.WorkflowStepPhaseFailedAfterRetries
 		exec.failedAfterRetries = true
-		return
 	}
-
-	ctx.SetDataInConfigMap(strconv.Itoa(times), failedPrefix, exec.wfStatus.ID)
 }
 
 func (exec *executor) operation() *wfTypes.Operation {

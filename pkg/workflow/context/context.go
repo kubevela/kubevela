@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,14 +105,45 @@ func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	return nil
 }
 
-// GetData get data from workflow context config map.
+// GetStore get configmap of workflow context.
+func (wf *WorkflowContext) GetStore() *corev1.ConfigMap {
+	return wf.store
+}
+
+// GetDataInConfigMap get data from workflow context config map.
 func (wf *WorkflowContext) GetDataInConfigMap(paths ...string) string {
 	return wf.store.Data[strings.Join(paths, ".")]
 }
 
-// SetVar set variable to workflow context.
+// SetDataInConfigMap set data in workflow context config map.
 func (wf *WorkflowContext) SetDataInConfigMap(data string, paths ...string) {
 	wf.store.Data[strings.Join(paths, ".")] = data
+	wf.modified = true
+}
+
+// IncreaseCountInConfigMap increase count in workflow context config map.
+func (wf *WorkflowContext) IncreaseCountInConfigMap(paths ...string) int {
+	c := wf.GetDataInConfigMap(paths...)
+	if c == "" {
+		wf.SetDataInConfigMap("0", paths...)
+		wf.modified = true
+		return 0
+	}
+	count, err := strconv.Atoi(c)
+	if err != nil {
+		count = 0
+	}
+	count++
+	wf.SetDataInConfigMap(strconv.Itoa(count), paths...)
+	wf.modified = true
+	return count
+}
+
+// DeleteDataInConfigMap delete data in workflow context config map.
+func (wf *WorkflowContext) DeleteDataInConfigMap(paths ...string) {
+	if _, ok := wf.store.Data[strings.Join(paths, ".")]; ok {
+		delete(wf.store.Data, strings.Join(paths, "."))
+	}
 	wf.modified = true
 }
 
@@ -288,7 +320,7 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 		ctx   = context.Background()
 		store corev1.ConfigMap
 	)
-	store.Name = generateStoreName(app)
+	store.Name = GenerateStoreName(app)
 	store.Namespace = ns
 	store.SetOwnerReferences([]metav1.OwnerReference{
 		{
@@ -328,7 +360,7 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	var store corev1.ConfigMap
 	if err := cli.Get(context.Background(), client.ObjectKey{
 		Namespace: ns,
-		Name:      generateStoreName(app),
+		Name:      GenerateStoreName(app),
 	}, &store); err != nil {
 		return nil, err
 	}
@@ -342,6 +374,6 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	return ctx, nil
 }
 
-func generateStoreName(app string) string {
+func GenerateStoreName(app string) string {
 	return fmt.Sprintf("workflow-%s-context", app)
 }
