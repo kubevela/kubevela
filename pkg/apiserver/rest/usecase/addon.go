@@ -35,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
