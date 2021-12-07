@@ -133,6 +133,8 @@ type AsyncReader interface {
 	Addon() *types.Addon
 	// SendErr to outside and quit
 	SendErr(err error)
+	// ErrCh will get the reader's channel to send error
+	ErrCh() chan error
 	// Mutex return an mutex for slice insert
 	Mutex() *sync.Mutex
 	// RelativePath return a relative path to GitHub repo/path or OSS bucket
@@ -159,6 +161,10 @@ func (b *baseReader) SendErr(err error) {
 	b.errChan <- err
 }
 
+func (b *baseReader) ErrCh() chan error {
+	return b.errChan
+}
+
 // Mutex to lock baseReader addon's slice
 func (b *baseReader) Mutex() *sync.Mutex {
 	return b.mutex
@@ -179,7 +185,7 @@ func (g *gitReader) WithNewAddonAndMutex() AsyncReader {
 	return &gitReader{
 		baseReader: baseReader{
 			a:       &types.Addon{},
-			errChan: make(chan error, 1),
+			errChan: make(chan error),
 			mutex:   &sync.Mutex{},
 		},
 		h: g.h,
@@ -318,7 +324,7 @@ func (o *ossReader) WithNewAddonAndMutex() AsyncReader {
 	return &ossReader{
 		baseReader: baseReader{
 			a:       &types.Addon{},
-			errChan: make(chan error, 1),
+			errChan: make(chan error),
 			mutex:   &sync.Mutex{},
 		},
 		bucketEndPoint: o.bucketEndPoint,
@@ -340,7 +346,7 @@ const (
 func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (AsyncReader, error) {
 	bReader := baseReader{
 		a:       &types.Addon{},
-		errChan: make(chan error, 1),
+		errChan: make(chan error),
 		mutex:   &sync.Mutex{},
 	}
 	switch rdType {

@@ -127,12 +127,12 @@ func (s *addonRegistryWebService) deleteAddonRegistry(req *restful.Request, res 
 }
 
 func (s *addonRegistryWebService) listAddonRegistry(req *restful.Request, res *restful.Response) {
-	registrys, err := s.addonUsecase.ListAddonRegistries(req.Request.Context())
+	registries, err := s.addonUsecase.ListAddonRegistries(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.ListAddonRegistryResponse{Registrys: registrys}); err != nil {
+	if err := res.WriteEntity(apis.ListAddonRegistryResponse{Registrys: registries}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

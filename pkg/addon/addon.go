@@ -96,24 +96,26 @@ func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*types.Addon, error)
 	var addons []*types.Addon
 	var err error
 	var wg sync.WaitGroup
-	errChan := make(chan error, 1)
+	var errs []error
+	errCh := make(chan error)
+	waitCh := make(chan struct{})
 
 	_, items, err := r.Read(".")
 	if err != nil {
 		return nil, err
 	}
+	var l sync.Mutex
 	for _, subItem := range items {
 		if subItem.GetType() != "dir" {
 			continue
 		}
 		wg.Add(1)
-		var l sync.Mutex
 		go func(item Item) {
 			defer wg.Done()
 			ar := r.WithNewAddonAndMutex()
 			addonRes, err := GetSingleAddonFromReader(ar, ar.RelativePath(item), opt)
 			if err != nil {
-				errChan <- err
+				errCh <- err
 				return
 			}
 			l.Lock()
@@ -121,16 +123,41 @@ func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*types.Addon, error)
 			l.Unlock()
 		}(subItem)
 	}
-	wg.Wait()
-	if len(errChan) != 0 {
-		return nil, <-errChan
+	// in another goroutine for wait group to finish
+	go func() {
+		wg.Wait()
+		close(waitCh)
+	}()
+forLoop:
+	for {
+		select {
+		case <-waitCh:
+			break forLoop
+		case err = <-errCh:
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) != 0 {
+		return addons, compactErrors("error(s) happen when reading from registry: ", errs)
 	}
 	return addons, nil
+}
+
+func compactErrors(message string, errs []error) error {
+	errForPrint := make([]string, 0)
+	for _, e := range errs {
+		errForPrint = append(errForPrint, e.Error())
+	}
+
+	return errors.New(message + strings.Join(errForPrint, ","))
+
 }
 
 // GetSingleAddonFromReader read single addon from Reader
 func GetSingleAddonFromReader(r AsyncReader, addonName string, opt ListOptions) (*types.Addon, error) {
 	var wg sync.WaitGroup
+	var errs []error
+	waitCh := make(chan struct{})
 	readOption := map[string]struct {
 		jumpConds bool
 		read      func(wg *sync.WaitGroup, reader AsyncReader, path string)
@@ -160,14 +187,32 @@ func GetSingleAddonFromReader(r AsyncReader, addonName string, opt ListOptions) 
 			go readMethod.read(&wg, r, r.RelativePath(item))
 		}
 	}
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(waitCh)
+	}()
+
+forLoop:
+	for {
+		select {
+		case <-waitCh:
+			break forLoop
+		case err = <-r.ErrCh():
+			errs = append(errs, err)
+		}
+	}
 
 	if opt.GetParameter && r.Addon().Parameters != "" {
 		err = genAddonAPISchema(r.Addon())
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
 	}
+
+	if len(errs) != 0 {
+		return r.Addon(), compactErrors(fmt.Sprintf("error(s) happen when reading addon %s: ", addonName), errs)
+	}
+
 	return r.Addon(), nil
 }
 
