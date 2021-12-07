@@ -184,7 +184,7 @@ func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string,
 }
 
 func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client, clusterName string, kubeConfig string) (string, error) {
-	tmpFileName := fmt.Sprintf("/tmp/cluster-secret-%s-%s-%d.kubeconfig", clusterName, utils.RandomString(8), time.Now().UnixNano())
+	tmpFileName := fmt.Sprintf("/tmp/cluster-secret-%s-%d.kubeconfig", utils.RandomString(8), time.Now().UnixNano())
 	if err := ioutil.WriteFile(tmpFileName, []byte(kubeConfig), 0600); err != nil {
 		return "", errors.Wrapf(err, "failed to write kubeconfig to temp file %s", tmpFileName)
 	}
