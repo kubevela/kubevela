@@ -105,7 +105,7 @@ jobs:
           path: ./_bin/sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt
           retention-days: 1
 
-  upload-sha256sums-plugin-homebrew:
+  upload-plugin-homebrew:
     needs: build
     runs-on: ubuntu-latest
     name: upload-sha256sums
@@ -119,7 +119,12 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: sha256sums
+          path: cli-artifacts
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: cli-artifacts
       - shell: bash
+        working-directory: cli-artifacts
         run: |
           for file in *
           do
@@ -129,7 +134,7 @@ jobs:
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: sha256sums.txt
+          asset_path: cli-artifacts/sha256sums.txt
           asset_name: sha256sums.txt
           asset_content_type: text/plain
       - name: Update kubectl plugin version in krew-index
