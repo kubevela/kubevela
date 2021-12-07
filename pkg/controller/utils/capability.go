@@ -20,6 +20,9 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -27,6 +30,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
+	git "gopkg.in/src-d/go-git.v4"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -183,6 +187,29 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 	return generateJSONSchemaWithRequiredProperty(schemas, required)
 }
 
+func getTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (string, error) {
+	tmpPath := filepath.Join("./tmp/terraform", name)
+	_, err := git.PlainClone(tmpPath, false, &git.CloneOptions{
+		URL:      remoteURL,
+		Progress: os.Stdout,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	tfPath := filepath.Join(tmpPath, remotePath, "main.tf")
+	conf, err := ioutil.ReadFile(filepath.Clean(tfPath))
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.RemoveAll(tmpPath); err != nil {
+		return "", err
+	}
+
+	return string(conf), nil
+}
+
 func parseOtherProperties4TerraformDefinition() map[string]*openapi3.Schema {
 	otherProperties := make(map[string]*openapi3.Schema)
 
@@ -304,7 +331,14 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		if def.Terraform == nil {
 			return "", fmt.Errorf("no Configuration is set in Terraform specification: %s", def.Name)
 		}
-		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(def.Terraform.Configuration)
+		configuration := def.Terraform.Configuration
+		if def.Terraform.Type == "remote" {
+			configuration, err = getTerraformConfigurationFromRemote(def.Name, def.Terraform.Configuration, def.Terraform.Path)
+			if err != nil {
+				return "", fmt.Errorf("cannot get Terraform configuration %s from remote: %w", def.Name, err)
+			}
+		}
+		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
 	default:
 		jsonSchema, err = def.GetOpenAPISchema(pd, name)
 	}

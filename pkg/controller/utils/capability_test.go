@@ -18,15 +18,19 @@
 package utils
 
 import (
+	"context"
 	"errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	. "github.com/agiledragon/gomonkey/v2"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
+	git "gopkg.in/src-d/go-git.v4"
 	"gotest.tools/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -367,6 +371,70 @@ variable "bbb" {
 			if tc.want.err == nil {
 				data := string(schema)
 				assert.Equal(t, strings.Contains(data, tc.want.subStr), true)
+			}
+		})
+	}
+}
+
+func TestGetTerraformConfigurationFromRemote(t *testing.T) {
+	type want struct {
+		config string
+		err    error
+	}
+	cases := map[string]struct {
+		name string
+		url  string
+		path string
+		data []byte
+		want want
+	}{
+		"valid": {
+			name: "valid",
+			url:  "https://github.com/kubevela-contrib/terraform-modules.git",
+			path: "",
+			data: []byte(`
+variable "aaa" {
+	type = list(object({
+		type = string
+		sourceArn = string
+		config = string
+	}))
+	default = []
+}`),
+			want: want{
+				config: `
+variable "aaa" {
+	type = list(object({
+		type = string
+		sourceArn = string
+		config = string
+	}))
+	default = []
+}`,
+				err: nil,
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			patch := ApplyFunc(git.PlainCloneContext, func(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+				return nil, nil
+			})
+			defer patch.Reset()
+
+			tmpPath := filepath.Join("./tmp/terraform", tc.name)
+			err := os.MkdirAll(tmpPath, os.ModePerm)
+			assert.NilError(t, err)
+			err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, "main.tf")), tc.data, 0644)
+			assert.NilError(t, err)
+
+			conf, err := getTerraformConfigurationFromRemote(tc.name, tc.url, tc.path)
+			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\nGetTerraformConfigurationFromRemote(...): -want error, +got error:\n%s", name, diff)
+			}
+			if tc.want.err == nil {
+				assert.Equal(t, tc.want.config, conf)
 			}
 		})
 	}
