@@ -32,13 +32,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-<<<<<<< HEAD
 	ctrlEvent "sigs.k8s.io/controller-runtime/pkg/event"
 	ctrlHandler "sigs.k8s.io/controller-runtime/pkg/handler"
-=======
-	k8sevent "sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
->>>>>>> dd8fe0c6 (Feat: add workflow reconcile backoff time)
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -70,9 +66,6 @@ const (
 )
 
 const (
-	// baseWorkflowBackoffWaitTime is the time to wait before reconcile workflow again
-	baseWorkflowBackoffWaitTime = 10000 * time.Millisecond
-
 	// baseWorkflowBackoffWaitTime is the time to wait gc check
 	baseGCBackoffWaitTime = 3000 * time.Millisecond
 
@@ -485,7 +478,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.Funcs{
 			// filter the changes in workflow status
 			// let workflow handle its reconcile
-			UpdateFunc: func(e k8sevent.UpdateEvent) bool {
+			UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
 				new := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
 				old := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
 				if old.Status.Workflow != nil && new.Status.Workflow != nil {
@@ -499,10 +492,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				return !reflect.DeepEqual(old, new)
 			},
-			CreateFunc: func(e k8sevent.CreateEvent) bool {
+			CreateFunc: func(e ctrlEvent.CreateEvent) bool {
 				return true
 			},
-			DeleteFunc: func(e k8sevent.DeleteEvent) bool {
+			DeleteFunc: func(e ctrlEvent.DeleteEvent) bool {
 				return true
 			},
 		}).

@@ -201,6 +201,7 @@ const (
 type WorkflowState string
 
 const (
+	// WorkflowStateInitializing means the workflow is in initial state
 	WorkflowStateInitializing WorkflowState = "initializing"
 	// WorkflowStateTerminated means workflow is terminated manually, and it won't be started unless the spec changed.
 	WorkflowStateTerminated WorkflowState = "terminated"

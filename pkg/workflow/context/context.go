@@ -141,9 +141,7 @@ func (wf *WorkflowContext) IncreaseCountInConfigMap(paths ...string) int {
 
 // DeleteDataInConfigMap delete data in workflow context config map.
 func (wf *WorkflowContext) DeleteDataInConfigMap(paths ...string) {
-	if _, ok := wf.store.Data[strings.Join(paths, ".")]; ok {
-		delete(wf.store.Data, strings.Join(paths, "."))
-	}
+	delete(wf.store.Data, strings.Join(paths, "."))
 	wf.modified = true
 }
 
@@ -374,6 +372,7 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	return ctx, nil
 }
 
+// GenerateStoreName generates the config map name of workflow context.
 func GenerateStoreName(app string) string {
 	return fmt.Sprintf("workflow-%s-context", app)
 }
