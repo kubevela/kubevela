@@ -30,6 +30,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/bmizerany/assert"
 
+	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
@@ -108,9 +109,9 @@ url: "https://127.0.0.1:8443/api/v1/token?val=test-token"`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reqInst, _ = reqInst.Fill(decodeCert(caCrt), "tls_config", "ca")
-	reqInst, _ = reqInst.Fill(decodeCert(clientCrt), "tls_config", "client_crt")
-	reqInst, _ = reqInst.Fill(decodeCert(clientKey), "tls_config", "client_key")
+	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.Ca), "tls_config", "ca")
+	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.ClientCrt), "tls_config", "client_crt")
+	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.ClientKey), "tls_config", "client_key")
 
 	runner, _ := newHTTPCmd(cue.Value{})
 	got, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
@@ -165,8 +166,8 @@ func newMockHttpsServer() *httptest.Server {
 	ts.Listener = l
 
 	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM([]byte(decodeCert(caCrt)))
-	cert, _ := tls.X509KeyPair([]byte(decodeCert(serverCrt)), []byte(decodeCert(serverKey)))
+	pool.AppendCertsFromPEM([]byte(decodeCert(testdata.MockCerts.Ca)))
+	cert, _ := tls.X509KeyPair([]byte(decodeCert(testdata.MockCerts.ServerCrt)), []byte(decodeCert(testdata.MockCerts.ServerKey)))
 	ts.TLS = &tls.Config{
 		ClientCAs:    pool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,

@@ -35,7 +35,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	httpHandler "github.com/oam-dev/kubevela/pkg/builtin/http"
+	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
@@ -155,9 +155,9 @@ func TestHTTPSDo(t *testing.T) {
 			secret := obj.(*v1.Secret)
 			*secret = v1.Secret{
 				Data: map[string][]byte{
-					"ca.crt":     []byte(httpHandler.MockCerts.Ca),
-					"client.crt": []byte(httpHandler.MockCerts.ClientCrt),
-					"client.key": []byte(httpHandler.MockCerts.ClientKey),
+					"ca.crt":     []byte(testdata.MockCerts.Ca),
+					"client.crt": []byte(testdata.MockCerts.ClientCrt),
+					"client.key": []byte(testdata.MockCerts.ClientKey),
 				},
 			}
 			return nil
@@ -200,8 +200,8 @@ func newMockHttpsServer() *httptest.Server {
 	}
 
 	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM(decode(httpHandler.MockCerts.Ca))
-	cert, _ := tls.X509KeyPair(decode(httpHandler.MockCerts.ServerCrt), decode(httpHandler.MockCerts.ServerKey))
+	pool.AppendCertsFromPEM(decode(testdata.MockCerts.Ca))
+	cert, _ := tls.X509KeyPair(decode(testdata.MockCerts.ServerCrt), decode(testdata.MockCerts.ServerKey))
 	ts.TLS = &tls.Config{
 		ClientCAs:    pool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
