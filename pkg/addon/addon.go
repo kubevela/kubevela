@@ -469,6 +469,9 @@ func RenderAppAndResources(addon *types.Addon, args map[string]interface{}) (*v1
 				Properties: util.Object2RawExtension(u),
 			})
 		}
+		if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) == 0 {
+			app.Spec.Workflow = nil
+		}
 	}
 
 	return app, defObjs, schemaConfigmaps, nil
@@ -554,8 +557,9 @@ func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[
 	if err != nil {
 		return nil, err
 	}
+	fileName := strings.ReplaceAll(elem.Name, path.Ext(elem.Name), "")
 	comp := common2.ApplicationComponent{
-		Name: strings.ReplaceAll(elem.Name, ".", "-"),
+		Name: strings.ReplaceAll(fileName, ".", "-"),
 	}
 	err = yaml.Unmarshal(b, &comp)
 	if err != nil {
@@ -624,16 +628,6 @@ func newAddonHandler(ctx context.Context, addon *types.Addon, cli client.Client,
 		source: source,
 		args:   args,
 	}
-}
-
-// EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, source Source, args map[string]interface{}) error {
-	h := newAddonHandler(ctx, addon, cli, apply, source, args)
-	err := h.enableAddon()
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (h *Handler) enableAddon() error {
