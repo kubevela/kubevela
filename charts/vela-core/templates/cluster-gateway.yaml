@@ -1,4 +1,5 @@
 {{ if .Values.multicluster.enabled }}
+{{ if not (lookup "apps/v1" "Deployment" .Release.Namespace (printf "%s-cluster-gateway" .Release.Name)) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -67,6 +68,7 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
 {{ end }}
+{{ end }}
 ---
 {{ if .Values.multicluster.enabled }}
 apiVersion: v1
@@ -84,6 +86,7 @@ spec:
 {{ end }}
 ---
 {{ if .Values.multicluster.enabled }}
+{{ if not (lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev") }}
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
@@ -104,6 +107,7 @@ spec:
   {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
   caBundle: Cg==
   {{ end }}
+{{ end }}
 {{ end }}
 ---
 {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled }}
