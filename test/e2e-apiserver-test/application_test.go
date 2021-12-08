@@ -147,7 +147,7 @@ var _ = Describe("Test application rest api", func() {
 		}
 		bodyByte, err := json.Marshal(createTarget)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/deliveryTargets", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/targets", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
