@@ -220,8 +220,8 @@ forLoop:
 	return r.Addon(), nil
 }
 
-// appendFile will add AddonElementFile to a slice, lock to avoid goroutine race
-func appendFile(lock *sync.Mutex, slice *[]AddonElementFile, file AddonElementFile) {
+// appendFile will add ElementFile to a slice, lock to avoid goroutine race
+func appendFile(lock *sync.Mutex, slice *[]ElementFile, file ElementFile) {
 	lock.Lock()
 	*slice = append(*slice, file)
 	lock.Unlock()
@@ -296,7 +296,7 @@ func readResFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		reader.Addon().Parameters = b
 		return
 	}
-	file := AddonElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: path.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		appendFile(reader.Mutex(), &reader.Addon().CUETemplates, file)
@@ -313,7 +313,7 @@ func readDefSchemaFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) 
 		reader.SendErr(err)
 		return
 	}
-	reader.Addon().DefSchemas = append(reader.Addon().DefSchemas, AddonElementFile{Data: b, Name: path.Base(readPath)})
+	reader.Addon().DefSchemas = append(reader.Addon().DefSchemas, ElementFile{Data: b, Name: path.Base(readPath)})
 }
 
 func readDefinitions(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
@@ -344,7 +344,7 @@ func readDefFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		return
 	}
 	filename := path.Base(readPath)
-	file := AddonElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: path.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		appendFile(reader.Mutex(), &reader.Addon().CUEDefinitions, file)
@@ -360,7 +360,7 @@ func readMetadata(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		reader.SendErr(err)
 		return
 	}
-	err = yaml.Unmarshal([]byte(b), &reader.Addon().AddonMeta)
+	err = yaml.Unmarshal([]byte(b), &reader.Addon().Meta)
 	if err != nil {
 		reader.SendErr(err)
 		return
@@ -577,7 +577,7 @@ func isDeployToRuntimeOnly(addon *Addon) bool {
 	return addon.DeployTo.RuntimeCluster
 }
 
-func renderObject(elem AddonElementFile) (*unstructured.Unstructured, error) {
+func renderObject(elem ElementFile) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	_, _, err := dec.Decode([]byte(elem.Data), nil, obj)
@@ -596,7 +596,7 @@ func renderNamespace(namespace string) *unstructured.Unstructured {
 }
 
 // renderRawComponent will return a component in raw type from string
-func renderRawComponent(elem AddonElementFile) (*common2.ApplicationComponent, error) {
+func renderRawComponent(elem ElementFile) (*common2.ApplicationComponent, error) {
 	baseRawComponent := common2.ApplicationComponent{
 		Type: "raw",
 		Name: strings.ReplaceAll(elem.Name, ".", "-"),
@@ -609,7 +609,7 @@ func renderRawComponent(elem AddonElementFile) (*common2.ApplicationComponent, e
 	return &baseRawComponent, nil
 }
 
-func renderSchemaConfigmap(elem AddonElementFile) (*unstructured.Unstructured, error) {
+func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error) {
 	jsonData, err := yaml.YAMLToJSON([]byte(elem.Data))
 	if err != nil {
 		return nil, err
@@ -624,7 +624,7 @@ func renderSchemaConfigmap(elem AddonElementFile) (*unstructured.Unstructured, e
 }
 
 // renderCUETemplate will return a component from cue template
-func renderCUETemplate(elem AddonElementFile, parameters string, args map[string]interface{}) (*common2.ApplicationComponent, error) {
+func renderCUETemplate(elem ElementFile, parameters string, args map[string]interface{}) (*common2.ApplicationComponent, error) {
 	bt, err := json.Marshal(args)
 	if err != nil {
 		return nil, err

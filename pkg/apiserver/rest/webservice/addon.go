@@ -20,8 +20,7 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/apis/types"
-
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -123,10 +122,10 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		return
 	}
 
-	var addons []*types.AddonMeta
+	var addons []*pkgaddon.Meta
 
 	for _, d := range detailAddons {
-		addons = append(addons, &d.AddonMeta)
+		addons = append(addons, &d.Meta)
 	}
 
 	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons})

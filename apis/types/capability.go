@@ -184,4 +184,3 @@ type Capability struct {
 	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
 	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }
-

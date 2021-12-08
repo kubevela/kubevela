@@ -78,7 +78,7 @@ func AddonImpl2AddonRes(impl *pkgaddon.Addon) (*apis.DetailAddonResponse, error)
 		})
 	}
 	return &apis.DetailAddonResponse{
-		AddonMeta:   impl.AddonMeta,
+		Meta:        impl.Meta,
 		APISchema:   impl.APISchema,
 		UISchema:    impl.UISchema,
 		Detail:      impl.Detail,
