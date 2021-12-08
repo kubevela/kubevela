@@ -505,7 +505,7 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
 	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{
-		Namespace:  req.QueryParameter("namespace"),
+		Project:    req.QueryParameter("project"),
 		TargetName: req.QueryParameter("targetName"),
 		Query:      req.QueryParameter("query"),
 	})

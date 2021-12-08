@@ -2738,9 +2738,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"component",
 							"trait",
-							"workflowstep",
-							"component"
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -2817,7 +2817,167 @@
 				}
 			}
 		},
-		"/api/v1/deliveryTargets": {
+		"/api/v1/enabled-addon": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"addon"
+				],
+				"summary": "list all addons",
+				"operationId": "list",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "filter addons from given registry",
+						"name": "registry",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Fuzzy search based on name and description.",
+						"name": "query",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListAddonResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/policydefinitions": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"definition"
+				],
+				"summary": "list all policydefinition",
+				"operationId": "noop",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListPolicyDefinitionResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "list all projects",
+				"operationId": "listprojects",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListProjectResponse"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "create a project",
+				"operationId": "createproject",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateProjectRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ProjectBase"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/query": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"velaQL"
+				],
+				"summary": "use velaQL to query resource status",
+				"operationId": "queryView",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "velaql query statement",
+						"name": "velaql",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.VelaQLViewResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/targets": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -2835,8 +2995,8 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Query the delivery target belonging to a namespace",
-						"name": "namesapce",
+						"description": "Query the target belong to project",
+						"name": "project",
 						"in": "query"
 					},
 					{
@@ -2907,7 +3067,7 @@
 				}
 			}
 		},
-		"/api/v1/deliveryTargets/{name}": {
+		"/api/v1/targets/{name}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3018,166 +3178,6 @@
 					},
 					"500": {
 						"description": "Bummer, something went wrong"
-					}
-				}
-			}
-		},
-		"/api/v1/enabled-addon": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"addon"
-				],
-				"summary": "list all addons",
-				"operationId": "list",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "filter addons from given registry",
-						"name": "registry",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "Fuzzy search based on name and description.",
-						"name": "query",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.ListAddonResponse"
-						}
-					},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/namespaces": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"namespace"
-				],
-				"summary": "list all namespaces",
-				"operationId": "listNamespaces",
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.ListNamespaceResponse"
-						}
-					}
-				}
-			},
-			"post": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"namespace"
-				],
-				"summary": "create namespace",
-				"operationId": "createNamespace",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.CreateNamespaceRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.NamespaceDetailResponse"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/policydefinitions": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"definition"
-				],
-				"summary": "list all policydefinition",
-				"operationId": "noop",
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.ListPolicyDefinitionResponse"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/query": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"velaQL"
-				],
-				"summary": "use velaQL to query resource status",
-				"operationId": "queryView",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "velaql query statement",
-						"name": "velaql",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"schema": {
-							"$ref": "#/definitions/v1.VelaQLViewResponse"
-						}
-					},
-					"400": {
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
 					}
 				}
 			}
@@ -3405,11 +3405,11 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"upgradedReadyReplicas",
-				"rollingState",
-				"batchRollingState",
-				"currentBatch",
 				"upgradedReplicas",
+				"rollingState",
+				"currentBatch",
+				"upgradedReadyReplicas",
+				"batchRollingState",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -4521,7 +4521,7 @@
 			"required": [
 				"name",
 				"alias",
-				"namespace",
+				"project",
 				"description",
 				"createTime",
 				"updateTime",
@@ -4550,8 +4550,8 @@
 				"name": {
 					"type": "string"
 				},
-				"namespace": {
-					"type": "string"
+				"project": {
+					"$ref": "#/definitions/v1.ProjectBase"
 				},
 				"updateTime": {
 					"type": "string",
@@ -4583,14 +4583,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"status",
+				"reason",
+				"deployUser",
 				"note",
 				"envName",
 				"triggerType",
 				"createTime",
-				"version",
-				"status",
-				"reason",
-				"deployUser"
+				"version"
 			],
 			"properties": {
 				"createTime": {
@@ -5131,7 +5131,7 @@
 		"v1.CreateApplicationRequest": {
 			"required": [
 				"name",
-				"namespace",
+				"project",
 				"icon",
 				"component"
 			],
@@ -5163,7 +5163,7 @@
 				"name": {
 					"type": "string"
 				},
-				"namespace": {
+				"project": {
 					"type": "string"
 				},
 				"yamlConfig": {
@@ -5366,7 +5366,7 @@
 		"v1.CreateDeliveryTargetRequest": {
 			"required": [
 				"name",
-				"namespace"
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -5381,25 +5381,11 @@
 				"name": {
 					"type": "string"
 				},
-				"namespace": {
+				"project": {
 					"type": "string"
 				},
 				"variable": {
 					"type": "object"
-				}
-			}
-		},
-		"v1.CreateNamespaceRequest": {
-			"required": [
-				"name",
-				"description"
-			],
-			"properties": {
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
 				}
 			}
 		},
@@ -5421,6 +5407,22 @@
 					"type": "string"
 				},
 				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CreateProjectRequest": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
 					"type": "string"
 				}
 			}
@@ -5479,7 +5481,7 @@
 		"v1.DeliveryTargetBase": {
 			"required": [
 				"name",
-				"namespace",
+				"project",
 				"createTime",
 				"updateTime"
 			],
@@ -5504,8 +5506,8 @@
 				"name": {
 					"type": "string"
 				},
-				"namespace": {
-					"type": "string"
+				"project": {
+					"$ref": "#/definitions/v1.ProjectBase"
 				},
 				"updateTime": {
 					"type": "string",
@@ -5518,11 +5520,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+				"name",
+				"invisible",
 				"version",
 				"description",
 				"icon",
-				"name",
-				"invisible",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -5589,13 +5591,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"description",
-				"createTime",
 				"updateTime",
 				"icon",
 				"name",
 				"alias",
-				"namespace",
+				"project",
+				"description",
+				"createTime",
 				"policies",
 				"envBindings",
 				"status",
@@ -5634,14 +5636,14 @@
 				"name": {
 					"type": "string"
 				},
-				"namespace": {
-					"type": "string"
-				},
 				"policies": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					}
+				},
+				"project": {
+					"$ref": "#/definitions/v1.ProjectBase"
 				},
 				"resourceInfo": {
 					"$ref": "#/definitions/v1.ApplicationResourceInfo"
@@ -5657,18 +5659,18 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"alias",
+				"icon",
 				"labels",
-				"provider",
+				"status",
 				"apiServerURL",
+				"dashboardURL",
 				"kubeConfigSecret",
 				"model",
 				"name",
-				"alias",
 				"description",
-				"icon",
-				"status",
 				"reason",
-				"dashboardURL",
+				"provider",
 				"kubeConfig",
 				"resourceInfo"
 			],
@@ -5722,13 +5724,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
+				"appPrimaryKey",
 				"creator",
+				"alias",
 				"type",
 				"createTime",
-				"appPrimaryKey",
-				"alias",
-				"name",
-				"updateTime"
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -5823,10 +5825,10 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
 				"name",
-				"namespace",
-				"createTime"
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -5849,8 +5851,8 @@
 				"name": {
 					"type": "string"
 				},
-				"namespace": {
-					"type": "string"
+				"project": {
+					"$ref": "#/definitions/v1.ProjectBase"
 				},
 				"updateTime": {
 					"type": "string",
@@ -5863,13 +5865,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"creator",
-				"properties",
-				"createTime",
 				"updateTime",
 				"name",
 				"type",
-				"description"
+				"description",
+				"creator",
+				"properties",
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5899,17 +5901,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"status",
+				"reason",
 				"deployUser",
 				"note",
 				"workflowName",
+				"createTime",
 				"appPrimaryKey",
 				"version",
-				"reason",
+				"status",
 				"triggerType",
-				"envName"
+				"envName",
+				"updateTime"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5957,12 +5959,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
-				"status",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -6014,14 +6016,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"envName",
+				"default",
+				"createTime",
 				"name",
+				"alias",
 				"description",
 				"enable",
-				"updateTime",
-				"alias",
-				"default",
-				"createTime"
+				"envName",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -6133,7 +6135,7 @@
 				"deliveryTargets": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.DeliveryTargetBase"
+						"$ref": "#/definitions/v1.NameAlias"
 					}
 				},
 				"description": {
@@ -6281,37 +6283,6 @@
 				}
 			}
 		},
-		"v1.ListDeliveryTargetResponse": {
-			"required": [
-				"deliveryTargets",
-				"total"
-			],
-			"properties": {
-				"deliveryTargets": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.DeliveryTargetBase"
-					}
-				},
-				"total": {
-					"type": "integer",
-					"format": "int64"
-				}
-			}
-		},
-		"v1.ListNamespaceResponse": {
-			"required": [
-				"namespaces"
-			],
-			"properties": {
-				"namespaces": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.NamespaceBase"
-					}
-				}
-			}
-		},
 		"v1.ListPolicyDefinitionResponse": {
 			"required": [
 				"policyDefinitions"
@@ -6321,6 +6292,19 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/v1.PolicyDefinition"
+					}
+				}
+			}
+		},
+		"v1.ListProjectResponse": {
+			"required": [
+				"projects"
+			],
+			"properties": {
+				"projects": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ProjectBase"
 					}
 				}
 			}
@@ -6335,6 +6319,24 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/v1.ApplicationRevisionBase"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ListTargetResponse": {
+			"required": [
+				"targets",
+				"total"
+			],
+			"properties": {
+				"targets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.DeliveryTargetBase"
 					}
 				},
 				"total": {
@@ -6374,51 +6376,17 @@
 				}
 			}
 		},
-		"v1.NamespaceBase": {
+		"v1.NameAlias": {
 			"required": [
 				"name",
-				"description",
-				"createTime",
-				"updateTime"
+				"alias"
 			],
 			"properties": {
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"description": {
+				"alias": {
 					"type": "string"
 				},
 				"name": {
 					"type": "string"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
-				}
-			}
-		},
-		"v1.NamespaceDetailResponse": {
-			"required": [
-				"updateTime",
-				"name",
-				"description",
-				"createTime"
-			],
-			"properties": {
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
 				}
 			}
 		},
@@ -6509,6 +6477,38 @@
 					"items": {
 						"$ref": "#/definitions/types.Parameter"
 					}
+				}
+			}
+		},
+		"v1.ProjectBase": {
+			"required": [
+				"name",
+				"alias",
+				"description",
+				"namespace",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},

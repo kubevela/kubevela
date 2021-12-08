@@ -51,7 +51,7 @@ type DeliveryTargetWebService struct {
 // GetWebService get web service
 func (dt *DeliveryTargetWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/deliveryTargets").
+	ws.Path(versionPrefix+"/targets").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for deliveryTarget manage")
@@ -61,11 +61,11 @@ func (dt *DeliveryTargetWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(dt.listDeliveryTargets).
 		Doc("list deliveryTarget").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("namesapce", "Query the delivery target belonging to a namespace").DataType("string")).
+		Param(ws.QueryParameter("project", "Query the target belong to project").DataType("string")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("integer")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("integer")).
-		Returns(200, "", apis.ListDeliveryTargetResponse{}).
-		Writes(apis.ListDeliveryTargetResponse{}).Do(returns200, returns500))
+		Returns(200, "", apis.ListTargetResponse{}).
+		Writes(apis.ListTargetResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(dt.createDeliveryTarget).
 		Doc("create deliveryTarget").
@@ -204,7 +204,7 @@ func (dt *DeliveryTargetWebService) listDeliveryTargets(req *restful.Request, re
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	deliveryTargets, err := dt.deliveryTargetUsecase.ListDeliveryTargets(req.Request.Context(), page, pageSize, req.QueryParameter("namespace"))
+	deliveryTargets, err := dt.deliveryTargetUsecase.ListDeliveryTargets(req.Request.Context(), page, pageSize, req.QueryParameter("project"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

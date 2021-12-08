@@ -30,14 +30,20 @@ import (
 var _ = Describe("Test delivery target usecase functions", func() {
 	var (
 		deliveryTargetUsecase *deliveryTargetUsecaseImpl
+		projectUsecase        *projectUsecaseImpl
+		testProject           = "target-project"
 	)
 	BeforeEach(func() {
-		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds, projectUsecase: projectUsecase}
 	})
 	It("Test CreateDeliveryTarget function", func() {
+		_, err := projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})
+		Expect(err).Should(BeNil())
+
 		req := apisv1.CreateDeliveryTargetRequest{
 			Name:        "test-delivery-target",
-			Namespace:   "test-namespace",
+			Project:     testProject,
 			Alias:       "test-alias",
 			Description: "this is a deliveryTarget",
 			Cluster:     &apisv1.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},

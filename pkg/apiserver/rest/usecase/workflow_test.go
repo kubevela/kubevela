@@ -43,18 +43,27 @@ var _ = Describe("Test workflow usecase functions", func() {
 	var (
 		workflowUsecase *workflowUsecaseImpl
 		appUsecase      *applicationUsecaseImpl
+		projectUsecase  *projectUsecaseImpl
+		testProject     = "workflow-project"
 	)
 	BeforeEach(func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient, apply: apply.NewAPIApplicator(k8sClient)}
-		appUsecase = &applicationUsecaseImpl{ds: ds, kubeClient: k8sClient, apply: apply.NewAPIApplicator(k8sClient), envBindingUsecase: &envBindingUsecaseImpl{
-			ds:              ds,
-			workflowUsecase: workflowUsecase,
-		}}
+		projectUsecase = &projectUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		appUsecase = &applicationUsecaseImpl{ds: ds, kubeClient: k8sClient,
+			apply:          apply.NewAPIApplicator(k8sClient),
+			projectUsecase: projectUsecase,
+			envBindingUsecase: &envBindingUsecaseImpl{
+				ds:              ds,
+				workflowUsecase: workflowUsecase,
+			}}
+
 	})
 	It("Test CreateWorkflow function", func() {
+		_, err := projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})
+		Expect(err).Should(BeNil())
 		reqApp := apisv1.CreateApplicationRequest{
 			Name:        appName,
-			Namespace:   "default",
+			Project:     testProject,
 			Description: "this is a test app",
 			EnvBinding: []*apisv1.EnvBinding{{
 				Name:        "dev",
@@ -62,9 +71,8 @@ var _ = Describe("Test workflow usecase functions", func() {
 				TargetNames: []string{"dev-target"},
 			}},
 		}
-		_, err := appUsecase.CreateApplication(context.TODO(), reqApp)
+		_, err = appUsecase.CreateApplication(context.TODO(), reqApp)
 		Expect(err).Should(BeNil())
-
 		req := apisv1.CreateWorkflowRequest{
 			Name:        "test-workflow-1",
 			Description: "this is a workflow",

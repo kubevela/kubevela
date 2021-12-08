@@ -64,6 +64,9 @@ const (
 
 	// LabelAddonName indicates the name of the corresponding Addon
 	LabelAddonName = "addons.oam.dev/name"
+
+	// LabelProject Namesapce records the project name of namespace
+	LabelProjectNamesapce = "namespace.oam.dev/project"
 )
 
 const (

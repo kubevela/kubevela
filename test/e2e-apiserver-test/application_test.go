@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -41,7 +42,7 @@ var _ = Describe("Test application rest api", func() {
 		defer GinkgoRecover()
 		var req = apisv1.CreateApplicationRequest{
 			Name:        appName,
-			Namespace:   appProject,
+			Project:     appProject,
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -60,7 +61,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(appBase.Name, req.Name)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
-		Expect(cmp.Diff(appBase.Namespace, req.Namespace)).Should(BeEmpty())
+		Expect(cmp.Diff(appBase.Project.Namespace, fmt.Sprintf("project-%s", appProject))).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
 	})
 
@@ -80,7 +81,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(err).Should(Succeed())
 		var req = apisv1.CreateApplicationRequest{
 			Name:        appName,
-			Namespace:   appProject,
+			Project:     appProject,
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -99,7 +100,6 @@ var _ = Describe("Test application rest api", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(appBase.Name, req.Name)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
-		Expect(cmp.Diff(appBase.Namespace, req.Namespace)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
 	})
 
@@ -138,8 +138,8 @@ var _ = Describe("Test application rest api", func() {
 		var namespace = "default"
 		// create target
 		var createTarget = apisv1.CreateDeliveryTargetRequest{
-			Name:      targetName,
-			Namespace: appProject,
+			Name:    targetName,
+			Project: appProject,
 			Cluster: &apisv1.ClusterTarget{
 				ClusterName: "local",
 				Namespace:   namespace,
@@ -186,7 +186,7 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(response.Status, model.RevisionStatusRunning)).Should(BeEmpty())
 
 		var oam v1beta1.Application
-		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: appName + "-" + envName, Namespace: appProject}, &oam)
+		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: appName + "-" + envName, Namespace: fmt.Sprintf("project-%s", appProject)}, &oam)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(oam.Spec.Components), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
