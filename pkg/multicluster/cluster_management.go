@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -57,6 +58,20 @@ func ensureResourceTrackerCRDInstalled(ctx context.Context, c client.Client, clu
 		}
 		if err = c.Create(remoteCtx, crd); err != nil {
 			return errors.Wrapf(err, "failed to create resourcetracker crd in cluster %s", clusterName)
+		}
+	}
+	return nil
+}
+
+// ensureVelaSystemNamespaceInstalled ensures vela namespace  to be installed in child cluster
+func ensureVelaSystemNamespaceInstalled(ctx context.Context, c client.Client, clusterName string, createNamespace string) error {
+	remoteCtx := ContextWithClusterName(ctx, clusterName)
+	if err := c.Get(remoteCtx, types2.NamespacedName{Name: createNamespace}, &v1.Namespace{}); err != nil {
+		if !errors2.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to check vela-system ")
+		}
+		if err = c.Create(remoteCtx, &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: createNamespace}}); err != nil {
+			return errors.Wrapf(err, "failed to create vela-system namespace")
 		}
 	}
 	return nil
@@ -173,6 +188,11 @@ func JoinClusterByKubeConfig(_ctx context.Context, k8sClient client.Client, kube
 		_ = k8sClient.Delete(_ctx, secret)
 		return cluster, errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
 	}
+
+	if err := ensureVelaSystemNamespaceInstalled(_ctx, k8sClient, clusterName, types.DefaultKubeVelaNS); err != nil {
+		return nil, errors.Wrapf(err, "failed to create vela namespace in cluster %s", clusterName)
+	}
+
 	return cluster, nil
 }
 
