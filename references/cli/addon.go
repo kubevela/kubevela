@@ -215,7 +215,7 @@ func NewAddonStatusCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 }
 
 func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Config, name string, args map[string]interface{}) error {
-	var addon *types.Addon
+	var addon *pkgaddon.Addon
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
 	registries, err := registryDS.ListRegistries(ctx)
@@ -269,7 +269,7 @@ func statusAddon(name string) error {
 }
 
 func listAddons(ctx context.Context, registry string) error {
-	var addons []*types.Addon
+	var addons []*pkgaddon.Addon
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(clt)
 	registries, err := registryDS.ListRegistries(ctx)
@@ -362,7 +362,7 @@ func fetchAddonStatus(ctx context.Context, client client.Client, name string) (s
 	return statusEnabling, nil
 }
 
-func mergeAddons(a1, a2 []*types.Addon) []*types.Addon {
+func mergeAddons(a1, a2 []*pkgaddon.Addon) []*pkgaddon.Addon {
 	for _, item := range a2 {
 		if hasAddon(a1, item.Name) {
 			continue
@@ -372,7 +372,7 @@ func mergeAddons(a1, a2 []*types.Addon) []*types.Addon {
 	return a1
 }
 
-func hasAddon(addons []*types.Addon, name string) bool {
+func hasAddon(addons []*pkgaddon.Addon, name string) bool {
 	for _, addon := range addons {
 		if addon.Name == name {
 			return true
