@@ -26,54 +26,54 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
-type namespaceWebService struct {
-	namespaceUsecase usecase.NamespaceUsecase
+type projectWebService struct {
+	projectUsecase usecase.ProjectUsecase
 }
 
-// NewNamespaceWebService new namespace webservice
-func NewNamespaceWebService(namespaceUsecase usecase.NamespaceUsecase) WebService {
-	return &namespaceWebService{namespaceUsecase: namespaceUsecase}
+// NewProjectWebService new project webservice
+func NewProjectWebService(projectUsecase usecase.ProjectUsecase) WebService {
+	return &projectWebService{projectUsecase: projectUsecase}
 }
 
-func (n *namespaceWebService) GetWebService() *restful.WebService {
+func (n *projectWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/namespaces").
+	ws.Path(versionPrefix+"/projects").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
-		Doc("api for namespace manage")
+		Doc("api for project manage")
 
-	tags := []string{"namespace"}
+	tags := []string{"project"}
 
-	ws.Route(ws.GET("/").To(n.listNamespaces).
-		Doc("list all namespaces").
+	ws.Route(ws.GET("/").To(n.listprojects).
+		Doc("list all projects").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.ListNamespaceResponse{}).
-		Writes(apis.ListNamespaceResponse{}))
+		Returns(200, "", apis.ListProjectResponse{}).
+		Writes(apis.ListProjectResponse{}))
 
-	ws.Route(ws.POST("/").To(n.createNamespace).
-		Doc("create namespace").
+	ws.Route(ws.POST("/").To(n.createproject).
+		Doc("create a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(apis.CreateNamespaceRequest{}).
-		Returns(200, "", apis.NamespaceDetailResponse{}).
-		Writes(apis.NamespaceDetailResponse{}))
+		Reads(apis.CreateProjectRequest{}).
+		Returns(200, "", apis.ProjectBase{}).
+		Writes(apis.ProjectBase{}))
 	return ws
 }
 
-func (n *namespaceWebService) listNamespaces(req *restful.Request, res *restful.Response) {
-	namespaces, err := n.namespaceUsecase.ListNamespaces(req.Request.Context())
+func (n *projectWebService) listprojects(req *restful.Request, res *restful.Response) {
+	projects, err := n.projectUsecase.ListProjects(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.ListNamespaceResponse{Namespaces: namespaces}); err != nil {
+	if err := res.WriteEntity(apis.ListProjectResponse{Projects: projects}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 }
 
-func (n *namespaceWebService) createNamespace(req *restful.Request, res *restful.Response) {
+func (n *projectWebService) createproject(req *restful.Request, res *restful.Response) {
 	// Verify the validity of parameters
-	var createReq apis.CreateNamespaceRequest
+	var createReq apis.CreateProjectRequest
 	if err := req.ReadEntity(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -83,7 +83,7 @@ func (n *namespaceWebService) createNamespace(req *restful.Request, res *restful
 		return
 	}
 	// Call the usecase layer code
-	namespaceBase, err := n.namespaceUsecase.CreateNamespace(req.Request.Context(), createReq)
+	projectBase, err := n.projectUsecase.CreateProject(req.Request.Context(), createReq)
 	if err != nil {
 		log.Logger.Errorf("create application failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
@@ -91,7 +91,7 @@ func (n *namespaceWebService) createNamespace(req *restful.Request, res *restful
 	}
 
 	// Write back response data
-	if err := res.WriteEntity(apis.NamespaceDetailResponse{NamespaceBase: *namespaceBase}); err != nil {
+	if err := res.WriteEntity(projectBase); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

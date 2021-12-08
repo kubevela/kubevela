@@ -19,6 +19,7 @@ package e2e_apiserver_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,38 +29,39 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-var _ = Describe("Test namespace rest api", func() {
-	It("Test create namespace", func() {
+var _ = Describe("Test project rest api", func() {
+	It("Test create project", func() {
 		defer GinkgoRecover()
-		var req = apisv1.CreateNamespaceRequest{
+		var req = apisv1.CreateProjectRequest{
 			Name:        "dev-team",
-			Description: "开发环境租户",
+			Description: "KubeVela Project",
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/namespaces", "application/json", bytes.NewBuffer(bodyByte))
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/projects", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var namespaceBase apisv1.NamespaceBase
-		err = json.NewDecoder(res.Body).Decode(&namespaceBase)
+		var projectBase apisv1.ProjectBase
+		err = json.NewDecoder(res.Body).Decode(&projectBase)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(namespaceBase.Name, req.Name)).Should(BeEmpty())
-		Expect(cmp.Diff(namespaceBase.Description, req.Description)).Should(BeEmpty())
+		Expect(cmp.Diff(projectBase.Name, req.Name)).Should(BeEmpty())
+		Expect(cmp.Diff(projectBase.Namespace, fmt.Sprintf("project-%s", req.Name))).Should(BeEmpty())
+		Expect(cmp.Diff(projectBase.Description, req.Description)).Should(BeEmpty())
 	})
 
-	It("Test list namespace", func() {
+	It("Test list project", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/namespaces")
+		res, err := http.Get("http://127.0.0.1:8000/api/v1/projects")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
-		var namespaces apisv1.ListNamespaceResponse
-		err = json.NewDecoder(res.Body).Decode(&namespaces)
+		var projects apisv1.ListProjectResponse
+		err = json.NewDecoder(res.Body).Decode(&projects)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 })

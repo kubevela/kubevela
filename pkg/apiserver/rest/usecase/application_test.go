@@ -50,12 +50,16 @@ var _ = Describe("Test application usecase function", func() {
 		envBindingUsecase     *envBindingUsecaseImpl
 		deliveryTargetUsecase *deliveryTargetUsecaseImpl
 		definitionUsecase     *definitionUsecaseImpl
+		projectUsecase        *projectUsecaseImpl
+		testProject           = "app-project"
 	)
+
 	BeforeEach(func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                    ds,
 			workflowUsecase:       workflowUsecase,
@@ -64,13 +68,17 @@ var _ = Describe("Test application usecase function", func() {
 			envBindingUsecase:     envBindingUsecase,
 			definitionUsecase:     definitionUsecase,
 			deliveryTargetUsecase: deliveryTargetUsecase,
+			projectUsecase:        projectUsecase,
 		}
 	})
+
 	It("Test CreateApplication function", func() {
 		By("test sample create")
+		_, err := projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		Expect(err).Should(BeNil())
 		req := v1.CreateApplicationRequest{
 			Name:        "test-app",
-			Namespace:   "test-app-namespace",
+			Project:     testProject,
 			Description: "this is a test app",
 			EnvBinding: []*v1.EnvBinding{{
 				Name:        "dev",
@@ -95,7 +103,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(Succeed())
 		req = v1.CreateApplicationRequest{
 			Name:        "test-app-sadasd",
-			Namespace:   "test-app-namespace",
+			Project:     testProject,
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -107,7 +115,7 @@ var _ = Describe("Test application usecase function", func() {
 
 		req = v1.CreateApplicationRequest{
 			Name:        "test-app-sadasd2",
-			Namespace:   "test-app-namespace",
+			Project:     testProject,
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -122,7 +130,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(Succeed())
 		req = v1.CreateApplicationRequest{
 			Name:        "test-app-sadasd3",
-			Namespace:   "test-app-namespace",
+			Project:     testProject,
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -135,7 +143,7 @@ var _ = Describe("Test application usecase function", func() {
 		By("Test create app with env binding")
 		req = v1.CreateApplicationRequest{
 			Name:        "test-app-sadasd4",
-			Namespace:   "test-app-namespace",
+			Project:     testProject,
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
@@ -159,7 +167,7 @@ var _ = Describe("Test application usecase function", func() {
 
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd4")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
 	})
 
@@ -170,7 +178,7 @@ var _ = Describe("Test application usecase function", func() {
 
 	It("Test ListApplications and filter by targetName function", func() {
 		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{
-			Namespace:  "test-app-namespace",
+			Project:    testProject,
 			TargetName: "dev-target"})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(list), 2)).Should(BeEmpty())
@@ -179,7 +187,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DetailApplication function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
 		detail, err := appUsecase.DetailApplication(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
@@ -190,7 +198,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test ListComponents function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
 		components, err := appUsecase.ListComponents(context.TODO(), appModel, v1.ListApplicationComponentOptions{})
 		Expect(err).Should(BeNil())
@@ -216,7 +224,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DetailComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
 		detail, err := appUsecase.DetailComponent(context.TODO(), appModel, "hello-world-server")
 		Expect(err).Should(BeNil())
@@ -228,7 +236,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test AddComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		base, err := appUsecase.AddComponent(context.TODO(), appModel, v1.CreateComponentRequest{
 			Name:          "test2",
 			Description:   "this is a test2 component",
@@ -244,7 +252,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DetailComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		detailResponse, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(detailResponse.DependsOn[0], "data-worker")).Should(BeEmpty())
@@ -255,7 +263,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test AddPolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		_, err = appUsecase.AddPolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
 			Name:        EnvBindingPolicyDefaultName,
 			Description: "this is a test2 policy",
@@ -276,7 +284,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test ListPolicies function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
 		policies, err := appUsecase.ListPolicies(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
@@ -286,7 +294,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DetailPolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		detail, err := appUsecase.DetailPolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName)
 		Expect(err).Should(BeNil())
 		Expect(detail.Properties).ShouldNot(BeNil())
@@ -296,7 +304,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test UpdatePolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		base, err := appUsecase.UpdatePolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName, v1.UpdatePolicyRequest{
 			Type:       "env-binding",
 			Properties: `{"envs":{}}`,
@@ -308,7 +316,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DeletePolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		err = appUsecase.DeletePolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName)
 		Expect(err).Should(BeNil())
 	})
@@ -389,7 +397,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test DeleteComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Namespace, "test-app-namespace")).Should(BeEmpty())
+		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		err = appUsecase.DeleteComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
 	})
@@ -454,7 +462,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test ApplicationEnvRecycle function", func() {
 		req := v1.CreateApplicationRequest{
 			Name:        "app-env-recycle" + "-dev",
-			Namespace:   "test-app-namespace",
+			Project:     testProject,
 			Description: "this is a test app with env",
 		}
 		base, err := appUsecase.CreateApplication(context.TODO(), req)
@@ -463,7 +471,7 @@ var _ = Describe("Test application usecase function", func() {
 
 		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{
 			Name:      "app-env-recycle",
-			Namespace: "test-app-namespace",
+			Namespace: "project-" + testProject,
 		}, &model.EnvBinding{Name: "dev"})
 		Expect(err).Should(BeNil())
 	})

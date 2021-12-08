@@ -34,37 +34,39 @@ type DeliveryTargetUsecase interface {
 	DeleteDeliveryTarget(ctx context.Context, deliveryTargetName string) error
 	CreateDeliveryTarget(ctx context.Context, req apisv1.CreateDeliveryTargetRequest) (*apisv1.DetailDeliveryTargetResponse, error)
 	UpdateDeliveryTarget(ctx context.Context, deliveryTarget *model.DeliveryTarget, req apisv1.UpdateDeliveryTargetRequest) (*apisv1.DetailDeliveryTargetResponse, error)
-	ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error)
+	ListDeliveryTargets(ctx context.Context, page, pageSize int, project string) (*apisv1.ListTargetResponse, error)
 }
 
 type deliveryTargetUsecaseImpl struct {
-	ds datastore.DataStore
+	ds             datastore.DataStore
+	projectUsecase ProjectUsecase
 }
 
 // NewDeliveryTargetUsecase new DeliveryTarget usecase
-func NewDeliveryTargetUsecase(ds datastore.DataStore) DeliveryTargetUsecase {
+func NewDeliveryTargetUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) DeliveryTargetUsecase {
 	return &deliveryTargetUsecaseImpl{
-		ds: ds,
+		ds:             ds,
+		projectUsecase: projectUsecase,
 	}
 }
 
-func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, page, pageSize int, namespace string) (*apisv1.ListDeliveryTargetResponse, error) {
+func (dt *deliveryTargetUsecaseImpl) ListDeliveryTargets(ctx context.Context, page, pageSize int, project string) (*apisv1.ListTargetResponse, error) {
 	deliveryTarget := model.DeliveryTarget{}
-	if namespace != "" {
-		deliveryTarget.Namespace = namespace
+	if project != "" {
+		deliveryTarget.Project = project
 	}
-	deliveryTargets, err := dt.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{Page: page, PageSize: pageSize})
+	deliveryTargets, err := dt.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
 
-	resp := &apisv1.ListDeliveryTargetResponse{
-		DeliveryTargets: []apisv1.DeliveryTargetBase{},
+	resp := &apisv1.ListTargetResponse{
+		Targets: []apisv1.DeliveryTargetBase{},
 	}
 	for _, raw := range deliveryTargets {
-		dt, ok := raw.(*model.DeliveryTarget)
+		target, ok := raw.(*model.DeliveryTarget)
 		if ok {
-			resp.DeliveryTargets = append(resp.DeliveryTargets, *convertFromDeliveryTargetModel(dt))
+			resp.Targets = append(resp.Targets, *(dt.convertFromDeliveryTargetModel(ctx, target)))
 		}
 	}
 	count, err := dt.ds.Count(ctx, &deliveryTarget, nil)
@@ -92,6 +94,7 @@ func (dt *deliveryTargetUsecaseImpl) DeleteDeliveryTarget(ctx context.Context, d
 
 func (dt *deliveryTargetUsecaseImpl) CreateDeliveryTarget(ctx context.Context, req apisv1.CreateDeliveryTargetRequest) (*apisv1.DetailDeliveryTargetResponse, error) {
 	deliveryTarget := convertCreateReqToDeliveryTargetModel(req)
+
 	// check deliveryTarget name.
 	exit, err := dt.ds.IsExist(ctx, &deliveryTarget)
 	if err != nil {
@@ -101,6 +104,14 @@ func (dt *deliveryTargetUsecaseImpl) CreateDeliveryTarget(ctx context.Context, r
 	if exit {
 		return nil, bcode.ErrDeliveryTargetExist
 	}
+	// check project
+	project, err := dt.projectUsecase.GetProject(ctx, req.Project)
+	if err != nil {
+		return nil, err
+	}
+	deliveryTarget.Namespace = project.Namespace
+	deliveryTarget.Project = project.Name
+
 	if err := dt.ds.Add(ctx, &deliveryTarget); err != nil {
 		return nil, err
 	}
@@ -118,7 +129,7 @@ func (dt *deliveryTargetUsecaseImpl) UpdateDeliveryTarget(ctx context.Context, d
 // DetailDeliveryTarget detail DeliveryTarget
 func (dt *deliveryTargetUsecaseImpl) DetailDeliveryTarget(ctx context.Context, deliveryTarget *model.DeliveryTarget) (*apisv1.DetailDeliveryTargetResponse, error) {
 	return &apisv1.DetailDeliveryTargetResponse{
-		DeliveryTargetBase: *convertFromDeliveryTargetModel(deliveryTarget),
+		DeliveryTargetBase: *dt.convertFromDeliveryTargetModel(ctx, deliveryTarget),
 	}, nil
 }
 
@@ -144,7 +155,6 @@ func convertUpdateReqToDeliveryTargetModel(deliveryTarget *model.DeliveryTarget,
 func convertCreateReqToDeliveryTargetModel(req apisv1.CreateDeliveryTargetRequest) model.DeliveryTarget {
 	deliveryTarget := model.DeliveryTarget{
 		Name:        req.Name,
-		Namespace:   req.Namespace,
 		Alias:       req.Alias,
 		Description: req.Description,
 		Cluster:     (*model.ClusterTarget)(req.Cluster),
@@ -153,12 +163,11 @@ func convertCreateReqToDeliveryTargetModel(req apisv1.CreateDeliveryTargetReques
 	return deliveryTarget
 }
 
-func convertFromDeliveryTargetModel(deliveryTarget *model.DeliveryTarget) *apisv1.DeliveryTargetBase {
+func (dt *deliveryTargetUsecaseImpl) convertFromDeliveryTargetModel(ctx context.Context, deliveryTarget *model.DeliveryTarget) *apisv1.DeliveryTargetBase {
 	var appNum int64 = 0
 	// TODO: query app num in target
-	return &apisv1.DeliveryTargetBase{
+	targetBase := &apisv1.DeliveryTargetBase{
 		Name:        deliveryTarget.Name,
-		Namespace:   deliveryTarget.Namespace,
 		Alias:       deliveryTarget.Alias,
 		Description: deliveryTarget.Description,
 		Cluster:     (*apisv1.ClusterTarget)(deliveryTarget.Cluster),
@@ -167,4 +176,13 @@ func convertFromDeliveryTargetModel(deliveryTarget *model.DeliveryTarget) *apisv
 		UpdateTime:  deliveryTarget.UpdateTime,
 		AppNum:      appNum,
 	}
+
+	project, err := dt.projectUsecase.GetProject(ctx, deliveryTarget.Project)
+	if err != nil {
+		log.Logger.Errorf("query project info failure %s", err.Error())
+	}
+	if project != nil {
+		targetBase.Project = convertProjectModel2Base(project)
+	}
+	return targetBase
 }

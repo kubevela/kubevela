@@ -356,11 +356,11 @@ func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvB
 		dt := dte.(*model.DeliveryTarget)
 		dtMap[dt.Name] = dt
 	}
-	var targets []apisv1.DeliveryTargetBase
+	var targets []apisv1.NameAlias
 	for _, targetName := range envBinding.TargetNames {
 		dt := dtMap[targetName]
 		if dt != nil {
-			targets = append(targets, *convertFromDeliveryTargetModel(dt))
+			targets = append(targets, apisv1.NameAlias{Name: dt.Name, Alias: dt.Alias})
 		}
 	}
 	ebb := &apisv1.EnvBindingBase{

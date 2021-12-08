@@ -25,6 +25,7 @@ func init() {
 type DeliveryTarget struct {
 	Model
 	Name        string                 `json:"name"`
+	Project     string                 `json:"project"`
 	Namespace   string                 `json:"namespace"`
 	Alias       string                 `json:"alias,omitempty"`
 	Description string                 `json:"description,omitempty"`
@@ -50,6 +51,9 @@ func (d *DeliveryTarget) Index() map[string]string {
 	}
 	if d.Namespace != "" {
 		index["namespace"] = d.Namespace
+	}
+	if d.Project != "" {
+		index["project"] = d.Project
 	}
 	return index
 }

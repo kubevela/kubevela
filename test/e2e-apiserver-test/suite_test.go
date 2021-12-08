@@ -17,7 +17,9 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -31,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
 var k8sClient client.Client
@@ -72,11 +75,19 @@ var _ = BeforeSuite(func() {
 	By("wait for api server to start")
 	Eventually(
 		func() error {
-			res, err := http.Get("http://127.0.0.1:8000/api/v1/namespaces")
+			res, err := http.Get("http://127.0.0.1:8000/api/v1/projects")
 			if err != nil {
 				return err
 			}
 			if res.StatusCode == http.StatusOK {
+				var req = apisv1.CreateProjectRequest{
+					Name:        appProject,
+					Description: "test project",
+				}
+				bodyByte, err := json.Marshal(req)
+				Expect(err).ShouldNot(HaveOccurred())
+				_, err = http.Post("http://127.0.0.1:8000/api/v1/projects", "application/json", bytes.NewBuffer(bodyByte))
+				Expect(err).ShouldNot(HaveOccurred())
 				return nil
 			}
 			return errors.New("rest service not ready")

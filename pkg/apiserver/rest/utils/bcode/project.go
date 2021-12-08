@@ -15,9 +15,3 @@ limitations under the License.
 */
 
 package bcode
-
-// ErrProjectIsExist project name is exist
-var ErrProjectIsExist = NewBcode(400, 30001, "project name is exist")
-
-// ErrProjectIsNotExist project is not exist
-var ErrProjectIsNotExist = NewBcode(404, 30002, "project is not exist")

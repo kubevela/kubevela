@@ -97,10 +97,17 @@ type applicationUsecaseImpl struct {
 	envBindingUsecase     EnvBindingUsecase
 	deliveryTargetUsecase DeliveryTargetUsecase
 	definitionUsecase     DefinitionUsecase
+	projectUsecase        ProjectUsecase
 }
 
 // NewApplicationUsecase new application usecase
-func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase, envBindingUsecase EnvBindingUsecase, deliveryTargetUsecase DeliveryTargetUsecase, definitionUsecase DefinitionUsecase) ApplicationUsecase {
+func NewApplicationUsecase(ds datastore.DataStore,
+	workflowUsecase WorkflowUsecase,
+	envBindingUsecase EnvBindingUsecase,
+	deliveryTargetUsecase DeliveryTargetUsecase,
+	definitionUsecase DefinitionUsecase,
+	projectUsecase ProjectUsecase,
+) ApplicationUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
@@ -113,14 +120,15 @@ func NewApplicationUsecase(ds datastore.DataStore, workflowUsecase WorkflowUseca
 		kubeClient:            kubecli,
 		apply:                 apply.NewAPIApplicator(kubecli),
 		definitionUsecase:     definitionUsecase,
+		projectUsecase:        projectUsecase,
 	}
 }
 
 // ListApplications list applications
 func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error) {
 	var app = model.Application{}
-	if listOptions.Namespace != "" {
-		app.Namespace = listOptions.Namespace
+	if listOptions.Project != "" {
+		app.Project = listOptions.Project
 	}
 	entitys, err := c.ds.List(ctx, &app, &datastore.ListOptions{})
 	if err != nil {
@@ -129,7 +137,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 	var list []*apisv1.ApplicationBase
 	for _, entity := range entitys {
 		appModel := entity.(*model.Application)
-		appBase := c.converAppModelToBase(appModel)
+		appBase := c.converAppModelToBase(ctx, appModel)
 		if listOptions.Query != "" &&
 			!(strings.Contains(appBase.Alias, listOptions.Query) ||
 				strings.Contains(appBase.Name, listOptions.Query) ||
@@ -166,7 +174,7 @@ func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName str
 
 // DetailApplication detail application  info
 func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error) {
-	base := c.converAppModelToBase(app)
+	base := c.converAppModelToBase(ctx, app)
 	policys, err := c.queryApplicationPolicys(ctx, app)
 	if err != nil {
 		return nil, err
@@ -255,19 +263,27 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		Name:        req.Name,
 		Alias:       req.Alias,
 		Description: req.Description,
-		Namespace:   req.Namespace,
 		Icon:        req.Icon,
 		Labels:      req.Labels,
 	}
 	// check app name.
-	exit, err := c.ds.IsExist(ctx, &application)
+	exist, err := c.ds.IsExist(ctx, &application)
 	if err != nil {
 		log.Logger.Errorf("check application name is exist failure %s", err.Error())
 		return nil, bcode.ErrApplicationExist
 	}
-	if exit {
+	if exist {
 		return nil, bcode.ErrApplicationExist
 	}
+
+	// check project
+	project, err := c.projectUsecase.GetProject(ctx, req.Project)
+	if err != nil {
+		return nil, err
+	}
+	application.Namespace = project.Namespace
+	application.Project = project.Name
+
 	if req.YamlConfig != "" {
 		var oamApp v1beta1.Application
 		if err := yaml.Unmarshal([]byte(req.YamlConfig), &oamApp); err != nil {
@@ -310,7 +326,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		return nil, err
 	}
 	// render app base info.
-	base := c.converAppModelToBase(&application)
+	base := c.converAppModelToBase(ctx, &application)
 	return base, nil
 }
 
@@ -355,7 +371,7 @@ func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *mod
 	if err := c.ds.Put(ctx, app); err != nil {
 		return nil, err
 	}
-	return c.converAppModelToBase(app), nil
+	return c.converAppModelToBase(ctx, app), nil
 }
 
 func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, app *model.Application, components []common.ApplicationComponent) error {
@@ -831,16 +847,22 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	return app, nil
 }
 
-func (c *applicationUsecaseImpl) converAppModelToBase(app *model.Application) *apisv1.ApplicationBase {
+func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.Application) *apisv1.ApplicationBase {
 	appBase := &apisv1.ApplicationBase{
 		Name:        app.Name,
 		Alias:       app.Alias,
-		Namespace:   app.Namespace,
 		CreateTime:  app.CreateTime,
 		UpdateTime:  app.UpdateTime,
 		Description: app.Description,
 		Icon:        app.Icon,
 		Labels:      app.Labels,
+	}
+	project, err := c.projectUsecase.GetProject(ctx, app.Project)
+	if err != nil {
+		log.Logger.Errorf("query project info failure %s", err.Error())
+	}
+	if project != nil {
+		appBase.Project = convertProjectModel2Base(project)
 	}
 	return appBase
 }

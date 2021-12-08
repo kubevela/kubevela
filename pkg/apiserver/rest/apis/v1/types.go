@@ -58,6 +58,12 @@ const (
 // EmptyResponse empty response, it will used for delete api
 type EmptyResponse struct{}
 
+// NameAlias name and alias
+type NameAlias struct {
+	Name  string `json:"name"`
+	Alias string `json:"alias"`
+}
+
 // CreateAddonRegistryRequest defines the format for addon registry create request
 type CreateAddonRegistryRequest struct {
 	Name string                `json:"name" validate:"checkname"`
@@ -253,7 +259,7 @@ type ClusterBase struct {
 
 // ListApplicatioOptions list application  query options
 type ListApplicatioOptions struct {
-	Namespace  string `json:"namespace"`
+	Project    string `json:"project"`
 	TargetName string `json:"targetName"`
 	Query      string `json:"query"`
 }
@@ -280,7 +286,7 @@ func (e EnvBindingList) ContainTarget(name string) bool {
 type ApplicationBase struct {
 	Name        string            `json:"name"`
 	Alias       string            `json:"alias"`
-	Namespace   string            `json:"namespace"`
+	Project     *ProjectBase      `json:"project"`
 	Description string            `json:"description"`
 	CreateTime  time.Time         `json:"createTime"`
 	UpdateTime  time.Time         `json:"updateTime"`
@@ -306,7 +312,7 @@ type ApplicationStatisticsResponse struct {
 type CreateApplicationRequest struct {
 	Name        string                  `json:"name" validate:"checkname"`
 	Alias       string                  `json:"alias" validate:"checkalias" optional:"true"`
-	Namespace   string                  `json:"namespace" validate:"checkname"`
+	Project     string                  `json:"project" validate:"checkname"`
 	Description string                  `json:"description" optional:"true"`
 	Icon        string                  `json:"icon"`
 	Labels      map[string]string       `json:"labels,omitempty"`
@@ -334,15 +340,15 @@ type EnvBinding struct {
 
 // EnvBindingBase application env binding
 type EnvBindingBase struct {
-	Name              string               `json:"name" validate:"checkname"`
-	Alias             string               `json:"alias" validate:"checkalias" optional:"true"`
-	Description       string               `json:"description,omitempty" optional:"true"`
-	TargetNames       []string             `json:"targetNames"`
-	Targets           []DeliveryTargetBase `json:"deliveryTargets,omitempty"`
-	ComponentSelector *ComponentSelector   `json:"componentSelector" optional:"true"`
-	CreateTime        time.Time            `json:"createTime"`
-	UpdateTime        time.Time            `json:"updateTime"`
-	AppDeployName     string               `json:"appDeployName"`
+	Name              string             `json:"name" validate:"checkname"`
+	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description       string             `json:"description,omitempty" optional:"true"`
+	TargetNames       []string           `json:"targetNames"`
+	Targets           []NameAlias        `json:"deliveryTargets,omitempty"`
+	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
+	CreateTime        time.Time          `json:"createTime"`
+	UpdateTime        time.Time          `json:"updateTime"`
+	AppDeployName     string             `json:"appDeployName"`
 }
 
 // DetailEnvBindingResponse defines the response of env-binding details
@@ -456,28 +462,26 @@ type ApplicationTemplateVersion struct {
 	UpdateTime  time.Time `json:"updateTime"`
 }
 
-// ListNamespaceResponse namesace list model
-type ListNamespaceResponse struct {
-	Namespaces []NamespaceBase `json:"namespaces"`
+// ListProjectResponse list project response body
+type ListProjectResponse struct {
+	Projects []*ProjectBase `json:"projects"`
 }
 
-// NamespaceBase namespace base model
-type NamespaceBase struct {
+// ProjectBase project base model
+type ProjectBase struct {
 	Name        string    `json:"name"`
+	Alias       string    `json:"alias"`
 	Description string    `json:"description"`
+	Namespace   string    `json:"namespace"`
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
 }
 
-// CreateNamespaceRequest create namespace request body
-type CreateNamespaceRequest struct {
+// CreateProjectRequest create project request body
+type CreateProjectRequest struct {
 	Name        string `json:"name" validate:"checkname"`
-	Description string `json:"description"`
-}
-
-// NamespaceDetailResponse namespace detail response
-type NamespaceDetailResponse struct {
-	NamespaceBase
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description" optional:"true"`
 }
 
 // ListDefinitionResponse list definition response model
@@ -705,7 +709,7 @@ type ApplicationTrait struct {
 // CreateDeliveryTargetRequest  create delivery target request body
 type CreateDeliveryTargetRequest struct {
 	Name        string                 `json:"name" validate:"checkname"`
-	Namespace   string                 `json:"namespace"  validate:"checkname"`
+	Project     string                 `json:"project" validate:"checkname"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
@@ -731,16 +735,16 @@ type DetailDeliveryTargetResponse struct {
 	DeliveryTargetBase
 }
 
-// ListDeliveryTargetResponse list delivery target response body
-type ListDeliveryTargetResponse struct {
-	DeliveryTargets []DeliveryTargetBase `json:"deliveryTargets"`
-	Total           int64                `json:"total"`
+// ListTargetResponse list delivery target response body
+type ListTargetResponse struct {
+	Targets []DeliveryTargetBase `json:"targets"`
+	Total   int64                `json:"total"`
 }
 
 // DeliveryTargetBase deliveryTarget base model
 type DeliveryTargetBase struct {
-	Name        string                 `json:"name" validate:"checkname"`
-	Namespace   string                 `json:"namespace"  validate:"checkname"`
+	Name        string                 `json:"name"`
+	Project     *ProjectBase           `json:"project"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`

@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -26,25 +27,26 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-var _ = Describe("Test namespace usecase functions", func() {
+var _ = Describe("Test project usecase functions", func() {
 	var (
-		namespaceUsecase *namespaceUsecaseImpl
+		projectUsecase *projectUsecaseImpl
 	)
 	BeforeEach(func() {
-		namespaceUsecase = &namespaceUsecaseImpl{kubeClient: k8sClient}
+		projectUsecase = &projectUsecaseImpl{kubeClient: k8sClient, ds: ds}
 	})
-	It("Test CreateNamespace function", func() {
-		req := apisv1.CreateNamespaceRequest{
-			Name:        "test-namespace",
-			Description: "this is a namespace description 王二",
+	It("Test Createproject function", func() {
+		req := apisv1.CreateProjectRequest{
+			Name:        "test-project",
+			Description: "this is a project description 王二",
 		}
-		base, err := namespaceUsecase.CreateNamespace(context.TODO(), req)
+		base, err := projectUsecase.CreateProject(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
+		Expect(cmp.Diff(base.Namespace, fmt.Sprintf("project-%s", req.Name))).Should(BeEmpty())
 	})
 
-	It("Test ListNamespace function", func() {
-		_, err := namespaceUsecase.ListNamespaces(context.TODO())
+	It("Test ListProject function", func() {
+		_, err := projectUsecase.ListProjects(context.TODO())
 		Expect(err).Should(BeNil())
 	})
 })
