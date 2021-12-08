@@ -26,6 +26,8 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var paths = []string{
@@ -109,4 +111,51 @@ func TestGetAddon(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, len(items), 1, "should list items only from terraform/ without terraform-alibaba/")
 	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
+}
+
+func TestRenderApp(t *testing.T) {
+	testCueDef := `annotations: {
+	type: "trait"
+	annotations: {}
+	labels: {
+		"ui-hidden": "true"
+	}
+	description: "Add annotations on K8s pod for your workload which follows the pod spec in path 'spec.template'."
+	attributes: {
+		podDisruptive: true
+		appliesToWorkloads: ["*"]
+	}
+}
+template: {
+	patch: {
+		metadata: {
+			annotations: {
+				for k, v in parameter {
+					"\(k)": v
+				}
+			}
+		}
+		spec: template: metadata: annotations: {
+			for k, v in parameter {
+				"\(k)": v
+			}
+		}
+	}
+	parameter: [string]: string
+}
+`
+	addon := types.Addon{
+		AddonMeta: types.AddonMeta{
+			Name: "test-render-cue-definition-addon",
+		},
+		CUEDefinitions: []types.AddonElementFile{
+			{
+				Data: testCueDef,
+				Name: "test-def",
+			},
+		},
+	}
+	app, err := RenderApp(&addon, nil, map[string]interface{}{})
+	assert.NilError(t, err, "render app fail")
+	assert.Equal(t, len(app.Spec.Components), 1)
 }

@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,7 +37,6 @@ import (
 	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/common"
 )
 
 const (
@@ -70,7 +71,7 @@ func createNamespacedTrait(c common2.Args, name string, ns string, t *testing.T)
 			Name:      name,
 			Namespace: ns,
 			Annotations: map[string]string{
-				common.DefinitionDescriptionKey: "My test-trait " + traitName,
+				pkgdef.DescriptionKey: "My test-trait " + traitName,
 			},
 		},
 		Spec: v1beta1.TraitDefinitionSpec{

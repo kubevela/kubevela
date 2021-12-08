@@ -20,6 +20,7 @@ import (
 	"context"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -28,8 +29,8 @@ import (
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, source Source, args map[string]interface{}) error {
-	h := newAddonHandler(ctx, addon, cli, apply, source, args)
+func EnableAddon(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, config *rest.Config, source Source, args map[string]interface{}) error {
+	h := newAddonHandler(ctx, addon, cli, apply, config, source, args)
 	err := h.enableAddon()
 	if err != nil {
 		return err

@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/rest"
+
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -86,6 +88,10 @@ func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
 
 // NewAddonUsecase returns an addon usecase
 func NewAddonUsecase() AddonUsecase {
+	config, err := clients.GetKubeConfig()
+	if err != nil {
+		panic(err)
+	}
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		panic(err)
@@ -94,6 +100,7 @@ func NewAddonUsecase() AddonUsecase {
 		addonRegistryCache: make(map[string]*restutils.MemoryCache),
 		addonRegistryDS:    pkgaddon.NewRegistryDataStore(kubecli),
 		kubeClient:         kubecli,
+		config:             config,
 		apply:              apply.NewAPIApplicator(kubecli),
 	}
 }
@@ -102,6 +109,7 @@ type addonUsecaseImpl struct {
 	addonRegistryCache map[string]*restutils.MemoryCache
 	addonRegistryDS    pkgaddon.RegistryDataStore
 	kubeClient         client.Client
+	config             *rest.Config
 	apply              apply.Applicator
 }
 
@@ -361,7 +369,7 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 			continue
 		}
 
-		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, SourceOf(*r), args.Args)
+		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, u.config, SourceOf(*r), args.Args)
 		if err != nil {
 			log.Logger.Errorf("err when enable addon: %v", err)
 			return bcode.ErrAddonApply
@@ -446,7 +454,7 @@ func (u *addonUsecaseImpl) UpdateAddon(ctx context.Context, name string, args ap
 			continue
 		}
 
-		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, SourceOf(*r), args.Args)
+		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, u.config, SourceOf(*r), args.Args)
 		if err != nil {
 			log.Logger.Errorf("err when enable addon: %v", err)
 			return bcode.ErrAddonApply
