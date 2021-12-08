@@ -35,19 +35,10 @@ func init() {
 }
 
 // HTTPCmd provides methods for http task
-type HTTPCmd struct {
-	*http.Client
-}
+type HTTPCmd struct{}
 
-func newHTTPCmd(v cue.Value) (registry.Runner, error) {
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-	return &HTTPCmd{client}, nil
+func newHTTPCmd(_ cue.Value) (registry.Runner, error) {
+	return &HTTPCmd{}, nil
 }
 
 // Run exec the actual http logic, and res represent the result of http task
