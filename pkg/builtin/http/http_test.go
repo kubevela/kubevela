@@ -17,6 +17,9 @@ limitations under the License.
 package http
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -27,6 +30,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/bmizerany/assert"
 
+	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
@@ -96,6 +100,29 @@ func TestHTTPCmdRun(t *testing.T) {
 
 }
 
+func TestHTTPSRun(t *testing.T) {
+	s := newMockHttpsServer()
+	defer s.Close()
+	r := cue.Runtime{}
+	reqInst, err := r.Compile("-", `method: "GET"
+url: "https://127.0.0.1:8443/api/v1/token?val=test-token"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.Ca), "tls_config", "ca")
+	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.ClientCrt), "tls_config", "client_crt")
+	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.ClientKey), "tls_config", "client_key")
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	got, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+	if err != nil {
+		t.Error(err)
+	}
+	body := (got.(map[string]interface{}))["body"].(string)
+
+	assert.Equal(t, "{\"token\":\"test-token\"}", body)
+}
+
 // NewMock mock the http server
 func NewMock() *httptest.Server {
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -117,4 +144,41 @@ func NewMock() *httptest.Server {
 	ts.Listener = l
 	ts.Start()
 	return ts
+}
+
+func newMockHttpsServer() *httptest.Server {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			fmt.Printf("Expected 'GET' request, got '%s'", r.Method)
+		}
+		if r.URL.EscapedPath() != "/api/v1/token" {
+			fmt.Printf("Expected request to '/person', got '%s'", r.URL.EscapedPath())
+		}
+		r.ParseForm()
+		token := r.Form.Get("val")
+		tokenBytes, _ := json.Marshal(map[string]interface{}{"token": token})
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(tokenBytes)
+	}))
+	l, _ := net.Listen("tcp", "127.0.0.1:8443")
+	ts.Listener.Close()
+	ts.Listener = l
+
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM([]byte(decodeCert(testdata.MockCerts.Ca)))
+	cert, _ := tls.X509KeyPair([]byte(decodeCert(testdata.MockCerts.ServerCrt)), []byte(decodeCert(testdata.MockCerts.ServerKey)))
+	ts.TLS = &tls.Config{
+		ClientCAs:    pool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{cert},
+		NextProtos:   []string{"http/1.1"},
+	}
+	ts.StartTLS()
+	return ts
+}
+
+func decodeCert(in string) string {
+	out, _ := base64.StdEncoding.DecodeString(in)
+	return string(out)
 }

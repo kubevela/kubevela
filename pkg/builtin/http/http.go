@@ -19,10 +19,13 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"net/http"
+	"time"
 
 	"cuelang.org/go/cue"
+	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
@@ -54,7 +57,13 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		method = meta.String("method")
 		u      = meta.String("url")
 	)
-	var r io.Reader
+	var (
+		r      io.Reader
+		client = &http.Client{
+			Transport: &http.Transport{},
+			Timeout:   time.Second * 3,
+		}
+	)
 	if obj := meta.Obj.Lookup("request"); obj.Exists() {
 		if v := obj.Lookup("body"); v.Exists() {
 			r, err = v.Reader()
@@ -83,7 +92,43 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	}
 	req.Header = header
 	req.Trailer = trailer
-	resp, err := c.Client.Do(req)
+
+	if tlsConfig := meta.Obj.Lookup("tls_config"); tlsConfig.Exists() {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				NextProtos: []string{"http/1.1"},
+			},
+		}
+		ca := tlsConfig.Lookup("ca")
+		if caCrt, err := ca.String(); err != nil {
+			return nil, errors.WithMessage(err, "parse ca")
+		} else {
+			pool := x509.NewCertPool()
+			pool.AppendCertsFromPEM([]byte(caCrt))
+			tr.TLSClientConfig.RootCAs = pool
+		}
+
+		cert := tlsConfig.Lookup("client_crt")
+		key := tlsConfig.Lookup("client_key")
+		if cert.Exists() && key.Exists() {
+			crtData, err := cert.String()
+			if err != nil {
+				return nil, err
+			}
+			keyData, err := key.String()
+			if err != nil {
+				return nil, err
+			}
+			cliCrt, err := tls.X509KeyPair([]byte(crtData), []byte(keyData))
+			if err != nil {
+				return nil, errors.WithMessage(err, "parse client keypair")
+			}
+			tr.TLSClientConfig.Certificates = []tls.Certificate{cliCrt}
+		}
+
+		client.Transport = tr
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
