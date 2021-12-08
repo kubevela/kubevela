@@ -53,6 +53,8 @@ const (
 	StatusReasonParameter = "ProcessParameter"
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
+
+	maxErrorTimes = 5
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -157,6 +159,8 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			defer func() {
 				tracer.Commit(string(exec.status().Phase))
 			}()
+
+			// TODO:
 
 			if t.runOptionsProcess != nil {
 				t.runOptionsProcess(options)
@@ -269,6 +273,7 @@ func (exec *executor) Wait(message string) {
 }
 
 func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
+	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
 	exec.wfStatus.Message = err.Error()
 	exec.wfStatus.Reason = reason
@@ -276,9 +281,9 @@ func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 }
 
 func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
-	times := ctx.IncreaseCountInConfigMap(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
-	if times >= 5 {
-		exec.wfStatus.Phase = common.WorkflowStepPhaseFailedAfterRetries
+	times := ctx.IncreaseModifiableCountValue(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
+	if times >= maxErrorTimes {
+		exec.wait = false
 		exec.failedAfterRetries = true
 	}
 }

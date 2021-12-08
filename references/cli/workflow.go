@@ -111,9 +111,6 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 			if err != nil {
 				return err
 			}
-			if app.Spec.Workflow == nil {
-				return fmt.Errorf("the application must have workflow")
-			}
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}

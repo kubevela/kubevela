@@ -76,22 +76,22 @@ func (c ViewContext) GetStore() *corev1.ConfigMap {
 	return nil
 }
 
-// GetDataInConfigMap get data from workflow context config map.
-func (c ViewContext) GetDataInConfigMap(paths ...string) string {
+// GetModifiableValue get modifiable data from workflow context.
+func (c ViewContext) GetModifiableValue(paths ...string) string {
 	return ""
 }
 
-// SetDataInConfigMap set data in workflow context config map.
-func (c ViewContext) SetDataInConfigMap(data string, paths ...string) {
+// SetModifiableValue set modifiable data in workflow context config map.
+func (c ViewContext) SetModifiableValue(data string, paths ...string) {
 }
 
-// IncreaseCountInConfigMap increase count in workflow context config map.
-func (c ViewContext) IncreaseCountInConfigMap(paths ...string) int {
+// IncreaseModifiableCountValue increase modifiable count in workflow context.
+func (c ViewContext) IncreaseModifiableCountValue(paths ...string) int {
 	return 0
 }
 
-// DeleteDataInConfigMap delete data in workflow context config map.
-func (c ViewContext) DeleteDataInConfigMap(paths ...string) {
+// DeleteModifiableValue delete modifiable data in workflow context.
+func (c ViewContext) DeleteModifiableValue(paths ...string) {
 }
 
 // Commit the workflow context and persist it's content.

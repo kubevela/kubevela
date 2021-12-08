@@ -30,10 +30,10 @@ type Context interface {
 	GetVar(paths ...string) (*value.Value, error)
 	SetVar(v *value.Value, paths ...string) error
 	GetStore() *corev1.ConfigMap
-	GetDataInConfigMap(path ...string) string
-	SetDataInConfigMap(data string, path ...string)
-	IncreaseCountInConfigMap(paths ...string) int
-	DeleteDataInConfigMap(paths ...string)
+	GetModifiableValue(path ...string) string
+	SetModifiableValue(data string, path ...string)
+	IncreaseModifiableCountValue(paths ...string) int
+	DeleteModifiableValue(paths ...string)
 	Commit() error
 	MakeParameter(parameter interface{}) (*value.Value, error)
 	StoreRef() *corev1.ObjectReference

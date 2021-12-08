@@ -329,6 +329,7 @@ type PolicyStatus struct {
 type WorkflowStatus struct {
 	AppRevision string       `json:"appRevision,omitempty"`
 	Mode        WorkflowMode `json:"mode"`
+	Message     string       `json:"message,omitempty"`
 
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
@@ -355,8 +356,6 @@ const (
 	WorkflowStepPhaseSucceeded WorkflowStepPhase = "succeeded"
 	// WorkflowStepPhaseFailed will report error in `message`.
 	WorkflowStepPhaseFailed WorkflowStepPhase = "failed"
-	// WorkflowStepPhaseFailedAfterRetries will make the controller stop the workflow and report error in `message`.
-	WorkflowStepPhaseFailedAfterRetries WorkflowStepPhase = "failedAfterRetries"
 	// WorkflowStepPhaseStopped will make the controller stop the workflow.
 	WorkflowStepPhaseStopped WorkflowStepPhase = "stopped"
 	// WorkflowStepPhaseRunning will make the controller continue the workflow.

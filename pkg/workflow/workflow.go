@@ -148,11 +148,13 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		ctx.Error(err, "run steps")
 		return common.WorkflowStateExecuting, err
 	}
+
+	e.writeWorkflowStatusMessage()
 	if wfStatus.Terminated {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
-		return common.WorkflowStateSuspended, nil
+		return common.WorkflowStateSuspended, w.Cleanup(ctx)
 	}
 	if w.allDone(taskRunners) {
 		return common.WorkflowStateSucceeded, nil
@@ -284,8 +286,6 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 		pendingTasks []wfTypes.TaskRunner
 	)
 	done := true
-	wait := false
-	failed := false
 	for _, tRunner := range taskRunners {
 		ready := false
 		var stepID string
@@ -304,7 +304,7 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 			}
 			todoTasks = append(todoTasks, tRunner)
 		} else {
-			wfCtx.DeleteDataInConfigMap(wfTypes.ContextPrefixBackoffTimes, stepID)
+			wfCtx.DeleteModifiableValue(wfTypes.ContextPrefixBackoffTimes, stepID)
 		}
 	}
 	if done {
@@ -317,20 +317,6 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 			return err
 		}
 
-		for _, ss := range e.status.Steps {
-			if ss.Phase == common.WorkflowStepPhaseRunning {
-				wait = true
-				break
-			}
-			if ss.Phase == common.WorkflowStepPhaseFailedAfterRetries {
-				failed = true
-			}
-		}
-		if !wait && failed {
-			e.finishStep(&wfTypes.Operation{
-				Suspend: true,
-			})
-		}
 		if e.needStop() {
 			return nil
 		}
@@ -349,6 +335,14 @@ func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) 
 	}
 
 	return e.steps(wfCtx, e.todoByIndex(taskRunners))
+}
+
+func (e *engine) writeWorkflowStatusMessage() {
+	if !e.waiting && e.failedAfterRetries {
+		e.status.Message = "The workflow suspends automatically because the failed times of steps have reached the limit(20 times)"
+	} else {
+		e.status.Message = ""
+	}
 }
 
 func (e *engine) todoByIndex(taskRunners []wfTypes.TaskRunner) []wfTypes.TaskRunner {
@@ -381,8 +375,10 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 
 		e.updateStepStatus(status)
 
+		e.failedAfterRetries = e.failedAfterRetries || operation.FailedAfterRetries
+		e.waiting = e.waiting || operation.Waiting
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
-			wfCtx.IncreaseCountInConfigMap(wfTypes.ContextPrefixBackoffTimes, status.ID)
+			wfCtx.IncreaseModifiableCountValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
 			if err := wfCtx.Commit(); err != nil {
 				return errors.WithMessage(err, "commit workflow context")
 			}
@@ -391,14 +387,11 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 			}
 			return nil
 		}
-		wfCtx.DeleteDataInConfigMap(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		wfCtx.DeleteModifiableValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
 		if err := wfCtx.Commit(); err != nil {
 			return errors.WithMessage(err, "commit workflow context")
 		}
 
-		if operation.FailedAfterRetries {
-			operation.Suspend = true
-		}
 		e.finishStep(operation)
 		if e.needStop() {
 			return nil
@@ -408,10 +401,12 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 }
 
 type engine struct {
-	dagMode    bool
-	status     *common.WorkflowStatus
-	monitorCtx monitorContext.Context
-	app        *oamcore.Application
+	dagMode            bool
+	failedAfterRetries bool
+	waiting            bool
+	status             *common.WorkflowStatus
+	monitorCtx         monitorContext.Context
+	app                *oamcore.Application
 }
 
 func (e *engine) isDag() bool {
@@ -446,6 +441,9 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 }
 
 func (e *engine) needStop() bool {
+	if !e.waiting && e.failedAfterRetries {
+		e.status.Suspend = true
+	}
 	return e.status.Suspend || e.status.Terminated
 }
 

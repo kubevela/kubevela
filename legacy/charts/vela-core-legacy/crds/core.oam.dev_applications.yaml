@@ -901,6 +901,8 @@ spec:
                     type: object
                   finished:
                     type: boolean
+                  message:
+                    type: string
                   mode:
                     description: WorkflowMode describes the mode of workflow
                     type: string
@@ -1992,6 +1994,8 @@ spec:
                     type: object
                   finished:
                     type: boolean
+                  message:
+                    type: string
                   mode:
                     description: WorkflowMode describes the mode of workflow
                     type: string

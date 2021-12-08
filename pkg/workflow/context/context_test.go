@@ -287,7 +287,9 @@ func newContextForTest(t *testing.T) *WorkflowContext {
 	err = json.Unmarshal(testCaseJson, &cm)
 	assert.NilError(t, err)
 
-	wfCtx := new(WorkflowContext)
+	wfCtx := &WorkflowContext{
+		store: &cm,
+	}
 	err = wfCtx.LoadFromConfigMap(cm)
 	assert.NilError(t, err)
 	return wfCtx
