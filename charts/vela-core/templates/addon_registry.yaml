@@ -10,6 +10,7 @@ data:
     "oss": {
       "end_point": "https://addons.kubevela.net",
       "bucket": ""
+      "path": "stable"
     }
   }
 }'

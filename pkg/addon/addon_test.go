@@ -88,7 +88,7 @@ func TestGetAddon(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
-	reader, err := NewAsyncReader(server.URL, "", "", ossType)
+	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
 
 	assert.NilError(t, err)
 
