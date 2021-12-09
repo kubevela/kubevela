@@ -114,7 +114,40 @@ func TestGetAddon(t *testing.T) {
 }
 
 func TestRenderApp(t *testing.T) {
-	testCueDef := `annotations: {
+
+	addon := baseAddon
+	app, err := RenderApp(&addon, nil, map[string]interface{}{})
+	assert.NilError(t, err, "render app fail")
+	assert.Equal(t, len(app.Spec.Components), 1)
+}
+
+func TestRenderDefinitions(t *testing.T) {
+	addonDeployToRuntime := baseAddon
+	addonDeployToRuntime.AddonMeta.DeployTo = &types.AddonDeployTo{
+		ControlPlane:   true,
+		RuntimeCluster: true,
+	}
+	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
+	assert.NilError(t, err)
+	assert.Equal(t, len(defs), 1)
+	def := defs[0]
+	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
+	assert.Equal(t, def.GetKind(), "TraitDefinition")
+}
+
+var baseAddon = types.Addon{
+	AddonMeta: types.AddonMeta{
+		Name: "test-render-cue-definition-addon",
+	},
+	CUEDefinitions: []types.AddonElementFile{
+		{
+			Data: testCueDef,
+			Name: "test-def",
+		},
+	},
+}
+
+var testCueDef = `annotations: {
 	type: "trait"
 	annotations: {}
 	labels: {
@@ -144,18 +177,3 @@ template: {
 	parameter: [string]: string
 }
 `
-	addon := types.Addon{
-		AddonMeta: types.AddonMeta{
-			Name: "test-render-cue-definition-addon",
-		},
-		CUEDefinitions: []types.AddonElementFile{
-			{
-				Data: testCueDef,
-				Name: "test-def",
-			},
-		},
-	}
-	app, err := RenderApp(&addon, nil, map[string]interface{}{})
-	assert.NilError(t, err, "render app fail")
-	assert.Equal(t, len(app.Spec.Components), 1)
-}
