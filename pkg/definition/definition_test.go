@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package definition
 
 import (
 	"context"
@@ -33,12 +33,12 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 	def := &Definition{Unstructured: unstructured.Unstructured{}}
 	def.SetAnnotations(map[string]string{
-		DefinitionUserPrefix + "annotation": "annotation",
-		"other":                             "other",
+		UserPrefix + "annotation": "annotation",
+		"other":                   "other",
 	})
 	def.SetLabels(map[string]string{
-		DefinitionUserPrefix + "label": "label",
-		"other":                        "other",
+		UserPrefix + "label": "label",
+		"other":              "other",
 	})
 	def.SetName("test-trait")
 	def.SetGVK("TraitDefinition")

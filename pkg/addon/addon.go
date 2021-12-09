@@ -27,6 +27,10 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/client-go/rest"
+
+	"github.com/oam-dev/kubevela/pkg/definition"
+
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
@@ -216,6 +220,13 @@ forLoop:
 	return r.Addon(), nil
 }
 
+// appendFile will add AddonElementFile to a slice, lock to avoid goroutine race
+func appendFile(lock *sync.Mutex, slice *[]types.AddonElementFile, file types.AddonElementFile) {
+	lock.Lock()
+	*slice = append(*slice, file)
+	lock.Unlock()
+}
+
 func readTemplate(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 	defer wg.Done()
 	data, _, err := reader.Read(readPath)
@@ -285,15 +296,12 @@ func readResFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		reader.Addon().Parameters = b
 		return
 	}
+	file := types.AddonElementFile{Data: b, Name: path.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
-		reader.Mutex().Lock()
-		reader.Addon().CUETemplates = append(reader.Addon().CUETemplates, types.AddonElementFile{Data: b, Name: path.Base(readPath)})
-		reader.Mutex().Unlock()
+		appendFile(reader.Mutex(), &reader.Addon().CUETemplates, file)
 	default:
-		reader.Mutex().Lock()
-		reader.Addon().YAMLTemplates = append(reader.Addon().YAMLTemplates, types.AddonElementFile{Data: b, Name: path.Base(readPath)})
-		reader.Mutex().Unlock()
+		appendFile(reader.Mutex(), &reader.Addon().YAMLTemplates, file)
 	}
 }
 
@@ -335,9 +343,14 @@ func readDefFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		reader.SendErr(err)
 		return
 	}
-	reader.Mutex().Lock()
-	reader.Addon().Definitions = append(reader.Addon().Definitions, types.AddonElementFile{Data: b, Name: path.Base(readPath)})
-	reader.Mutex().Unlock()
+	filename := path.Base(readPath)
+	file := types.AddonElementFile{Data: b, Name: path.Base(readPath)}
+	switch filepath.Ext(filename) {
+	case ".cue":
+		appendFile(reader.Mutex(), &reader.Addon().CUEDefinitions, file)
+	default:
+		appendFile(reader.Mutex(), &reader.Addon().Definitions, file)
+	}
 }
 
 func readMetadata(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
@@ -410,8 +423,8 @@ func genAddonAPISchema(addonRes *types.Addon) error {
 	return nil
 }
 
-// RenderAppAndResources render a K8s application
-func RenderAppAndResources(addon *types.Addon, args map[string]interface{}) (*v1beta1.Application, []*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+// RenderApp render a K8s application
+func RenderApp(addon *types.Addon, config *rest.Config, args map[string]interface{}) (*v1beta1.Application, error) {
 	if args == nil {
 		args = map[string]interface{}{}
 	}
@@ -448,14 +461,14 @@ func RenderAppAndResources(addon *types.Addon, args map[string]interface{}) (*v1
 	for _, tmpl := range addon.YAMLTemplates {
 		comp, err := renderRawComponent(tmpl)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
 	for _, tmpl := range addon.CUETemplates {
 		comp, err := renderCUETemplate(tmpl, addon.Parameters, args)
 		if err != nil {
-			return nil, nil, nil, ErrRenderCueTmpl
+			return nil, ErrRenderCueTmpl
 		}
 		if addon.Name == "observability" && strings.HasSuffix(comp.Name, ".cue") {
 			comp.Name = strings.Split(comp.Name, ".cue")[0]
@@ -463,26 +476,7 @@ func RenderAppAndResources(addon *types.Addon, args map[string]interface{}) (*v1
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
 
-	var schemaConfigmaps []*unstructured.Unstructured
-
-	var defObjs []*unstructured.Unstructured
-
 	if isDeployToRuntimeOnly(addon) {
-		// Runtime cluster mode needs to deploy definitions to control plane k8s.
-		for _, def := range addon.Definitions {
-			obj, err := renderObject(def)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			defObjs = append(defObjs, obj)
-		}
-		for _, teml := range addon.DefSchemas {
-			u, err := renderSchemaConfigmap(teml)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			schemaConfigmaps = append(schemaConfigmaps, u)
-		}
 		if app.Spec.Workflow == nil {
 			app.Spec.Workflow = &v1beta1.Workflow{Steps: make([]v1beta1.WorkflowStep, 0)}
 		}
@@ -499,14 +493,26 @@ func RenderAppAndResources(addon *types.Addon, args map[string]interface{}) (*v1
 		for _, def := range addon.Definitions {
 			comp, err := renderRawComponent(def)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, err
 			}
 			app.Spec.Components = append(app.Spec.Components, *comp)
+		}
+		for _, cueDef := range addon.CUEDefinitions {
+			def := definition.Definition{Unstructured: unstructured.Unstructured{}}
+			err := def.FromCUEString(cueDef.Data, config)
+			if err != nil {
+				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
+			}
+			app.Spec.Components = append(app.Spec.Components, common2.ApplicationComponent{
+				Name:       cueDef.Name,
+				Type:       "raw",
+				Properties: util.Object2RawExtension(&def.Unstructured),
+			})
 		}
 		for _, teml := range addon.DefSchemas {
 			u, err := renderSchemaConfigmap(teml)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, err
 			}
 			app.Spec.Components = append(app.Spec.Components, common2.ApplicationComponent{
 				Name:       teml.Name,
@@ -514,14 +520,56 @@ func RenderAppAndResources(addon *types.Addon, args map[string]interface{}) (*v1
 				Properties: util.Object2RawExtension(u),
 			})
 		}
+		// set to nil so workflow mode will be set to "DAG" automatically
 		if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) == 0 {
 			app.Spec.Workflow = nil
 		}
 	}
 
-	return app, defObjs, schemaConfigmaps, nil
+	return app, nil
 }
 
+// RenderDefinitions render definition objects if needed
+func RenderDefinitions(addon *types.Addon, config *rest.Config) ([]*unstructured.Unstructured, error) {
+	defObjs := make([]*unstructured.Unstructured, 0)
+
+	if isDeployToRuntimeOnly(addon) {
+		// Runtime cluster mode needs to deploy definitions to control plane k8s.
+		for _, def := range addon.Definitions {
+			obj, err := renderObject(def)
+			if err != nil {
+				return nil, err
+			}
+			defObjs = append(defObjs, obj)
+		}
+
+		for _, cueDef := range addon.CUEDefinitions {
+			def := definition.Definition{Unstructured: unstructured.Unstructured{}}
+			err := def.FromCUEString(cueDef.Data, config)
+			if err != nil {
+				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
+			}
+			defObjs = append(defObjs, &def.Unstructured)
+		}
+	}
+	return defObjs, nil
+}
+
+// RenderDefinitionSchema will render definitions' schema in addons.
+func RenderDefinitionSchema(addon *types.Addon) ([]*unstructured.Unstructured, error) {
+	schemaConfigmaps := make([]*unstructured.Unstructured, 0)
+
+	if isDeployToRuntimeOnly(addon) {
+		for _, teml := range addon.DefSchemas {
+			u, err := renderSchemaConfigmap(teml)
+			if err != nil {
+				return nil, err
+			}
+			schemaConfigmaps = append(schemaConfigmaps, u)
+		}
+	}
+	return schemaConfigmaps, nil
+}
 func isDeployToRuntimeOnly(addon *types.Addon) bool {
 	if addon.DeployTo == nil {
 		return false
@@ -658,16 +706,18 @@ func Convert2SecName(name string) string {
 type Handler struct {
 	ctx    context.Context
 	addon  *types.Addon
+	config *rest.Config
 	cli    client.Client
 	apply  apply.Applicator
 	source Source
 	args   map[string]interface{}
 }
 
-func newAddonHandler(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, source Source, args map[string]interface{}) Handler {
+func newAddonHandler(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, config *rest.Config, source Source, args map[string]interface{}) Handler {
 	return Handler{
 		ctx:    ctx,
 		addon:  addon,
+		config: config,
 		cli:    cli,
 		apply:  apply,
 		source: source,
@@ -720,9 +770,19 @@ func (h *Handler) checkDependencies() error {
 }
 
 func (h *Handler) dispatchAddonResource() error {
-	app, defs, schemas, err := RenderAppAndResources(h.addon, h.args)
+	app, err := RenderApp(h.addon, h.config, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
+	}
+
+	defs, err := RenderDefinitions(h.addon, h.config)
+	if err != nil {
+		return errors.Wrap(err, "render addon definitions fail")
+	}
+
+	schemas, err := RenderDefinitionSchema(h.addon)
+	if err != nil {
+		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
 
 	err = h.apply.Apply(h.ctx, app)

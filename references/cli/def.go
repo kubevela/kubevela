@@ -42,8 +42,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
+	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	common2 "github.com/oam-dev/kubevela/references/common"
 )
 
 const (
@@ -105,7 +105,7 @@ func loadYAMLBytesFromFileOrHTTP(pathOrURL string) ([]byte, error) {
 	return os.ReadFile(path.Clean(pathOrURL))
 }
 
-func buildTemplateFromYAML(templateYAML string, def *common2.Definition) error {
+func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 	templateYAMLBytes, err := loadYAMLBytesFromFileOrHTTP(templateYAML)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get template YAML file %s", templateYAML)
@@ -140,7 +140,7 @@ func buildTemplateFromYAML(templateYAML string, def *common2.Definition) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to encode template cue string")
 	}
-	err = unstructured.SetNestedField(def.Object, templateString, common2.DefinitionTemplateKeys...)
+	err = unstructured.SetNestedField(def.Object, templateString, pkgdef.DefinitionTemplateKeys...)
 	if err != nil {
 		return errors.Wrapf(err, "failed to merge template cue string")
 	}
@@ -185,8 +185,8 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			if interactive {
 				reader := bufio.NewReader(cmd.InOrStdin())
 				if definitionType == "" {
-					if definitionType, err = getPrompt(cmd, reader, "Please choose one definition type from the following values: "+strings.Join(common2.ValidDefinitionTypes(), ", ")+"\n", "> Definition type: ", func(resp string) error {
-						if _, ok := common2.DefinitionTypeToKind[resp]; !ok {
+					if definitionType, err = getPrompt(cmd, reader, "Please choose one definition type from the following values: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", ")+"\n", "> Definition type: ", func(resp string) error {
+						if _, ok := pkgdef.DefinitionTypeToKind[resp]; !ok {
 							return errors.New("invalid definition type")
 						}
 						return nil
@@ -217,18 +217,18 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 				}
 			}
 
-			kind, ok := common2.DefinitionTypeToKind[definitionType]
+			kind, ok := pkgdef.DefinitionTypeToKind[definitionType]
 			if !ok {
 				return errors.New("invalid definition type")
 			}
-			def := common2.Definition{Unstructured: unstructured.Unstructured{}}
+			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 			def.SetGVK(kind)
 			def.SetName(args[0])
 			def.SetAnnotations(map[string]string{
-				common2.DefinitionDescriptionKey: desc,
+				pkgdef.DescriptionKey: desc,
 			})
 			def.SetLabels(map[string]string{})
-			def.Object["spec"] = common2.GetDefinitionDefaultSpec(def.GetKind())
+			def.Object["spec"] = pkgdef.GetDefinitionDefaultSpec(def.GetKind())
 			if templateYAML != "" {
 				if err = buildTemplateFromYAML(templateYAML, &def); err != nil {
 					return err
@@ -249,7 +249,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagType, "t", "", "Specify the type of the new definition. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
+	cmd.Flags().StringP(FlagType, "t", "", "Specify the type of the new definition. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(FlagDescription, "d", "", "Specify the description of the new definition.")
 	cmd.Flags().StringP(FlagTemplateYAML, "y", "", "Specify the template yaml file that definition will use to build the schema. If empty, a default template for the given definition type will be used.")
 	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the generated definition. If empty, the definition will be printed in the console.")
@@ -257,8 +257,8 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
-func getSingleDefinition(cmd *cobra.Command, definitionName string, client client.Client, definitionType string, namespace string) (*common2.Definition, error) {
-	definitions, err := common2.SearchDefinition(definitionName, client, definitionType, namespace)
+func getSingleDefinition(cmd *cobra.Command, definitionName string, client client.Client, definitionType string, namespace string) (*pkgdef.Definition, error) {
+	definitions, err := pkgdef.SearchDefinition(definitionName, client, definitionType, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -271,14 +271,14 @@ func getSingleDefinition(cmd *cobra.Command, definitionName string, client clien
 		for _, definition := range definitions {
 			desc := ""
 			if annotations := definition.GetAnnotations(); annotations != nil {
-				desc = annotations[common2.DefinitionDescriptionKey]
+				desc = annotations[pkgdef.DescriptionKey]
 			}
 			table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
 		}
 		cmd.Println(table)
 		return nil, fmt.Errorf("found %d definitions, please specify which one to select with more arguments", len(definitions))
 	}
-	return &common2.Definition{Unstructured: definitions[0]}, nil
+	return &pkgdef.Definition{Unstructured: definitions[0]}, nil
 }
 
 // NewDefinitionGetCommand create the `vela def get` command to get definition from k8s
@@ -319,7 +319,7 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
+	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
 	return cmd
 }
@@ -348,7 +348,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			definitions, err := common2.SearchDefinition("*", k8sClient, definitionType, namespace)
+			definitions, err := pkgdef.SearchDefinition("*", k8sClient, definitionType, namespace)
 			if err != nil {
 				return err
 			}
@@ -361,7 +361,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			for _, definition := range definitions {
 				desc := ""
 				if annotations := definition.GetAnnotations(); annotations != nil {
-					desc = annotations[common2.DefinitionDescriptionKey]
+					desc = annotations[pkgdef.DescriptionKey]
 				}
 				table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
 			}
@@ -369,7 +369,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
+	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to list. If empty, all namespaces will be searched.")
 	return cmd
 }
@@ -453,7 +453,7 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
+	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
 	return cmd
 }
@@ -496,7 +496,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				if err != nil {
 					return errors.Wrapf(err, "failed to get %s", args[0])
 				}
-				def := common2.Definition{Unstructured: unstructured.Unstructured{}}
+				def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 				if err := def.FromCUEString(string(cueBytes), c.Config); err != nil {
 					return errors.Wrapf(err, "failed to parse CUE")
 				}
@@ -602,7 +602,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get %s", args[0])
 			}
-			def := common2.Definition{Unstructured: unstructured.Unstructured{}}
+			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 			if err := def.FromCUEString(string(cueBytes), c.Config); err != nil {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}
@@ -617,7 +617,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			oldDef := common2.Definition{Unstructured: unstructured.Unstructured{}}
+			oldDef := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 			oldDef.SetGroupVersionKind(def.GroupVersionKind())
 			err = k8sClient.Get(ctx, types2.NamespacedName{
 				Namespace: def.GetNamespace(),
@@ -675,7 +675,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			desc := def.GetAnnotations()[common2.DefinitionDescriptionKey]
+			desc := def.GetAnnotations()[pkgdef.DescriptionKey]
 			toDelete := false
 			_, err = getPrompt(cmd, bufio.NewReader(cmd.InOrStdin()),
 				fmt.Sprintf("Are you sure to delete the following definition in namespace %s?\n", def.GetNamespace())+
@@ -709,7 +709,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagType, "t", "", "Specify the definition type of target. Valid types: "+strings.Join(common2.ValidDefinitionTypes(), ", "))
+	cmd.Flags().StringP(FlagType, "t", "", "Specify the definition type of target. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace the definition locates.")
 	return cmd
 }
@@ -729,7 +729,7 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to read %s", args[0])
 			}
-			def := common2.Definition{Unstructured: unstructured.Unstructured{}}
+			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 			if err := def.FromCUEString(string(cueBytes), c.Config); err != nil {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}

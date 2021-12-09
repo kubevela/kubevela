@@ -196,13 +196,14 @@ type Addon struct {
 	UISchema  []*utils.UIParameter `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
-	Detail        string               `json:"detail,omitempty"`
-	Definitions   []AddonElementFile   `json:"definitions"`
-	Parameters    string               `json:"parameters"`
-	CUETemplates  []AddonElementFile   `json:"cue_templates"`
-	YAMLTemplates []AddonElementFile   `json:"yaml_templates,omitempty"`
-	DefSchemas    []AddonElementFile   `json:"def_schemas,omitempty"`
-	AppTemplate   *v1beta1.Application `json:"app_template"`
+	Detail         string               `json:"detail,omitempty"`
+	Definitions    []AddonElementFile   `json:"definitions"`
+	CUEDefinitions []AddonElementFile   `json:"cue_definitions"`
+	Parameters     string               `json:"parameters"`
+	CUETemplates   []AddonElementFile   `json:"cue_templates"`
+	YAMLTemplates  []AddonElementFile   `json:"yaml_templates,omitempty"`
+	DefSchemas     []AddonElementFile   `json:"def_schemas,omitempty"`
+	AppTemplate    *v1beta1.Application `json:"app_template"`
 }
 
 // AddonMeta defines the format for a single addon

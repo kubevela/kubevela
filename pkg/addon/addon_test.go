@@ -26,6 +26,8 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var paths = []string{
@@ -110,3 +112,75 @@ func TestGetAddon(t *testing.T) {
 	assert.Equal(t, len(items), 1, "should list items only from terraform/ without terraform-alibaba/")
 	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
 }
+
+func TestRenderApp(t *testing.T) {
+	addon := baseAddon
+	app, err := RenderApp(&addon, nil, map[string]interface{}{})
+	assert.NilError(t, err, "render app fail")
+	assert.Equal(t, len(app.Spec.Components), 2)
+}
+
+func TestRenderDeploy2RuntimeAddon(t *testing.T) {
+	addonDeployToRuntime := baseAddon
+	addonDeployToRuntime.AddonMeta.DeployTo = &types.AddonDeployTo{
+		ControlPlane:   true,
+		RuntimeCluster: true,
+	}
+	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
+	assert.NilError(t, err)
+	assert.Equal(t, len(defs), 1)
+	def := defs[0]
+	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
+	assert.Equal(t, def.GetKind(), "TraitDefinition")
+
+	app, err := RenderApp(&addonDeployToRuntime, nil, map[string]interface{}{})
+	assert.NilError(t, err)
+	steps := app.Spec.Workflow.Steps
+	assert.Check(t, len(steps) >= 2)
+	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
+	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
+}
+
+var baseAddon = types.Addon{
+	AddonMeta: types.AddonMeta{
+		Name:          "test-render-cue-definition-addon",
+		NeedNamespace: []string{"test-ns"},
+	},
+	CUEDefinitions: []types.AddonElementFile{
+		{
+			Data: testCueDef,
+			Name: "test-def",
+		},
+	},
+}
+
+var testCueDef = `annotations: {
+	type: "trait"
+	annotations: {}
+	labels: {
+		"ui-hidden": "true"
+	}
+	description: "Add annotations on K8s pod for your workload which follows the pod spec in path 'spec.template'."
+	attributes: {
+		podDisruptive: true
+		appliesToWorkloads: ["*"]
+	}
+}
+template: {
+	patch: {
+		metadata: {
+			annotations: {
+				for k, v in parameter {
+					"\(k)": v
+				}
+			}
+		}
+		spec: template: metadata: annotations: {
+			for k, v in parameter {
+				"\(k)": v
+			}
+		}
+	}
+	parameter: [string]: string
+}
+`

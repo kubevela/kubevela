@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/rest"
+
 	"github.com/gosuri/uitable"
 
 	"github.com/pkg/errors"
@@ -140,7 +142,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if err != nil {
 				return err
 			}
-			err = enableAddon(ctx, k8sClient, name, addonArgs)
+			err = enableAddon(ctx, k8sClient, c.Config, name, addonArgs)
 			if err != nil {
 				return err
 			}
@@ -212,7 +214,7 @@ func NewAddonStatusCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	}
 }
 
-func enableAddon(ctx context.Context, k8sClient client.Client, name string, args map[string]interface{}) error {
+func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Config, name string, args map[string]interface{}) error {
 	var addon *types.Addon
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -235,7 +237,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, name string, args
 		if addon == nil {
 			continue
 		}
-		err = pkgaddon.EnableAddon(ctx, addon, k8sClient, apply.NewAPIApplicator(k8sClient), source, args)
+		err = pkgaddon.EnableAddon(ctx, addon, k8sClient, apply.NewAPIApplicator(k8sClient), config, source, args)
 		if err != nil {
 			return err
 		}
