@@ -288,8 +288,8 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 	}
 	// This is a path
 	if err == nil {
-		if !strings.HasSuffix(actualPath, "/") && actualPath != "" {
-			return o.Read(actualPath + "/")
+		if !strings.HasSuffix(readPath, "/") && readPath != "" {
+			return o.Read(readPath + "/")
 		}
 		items := convert2OssItem(list.Files, actualPath)
 		return "", items, nil
