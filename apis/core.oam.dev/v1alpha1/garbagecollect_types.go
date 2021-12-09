@@ -35,7 +35,7 @@ type GarbageCollectPolicySpec struct {
 
 	// Rules defines list of rules to control gc strategy at resource level
 	// if one resource is controlled by multiple rules, first rule will be used
-	Rules []GarbageCollectPolicyRule `json:"rules"`
+	Rules []GarbageCollectPolicyRule `json:"rules,omitempty"`
 }
 
 // GarbageCollectPolicyRule defines a single garbage-collect policy rule

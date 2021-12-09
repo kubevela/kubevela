@@ -17,8 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	errors2 "github.com/pkg/errors"
@@ -87,10 +87,7 @@ func (in ManagedResource) Equal(r ManagedResource) bool {
 	if !in.OAMObjectReference.Equal(r.OAMObjectReference) {
 		return false
 	}
-	if in.Data != nil && r.Data != nil {
-		return bytes.Equal(in.Data.Raw, r.Data.Raw)
-	}
-	return (in.Data != nil) == (r.Data != nil)
+	return reflect.DeepEqual(in.Data, r.Data)
 }
 
 // DisplayName readable name for locating resource
@@ -186,7 +183,7 @@ func (in *ResourceTracker) findMangedResourceIndex(mr ManagedResource) int {
 }
 
 // AddManagedResource add object to managed resources, if exists, update
-func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) error {
+func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) {
 	gvk := rsc.GetObjectKind().GroupVersionKind()
 	mr := ManagedResource{
 		ClusterObjectReference: common.ClusterObjectReference{
@@ -202,18 +199,13 @@ func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) 
 		Deleted:            false,
 	}
 	if !metaOnly {
-		bs, err := json.Marshal(rsc)
-		if err != nil {
-			return err
-		}
-		mr.Data = &runtime.RawExtension{Raw: bs}
+		mr.Data = &runtime.RawExtension{Object: rsc}
 	}
 	if idx := in.findMangedResourceIndex(mr); idx >= 0 {
 		in.Spec.ManagedResources[idx] = mr
 	} else {
 		in.Spec.ManagedResources = append(in.Spec.ManagedResources, mr)
 	}
-	return nil
 }
 
 // DeleteManagedResource if remove flag is on, it will remove the object from recorded resources.

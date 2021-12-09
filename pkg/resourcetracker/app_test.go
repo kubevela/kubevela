@@ -22,7 +22,9 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -102,4 +104,48 @@ func TestRecordAndDeleteManifestsInResourceTracker(t *testing.T) {
 		r.NoError(DeletedManifestInResourceTracker(context.Background(), cli, rt, objs[i], true))
 		r.Equal(len(rt.Spec.ManagedResources), n-i-1)
 	}
+}
+
+func TestPublishedVersion(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	app := &v1beta1.Application{
+		ObjectMeta: v1.ObjectMeta{Name: "app", Namespace: "namespace", UID: types.UID("uid"), Generation: int64(1)},
+	}
+	meta.AddAnnotations(app, map[string]string{oam.AnnotationPublishVersion: "publish-version-v1"})
+	rt1, err := CreateCurrentResourceTracker(ctx, cli, app)
+	r.NoError(err)
+	app.SetGeneration(int64(2))
+	_, err = CreateCurrentResourceTracker(ctx, cli, app)
+	r.True(errors.IsAlreadyExists(err))
+	app.SetGeneration(int64(3))
+	app.Annotations[oam.AnnotationPublishVersion] = "publish-version-v2"
+	_, err = CreateCurrentResourceTracker(ctx, cli, app)
+	r.NoError(err)
+	app.SetGeneration(int64(4))
+	app.Annotations[oam.AnnotationPublishVersion] = "publish-version-v3"
+	_, err = CreateCurrentResourceTracker(ctx, cli, app)
+	r.NoError(err)
+	app.SetGeneration(int64(5))
+	_, currentRT, historyRTs, _, err := ListApplicationResourceTrackers(ctx, cli, app)
+	r.NoError(err)
+	r.Equal(int64(4), currentRT.Spec.ApplicationGeneration)
+	r.Equal(2, len(historyRTs))
+	// use old publish version, check conflict
+	app.SetGeneration(int64(6))
+	app.Annotations[oam.AnnotationPublishVersion] = "publish-version-v2"
+	_, _, _, _, err = ListApplicationResourceTrackers(ctx, cli, app)
+	r.Error(err)
+	r.Contains(err.Error(), "in-use and outdated")
+	// use old deleted publish version, check no conflict
+	rt1.SetFinalizers([]string{})
+	r.NoError(cli.Update(ctx, rt1))
+	r.NoError(cli.Delete(ctx, rt1))
+	app.SetGeneration(int64(7))
+	app.Annotations[oam.AnnotationPublishVersion] = "publish-version-v1"
+	_, currentRT, historyRTs, _, err = ListApplicationResourceTrackers(ctx, cli, app)
+	r.NoError(err)
+	r.Nil(currentRT)
+	r.Equal(2, len(historyRTs))
 }

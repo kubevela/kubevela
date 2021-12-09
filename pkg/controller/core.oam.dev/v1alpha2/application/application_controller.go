@@ -211,7 +211,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
 		case common.WorkflowStateExecuting:
 			logCtx.Info("Workflow return state=Executing")
-			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationRunningWorkflow)
+			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
+			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, err
 		case common.WorkflowStateSucceeded:
 			logCtx.Info("Workflow return state=Succeeded")
 			if err := r.doWorkflowFinish(app, wf); err != nil {

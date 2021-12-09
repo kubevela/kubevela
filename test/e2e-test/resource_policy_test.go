@@ -75,7 +75,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(1)))
-		}, 15*time.Second).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
 
 		By("test apply-once policy")
 		Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
@@ -91,12 +91,12 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
 		app.Status.SetConditions(condition.Condition{Type: "ApplyOnce", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
 		Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
-		time.Sleep(15 * time.Second)
+		time.Sleep(30 * time.Second)
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 		Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(0)))
 	})
 
-	FIt("Test GarbageCollect Policy", func() {
+	It("Test GarbageCollect Policy", func() {
 		By("create garbage-collect app")
 		app := &v1beta1.Application{}
 		Expect(common.ReadYamlToObject("testdata/app/app_garbage_collect.yaml", app)).Should(BeNil())
