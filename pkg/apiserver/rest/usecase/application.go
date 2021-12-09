@@ -991,6 +991,9 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		return nil, bcode.ErrInvalidProperties
 	}
 	componentModel.Properties = properties
+	// create default triat for component
+	c.initCreateDefaultTrait(&componentModel)
+
 	if err := c.ds.Add(ctx, &componentModel); err != nil {
 		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrApplicationComponetExist
@@ -999,6 +1002,22 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		return nil, err
 	}
 	return converComponentModelToBase(&componentModel), nil
+}
+
+func (c *applicationUsecaseImpl) initCreateDefaultTrait(component *model.ApplicationComponent) {
+	replicationTrait := model.ApplicationTrait{
+		Alias:       "Replication",
+		Type:        "scaler",
+		Description: "Adjust the number of application replication.",
+		Properties: &model.JSONStruct{
+			"replicas": 1,
+		},
+	}
+	var initTraits = []model.ApplicationTrait{}
+	if component.Type == "webservice" && len(component.Traits) == 0 {
+		initTraits = append(initTraits, replicationTrait)
+	}
+	component.Traits = initTraits
 }
 
 func converComponentModelToBase(componentModel *model.ApplicationComponent) *apisv1.ComponentBase {
