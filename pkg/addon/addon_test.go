@@ -114,14 +114,13 @@ func TestGetAddon(t *testing.T) {
 }
 
 func TestRenderApp(t *testing.T) {
-
 	addon := baseAddon
 	app, err := RenderApp(&addon, nil, map[string]interface{}{})
 	assert.NilError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 1)
 }
 
-func TestRenderDefinitions(t *testing.T) {
+func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	addonDeployToRuntime := baseAddon
 	addonDeployToRuntime.AddonMeta.DeployTo = &types.AddonDeployTo{
 		ControlPlane:   true,
@@ -133,11 +132,19 @@ func TestRenderDefinitions(t *testing.T) {
 	def := defs[0]
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
+
+	app, err := RenderApp(&addonDeployToRuntime, nil, map[string]interface{}{})
+	assert.NilError(t, err)
+	steps := app.Spec.Workflow.Steps
+	assert.Check(t, len(steps) >= 2)
+	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
+	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
 }
 
 var baseAddon = types.Addon{
 	AddonMeta: types.AddonMeta{
 		Name: "test-render-cue-definition-addon",
+		NeedNamespace: []string{"test-ns"},
 	},
 	CUEDefinitions: []types.AddonElementFile{
 		{
