@@ -117,7 +117,7 @@ func TestRenderApp(t *testing.T) {
 	addon := baseAddon
 	app, err := RenderApp(&addon, nil, map[string]interface{}{})
 	assert.NilError(t, err, "render app fail")
-	assert.Equal(t, len(app.Spec.Components), 1)
+	assert.Equal(t, len(app.Spec.Components), 2)
 }
 
 func TestRenderDeploy2RuntimeAddon(t *testing.T) {
@@ -143,7 +143,7 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 
 var baseAddon = types.Addon{
 	AddonMeta: types.AddonMeta{
-		Name: "test-render-cue-definition-addon",
+		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
 	},
 	CUEDefinitions: []types.AddonElementFile{
