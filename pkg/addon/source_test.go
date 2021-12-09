@@ -1,8 +1,9 @@
 package addon
 
 import (
-	"gotest.tools/assert"
 	"testing"
+
+	"gotest.tools/assert"
 )
 
 func TestPathWithParent(t *testing.T) {
