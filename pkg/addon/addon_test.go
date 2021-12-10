@@ -26,8 +26,6 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
-
-	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var paths = []string{
@@ -122,7 +120,7 @@ func TestRenderApp(t *testing.T) {
 
 func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	addonDeployToRuntime := baseAddon
-	addonDeployToRuntime.AddonMeta.DeployTo = &types.AddonDeployTo{
+	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
 		ControlPlane:   true,
 		RuntimeCluster: true,
 	}
@@ -141,12 +139,12 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
 }
 
-var baseAddon = types.Addon{
-	AddonMeta: types.AddonMeta{
+var baseAddon = Addon{
+	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
 	},
-	CUEDefinitions: []types.AddonElementFile{
+	CUEDefinitions: []ElementFile{
 		{
 			Data: testCueDef,
 			Name: "test-def",

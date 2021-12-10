@@ -32,12 +32,12 @@ type Addon struct {
 
 	// More details about the addon, e.g. README
 	Detail         string               `json:"detail,omitempty"`
-	Definitions    []ElementFile   `json:"definitions"`
-	CUEDefinitions []ElementFile   `json:"cue_definitions"`
+	Definitions    []ElementFile        `json:"definitions"`
+	CUEDefinitions []ElementFile        `json:"cue_definitions"`
 	Parameters     string               `json:"parameters"`
-	CUETemplates   []ElementFile   `json:"cue_templates"`
-	YAMLTemplates  []ElementFile   `json:"yaml_templates,omitempty"`
-	DefSchemas     []ElementFile   `json:"def_schemas,omitempty"`
+	CUETemplates   []ElementFile        `json:"cue_templates"`
+	YAMLTemplates  []ElementFile        `json:"yaml_templates,omitempty"`
+	DefSchemas     []ElementFile        `json:"def_schemas,omitempty"`
 	AppTemplate    *v1beta1.Application `json:"app_template"`
 }
 
