@@ -89,10 +89,17 @@ var _ = Describe("Test application usecase function", func() {
 				Description: "test env",
 				TargetNames: []string{"test-target"},
 			}},
+			Component: &v1.CreateComponentRequest{
+				Name:          "component-name",
+				ComponentType: "webservice",
+			},
 		}
 		base, err := appUsecase.CreateApplication(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
+		detail, err := appUsecase.DetailComponent(context.TODO(), &model.Application{Name: "test-app", Project: testProject}, "component-name")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(detail.Traits), 1)).Should(BeEmpty())
 
 		_, err = appUsecase.CreateApplication(context.TODO(), req)
 		equal := cmp.Equal(err, bcode.ErrApplicationExist, cmpopts.EquateErrors())
