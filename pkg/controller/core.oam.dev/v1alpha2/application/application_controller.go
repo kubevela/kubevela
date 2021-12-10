@@ -279,7 +279,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := handler.resourceKeeper.StateKeep(ctx); err != nil {
 		logCtx.Error(err, "Failed to run prevent-configuration-drift")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))
-		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
+		app.Status.SetConditions(condition.ErrorCondition("StateKeep", err))
 	}
 	if err := garbageCollection(logCtx, handler); err != nil {
 		logCtx.Error(err, "Failed to run garbage collection")

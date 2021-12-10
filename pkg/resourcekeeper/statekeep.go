@@ -39,7 +39,7 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 					return entry.err
 				}
 				if mr.Deleted {
-					if entry.exists {
+					if entry.exists && entry.obj != nil && entry.obj.GetDeletionTimestamp() == nil {
 						if err := h.Client.Delete(multicluster.ContextWithClusterName(ctx, mr.Cluster), entry.obj); err != nil {
 							return errors.Wrapf(err, "failed to delete outdated resource %s in resourcetracker %s", mr.ResourceKey(), rt.Name)
 						}
