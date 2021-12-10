@@ -69,7 +69,7 @@ var _ = Describe("Test Workflow", func() {
 	appWithWorkflowAndPolicy := appWithWorkflow.DeepCopy()
 	appWithWorkflowAndPolicy.Name = "test-wf-policy"
 	appWithWorkflowAndPolicy.Spec.Policies = []oamcore.AppPolicy{{
-		Name:       "test-policy",
+		Name:       "test-policy-and-wf",
 		Type:       "foopolicy",
 		Properties: &runtime.RawExtension{Raw: []byte(`{"key":"test"}`)},
 	}}
@@ -81,7 +81,7 @@ var _ = Describe("Test Workflow", func() {
 		},
 		Spec: oamcore.ApplicationSpec{
 			Components: []common.ApplicationComponent{{
-				Name:       "test-component",
+				Name:       "test-component-with-policy",
 				Type:       "worker",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 			}},

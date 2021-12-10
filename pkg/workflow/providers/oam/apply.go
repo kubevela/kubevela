@@ -40,10 +40,10 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 // ComponentRender render oam component.
-type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 type provider struct {
 	render ComponentRender
@@ -53,11 +53,11 @@ type provider struct {
 
 // RenderComponent render component
 func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, err := lookUpValues(v)
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v)
 	if err != nil {
 		return err
 	}
-	workload, traits, err := p.render(*comp, patcher, clusterName, overrideNamespace)
+	workload, traits, err := p.render(*comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
 	}
@@ -82,11 +82,11 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 
 // ApplyComponent apply component.
 func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, err := lookUpValues(v)
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v)
 	if err != nil {
 		return err
 	}
-	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace)
+	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
 	}
@@ -113,15 +113,15 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 	return nil
 }
 
-func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, error) {
+func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
 	compSettings, err := v.LookupValue("value")
 	if err != nil {
-		return nil, nil, "", "", err
+		return nil, nil, "", "", "", err
 	}
 	comp := &common.ApplicationComponent{}
 
 	if err := compSettings.UnmarshalTo(comp); err != nil {
-		return nil, nil, "", "", err
+		return nil, nil, "", "", "", err
 	}
 	patcher, err := v.LookupValue("patch")
 	if err != nil {
@@ -135,7 +135,11 @@ func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, s
 	if err != nil {
 		overrideNamespace = ""
 	}
-	return comp, patcher, clusterName, overrideNamespace, nil
+	env, err := v.GetString("env")
+	if err != nil {
+		env = ""
+	}
+	return comp, patcher, clusterName, overrideNamespace, env, nil
 }
 
 // LoadComponent load component describe info in application.

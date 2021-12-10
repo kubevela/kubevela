@@ -176,20 +176,22 @@ type Handler interface {
 }
 
 // PrepareWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) PrepareWorkflowAndPolicy() ([]*Workload, []*unstructured.Unstructured, error) {
+func (af *Appfile) PrepareWorkflowAndPolicy() ([]*unstructured.Unstructured, error) {
 	var externalPolicies []*unstructured.Unstructured
-	var builtInPolicies []*Workload
 	var err error
 
 	for _, policy := range af.Policies {
+		if policy == nil {
+			continue
+		}
 		switch policy.Type {
+		case v1alpha1.ApplyOncePolicyType:
 		case v1alpha1.GarbageCollectPolicyType:
-			builtInPolicies = append(builtInPolicies, policy)
 		case v1alpha1.EnvBindingPolicyType:
 		default:
 			un, err := af.generateUnstructured(policy)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			externalPolicies = append(externalPolicies, un)
 		}
@@ -201,9 +203,9 @@ func (af *Appfile) PrepareWorkflowAndPolicy() ([]*Workload, []*unstructured.Unst
 	).Generate(af.app, af.WorkflowSteps)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return builtInPolicies, externalPolicies, nil
+	return externalPolicies, nil
 }
 
 func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstructured, error) {
@@ -319,6 +321,7 @@ func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]str
 	}
 	Labels := map[string]string{
 		oam.LabelAppName:      af.Name,
+		oam.LabelAppNamespace: af.Namespace,
 		oam.LabelAppRevision:  af.AppRevisionName,
 		oam.LabelAppComponent: compName,
 	}

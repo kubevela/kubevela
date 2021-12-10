@@ -450,6 +450,7 @@ var _ = Describe("cloneset controller", func() {
 					Kind:       v1beta1.AppRolloutKind,
 					Name:       "def",
 					UID:        "123456",
+					Controller: pointer.BoolPtr(true),
 				},
 				{
 					APIVersion: corev1.SchemeGroupVersion.String(),

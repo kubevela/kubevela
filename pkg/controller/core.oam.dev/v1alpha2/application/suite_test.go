@@ -53,7 +53,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -144,7 +143,6 @@ var _ = BeforeSuite(func(done Done) {
 		pd:               pd,
 		Recorder:         event.NewAPIRecorder(recorder),
 		appRevisionLimit: appRevisionLimit,
-		applicator:       apply.NewAPIApplicator(k8sClient),
 	}
 	// setup the controller manager since we need the component handler to run in the background
 	mgr, err = ctrl.NewManager(cfg, ctrl.Options{

@@ -29,3 +29,10 @@ type ResourceTrackerNotExistError struct {
 func (err ResourceTrackerNotExistError) Error() string {
 	return fmt.Sprintf("given resource tracker %q doesn't exist", err.Name)
 }
+
+// ManagedResourceHasNoDataError identifies error caused by no data in maanged resource
+type ManagedResourceHasNoDataError struct{}
+
+func (err ManagedResourceHasNoDataError) Error() string {
+	return "ManagedResource has no data"
+}

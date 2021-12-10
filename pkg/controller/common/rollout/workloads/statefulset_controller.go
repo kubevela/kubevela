@@ -104,7 +104,8 @@ func (c *statefulSetController) releaseStatefulSet(ctx context.Context, stateful
 	var newOwnerList []metav1.OwnerReference
 	found := false
 	for _, owner := range statefulSet.GetOwnerReferences() {
-		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() &&
+			owner.Controller != nil && *owner.Controller {
 			found = true
 			continue
 		}

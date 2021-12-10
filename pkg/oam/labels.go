@@ -35,6 +35,10 @@ const (
 	LabelAppRevisionHash = "app.oam.dev/app-revision-hash"
 	// LabelAppNamespace records the namespace of Application
 	LabelAppNamespace = "app.oam.dev/namespace"
+	// LabelAppCluster records the cluster of Application
+	LabelAppCluster = "app.oam.dev/cluster"
+	// LabelAppUID records the uid of Application
+	LabelAppUID = "app.oam.dev/uid"
 
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
@@ -64,6 +68,9 @@ const (
 
 	// LabelAddonName indicates the name of the corresponding Addon
 	LabelAddonName = "addons.oam.dev/name"
+
+	// LabelAppEnv records the name of Env
+	LabelAppEnv = "envbinding.oam.dev/env"
 
 	// LabelProject Namesapce records the project name of namespace
 	LabelProjectNamesapce = "namespace.oam.dev/project"

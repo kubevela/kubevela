@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -119,6 +120,14 @@ func (h *handler) applyTargetWorkload(ctx context.Context) error {
 	if h.targetWorkload == nil {
 		return fmt.Errorf("cannot find target workload to template")
 	}
+	meta.AddOwnerReference(h.targetWorkload, metav1.OwnerReference{
+		APIVersion:         v1alpha1.SchemeGroupVersion.String(),
+		Kind:               v1alpha1.RolloutKind,
+		Name:               h.rollout.Name,
+		UID:                h.rollout.UID,
+		Controller:         pointer.Bool(false),
+		BlockOwnerDeletion: pointer.Bool(true),
+	})
 	if err := h.applicator.Apply(ctx, h.targetWorkload); err != nil {
 		klog.Errorf("cannot template rollout target workload", "namespace", h.rollout.Namespace,
 			"rollout", h.rollout.Name, "targetWorkload", h.targetWorkload.GetName())
@@ -331,5 +340,7 @@ func (h *handler) passOwnerToTargetWorkload(wl *unstructured.Unstructured) {
 		reference.Controller = pointer.Bool(false)
 		owners = append(owners, reference)
 	}
-	wl.SetOwnerReferences(owners)
+	for _, owner := range owners {
+		meta.AddOwnerReference(wl, owner)
+	}
 }

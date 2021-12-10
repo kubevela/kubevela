@@ -461,7 +461,7 @@ spec:
                   type: object
                 type: array
               resourceTracker:
-                description: ResourceTracker record the status of the ResourceTracker
+                description: Deprecated ResourceTracker record the status of the ResourceTracker
                 properties:
                   apiVersion:
                     description: API version of the referent.
@@ -1285,7 +1285,7 @@ spec:
                   type: object
                 type: array
               resourceTracker:
-                description: ResourceTracker record the status of the ResourceTracker
+                description: Deprecated ResourceTracker record the status of the ResourceTracker
                 properties:
                   apiVersion:
                     description: API version of the referent.

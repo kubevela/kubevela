@@ -157,10 +157,9 @@ var _ = Describe("test generate revision ", func() {
 		appRevision2 = *appRevision1.DeepCopy()
 		appRevision2.Name = "appRevision2"
 
-		handler = AppHandler{
-			r:   reconciler,
-			app: &app,
-		}
+		_handler, err := NewAppHandler(ctx, reconciler, &app, nil)
+		Expect(err).Should(Succeed())
+		handler = *_handler
 
 	})
 

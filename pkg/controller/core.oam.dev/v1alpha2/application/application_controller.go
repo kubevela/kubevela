@@ -26,11 +26,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	ctrlEvent "sigs.k8s.io/controller-runtime/pkg/event"
+	ctrlHandler "sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -46,11 +50,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -62,6 +66,9 @@ const (
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait before reconcile workflow again
 	baseWorkflowBackoffWaitTime = 3000 * time.Millisecond
+
+	// baseWorkflowBackoffWaitTime is the time to wait gc check
+	baseGCBackoffWaitTime = 3000 * time.Millisecond
 
 	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
@@ -78,7 +85,6 @@ type Reconciler struct {
 	pd                   *packages.PackageDiscover
 	Scheme               *runtime.Scheme
 	Recorder             event.Recorder
-	applicator           apply.Applicator
 	appRevisionLimit     int
 	concurrentReconciles int
 }
@@ -100,30 +106,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Name:      req.Name,
 		Namespace: req.Namespace,
 	}, app); err != nil {
-		logCtx.Error(err, "get application")
+		if !kerrors.IsNotFound(err) {
+			logCtx.Error(err, "get application")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	logCtx.AddTag("resource_version", app.ResourceVersion)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
-	if len(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]) == 0 {
-		oamutil.AddAnnotations(app, map[string]string{
-			oam.AnnotationKubeVelaVersion: version.VelaVersion,
-		})
-	}
+	metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
-	handler := &AppHandler{
-		r:      r,
-		app:    app,
-		parser: appParser,
+	handler, err := NewAppHandler(logCtx, r, app, appParser)
+	if err != nil {
+		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
 	}
-	endReconcile, err := r.handleFinalizers(logCtx, app)
+	endReconcile, result, err := r.handleFinalizers(logCtx, app, handler)
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
 	}
 	if endReconcile {
-		return ctrl.Result{}, nil
+		return result, nil
 	}
 
 	appFile, err := appParser.GenerateAppFile(logCtx, app)
@@ -156,17 +159,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.Info("Successfully apply application revision")
 
-	builtInPolicies, externalPolicies, err := appFile.PrepareWorkflowAndPolicy()
+	externalPolicies, err := appFile.PrepareWorkflowAndPolicy()
 	if err != nil {
 		logCtx.Error(err, "[Handle PrepareWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "PrepareWorkflowAndPolicy")), common.ApplicationPolicyGenerating)
-	}
-
-	if err := handler.HandleBuiltInPolicies(builtInPolicies); err != nil {
-		klog.Error(err, "[Handle BuiltIn Policies]")
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "HandleBuiltInPolicies")), common.ApplicationPolicyGenerating)
 	}
 
 	if len(externalPolicies) > 0 {
@@ -205,41 +202,26 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		switch workflowState {
 		case common.WorkflowStateSuspended:
 			logCtx.Info("Workflow return state=Suspend")
-			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationWorkflowSuspending)
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
 		case common.WorkflowStateTerminated:
 			logCtx.Info("Workflow return state=Terminated")
 			if err := r.doWorkflowFinish(app, wf); err != nil {
 				return r.endWithNegativeConditionWithRetry(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
-			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationWorkflowTerminated)
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
 		case common.WorkflowStateExecuting:
 			logCtx.Info("Workflow return state=Executing")
-			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationRunningWorkflow)
+			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
+			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, err
 		case common.WorkflowStateSucceeded:
 			logCtx.Info("Workflow return state=Succeeded")
-			wfStatus := app.Status.Workflow
-			if wfStatus != nil {
-				ref, err := handler.DispatchAndGC(ctx)
-				if err == nil {
-					err = multicluster.GarbageCollectionForOutdatedResourcesInSubClusters(ctx, r.Client, app, func(c context.Context) error {
-						_, e := handler.DispatchAndGC(c)
-						return e
-					})
-				}
-				if err != nil {
-					logCtx.Error(err, "Failed to gc after workflow")
-					r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
-					return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "GCAfterWorkflow")), common.ApplicationRunningWorkflow)
-				}
-				app.Status.ResourceTracker = ref
-			}
 			if err := r.doWorkflowFinish(app, wf); err != nil {
 				return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 			r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 			logCtx.Info("Application manifests has applied by workflow successfully")
-			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationWorkflowFinished)
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
 		case common.WorkflowStateFinished:
 			logCtx.Info("Workflow state=Finished")
 			if status := app.Status.Workflow; status != nil && status.Terminated {
@@ -294,7 +276,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	if err := garbageCollection(ctx, handler); err != nil {
+	if err := handler.resourceKeeper.StateKeep(ctx); err != nil {
+		logCtx.Error(err, "Failed to run prevent-configuration-drift")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))
+		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
+	}
+	if err := garbageCollection(logCtx, handler); err != nil {
 		logCtx.Error(err, "Failed to run garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
@@ -307,18 +294,42 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Reason:             condition.ReasonReconcileSuccess,
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
-	return ctrl.Result{}, r.patchStatus(logCtx, app, phase)
+	return r.gcResourceTrackers(logCtx, handler, phase, true)
+}
+
+func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool) (ctrl.Result, error) {
+	var options []resourcekeeper.GCOption
+	if !gcOutdated {
+		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{})
+	}
+	finished, waiting, err := handler.resourceKeeper.GarbageCollect(logCtx, options...)
+	if err != nil {
+		logCtx.Error(err, "Failed to gc resourcetrackers")
+		r.Recorder.Event(handler.app, event.Warning(velatypes.ReasonFailedGC, err))
+		return r.endWithNegativeConditionWithRetry(logCtx, handler.app, condition.ReconcileError(err), phase)
+	}
+	if !finished {
+		logCtx.Info("GarbageCollecting resourcetrackers")
+		cond := condition.Deleting()
+		if len(waiting) > 0 {
+			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
+		}
+		handler.app.Status.SetConditions(cond)
+		return ctrl.Result{RequeueAfter: baseGCBackoffWaitTime}, r.patchStatusWithRetryOnConflict(logCtx, handler.app, phase)
+	}
+	logCtx.Info("GarbageCollected resourcetrackers")
+	return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, handler.app, phase)
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
 // by setting application(namespace-scoped) as their owners.
 // We must delete all resource trackers related to an application through finalizer logic.
-func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.Application) (bool, error) {
+func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) (bool, ctrl.Result, error) {
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
 			meta.AddFinalizer(app, resourceTrackerFinalizer)
 			ctx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
-			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+			return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 	} else {
 		if meta.FinalizerExists(app, legacyResourceTrackerFinalizer) {
@@ -328,23 +339,28 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			rt.SetName(fmt.Sprintf("%s-%s", app.Namespace, app.Name))
 			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
 				ctx.Error(err, "Failed to delete legacy resource tracker", "name", rt.Name)
-				return true, errors.WithMessage(err, "cannot remove finalizer")
+				return true, ctrl.Result{}, errors.WithMessage(err, "cannot remove finalizer")
 			}
 			meta.RemoveFinalizer(app, legacyResourceTrackerFinalizer)
-			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+			return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 		if meta.FinalizerExists(app, resourceTrackerFinalizer) || meta.FinalizerExists(app, legacyOnlyRevisionFinalizer) {
-			if err := multicluster.GarbageCollectionForAllResourceTrackers(ctx, r.Client, app); err != nil {
-				return true, err
+			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
+			if err != nil {
+				return true, ctrl.Result{}, err
 			}
-			meta.RemoveFinalizer(app, resourceTrackerFinalizer)
-			// legacyOnlyRevisionFinalizer will be deprecated in the future
-			// this is for backward compatibility
-			meta.RemoveFinalizer(app, legacyOnlyRevisionFinalizer)
-			return true, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
+				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
+				// legacyOnlyRevisionFinalizer will be deprecated in the future
+				// this is for backward compatibility
+				meta.RemoveFinalizer(app, legacyOnlyRevisionFinalizer)
+				return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+			}
+			result, err := r.gcResourceTrackers(ctx, handler, common.ApplicationDeleting, true)
+			return true, result, err
 		}
 	}
-	return false, nil
+	return false, ctrl.Result{}, nil
 }
 
 func (r *Reconciler) _endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase, retry bool) (ctrl.Result, error) {
@@ -435,6 +451,22 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
+		Watches(&source.Kind{
+			Type: &v1beta1.ResourceTracker{},
+		}, ctrlHandler.Funcs{
+			CreateFunc: func(createEvent ctrlEvent.CreateEvent, limitingInterface workqueue.RateLimitingInterface) {
+				handleResourceTracker(createEvent.Object, limitingInterface)
+			},
+			UpdateFunc: func(updateEvent ctrlEvent.UpdateEvent, limitingInterface workqueue.RateLimitingInterface) {
+				handleResourceTracker(updateEvent.ObjectNew, limitingInterface)
+			},
+			DeleteFunc: func(deleteEvent ctrlEvent.DeleteEvent, limitingInterface workqueue.RateLimitingInterface) {
+				handleResourceTracker(deleteEvent.Object, limitingInterface)
+			},
+			GenericFunc: func(genericEvent ctrlEvent.GenericEvent, limitingInterface workqueue.RateLimitingInterface) {
+				handleResourceTracker(genericEvent.Object, limitingInterface)
+			},
+		}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
@@ -450,7 +482,6 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		Recorder:             event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
 		dm:                   args.DiscoveryMapper,
 		pd:                   args.PackageDiscover,
-		applicator:           apply.NewAPIApplicator(mgr.GetClient()),
 		appRevisionLimit:     args.AppRevisionLimit,
 		concurrentReconciles: args.ConcurrentReconciles,
 	}
@@ -460,5 +491,19 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 func updateObservedGeneration(app *v1beta1.Application) {
 	if app.Status.ObservedGeneration != app.Generation {
 		app.Status.ObservedGeneration = app.Generation
+	}
+}
+
+func handleResourceTracker(obj client.Object, limitingInterface workqueue.RateLimitingInterface) {
+	rt, ok := obj.(*v1beta1.ResourceTracker)
+	if ok {
+		if labels := rt.Labels; labels != nil {
+			var request reconcile.Request
+			request.Name = labels[oam.LabelAppName]
+			request.Namespace = labels[oam.LabelAppNamespace]
+			if request.Namespace != "" && request.Name != "" {
+				limitingInterface.Add(request)
+			}
+		}
 	}
 }

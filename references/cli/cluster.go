@@ -38,7 +38,6 @@ import (
 	"github.com/oam-dev/cluster-register/pkg/hub"
 	"github.com/oam-dev/cluster-register/pkg/spoke"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/clustermanager"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -136,30 +135,6 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		},
 	}
 	return cmd
-}
-
-func ensureResourceTrackerCRDInstalled(c client.Client, clusterName string) error {
-	ctx := context.Background()
-	remoteCtx := multicluster.ContextWithClusterName(ctx, clusterName)
-	crdName := k8stypes.NamespacedName{Name: "resourcetrackers." + v1beta1.Group}
-	if err := c.Get(remoteCtx, crdName, &apiextensionsv1.CustomResourceDefinition{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return errors.Wrapf(err, "failed to check resourcetracker crd in cluster %s", clusterName)
-		}
-		crd := &apiextensionsv1.CustomResourceDefinition{}
-		if err = c.Get(ctx, crdName, crd); err != nil {
-			return errors.Wrapf(err, "failed to get resourcetracker crd in hub cluster")
-		}
-		crd.ObjectMeta = metav1.ObjectMeta{
-			Name:        crdName.Name,
-			Annotations: crd.Annotations,
-			Labels:      crd.Labels,
-		}
-		if err = c.Create(remoteCtx, crd); err != nil {
-			return errors.Wrapf(err, "failed to create resourcetracker crd in cluster %s", clusterName)
-		}
-	}
-	return nil
 }
 
 func ensureVelaSystemNamespaceInstalled(c client.Client, clusterName string, createNamespace string) error {
@@ -299,10 +274,6 @@ func registerClusterManagedByVela(k8sClient client.Client, cluster *clientcmdapi
 	}
 	if err := k8sClient.Create(context.Background(), secret); err != nil {
 		return errors.Wrapf(err, "failed to add cluster to kubernetes")
-	}
-	if err := ensureResourceTrackerCRDInstalled(k8sClient, clusterName); err != nil {
-		_ = k8sClient.Delete(context.Background(), secret)
-		return errors.Wrapf(err, "failed to ensure resourcetracker crd installed in cluster %s", clusterName)
 	}
 	if err := ensureVelaSystemNamespaceInstalled(k8sClient, clusterName, createNamespace); err != nil {
 		_ = k8sClient.Delete(context.Background(), secret)

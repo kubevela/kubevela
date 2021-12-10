@@ -17,10 +17,18 @@ limitations under the License.
 package envbinding
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+)
+
+type contextKey string
+
+const (
+	// EnvNameContextKey is the name of env
+	EnvNameContextKey = contextKey("EnvName")
 )
 
 // GetEnvBindingPolicy extract env-binding policy with given policy name, if policy name is empty, the first env-binding policy will be used
@@ -48,4 +56,18 @@ func GetEnvBindingPolicyStatus(app *v1beta1.Application, policyName string) (*v1
 		}
 	}
 	return nil, nil
+}
+
+// EnvNameInContext extract env name from context
+func EnvNameInContext(ctx context.Context) string {
+	envName := ctx.Value(EnvNameContextKey)
+	if envName != nil {
+		return envName.(string)
+	}
+	return ""
+}
+
+// ContextWithEnvName wraps context with envName
+func ContextWithEnvName(ctx context.Context, envName string) context.Context {
+	return context.WithValue(ctx, EnvNameContextKey, envName)
 }

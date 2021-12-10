@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -211,7 +210,7 @@ func main() {
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
-		ClientDisableCacheFor:      []client.Object{&v1beta1.ResourceTracker{}, &appsv1.ControllerRevision{}},
+		ClientDisableCacheFor:      []client.Object{&appsv1.ControllerRevision{}},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")

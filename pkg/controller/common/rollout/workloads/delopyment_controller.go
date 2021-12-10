@@ -92,7 +92,8 @@ func (c *deploymentController) releaseDeployment(ctx context.Context, deploy *ap
 	found := false
 	for _, owner := range deploy.GetOwnerReferences() {
 		if owner.Kind == c.parentController.GetObjectKind().GroupVersionKind().Kind &&
-			owner.APIVersion == c.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() {
+			owner.APIVersion == c.parentController.GetObjectKind().GroupVersionKind().GroupVersion().String() &&
+			owner.Controller != nil && *owner.Controller {
 			found = true
 			continue
 		}

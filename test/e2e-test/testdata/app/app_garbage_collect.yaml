@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: garbage-collect-app
+spec:
+  components:
+    - name: hello-world
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+      traits:
+        - type: expose
+          properties:
+            port: [8000]
+  policies:
+    - name: garbage-collect
+      type: garbage-collect
+      properties:
+        keepLegacyResource: true
+        rules:
+          - selector:
+              traitTypes:
+                - expose
+            strategy: onAppDelete

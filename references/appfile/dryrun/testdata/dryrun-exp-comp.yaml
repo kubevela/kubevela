@@ -15,6 +15,7 @@ StandardWorkload:
       app.oam.dev/appRevision: ""
       app.oam.dev/component: myweb
       app.oam.dev/name: app-dryrun
+      app.oam.dev/namespace: default
       workload.oam.dev/type: myworker
       app.oam.dev/resourceType: WORKLOAD
     name: myweb
@@ -43,6 +44,7 @@ Traits:
       app.oam.dev/appRevision: ""
       app.oam.dev/component: myweb
       app.oam.dev/name: app-dryrun
+      app.oam.dev/namespace: default
       trait.oam.dev/resource: service
       trait.oam.dev/type: myingress
       app.oam.dev/resourceType: TRAIT
@@ -62,6 +64,7 @@ Traits:
       app.oam.dev/appRevision: ""
       app.oam.dev/component: myweb
       app.oam.dev/name: app-dryrun
+      app.oam.dev/namespace: default
       trait.oam.dev/resource: ingress
       trait.oam.dev/type: myingress
       app.oam.dev/resourceType: TRAIT

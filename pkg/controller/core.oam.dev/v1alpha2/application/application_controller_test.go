@@ -148,6 +148,7 @@ var _ = Describe("Test Application Controller", func() {
 					"workload.oam.dev/type":    "worker",
 					"app.oam.dev/component":    compName,
 					"app.oam.dev/name":         app.Name,
+					"app.oam.dev/namespace":    app.Namespace,
 					"app.oam.dev/appRevision":  app.Name + "-v1",
 					"app.oam.dev/resourceType": "WORKLOAD",
 				},
@@ -181,7 +182,7 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 	appWithTrait.Spec.Components[0].Name = "myweb3"
-	expectScalerTrait := func(compName, appName, traitName, traitNamespace string) unstructured.Unstructured {
+	expectScalerTrait := func(compName, appName, appNs, traitName, traitNamespace string) unstructured.Unstructured {
 		return unstructured.Unstructured{Object: map[string]interface{}{
 			"apiVersion": "core.oam.dev/v1alpha2",
 			"kind":       "ManualScalerTrait",
@@ -191,6 +192,7 @@ var _ = Describe("Test Application Controller", func() {
 					"trait.oam.dev/type":       "scaler",
 					"app.oam.dev/component":    compName,
 					"app.oam.dev/name":         appName,
+					"app.oam.dev/namespace":    appNs,
 					"app.oam.dev/appRevision":  appName + "-v1",
 					"app.oam.dev/resourceType": "TRAIT",
 					"trait.oam.dev/resource":   "scaler",
@@ -437,7 +439,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(len(comp.Traits) > 0).Should(BeTrue())
 		gotTrait := comp.Traits[0]
-		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb3", app.Name, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
+		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb3", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -520,6 +522,7 @@ var _ = Describe("Test Application Controller", func() {
 				"labels": map[string]interface{}{
 					"trait.oam.dev/type":       "AuxiliaryWorkload",
 					"app.oam.dev/name":         "app-with-composedworkload-trait",
+					"app.oam.dev/namespace":    ns.Name,
 					"app.oam.dev/appRevision":  "app-with-composedworkload-trait-v1",
 					"app.oam.dev/component":    "myweb-composed-3",
 					"trait.oam.dev/resource":   "service",
@@ -539,7 +542,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		By("Check the second trait should be scaler")
 		gotTrait = comp.Traits[1]
-		Expect(cmp.Diff(expectScalerTrait("myweb-composed-3", app.Name, gotTrait.GetName(), gotTrait.GetNamespace()), *gotTrait)).Should(BeEmpty())
+		Expect(cmp.Diff(expectScalerTrait("myweb-composed-3", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()), *gotTrait)).Should(BeEmpty())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -596,7 +599,7 @@ var _ = Describe("Test Application Controller", func() {
 		comp := comps[0]
 		Expect(len(comp.Traits) > 0).Should(BeTrue())
 		gotTrait := comp.Traits[0]
-		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb4", app.Name, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
+		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb4", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
 
 		Expect(len(comp.Scopes) > 0).Should(BeTrue())
 		gotScope := comp.Scopes[0]
@@ -667,7 +670,7 @@ var _ = Describe("Test Application Controller", func() {
 		comp1 := comps[0]
 		Expect(len(comp1.Traits) > 0).Should(BeTrue())
 		gotTrait := comp1.Traits[0]
-		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb5", app.Name, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
+		Expect(cmp.Diff(*gotTrait, expectScalerTrait("myweb5", app.Name, app.Namespace, gotTrait.GetName(), gotTrait.GetNamespace()))).Should(BeEmpty())
 
 		Expect(len(comp1.Scopes) > 0).Should(BeTrue())
 		Expect(*comp1.Scopes[0]).Should(Equal(corev1.ObjectReference{
@@ -805,7 +808,7 @@ var _ = Describe("Test Application Controller", func() {
 		comp := comps[0]
 		Expect(len(comp.Traits) > 0).Should(BeTrue())
 		gotTrait := comp.Traits[0]
-		expTrait := expectScalerTrait(appWithTrait.Spec.Components[0].Name, appWithTrait.Name, gotTrait.GetName(), gotTrait.GetNamespace())
+		expTrait := expectScalerTrait(appWithTrait.Spec.Components[0].Name, appWithTrait.Name, appWithTrait.Namespace, gotTrait.GetName(), gotTrait.GetNamespace())
 		expTrait.Object["spec"].(map[string]interface{})["token"] = "test-token"
 		Expect(cmp.Diff(*gotTrait, expTrait)).Should(BeEmpty())
 
@@ -846,7 +849,7 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Labels[oam.LabelAppComponent] = compName
 		expDeployment.Labels["app.oam.dev/resourceType"] = "WORKLOAD"
 		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
-		expTrait := expectScalerTrait(compName, app.Name, app.Name, app.Namespace)
+		expTrait := expectScalerTrait(compName, app.Name, app.Namespace, app.Name, app.Namespace)
 		expTrait.SetLabels(map[string]string{
 			oam.LabelAppName:         app.Name,
 			"trait.oam.dev/type":     "scaler",
@@ -1307,6 +1310,7 @@ var _ = Describe("Test Application Controller", func() {
 				Labels: map[string]string{
 					"app.oam.dev/component":    "myweb",
 					"app.oam.dev/name":         "app-import-pkg",
+					"app.oam.dev/namespace":    ns.Name,
 					"trait.oam.dev/resource":   "service",
 					"trait.oam.dev/type":       "ingress-import",
 					"app.oam.dev/appRevision":  "app-import-pkg-v1",
@@ -1327,6 +1331,7 @@ var _ = Describe("Test Application Controller", func() {
 				Labels: map[string]string{
 					"app.oam.dev/component":    "myweb",
 					"app.oam.dev/name":         "app-import-pkg",
+					"app.oam.dev/namespace":    ns.Name,
 					"trait.oam.dev/resource":   "ingress",
 					"app.oam.dev/resourceType": "TRAIT",
 					"trait.oam.dev/type":       "ingress-import",

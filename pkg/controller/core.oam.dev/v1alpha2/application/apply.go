@@ -18,7 +18,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -34,10 +33,11 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/dispatch"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
 
 // AppHandler handles application reconcile
@@ -46,8 +46,8 @@ type AppHandler struct {
 	app            *v1beta1.Application
 	currentAppRev  *v1beta1.ApplicationRevision
 	latestAppRev   *v1beta1.ApplicationRevision
-	latestTracker  *v1beta1.ResourceTracker
-	dispatcher     *dispatch.AppManifestsDispatcher
+	resourceKeeper resourcekeeper.ResourceKeeper
+
 	isNewRevision  bool
 	currentRevHash string
 
@@ -55,38 +55,51 @@ type AppHandler struct {
 	appliedResources []common.ClusterObjectReference
 	deletedResources []common.ClusterObjectReference
 	parser           *appfile.Parser
+}
 
-	gcOptions dispatch.GCOptions
+// NewAppHandler create new app handler
+func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application, parser *appfile.Parser) (*AppHandler, error) {
+	resourceHandler, err := resourcekeeper.NewResourceKeeper(ctx, r.Client, app)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create resourceKeeper")
+	}
+	return &AppHandler{
+		r:              r,
+		app:            app,
+		resourceKeeper: resourceHandler,
+		parser:         parser,
+	}, nil
 }
 
 // Dispatch apply manifests into k8s.
 func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
-	h.initDispatcher()
-	_, err := h.dispatcher.Dispatch(ctx, manifests)
-	if err == nil {
-		for _, mf := range manifests {
-			if mf == nil {
-				continue
-			}
-			ref := common.ClusterObjectReference{
-				Cluster: cluster,
-				Creator: owner,
-				ObjectReference: corev1.ObjectReference{
-					Name:       mf.GetName(),
-					Namespace:  mf.GetNamespace(),
-					Kind:       mf.GetKind(),
-					APIVersion: mf.GetAPIVersion(),
-				},
-			}
-			h.addAppliedResource(false, ref)
-		}
+	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
+	if err := h.resourceKeeper.Dispatch(ctx, manifests); err != nil {
+		return err
 	}
-	return err
+	for _, mf := range manifests {
+		if mf == nil {
+			continue
+		}
+		ref := common.ClusterObjectReference{
+			Cluster: cluster,
+			Creator: owner,
+			ObjectReference: corev1.ObjectReference{
+				Name:       mf.GetName(),
+				Namespace:  mf.GetNamespace(),
+				Kind:       mf.GetKind(),
+				APIVersion: mf.GetAPIVersion(),
+			},
+		}
+		h.addAppliedResource(false, ref)
+	}
+	return nil
 }
 
 // Delete delete manifests from k8s.
 func (h *AppHandler) Delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
-	if err := h.r.Delete(ctx, manifest); err != nil {
+	manifests := multicluster.ResourcesWithClusterName(cluster, manifest)
+	if err := h.resourceKeeper.Delete(ctx, manifests); err != nil {
 		return err
 	}
 	ref := common.ClusterObjectReference{
@@ -109,7 +122,7 @@ func (h *AppHandler) addAppliedResource(previous bool, refs ...common.ClusterObj
 	for _, ref := range refs {
 		if previous {
 			for i, deleted := range h.deletedResources {
-				if isSameObjReference(deleted, ref) {
+				if deleted.Equal(ref) {
 					h.deletedResources = removeResources(h.deletedResources, i)
 					return
 				}
@@ -118,7 +131,7 @@ func (h *AppHandler) addAppliedResource(previous bool, refs ...common.ClusterObj
 
 		found := false
 		for _, current := range h.appliedResources {
-			if isSameObjReference(current, ref) {
+			if current.Equal(ref) {
 				found = true
 				break
 			}
@@ -132,14 +145,14 @@ func (h *AppHandler) addAppliedResource(previous bool, refs ...common.ClusterObj
 func (h *AppHandler) deleteAppliedResource(ref common.ClusterObjectReference) {
 	delIndex := -1
 	for i, current := range h.appliedResources {
-		if isSameObjReference(current, ref) {
+		if current.Equal(ref) {
 			delIndex = i
 		}
 	}
 	if delIndex < 0 {
 		isDeleted := false
 		for _, deleted := range h.deletedResources {
-			if isSameObjReference(deleted, ref) {
+			if deleted.Equal(ref) {
 				isDeleted = true
 				break
 			}
@@ -156,14 +169,6 @@ func (h *AppHandler) deleteAppliedResource(ref common.ClusterObjectReference) {
 func removeResources(elements []common.ClusterObjectReference, index int) []common.ClusterObjectReference {
 	elements[index] = elements[len(elements)-1]
 	return elements[:len(elements)-1]
-}
-
-func isSameObjReference(ref1, ref2 common.ClusterObjectReference) bool {
-	return ref1.Cluster == ref2.Cluster &&
-		ref1.Namespace == ref2.Namespace &&
-		ref1.APIVersion == ref2.APIVersion &&
-		ref1.Kind == ref2.Kind &&
-		ref1.Name == ref2.Name
 }
 
 // addServiceStatus recorde the whole component status.
@@ -184,38 +189,6 @@ func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComp
 		if !found {
 			h.services = append(h.services, svc)
 		}
-	}
-}
-
-// DispatchAndGC apply manifests and do GC.
-func (h *AppHandler) DispatchAndGC(ctx context.Context, manifests ...*unstructured.Unstructured) (*corev1.ObjectReference, error) {
-	h.initDispatcher()
-	tracker, err := h.dispatcher.EndAndGC(h.latestTracker).Dispatch(ctx, manifests)
-	if err != nil {
-		return nil, errors.WithMessage(err, "cannot dispatch application manifests")
-	}
-	return &corev1.ObjectReference{
-		APIVersion: tracker.APIVersion,
-		Kind:       tracker.Kind,
-		Name:       tracker.Name,
-		UID:        tracker.UID,
-	}, nil
-}
-
-func (h *AppHandler) initDispatcher() {
-	if h.latestTracker == nil {
-		if h.app.Status.ResourceTracker != nil {
-			h.latestTracker = &v1beta1.ResourceTracker{}
-			h.latestTracker.Name = h.app.Status.ResourceTracker.Name
-		} else if h.app.Status.LatestRevision != nil {
-			h.latestTracker = &v1beta1.ResourceTracker{}
-			h.latestTracker.SetName(dispatch.ConstructResourceTrackerName(h.app.Status.LatestRevision.Name, h.app.Namespace))
-		}
-	}
-	if h.dispatcher == nil {
-		// only do GC when ALL resources are dispatched successfully
-		// so skip GC while dispatching addon resources
-		h.dispatcher = dispatch.NewAppManifestsDispatcher(h.r.Client, h.currentAppRev).StartAndSkipGC(h.latestTracker).WithGCOptions(h.gcOptions)
 	}
 }
 
@@ -373,31 +346,4 @@ func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	// write back rollout status to application
 	h.app.Status.Rollout = &appRollout.Status
 	return res, nil
-}
-
-// HandleBuiltInPolicies handle built in policies
-func (h *AppHandler) HandleBuiltInPolicies(policies []*appfile.Workload) error {
-	for _, policy := range policies {
-		if policy.Type == "garbage-collect" {
-			if err := h.SetGCOptions(policy.Params); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// SetGCOptions set gc options for AppHandler
-func (h *AppHandler) SetGCOptions(options map[string]interface{}) error {
-	bt, err := json.Marshal(options)
-	if err != nil {
-		return err
-	}
-
-	gcOpts := dispatch.GCOptions{}
-	if err = json.Unmarshal(bt, &gcOpts); err != nil {
-		return err
-	}
-	h.gcOptions = gcOpts
-	return nil
 }

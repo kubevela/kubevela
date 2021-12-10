@@ -139,14 +139,6 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if targerDeploy.Status.UpdatedReplicas != *targerDeploy.Spec.Replicas {
 				return fmt.Errorf("update not finish")
 			}
-			if len(targerDeploy.OwnerReferences) != 1 {
-				return fmt.Errorf("workload ownerReference missMatch")
-			}
-			// guarantee rollout's owners and  workload's owners are same
-			if targerDeploy.OwnerReferences[0].Kind != rollout.OwnerReferences[0].Kind ||
-				targerDeploy.OwnerReferences[0].Name != rollout.OwnerReferences[0].Name {
-				return fmt.Errorf("workload ownerReference missMatch")
-			}
 			if rollout.Status.LastSourceRevision == "" {
 				return nil
 			}

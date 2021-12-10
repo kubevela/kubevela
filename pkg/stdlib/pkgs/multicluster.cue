@@ -169,6 +169,7 @@
 					if decision.namespace != _|_ {
 						namespace: decision.namespace
 					}
+					env: env_
 				} @step(2)
 			}
 		}

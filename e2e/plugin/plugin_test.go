@@ -657,6 +657,7 @@ metadata:
     app.oam.dev/appRevision: ""
     app.oam.dev/component: express-server
     app.oam.dev/name: test-vela-app
+    app.oam.dev/namespace: default
     app.oam.dev/resourceType: WORKLOAD
     workload.oam.dev/type: test-webservice
   name: express-server
@@ -685,6 +686,7 @@ metadata:
     app.oam.dev/appRevision: ""
     app.oam.dev/component: express-server
     app.oam.dev/name: test-vela-app
+    app.oam.dev/namespace: default
     app.oam.dev/resourceType: TRAIT
     trait.oam.dev/resource: service
     trait.oam.dev/type: test-ingress
@@ -706,6 +708,7 @@ metadata:
     app.oam.dev/appRevision: ""
     app.oam.dev/component: express-server
     app.oam.dev/name: test-vela-app
+    app.oam.dev/namespace: default
     app.oam.dev/resourceType: TRAIT
     trait.oam.dev/resource: ingress
     trait.oam.dev/type: test-ingress
@@ -766,6 +769,7 @@ var livediffResult = `---
 -     app.oam.dev/appRevision: ""
 -     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
+-     app.oam.dev/namespace: default
 -     app.oam.dev/resourceType: WORKLOAD
 -     workload.oam.dev/type: test-webservice
 -   name: express-server
@@ -796,6 +800,7 @@ var livediffResult = `---
 -     app.oam.dev/appRevision: ""
 -     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
+-     app.oam.dev/namespace: default
 -     app.oam.dev/resourceType: TRAIT
 -     trait.oam.dev/resource: service
 -     trait.oam.dev/type: test-ingress
@@ -819,6 +824,7 @@ var livediffResult = `---
 -     app.oam.dev/appRevision: ""
 -     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
+-     app.oam.dev/namespace: default
 -     app.oam.dev/resourceType: TRAIT
 -     trait.oam.dev/resource: ingress
 -     trait.oam.dev/type: test-ingress
@@ -845,6 +851,7 @@ var livediffResult = `---
 +     app.oam.dev/appRevision: ""
 +     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
++     app.oam.dev/namespace: default
 +     app.oam.dev/resourceType: WORKLOAD
 +     workload.oam.dev/type: test-webservice
 +   name: new-express-server
@@ -880,6 +887,7 @@ var livediffResult = `---
 +     app.oam.dev/appRevision: ""
 +     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
++     app.oam.dev/namespace: default
 +     app.oam.dev/resourceType: TRAIT
 +     trait.oam.dev/resource: service
 +     trait.oam.dev/type: test-ingress
@@ -903,6 +911,7 @@ var livediffResult = `---
 +     app.oam.dev/appRevision: ""
 +     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
++     app.oam.dev/namespace: default
 +     app.oam.dev/resourceType: TRAIT
 +     trait.oam.dev/resource: ingress
 +     trait.oam.dev/type: test-ingress
