@@ -19,6 +19,7 @@ package query
 import (
 	"context"
 	"reflect"
+	"sync"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
@@ -240,29 +241,39 @@ func NewHelmReleaseCollector(cli client.Client, hr *unstructured.Unstructured) *
 		},
 		workloadsGVK: []schema.GroupVersionKind{
 			appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name()),
+			appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.StatefulSet{}).Name()),
+			batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.Job{}).Name()),
 		},
 		cli: cli,
 	}
 }
 
 // CollectWorkloads collect workloads of HelmRelease
-func (c *HelmReleaseCollector) CollectWorkloads(cluster string) ([]*unstructured.Unstructured, error) {
+func (c *HelmReleaseCollector) CollectWorkloads(cluster string) ([]unstructured.Unstructured, error) {
 	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	listOptions := []client.ListOption{
 		client.MatchingLabels(c.matchLabels),
 	}
-	var workloads []*unstructured.Unstructured
-	for _, workloadGVK := range c.workloadsGVK {
-		unstructuredObjList := &unstructured.UnstructuredList{}
-		unstructuredObjList.SetGroupVersionKind(workloadGVK)
-		if err := c.cli.List(ctx, unstructuredObjList, listOptions...); err != nil {
-			return nil, err
-		}
-		items := unstructuredObjList.Items
-		for i := range items {
-			items[i].SetGroupVersionKind(workloadGVK)
-			workloads = append(workloads, &items[i])
-		}
+	workloadsList := make([][]unstructured.Unstructured, len(c.workloadsGVK))
+	wg := sync.WaitGroup{}
+	wg.Add(len(c.workloadsGVK))
+
+	for i, workloadGVK := range c.workloadsGVK {
+		go func(index int, gvk schema.GroupVersionKind) {
+			defer wg.Done()
+			unstructuredObjList := &unstructured.UnstructuredList{}
+			unstructuredObjList.SetGroupVersionKind(gvk)
+			if err := c.cli.List(ctx, unstructuredObjList, listOptions...); err != nil {
+				return
+			}
+			workloadsList[index] = unstructuredObjList.Items
+		}(i, workloadGVK)
+	}
+	wg.Wait()
+
+	var workloads []unstructured.Unstructured
+	for i := range workloadsList {
+		workloads = append(workloads, workloadsList[i]...)
 	}
 	return workloads, nil
 }
@@ -274,16 +285,26 @@ func helmReleasePodCollector(cli client.Client, obj *unstructured.Unstructured, 
 	if err != nil {
 		return nil, err
 	}
-	var pods []*unstructured.Unstructured
-	for _, workload := range workloads {
-		collector := NewPodCollector(workload.GroupVersionKind())
-		podList, err := collector(cli, workload, cluster)
-		if err != nil {
-			return nil, err
-		}
-		pods = append(pods, podList...)
+	podsList := make([][]*unstructured.Unstructured, len(workloads))
+	wg := sync.WaitGroup{}
+	wg.Add(len(workloads))
+	for i := range workloads {
+		go func(index int) {
+			defer wg.Done()
+			collector := NewPodCollector(workloads[index].GroupVersionKind())
+			pods, err := collector(cli, &workloads[index], cluster)
+			if err != nil {
+				return
+			}
+			podsList[index] = pods
+		}(i)
 	}
-	return pods, nil
+	wg.Wait()
+	var collectedPods []*unstructured.Unstructured
+	for i := range podsList {
+		collectedPods = append(collectedPods, podsList[i]...)
+	}
+	return collectedPods, nil
 }
 
 func getEventFieldSelector(obj *unstructured.Unstructured) fields.Selector {
