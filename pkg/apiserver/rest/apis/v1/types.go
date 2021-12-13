@@ -132,6 +132,7 @@ type AddonStatusResponse struct {
 	Args  map[string]string `json:"args"`
 
 	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
+	AppStatus        common.AppStatus  `json:"appStatus,omitempty"`
 }
 
 // EnablingProgress defines the progress of enabling an addon

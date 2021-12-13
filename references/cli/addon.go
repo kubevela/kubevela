@@ -99,6 +99,7 @@ func NewAddonCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		NewAddonEnableCommand(c, ioStreams),
 		NewAddonDisableCommand(ioStreams),
 		NewAddonStatusCommand(ioStreams),
+		NewAddonRegistryCommand(c, ioStreams),
 	)
 	return cmd
 }

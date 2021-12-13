@@ -178,6 +178,9 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 		Phase:            convertAppStateToAddonPhase(app.Status.Phase),
 		EnablingProgress: nil,
 	}
+
+	res.AppStatus = app.Status
+
 	if res.Phase != apis.AddonPhaseEnabled {
 		return &res, nil
 	}
@@ -195,7 +198,6 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 		}
 
 	}
-
 	return &res, nil
 }
 

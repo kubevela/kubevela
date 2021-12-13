@@ -19,6 +19,7 @@ package e2e
 import (
 	"context"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -115,6 +116,41 @@ var _ = Describe("Addon Test", func() {
 			}, 60*time.Second).Should(Succeed())
 		})
 
+	})
+
+	Context("Addon registry test", func() {
+		It("List all addon registry", func() {
+			output, err := e2e.Exec("vela addon registry list")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("KubeVela"))
+		})
+
+		It("Get addon registry", func() {
+			output, err := e2e.Exec("vela addon registry get KubeVela")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("KubeVela"))
+		})
+
+		It("Add test addon registry", func() {
+			output, err := e2e.LongTimeExec("vela addon registry add my-repo --type=git --gitUrl=https://github.com/oam-dev/catalog --path=/experimental/addons", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully add an addon registry my-repo"))
+
+			Eventually(func() error {
+				output, err := e2e.LongTimeExec("vela addon registry update my-repo --type=git --gitUrl=https://github.com/oam-dev/catalog --path=/addons", 300*time.Second)
+				if err != nil {
+					return err
+				}
+				if !strings.Contains(output, "Successfully update an addon registry my-repo") {
+					return fmt.Errorf("cannot update addon registry")
+				}
+				return nil
+			}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+
+			output, err = e2e.LongTimeExec("vela addon registry delete my-repo", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully delete an addon registry my-repo"))
+		})
 	})
 })
 
