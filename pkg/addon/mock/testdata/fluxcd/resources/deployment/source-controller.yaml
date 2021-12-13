@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: flux-system
+    control-plane: controller
+  name: flux-source-controller
+  namespace: flux-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: source-controller
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+      labels:
+        app: source-controller
+    spec:
+      containers:
+        - args:
+            - --events-addr=http://notification-controller/
+            - --watch-all-namespaces
+            - --log-level=info
+            - --log-encoding=json
+            - --enable-leader-election
+            - --storage-path=/data
+            - --storage-adv-addr=source-controller.$(RUNTIME_NAMESPACE).svc.cluster.local.
+          env:
+            - name: RUNTIME_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          image: fluxcd/source-controller:v0.15.3
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+          name: manager
+          ports:
+            - containerPort: 9090
+              name: http
+            - containerPort: 8080
+              name: http-prom
+            - containerPort: 9440
+              name: healthz
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - mountPath: /tmp
+              name: tmp
+      securityContext:
+        fsGroup: 1337
+      serviceAccountName: sa-source-controller
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - emptyDir: { }
+          name: data
+        - emptyDir: { }
+          name: tmp

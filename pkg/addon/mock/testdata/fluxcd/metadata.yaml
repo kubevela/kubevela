@@ -1,0 +1,18 @@
+name: fluxcd
+version: 1.0.0
+description: Extended workload to do continuous and progressive delivery
+icon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png
+url: https://fluxcd.io
+
+tags:
+- extended_workload
+- gitops
+
+deployTo:
+  control_plane: true
+  runtime_cluster: true
+
+needNamespace:
+  - flux-system
+
+invisible: false
