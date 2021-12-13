@@ -26,8 +26,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/oam-dev/kubevela/e2e/addon/mock/utils"
 	"github.com/oam-dev/kubevela/pkg/addon"
-	"github.com/oam-dev/kubevela/pkg/addon/mock/utils"
 )
 
 var (
