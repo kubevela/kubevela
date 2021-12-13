@@ -119,7 +119,6 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 			}
 		}
 		w.app.Status.Conditions = reservedConditions
-		fmt.Println("=========wf status", w.app.Status)
 		return common.WorkflowStateInitializing, nil
 	}
 
@@ -141,6 +140,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	wfCtx, err := w.makeContext(w.app.Name)
 	if err != nil {
 		ctx.Error(err, "make context")
+		wfStatus.Message = string(common.WorkflowStateExecuting)
 		return common.WorkflowStateExecuting, err
 	}
 	w.wfCtx = wfCtx
@@ -155,6 +155,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	err = e.run(wfCtx, taskRunners)
 	if err != nil {
 		ctx.Error(err, "run steps")
+		wfStatus.Message = string(common.WorkflowStateExecuting)
 		return common.WorkflowStateExecuting, err
 	}
 

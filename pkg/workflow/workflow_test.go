@@ -83,6 +83,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
 			Mode:        common.WorkflowModeStep,
+			Message:     string(common.WorkflowStateExecuting),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
@@ -126,6 +127,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
+			Message:     string(common.WorkflowStateSucceeded),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
@@ -310,6 +312,7 @@ var _ = Describe("Test Workflow", func() {
 			AppRevision: wfStatus.AppRevision,
 			Mode:        common.WorkflowModeStep,
 			Suspend:     true,
+			Message:     string(common.WorkflowStateSuspended),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
@@ -338,6 +341,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
+			Message:     string(common.WorkflowStateSucceeded),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
@@ -383,6 +387,7 @@ var _ = Describe("Test Workflow", func() {
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
 			Terminated:  true,
+			Message:     string(common.WorkflowStateTerminated),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
@@ -423,6 +428,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
+			Message:     string(common.WorkflowStateExecuting),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
@@ -469,6 +475,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeDAG,
+			Message:     string(common.WorkflowStateExecuting),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
@@ -493,6 +500,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeDAG,
+			Message:     string(common.WorkflowStateSucceeded),
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
 				Type:  "success",
