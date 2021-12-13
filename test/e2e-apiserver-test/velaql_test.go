@@ -267,7 +267,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
 			)
 			if err != nil {
 				return err
@@ -277,16 +277,12 @@ var _ = Describe("Test velaQL rest api", func() {
 			}
 			defer queryRes.Body.Close()
 
-			type queryResult struct {
-				PodList []interface{} `json:"podList,omitempty"`
-				Error   interface{}   `json:"error,omitempty"`
-			}
-			status := new(queryResult)
+			status := new(Status)
 			err = json.NewDecoder(queryRes.Body).Decode(status)
 			if err != nil {
 				return err
 			}
-			if status.Error != nil {
+			if status.Error != "" {
 				return errors.Errorf("error %v", status.Error)
 			}
 			if len(status.PodList) == 0 {
@@ -294,6 +290,10 @@ var _ = Describe("Test velaQL rest api", func() {
 			}
 			return nil
 		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+	})
+
+	It("Test collect legacy resources from application", func() {
+
 	})
 })
 

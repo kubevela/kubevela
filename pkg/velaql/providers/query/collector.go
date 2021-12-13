@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 )
 
 // AppCollector collect resource created by application
@@ -62,50 +63,47 @@ func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 	if err := c.k8sClient.Get(ctx, appKey, app); err != nil {
 		return nil, err
 	}
-	resources := make([]Resource, 0, len(app.Spec.Components))
-	for _, rsrcRef := range app.Status.AppliedResources {
-		if !isResourceInTargetCluster(c.opt.Filter, rsrcRef) {
-			continue
+
+	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
+	if err != nil {
+		return nil, err
+	}
+
+	managedResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
+	for _, rt := range append(historyRTs, rootRT, currentRT) {
+		if rt != nil {
+			for _, managedResource := range rt.Spec.ManagedResources {
+				if isResourceInTargetCluster(c.opt.Filter, managedResource) &&
+					isResourceInTargetComponent(c.opt.Filter, managedResource) {
+					managedResources[managedResource.ClusterObjectReference] = true
+				}
+			}
 		}
-		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, rsrcRef.ObjectReference, rsrcRef.Cluster)
-		if err != nil {
+	}
+	resources := make([]Resource, 0, len(managedResources))
+	for objRef := range managedResources {
+		obj := new(unstructured.Unstructured)
+		obj.SetGroupVersionKind(objRef.GroupVersionKind())
+		obj.SetNamespace(objRef.Namespace)
+		obj.SetName(objRef.Name)
+		if err = c.k8sClient.Get(multicluster.ContextWithClusterName(ctx, objRef.Cluster),
+			client.ObjectKeyFromObject(obj), obj); err != nil {
+			if kerrors.IsNotFound(err) {
+				continue
+			}
 			return nil, err
 		}
-		if len(compName) != 0 && isResourceInTargetComponent(c.opt.Filter, compName) {
-			resources = append(resources, Resource{
-				Component: compName,
-				Revision:  obj.GetLabels()[oam.LabelAppRevision],
-				Cluster:   rsrcRef.Cluster,
-				Object:    obj,
-			})
-		}
+		resources = append(resources, Resource{
+			Cluster:   objRef.Cluster,
+			Revision:  obj.GetLabels()[oam.LabelAppRevision],
+			Component: obj.GetLabels()[oam.LabelAppComponent],
+			Object:    obj,
+		})
 	}
 	if len(resources) == 0 {
 		return nil, errors.Errorf("fail to find resources created by application: %v", c.opt.Name)
 	}
 	return resources, nil
-}
-
-// getObjectCreatedByComponent get k8s obj created by components
-func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReference, cluster string) (string, *unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	obj := new(unstructured.Unstructured)
-	obj.SetGroupVersionKind(objRef.GroupVersionKind())
-	obj.SetNamespace(objRef.Namespace)
-	obj.SetName(objRef.Name)
-
-	key := client.ObjectKeyFromObject(obj)
-	if key.Namespace == "" {
-		key.Namespace = "default"
-	}
-	if err := cli.Get(ctx, key, obj); err != nil {
-		if kerrors.IsNotFound(err) {
-			return "", nil, nil
-		}
-		return "", nil, err
-	}
-	componentName := obj.GetLabels()[oam.LabelAppComponent]
-	return componentName, obj, nil
 }
 
 var standardWorkloads = []schema.GroupVersionKind{
@@ -297,22 +295,22 @@ func getEventFieldSelector(obj *unstructured.Unstructured) fields.Selector {
 	return field.AsSelector()
 }
 
-func isResourceInTargetCluster(opt FilterOption, resource common.ClusterObjectReference) bool {
+func isResourceInTargetCluster(opt FilterOption, managedResource v1beta1.ManagedResource) bool {
 	if opt.Cluster == "" && opt.ClusterNamespace == "" {
 		return true
 	}
-	if opt.Cluster == resource.Cluster && opt.ClusterNamespace == resource.ObjectReference.Namespace {
+	if opt.Cluster == managedResource.Cluster && opt.ClusterNamespace == managedResource.ObjectReference.Namespace {
 		return true
 	}
 	return false
 }
 
-func isResourceInTargetComponent(opt FilterOption, componentName string) bool {
-	if len(opt.Components) == 0 && len(componentName) != 0 {
+func isResourceInTargetComponent(opt FilterOption, managedResource v1beta1.ManagedResource) bool {
+	if len(opt.Components) == 0 {
 		return true
 	}
 	for _, component := range opt.Components {
-		if component == componentName {
+		if component == managedResource.Component {
 			return true
 		}
 	}
