@@ -323,7 +323,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
 	if phase == common.ApplicationRendering {
-		return ctrl.Result{}, r.updateStatusWithRetryOnConflict(logCtx, handler.app, phase)
+		return ctrl.Result{}, r.updateStatusWithRetryOnConflict(logCtx, handler.app, common.ApplicationRunningWorkflow)
 	}
 	return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, handler.app, phase)
 }

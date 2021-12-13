@@ -1771,7 +1771,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRendering))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
@@ -1884,7 +1884,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRendering))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
