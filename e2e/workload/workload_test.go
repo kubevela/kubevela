@@ -30,7 +30,7 @@ var _ = Describe("Workload", func() {
 		It("list components with the specified label", func() {
 			output, err := e2e.Exec("vela components --label type=terraform")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("alibaba-oss"))
+			Expect(output).To(ContainSubstring("alibaba-ack"))
 		})
 	})
 })
