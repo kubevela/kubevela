@@ -18,7 +18,6 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -180,11 +179,7 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 		EnablingProgress: nil,
 	}
 
-	appConditions, err := gatherAddonStatusDetailInfo(app)
-	if err != nil {
-		return nil, err
-	}
-	res.DetailWorkflowInfo = string(appConditions)
+	res.AppStatus = app.Status
 
 	if res.Phase != apis.AddonPhaseEnabled {
 		return &res, nil
@@ -522,11 +517,4 @@ func SourceOf(meta apis.AddonRegistryMeta) pkgaddon.Source {
 		return meta.OSS
 	}
 	return meta.Git
-}
-
-func gatherAddonStatusDetailInfo(app v1beta1.Application) ([]byte, error) {
-	if app.Status.Workflow == nil {
-		return nil, nil
-	}
-	return json.Marshal(app.Status.Workflow.Steps)
 }
