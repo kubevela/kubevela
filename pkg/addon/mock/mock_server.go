@@ -4,13 +4,14 @@ import (
 	"embed"
 	"encoding/xml"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/addon"
-	"github.com/oam-dev/kubevela/pkg/addon/mock/utils"
 	"io/fs"
 	"log"
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/addon"
+	"github.com/oam-dev/kubevela/pkg/addon/mock/utils"
 )
 
 var (
@@ -27,14 +28,14 @@ func main() {
 	if err != nil {
 		log.Fatal("Apply mock server config to ConfigMap fail")
 	}
-	http.HandleFunc("/", OssHandler)
+	http.HandleFunc("/", ossHandler)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", utils.Port), nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
 }
 
-var OssHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
+var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
 	queryPath := strings.TrimPrefix(req.URL.Path, "/")
 
 	if strings.Contains(req.URL.RawQuery, "prefix") {
@@ -46,29 +47,29 @@ var OssHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 		for _, p := range paths {
 			if strings.HasPrefix(p.path, prefix) {
 				res.Files = append(res.Files, addon.File{Name: p.path, Size: int(p.length)})
-				res.Count += 1
+				res.Count++
 			}
 		}
 		data, err := xml.Marshal(res)
 		if err != nil {
-			rw.Write([]byte(err.Error()))
+			_, _ = rw.Write([]byte(err.Error()))
 		}
-		rw.Write(data)
+		_, _ = rw.Write(data)
 	} else {
 		found := false
 		for _, p := range paths {
 			if queryPath == p.path {
-				file, err :=testData.ReadFile(path.Join("testdata",queryPath))
+				file, err := testData.ReadFile(path.Join("testdata", queryPath))
 				if err != nil {
-					rw.Write([]byte(err.Error()))
+					_, _ = rw.Write([]byte(err.Error()))
 				}
 				found = true
-				rw.Write(file)
+				_, _ = rw.Write(file)
 				break
 			}
 		}
 		if !found {
-			rw.Write([]byte("not found"))
+			_, _ = rw.Write([]byte("not found"))
 		}
 	}
 }
@@ -84,7 +85,7 @@ func init() {
 			return nil
 		}
 		if size == 0 {
-			path = path + "/"
+			path += "/"
 		}
 		fmt.Println(path, size)
 

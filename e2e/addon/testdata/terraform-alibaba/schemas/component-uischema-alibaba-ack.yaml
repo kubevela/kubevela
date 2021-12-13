@@ -1,6 +1,0 @@
-- jsonKey: writeConnectionSecretToRef
-  disable: true
-- jsonKey: providerRef
-  disable: true
-- jsonKey: region
-  disable: true

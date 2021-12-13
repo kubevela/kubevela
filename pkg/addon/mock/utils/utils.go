@@ -3,17 +3,20 @@ package utils
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
-	"strings"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 var (
-	Port=9098
+	// Port is mock server's exposed port
+	Port         = 9098
 	velaRegistry = `
 apiVersion: v1
 data:
@@ -26,6 +29,7 @@ metadata:
 `
 )
 
+// ApplyMockServerConfig config mock server as addon registry
 func ApplyMockServerConfig() error {
 	args := common.Args{Schema: common.Scheme}
 	k8sClient, err := args.GetClient()
