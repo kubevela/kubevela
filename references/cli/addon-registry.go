@@ -217,7 +217,7 @@ func deleteAddonRegistry(ctx context.Context, name string) error {
 	if err := ds.DeleteRegistry(ctx, name); err != nil {
 		return err
 	}
-	fmt.Printf("Successfully delete an addon %s \n", name)
+	fmt.Printf("Successfully delete an addon registry %s \n", name)
 	return nil
 }
 
@@ -226,7 +226,7 @@ func addAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
 	if err := ds.AddRegistry(ctx, registry); err != nil {
 		return err
 	}
-	fmt.Printf("Successfully add an addon %s \n", registry.Name)
+	fmt.Printf("Successfully add an addon registry %s \n", registry.Name)
 	return nil
 }
 
@@ -235,7 +235,7 @@ func updateAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error 
 	if err := ds.UpdateRegistry(ctx, registry); err != nil {
 		return err
 	}
-	fmt.Printf("Successfully update an addon %s \n", registry.Name)
+	fmt.Printf("Successfully update an addon registry %s \n", registry.Name)
 	return nil
 }
 

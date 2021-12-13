@@ -157,6 +157,9 @@ func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) err
 	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
 		return err
 	}
+	if _, ok := registries[registry.Name]; !ok {
+		return fmt.Errorf("addon registry %s not exist", registry.Name)
+	}
 	registries[registry.Name] = registry
 	b, err := json.Marshal(registries)
 	if err != nil {
