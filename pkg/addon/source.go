@@ -61,11 +61,12 @@ type GitAddonSource struct {
 type OSSAddonSource struct {
 	EndPoint string `json:"end_point" validate:"required"`
 	Bucket   string `json:"bucket"`
+	Path     string `json:"path"`
 }
 
 // GetAddon from OSSAddonSource
 func (o *OSSAddonSource) GetAddon(name string, opt ListOptions) (*Addon, error) {
-	reader, err := NewAsyncReader(o.EndPoint, o.Bucket, "", ossType)
+	reader, err := NewAsyncReader(o.EndPoint, o.Bucket, o.Path, "", ossType)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +79,7 @@ func (o *OSSAddonSource) GetAddon(name string, opt ListOptions) (*Addon, error) 
 
 // ListAddons from OSSAddonSource
 func (o *OSSAddonSource) ListAddons(opt ListOptions) ([]*Addon, error) {
-	reader, err := NewAsyncReader(o.EndPoint, o.Bucket, "", ossType)
+	reader, err := NewAsyncReader(o.EndPoint, o.Bucket, o.Path, "", ossType)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (o *OSSAddonSource) ListAddons(opt ListOptions) ([]*Addon, error) {
 
 // GetAddon get an addon info from GitAddonSource, can be used for get or enable
 func (git *GitAddonSource) GetAddon(name string, opt ListOptions) (*Addon, error) {
-	reader, err := NewAsyncReader(git.URL, git.Path, git.Token, gitType)
+	reader, err := NewAsyncReader(git.URL, "", git.Path, git.Token, gitType)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +105,7 @@ func (git *GitAddonSource) GetAddon(name string, opt ListOptions) (*Addon, error
 
 // ListAddons list addons' info from GitAddonSource
 func (git *GitAddonSource) ListAddons(opt ListOptions) ([]*Addon, error) {
-	r, err := NewAsyncReader(git.URL, git.Path, git.Token, "git")
+	r, err := NewAsyncReader(git.URL, "", git.Path, git.Token, "git")
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +219,7 @@ func (g *gitReader) RelativePath(item Item) string {
 type ossReader struct {
 	baseReader
 	bucketEndPoint string
+	path           string
 	client         *resty.Client
 }
 
@@ -243,15 +245,25 @@ func (i OssItem) GetName() string {
 	return i.name
 }
 
+// pathWithParent joins path with its parent directory, suffix slash is reserved
+func pathWithParent(subPath, parent string) string {
+	actualPath := path.Join(parent, subPath)
+	if strings.HasSuffix(subPath, "/") {
+		actualPath += "/"
+	}
+	return actualPath
+}
+
 // Read from oss
 func (o *ossReader) Read(readPath string) (content string, subItem []Item, err error) {
 	if readPath == "." {
 		readPath = ""
 	}
-	resp, err := o.client.R().Get(fmt.Sprintf(listOssFileTmpl, o.bucketEndPoint, readPath))
+	actualPath := pathWithParent(readPath, o.path)
+	resp, err := o.client.R().Get(fmt.Sprintf(listOssFileTmpl, o.bucketEndPoint, actualPath))
 
 	if err != nil {
-		return "", nil, errors.Wrapf(err, "read path %s fail", readPath)
+		return "", nil, errors.Wrapf(err, "read path %s fail", actualPath)
 	}
 	list := ListBucketResult{}
 	err = xml.Unmarshal(resp.Body(), &list)
@@ -266,8 +278,8 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 	}
 	list.Files = actualFiles
 	list.Count = len(actualFiles)
-	if len(list.Files) == 1 && list.Files[0].Name == readPath {
-		resp, err = o.client.R().Get(fmt.Sprintf(singleOssFileTmpl, o.bucketEndPoint, readPath))
+	if len(list.Files) == 1 && list.Files[0].Name == actualPath {
+		resp, err = o.client.R().Get(fmt.Sprintf(singleOssFileTmpl, o.bucketEndPoint, actualPath))
 		if err != nil {
 			return "", nil, err
 		}
@@ -279,7 +291,7 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 		if !strings.HasSuffix(readPath, "/") && readPath != "" {
 			return o.Read(readPath + "/")
 		}
-		items := convert2OssItem(list.Files, readPath)
+		items := convert2OssItem(list.Files, actualPath)
 		return "", items, nil
 	}
 
@@ -342,7 +354,7 @@ const (
 // NewAsyncReader create AsyncReader from
 // 1. GitHub url and directory
 // 2. OSS endpoint and bucket
-func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (AsyncReader, error) {
+func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (AsyncReader, error) {
 	bReader := baseReader{
 		a:       &Addon{},
 		errChan: make(chan error),
@@ -355,7 +367,7 @@ func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (Asyn
 		if err != nil {
 			return nil, errors.New("addon registry invalid")
 		}
-		u.Path = path.Join(u.Path, dirOrBucket)
+		u.Path = path.Join(u.Path, subPath)
 		tp, content, err := utils.Parse(u.String())
 		if err != nil || tp != utils.TypeGithub {
 			return nil, err
@@ -371,17 +383,18 @@ func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (Asyn
 			return nil, err
 		}
 		var bucketEndPoint string
-		if dirOrBucket == "" {
+		if bucket == "" {
 			bucketEndPoint = ossURL.String()
 		} else {
 			if ossURL.Scheme == "" {
 				ossURL.Scheme = "https"
 			}
-			bucketEndPoint = fmt.Sprintf(bucketTmpl, ossURL.Scheme, dirOrBucket, ossURL.Host)
+			bucketEndPoint = fmt.Sprintf(bucketTmpl, ossURL.Scheme, bucket, ossURL.Host)
 		}
 		return &ossReader{
 			baseReader:     bReader,
 			bucketEndPoint: bucketEndPoint,
+			path:           subPath,
 			client:         resty.New(),
 		}, nil
 	}

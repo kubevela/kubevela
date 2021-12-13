@@ -9,7 +9,8 @@ data:
     "name": "KubeVela",
     "oss": {
       "end_point": "https://addons.kubevela.net",
-      "bucket": ""
+      "bucket": "",
+      "path": ""
     }
   }
 }'
