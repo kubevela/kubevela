@@ -1,4 +1,4 @@
-## How to use garbage-collect policy
+## How to keep legacy resources
 
 Suppose you want to keep the resources created by the old version of the app. You only need to specify garbage-collect in the policy field of the app and enable the option `keepLegacyResource`.
 
