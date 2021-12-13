@@ -103,8 +103,6 @@ func init() {
 		if size == 0 {
 			path += "/"
 		}
-		fmt.Println(path, size)
-
 		paths = append(paths, struct {
 			path   string
 			length int64
