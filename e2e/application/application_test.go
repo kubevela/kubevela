@@ -216,11 +216,11 @@ var ApplicationDeleteWithForceOptions = func(context string, appName string) boo
 			gomega.Expect(output).To(gomega.ContainSubstring("timed out"))
 
 			app = new(v1beta1.Application)
-			gomega.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: "default"}, app)).NotTo(gomega.HaveOccurred())
-			meta.RemoveFinalizer(app, "test")
-			gomega.Eventually(func() error {
-				return k8sClient.Update(ctx, app)
-			}, time.Second*3, time.Millisecond*300).Should(gomega.BeNil())
+			gomega.Eventually(func(g gomega.Gomega) {
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: "default"}, app)).Should(gomega.Succeed())
+				meta.RemoveFinalizer(app, "test")
+				g.Expect(k8sClient.Update(ctx, app)).Should(gomega.Succeed())
+			}, time.Second*5, time.Millisecond*300).Should(gomega.Succeed())
 
 			cli = fmt.Sprintf("vela delete %s --force", appName)
 			output, err = e2e.ExecAndTerminate(cli)

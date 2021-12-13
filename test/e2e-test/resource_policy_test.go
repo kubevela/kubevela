@@ -119,9 +119,11 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 30*time.Second).Should(Succeed())
 
 		By("upgrade to v3 (new component)")
-		Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-		app.Spec.Components[0].Name = "hello-world-new"
-		Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Spec.Components[0].Name = "hello-world-new"
+			g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))

@@ -22,3 +22,7 @@ spec:
               traitTypes:
                 - expose
             strategy: onAppDelete
+    - name: apply-once
+      type: apply-once
+      properties:
+        enable: true
