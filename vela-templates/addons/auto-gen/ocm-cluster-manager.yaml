@@ -414,9 +414,9 @@ spec:
       metadata:
         name: cluster-manager-hub
       spec:
-        placementImagePullSpec: quay.io/open-cluster-management/placement
-        registrationImagePullSpec: quay.io/open-cluster-management/registration
-        workImagePullSpec: quay.io/open-cluster-management/work
+        placementImagePullSpec: quay.io/open-cluster-management/placement:v0.5.0
+        registrationImagePullSpec: quay.io/open-cluster-management/registration:v0.5.0
+        workImagePullSpec: quay.io/open-cluster-management/work:v0.5.0
     type: raw
   - name: cluster-manager-controller
     properties:
@@ -462,7 +462,7 @@ spec:
             - args:
               - /registration-operator
               - hub
-              image: quay.io/open-cluster-management/registration-operator:latest
+              image: quay.io/open-cluster-management/registration-operator:v0.5.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
