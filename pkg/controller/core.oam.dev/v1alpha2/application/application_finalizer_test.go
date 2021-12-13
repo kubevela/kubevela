@@ -226,7 +226,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
 	})
 
-	PIt("Test cross namespace workload and trait, then update the app to delete trait ", func() {
+	It("Test cross namespace workload and trait, then update the app to delete trait ", func() {
 		appName := "app-4"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "cross-worker")

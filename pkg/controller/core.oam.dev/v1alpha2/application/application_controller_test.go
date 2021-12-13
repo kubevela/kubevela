@@ -1436,7 +1436,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
-	PIt("Test rollout trait all related definition features", func() {
+	It("Test rollout trait all related definition features", func() {
 		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
 		Expect(err).Should(BeNil())
 		rolloutTrait := &v1beta1.TraitDefinition{}
@@ -1771,7 +1771,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRendering))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
@@ -1884,7 +1884,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRendering))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
@@ -2189,7 +2189,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
 	})
 
-	PIt("test application applied resource in workflow step status", func() {
+	It("test application applied resource in workflow step status", func() {
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-applied-resources",

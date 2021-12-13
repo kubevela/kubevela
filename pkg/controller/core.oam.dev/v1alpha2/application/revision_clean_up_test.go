@@ -69,7 +69,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		Expect(k8sClient.Delete(ctx, &ns)).Should(SatisfyAny(BeNil()))
 	})
 
-	PIt("Test clean up appRevision", func() {
+	It("Test clean up appRevision", func() {
 		appName := "app-1"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")
@@ -154,7 +154,7 @@ var _ = Describe("Test application controller clean up ", func() {
 		}, time.Second*30, time.Microsecond*300).Should(BeNil())
 	})
 
-	PIt("Test clean up component revision", func() {
+	It("Test clean up component revision", func() {
 		appName := "app-1"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
 		app := getApp(appName, namespace, "normal-worker")

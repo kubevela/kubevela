@@ -201,7 +201,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		switch workflowState {
 		case common.WorkflowStateInitializing:
 			logCtx.Info("Workflow return state=Initializing")
-			return ctrl.Result{}, r.updateStatusWithRetryOnConflict(logCtx, app, common.ApplicationRunningWorkflow)
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
 		case common.WorkflowStateSuspended:
 			logCtx.Info("Workflow return state=Suspend")
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
@@ -322,6 +322,9 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return ctrl.Result{RequeueAfter: baseGCBackoffWaitTime}, r.patchStatusWithRetryOnConflict(logCtx, handler.app, phase)
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
+	if phase == common.ApplicationRendering {
+		return ctrl.Result{}, r.updateStatusWithRetryOnConflict(logCtx, handler.app, phase)
+	}
 	return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, handler.app, phase)
 }
 

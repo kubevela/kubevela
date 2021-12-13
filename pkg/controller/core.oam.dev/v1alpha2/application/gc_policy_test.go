@@ -106,7 +106,7 @@ var _ = Describe("Test Application with GC options", func() {
 			},
 		}
 
-		PIt("Each update will create a new workload and trait object", func() {
+		It("Each update will create a new workload and trait object", func() {
 			app := baseApp.DeepCopy()
 			app.SetNamespace(ns.Name)
 			app.SetName("app-with-worker-ingress")
@@ -390,7 +390,7 @@ var _ = Describe("Test Application with GC options", func() {
 			Expect(len(rtList.Items)).Should(Equal(0))
 		})
 
-		PIt("Each update will only update workload", func() {
+		It("Each update will only update workload", func() {
 			app := baseApp.DeepCopy()
 			app.Spec.Components[0].Traits = nil
 			app.Spec.Components[0].Name = "only-work"
