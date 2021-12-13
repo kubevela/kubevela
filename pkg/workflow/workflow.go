@@ -44,10 +44,17 @@ import (
 )
 
 const (
-	// baseWorkflowBackoffWaitTime is the base time to wait before reconcile workflow again
-	baseWorkflowBackoffWaitTime = 1
+	// minWorkflowBackoffWaitTime is the min time to wait before reconcile workflow again
+	minWorkflowBackoffWaitTime = 1
 	// maxWorkflowBackoffWaitTime is the max time to wait before reconcile workflow again
 	maxWorkflowBackoffWaitTime = 60
+	// backoffTimeCoefficient is the coefficient of time to wait before reconcile workflow again
+	backoffTimeCoefficient = 0.05
+
+	// MessageFailedAfterRetries is the message of failed after retries
+	MessageFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit(20 times)"
+	// MessageInitializingWorkflow is the message of initializing workflow
+	MessageInitializingWorkflow = "Initializing workflow"
 )
 
 type workflow struct {
@@ -93,6 +100,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 			Mode:        common.WorkflowModeStep,
 			StartTime:   metav1.Now(),
 		}
+		w.app.Status.Workflow.Message = MessageInitializingWorkflow
 		if w.dagMode {
 			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
 		}
@@ -111,6 +119,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 			}
 		}
 		w.app.Status.Conditions = reservedConditions
+		fmt.Println("=========wf status", w.app.Status)
 		return common.WorkflowStateInitializing, nil
 	}
 
@@ -149,16 +158,19 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateExecuting, err
 	}
 
-	e.writeWorkflowStatusMessage()
+	e.checkWorkflowStatusMessage(wfStatus)
 	if wfStatus.Terminated {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
-		return common.WorkflowStateSuspended, w.Cleanup(ctx)
+		w.Cleanup(ctx)
+		return common.WorkflowStateSuspended, nil
 	}
 	if w.allDone(taskRunners) {
+		wfStatus.Message = string(common.WorkflowStateSucceeded)
 		return common.WorkflowStateSucceeded, nil
 	}
+	wfStatus.Message = string(common.WorkflowStateExecuting)
 	return common.WorkflowStateExecuting, nil
 }
 
@@ -171,7 +183,7 @@ func (w *workflow) Trace() error {
 	return recorder.With(w.cli, w.app).Save("", data).Limit(10).Error()
 }
 
-func (w *workflow) Cleanup(ctx monitorContext.Context) error {
+func (w *workflow) Cleanup(ctx monitorContext.Context) {
 	ctxName := wfContext.GenerateStoreName(w.app.Name)
 	ctxCM := &corev1.ConfigMap{}
 	if err := w.cli.Get(ctx, client.ObjectKey{
@@ -179,7 +191,7 @@ func (w *workflow) Cleanup(ctx monitorContext.Context) error {
 		Name:      ctxName,
 	}, ctxCM); err != nil {
 		ctx.Error(err, "failed to get workflow context", "application", w.app.Name, "config map", ctxName)
-		return err
+		return
 	}
 
 	for k := range ctxCM.Data {
@@ -190,16 +202,15 @@ func (w *workflow) Cleanup(ctx monitorContext.Context) error {
 
 	if err := w.cli.Update(ctx, ctxCM); err != nil {
 		ctx.Error(err, "failed to update workflow context", "application", w.app.Name, "config map", ctxName)
-		return err
 	}
-	return nil
+
 }
 
-func (w *workflow) GetBackoffWaitTime() int {
+func (w *workflow) GetBackoffWaitTime() float64 {
 	ctxCM := w.wfCtx.GetStore()
 
 	// the default value of min times reaches the max workflow backoff wait time
-	minTimes := 6
+	minTimes := 12
 	found := false
 	for k, v := range ctxCM.Data {
 		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
@@ -214,14 +225,17 @@ func (w *workflow) GetBackoffWaitTime() int {
 		}
 	}
 	if !found {
-		return baseWorkflowBackoffWaitTime
+		return minWorkflowBackoffWaitTime
 	}
 
-	times := int(math.Pow(2, float64(minTimes)))
-	if times*baseWorkflowBackoffWaitTime < maxWorkflowBackoffWaitTime {
-		return times * baseWorkflowBackoffWaitTime
+	interval := math.Pow(2, float64(minTimes)) * backoffTimeCoefficient
+	if interval < minWorkflowBackoffWaitTime {
+		return minWorkflowBackoffWaitTime
 	}
-	return maxWorkflowBackoffWaitTime
+	if interval > maxWorkflowBackoffWaitTime {
+		return maxWorkflowBackoffWaitTime
+	}
+	return interval
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -337,11 +351,17 @@ func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) 
 	return e.steps(wfCtx, e.todoByIndex(taskRunners))
 }
 
-func (e *engine) writeWorkflowStatusMessage() {
+func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
 	if !e.waiting && e.failedAfterRetries {
-		e.status.Message = "The workflow suspends automatically because the failed times of steps have reached the limit(20 times)"
-	} else {
-		e.status.Message = ""
+		e.status.Message = MessageFailedAfterRetries
+		return
+	}
+
+	if wfStatus.Terminated {
+		e.status.Message = string(common.WorkflowStateTerminated)
+	}
+	if wfStatus.Suspend {
+		e.status.Message = string(common.WorkflowStateSuspended)
 	}
 }
 
@@ -385,6 +405,7 @@ func (e *engine) steps(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner
 			if e.isDag() {
 				continue
 			}
+			e.checkFailedAfterRetries()
 			return nil
 		}
 		wfCtx.DeleteModifiableValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
@@ -440,10 +461,14 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 	}
 }
 
-func (e *engine) needStop() bool {
+func (e *engine) checkFailedAfterRetries() {
 	if !e.waiting && e.failedAfterRetries {
 		e.status.Suspend = true
 	}
+}
+
+func (e *engine) needStop() bool {
+	e.checkFailedAfterRetries()
 	return e.status.Suspend || e.status.Terminated
 }
 

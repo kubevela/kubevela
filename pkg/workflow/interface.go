@@ -32,8 +32,8 @@ type Workflow interface {
 	Trace() error
 
 	// Cleanup cleans up the temporary data in workflow context.
-	Cleanup(ctx monitorContext.Context) error
+	Cleanup(ctx monitorContext.Context)
 
 	// GetBackoffWaitTime returns the wait time for next retry.
-	GetBackoffWaitTime() int
+	GetBackoffWaitTime() float64
 }

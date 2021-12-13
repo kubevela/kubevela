@@ -54,7 +54,7 @@ const (
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
 
-	maxErrorTimes = 5
+	maxErrorTimes = 20
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -160,7 +160,10 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				tracer.Commit(string(exec.status().Phase))
 			}()
 
-			// TODO:
+			if exec.operation().FailedAfterRetries {
+				tracer.Info("failed after retries, skip this step")
+				return exec.status(), exec.operation(), nil
+			}
 
 			if t.runOptionsProcess != nil {
 				t.runOptionsProcess(options)

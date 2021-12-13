@@ -55,6 +55,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/workflow"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
@@ -106,6 +107,13 @@ var _ = Describe("Test Application Controller", func() {
 	appFailRender.SetName("app-fail-to-render")
 	appFailRender.Spec.Components[0].Properties = &runtime.RawExtension{
 		Raw: []byte(`{"cmd1":["sleep","1000"],"image1":"busybox"}`),
+	}
+	appFailRender.Spec.Policies = []v1beta1.AppPolicy{
+		{
+			Name:       "policy1",
+			Type:       "foopolicy",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"test":"test"}`)},
+		},
 	}
 
 	appImportPkg := &v1beta1.Application{
@@ -229,6 +237,11 @@ var _ = Describe("Test Application Controller", func() {
 
 	cd := &v1beta1.ComponentDefinition{}
 	cDDefJson, _ := yaml.YAMLToJSON([]byte(componentDefYaml))
+	k8sObjectsCDJson, _ := yaml.YAMLToJSON([]byte(k8sObjectsComponentDefinitionYaml))
+
+	pd := &v1beta1.PolicyDefinition{}
+	pd.Namespace = "vela-system"
+	pdDefJson, _ := yaml.YAMLToJSON([]byte(policyDefYaml))
 
 	importWd := &v1beta1.WorkloadDefinition{}
 	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
@@ -252,6 +265,12 @@ var _ = Describe("Test Application Controller", func() {
 	BeforeEach(func() {
 		Expect(json.Unmarshal(cDDefJson, cd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		Expect(json.Unmarshal(k8sObjectsCDJson, cd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		Expect(json.Unmarshal(pdDefJson, pd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, pd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(importWdJson, importWd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importWd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -1417,7 +1436,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
-	It("Test rollout trait all related definition features", func() {
+	PIt("Test rollout trait all related definition features", func() {
 		rolloutTdDef, err := yaml.YAMLToJSON([]byte(rolloutTraitDefinition))
 		Expect(err).Should(BeNil())
 		rolloutTrait := &v1beta1.TraitDefinition{}
@@ -1470,6 +1489,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("update component targetComponentRev will change")
 		checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","2000"],"image":"nginx"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -1537,11 +1557,7 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		// first reconcile handle finalizer
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		// second reconcile apply all resources
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1584,11 +1600,7 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		// first reconcile handle finalizer
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		// second reconcile apply all resources
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1634,11 +1646,7 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		// first reconcile handle finalizer
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		// second reconcile apply all resources
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1721,6 +1729,189 @@ var _ = Describe("Test Application Controller", func() {
 		By("verify workflow apply component didn't apply workload")
 		deploy := &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "myweb1", Namespace: ns.Name}, deploy)).Should(util.NotFoundMatcher{})
+	})
+
+	It("application with dag workflow failed after retries", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "dag-failed-after-retries",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "dag-failed-after-retries",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+					{
+						Name:       "failed-step",
+						Type:       "k8s-objects",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"invalid","metadata":{"name":"test1"}}]}`)},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
+
+		By("verify the first twenty reconciles")
+		for i := 0; i < 20; i++ {
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		}
+
+		By("application should be suspended after failed twenty reconciles")
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+
+		By("resume the suspended application")
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		checkApp.Status.Workflow.Suspend = false
+		Expect(k8sClient.Status().Patch(ctx, checkApp, client.Merge)).Should(BeNil())
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+
+		By("test failed-after-retries with running steps")
+		compDef, err := yaml.YAMLToJSON([]byte(unhealthyComponentDefYaml))
+		Expect(err).Should(BeNil())
+		component := &v1beta1.ComponentDefinition{}
+		component.Spec.Extension = &runtime.RawExtension{Raw: compDef}
+		Expect(json.Unmarshal([]byte(compDef), component)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, component)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		checkApp.Spec.Components[0] = common.ApplicationComponent{
+			Name:       "unhealthy-worker",
+			Type:       "unhealthy-worker",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+		}
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+
+		for i := 0; i < 21; i++ {
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
+			Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		}
+	})
+
+	It("application with step by step workflow failed after retries", func() {
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "step-by-step-failed-after-retries",
+			},
+		}
+		Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "step-by-step-failed-after-retries",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+					{
+						Name:       "failed-step",
+						Type:       "k8s-objects",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"invalid","metadata":{"name":"test1"}}]}`)},
+					},
+				},
+				Workflow: &v1beta1.Workflow{
+					Steps: []v1beta1.WorkflowStep{
+						{
+							Name:       "myweb1",
+							Type:       "apply-component",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+						},
+						{
+							Name:       "failed-step",
+							Type:       "apply-component",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"failed-step"}`)},
+						},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
+
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
+
+		By("verify the first twenty reconciles")
+		for i := 0; i < 20; i++ {
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		}
+
+		By("application should be suspended after failed twenty reconciles")
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+
+		By("resume the suspended application")
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		checkApp.Status.Workflow.Suspend = false
+		Expect(k8sClient.Status().Patch(ctx, checkApp, client.Merge)).Should(BeNil())
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
 	})
 
 	It("application with input/output run as dag workflow", func() {
@@ -1998,7 +2189,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
 	})
 
-	It("test application applied resource in workflow step status", func() {
+	PIt("test application applied resource in workflow step status", func() {
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-applied-resources",
@@ -2246,6 +2437,71 @@ spec:
 
           cmd?: [...string]
       }
+`
+
+	unhealthyComponentDefYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: unhealthy-worker
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  extension:
+    template: |
+      output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: {
+              annotations: {
+                  if context["config"] != _|_ {
+                      for _, v in context.config {
+                          "\(v.name)" : v.value
+                      }
+                  }
+              }
+          }
+          spec: {
+              selector: matchLabels: {
+                  "app.oam.dev/component": context.name
+              }
+              template: {
+                  metadata: labels: {
+                      "app.oam.dev/component": context.name
+                  }
+
+                  spec: {
+                      containers: [{
+                          name:  context.name
+                          image: parameter.image
+
+                          if parameter["cmd"] != _|_ {
+                              command: parameter.cmd
+                          }
+                      }]
+                  }
+              }
+
+              selector:
+                  matchLabels:
+                      "app.oam.dev/component": context.name
+          }
+      }
+
+      parameter: {
+          // +usage=Which image would you like to use for your service
+          // +short=i
+          image: string
+          cmd?: [...string]
+      }
+  status:
+    healthPolicy: |-
+      isHealth: false
 `
 
 	wDImportYaml = `
@@ -2990,6 +3246,29 @@ spec:
         	// +usage=Declare the name of the component
         	component: string
         }
+`
+
+	k8sObjectsComponentDefinitionYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: K8s-objects allow users to specify raw K8s objects in properties
+  name: k8s-objects
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        output: parameter.objects[0]
+        outputs: {
+          for i, v in parameter.objects {
+            if i > 0 {
+              "objects-\(i)": v
+            }
+          }
+        }
+        parameter: objects: [...{}]
 `
 )
 

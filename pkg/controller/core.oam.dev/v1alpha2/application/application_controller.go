@@ -176,8 +176,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
-	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
-	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
 	if !appWillRollout(app) {
 		steps, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, handler.currentAppRev)
@@ -186,6 +184,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
 		}
+		app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 		wf := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode)
 		workflowState, err := wf.ExecuteSteps(logCtx.Fork("workflow"), handler.currentAppRev, steps)
 		if err != nil {
@@ -201,7 +201,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		switch workflowState {
 		case common.WorkflowStateInitializing:
 			logCtx.Info("Workflow return state=Initializing")
-			return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, app, common.ApplicationRunningWorkflow)
+			return ctrl.Result{}, r.updateStatusWithRetryOnConflict(logCtx, app, common.ApplicationRunningWorkflow)
 		case common.WorkflowStateSuspended:
 			logCtx.Info("Workflow return state=Suspend")
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
@@ -214,7 +214,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case common.WorkflowStateExecuting:
 			logCtx.Info("Workflow return state=Executing")
 			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
-			return reconcile.Result{RequeueAfter: time.Duration(wf.GetBackoffWaitTime() * int(time.Second))}, err
+			return reconcile.Result{RequeueAfter: time.Duration(int(wf.GetBackoffWaitTime() * float64(time.Millisecond) * 1000))}, err
 		case common.WorkflowStateSucceeded:
 			logCtx.Info("Workflow return state=Succeeded")
 			if err := r.doWorkflowFinish(logCtx, app, wf); err != nil {
@@ -238,6 +238,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
 		}
+		app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
 		assemble.HandleCheckManageWorkloadTrait(*handler.currentAppRev, comps)
 
@@ -410,13 +412,29 @@ func (r *Reconciler) patchStatusWithRetryOnConflict(ctx context.Context, app *v1
 	})
 }
 
+// Note: Only operations that must override the status should use this function, it should only focus on workflow operations by now.
+func (r *Reconciler) updateStatusWithRetryOnConflict(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
+	app.Status.Phase = phase
+	updateObservedGeneration(app)
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		status := app.Status.DeepCopy()
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
+			return errors.WithMessage(err, "failed to get application while patching status")
+		}
+		app.Status = *status
+		err := r.Status().Update(ctx, app)
+		if err != nil {
+			return errors.WithMessage(err, "failed to re-patch status")
+		}
+		return nil
+	})
+}
+
 func (r *Reconciler) doWorkflowFinish(ctx monitorContext.Context, app *v1beta1.Application, wf workflow.Workflow) error {
 	if err := wf.Trace(); err != nil {
 		return errors.WithMessage(err, "record workflow state")
 	}
-	if err := wf.Cleanup(ctx); err != nil {
-		return errors.WithMessage(err, "cleanup workflow")
-	}
+	wf.Cleanup(ctx)
 	app.Status.Workflow.Finished = true
 	return nil
 }

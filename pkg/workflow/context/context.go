@@ -126,16 +126,15 @@ func (wf *WorkflowContext) IncreaseModifiableCountValue(paths ...string) int {
 	c := wf.GetModifiableValue(paths...)
 	if c == "" {
 		wf.SetModifiableValue("0", paths...)
-		wf.modified = true
 		return 0
 	}
 	count, err := strconv.Atoi(c)
 	if err != nil {
-		count = 0
+		wf.SetModifiableValue("0", paths...)
+		return 0
 	}
 	count++
 	wf.SetModifiableValue(strconv.Itoa(count), paths...)
-	wf.modified = true
 	return count
 }
 
