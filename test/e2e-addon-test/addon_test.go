@@ -37,8 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-// todo(qiaozp) pending because of catalog incompatible changes
-var _ = PDescribe("Addon tests", func() {
+var _ = Describe("Addon tests", func() {
 	ctx := context.Background()
 	var namespaceName string
 	var ns corev1.Namespace

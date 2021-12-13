@@ -122,7 +122,7 @@ var velaRegistry = `
 apiVersion: v1
 data:
   registries: '{ "KubeVela":{ "name": "KubeVela", "oss": { "end_point": "http://REGISTRY_ADDR",
-    "bucket": "", "path": "stable" } } }'
+    "bucket": "" } } }'
 kind: ConfigMap
 metadata:
   name: vela-addon-registry
