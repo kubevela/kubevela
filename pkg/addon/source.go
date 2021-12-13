@@ -28,7 +28,6 @@ import (
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -47,8 +46,8 @@ const (
 
 // Source is where to get addons
 type Source interface {
-	GetAddon(name string, opt ListOptions) (*types.Addon, error)
-	ListAddons(opt ListOptions) ([]*types.Addon, error)
+	GetAddon(name string, opt ListOptions) (*Addon, error)
+	ListAddons(opt ListOptions) ([]*Addon, error)
 }
 
 // GitAddonSource defines the information about the Git as addon source
@@ -65,7 +64,7 @@ type OSSAddonSource struct {
 }
 
 // GetAddon from OSSAddonSource
-func (o *OSSAddonSource) GetAddon(name string, opt ListOptions) (*types.Addon, error) {
+func (o *OSSAddonSource) GetAddon(name string, opt ListOptions) (*Addon, error) {
 	reader, err := NewAsyncReader(o.EndPoint, o.Bucket, "", ossType)
 	if err != nil {
 		return nil, err
@@ -78,7 +77,7 @@ func (o *OSSAddonSource) GetAddon(name string, opt ListOptions) (*types.Addon, e
 }
 
 // ListAddons from OSSAddonSource
-func (o *OSSAddonSource) ListAddons(opt ListOptions) ([]*types.Addon, error) {
+func (o *OSSAddonSource) ListAddons(opt ListOptions) ([]*Addon, error) {
 	reader, err := NewAsyncReader(o.EndPoint, o.Bucket, "", ossType)
 	if err != nil {
 		return nil, err
@@ -91,7 +90,7 @@ func (o *OSSAddonSource) ListAddons(opt ListOptions) ([]*types.Addon, error) {
 }
 
 // GetAddon get an addon info from GitAddonSource, can be used for get or enable
-func (git *GitAddonSource) GetAddon(name string, opt ListOptions) (*types.Addon, error) {
+func (git *GitAddonSource) GetAddon(name string, opt ListOptions) (*Addon, error) {
 	reader, err := NewAsyncReader(git.URL, git.Path, git.Token, gitType)
 	if err != nil {
 		return nil, err
@@ -104,7 +103,7 @@ func (git *GitAddonSource) GetAddon(name string, opt ListOptions) (*types.Addon,
 }
 
 // ListAddons list addons' info from GitAddonSource
-func (git *GitAddonSource) ListAddons(opt ListOptions) ([]*types.Addon, error) {
+func (git *GitAddonSource) ListAddons(opt ListOptions) ([]*Addon, error) {
 	r, err := NewAsyncReader(git.URL, git.Path, git.Token, "git")
 	if err != nil {
 		return nil, err
@@ -130,7 +129,7 @@ type AsyncReader interface {
 	// Read should accept relative path to github repo/path or OSS bucket
 	Read(path string) (content string, subItem []Item, err error)
 	// Addon returns a addon to be readed
-	Addon() *types.Addon
+	Addon() *Addon
 	// SendErr to outside and quit
 	SendErr(err error)
 	// ErrCh will get the reader's channel to send error
@@ -145,14 +144,14 @@ type AsyncReader interface {
 
 // baseReader will contain basic parts for async reading addon file
 type baseReader struct {
-	a       *types.Addon
+	a       *Addon
 	errChan chan error
 	// mutex is needed when append to addon's Definitions/CUETemplate/YAMLTemplate slices
 	mutex *sync.Mutex
 }
 
 // Addon for baseReader
-func (b *baseReader) Addon() *types.Addon {
+func (b *baseReader) Addon() *Addon {
 	return b.a
 }
 
@@ -184,7 +183,7 @@ type gitReader struct {
 func (g *gitReader) WithNewAddonAndMutex() AsyncReader {
 	return &gitReader{
 		baseReader: baseReader{
-			a:       &types.Addon{},
+			a:       &Addon{},
 			errChan: make(chan error),
 			mutex:   &sync.Mutex{},
 		},
@@ -323,7 +322,7 @@ func (o *ossReader) RelativePath(item Item) string {
 func (o *ossReader) WithNewAddonAndMutex() AsyncReader {
 	return &ossReader{
 		baseReader: baseReader{
-			a:       &types.Addon{},
+			a:       &Addon{},
 			errChan: make(chan error),
 			mutex:   &sync.Mutex{},
 		},
@@ -345,7 +344,7 @@ const (
 // 2. OSS endpoint and bucket
 func NewAsyncReader(baseURL, dirOrBucket, token string, rdType ReaderType) (AsyncReader, error) {
 	bReader := baseReader{
-		a:       &types.Addon{},
+		a:       &Addon{},
 		errChan: make(chan error),
 		mutex:   &sync.Mutex{},
 	}

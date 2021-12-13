@@ -61,8 +61,8 @@ type AddonUsecase interface {
 	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 }
 
-// AddonImpl2AddonRes convert types.Addon to the type apiserver need
-func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
+// AddonImpl2AddonRes convert pkgaddon.Addon to the type apiserver need
+func AddonImpl2AddonRes(impl *pkgaddon.Addon) (*apis.DetailAddonResponse, error) {
 	var defs []*apis.AddonDefinition
 	for _, def := range impl.Definitions {
 		obj := &unstructured.Unstructured{}
@@ -78,7 +78,7 @@ func AddonImpl2AddonRes(impl *types.Addon) (*apis.DetailAddonResponse, error) {
 		})
 	}
 	return &apis.DetailAddonResponse{
-		AddonMeta:   impl.AddonMeta,
+		Meta:        impl.Meta,
 		APISchema:   impl.APISchema,
 		UISchema:    impl.UISchema,
 		Detail:      impl.Detail,
@@ -115,7 +115,7 @@ type addonUsecaseImpl struct {
 
 // GetAddon will get addon information
 func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
-	var addon *types.Addon
+	var addon *pkgaddon.Addon
 	var err error
 	var exist bool
 
@@ -200,8 +200,8 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 }
 
 func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error) {
-	var addons []*types.Addon
-	var listAddons []*types.Addon
+	var addons []*pkgaddon.Addon
+	var listAddons []*pkgaddon.Addon
 	rs, err := u.ListAddonRegistries(ctx)
 	if err != nil {
 		return nil, err
@@ -238,7 +238,7 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 	}
 
 	if query != "" {
-		var filtered []*types.Addon
+		var filtered []*pkgaddon.Addon
 		for i, addon := range addons {
 			if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
 				filtered = append(filtered, addons[i])
@@ -338,7 +338,7 @@ func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 	return list, nil
 }
 
-func (u *addonUsecaseImpl) tryGetAddonFromCache(registry, addonName string) (*types.Addon, bool) {
+func (u *addonUsecaseImpl) tryGetAddonFromCache(registry, addonName string) (*pkgaddon.Addon, bool) {
 	if u.isRegistryCacheUpToDate(registry) {
 		addons := u.getRegistryCache(registry)
 		for _, a := range addons {
@@ -351,7 +351,7 @@ func (u *addonUsecaseImpl) tryGetAddonFromCache(registry, addonName string) (*ty
 }
 
 func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
-	var addon *types.Addon
+	var addon *pkgaddon.Addon
 	var err error
 	registries, err := u.ListAddonRegistries(ctx)
 	if err != nil {
@@ -379,11 +379,11 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 	return bcode.ErrAddonNotExist
 }
 
-func (u *addonUsecaseImpl) getRegistryCache(name string) []*types.Addon {
-	return u.addonRegistryCache[name].GetData().([]*types.Addon)
+func (u *addonUsecaseImpl) getRegistryCache(name string) []*pkgaddon.Addon {
+	return u.addonRegistryCache[name].GetData().([]*pkgaddon.Addon)
 }
 
-func (u *addonUsecaseImpl) putRegistryCache(name string, addons []*types.Addon) {
+func (u *addonUsecaseImpl) putRegistryCache(name string, addons []*pkgaddon.Addon) {
 	u.addonRegistryCache[name] = restutils.NewMemoryCache(addons, time.Minute*10)
 }
 
@@ -436,7 +436,7 @@ func (u *addonUsecaseImpl) UpdateAddon(ctx context.Context, name string, args ap
 		return err
 	}
 
-	var addon *types.Addon
+	var addon *pkgaddon.Addon
 	registries, err := u.ListAddonRegistries(ctx)
 	if err != nil {
 		return err
@@ -472,7 +472,7 @@ func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegist
 	}
 }
 
-func mergeAddons(a1, a2 []*types.Addon) []*types.Addon {
+func mergeAddons(a1, a2 []*pkgaddon.Addon) []*pkgaddon.Addon {
 	for _, item := range a2 {
 		if hasAddon(a1, item.Name) {
 			continue
@@ -482,7 +482,7 @@ func mergeAddons(a1, a2 []*types.Addon) []*types.Addon {
 	return a1
 }
 
-func hasAddon(addons []*types.Addon, name string) bool {
+func hasAddon(addons []*pkgaddon.Addon, name string) bool {
 	for _, addon := range addons {
 		if addon.Name == name {
 			return true

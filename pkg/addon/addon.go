@@ -96,8 +96,8 @@ var (
 )
 
 // GetAddonsFromReader list addons from AsyncReader
-func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*types.Addon, error) {
-	var addons []*types.Addon
+func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*Addon, error) {
+	var addons []*Addon
 	var err error
 	var wg sync.WaitGroup
 	var errs []error
@@ -158,7 +158,7 @@ func compactErrors(message string, errs []error) error {
 }
 
 // GetSingleAddonFromReader read single addon from Reader
-func GetSingleAddonFromReader(r AsyncReader, addonName string, opt ListOptions) (*types.Addon, error) {
+func GetSingleAddonFromReader(r AsyncReader, addonName string, opt ListOptions) (*Addon, error) {
 	var wg sync.WaitGroup
 	var errs []error
 	waitCh := make(chan struct{})
@@ -220,8 +220,8 @@ forLoop:
 	return r.Addon(), nil
 }
 
-// appendFile will add AddonElementFile to a slice, lock to avoid goroutine race
-func appendFile(lock *sync.Mutex, slice *[]types.AddonElementFile, file types.AddonElementFile) {
+// appendFile will add ElementFile to a slice, lock to avoid goroutine race
+func appendFile(lock *sync.Mutex, slice *[]ElementFile, file ElementFile) {
 	lock.Lock()
 	*slice = append(*slice, file)
 	lock.Unlock()
@@ -296,7 +296,7 @@ func readResFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		reader.Addon().Parameters = b
 		return
 	}
-	file := types.AddonElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: path.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		appendFile(reader.Mutex(), &reader.Addon().CUETemplates, file)
@@ -313,7 +313,7 @@ func readDefSchemaFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) 
 		reader.SendErr(err)
 		return
 	}
-	reader.Addon().DefSchemas = append(reader.Addon().DefSchemas, types.AddonElementFile{Data: b, Name: path.Base(readPath)})
+	reader.Addon().DefSchemas = append(reader.Addon().DefSchemas, ElementFile{Data: b, Name: path.Base(readPath)})
 }
 
 func readDefinitions(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
@@ -344,7 +344,7 @@ func readDefFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		return
 	}
 	filename := path.Base(readPath)
-	file := types.AddonElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: path.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		appendFile(reader.Mutex(), &reader.Addon().CUEDefinitions, file)
@@ -360,7 +360,7 @@ func readMetadata(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
 		reader.SendErr(err)
 		return
 	}
-	err = yaml.Unmarshal([]byte(b), &reader.Addon().AddonMeta)
+	err = yaml.Unmarshal([]byte(b), &reader.Addon().Meta)
 	if err != nil {
 		reader.SendErr(err)
 		return
@@ -400,7 +400,7 @@ func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []
 	return file, items, nil
 }
 
-func genAddonAPISchema(addonRes *types.Addon) error {
+func genAddonAPISchema(addonRes *Addon) error {
 	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
 	if err != nil {
 		return err
@@ -424,7 +424,7 @@ func genAddonAPISchema(addonRes *types.Addon) error {
 }
 
 // RenderApp render a K8s application
-func RenderApp(addon *types.Addon, config *rest.Config, args map[string]interface{}) (*v1beta1.Application, error) {
+func RenderApp(addon *Addon, config *rest.Config, args map[string]interface{}) (*v1beta1.Application, error) {
 	if args == nil {
 		args = map[string]interface{}{}
 	}
@@ -530,7 +530,7 @@ func RenderApp(addon *types.Addon, config *rest.Config, args map[string]interfac
 }
 
 // RenderDefinitions render definition objects if needed
-func RenderDefinitions(addon *types.Addon, config *rest.Config) ([]*unstructured.Unstructured, error) {
+func RenderDefinitions(addon *Addon, config *rest.Config) ([]*unstructured.Unstructured, error) {
 	defObjs := make([]*unstructured.Unstructured, 0)
 
 	if isDeployToRuntimeOnly(addon) {
@@ -556,7 +556,7 @@ func RenderDefinitions(addon *types.Addon, config *rest.Config) ([]*unstructured
 }
 
 // RenderDefinitionSchema will render definitions' schema in addons.
-func RenderDefinitionSchema(addon *types.Addon) ([]*unstructured.Unstructured, error) {
+func RenderDefinitionSchema(addon *Addon) ([]*unstructured.Unstructured, error) {
 	schemaConfigmaps := make([]*unstructured.Unstructured, 0)
 
 	if isDeployToRuntimeOnly(addon) {
@@ -570,14 +570,14 @@ func RenderDefinitionSchema(addon *types.Addon) ([]*unstructured.Unstructured, e
 	}
 	return schemaConfigmaps, nil
 }
-func isDeployToRuntimeOnly(addon *types.Addon) bool {
+func isDeployToRuntimeOnly(addon *Addon) bool {
 	if addon.DeployTo == nil {
 		return false
 	}
 	return addon.DeployTo.RuntimeCluster
 }
 
-func renderObject(elem types.AddonElementFile) (*unstructured.Unstructured, error) {
+func renderObject(elem ElementFile) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 	_, _, err := dec.Decode([]byte(elem.Data), nil, obj)
@@ -596,7 +596,7 @@ func renderNamespace(namespace string) *unstructured.Unstructured {
 }
 
 // renderRawComponent will return a component in raw type from string
-func renderRawComponent(elem types.AddonElementFile) (*common2.ApplicationComponent, error) {
+func renderRawComponent(elem ElementFile) (*common2.ApplicationComponent, error) {
 	baseRawComponent := common2.ApplicationComponent{
 		Type: "raw",
 		Name: strings.ReplaceAll(elem.Name, ".", "-"),
@@ -609,7 +609,7 @@ func renderRawComponent(elem types.AddonElementFile) (*common2.ApplicationCompon
 	return &baseRawComponent, nil
 }
 
-func renderSchemaConfigmap(elem types.AddonElementFile) (*unstructured.Unstructured, error) {
+func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error) {
 	jsonData, err := yaml.YAMLToJSON([]byte(elem.Data))
 	if err != nil {
 		return nil, err
@@ -624,7 +624,7 @@ func renderSchemaConfigmap(elem types.AddonElementFile) (*unstructured.Unstructu
 }
 
 // renderCUETemplate will return a component from cue template
-func renderCUETemplate(elem types.AddonElementFile, parameters string, args map[string]interface{}) (*common2.ApplicationComponent, error) {
+func renderCUETemplate(elem ElementFile, parameters string, args map[string]interface{}) (*common2.ApplicationComponent, error) {
 	bt, err := json.Marshal(args)
 	if err != nil {
 		return nil, err
@@ -671,7 +671,7 @@ func Convert2AppName(name string) string {
 }
 
 // RenderArgsSecret render addon enable argument to secret
-func RenderArgsSecret(addon *types.Addon, args map[string]interface{}) *unstructured.Unstructured {
+func RenderArgsSecret(addon *Addon, args map[string]interface{}) *unstructured.Unstructured {
 	data := make(map[string]string)
 	for k, v := range args {
 		switch v := v.(type) {
@@ -705,7 +705,7 @@ func Convert2SecName(name string) string {
 // Handler helps addon enable, dependency-check, dispatch resources
 type Handler struct {
 	ctx    context.Context
-	addon  *types.Addon
+	addon  *Addon
 	config *rest.Config
 	cli    client.Client
 	apply  apply.Applicator
@@ -713,7 +713,7 @@ type Handler struct {
 	args   map[string]interface{}
 }
 
-func newAddonHandler(ctx context.Context, addon *types.Addon, cli client.Client, apply apply.Applicator, config *rest.Config, source Source, args map[string]interface{}) Handler {
+func newAddonHandler(ctx context.Context, addon *Addon, cli client.Client, apply apply.Applicator, config *rest.Config, source Source, args map[string]interface{}) Handler {
 	return Handler{
 		ctx:    ctx,
 		addon:  addon,

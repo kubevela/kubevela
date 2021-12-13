@@ -97,7 +97,7 @@ type EnableAddonRequest struct {
 
 // ListAddonResponse defines the format for addon list response
 type ListAddonResponse struct {
-	Addons []*types.AddonMeta `json:"addons"`
+	Addons []*addon.Meta `json:"addons"`
 }
 
 // ListEnabledAddonResponse defines the format for enabled addon list response
@@ -107,7 +107,7 @@ type ListEnabledAddonResponse struct {
 
 // DetailAddonResponse defines the format for showing the addon details
 type DetailAddonResponse struct {
-	types.AddonMeta
+	addon.Meta
 
 	APISchema *openapi3.Schema     `json:"schema"`
 	UISchema  []*utils.UIParameter `json:"uiSchema"`
