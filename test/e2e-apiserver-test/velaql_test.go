@@ -267,7 +267,7 @@ var _ = Describe("Test velaQL rest api", func() {
 
 		Eventually(func() error {
 			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
 			)
 			if err != nil {
 				return err
@@ -277,20 +277,150 @@ var _ = Describe("Test velaQL rest api", func() {
 			}
 			defer queryRes.Body.Close()
 
-			type queryResult struct {
-				PodList []interface{} `json:"podList,omitempty"`
-				Error   interface{}   `json:"error,omitempty"`
-			}
-			status := new(queryResult)
+			status := new(Status)
 			err = json.NewDecoder(queryRes.Body).Decode(status)
 			if err != nil {
 				return err
 			}
-			if status.Error != nil {
+			if status.Error != "" {
 				return errors.Errorf("error %v", status.Error)
 			}
 			if len(status.PodList) == 0 {
 				return errors.New("pod list is 0")
+			}
+			return nil
+		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+	})
+
+	It("Test collect legacy resources from application", func() {
+		appWithGC := new(v1beta1.Application)
+		Expect(yaml.Unmarshal([]byte(appWithGCPolicy), appWithGC)).Should(BeNil())
+		req := apiv1.ApplicationRequest{
+			Components: appWithGC.Spec.Components,
+			Policies:   appWithGC.Spec.Policies,
+		}
+		bodyByte, err := json.Marshal(req)
+		Expect(err).Should(BeNil())
+		res, err := http.Post(
+			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appWithGC.Name),
+			"application/json",
+			bytes.NewBuffer(bodyByte),
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(res.StatusCode).Should(Equal(200))
+
+		newApp := new(v1beta1.Application)
+		Eventually(func() error {
+			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appWithGC.Name, Namespace: namespace}, newApp); err != nil {
+				return err
+			}
+			if newApp.Status.Phase != common2.ApplicationRunning {
+				return errors.New("application is not ready")
+			}
+			return nil
+		}, 2*time.Minute, 1*time.Second).Should(BeNil())
+
+		Eventually(func() error {
+			queryRes, err := http.Get(
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"),
+			)
+			if err != nil {
+				return err
+			}
+			if queryRes.StatusCode != 200 {
+				return errors.Errorf("status code is %d", queryRes.StatusCode)
+			}
+			defer queryRes.Body.Close()
+
+			status := new(Status)
+			err = json.NewDecoder(queryRes.Body).Decode(status)
+			if err != nil {
+				return err
+			}
+			if status.Error != "" {
+				return errors.Errorf("error %v", status.Error)
+			}
+			if len(status.PodList) != 1 {
+				return errors.New("pod is not ready")
+			}
+			return nil
+		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+
+		appWithGC.Spec.Components[0].Name = "new-express-server"
+		updateReq := apiv1.ApplicationRequest{
+			Components: appWithGC.Spec.Components,
+			Policies:   appWithGC.Spec.Policies,
+		}
+		bodyByte, err = json.Marshal(updateReq)
+		Expect(err).Should(BeNil())
+		res, err = http.Post(
+			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appWithGC.Name),
+			"application/json",
+			bytes.NewBuffer(bodyByte),
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(res.StatusCode).Should(Equal(200))
+
+		Eventually(func() error {
+			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appWithGC.Name, Namespace: namespace}, newApp); err != nil {
+				return err
+			}
+			if newApp.Status.Phase != common2.ApplicationRunning {
+				return errors.New("application is not ready")
+			}
+			return nil
+		}, 2*time.Minute, 1*time.Second).Should(BeNil())
+
+		Eventually(func() error {
+			queryRes, err := http.Get(
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"),
+			)
+			if err != nil {
+				return err
+			}
+			if queryRes.StatusCode != 200 {
+				return errors.Errorf("status code is %d", queryRes.StatusCode)
+			}
+			defer queryRes.Body.Close()
+
+			status := new(Status)
+			err = json.NewDecoder(queryRes.Body).Decode(status)
+			if err != nil {
+				return err
+			}
+			if status.Error != "" {
+				return errors.Errorf("error %v", status.Error)
+			}
+			if len(status.PodList) != 1 {
+				return errors.New("pod is not ready")
+			}
+			return nil
+		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+
+		Eventually(func() error {
+			queryRes, err := http.Get(
+				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "new-express-server", "status"),
+			)
+			if err != nil {
+				return err
+			}
+			if queryRes.StatusCode != 200 {
+				return errors.Errorf("status code is %d", queryRes.StatusCode)
+			}
+			defer queryRes.Body.Close()
+
+			status := new(Status)
+			err = json.NewDecoder(queryRes.Body).Decode(status)
+			if err != nil {
+				return err
+			}
+			if status.Error != "" {
+				return errors.Errorf("error %v", status.Error)
+			}
+			if len(status.PodList) != 1 {
+				return errors.New("pod is not ready")
 			}
 			return nil
 		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
@@ -347,4 +477,23 @@ spec:
         url: https://stefanprodan.github.io/podinfo
         repoType: helm
         version: 5.1.2
+`
+
+var appWithGCPolicy = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-with-gc-policy
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+  policies:
+    - name: keep-legacy-resource
+      type: garbage-collect
+      properties:
+        keepLegacyResource: true
 `

@@ -58,6 +58,7 @@ find ./kubevela-core-api -type f -name "*.go" -print0 | xargs -0 sed -i 's|githu
 
 echo "test api"
 cd kubevela-core-api
+go mod tidy
 go build test/main.go
 
 echo "push to kubevela-core-api"
